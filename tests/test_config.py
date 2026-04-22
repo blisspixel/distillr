@@ -1,0 +1,156 @@
+from pathlib import Path
+
+from distill.config import DistillConfig, sanitize_path_component, slugify_title
+
+
+class TestDistillConfig:
+    def test_default_config(self, tmp_path, monkeypatch):
+        """Config loads with empty defaults when no env vars or .env exists."""
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("SCRIBE_PATH", raising=False)
+        config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
+        assert config.xai_api_key == ""
+        assert config.gemini_api_key == ""
+        assert config.distill_default_months == 1
+        assert config.xai_model_for("analysis") == "grok-4-1-fast-reasoning"
+        assert config.xai_model_for("site") == "grok-4.20-0309-reasoning"
+
+    def test_custom_config(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="xai-test",
+            gemini_api_key="gem-test",
+            distill_output_dir=tmp_path / "mylib",
+            distill_default_months=6,
+        )
+        assert config.xai_api_key == "xai-test"
+        assert config.distill_default_months == 6
+
+    def test_xai_model_overrides(self, tmp_path):
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "lib",
+            xai_analysis_model="grok-4.20",
+            xai_site_model="grok-4.20-latest",
+            accordion_section_model="grok-4.20",
+        )
+        assert config.xai_model_for("analysis") == "grok-4.20"
+        assert config.xai_model_for("site") == "grok-4.20-latest"
+        assert config.xai_model_for("accordion") == "grok-4.20"
+
+    def test_library_dir_property(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        assert config.library_dir == tmp_path / "lib"
+
+    def test_topics_dir(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        assert config.topics_dir() == tmp_path / "lib" / "topics"
+
+    def test_topic_dir(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        assert config.topic_dir("ai") == tmp_path / "lib" / "topics" / "ai"
+
+    def test_channel_dir(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.channel_dir("ai", "TestCh")
+        assert result == tmp_path / "lib" / "topics" / "ai" / "channels" / "TestCh"
+
+    def test_channel_dir_sanitizes_windows_invalid_characters(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.channel_dir("ai", "AI News & Strategy Daily | Nate B Jones")
+        assert (
+            result
+            == tmp_path
+            / "lib"
+            / "topics"
+            / "ai"
+            / "channels"
+            / "AI News & Strategy Daily - Nate B Jones"
+        )
+
+    def test_videos_dir(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.videos_dir("ai", "TestCh")
+        assert result == tmp_path / "lib" / "topics" / "ai" / "channels" / "TestCh" / "videos"
+
+    def test_video_dir(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.video_dir("ai", "TestCh", "abc123")
+        assert (
+            result
+            == tmp_path / "lib" / "topics" / "ai" / "channels" / "TestCh" / "videos" / "abc123"
+        )
+
+    def test_path_methods_return_path_objects(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        assert isinstance(config.topics_dir(), Path)
+        assert isinstance(config.topic_dir("x"), Path)
+        assert isinstance(config.channel_dir("x", "y"), Path)
+        assert isinstance(config.videos_dir("x", "y"), Path)
+        assert isinstance(config.video_dir("x", "y", "z"), Path)
+
+    def test_library_dir_resolves_relative_paths(self):
+        config = DistillConfig(distill_output_dir=Path("./library"))
+        assert config.library_dir.is_absolute()
+
+    def test_library_dir_preserves_absolute_paths(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        assert config.library_dir == tmp_path / "lib"
+
+    def test_special_characters_in_names(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        config.channel_dir("ai-ml", "Some_Channel-2")
+        config.video_dir("ai", "Ch", "dQw4w9WgXcQ")
+
+    def test_video_dir_slug(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.video_dir_slug("ai", "TestCh", "My Great Video!", "abc12345")
+        assert "my-great-video" in result.name
+        assert "abc12345" in result.name
+
+
+class TestPathSanitization:
+    def test_sanitize_path_component_replaces_reserved_chars(self):
+        assert sanitize_path_component('A<B>:C"D/E\\F|G?H*I') == "A-B-C-D-E-F-G-H-I"
+
+    def test_sanitize_path_component_trims_spaces_and_dots(self):
+        assert sanitize_path_component("  name.  ") == "name"
+
+
+class TestSlugifyTitle:
+    def test_basic_slugify(self):
+        assert slugify_title("Hello World", "abc") == "hello-world_abc"
+
+    def test_special_characters(self):
+        result = slugify_title("GPT-5.4 Production DB Safety!", "xyz12345")
+        assert result == "gpt-5-4-production-db-safety_xyz12345"
+
+    def test_apostrophes_removed(self):
+        result = slugify_title("What's Next for AI?", "abc12345")
+        assert result == "whats-next-for-ai_abc12345"
+
+    def test_dollar_signs(self):
+        result = slugify_title("The $0.10 System", "vid123")
+        assert "0-10-system" in result
+
+    def test_truncation(self):
+        long_title = "A" * 100
+        result = slugify_title(long_title, "id")
+        assert len(result) <= 70
+
+    def test_no_video_id(self):
+        result = slugify_title("Simple Title")
+        assert result == "simple-title"
+        assert "_" not in result
+
+    def test_no_leading_trailing_hyphens(self):
+        result = slugify_title("---weird---title---", "id")
+        assert not result.startswith("-")
+
+    def test_collapses_multiple_hyphens(self):
+        result = slugify_title("this   has   spaces", "id")
+        assert "--" not in result
+
+    def test_empty_title(self):
+        result = slugify_title("", "abc12345")
+        assert result == "_abc12345"

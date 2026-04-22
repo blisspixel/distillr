@@ -1,0 +1,167 @@
+# Full roadmap (detail)
+
+The short public summary lives at [`../ROADMAP.md`](../ROADMAP.md). This file is the un-trimmed backlog with priority breakdowns by area — useful if you're considering contributing or want to see how something specific is prioritized.
+
+Shipped work lives in [`../CHANGELOG.md`](../CHANGELOG.md) (the 0.1.0 entry covers the initial public release; the "Pre-release Development" section covers everything built before that).
+
+## Current Direction
+
+Distill is a source-to-intelligence platform with three active source types:
+
+- YouTube for staying current on channels and topics
+- Websites for vendor, lab, and research-corpus distillation
+- arXiv papers, using the same capture -> analyze -> synthesize -> report pipeline
+
+Current UX priorities:
+
+- Make the website workflow feel first-class instead of command-by-command
+- Keep the YouTube "stay current" path fast and obvious
+- Goal-aware discovery as the front door when the user has a research goal rather than a keyword query (`distill discover` shipped; next: websites in the source pool, watch integration for goal files)
+- Improve handoff and notification paths so Distill works as a daily-driver research system, not just a batch CLI
+- Move the corpus toward an Obsidian-native "living wiki" shape (see section 10)
+
+## Next Up
+
+The work ahead is ordered around the product's three core jobs:
+
+1. Stay current on fast-moving topics
+2. Learn a source set quickly
+3. Build a reusable corpus for deeper reporting and agent workflows
+
+The broader direction is for Distill to work well as the research-and-corpus layer
+in multi-agent systems — a tool other agents can query via MCP to get grounded,
+structured intelligence without duplicating ingestion work. The priorities below
+build toward that: tighter outputs, cleaner handoffs, and interoperability with
+orchestration layers.
+
+Legend: `[ ]` not started, `[~]` partial / in progress, `[x]` shipped (item will
+be moved to `CHANGELOG.md` on next release).
+
+### 1. Make "Stay Current" a first-class workflow
+
+- [x] Recurring topic-watch objects with daily or weekly cadence
+- [x] Topic-watch ranking modes (freshness, balanced, popularity)
+- [x] "What changed" outputs between topic-watch runs so recurring monitoring is more useful than rerunning `latest`
+- [~] Proactive freshness alerts after catch-up or scheduled refresh. CLI-native watch-alert digests persist to `library/watch_alerts.md`, and the same alert stream is exposed via MCP at `distill://watch-alerts`. Outbound channels (email, Slack) are still pending.
+- [ ] Unified watch model that blends creator monitoring and topic discovery when needed, while keeping the distinction legible in the UX
+- [~] Trend radar and evolution timelines so users can see trajectory over time, not just the latest snapshot
+
+### 2. Build a real dashboard and cost surface
+
+- [x] `distill` with no args is a dashboard for tracked topics, tracked channels, recent runs, failures, and outputs
+- [~] Projected next-run cost by workflow, not just historical spend
+- [~] Rolling cost by topic and source type so users can see where spend is going
+- [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place
+- [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
+- [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
+
+### 3. Productize the core workflow
+
+- [~] Make the command model more intent-first around staying current, learning fast, and reporting
+- [~] Intent-first aliases or a lightweight wizard for recurring jobs such as monitor, ramp-up, and report
+- [x] Checked-in seed-file example for site batches (`configs/example_seeds.json`; user-local `configs/*_seeds.json` are git-ignored)
+- [x] Multi-topic, context-shaped briefings and syntheses (`distill research-brief` + `distill synthesize`) with a TEMPLATE context file so user context files stay local
+- [ ] Make source-set inputs feel first-class instead of relying on one-off command choreography
+- [ ] Clarify corpus outputs and how to inspect or export them for downstream use
+- [~] Export / handoff presets for downstream agent roles and RAG pipelines (for example zipped MD/JSON bundles with clean metadata, confidence tags, and structured fields that consuming agents can act on without parsing prose)
+
+### 4. Tighten the YouTube experience
+
+- [ ] Live cost ticker during runs (estimated from token counts)
+- [ ] Total content stats in discovery ("Found 88 videos + 12 Shorts, ~47 hours of content")
+- [x] `distill diff <topic>` — show what changed since the last watch run or fallback window (new videos, pages, papers, refreshed outputs)
+- [x] Trend detection across recorded topic change windows (`distill trends`)
+- [~] Research history — track how findings evolve over time, diff between runs
+- [ ] Multi-pass escalation on demand so catch-up can stay cheap by default and selectively deepen only the highest-signal items
+- [ ] Persist creator voice / bias cards so synthesis can account for recurring framing, reliability, and drift over time
+
+### 5. Finish website productization
+
+- [x] Generic website distillation — single URL or curated URL list input, browser-first crawl, per-page insights, site/topic synthesis, Deep Research report assembly
+- [x] Model policy by workload — keep cheap bulk-video defaults while using premium Grok models for website/page distillation where higher fidelity matters
+- [ ] Website UX polish — checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
+- [ ] Better crawl boundary controls — keep site batches close to the intended section or branch by default
+- [~] Attachment ingestion — inventory embedded PDFs/videos and optionally pull PDF text or supported embedded-video transcripts into website runs
+- [ ] Mixed exact-page and shallow-crawl workflows that are easier to understand and safer by default
+- [~] Section-aware freshness so website refreshes focus on changed branches instead of re-crawling everything
+
+### 6. Papers as a first-class source type
+
+- [x] arXiv discovery with ranking by topic fit. `distill papers` now expands the user query into up to six arXiv search variants, dedupes by `paper_id`, LLM-reranks with `RankedPaper` (relevance / depth / novelty / credibility), and supports `--preview` before ingestion. Multi-word phrase-match brittleness was fixed (2 words phrase, 3+ AND-joined).
+- [ ] Semantic Scholar and Google Scholar integration for recency + citation-weighted ranking signals beyond arXiv.
+- [x] Paper ingestion pipeline — PDF/text extraction (pypdf, 100K char cap, surrogate-sanitized), paper-specific analysis via Grok 4.20, per-paper insights, paper-level and mixed-source corpus synthesis
+- [x] Paper-specific storage and metadata conventions that match the existing corpus model
+- [x] Paper-first workflows for "learn this research area fast" — `distill papers <query> --topic <name> --limit N` pulls LLM-ranked arXiv papers, extracts full PDF text, runs structured analysis, and produces per-topic paper synthesis without forcing YouTube- or website-shaped commands
+
+### 7. Strengthen corpus quality and reuse
+
+- [ ] Stale detection — flag insights generated with old prompt versions, suggest re-analysis
+- [ ] Auto-reanalysis triggers when prompts, models, or quality heuristics change materially
+- [ ] Duplicate detection — catch same video under multiple slugs (re-uploads, title changes)
+- [ ] Semantic deduplication across videos, pages, and papers so near-duplicates do not pollute synthesis.
+  Note: source-origin attribution is handled in synthesis/report prompts without collapsing repeated claims; any future dedup work should stay artifact-preserving.
+- [~] Insights quality check — heuristic validation (all expected sections present? suspiciously short?)
+- [~] Transcript validation — flag suspiciously short transcripts (<500 chars for a 30-minute video) as likely failed captions
+- [ ] Structured logging — proper log levels, log to file for post-run review, debug mode flag
+
+### 8. Expand cross-source intelligence
+
+- [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; deeper cross-source reasoning and dedup are still pending.
+- [x] **Goal-aware cross-source discovery** — `distill discover "<goal>"` (or `--goal-file`) generates paper + video queries from a natural-language goal, fans out, and runs a unified goal-aware rerank *across source types* before ingestion. Closes the front-door gap between "I have a keyword" and "I have a research goal."
+- [ ] Extend discover to include website seeds alongside papers + videos.
+- [ ] `distill watch` integration for goal files — re-run discover against a saved goal on a cadence so goal-driven topics refresh the same way keyword topics do.
+- [ ] Multi-topic channels — same channel filed under multiple topics with shared transcripts
+- [x] MCP-powered research-gap discovery so external agents can ask Distill what is missing and trigger follow-on ingestion
+- [ ] More source types — podcasts, RSS feeds, conference talks (same pipeline, different discovery)
+
+### 9. Ongoing operation and access
+
+- [ ] Scheduled refresh — cron/task-scheduler integration for hands-off weekly updates
+- [ ] Native notification integrations for daily briefings, weekly digests, and important-change alerts
+- [ ] Web UI — browse the library, read insights, compare channels in a browser
+
+### 10. Living Wiki Corpus (Obsidian-native, LLM-maintained)
+
+Distill's corpus is already a directory of plain-text markdown artifacts with
+structured frontmatter. Two convergent signals push toward treating that directory
+as a *living wiki* rather than a filing cabinet:
+
+- Obsidian (and the broader markdown-vault ecosystem: Logseq, Dendron, Foam) gives users a free graph view, backlink panel, and fuzzy search the moment the corpus uses `[[wiki-style links]]` and consistent frontmatter.
+- Karpathy's early-April-2026 "LLM Wiki" pattern shows that an LLM agent curating a concept-indexed markdown knowledge base produces something qualitatively different from one-shot RAG: knowledge that compounds across ingestion runs rather than evaporating after each session.
+
+The goal is for the corpus to be interoperable, compounding, and self-maintaining,
+without locking users into any particular viewer or requiring bespoke tooling.
+
+*Tier 1 — Obsidian-native output (low-effort, immediate ecosystem lift)*
+
+- [ ] Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs: when an artifact cites a paper/video/page, emit `[[papers/<slug>/insights|Paper Title]]` instead of a plain citation. Prompt-level change; file paths are already known at generation time.
+- [ ] Standardized YAML frontmatter across every artifact: `type`, `topic`, `source`, `date`, `authors`, `tags` (e.g. `#technique/tkg`, `#concept/memory-consolidation`), `confidence` (`corpus-consensus | single-paper | contested | interpretation`). Unlocks Dataview-style queries inside Obsidian.
+- [ ] `distill open --vault` (or equivalent hint in `distill dashboard`): launch the user's default markdown editor pointed at `library/`, so the free graph view and backlinks come with zero install steps.
+- [ ] Stable slug/link discipline: enforce one canonical URL per artifact so renames don't break backlinks. Link-check pass available via `distill doctor --links`.
+
+*Tier 2 — LLM-maintained concept layer (the Karpathy pattern)*
+
+- [ ] Concept extraction pass: after each ingestion run, detect named techniques, architectures, people, vendors, and methodologies mentioned across 3+ insights. Emit `library/concepts/<slug>.md` stubs with an LLM-written canonical summary and `[[backlinks]]` to every source that mentioned the concept.
+- [ ] Entity notes for people and vendors: `library/entities/<slug>.md` with role, affiliation, the sources that discuss them, and stable backlinks.
+- [ ] Intelligent merging on refresh: when a new source mentions an existing concept, the agent updates the concept note — adds new context, preserves provenance, does not overwrite prior revisions. Prior versions stay in `.history/` (append-only).
+- [ ] Contradiction flagging: when two sources make incompatible claims about a concept/entity, surface the disagreement on the concept note explicitly (and in `distill health` so stewards see it).
+- [ ] Concept/entity graph export: a `concepts.jsonl` and `entities.jsonl` suitable for programmatic downstream use (agents, RAG pipelines, external graph DBs) — parallel to the existing handoff exports.
+- [ ] Optional: `distill ingest <path>` takes a local file (PDF, markdown, clipped article) and routes it through the same capture -> analyze -> integrate pipeline, mirroring how Obsidian's Web Clipper feeds Karpathy's wiki.
+
+*Tier 3 — explicitly not in scope*
+
+- Building a graph-view UI inside distill. The Obsidian/Logseq/Dendron graph views are already good; reimplementing would duplicate effort without adding value.
+- A distill-proprietary editor, mobile app, or cloud-hosted wiki service. The whole point is plain-text markdown with no lock-in.
+- Replacing the existing hierarchical folder layout. Obsidian works fine with subfolders; concept and entity notes layer on top of the existing structure rather than replacing it.
+
+*Why this belongs on the roadmap*
+
+The Obsidian + LLM-Wiki direction fits what distill already produces. Tier 1 is
+mostly prompt and frontmatter edits — interop with an ecosystem that already solves
+visualization. Tier 2 is where distill shifts from processing sources in batches to
+maintaining a navigable knowledge base — the difference between "100 markdown files
+about TKGs" and "a TKG concept note that cites every relevant source I've ingested,
+updates on refresh, and flags when a new paper contradicts prior findings." The
+ingestion, synthesis, and per-source provenance layers needed for that already
+exist; the missing pieces are cross-linking conventions and a concept-extraction
+pass.

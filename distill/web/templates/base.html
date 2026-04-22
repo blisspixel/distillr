@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Distill{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">Distill</div>
+      <div class="tagline">Stay current. Learn fast. Build corpus.</div>
+      <nav>
+        <a href="/" class="{% if active_nav == 'dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="/topics" class="{% if active_nav == 'topics' %}active{% endif %}">Topics</a>
+        <a href="/costs" class="{% if active_nav == 'costs' %}active{% endif %}">Costs</a>
+        <a href="/watchlist" class="{% if active_nav == 'watchlist' %}active{% endif %}">Watchlist</a>
+      </nav>
+    </aside>
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script>
+    // Simple tab switching
+    document.addEventListener('click', function(e) {
+      if (!e.target.classList.contains('tab')) return;
+      var group = e.target.closest('.tabs').dataset.group;
+      document.querySelectorAll('.tab[data-group="' + group + '"]').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-content[data-group="' + group + '"]').forEach(function(t) { t.classList.remove('active'); });
+      e.target.classList.add('active');
+      document.getElementById(e.target.dataset.tab).classList.add('active');
+    });
+  </script>
+</body>
+</html>

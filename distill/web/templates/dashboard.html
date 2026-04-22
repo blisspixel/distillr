@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% set active_nav = "dashboard" %}
+
+{% block title %}Distill Dashboard{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<p class="subtitle">v{{ version }}</p>
+
+<div class="metrics" hx-get="/" hx-trigger="every 60s" hx-select=".metrics" hx-swap="outerHTML">
+  {% for label, value in [
+    ("Topics", topics|length|string),
+    ("Channels", total_channels|string),
+    ("Videos", total_videos|string),
+    ("Sites", site_count|string),
+    ("Papers", paper_count|string),
+    ("Recent Spend", "$%.2f"|format(recent_spend)),
+    ("Next Sweep", "$%.2f"|format(next_sweep_cost))
+  ] %}
+  <div class="card metric">
+    <div class="label">{{ label }}</div>
+    <div class="value">{{ value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid-3">
+  <div class="card">
+    <h2>Stay Current</h2>
+    <ul class="clean">
+      {% for t in topics[:8] %}
+      <li><a href="/topics/{{ t }}">{{ t }}</a> <span style="color:var(--muted)">{{ lib.get_channels(t)|length }} ch</span></li>
+      {% endfor %}
+    </ul>
+
+    {% if watchlist %}
+    <h3 style="margin-top:16px;">Channel Watches</h3>
+    <ul class="clean">
+      {% for w in watchlist[:6] %}
+      <li><a href="/topics/{{ w.topic }}/channels/{{ w.name }}">{{ w.name }}</a> <span style="color:var(--muted)">{{ w.topic }} / {{ w.days }}d</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if topic_watchlist %}
+    <h3 style="margin-top:16px;">Topic Watches</h3>
+    <ul class="clean">
+      {% for tw in topic_watchlist[:6] %}
+      <li>
+        {{ tw.name }}
+        <span style="color:var(--muted)">{{ tw.cadence }} / {{ tw.days }}d / {{ tw.limit }} picks</span>
+        {% if tw.paused %}<span class="badge badge-amber">paused</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Learn Fast</h2>
+    <ul class="clean">
+      <li>{{ synthesis_count }} topic syntheses</li>
+      <li>{{ report_count }} reports / {{ brief_count }} briefs</li>
+      <li>{{ page_count }} site pages</li>
+    </ul>
+
+    <h3 style="margin-top:16px;">What Changed</h3>
+    <ul class="clean">
+      {% if topic_changes %}
+        {% for topic_name, summary in topic_changes %}
+        <li><a href="/topics/{{ topic_name }}">{{ topic_name }}</a> &mdash; {{ summary }}</li>
+        {% endfor %}
+      {% elif recent_artifacts %}
+        {% for mtime, kind, label in recent_artifacts %}
+        <li>{{ kind }}: {{ label }} <span style="color:var(--muted)">{{ mtime.strftime('%b %d %I:%M %p') }}</span></li>
+        {% endfor %}
+      {% else %}
+        <li style="color:var(--muted)">No recent changes</li>
+      {% endif %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Build Corpus</h2>
+    <ul class="clean">
+      <li>{{ total_videos }} video insights ({{ full_videos }} full / {{ scan_videos }} scan)</li>
+      <li>{{ site_count }} sites / {{ page_count }} pages</li>
+      <li>{{ paper_count }} papers</li>
+    </ul>
+
+    {% if topic_spend_rollups %}
+    <h3 style="margin-top:16px;">Top Spend (30d)</h3>
+    <ul class="clean">
+      {% for topic_name, cost, runs in topic_spend_rollups %}
+      <li>{{ topic_name }} &mdash; ${{ "%.2f"|format(cost) }} / {{ runs }} runs</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if source_spend_rollups %}
+    <h3 style="margin-top:16px;">By Source (30d)</h3>
+    <ul class="clean">
+      {% for source, cost, runs in source_spend_rollups %}
+      <li>{{ source }} &mdash; ${{ "%.2f"|format(cost) }} / {{ runs }} runs</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Recent Activity</h2>
+    <table>
+      <thead><tr><th>When</th><th>Command</th><th>Cost</th><th>Time</th></tr></thead>
+      <tbody>
+        {% for entry in recent_runs|reverse %}
+        <tr>
+          <td>{{ entry.get('timestamp', '')|format_timestamp }}</td>
+          <td>{{ entry.get('command', 'unknown') }}</td>
+          <td>${{ "%.2f"|format(entry.get('actual_cost', 0)|float) }}</td>
+          <td>{{ "%.1f"|format(entry.get('elapsed_seconds', 0)|float) }}s</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="color:var(--muted)">No runs logged yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Needs Attention</h2>
+    {% if latest_results.get('failed') %}
+    <div class="attention-item">Latest run failed items: {{ latest_results.failed }}</div>
+    {% endif %}
+    {% if latest_issues %}
+    <div class="attention-item">Latest run issues: {{ latest_issues|length }}</div>
+    {% endif %}
+    {% for msg in stale_topic_watches[:5] %}
+    <div class="attention-item">{{ msg }}</div>
+    {% endfor %}
+    {% for msg in corpus_health_warnings[:5] %}
+    <div class="attention-item">{{ msg }}</div>
+    {% endfor %}
+    {% for msg in budget_messages[:5] %}
+    <div class="attention-item">{{ msg }}</div>
+    {% endfor %}
+    {% if not latest_results.get('failed') and not latest_issues and not stale_topic_watches and not corpus_health_warnings and not budget_messages %}
+    <div class="attention-item ok">No immediate issues detected</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

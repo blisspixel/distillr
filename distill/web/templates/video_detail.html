@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set active_nav = "topics" %}
+
+{% block title %}{{ meta.get('title', 'Video') }} - Distill{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="/topics">Topics</a><span class="sep">/</span><a href="/topics/{{ topic }}">{{ topic }}</a><span class="sep">/</span><a href="/topics/{{ topic }}/channels/{{ channel }}">{{ channel }}</a><span class="sep">/</span>Video
+</div>
+
+<h1>{{ meta.get('title', 'Unknown Video') }}</h1>
+<p class="subtitle">
+  {{ meta.get('upload_date', '')|format_date }}
+  &middot; {{ meta.get('duration', 0)|duration }}
+  &middot; {{ channel }}
+  {% if meta.get('url') %}
+  &middot; <a href="{{ meta.url }}" target="_blank">Watch on YouTube</a>
+  {% endif %}
+  {% if meta.get('analysis_mode') %}
+  &middot; <span class="badge badge-gray">{{ meta.analysis_mode }}</span>
+  {% endif %}
+</p>
+
+<div class="tabs" data-group="vid">
+  <button class="tab active" data-group="vid" data-tab="tab-insights">Insights</button>
+  {% if transcript %}<button class="tab" data-group="vid" data-tab="tab-transcript">Transcript</button>{% endif %}
+  <button class="tab" data-group="vid" data-tab="tab-metadata">Metadata</button>
+</div>
+
+<div id="tab-insights" class="tab-content active" data-group="vid">
+  {% if insights %}
+  <div class="card">
+    <div class="md-content">{{ insights|strip_frontmatter|markdown|safe }}</div>
+  </div>
+  {% else %}
+  <div class="card"><p style="color:var(--muted)">No insights generated yet.</p></div>
+  {% endif %}
+</div>
+
+{% if transcript %}
+<div id="tab-transcript" class="tab-content" data-group="vid">
+  <div class="card">
+    <div class="transcript">{{ transcript }}</div>
+    <p style="color:var(--muted);margin-top:8px;font-size:0.85rem;">{{ transcript|length|string }} characters</p>
+  </div>
+</div>
+{% endif %}
+
+<div id="tab-metadata" class="tab-content" data-group="vid">
+  <div class="card">
+    <pre style="font-size:0.88rem;">{{ meta|tojson(indent=2) }}</pre>
+  </div>
+</div>
+{% endblock %}
