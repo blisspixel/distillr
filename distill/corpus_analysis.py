@@ -1,0 +1,52 @@
+"""Mixed-source topic corpus synthesis."""
+
+from __future__ import annotations
+
+from distill.config import DistillConfig
+from distill.costs import CostTracker
+from distill.prompts import corpus_synthesis_prompt
+from distill.site_analysis import _call_grok, _get_client
+
+
+def synthesize_corpus(
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker | None = None,
+) -> str:
+    source_sections: dict[str, str] = {}
+
+    topic_dir = config.topic_dir(topic)
+    topic_synth = topic_dir / "topic_synthesis.md"
+    if topic_synth.exists():
+        source_sections["YouTube / Website Topic Synthesis"] = topic_synth.read_text(
+            encoding="utf-8"
+        )
+
+    paper_synth = topic_dir / "paper_synthesis.md"
+    if paper_synth.exists():
+        source_sections["Paper Synthesis"] = paper_synth.read_text(encoding="utf-8")
+
+    sites_dir = config.sites_dir(topic)
+    if sites_dir.exists():
+        for site_dir in sorted(sites_dir.iterdir()):
+            if not site_dir.is_dir():
+                continue
+            synth_file = site_dir / "synthesis.md"
+            if synth_file.exists():
+                source_sections[f"Site: {site_dir.name}"] = synth_file.read_text(encoding="utf-8")
+
+    if not source_sections:
+        return ""
+
+    client = _get_client(config)
+    model = config.xai_model_for("site")
+    synthesis = _call_grok(
+        client,
+        corpus_synthesis_prompt(topic, source_sections),
+        model=model,
+        tracker=tracker,
+        call_type="corpus_synthesis",
+    )
+    output = topic_dir / "corpus_synthesis.md"
+    output.write_text(synthesis, encoding="utf-8")
+    return synthesis

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% set active_nav = "watchlist" %}
+
+{% block title %}Watchlist - Distill{% endblock %}
+
+{% block content %}
+<h1>Watchlist</h1>
+<p class="subtitle">{{ channel_watches|length }} channel watches &middot; {{ topic_watches|length }} topic watches</p>
+
+{% if stale %}
+<div style="margin-bottom:20px;">
+  {% for msg in stale %}
+  <div class="attention-item">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Channel Watches</h2>
+    <table>
+      <thead><tr><th>Channel</th><th>Topic</th><th>Lookback</th></tr></thead>
+      <tbody>
+        {% for w in channel_watches %}
+        <tr>
+          <td><a href="/topics/{{ w.topic }}/channels/{{ w.name }}">{{ w.name }}</a></td>
+          <td><a href="/topics/{{ w.topic }}">{{ w.topic }}</a></td>
+          <td>{{ w.days }}d</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="color:var(--muted)">No channel watches configured</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Topic Watches</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Cadence</th><th>Picks</th><th>Budget</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for tw in topic_watches %}
+        {% set e = tw.entry %}
+        <tr>
+          <td>
+            {{ e.name }}
+            <div style="color:var(--muted);font-size:0.82rem;">{{ e.topic }} / {{ e.days }}d</div>
+          </td>
+          <td>{{ e.cadence }}</td>
+          <td>{{ e.limit }}</td>
+          <td>
+            ~${{ "%.2f"|format(tw.projected_cost) }}/run
+            {% if e.monthly_budget %}<br><span style="color:var(--muted)">${{ "%.2f"|format(e.monthly_budget) }}/mo</span>{% endif %}
+          </td>
+          <td>
+            {% if e.paused %}
+              <span class="badge badge-amber">paused</span>
+            {% else %}
+              <span class="badge badge-green">active</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:var(--muted)">No topic watches configured</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

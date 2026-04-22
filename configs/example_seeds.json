@@ -1,0 +1,38 @@
+{
+  "_comment": "Seed file for `distill site-batch` / `distill ramp-up configs/example_seeds.json`. Copy this file, rename it (e.g. configs/myvendor_seeds.json — gitignored), and replace the URLs below with pages you actually want to ingest. The seeds are the exact URLs distill will capture and analyze in --seed-only mode; with shallow crawl enabled, distill will follow links one hop deep inside the same section.",
+  "topic": "example",
+  "crawl": {
+    "max_depth": 1,
+    "max_pages_per_seed": 4,
+    "same_section_only": true
+  },
+  "collections": [
+    {
+      "name": "overview",
+      "label": "Overview and positioning",
+      "seeds": [
+        "https://example.com/about",
+        "https://example.com/products/overview",
+        "https://example.com/research"
+      ]
+    },
+    {
+      "name": "docs",
+      "label": "Product documentation",
+      "seeds": [
+        "https://example.com/docs/introduction",
+        "https://example.com/docs/architecture",
+        "https://example.com/docs/api-reference"
+      ]
+    },
+    {
+      "name": "thought-leadership",
+      "label": "Thought leadership and blog",
+      "seeds": [
+        "https://example.com/blog",
+        "https://example.com/insights",
+        "https://example.com/case-studies"
+      ]
+    }
+  ]
+}

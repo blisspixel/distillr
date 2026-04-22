@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% set active_nav = "topics" %}
+
+{% block title %}Topics - Distill{% endblock %}
+
+{% block content %}
+<h1>Topics</h1>
+<p class="subtitle">{{ topics|length }} topics in your library</p>
+
+<div class="topic-grid">
+  {% for t in topics %}
+  <a href="/topics/{{ t.name }}" style="text-decoration:none;color:inherit;">
+    <div class="card topic-card">
+      <div class="name">{{ t.name }}</div>
+      <div class="stats">
+        {{ t.channel_count }} channels &middot; {{ t.video_count }} videos<br>
+        {% if t.site_count %}{{ t.site_count }} sites &middot; {% endif %}
+        {% if t.paper_count %}{{ t.paper_count }} papers &middot; {% endif %}
+        {% if t.has_synthesis %}<span class="badge badge-green">synthesis</span> {% endif %}
+        {% if t.has_report %}<span class="badge badge-green">report</span> {% endif %}
+        {% if t.has_brief %}<span class="badge badge-green">brief</span> {% endif %}
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="card"><p style="color:var(--muted)">No topics yet. Run <code>distill channel</code> or <code>distill latest</code> to get started.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

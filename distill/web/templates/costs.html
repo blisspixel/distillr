@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% set active_nav = "costs" %}
+
+{% block title %}Costs - Distill{% endblock %}
+
+{% block content %}
+<h1>Costs</h1>
+<p class="subtitle">Total spend: ${{ "%.2f"|format(total_spend) }}</p>
+
+<div class="grid-2">
+  {% if topic_rollups %}
+  <div class="card">
+    <h2>By Topic (30d)</h2>
+    <table>
+      <thead><tr><th>Topic</th><th>Cost</th><th>Runs</th></tr></thead>
+      <tbody>
+        {% for topic_name, cost, runs in topic_rollups %}
+        <tr>
+          <td><a href="/topics/{{ topic_name }}">{{ topic_name }}</a></td>
+          <td>${{ "%.2f"|format(cost) }}</td>
+          <td>{{ runs }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if source_rollups %}
+  <div class="card">
+    <h2>By Source (30d)</h2>
+    <table>
+      <thead><tr><th>Source</th><th>Cost</th><th>Runs</th></tr></thead>
+      <tbody>
+        {% for source, cost, runs in source_rollups %}
+        <tr>
+          <td>{{ source }}</td>
+          <td>${{ "%.2f"|format(cost) }}</td>
+          <td>{{ runs }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h2>Recent Runs</h2>
+  <table>
+    <thead><tr><th>When</th><th>Command</th><th>Topic</th><th>Cost</th><th>Time</th><th>Videos</th></tr></thead>
+    <tbody>
+      {% for entry in entries %}
+      {% set meta = entry.get('metadata', {}) or {} %}
+      <tr>
+        <td>{{ entry.get('timestamp', '')|format_timestamp }}</td>
+        <td>{{ entry.get('command', 'unknown') }}</td>
+        <td>{% if meta.get('topic') %}<a href="/topics/{{ meta.topic }}">{{ meta.topic }}</a>{% else %}-{% endif %}</td>
+        <td>${{ "%.2f"|format(entry.get('actual_cost', 0)|float) }}</td>
+        <td>{{ "%.1f"|format(entry.get('elapsed_seconds', 0)|float) }}s</td>
+        <td>{{ meta.get('videos_processed', '-') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="color:var(--muted)">No runs logged yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
