@@ -1,0 +1,2208 @@
+"""Tests for distill CLI commands."""
+
+import json
+import os
+import zipfile
+from datetime import datetime, timedelta
+
+import pytest
+from typer.testing import CliRunner
+
+from distill import cli
+from distill.config import DistillConfig
+from distill.library import Library
+from distill.site_scraper import SitePage
+
+
+def _recent(days_ago: int = 1) -> str:
+    """Return a YYYYMMDD date string for `days_ago` days before today."""
+    return (datetime.now() - timedelta(days=days_ago)).strftime("%Y%m%d")
+
+
+runner = CliRunner()
+
+
+@pytest.fixture
+def mock_config(tmp_path):
+    """Patch get_config to return a test config."""
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    original = cli.get_config
+    original_expand = getattr(cli, "_llm_expand_learning_queries", None)
+    cli.get_config = lambda: config
+    if original_expand is not None:
+        cli._llm_expand_learning_queries = lambda *args, **kwargs: []
+    yield config
+    cli.get_config = original
+    if original_expand is not None:
+        cli._llm_expand_learning_queries = original_expand
+
+
+@pytest.fixture
+def mock_config_with_library(mock_config):
+    """Config with a pre-populated library."""
+    from distill.library import Library
+
+    lib = Library(mock_config)
+    lib.add_channel("ai", "https://www.youtube.com/@TestCh", "TestCh")
+    return mock_config
+
+
+def _populate_videos(config, topic, channel, count=3):
+    """Helper to create fake video data."""
+    from distill.state import ChannelState
+
+    for i in range(count):
+        vid_id = f"vid{i:03d}"
+        vid_dir = config.video_dir(topic, channel, vid_id)
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        meta = {
+            "video_id": vid_id,
+            "title": f"Test Video {i}",
+            "upload_date": _recent(i + 1),
+            "duration": 600 + i * 100,
+            "url": f"https://www.youtube.com/watch?v={vid_id}",
+        }
+        (vid_dir / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+        (vid_dir / "transcript.txt").write_text(f"Transcript {i}", encoding="utf-8")
+        (vid_dir / "insights.md").write_text(
+            f'---\nvideo_title: "Test {i}"\n---\n\n## Summary\nInsight {i}',
+            encoding="utf-8",
+        )
+
+    state_file = config.channel_dir(topic, channel) / "state.json"
+    state = ChannelState(state_file)
+    for i in range(count):
+        state.mark_processed(f"vid{i:03d}", f"Test Video {i}", _recent(i + 1))
+
+
+class TestTopLevelExperience:
+    def test_help_shows_intent_led_examples(self):
+        result = runner.invoke(cli.app, ["--help"])
+        assert result.exit_code == 0
+        assert "Have one YouTube URL?" in result.output
+        assert "Want recurring updates?" in result.output
+        assert "distill monitor" in result.output
+        assert "Microsoft AI news" in result.output
+
+    def test_no_args_empty_library_shows_launcher(self, mock_config, monkeypatch):
+        monkeypatch.setattr(cli, "show_banner", lambda console: None)
+        monkeypatch.setattr(cli.console, "clear", lambda: None)
+
+        result = runner.invoke(cli.app, [])
+
+        assert result.exit_code == 0
+        assert "Distill Start" in result.output
+        assert "Pick A Starting Point" in result.output
+        assert 'distill video "https://www.youtube.com/watch?v=..."' in result.output
+        assert "Recent Spend" not in result.output
+
+    def test_no_args_with_library_shows_operational_dashboard(
+        self, mock_config_with_library, monkeypatch
+    ):
+        monkeypatch.setattr(cli, "show_banner", lambda console: None)
+        monkeypatch.setattr(cli.console, "clear", lambda: None)
+
+        result = runner.invoke(cli.app, [])
+
+        assert result.exit_code == 0
+        assert "Distill Home" in result.output
+        assert "Quick commands:" in result.output
+        assert "Topics" in result.output
+
+
+class TestVideoCommand:
+    def test_video_defaults_to_artifact_links(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        info = VideoInfo(
+            "vid123",
+            "Test Video",
+            _recent(1),
+            600,
+            "https://youtube.com/watch?v=vid123",
+            "Test Channel",
+            "https://www.youtube.com/@TestChannel",
+        )
+
+        monkeypatch.setattr(cli, "get_video_info", lambda url: info)
+        monkeypatch.setattr(cli, "display_summary", lambda *args, **kwargs: None)
+
+        def fake_process(topic, channel_name, video, config, tracker, summary):
+            vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
+            vid_dir.mkdir(parents=True, exist_ok=True)
+            (vid_dir / "transcript.txt").write_text("Transcript body", encoding="utf-8")
+            (vid_dir / "insights.md").write_text(
+                "---\nvideo_title: Test Video\n---\n\n## Summary\nInsight body",
+                encoding="utf-8",
+            )
+            return True
+
+        monkeypatch.setattr(cli, "_process_video", fake_process)
+
+        result = runner.invoke(cli.app, ["video", info.url])
+
+        assert result.exit_code == 0
+        assert "transcript.txt" in result.output
+        assert "insights.md" in result.output
+        assert "Use --show to print the analysis inline" in result.output
+        assert "Insight body" not in result.output
+
+    def test_video_show_prints_analysis_inline(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        info = VideoInfo(
+            "vid123",
+            "Test Video",
+            _recent(1),
+            600,
+            "https://youtube.com/watch?v=vid123",
+            "Test Channel",
+            "https://www.youtube.com/@TestChannel",
+        )
+
+        monkeypatch.setattr(cli, "get_video_info", lambda url: info)
+        monkeypatch.setattr(cli, "display_summary", lambda *args, **kwargs: None)
+
+        def fake_process(topic, channel_name, video, config, tracker, summary):
+            vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
+            vid_dir.mkdir(parents=True, exist_ok=True)
+            (vid_dir / "transcript.txt").write_text("Transcript body", encoding="utf-8")
+            (vid_dir / "insights.md").write_text(
+                "---\nvideo_title: Test Video\n---\n\n## Summary\nInsight body",
+                encoding="utf-8",
+            )
+            return True
+
+        monkeypatch.setattr(cli, "_process_video", fake_process)
+
+        result = runner.invoke(cli.app, ["video", info.url, "--show"])
+
+        assert result.exit_code == 0
+        assert "Insight body" in result.output
+        assert "Use --show to print the analysis inline" not in result.output
+
+
+class TestLibraryCommand:
+    def test_empty_library(self, mock_config):
+        result = runner.invoke(cli.app, ["library"])
+        assert result.exit_code == 0
+        assert "empty" in result.output.lower() or "Library" in result.output
+
+    def test_library_with_channels(self, mock_config_with_library):
+        result = runner.invoke(cli.app, ["library"])
+        assert result.exit_code == 0
+        assert "TestCh" in result.output
+
+
+class TestAddCommand:
+    def test_add_channel(self, mock_config, monkeypatch):
+        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "NewChannel")
+        result = runner.invoke(cli.app, ["add", "ai", "https://www.youtube.com/@NewChannel"])
+        assert result.exit_code == 0
+        assert "Added" in result.output or "NewChannel" in result.output
+
+    def test_add_duplicate(self, mock_config_with_library, monkeypatch):
+        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "TestCh")
+        result = runner.invoke(cli.app, ["add", "ai", "https://www.youtube.com/@TestCh"])
+        assert result.exit_code == 0
+        assert "already exists" in result.output
+
+
+class TestRemoveCommand:
+    def test_remove_existing(self, mock_config_with_library):
+        result = runner.invoke(
+            cli.app, ["remove", "ai", "https://www.youtube.com/@TestCh", "--yes"]
+        )
+        assert result.exit_code == 0
+        assert "Removed" in result.output
+
+    def test_remove_nonexistent(self, mock_config_with_library):
+        result = runner.invoke(
+            cli.app, ["remove", "ai", "https://www.youtube.com/@Missing", "--yes"]
+        )
+        assert result.exit_code == 0
+        assert "Not found" in result.output
+
+
+class TestVideosCommand:
+    def test_no_channels(self, mock_config):
+        result = runner.invoke(cli.app, ["videos", "nonexistent"])
+        assert result.exit_code == 0
+        assert "No channels" in result.output
+
+    def test_videos_with_data(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["videos", "ai"])
+        assert result.exit_code == 0
+        assert "Test Video" in result.output
+
+    def test_videos_no_videos_dir(self, mock_config_with_library):
+        """Should handle channel with no videos dir."""
+        result = runner.invoke(cli.app, ["videos", "ai"])
+        assert result.exit_code == 0
+
+
+class TestShowCommand:
+    def test_show_insights(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "1"])
+        assert result.exit_code == 0
+
+    def test_show_no_videos_dir(self, mock_config_with_library):
+        """Should handle empty videos directory gracefully."""
+        result = runner.invoke(cli.app, ["show", "ai", "1"])
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()
+
+    def test_show_out_of_range(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "99"])
+        assert result.exit_code == 0
+        assert "not found" in result.output.lower()
+
+    def test_show_metadata(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "1", "--what", "metadata"])
+        assert result.exit_code == 0
+
+
+class TestRunCommand:
+    def test_run_no_topic(self, mock_config):
+        result = runner.invoke(cli.app, ["run"])
+        assert result.exit_code == 1
+
+    def test_dry_run(self, mock_config_with_library, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        monkeypatch.setattr(
+            cli,
+            "discover_videos",
+            lambda url, months, include_shorts=False: [
+                VideoInfo("v1", "Video 1", _recent(2), 600, "https://youtube.com/watch?v=v1"),
+            ],
+        )
+        result = runner.invoke(cli.app, ["run", "ai", "--dry-run"])
+        assert result.exit_code == 0
+        assert "Dry run" in result.output or "would be processed" in result.output
+
+
+class TestSynthesisCommand:
+    def test_no_synthesis(self, mock_config_with_library):
+        result = runner.invoke(cli.app, ["synthesis", "ai"])
+        assert result.exit_code == 0
+        assert "No synthesis" in result.output or "run" in result.output.lower()
+
+    def test_channel_synthesis(self, mock_config_with_library):
+        ch_dir = mock_config_with_library.channel_dir("ai", "TestCh")
+        ch_dir.mkdir(parents=True, exist_ok=True)
+        (ch_dir / "synthesis.md").write_text("# Test Synthesis", encoding="utf-8")
+        result = runner.invoke(cli.app, ["synthesis", "ai", "--channel", "TestCh"])
+        assert result.exit_code == 0
+
+
+class TestResearchCommand:
+    def test_research_no_topic(self, mock_config):
+        result = runner.invoke(cli.app, ["report"])
+        assert result.exit_code == 1
+
+    def test_research_no_gemini_key(self, tmp_path):
+        config = DistillConfig(
+            gemini_api_key="",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+        try:
+            result = runner.invoke(cli.app, ["report", "ai"])
+            assert result.exit_code == 1
+        finally:
+            cli.get_config = original
+
+
+class TestStatusCommand:
+    def test_empty_status(self, mock_config):
+        result = runner.invoke(cli.app, ["status"])
+        assert result.exit_code == 0
+
+    def test_status_with_data(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["status"])
+        assert result.exit_code == 0
+        assert "TestCh" in result.output
+
+
+class TestFormatHelpers:
+    """Test the CLI helper functions directly."""
+
+    def test_format_date_yyyymmdd(self):
+        result = cli._format_date("20250115")
+        assert "Jan" in result
+        assert "2025" in result
+
+    def test_format_date_iso(self):
+        result = cli._format_date("2025-01-15T10:30:00")
+        assert "Jan" in result
+        assert "2025" in result
+
+    def test_format_date_empty(self):
+        assert cli._format_date("") == "Unknown"
+
+    def test_format_date_none(self):
+        assert cli._format_date(None) == "Unknown"
+
+    def test_format_date_invalid(self):
+        result = cli._format_date("not-a-date")
+        assert result == "not-a-date"
+
+    def test_duration_seconds(self):
+        assert cli._duration_str(30) == "30s"
+
+    def test_duration_minutes(self):
+        assert cli._duration_str(120) == "2m"
+
+    def test_duration_hours(self):
+        assert cli._duration_str(3720) == "1h 2m"
+
+    def test_duration_none(self):
+        assert cli._duration_str(None) == "?"
+
+    def test_duration_negative(self):
+        assert cli._duration_str(-5) == "?"
+
+    def test_duration_string_input(self):
+        assert cli._duration_str("not a number") == "?"
+
+    def test_duration_zero(self):
+        assert cli._duration_str(0) == "0s"
+
+    def test_duration_float(self):
+        result = cli._duration_str(90.5)
+        assert result == "1m"
+
+
+class TestLearnCommand:
+    def _ranked(self, videos):
+        from types import SimpleNamespace
+
+        return [
+            SimpleNamespace(video=v, final_score=0.9 - (idx * 0.1), rationale="best fit")
+            for idx, v in enumerate(videos)
+        ]
+
+    def test_learn_searches_processes_and_saves_channels(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+        from distill.library import Library
+
+        def fake_transcript(url, video_id, output_path, config):
+            output_path.write_text(f"Transcript for {video_id}", encoding="utf-8")
+            return True
+
+        def fake_synthesize_channel(topic, channel_name, config, tracker=None):
+            path = config.channel_dir(topic, channel_name) / "synthesis.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"# {channel_name} synthesis", encoding="utf-8")
+
+        def fake_synthesize_topic(topic, config, tracker=None):
+            path = config.topic_dir(topic) / "topic_synthesis.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"# {topic} synthesis", encoding="utf-8")
+
+        videos = [
+            VideoInfo(
+                "v1",
+                "Fabric Best Practices 1",
+                _recent(3),
+                900,
+                "https://youtube.com/watch?v=v1",
+                "CreatorOne",
+                "https://www.youtube.com/@CreatorOne",
+                view_count=5000,
+            ),
+            VideoInfo(
+                "v2",
+                "Fabric Best Practices 2",
+                _recent(4),
+                840,
+                "https://youtube.com/watch?v=v2",
+                "CreatorTwo",
+                "https://www.youtube.com/@CreatorTwo",
+                view_count=4000,
+            ),
+        ]
+        monkeypatch.setattr(
+            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+        )
+        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(
+            cli,
+            "rerank_videos",
+            lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
+                self._ranked(vids)
+            ),
+        )
+        monkeypatch.setattr(cli, "get_transcript", fake_transcript)
+        monkeypatch.setattr(
+            cli,
+            "analyze_video",
+            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+                f"# {title}\n\nInsight"
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "analyze_short",
+            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+                f"# {title}\n\nShort"
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "generate_channel_context",
+            lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
+        )
+        monkeypatch.setattr(cli, "synthesize_channel", fake_synthesize_channel)
+        monkeypatch.setattr(cli, "synthesize_topic", fake_synthesize_topic)
+
+        result = runner.invoke(cli.app, ["learn", "Microsoft Fabric best practices"])
+
+        assert result.exit_code == 0
+        assert "Processing 2 best-pick videos across 2 channels" in result.output
+
+        lib = Library(mock_config)
+        channels = lib.get_channels("microsoft-fabric-best-practices")
+        assert sorted(ch.name for ch in channels) == ["CreatorOne", "CreatorTwo"]
+        assert (
+            mock_config.topic_dir("microsoft-fabric-best-practices") / "topic_synthesis.md"
+        ).exists()
+
+    def test_search_previews_best_picks(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        videos = [
+            VideoInfo(
+                "v1",
+                "Fabric Best Practices 1",
+                _recent(3),
+                900,
+                "https://youtube.com/watch?v=v1",
+                "CreatorOne",
+                "https://www.youtube.com/@CreatorOne",
+                view_count=5000,
+            ),
+            VideoInfo(
+                "v2",
+                "Fabric Best Practices 2",
+                _recent(4),
+                840,
+                "https://youtube.com/watch?v=v2",
+                "CreatorTwo",
+                "https://www.youtube.com/@CreatorTwo",
+                view_count=4000,
+            ),
+        ]
+        monkeypatch.setattr(
+            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+        )
+        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(
+            cli,
+            "rerank_videos",
+            lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
+                self._ranked(vids)
+            ),
+        )
+
+        result = runner.invoke(cli.app, ["search", "Microsoft Fabric best practices"])
+
+        assert result.exit_code == 0
+        assert "Best Videos to Learn From" in result.output
+        assert "CreatorOne" in result.output
+
+    def test_learn_ephemeral_does_not_register_channels(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+        from distill.library import Library
+
+        def fake_transcript(url, video_id, output_path, config):
+            output_path.write_text("Transcript", encoding="utf-8")
+            return True
+
+        videos = [
+            VideoInfo(
+                "v1",
+                "Fabric Update",
+                _recent(3),
+                900,
+                "https://youtube.com/watch?v=v1",
+                "CreatorOne",
+                "https://www.youtube.com/@CreatorOne",
+            ),
+        ]
+        monkeypatch.setattr(
+            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+        )
+        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(
+            cli,
+            "rerank_videos",
+            lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
+                self._ranked(vids)
+            ),
+        )
+        monkeypatch.setattr(cli, "get_transcript", fake_transcript)
+        monkeypatch.setattr(
+            cli,
+            "analyze_video",
+            lambda title, upload_date, channel_name, transcript, config, tracker=None: "# Insight",
+        )
+        monkeypatch.setattr(
+            cli,
+            "generate_channel_context",
+            lambda channel_name, titles, config, tracker=None: "# Context",
+        )
+        monkeypatch.setattr(
+            cli,
+            "synthesize_channel",
+            lambda topic, channel_name, config, tracker=None: (
+                config.channel_dir(topic, channel_name) / "synthesis.md"
+            ).write_text("# Synth", encoding="utf-8"),
+        )
+
+        result = runner.invoke(cli.app, ["learn", "Microsoft Fabric", "--ephemeral"])
+
+        assert result.exit_code == 0
+        lib = Library(mock_config)
+        assert lib.get_channels("microsoft-fabric") == []
+
+    def test_learn_rejects_invalid_sort(self, mock_config):
+        result = runner.invoke(cli.app, ["learn", "Microsoft Fabric", "--sort", "popular"])
+        assert result.exit_code == 1
+        assert "relevance" in result.output
+
+    def test_latest_preview_shows_ranked_set(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        videos = [
+            VideoInfo(
+                "v1",
+                "Fabric Best Practices 1",
+                _recent(3),
+                900,
+                "https://youtube.com/watch?v=v1",
+                "CreatorOne",
+                "https://www.youtube.com/@CreatorOne",
+                view_count=5000,
+            ),
+            VideoInfo(
+                "v2",
+                "Fabric Best Practices 2",
+                _recent(4),
+                840,
+                "https://youtube.com/watch?v=v2",
+                "CreatorTwo",
+                "https://www.youtube.com/@CreatorTwo",
+                view_count=4000,
+            ),
+        ]
+        monkeypatch.setattr(
+            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+        )
+        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(
+            cli,
+            "rerank_videos",
+            lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
+                self._ranked(vids)
+            ),
+        )
+
+        result = runner.invoke(
+            cli.app, ["latest", "Microsoft Fabric best practices", "--preview", "--days", "10"]
+        )
+
+        assert result.exit_code == 0
+        assert "Latest Best-Pick Learning Set" in result.output
+        assert "CreatorOne" in result.output
+
+    def test_explore_uses_broader_defaults(self, mock_config, monkeypatch):
+        from types import SimpleNamespace
+
+        from distill.discovery import VideoInfo
+
+        captured = {}
+
+        def fake_select(
+            query, config, tracker, days, limit, sort, per_channel_cap, shorts, rerank, **kwargs
+        ):
+            captured.update(
+                days=days,
+                limit=limit,
+                sort=sort,
+                per_channel_cap=per_channel_cap,
+                shorts=shorts,
+                rerank=rerank,
+            )
+            video = VideoInfo(
+                "v1",
+                "Kubernetes Architecture",
+                _recent(3),
+                900,
+                "https://youtube.com/watch?v=v1",
+                "CreatorOne",
+                "https://www.youtube.com/@CreatorOne",
+                view_count=5000,
+            )
+            return [], [SimpleNamespace(video=video, final_score=0.91, rationale="best fit")]
+
+        monkeypatch.setattr(cli, "_select_learning_videos", fake_select)
+
+        result = runner.invoke(cli.app, ["explore", "Kubernetes"])
+
+        assert result.exit_code == 0
+        assert captured == {
+            "days": 90,
+            "limit": 10,
+            "sort": "relevance",
+            "per_channel_cap": 3,
+            "shorts": False,
+            "rerank": True,
+        }
+
+    def test_brief_generates_markdown_brief(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        def fake_transcript(url, video_id, output_path, config):
+            output_path.write_text(f"Transcript for {video_id}", encoding="utf-8")
+            return True
+
+        def fake_synthesize_channel(topic, channel_name, config, tracker=None):
+            path = config.channel_dir(topic, channel_name) / "synthesis.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"# {channel_name} synthesis", encoding="utf-8")
+
+        def fake_synthesize_topic(topic, config, tracker=None):
+            path = config.topic_dir(topic) / "topic_synthesis.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"# {topic} synthesis", encoding="utf-8")
+
+        def fake_generate_topic_brief(topic, config, tracker=None):
+            path = config.topic_dir(topic) / "brief.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"# Topic Brief: {topic}", encoding="utf-8")
+            return path
+
+        videos = [
+            VideoInfo(
+                "v1",
+                "Fabric Best Practices 1",
+                _recent(3),
+                900,
+                "https://youtube.com/watch?v=v1",
+                "CreatorOne",
+                "https://www.youtube.com/@CreatorOne",
+                view_count=5000,
+            ),
+        ]
+        monkeypatch.setattr(
+            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+        )
+        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(
+            cli,
+            "rerank_videos",
+            lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
+                self._ranked(vids)
+            ),
+        )
+        monkeypatch.setattr(cli, "get_transcript", fake_transcript)
+        monkeypatch.setattr(
+            cli,
+            "analyze_video",
+            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+                f"# {title}\n\nInsight"
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "analyze_short",
+            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+                f"# {title}\n\nShort"
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "generate_channel_context",
+            lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
+        )
+        monkeypatch.setattr(cli, "synthesize_channel", fake_synthesize_channel)
+        monkeypatch.setattr(cli, "synthesize_topic", fake_synthesize_topic)
+        monkeypatch.setattr(cli, "generate_topic_brief", fake_generate_topic_brief)
+
+        result = runner.invoke(cli.app, ["brief", "Microsoft Fabric best practices"])
+
+        assert result.exit_code == 0
+        topic_dir = mock_config.topic_dir("microsoft-fabric-best-practices")
+        assert (topic_dir / "brief.md").exists()
+        assert (
+            mock_config.library_dir.parent / "output" / "brief-microsoft-fabric-best-practices.md"
+        ).exists()
+
+
+class TestLearnHelpers:
+    def test_expand_learning_queries_is_topic_agnostic(self):
+        queries = cli._expand_learning_queries("Snowflake best practices")
+        assert queries[0] == "Snowflake best practices"
+        assert any("architecture" in q.lower() for q in queries[1:])
+        assert any("implementation" in q.lower() or "walkthrough" in q.lower() for q in queries[1:])
+
+    def test_select_learning_videos_filters_old_enriched_candidates(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+
+        monkeypatch.setattr(
+            cli,
+            "search_youtube_results",
+            lambda query, days=None, limit=None, hours=None: [
+                VideoInfo("v1", "New", "", 900, "https://youtube.com/watch?v=v1", "CreatorOne"),
+                VideoInfo("v2", "Old", "", 900, "https://youtube.com/watch?v=v2", "CreatorTwo"),
+            ],
+        )
+        monkeypatch.setattr(cli, "search_videos", lambda *args, **kwargs: [])
+        monkeypatch.setattr(
+            cli,
+            "enrich_videos",
+            lambda vids, max_videos=None: [
+                VideoInfo(
+                    "v1",
+                    "New",
+                    _recent(5),
+                    900,
+                    "https://youtube.com/watch?v=v1",
+                    "CreatorOne",
+                    view_count=1000,
+                ),
+                VideoInfo(
+                    "v2",
+                    "Old",
+                    (datetime.now() - timedelta(days=800)).strftime("%Y%m%d"),
+                    900,
+                    "https://youtube.com/watch?v=v2",
+                    "CreatorTwo",
+                    view_count=1000,
+                ),
+            ],
+        )
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(
+            cli,
+            "rerank_videos",
+            lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: [
+                SimpleNamespace(video=v, final_score=0.9, rationale="best fit") for v in vids
+            ],
+        )
+
+        _, selected = cli._select_learning_videos(
+            "Microsoft Fabric best practices",
+            mock_config,
+            cli.CostTracker(),
+            days=60,
+            limit=5,
+            sort="relevance",
+            per_channel_cap=2,
+            shorts=False,
+            rerank=False,
+        )
+
+        assert [item.video.video_id for item in selected] == ["v1"]
+
+
+class TestReadCommands:
+    def test_synthesis_falls_back_to_first_channel(self, mock_config_with_library):
+        ch_dir = mock_config_with_library.channel_dir("ai", "TestCh")
+        ch_dir.mkdir(parents=True, exist_ok=True)
+        (ch_dir / "synthesis.md").write_text("# Channel Synth", encoding="utf-8")
+
+        result = runner.invoke(cli.app, ["synthesis", "ai"])
+
+        assert result.exit_code == 0
+        assert "Channel Synthesis: TestCh" in result.output
+
+    def test_findings_reports_missing_report(self, mock_config):
+        result = runner.invoke(cli.app, ["findings", "ai"])
+
+        assert result.exit_code == 0
+        assert "No report yet" in result.output
+
+    def test_show_rejects_invalid_what(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+
+        result = runner.invoke(cli.app, ["show", "ai", "1", "--what", "unknown"])
+
+        assert result.exit_code == 0
+        assert "Invalid --what" in result.output
+
+
+class TestExportOpenCostsAndStatus:
+    def test_export_rejects_unknown_type(self, mock_config):
+        result = runner.invoke(cli.app, ["export", "ai", "--what", "unknown"])
+
+        assert result.exit_code == 1
+        assert "Unknown export type" in result.output
+
+    def test_export_converts_report_to_docx(self, mock_config, monkeypatch):
+        report = mock_config.topic_dir("ai") / "report.md"
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text("# Report", encoding="utf-8")
+        captured = {}
+
+        def fake_markdown_to_docx(md_path, docx_path, title):
+            captured["md_path"] = md_path
+            captured["docx_path"] = docx_path
+            captured["title"] = title
+            docx_path.write_text("docx", encoding="utf-8")
+
+        monkeypatch.setattr(cli, "markdown_to_docx", fake_markdown_to_docx)
+
+        result = runner.invoke(cli.app, ["export", "ai"])
+
+        assert result.exit_code == 0
+        assert captured["md_path"] == report
+        assert captured["docx_path"].exists()
+
+    def test_export_bundle_writes_manifest_and_corpus_files(self, mock_config):
+        topic_dir = mock_config.topic_dir("ai")
+        channel_dir = mock_config.channel_dir("ai", "TestCh")
+        video_dir = channel_dir / "videos" / "video-1"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_synthesis.md").parent.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_synthesis.md").write_text("# Topic", encoding="utf-8")
+        (topic_dir / "report.md").write_text("# Report", encoding="utf-8")
+        (video_dir / "insights.md").write_text("# Insight", encoding="utf-8")
+        (video_dir / "metadata.json").write_text('{"title":"Test"}', encoding="utf-8")
+
+        result = runner.invoke(cli.app, ["export", "ai", "--what", "bundle", "--format", "deepr"])
+
+        assert result.exit_code == 0
+        output_dir = mock_config.library_dir.parent / "output"
+        bundle = output_dir / "corpus-ai-deepr.zip"
+        assert bundle.exists()
+        with zipfile.ZipFile(bundle) as zf:
+            names = set(zf.namelist())
+            assert "manifest.json" in names
+            assert "ai/topic_synthesis.md" in names
+            assert "ai/report.md" in names
+            assert "ai/channels/TestCh/videos/video-1/insights.md" in names
+            manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+        assert manifest["topic"] == "ai"
+        assert manifest["format"] == "deepr"
+
+    def test_dashboard_web_writes_html(self, mock_config):
+        topic_dir = mock_config.topic_dir("ai")
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_synthesis.md").write_text("# Topic", encoding="utf-8")
+
+        result = runner.invoke(cli.app, ["dashboard", "--web", "--no-open"])
+
+        assert result.exit_code == 0
+        output_dir = mock_config.library_dir.parent / "output"
+        html_path = output_dir / "dashboard.html"
+        assert html_path.exists()
+        html = html_path.read_text(encoding="utf-8")
+        assert "Distill Dashboard" in html
+        assert "Stay Current" in html
+
+    def test_open_uses_startfile_for_existing_target(self, mock_config, monkeypatch):
+        opened = []
+        output_dir = mock_config.library_dir.parent / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(
+            cli.os,
+            "startfile",
+            lambda target: opened.append(str(target)),
+            raising=False,
+        )
+
+        result = runner.invoke(cli.app, ["open"])
+
+        assert result.exit_code == 0
+        assert opened
+
+    def test_open_rejects_missing_target(self, mock_config):
+        result = runner.invoke(cli.app, ["open", "ai", "--what", "report"])
+
+        assert result.exit_code == 1
+        assert "Not found" in result.output
+
+    def test_costs_reads_log_and_shows_breakdown(self, mock_config):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text(
+            '{"timestamp":"2026-03-12T12:00:00","command":"learn","full_videos":2,"shorts":1,"actual_cost":0.1234,"total_input_tokens":1000,"total_output_tokens":500,"elapsed_seconds":65,"by_call_type":{"pass1":{"calls":2,"input_tokens":500,"output_tokens":200}}}\n',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["costs"])
+
+        assert result.exit_code == 0
+        assert "Cost History" in result.output
+        assert "Latest run breakdown" in result.output
+
+    def test_status_shows_artifacts(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        ch_dir = mock_config_with_library.channel_dir("ai", "TestCh")
+        (ch_dir / "channel_context.md").write_text("# Context", encoding="utf-8")
+        (ch_dir / "synthesis.md").write_text("# Synth", encoding="utf-8")
+        (mock_config_with_library.topic_dir("ai") / "topic_synthesis.md").write_text(
+            "# Topic", encoding="utf-8"
+        )
+
+        result = runner.invoke(cli.app, ["status"])
+
+        assert result.exit_code == 0
+        assert "context, synthesis" in result.output or "synthesis, context" in result.output
+        assert "synthesis" in result.output
+
+
+class TestDoctorCleanupAndMigrate:
+    def test_doctor_reports_missing_keys(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="",
+            gemini_api_key="",
+            openai_api_key="",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+        try:
+            result = runner.invoke(cli.app, ["doctor"])
+        finally:
+            cli.get_config = original
+
+        assert result.exit_code == 0
+        assert "NOT SET" in result.output
+
+    def test_health_flags_stale_and_thin_artifacts(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="",
+            gemini_api_key="",
+            openai_api_key="",
+            distill_output_dir=tmp_path / "library",
+        )
+        lib = Library(config)
+        lib.add_channel("ai", "https://www.youtube.com/@TestCh", "TestCh")
+
+        topic_synth = config.topic_dir("ai") / "topic_synthesis.md"
+        topic_synth.parent.mkdir(parents=True, exist_ok=True)
+        topic_synth.write_text("# Old synthesis", encoding="utf-8")
+        stale_ts = (datetime.now() - timedelta(days=120)).timestamp()
+        os.utime(topic_synth, (stale_ts, stale_ts))
+
+        video_dir = config.channel_dir("ai", "TestCh") / "videos" / "video-1"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (video_dir / "metadata.json").write_text(
+            json.dumps({"title": "Long Video", "duration": 3600}),
+            encoding="utf-8",
+        )
+        (video_dir / "transcript.txt").write_text("too short", encoding="utf-8")
+        (video_dir / "insights.md").write_text("brief", encoding="utf-8")
+        site_dir = config.site_dir("ai", "example.com")
+        site_dir.mkdir(parents=True, exist_ok=True)
+        (site_dir / "site.json").write_text(
+            json.dumps(
+                {
+                    "sections": [
+                        {
+                            "section": "topic/agents",
+                            "page_count": 2,
+                            "urls": ["https://example.com/topic/agents/a"],
+                            "last_crawled_at": "2026-01-01T00:00:00",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        original = cli.get_config
+        cli.get_config = lambda: config
+        try:
+            result = runner.invoke(cli.app, ["health", "ai"])
+        finally:
+            cli.get_config = original
+
+        assert result.exit_code == 0
+        assert "topic_synthesis.md is stale" in result.output
+        assert "section topic/agents is stale" in result.output
+        assert "transcript looks thin" in result.output
+        assert "insights look thin" in result.output
+
+    def test_cleanup_requires_gemini_key(self, tmp_path):
+        config = DistillConfig(gemini_api_key="", distill_output_dir=tmp_path / "library")
+        original = cli.get_config
+        cli.get_config = lambda: config
+        try:
+            result = runner.invoke(cli.app, ["cleanup"])
+        finally:
+            cli.get_config = original
+
+        assert result.exit_code == 1
+        assert "GEMINI_API_KEY required" in result.output
+
+    def test_migrate_renames_video_dirs(self, mock_config_with_library):
+        vid_dir = mock_config_with_library.video_dir("ai", "TestCh", "abc123xyz")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "metadata.json").write_text(
+            json.dumps({"video_id": "abc123xyz", "title": "Great Video"}),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["migrate", "--yes"])
+
+        assert result.exit_code == 0
+        renamed = mock_config_with_library.videos_dir("ai", "TestCh") / "great-video_abc123xy"
+        assert renamed.exists()
+
+
+class TestWatchCommands:
+    def test_watch_list_empty(self, mock_config):
+        result = runner.invoke(cli.app, ["watch"])
+        assert result.exit_code == 0
+        assert "No channels" in result.output or "watch list" in result.output.lower()
+
+    def test_watch_list_populated(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe", topic="deals", days=7)
+        result = runner.invoke(cli.app, ["watch"])
+        assert result.exit_code == 0
+        assert "WatchMe" in result.output
+
+    def test_watch_add(self, mock_config, monkeypatch):
+        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "NewWatch")
+        monkeypatch.setattr(cli, "discover_videos", lambda url, months=1, quiet=True: [])
+        result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@NewWatch"])
+        assert result.exit_code == 0
+        assert "Watching" in result.output or "NewWatch" in result.output
+
+    def test_watch_add_duplicate(self, mock_config, monkeypatch):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe")
+        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "WatchMe")
+        result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@WatchMe"])
+        assert result.exit_code == 0
+        assert "already" in result.output
+
+    def test_watch_remove(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe")
+        result = runner.invoke(cli.app, ["watch", "remove", "WatchMe"])
+        assert result.exit_code == 0
+        assert "Removed" in result.output
+
+    def test_watch_remove_missing(self, mock_config):
+        result = runner.invoke(cli.app, ["watch", "remove", "NotHere"])
+        assert result.exit_code == 0
+        assert "not found" in result.output
+
+    def test_watch_days(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe", days=14)
+        result = runner.invoke(cli.app, ["watch", "days", "WatchMe", "3"])
+        assert result.exit_code == 0
+        assert "3d" in result.output
+
+    def test_watch_days_missing(self, mock_config):
+        result = runner.invoke(cli.app, ["watch", "days", "NotHere", "3"])
+        assert result.exit_code == 0
+        assert "not found" in result.output
+
+    def test_monitor_creates_topic_watch(self, mock_config):
+        result = runner.invoke(
+            cli.app,
+            [
+                "monitor",
+                "Microsoft AI news",
+                "--topic",
+                "microsoft-news",
+                "--cadence",
+                "daily",
+                "--days",
+                "1",
+                "--limit",
+                "10",
+                "--max-run-cost",
+                "0.75",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Monitoring" in result.output
+
+        from distill.library import Library
+
+        entry = Library(mock_config).get_topic_watch_entry("microsoft-news")
+        assert entry is not None
+        assert entry.topic == "microsoft-news"
+        assert entry.max_run_cost == 0.75
+
+    def test_ramp_up_dispatches_to_site_batch(self, mock_config, monkeypatch):
+        captured = {}
+
+        def fake_site_batch_cmd(
+            path, topic, scrape_only, seed_only, same_section_only, ingest_attachments, report, test
+        ):
+            captured["path"] = path
+            captured["topic"] = topic
+            captured["seed_only"] = seed_only
+            captured["report"] = report
+
+        monkeypatch.setattr(cli, "site_batch_cmd", fake_site_batch_cmd)
+
+        result = runner.invoke(
+            cli.app,
+            ["ramp-up", "configs/example_seeds.json", "--topic", "example", "--report"],
+        )
+        assert result.exit_code == 0
+        assert captured["path"].name == "example_seeds.json"
+        assert captured["topic"] == "example"
+        assert captured["seed_only"] is True
+        assert captured["report"] is True
+
+    def test_ramp_up_dispatches_to_youtube_learning(self, mock_config, monkeypatch):
+        captured = {}
+
+        def fake_run_learning_command(query, **kwargs):
+            captured["query"] = query
+            captured["kwargs"] = kwargs
+
+        monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+
+        result = runner.invoke(
+            cli.app,
+            ["ramp-up", "Microsoft Fabric best practices", "--topic", "fabric"],
+        )
+        assert result.exit_code == 0
+        assert captured["query"] == "Microsoft Fabric best practices"
+        assert captured["kwargs"]["topic"] == "fabric"
+
+    def test_ramp_up_dispatches_to_paper_query(self, mock_config, monkeypatch):
+        captured = {}
+
+        def fake_papers(query, topic, limit):
+            captured["query"] = query
+            captured["topic"] = topic
+            captured["limit"] = limit
+
+        monkeypatch.setattr(cli, "papers", fake_papers)
+
+        result = runner.invoke(
+            cli.app, ["ramp-up", "agent memory systems", "--source", "paper", "--topic", "papers"]
+        )
+        assert result.exit_code == 0
+        assert captured["query"] == "agent memory systems"
+        assert captured["topic"] == "papers"
+
+    def test_paper_command_writes_artifacts(self, mock_config, monkeypatch):
+        from distill.paper_ingest import PaperRecord
+
+        monkeypatch.setattr(
+            cli,
+            "fetch_arxiv_paper",
+            lambda target: PaperRecord(
+                paper_id="2602.12670v1",
+                title="Agent Memory Systems",
+                abstract="A paper about memory systems.",
+                authors=["Alice"],
+                abs_url="https://arxiv.org/abs/2602.12670v1",
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "analyze_paper",
+            lambda paper, config, tracker=None: ("# Insight", "# Paper doc"),
+        )
+        monkeypatch.setattr(
+            cli, "synthesize_papers", lambda topic, config, tracker=None: "paper synthesis"
+        )
+
+        result = runner.invoke(cli.app, ["paper", "2602.12670", "--topic", "papers"])
+
+        assert result.exit_code == 0
+        papers_dir = mock_config.papers_dir("papers")
+        written = list(papers_dir.glob("*/paper.md"))
+        assert written
+
+    def test_papers_command_searches_and_writes_synthesis(self, mock_config, monkeypatch):
+        from distill.paper_ingest import PaperRecord
+
+        monkeypatch.setattr(
+            cli,
+            "search_arxiv_papers",
+            lambda query, limit=10, **kwargs: [
+                PaperRecord(
+                    paper_id="2602.12670v1",
+                    title="Agent Memory Systems",
+                    abstract="A paper about memory systems.",
+                    authors=["Alice"],
+                    abs_url="https://arxiv.org/abs/2602.12670v1",
+                )
+            ],
+        )
+        monkeypatch.setattr(
+            cli,
+            "analyze_paper",
+            lambda paper, config, tracker=None: ("# Insight", "# Paper doc"),
+        )
+        monkeypatch.setattr(
+            cli,
+            "synthesize_papers",
+            lambda topic, config, tracker=None: (
+                (mock_config.topic_dir(topic) / "paper_synthesis.md").write_text(
+                    "paper synthesis", encoding="utf-8"
+                )
+                or "paper synthesis"
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "synthesize_corpus",
+            lambda topic, config, tracker=None: (
+                (mock_config.topic_dir(topic) / "corpus_synthesis.md").write_text(
+                    "corpus synthesis", encoding="utf-8"
+                )
+                or "corpus synthesis"
+            ),
+        )
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "papers",
+                "agent memory systems",
+                "--topic",
+                "papers",
+                "--limit",
+                "1",
+                "--no-expand",
+                "--no-rerank",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert (mock_config.topic_dir("papers") / "paper_synthesis.md").exists()
+        assert (mock_config.topic_dir("papers") / "corpus_synthesis.md").exists()
+
+    def test_papers_preview_shows_ranked_set(self, mock_config, monkeypatch):
+        """--preview should display ranked papers and skip ingestion entirely."""
+        from distill.paper_ingest import PaperRecord
+
+        analyze_calls: list = []
+
+        def fake_search(query, limit=10, **kwargs):
+            return [
+                PaperRecord(
+                    paper_id="2601.11111v1",
+                    title="Attention Is All You Need for Papers",
+                    abstract="We present a transformer for paper analysis.",
+                    authors=["Alice", "Bob"],
+                    categories=["cs.CL"],
+                    published_at="2026-01-15T00:00:00Z",
+                    abs_url="https://arxiv.org/abs/2601.11111v1",
+                ),
+                PaperRecord(
+                    paper_id="2601.22222v1",
+                    title="Unrelated Image Harmonization",
+                    abstract="Image compositing pipeline.",
+                    authors=["Carol"],
+                    categories=["cs.CV"],
+                    published_at="2026-01-10T00:00:00Z",
+                    abs_url="https://arxiv.org/abs/2601.22222v1",
+                ),
+            ]
+
+        monkeypatch.setattr(cli, "search_arxiv_papers", fake_search)
+        monkeypatch.setattr(
+            cli, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
+        )
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "papers",
+                "transformer",
+                "--topic",
+                "preview_topic",
+                "--limit",
+                "2",
+                "--preview",
+                "--no-expand",
+                "--no-rerank",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Paper Best-Pick Learning Set" in result.stdout
+        assert "Alice" in result.stdout  # author rendered
+        assert "cs.CL" in result.stdout  # category rendered
+        assert analyze_calls == []  # preview must not invoke paper analysis
+
+    def test_papers_expand_runs_multiple_searches(self, mock_config, monkeypatch):
+        """--expand should fan out to multiple arXiv searches via search_arxiv_multi."""
+        from distill.paper_ingest import PaperRecord
+
+        multi_calls: list = []
+
+        def fake_multi(queries, limit_per_query=10, sort="relevance"):
+            multi_calls.append(list(queries))
+            return [
+                PaperRecord(
+                    paper_id="2601.33333v1",
+                    title="Expanded Result",
+                    abstract="A substantive paper.",
+                    authors=["Dave", "Eve"],
+                    categories=["cs.LG"],
+                    published_at="2026-02-01T00:00:00Z",
+                )
+            ]
+
+        monkeypatch.setattr(cli, "search_arxiv_multi", fake_multi)
+        monkeypatch.setattr(
+            cli,
+            "_llm_expand_paper_queries",
+            lambda query, config, tracker=None: ["q1 variant", "q2 variant"],
+        )
+        monkeypatch.setattr(cli, "analyze_paper", lambda *a, **k: ("", ""))
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "papers",
+                "music transformer",
+                "--topic",
+                "expand_topic",
+                "--limit",
+                "1",
+                "--preview",
+                "--no-rerank",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert len(multi_calls) == 1
+        # Should include original query plus the two LLM variants
+        queries_sent = multi_calls[0]
+        assert "music transformer" in queries_sent
+        assert "q1 variant" in queries_sent
+        assert "q2 variant" in queries_sent
+
+    def test_discover_preview_shows_goal_ranked_plan(self, mock_config, monkeypatch):
+        """discover --preview should generate queries, fetch candidates, rerank, display, stop."""
+        from distill.discovery import VideoInfo
+        from distill.paper_ingest import PaperRecord
+
+        papers_fixture = [
+            PaperRecord(
+                paper_id="2604.11111v1",
+                title="AI Composer Transformer",
+                abstract="A transformer for AI music composition.",
+                authors=["Alice"],
+                categories=["cs.SD"],
+                published_at="2026-04-01T00:00:00Z",
+            )
+        ]
+        videos_fixture = [
+            VideoInfo(
+                "v1",
+                "Building an AI Composer",
+                "20260315",
+                1200,
+                "https://youtube.com/watch?v=v1",
+                "AI Composer Creator",
+                "https://www.youtube.com/@AIComposerCreator",
+                description="How to build an AI music composer end-to-end.",
+                view_count=10000,
+            )
+        ]
+
+        monkeypatch.setattr(
+            cli,
+            "_discover_generate_queries",
+            lambda goal, config, tracker, *, paper_count, video_count: (
+                ["transformer music"],
+                ["ai composer tutorial"],
+            ),
+        )
+        monkeypatch.setattr(
+            cli,
+            "search_arxiv_multi",
+            lambda queries, limit_per_query=10, sort="relevance": papers_fixture,
+        )
+        monkeypatch.setattr(
+            cli,
+            "_discover_fetch_videos",
+            lambda queries, effective_days, candidate_cap, shorts: videos_fixture,
+        )
+
+        rerank_calls: list = []
+
+        def fake_rerank(goal, papers, videos, config, tracker):
+            rerank_calls.append((goal, len(papers), len(videos)))
+            return [
+                cli._RankedDiscoverItem(
+                    kind="paper",
+                    identifier="2604.11111v1",
+                    title="AI Composer Transformer",
+                    subtitle="Alice",
+                    date="2026-04-01",
+                    final_score=0.95,
+                    goal_fit=0.9,
+                    depth_score=0.9,
+                    complementarity_score=0.85,
+                    rationale="directly enables AI composition on computer",
+                    paper=papers_fixture[0],
+                ),
+                cli._RankedDiscoverItem(
+                    kind="video",
+                    identifier="v1",
+                    title="Building an AI Composer",
+                    subtitle="AI Composer Creator",
+                    date="Mar 15, 2026",
+                    final_score=0.92,
+                    goal_fit=0.88,
+                    depth_score=0.85,
+                    complementarity_score=0.9,
+                    rationale="practical build walkthrough",
+                    video=videos_fixture[0],
+                ),
+            ]
+
+        monkeypatch.setattr(cli, "_discover_rerank", fake_rerank)
+
+        # Must not execute ingestion under --preview
+        analyze_calls: list = []
+        monkeypatch.setattr(
+            cli, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
+        )
+        process_calls: list = []
+        monkeypatch.setattr(
+            cli,
+            "_process_learning_selection",
+            lambda *a, **k: process_calls.append(a),
+        )
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "discover",
+                "help an AI compose music on a computer",
+                "--topic",
+                "discover_test",
+                "--paper-limit",
+                "1",
+                "--video-limit",
+                "1",
+                "--preview",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert len(rerank_calls) == 1
+        assert rerank_calls[0][0] == "help an AI compose music on a computer"
+        assert "Goal-Ranked Corpus Plan" in result.stdout
+        assert "paper" in result.stdout  # type column
+        assert "video" in result.stdout
+        assert "0.95" in result.stdout  # paper score
+        assert "0.92" in result.stdout  # video score
+        assert analyze_calls == []  # preview: no ingestion
+        assert process_calls == []
+
+    def test_discover_loads_goal_from_file(self, mock_config, monkeypatch, tmp_path):
+        """--goal-file should load the goal from disk and pass it to query generation."""
+        from distill.paper_ingest import PaperRecord
+
+        goal_file = tmp_path / "music.md"
+        goal_file.write_text(
+            "Help an AI become a great composer -- computer only, no instruments.",
+            encoding="utf-8",
+        )
+
+        generate_calls: list = []
+
+        def fake_generate(goal, config, tracker, *, paper_count, video_count):
+            generate_calls.append(goal)
+            return (["transformer music"], [])
+
+        monkeypatch.setattr(cli, "_discover_generate_queries", fake_generate)
+        monkeypatch.setattr(
+            cli,
+            "search_arxiv_multi",
+            lambda queries, limit_per_query=10, sort="relevance": [
+                PaperRecord(paper_id="2604.99999v1", title="X", abstract="y")
+            ],
+        )
+        monkeypatch.setattr(
+            cli,
+            "_discover_rerank",
+            lambda goal, papers, videos, config, tracker: [
+                cli._RankedDiscoverItem(
+                    kind="paper",
+                    identifier="2604.99999v1",
+                    title="X",
+                    subtitle="-",
+                    date="2026-04-01",
+                    final_score=0.9,
+                    goal_fit=0.9,
+                    depth_score=0.9,
+                    complementarity_score=0.9,
+                    rationale="goal fit",
+                    paper=papers[0],
+                )
+            ],
+        )
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "discover",
+                "--goal-file",
+                str(goal_file),
+                "--topic",
+                "goal_file_test",
+                "--paper-limit",
+                "1",
+                "--video-limit",
+                "0",
+                "--preview",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert len(generate_calls) == 1
+        assert generate_calls[0].startswith("Help an AI become a great composer")
+        assert "Goal loaded from" in result.stdout
+
+    def test_corpus_command_writes_output(self, mock_config, monkeypatch):
+        topic_dir = mock_config.topic_dir("mixed")
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_synthesis.md").write_text("# Topic", encoding="utf-8")
+
+        monkeypatch.setattr(
+            cli,
+            "synthesize_corpus",
+            lambda topic, config, tracker=None: (
+                (mock_config.topic_dir(topic) / "corpus_synthesis.md").write_text(
+                    "corpus synthesis", encoding="utf-8"
+                )
+                or "corpus synthesis"
+            ),
+        )
+
+        result = runner.invoke(cli.app, ["corpus", "mixed"])
+
+        assert result.exit_code == 0
+        assert (mock_config.topic_dir("mixed") / "corpus_synthesis.md").exists()
+
+
+class TestCatchUpCommand:
+    def test_empty_watchlist(self, mock_config):
+        result = runner.invoke(cli.app, ["catch-up"])
+        assert result.exit_code == 0
+        assert "empty" in result.output.lower() or "watch" in result.output.lower()
+
+    def test_dry_run(self, mock_config, monkeypatch):
+        from distill.discovery import VideoInfo
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe", topic="deals", days=7)
+
+        monkeypatch.setattr(
+            cli,
+            "discover_videos",
+            lambda url, days=7, include_shorts=True, quiet=True: [
+                VideoInfo(
+                    "v1",
+                    "New Deal Video",
+                    _recent(3),
+                    600,
+                    "https://youtube.com/watch?v=v1",
+                ),
+            ],
+        )
+
+        result = runner.invoke(cli.app, ["catch-up", "--dry-run"])
+        assert result.exit_code == 0
+        assert "New Deal Video" in result.output
+
+
+class TestResynthesize:
+    def test_missing_topic(self, mock_config):
+        result = runner.invoke(cli.app, ["resynthesize", "nonexistent"])
+        assert result.exit_code == 1
+        assert "No channels" in result.output
+
+
+class TestDashboard:
+    def test_truncate_channel_list_empty(self):
+        assert cli._truncate_channel_list([], 80) == ""
+
+    def test_truncate_channel_list_single(self):
+        result = cli._truncate_channel_list(["Alpha"], 80)
+        assert result == "Alpha"
+
+    def test_truncate_channel_list_fits(self):
+        result = cli._truncate_channel_list(["Alpha", "Beta", "Gamma"], 80)
+        assert result == "Alpha, Beta, Gamma"
+
+    def test_truncate_channel_list_overflows(self):
+        result = cli._truncate_channel_list(
+            ["LongChannelName1", "LongChannelName2", "LongChannelName3"], 30
+        )
+        assert "+1 more" in result or "+2 more" in result
+
+    def test_truncate_channel_list_extra_count(self):
+        result = cli._truncate_channel_list(["A", "B"], 80, extra_count=3)
+        assert "+3 more" in result
+
+    def test_show_dashboard_with_library(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, [])
+        assert result.exit_code == 0
+        # Should show topic and channel info
+        assert "ai" in result.output
+
+
+class TestShowChannelNameArg:
+    """Tests for the smart show command that accepts channel names."""
+
+    def test_show_with_channel_name(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "TestCh"])
+        assert result.exit_code == 0
+        assert "Summary" in result.output or "Insight" in result.output
+
+    def test_show_with_channel_flag(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "-c", "TestCh"])
+        assert result.exit_code == 0
+
+    def test_show_transcript(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "1", "-w", "transcript"])
+        assert result.exit_code == 0
+        assert "Transcript" in result.output
+
+    def test_show_invalid_what(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["show", "ai", "1", "-w", "garbage"])
+        assert result.exit_code == 0
+        assert "Invalid" in result.output
+
+    def test_show_no_insights(self, mock_config_with_library):
+        """Show command when insights.md doesn't exist."""
+        vid_dir = mock_config_with_library.video_dir("ai", "TestCh", "noinsights")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        meta = {
+            "video_id": "noinsights",
+            "title": "No Insights Video",
+            "upload_date": _recent(1),
+            "duration": 600,
+            "url": "https://youtube.com/watch?v=noinsights",
+        }
+        (vid_dir / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+        result = runner.invoke(cli.app, ["show", "ai", "1", "-c", "TestCh"])
+        assert result.exit_code == 0
+        assert "No insights" in result.output
+
+    def test_show_no_transcript(self, mock_config_with_library):
+        """Show transcript when file doesn't exist."""
+        vid_dir = mock_config_with_library.video_dir("ai", "TestCh", "notrans")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        meta = {
+            "video_id": "notrans",
+            "title": "No Transcript",
+            "upload_date": _recent(1),
+            "duration": 600,
+            "url": "https://youtube.com/watch?v=notrans",
+        }
+        (vid_dir / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+        result = runner.invoke(cli.app, ["show", "ai", "1", "-c", "TestCh", "-w", "transcript"])
+        assert result.exit_code == 0
+        assert "No transcript" in result.output
+
+    def test_show_no_channels(self, mock_config):
+        result = runner.invoke(cli.app, ["show", "nonexistent"])
+        assert result.exit_code == 0
+        assert "No channels" in result.output
+
+
+class TestSynthesisAutoGenerate:
+    """Tests for synthesis auto-generation when videos exist."""
+
+    def test_synthesis_topic_fallback_to_channel(self, mock_config_with_library):
+        ch_dir = mock_config_with_library.channel_dir("ai", "TestCh")
+        ch_dir.mkdir(parents=True, exist_ok=True)
+        (ch_dir / "synthesis.md").write_text("# Channel Synth", encoding="utf-8")
+        result = runner.invoke(cli.app, ["synthesis", "ai"])
+        assert result.exit_code == 0
+        assert "Channel Synth" in result.output
+
+    def test_synthesis_no_videos_no_synthesis(self, mock_config_with_library):
+        result = runner.invoke(cli.app, ["synthesis", "ai"])
+        assert result.exit_code == 0
+        assert "No synthesis" in result.output or "no videos" in result.output.lower()
+
+
+class TestFindingsCommand:
+    def test_findings_missing(self, mock_config_with_library):
+        result = runner.invoke(cli.app, ["findings", "ai"])
+        assert result.exit_code == 0
+        assert "No report" in result.output
+
+    def test_findings_exists(self, mock_config_with_library):
+        report = mock_config_with_library.topic_dir("ai") / "report.md"
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text("# Test Report\nSome findings.", encoding="utf-8")
+        result = runner.invoke(cli.app, ["findings", "ai"])
+        assert result.exit_code == 0
+        assert "Report" in result.output
+
+    def test_findings_channel(self, mock_config_with_library):
+        report = mock_config_with_library.channel_dir("ai", "TestCh") / "report.md"
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text("# Channel Report", encoding="utf-8")
+        result = runner.invoke(cli.app, ["findings", "ai", "-c", "TestCh"])
+        assert result.exit_code == 0
+
+
+class TestVideosHints:
+    def test_videos_shows_next_steps(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["videos", "ai"])
+        assert result.exit_code == 0
+        assert "distill show" in result.output
+        assert "distill synthesis" in result.output
+
+    def test_videos_channel_filter(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["videos", "ai", "-c", "TestCh"])
+        assert result.exit_code == 0
+        assert "Test Video" in result.output
+
+
+class TestFileLink:
+    def test_file_link_returns_link(self):
+        from pathlib import Path
+
+        link = cli._file_link(Path("test.md"))
+        assert "test.md" in link
+        assert "link=" in link or "file:" in link
+
+
+class TestWatchDisplay:
+    def test_watch_empty(self, mock_config):
+        from distill.library import Library
+
+        Library(mock_config)
+        result = runner.invoke(cli.app, ["watch"])
+        assert result.exit_code == 0
+        assert "No channels" in result.output or "empty" in result.output.lower()
+
+    def test_watch_with_entries(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist(
+            "https://youtube.com/@Test",
+            "Test",
+            topic="ai",
+            instructions="Extract deals",
+            days=7,
+        )
+        result = runner.invoke(cli.app, ["watch"])
+        assert result.exit_code == 0
+        assert "Test" in result.output
+
+    def test_watch_instructions_update(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@Test", "Test")
+        result = runner.invoke(cli.app, ["watch", "instructions", "Test", "New instructions"])
+        assert result.exit_code == 0
+        assert "Updated" in result.output
+
+    def test_watch_instructions_missing(self, mock_config):
+        result = runner.invoke(cli.app, ["watch", "instructions", "Nobody", "Instructions"])
+        assert result.exit_code == 0
+        assert "not found" in result.output
+
+
+class TestLibraryHints:
+    def test_library_shows_hints(self, mock_config_with_library):
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        result = runner.invoke(cli.app, ["library"])
+        assert result.exit_code == 0
+        assert "distill videos ai" in result.output
+        assert "distill synthesis ai" in result.output
+
+    def test_library_empty_shows_examples(self, mock_config):
+        result = runner.invoke(cli.app, ["library"])
+        assert result.exit_code == 0
+        assert "empty" in result.output.lower() or "Get started" in result.output
+
+
+class TestCatchUpHints:
+    def test_catchup_empty_watchlist(self, mock_config):
+        result = runner.invoke(cli.app, ["catch-up"])
+        assert result.exit_code == 0
+        assert "empty" in result.output.lower() or "watch" in result.output.lower()
+
+    def test_catchup_channel_not_found(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@Ch", "Ch", topic="ai")
+        result = runner.invoke(cli.app, ["catch-up", "NobodyHere"])
+        assert result.exit_code == 0
+        assert "not on watch list" in result.output
+
+    def test_catchup_topic_filter_no_match(self, mock_config):
+        from distill.library import Library
+
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@Ch", "Ch", topic="ai")
+        result = runner.invoke(cli.app, ["catch-up", "--topic", "nonexistent"])
+        assert result.exit_code == 0
+        assert "No watched channels" in result.output
+
+
+class TestAddCommandHints:
+    def test_add_shows_next_step(self, mock_config, monkeypatch):
+        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "NewCh")
+        result = runner.invoke(cli.app, ["add", "ai", "https://youtube.com/@NewCh"])
+        assert result.exit_code == 0
+        assert "distill run ai" in result.output
+
+
+class TestSiteCommands:
+    def test_site_scrape_only_does_not_require_xai(self, tmp_path, monkeypatch):
+        config = DistillConfig(
+            xai_api_key="",
+            gemini_api_key="test-gemini",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+
+        try:
+            monkeypatch.setattr(
+                cli,
+                "crawl_site",
+                lambda seed: [
+                    SitePage(
+                        url=seed.url,
+                        title="Example Page",
+                        site_name=seed.resolved_site_name(),
+                        page_type="page",
+                        text="Body text",
+                        pdf_links=["https://example.com/guide.pdf"],
+                        source_url=seed.url,
+                    )
+                ],
+            )
+            called = []
+            monkeypatch.setattr(
+                cli,
+                "analyze_site_page",
+                lambda *args, **kwargs: called.append("analyze") or "should not run",
+            )
+
+            result = runner.invoke(
+                cli.app,
+                ["site", "https://example.com", "--topic", "web", "--scrape-only", "--seed-only"],
+            )
+
+            assert result.exit_code == 0
+            assert called == []
+            assert (config.site_dir("web", "example.com") / "site.json").exists()
+            site_manifest = json.loads(
+                (config.site_dir("web", "example.com") / "site.json").read_text(encoding="utf-8")
+            )
+            page_dir = config.site_page_dir("web", "example.com", "Example Page", "example-com")
+            assert (page_dir / "content.md").exists()
+            assert (page_dir / "metadata.json").exists()
+            assert (page_dir / "attachments.json").exists()
+            assert site_manifest["sections"][0]["section"] == "root"
+            assert not (page_dir / "insights.md").exists()
+        finally:
+            cli.get_config = original
+
+    def test_site_writes_section_update_when_manifest_changes(self, tmp_path, monkeypatch):
+        config = DistillConfig(
+            xai_api_key="",
+            gemini_api_key="test-gemini",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+
+        try:
+            site_dir = config.site_dir("web", "example.com")
+            site_dir.mkdir(parents=True, exist_ok=True)
+            (site_dir / "site.json").write_text(
+                json.dumps(
+                    {
+                        "sections": [
+                            {
+                                "section": "topic/agents",
+                                "page_count": 1,
+                                "urls": ["https://example.com/topic/agents/old"],
+                                "last_crawled_at": "2026-01-01T00:00:00",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            monkeypatch.setattr(
+                cli,
+                "crawl_site",
+                lambda seed: [
+                    SitePage(
+                        url="https://example.com/topic/agents/new",
+                        title="New Page",
+                        site_name=seed.resolved_site_name(),
+                        page_type="topic",
+                        text="Body text",
+                        source_url=seed.url,
+                        final_url="https://example.com/topic/agents/new",
+                    )
+                ],
+            )
+
+            result = runner.invoke(
+                cli.app,
+                [
+                    "site",
+                    "https://example.com/topic/agents/overview",
+                    "--topic",
+                    "web",
+                    "--scrape-only",
+                    "--seed-only",
+                ],
+            )
+
+            assert result.exit_code == 0
+            update_path = site_dir / "site_update.md"
+            assert update_path.exists()
+            assert "topic/agents changed" in update_path.read_text(encoding="utf-8")
+        finally:
+            cli.get_config = original
+
+    def test_site_ingest_attachments_writes_attachment_artifacts(self, tmp_path, monkeypatch):
+        config = DistillConfig(
+            xai_api_key="test-key",
+            gemini_api_key="test-gemini",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+
+        try:
+            monkeypatch.setattr(
+                cli,
+                "crawl_site",
+                lambda seed: [
+                    SitePage(
+                        url=seed.url,
+                        title="Example Page",
+                        site_name=seed.resolved_site_name(),
+                        page_type="page",
+                        text="Body text",
+                        pdf_links=["https://example.com/guide.pdf"],
+                        source_url=seed.url,
+                    )
+                ],
+            )
+            monkeypatch.setattr(
+                cli,
+                "ingest_page_attachments",
+                lambda page, page_dir, config: (
+                    [
+                        __import__(
+                            "distill.site_attachments", fromlist=["AttachmentRecord"]
+                        ).AttachmentRecord(
+                            url="https://example.com/guide.pdf",
+                            kind="pdf",
+                            provider="pdf",
+                            source="pdf_link",
+                            status="ingested",
+                            text_path="guide.txt",
+                            content_chars=42,
+                        )
+                    ],
+                    "### PDF Attachment: https://example.com/guide.pdf\nPDF body",
+                ),
+            )
+            monkeypatch.setattr(cli, "analyze_site_page", lambda *args, **kwargs: "# Insight")
+
+            result = runner.invoke(
+                cli.app,
+                [
+                    "site",
+                    "https://example.com",
+                    "--topic",
+                    "web",
+                    "--seed-only",
+                    "--ingest-attachments",
+                ],
+            )
+
+            assert result.exit_code == 0
+            page_dir = config.site_page_dir("web", "example.com", "Example Page", "example-com")
+            assert (page_dir / "attachments.json").exists()
+            assert "Attachment Extracts" in (page_dir / "content.md").read_text(encoding="utf-8")
+        finally:
+            cli.get_config = original
+
+    def test_site_reuses_existing_insights_when_page_is_unchanged(self, tmp_path, monkeypatch):
+        config = DistillConfig(
+            xai_api_key="test-key",
+            gemini_api_key="test-gemini",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+
+        try:
+            page = SitePage(
+                url="https://example.com/agent",
+                title="Agent Page",
+                site_name="example.com",
+                page_type="page",
+                text="Body text",
+                source_url="https://example.com/agent",
+            )
+            page_dir = config.site_page_dir("web", "example.com", "Agent Page", page.page_id)
+            page_dir.mkdir(parents=True, exist_ok=True)
+            prior_doc = cli.build_page_document(page)
+            (page_dir / "metadata.json").write_text(
+                json.dumps({"content_hash": cli._content_hash(prior_doc)}),
+                encoding="utf-8",
+            )
+            (page_dir / "insights.md").write_text("# Existing insight", encoding="utf-8")
+
+            monkeypatch.setattr(cli, "crawl_site", lambda seed: [page])
+            called = []
+            monkeypatch.setattr(
+                cli,
+                "analyze_site_page",
+                lambda *args, **kwargs: called.append("analyze") or "# New insight",
+            )
+
+            result = runner.invoke(
+                cli.app,
+                ["site", "https://example.com/agent", "--topic", "web", "--seed-only"],
+            )
+
+            assert result.exit_code == 0
+            assert called == []
+            assert "unchanged page" in result.output
+            manifest = json.loads(
+                (config.site_dir("web", "example.com") / "site.json").read_text(encoding="utf-8")
+            )
+            assert manifest["skipped_pages"] == 1
+            assert manifest["analyzed_pages"] == 0
+        finally:
+            cli.get_config = original
+
+    def test_site_scrape_only_rejects_report(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="",
+            gemini_api_key="test-gemini",
+            distill_output_dir=tmp_path / "library",
+        )
+        original = cli.get_config
+        cli.get_config = lambda: config
+
+        try:
+            result = runner.invoke(
+                cli.app,
+                ["site", "https://example.com", "--scrape-only", "--report"],
+            )
+            assert result.exit_code != 0
+            assert "--report cannot be used with --scrape-only" in result.output
+        finally:
+            cli.get_config = original
+
+    def test_latest_preview_uses_stay_current_defaults(self, mock_config, monkeypatch):
+        captured = {}
+
+        def fake_preview(query, **kwargs):
+            captured.update(query=query, **kwargs)
+            return mock_config, cli.CostTracker(), []
+
+        monkeypatch.setattr(cli, "_preview_learning_selection", fake_preview)
+
+        result = runner.invoke(cli.app, ["latest", "Claude Code leak", "--preview"])
+
+        assert result.exit_code == 0
+        assert captured["days"] == 3
+        assert captured["hours"] is None
+        assert captured["limit"] == 10
+        assert captured["sort"] == "date"
+        assert captured["per_channel_cap"] == 3
+        assert captured["shorts"] is True
+
+    def test_search_passes_hours_to_preview(self, mock_config, monkeypatch):
+        captured = {}
+
+        def fake_preview(query, **kwargs):
+            captured.update(query=query, **kwargs)
+            return mock_config, cli.CostTracker(), []
+
+        monkeypatch.setattr(cli, "_preview_learning_selection", fake_preview)
+
+        result = runner.invoke(cli.app, ["search", "Claude Code leak", "--hours", "20"])
+
+        assert result.exit_code == 0
+        assert captured["hours"] == 20
+
+
+def test_auto_skeptical_mode_triggers_for_rumor_queries():
+    assert cli._auto_skeptical_mode("Claude Code leak analysis", hours=20, days=1) is True
+
+
+def test_filter_recent_candidates_prefers_exact_published_at_hours():
+    from distill.discovery import VideoInfo
+
+    recent = VideoInfo(
+        "v1",
+        "Recent",
+        _recent(1),
+        600,
+        "https://youtube.com/watch?v=v1",
+        published_at=(datetime.now() - timedelta(hours=6)).isoformat(),
+    )
+    stale = VideoInfo(
+        "v2",
+        "Stale",
+        _recent(1),
+        600,
+        "https://youtube.com/watch?v=v2",
+        published_at=(datetime.now() - timedelta(hours=30)).isoformat(),
+    )
+
+    filtered = cli._filter_recent_candidates([recent, stale], days=2, hours=20)
+
+    assert [video.video_id for video in filtered] == ["v1"]

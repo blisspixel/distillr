@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% set active_nav = "topics" %}
+
+{% block title %}{{ topic.name }} - Distill{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="/topics">Topics</a><span class="sep">/</span>{{ topic.name }}
+</div>
+
+<h1>{{ topic.name }}</h1>
+<p class="subtitle">{{ topic.channel_count }} channels &middot; {{ topic.video_count }} videos &middot; {{ topic.site_count }} sites &middot; {{ topic.paper_count }} papers</p>
+
+<div class="tabs" data-group="topic">
+  <button class="tab active" data-group="topic" data-tab="tab-channels">Channels</button>
+  {% if synthesis %}<button class="tab" data-group="topic" data-tab="tab-synthesis">Synthesis</button>{% endif %}
+  {% if brief %}<button class="tab" data-group="topic" data-tab="tab-brief">Brief</button>{% endif %}
+  {% if sites %}<button class="tab" data-group="topic" data-tab="tab-sites">Sites</button>{% endif %}
+  {% if papers %}<button class="tab" data-group="topic" data-tab="tab-papers">Papers</button>{% endif %}
+</div>
+
+<div id="tab-channels" class="tab-content active" data-group="topic">
+  <div class="topic-grid">
+    {% for ch in topic.channels %}
+    <a href="/topics/{{ topic.name }}/channels/{{ ch.name }}" style="text-decoration:none;color:inherit;">
+      <div class="card topic-card">
+        <div class="name">{{ ch.name }}</div>
+        <div class="stats">{{ ch.url }}</div>
+      </div>
+    </a>
+    {% else %}
+    <div class="card"><p style="color:var(--muted)">No channels in this topic yet.</p></div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if synthesis %}
+<div id="tab-synthesis" class="tab-content" data-group="topic">
+  <div class="card">
+    <div class="md-content">{{ synthesis|strip_frontmatter|markdown|safe }}</div>
+  </div>
+</div>
+{% endif %}
+
+{% if brief %}
+<div id="tab-brief" class="tab-content" data-group="topic">
+  <div class="card">
+    <div class="md-content">{{ brief|strip_frontmatter|markdown|safe }}</div>
+  </div>
+</div>
+{% endif %}
+
+{% if sites %}
+<div id="tab-sites" class="tab-content" data-group="topic">
+  <div class="topic-grid">
+    {% for site in sites %}
+    <div class="card topic-card">
+      <div class="name">{{ site.name }}</div>
+      <div class="stats">{{ site.page_count }} pages</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if papers %}
+<div id="tab-papers" class="tab-content" data-group="topic">
+  <div class="topic-grid">
+    {% for paper in papers %}
+    <div class="card topic-card">
+      <div class="name">{{ paper.title }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

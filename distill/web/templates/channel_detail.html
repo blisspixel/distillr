@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% set active_nav = "topics" %}
+
+{% block title %}{{ channel }} - Distill{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="/topics">Topics</a><span class="sep">/</span><a href="/topics/{{ topic }}">{{ topic }}</a><span class="sep">/</span>{{ channel }}
+</div>
+
+<h1>{{ channel }}</h1>
+<p class="subtitle">{{ video_count }} videos{% if ch_info %} &middot; <a href="{{ ch_info.url }}" target="_blank">YouTube</a>{% endif %}</p>
+
+<div class="tabs" data-group="ch">
+  <button class="tab active" data-group="ch" data-tab="tab-videos">Videos ({{ video_count }})</button>
+  {% if synthesis %}<button class="tab" data-group="ch" data-tab="tab-synthesis">Synthesis</button>{% endif %}
+  {% if context %}<button class="tab" data-group="ch" data-tab="tab-context">Context</button>{% endif %}
+</div>
+
+<div id="tab-videos" class="tab-content active" data-group="ch">
+  <table>
+    <thead>
+      <tr><th>#</th><th>Title</th><th>Date</th><th>Duration</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for v in videos %}
+      <tr>
+        <td style="color:var(--muted)">{{ loop.index }}</td>
+        <td>
+          <a href="/topics/{{ topic }}/channels/{{ channel }}/videos/{{ v._slug }}">
+            {{ v.get('title', 'Unknown') }}
+          </a>
+        </td>
+        <td style="color:var(--muted)">{{ v.get('upload_date', '')|format_date }}</td>
+        <td style="color:var(--muted)">{{ v.get('duration', 0)|duration }}</td>
+        <td>
+          {% if v._has_insights %}
+            <span class="badge badge-green">complete</span>
+          {% elif v._has_transcript %}
+            <span class="badge badge-amber">transcript</span>
+          {% else %}
+            <span class="badge badge-red">missing</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if synthesis %}
+<div id="tab-synthesis" class="tab-content" data-group="ch">
+  <div class="card">
+    <div class="md-content">{{ synthesis|strip_frontmatter|markdown|safe }}</div>
+  </div>
+</div>
+{% endif %}
+
+{% if context %}
+<div id="tab-context" class="tab-content" data-group="ch">
+  <div class="card">
+    <div class="md-content">{{ context|strip_frontmatter|markdown|safe }}</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
