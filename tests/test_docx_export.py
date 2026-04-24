@@ -4,7 +4,11 @@ import pytest
 
 from distill.docx_export import (
     _add_formatted_text,
+    _add_page_numbers,
+    _add_toc,
     _extract_title,
+    _parse_markdown,
+    _setup_report_styles,
     _strip_front_matter,
     export_report,
     markdown_to_docx,
@@ -110,6 +114,26 @@ class TestMarkdownToDocx:
         result = markdown_to_docx(sample_md, docx_path=out, title="Custom Title")
         assert result.exists()
 
+    def test_parses_code_blocks_and_lists(self, tmp_path):
+        from docx import Document
+
+        content = """# Title
+
+```python
+print("hello")
+```
+
+- Bullet
+1. Numbered
+"""
+        doc = Document()
+        _parse_markdown(doc, content)
+
+        texts = [paragraph.text for paragraph in doc.paragraphs]
+        assert any('print("hello")' in text for text in texts)
+        assert any("Bullet" in text for text in texts)
+        assert any("Numbered" in text for text in texts)
+
 
 class TestExportReport:
     def test_creates_professional_report(self, sample_md, tmp_path):
@@ -131,6 +155,26 @@ class TestExportReport:
         assert result.suffix == ".docx"
         assert result.exists()
         result.unlink()  # cleanup
+
+    def test_setup_report_styles_and_page_numbers(self):
+        from docx import Document
+
+        doc = Document()
+        _setup_report_styles(doc)
+        _add_page_numbers(doc)
+
+        assert doc.sections[0].footer.paragraphs
+
+    def test_add_toc_skips_nested_headings(self):
+        from docx import Document
+
+        doc = Document()
+        _add_toc(doc, "## Table of Contents\n## Executive Briefing\n### Detail\n## Closing")
+
+        texts = [paragraph.text for paragraph in doc.paragraphs]
+        assert "Executive Briefing" in texts[1]
+        assert "Closing" in texts[2]
+        assert all("Detail" not in text for text in texts)
 
 
 class TestConfidenceBadges:

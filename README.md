@@ -14,7 +14,7 @@ pip install distillr
 distill papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
-That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. About 60 seconds, ~$0.30. Terminal output during the run looks like this:
+That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and roughly ~$1 in model spend. Terminal output during the run looks like this:
 
 ```
 Papers: temporal knowledge graph

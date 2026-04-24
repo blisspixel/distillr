@@ -21,6 +21,7 @@ async def index(request: Request):
         ver = "dev"
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {"request": request, "version": ver, **snapshot},
     )

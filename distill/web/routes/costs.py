@@ -24,6 +24,7 @@ async def costs_page(request: Request):
     source_rollups = source_cost_rollups(all_entries, days=30)
 
     return templates.TemplateResponse(
+        request,
         "costs.html",
         {
             "request": request,

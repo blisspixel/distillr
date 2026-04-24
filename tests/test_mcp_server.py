@@ -9,6 +9,8 @@ import pytest
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.mcp_server import (
+    _config,
+    _lib,
     _read_markdown_resource,
     _strip_frontmatter,
     _topic_gap_summary,
@@ -16,6 +18,7 @@ from distill.mcp_server import (
     _video_list,
     catch_up,
     daily_deals,
+    generate_report,
     get_channel_synthesis,
     get_costs,
     get_topic_corpus,
@@ -28,7 +31,10 @@ from distill.mcp_server import (
     get_video_insights,
     get_watch_alerts,
     get_watchlist,
+    learn_topic,
+    main,
     morning_briefing,
+    process_video_url,
     research_gaps,
     resynthesize_topic,
     search_videos,
@@ -37,6 +43,7 @@ from distill.mcp_server import (
     watch_add,
     watch_remove,
 )
+from distill.state import ChannelState
 
 # Stable mock return for _cost_summary so we don't hit CostTracker.total_calls bug
 _FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0, "calls": 0}
@@ -125,6 +132,26 @@ class TestReadMarkdownResource:
     def test_missing_file(self, tmp_path):
         path = tmp_path / "missing.md"
         assert _read_markdown_resource(path, "missing") == "missing"
+
+
+class TestConfigHelpers:
+    def test_config_loads_dotenv(self):
+        fake_config = MagicMock()
+        with (
+            patch("distill.mcp_server.load_dotenv") as mock_load,
+            patch("distill.mcp_server.DistillConfig", return_value=fake_config) as mock_ctor,
+        ):
+            result = _config()
+
+        assert result is fake_config
+        mock_load.assert_called_once_with()
+        mock_ctor.assert_called_once_with()
+
+    def test_lib_uses_explicit_config(self, mock_config):
+        lib = _lib(mock_config)
+
+        assert isinstance(lib, Library)
+        assert lib.config is mock_config
 
 
 class TestCostSummary:
@@ -254,6 +281,27 @@ class TestVideoList:
         assert result[0]["has_transcript"] is False
         assert result[0]["has_insights"] is False
 
+    def test_video_without_upload_date_sorts_last(self, mock_config):
+        _setup_library(mock_config, "ai", "TestChannel")
+        older_dir = mock_config.video_dir("ai", "TestChannel", "older")
+        older_dir.mkdir(parents=True, exist_ok=True)
+        (older_dir / "metadata.json").write_text(
+            json.dumps({"video_id": "older", "title": "Older", "upload_date": "20260101"}),
+            encoding="utf-8",
+        )
+
+        missing_dir = mock_config.video_dir("ai", "TestChannel", "missing")
+        missing_dir.mkdir(parents=True, exist_ok=True)
+        (missing_dir / "metadata.json").write_text(
+            json.dumps({"video_id": "missing", "title": "Missing Date"}),
+            encoding="utf-8",
+        )
+
+        result = _video_list(mock_config, "ai", "TestChannel")
+
+        assert result[0]["title"] == "Older"
+        assert result[-1]["title"] == "Missing Date"
+
 
 # ── Resource tests ───────────────────────────────────────────────────
 
@@ -318,6 +366,27 @@ class TestGetTopicVideos:
         with patch("distill.mcp_server._config", return_value=mock_config):
             result = json.loads(get_topic_videos("empty"))
         assert result["videos"] == []
+
+    def test_defaults_analysis_mode_when_missing(self, mock_config):
+        _setup_library(mock_config, "ai", "TestChannel")
+        vid_dir = mock_config.video_dir("ai", "TestChannel", "vid001")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "video_id": "vid001",
+                    "title": "No Mode",
+                    "upload_date": "20260101",
+                    "url": "https://example.com/v",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("distill.mcp_server._config", return_value=mock_config):
+            result = json.loads(get_topic_videos("ai"))
+
+        assert result["videos"][0]["analysis_mode"] == "unknown"
 
 
 class TestGetTopicCorpus:
@@ -581,6 +650,37 @@ class TestWatchAdd:
         assert result["status"] == "added"
         assert result["days"] == 2
 
+    def test_auto_generates_instructions_when_available(self, mock_config):
+        Library(mock_config)
+        fake_vid = MagicMock(title="Daily Deals Rundown")
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.discovery.resolve_channel_name", return_value="DealCh"),
+            patch("distill.discovery.discover_videos", return_value=[fake_vid]),
+            patch(
+                "distill.analysis.generate_watch_instructions",
+                return_value="Extract prices and store names",
+            ),
+        ):
+            result = json.loads(watch_add(url="https://youtube.com/@DealCh"))
+
+        assert result["status"] == "added"
+        assert result["instructions"] == "Extract prices and store names"
+
+    def test_auto_generation_failures_are_ignored(self, mock_config):
+        Library(mock_config)
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.discovery.resolve_channel_name", return_value="DealCh"),
+            patch("distill.discovery.discover_videos", side_effect=RuntimeError("boom")),
+        ):
+            result = json.loads(watch_add(url="https://youtube.com/@DealCh"))
+
+        assert result["status"] == "added"
+        assert result["instructions"] == "(none)"
+
 
 class TestWatchRemove:
     def test_remove_existing(self, mock_config):
@@ -707,6 +807,20 @@ class TestCatchUp:
         assert result["results"][0]["status"] == "error"
         assert "network fail" in result["results"][0]["error"]
 
+    def test_days_override_is_used(self, mock_config):
+        lib = Library(mock_config)
+        lib.add_to_watchlist("https://youtube.com/@TestCh", "TestCh", topic="ai", days=7)
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.discovery.discover_videos", return_value=[]) as mock_discover,
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+            patch("distill.mcp_server.save_run_log"),
+        ):
+            json.loads(catch_up(days=2))
+
+        assert mock_discover.call_args.kwargs["days"] == 2
+
 
 class TestResearchGaps:
     def test_returns_structured_gap_report(self, mock_config):
@@ -756,6 +870,189 @@ class TestSearchVideos:
         assert len(result["results"]) == 1
         assert result["results"][0]["title"] == "Great AI Video"
         assert result["results"][0]["score"] == 0.95
+
+    def test_falls_back_and_dedupes(self, mock_config):
+        vid1 = MagicMock()
+        vid1.video_id = "same"
+        vid1.title = "First"
+        vid1.channel_name = "Chan"
+        vid1.upload_date = "20260301"
+        vid1.url = "https://youtube.com/watch?v=same"
+        vid1.duration = 100
+        vid1.view_count = 10
+        vid1.channel_url = "https://youtube.com/@Chan"
+        vid2 = MagicMock()
+        vid2.video_id = "same"
+        vid2.title = "Duplicate"
+        vid2.channel_name = "Chan"
+        vid2.upload_date = "20260302"
+        vid2.url = "https://youtube.com/watch?v=same"
+        vid2.duration = 110
+        vid2.view_count = 20
+        vid2.channel_url = "https://youtube.com/@Chan"
+
+        ranked = MagicMock(video=vid1, final_score=0.9, rationale="strong")
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.browser_search.search_youtube_results", return_value=[]),
+            patch("distill.discovery.search_videos", return_value=[vid1, vid2]),
+            patch("distill.discovery.enrich_videos", side_effect=lambda videos, **_: videos) as mock_enrich,
+            patch("distill.ranking.rerank_videos", return_value=[ranked]),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(search_videos("AI updates", limit=1))
+
+        assert len(result["results"]) == 1
+        assert mock_enrich.call_args.args[0] == [vid1]
+
+
+class TestLearnTopic:
+    def test_no_api_key(self, tmp_path):
+        config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+        with patch("distill.mcp_server._config", return_value=config):
+            result = learn_topic("ai agents")
+        assert "XAI_API_KEY" in result
+
+    def test_no_videos_found(self, mock_config):
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.browser_search.search_youtube_results", return_value=[]),
+            patch("distill.discovery.search_videos", return_value=[]),
+        ):
+            result = json.loads(learn_topic("ai agents"))
+
+        assert result["error"] == "No videos found for this query"
+
+    def test_processes_ranked_results_and_respects_existing_state(self, mock_config):
+        already = MagicMock()
+        already.video_id = "done"
+        already.title = "Already Done"
+        already.channel_name = "TestCh"
+        already.channel_url = "https://youtube.com/@TestCh"
+        already.upload_date = "20260401"
+        already.url = "https://youtube.com/watch?v=done"
+        fresh = MagicMock()
+        fresh.video_id = "fresh"
+        fresh.title = "Fresh"
+        fresh.channel_name = "TestCh"
+        fresh.channel_url = "https://youtube.com/@TestCh"
+        fresh.upload_date = "20260402"
+        fresh.url = "https://youtube.com/watch?v=fresh"
+        ranked_done = MagicMock(video=already)
+        ranked_fresh = MagicMock(video=fresh)
+
+        state_path = mock_config.channel_dir("derived-topic", "TestCh") / "state.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        ChannelState(state_path).mark_processed("done", "Already Done", "20260401")
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.cli_shared.topic_from_query", return_value="derived-topic"),
+            patch("distill.browser_search.search_youtube_results", return_value=[already, fresh]),
+            patch("distill.discovery.enrich_videos", return_value=[already, fresh]),
+            patch("distill.ranking.rerank_videos", return_value=[ranked_done, ranked_fresh]),
+            patch("distill.cli_shared.ensure_channel_context"),
+            patch("distill.cli_shared.process_video", return_value=True),
+            patch("distill.synthesis.synthesize_channel"),
+            patch("distill.synthesis.synthesize_topic"),
+            patch("distill.mcp_server.save_run_log"),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(learn_topic("ai agents", limit=2))
+
+        statuses = {item["title"]: item["status"] for item in result["videos"]}
+        assert result["topic"] == "derived-topic"
+        assert statuses["Already Done"] == "already_done"
+        assert statuses["Fresh"] == "ok"
+
+
+class TestProcessVideoUrl:
+    def test_no_api_key(self, tmp_path):
+        config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+        with patch("distill.mcp_server._config", return_value=config):
+            result = process_video_url("https://youtube.com/watch?v=abc")
+        assert "XAI_API_KEY" in result
+
+    def test_missing_video_info(self, mock_config):
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.discovery.get_video_info", return_value=None),
+        ):
+            result = process_video_url("https://youtube.com/watch?v=abc")
+        assert "Could not get video info" in result
+
+    def test_success_includes_insights(self, mock_config):
+        info = MagicMock()
+        info.video_id = "abc"
+        info.title = "AI Overview"
+        info.channel_url = "https://youtube.com/@Chan"
+
+        def _process(*args, **kwargs):
+            insights_file = (
+                mock_config.video_dir_slug("ai", "Chan", "AI Overview", "abc") / "insights.md"
+            )
+            insights_file.parent.mkdir(parents=True, exist_ok=True)
+            insights_file.write_text("---\ntitle: x\n---\n\nUseful insight", encoding="utf-8")
+            return True
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.discovery.get_video_info", return_value=info),
+            patch("distill.cli_shared.resolve_video_channel_name", return_value="Chan"),
+            patch("distill.cli_shared.ensure_channel_context"),
+            patch("distill.cli_shared.process_video", side_effect=_process),
+            patch("distill.mcp_server.save_run_log"),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(process_video_url("https://youtube.com/watch?v=abc"))
+
+        assert result["success"] is True
+        assert result["channel"] == "Chan"
+        assert result["insights"] == "Useful insight"
+
+
+class TestGenerateReport:
+    def test_no_gemini_key(self, tmp_path):
+        config = DistillConfig(gemini_api_key="", distill_output_dir=tmp_path / "library")
+        with patch("distill.mcp_server._config", return_value=config):
+            result = generate_report("ai")
+        assert "GEMINI_API_KEY" in result
+
+    def test_handles_report_exceptions(self, mock_config):
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.accordion.run_accordion_research", side_effect=RuntimeError("bad run")),
+        ):
+            result = json.loads(generate_report("ai"))
+
+        assert result["error"] == "bad run"
+
+    def test_returns_complete_payload(self, mock_config):
+        report = "word " * 1200
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.accordion.run_accordion_research", return_value=report),
+            patch("distill.mcp_server.save_run_log"),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(generate_report("ai", channel="TestChannel"))
+
+        assert result["status"] == "complete"
+        assert result["words"] == len(report.split())
+        assert result["characters"] == len(report)
+        assert "(truncated" in result["report"]
+
+    def test_returns_failed_when_runner_returns_none(self, mock_config):
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.accordion.run_accordion_research", return_value=None),
+            patch("distill.mcp_server.save_run_log"),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(generate_report("ai"))
+
+        assert result["status"] == "failed"
 
 
 class TestResynthesizeTopic:
@@ -815,6 +1112,39 @@ class TestResynthesizeTopic:
         assert error_result[0]["status"] == "error"
         assert "LLM fail" in error_result[0]["error"]
 
+    def test_corpus_skipped_when_no_mixed_source_material(self, mock_config):
+        _setup_library(mock_config, "ai", "TestChannel")
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.synthesis.synthesize_channel"),
+            patch("distill.synthesis.synthesize_topic"),
+            patch("distill.corpus_analysis.synthesize_corpus", return_value=""),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(resynthesize_topic("ai"))
+
+        assert any(r.get("corpus") == "ai" and r["status"] == "skipped" for r in result["results"])
+
+    def test_corpus_error_is_reported(self, mock_config):
+        _setup_library(mock_config, "ai", "TestChannel")
+
+        with (
+            patch("distill.mcp_server._config", return_value=mock_config),
+            patch("distill.synthesis.synthesize_channel"),
+            patch("distill.synthesis.synthesize_topic"),
+            patch(
+                "distill.corpus_analysis.synthesize_corpus",
+                side_effect=RuntimeError("corpus fail"),
+            ),
+            patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(resynthesize_topic("ai"))
+
+        corpus_rows = [r for r in result["results"] if r.get("corpus") == "ai"]
+        assert corpus_rows[0]["status"] == "error"
+        assert corpus_rows[0]["error"] == "corpus fail"
+
 
 # ── Prompt tests ─────────────────────────────────────────────────────
 
@@ -843,3 +1173,11 @@ class TestPrompts:
         assert "quantum computing" in result
         assert "search_videos" in result
         assert "learn_topic" in result
+
+
+class TestEntryPoint:
+    def test_main_runs_stdio_transport(self):
+        with patch("distill.mcp_server.mcp.run") as mock_run:
+            main()
+
+        mock_run.assert_called_once_with(transport="stdio")

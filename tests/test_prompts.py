@@ -1,12 +1,20 @@
 """Tests for distill.prompts — ensure prompt generation doesn't crash with edge cases."""
 
 from distill.prompts import (
+    auto_watch_instructions_prompt,
     channel_context_prompt,
     channel_synthesis_prompt,
     corpus_synthesis_prompt,
     deep_research_prompt,
+    discover_query_generation_prompt,
+    discover_rerank_prompt,
+    paper_query_expansion_prompt,
+    paper_rerank_prompt,
     pass1_extraction_prompt,
     pass2_synthesis_prompt,
+    scan_insight_prompt,
+    search_query_expansion_prompt,
+    search_rerank_prompt,
     topic_synthesis_prompt,
 )
 
@@ -35,6 +43,11 @@ class TestPass1Prompt:
         transcript = "word " * 100000
         result = pass1_extraction_prompt("T", "20250101", "Ch", transcript)
         assert isinstance(result, str)
+
+    def test_custom_instructions_block(self):
+        result = pass1_extraction_prompt("Title", "20250101", "Channel", "text", "Focus on pricing")
+        assert "CUSTOM ANALYSIS INSTRUCTIONS" in result
+        assert "Focus on pricing" in result
 
 
 class TestPass2Prompt:
@@ -133,3 +146,67 @@ class TestDeepResearchPrompt:
     def test_empty_corpus(self):
         result = deep_research_prompt("ai", "")
         assert isinstance(result, str)
+
+
+class TestAdditionalPromptBuilders:
+    def test_auto_watch_instructions_prompt_truncates_titles(self):
+        titles = [f"Video {i}" for i in range(20)]
+        result = auto_watch_instructions_prompt("Creator", titles)
+        assert "Video 14" in result
+        assert "Video 15" not in result
+
+    def test_scan_insight_prompt_includes_custom_instructions(self):
+        result = scan_insight_prompt("Title", "20250101", "Channel", "Transcript", "Focus on benchmarks")
+        assert "CUSTOM ANALYSIS INSTRUCTIONS" in result
+        assert "Focus on benchmarks" in result
+
+    def test_search_query_expansion_prompt_includes_skeptical_guidance(self):
+        result = search_query_expansion_prompt("topic", skeptical=True)
+        assert "rumor-heavy" in result
+        assert '"queries"' in result
+
+    def test_search_rerank_prompt_handles_long_descriptions_and_skeptical_mode(self):
+        video = type(
+            "Video",
+            (),
+            {
+                "video_id": "vid1",
+                "title": "Title",
+                "channel_name": "Creator",
+                "upload_date": "20250101",
+                "duration": 123,
+                "view_count": 10,
+                "like_count": 2,
+                "comment_count": 1,
+                "description": "x" * 400,
+            },
+        )()
+        result = search_rerank_prompt("topic", [video], skeptical=True)
+        assert "SKEPTICAL MODE" in result
+        assert "..." in result
+
+    def test_paper_and_discovery_prompt_builders_include_json_contracts(self):
+        assert '"queries"' in paper_query_expansion_prompt("temporal knowledge graph")
+        assert '"paper_queries"' in discover_query_generation_prompt("learn agent memory")
+
+    def test_discover_rerank_and_paper_rerank_prompt_truncate_content(self):
+        discover_prompt = discover_rerank_prompt(
+            "goal",
+            [{"kind": "paper", "identifier": "p1", "title": "Paper", "subtitle": "Authors", "date": "2025", "description": "y" * 600}],
+        )
+        assert "..." in discover_prompt
+
+        paper = type(
+            "Paper",
+            (),
+            {
+                "paper_id": "p1",
+                "title": "Paper",
+                "authors": ["A", "B"],
+                "categories": ["cs.AI"],
+                "published_at": "2025-01-01",
+                "abstract": "z" * 700,
+            },
+        )()
+        paper_prompt = paper_rerank_prompt("goal", [paper])
+        assert "..." in paper_prompt

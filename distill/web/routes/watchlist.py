@@ -32,6 +32,7 @@ async def watchlist_page(request: Request):
         )
 
     return templates.TemplateResponse(
+        request,
         "watchlist.html",
         {
             "request": request,

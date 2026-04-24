@@ -5,8 +5,7 @@ import os
 import re
 import webbrowser
 import zipfile
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from hashlib import sha1
 from html import escape
 from pathlib import Path
@@ -14,15 +13,17 @@ from types import SimpleNamespace
 
 import typer
 from dotenv import load_dotenv
-from openai import OpenAI
 from rich import box
 from rich.columns import Columns
 from rich.panel import Panel
 from rich.table import Table
 
 import distill.cli_shared as cli_shared
+import distill.cli_support.discover as _discover_support
+import distill.cli_support.learning as _learning_support
+import distill.cli_support.learning_flow as _learning_flow_support
+import distill.cli_support.topic_changes as _topic_changes_support
 from distill.analysis import (
-    XAI_BASE_URL,
     analyze_scan,
     analyze_short,
     analyze_video,
@@ -67,7 +68,26 @@ from distill.cli_shared import (
 )
 from distill.config import DistillConfig, site_name_from_url, slugify_title
 from distill.corpus_analysis import synthesize_corpus
-from distill.costs import CostTracker, TokenUsage, estimate_run_cost
+from distill.costs import CostTracker, estimate_run_cost
+from distill.dashboard_data import _load_site_manifest as _load_site_manifest
+from distill.dashboard_data import build_site_section_state as _build_site_section_state
+from distill.dashboard_data import collect_corpus_health_warnings as _collect_corpus_health_warnings
+from distill.dashboard_data import collect_recent_artifacts as _collect_recent_artifacts
+from distill.dashboard_data import collect_stale_topic_watches as _collect_stale_topic_watches
+from distill.dashboard_data import collect_topic_changes as _collect_topic_changes
+from distill.dashboard_data import count_paper_corpus as _count_paper_corpus
+from distill.dashboard_data import count_site_corpus as _count_site_corpus
+from distill.dashboard_data import count_topic_outputs as _count_topic_outputs
+from distill.dashboard_data import dashboard_snapshot as _shared_dashboard_snapshot
+from distill.dashboard_data import estimated_topic_watch_sweep as _estimated_topic_watch_sweep
+from distill.dashboard_data import format_run_timestamp as _format_run_timestamp
+from distill.dashboard_data import load_all_cost_runs as _load_all_cost_runs
+from distill.dashboard_data import load_latest_run_payload as _load_latest_run_payload
+from distill.dashboard_data import parse_run_datetime as _parse_run_datetime
+from distill.dashboard_data import source_cost_rollups as _source_cost_rollups
+from distill.dashboard_data import sum_recent_cost as _sum_recent_cost
+from distill.dashboard_data import topic_cost_rollups as _topic_cost_rollups
+from distill.dashboard_data import topic_watch_budget_messages as _topic_watch_budget_messages
 from distill.discovery import (
     VideoInfo,
     discover_videos,
@@ -86,13 +106,7 @@ from distill.paper_ingest import (
     search_arxiv_multi,
     search_arxiv_papers,
 )
-from distill.prompts import (
-    discover_query_generation_prompt,
-    discover_rerank_prompt,
-    paper_query_expansion_prompt,
-    search_query_expansion_prompt,
-)
-from distill.ranking import RankedPaper, rerank_papers, rerank_videos
+from distill.ranking import rerank_papers, rerank_videos
 from distill.research import run_deep_research
 from distill.research_brief import run_research_brief
 from distill.site_analysis import analyze_site_page, synthesize_site, synthesize_site_topic
@@ -106,7 +120,6 @@ from distill.site_scraper import (
     build_page_document,
     crawl_site,
     load_site_batch,
-    site_section_key,
 )
 from distill.state import ChannelState
 from distill.summary import ETATracker, RunSummary, VideoResult, display_estimate, display_summary
@@ -114,10 +127,367 @@ from distill.synthesis import synthesize_channel, synthesize_topic
 from distill.synthesize import run_synthesis
 from distill.transcripts import get_transcript
 
+_replace_case_insensitive = _learning_support._replace_case_insensitive
+_strip_intent_terms = _learning_support._strip_intent_terms
+_strip_noise_terms = _learning_support._strip_noise_terms
+_looks_like_rumor_query = _learning_support._looks_like_rumor_query
+_auto_skeptical_mode = _learning_support._auto_skeptical_mode
+_effective_days = _learning_support._effective_days
+_window_label = _learning_support._window_label
+_default_report_focus = _learning_support._default_report_focus
+_filter_recent_candidates = _learning_support._filter_recent_candidates
+_dedupe_candidates = _learning_support._dedupe_candidates
+_format_metric = _learning_support._format_metric
+_apply_ranked_channel_cap = _learning_support._apply_ranked_channel_cap
+_dedupe_query_strings = _learning_support._dedupe_query_strings
+_heuristic_learning_queries = _learning_support._heuristic_learning_queries
+_llm_expand_learning_queries = _learning_support._llm_expand_learning_queries
+_llm_expand_paper_queries = _learning_support._llm_expand_paper_queries
+_display_ranked_papers = _learning_support._display_ranked_papers
+_display_ranked_videos = _learning_support._display_ranked_videos
+
+_learning_flow_generate_and_export_topic_brief = (
+    _learning_flow_support.generate_and_export_topic_brief
+)
+_RankedDiscoverItem = _discover_support.RankedDiscoverItem
+
+_read_json_file = _topic_changes_support._read_json_file
+_topic_change_history_path = _topic_changes_support._topic_change_history_path
+_topic_diff_output_path = _topic_changes_support._topic_diff_output_path
+_topic_trends_output_path = _topic_changes_support._topic_trends_output_path
+_watch_alerts_output_path = _topic_changes_support._watch_alerts_output_path
+_relative_library_path = _topic_changes_support._relative_library_path
+_collect_topic_change_details = _topic_changes_support._collect_topic_change_details
+_topic_change_snapshot = _topic_changes_support._topic_change_snapshot
+_render_topic_diff_markdown = _topic_changes_support._render_topic_diff_markdown
+_append_topic_change_history = _topic_changes_support._append_topic_change_history
+_load_topic_change_history = _topic_changes_support._load_topic_change_history
+_topic_trend_direction = _topic_changes_support._topic_trend_direction
+_topic_trend_label = _topic_changes_support._topic_trend_label
+_topic_watch_alert_lines = _topic_changes_support._topic_watch_alert_lines
+_write_watch_alert_digest = _topic_changes_support._write_watch_alert_digest
+_render_topic_trends_markdown = _topic_changes_support._render_topic_trends_markdown
+_write_topic_change_briefing = _topic_changes_support._write_topic_change_briefing
+_resolve_topic_diff_baseline = _topic_changes_support._resolve_topic_diff_baseline
+
+
+def _expand_learning_queries(
+    query: str,
+    config: DistillConfig | None = None,
+    tracker: CostTracker | None = None,
+    *,
+    skeptical: bool = False,
+    expand: bool = True,
+) -> list[str]:
+    query = query.strip()
+    if query.startswith("http://") or query.startswith("https://"):
+        return [query]
+
+    normalized = " ".join(query.split())
+    variants = _heuristic_learning_queries(normalized, skeptical=skeptical)
+    if expand and config and config.xai_api_key:
+        llm_variants = _llm_expand_learning_queries(
+            normalized,
+            config,
+            tracker=tracker,
+            skeptical=skeptical,
+        )
+        if llm_variants:
+            variants = [normalized, *llm_variants, *variants]
+    return _dedupe_query_strings(variants)[:6]
+
+
+def _expand_paper_queries(
+    query: str,
+    config: DistillConfig | None = None,
+    tracker: CostTracker | None = None,
+    *,
+    expand: bool = True,
+) -> list[str]:
+    normalized = " ".join(query.split())
+    if not normalized:
+        return []
+    variants = [normalized]
+    if expand and config and config.xai_api_key:
+        try:
+            llm_variants = _llm_expand_paper_queries(normalized, config, tracker=tracker)
+        except Exception as e:
+            console.print(f"  [yellow]Query expansion fallback: {e}[/yellow]")
+            llm_variants = []
+        variants.extend(llm_variants)
+    return _dedupe_query_strings(variants)[:6]
+
+
+def _select_learning_videos(
+    query: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    *,
+    hours: int | None = None,
+    skeptical: bool = False,
+    expand: bool = True,
+):
+    effective_days = _effective_days(days, hours)
+    candidate_limit = max(limit * 2, 12)
+    raw_candidates = []
+    queries = _expand_learning_queries(
+        query,
+        config,
+        tracker,
+        skeptical=skeptical,
+        expand=expand,
+    )
+    for idx, variant in enumerate(queries, 1):
+        console.print(f"[dim]Candidate search {idx}/{len(queries)}: {variant}[/dim]")
+        raw_candidates.extend(
+            search_youtube_results(
+                variant,
+                days=effective_days,
+                hours=hours,
+                limit=candidate_limit,
+            )
+        )
+    raw_candidates = _dedupe_candidates(raw_candidates)
+    if not raw_candidates:
+        console.print(
+            "[dim]Browser-based search returned no candidates; falling back to yt-dlp search[/dim]"
+        )
+        raw_candidates = search_videos(
+            query,
+            days=effective_days,
+            limit=candidate_limit,
+            sort=sort,
+            per_channel_cap=max(per_channel_cap * 2, 4),
+        )
+    if not shorts:
+        raw_candidates = [v for v in raw_candidates if v.duration > SHORTS_THRESHOLD]
+        console.print(f"[dim]Filtered to {len(raw_candidates)} full-length candidates[/dim]")
+
+    if not raw_candidates:
+        return [], []
+
+    enriched = enrich_videos(raw_candidates, max_videos=min(len(raw_candidates), 12))
+    enriched = _filter_recent_candidates(enriched, effective_days, hours=hours)
+    ranked = rerank_videos(
+        query,
+        enriched,
+        config,
+        tracker=tracker,
+        top_n=max(limit * 2, 10),
+        use_llm=rerank,
+        skeptical=skeptical,
+    )
+    selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
+    return enriched, selected
+
+
+def _validate_learning_options(
+    sort: str, limit: int, days: int, per_channel_cap: int, hours: int | None = None
+) -> None:
+    _learning_flow_support.validate_learning_options(
+        sort,
+        limit,
+        days,
+        per_channel_cap,
+        hours=hours,
+    )
+
+
+def _preview_learning_selection(
+    query: str,
+    *,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    header: str,
+    table_title: str,
+    hours: int | None = None,
+    skeptical: bool | None = None,
+    expand: bool = True,
+):
+    return _learning_flow_support.preview_learning_selection(
+        query,
+        days=days,
+        limit=limit,
+        sort=sort,
+        per_channel_cap=per_channel_cap,
+        shorts=shorts,
+        rerank=rerank,
+        header=header,
+        table_title=table_title,
+        get_config=get_config,
+        cost_tracker_factory=CostTracker,
+        auto_skeptical_mode=_auto_skeptical_mode,
+        window_label=_window_label,
+        select_learning_videos=_select_learning_videos,
+        display_ranked_videos=_display_ranked_videos,
+        hours=hours,
+        skeptical=skeptical,
+        expand=expand,
+    )
+
+
+def _run_learning_command(
+    query: str,
+    *,
+    topic: str | None,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    save: bool,
+    report: bool,
+    test: bool,
+    generate_brief: bool,
+    header: str,
+    hours: int | None = None,
+    skeptical: bool | None = None,
+    expand: bool = True,
+    focus: str | None = None,
+) -> None:
+    _learning_flow_support.run_learning_command(
+        query,
+        topic=topic,
+        days=days,
+        limit=limit,
+        sort=sort,
+        per_channel_cap=per_channel_cap,
+        shorts=shorts,
+        rerank=rerank,
+        save=save,
+        report=report,
+        test=test,
+        generate_brief=generate_brief,
+        header=header,
+        get_config=get_config,
+        cost_tracker_factory=CostTracker,
+        topic_from_query=_topic_from_query,
+        auto_skeptical_mode=_auto_skeptical_mode,
+        default_report_focus=_default_report_focus,
+        window_label=_window_label,
+        select_learning_videos=_select_learning_videos,
+        display_ranked_videos=_display_ranked_videos,
+        process_learning_selection=_process_learning_selection,
+        hours=hours,
+        skeptical=skeptical,
+        expand=expand,
+        focus=focus,
+    )
+
+
+def _process_learning_selection(
+    topic_name: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    selected,
+    *,
+    save: bool,
+    report: bool,
+    test: bool,
+    generate_brief: bool,
+    report_focus: str | None = None,
+) -> None:
+    _learning_flow_support.process_learning_selection(
+        topic_name,
+        config,
+        tracker,
+        selected,
+        save=save,
+        report=report,
+        test=test,
+        generate_brief=generate_brief,
+        library_factory=Library,
+        run_summary_factory=RunSummary,
+        output_path=_output_path,
+        ensure_channel_context=_ensure_channel_context,
+        process_video=_process_video,
+        synthesize_channel=synthesize_channel,
+        synthesize_topic=synthesize_topic,
+        synthesize_corpus=synthesize_corpus,
+        run_scope_report=_run_scope_report,
+        generate_and_export_topic_brief=_generate_and_export_topic_brief,
+        report_focus=report_focus,
+    )
+
+
+def _generate_and_export_topic_brief(
+    topic_name: str, config: DistillConfig, tracker: CostTracker
+) -> None:
+    _learning_flow_generate_and_export_topic_brief(
+        topic_name,
+        config,
+        tracker,
+        generate_topic_brief=generate_topic_brief,
+        output_path=_output_path,
+    )
+
+
+def _discover_generate_queries(
+    goal: str,
+    config: DistillConfig,
+    tracker: CostTracker | None,
+    *,
+    paper_count: int,
+    video_count: int,
+) -> tuple[list[str], list[str]]:
+    return _discover_support.discover_generate_queries(
+        goal,
+        config,
+        tracker,
+        paper_count=paper_count,
+        video_count=video_count,
+        dedupe_query_strings=_dedupe_query_strings,
+    )
+
+
+def _discover_fetch_videos(
+    queries: list[str],
+    effective_days: int,
+    candidate_cap: int,
+    shorts: bool,
+) -> list[VideoInfo]:
+    return _discover_support.discover_fetch_videos(
+        queries,
+        effective_days,
+        candidate_cap,
+        shorts,
+        search_youtube_results=search_youtube_results,
+        dedupe_candidates=_dedupe_candidates,
+        enrich_videos=enrich_videos,
+        filter_recent_candidates=_filter_recent_candidates,
+    )
+
+
+def _discover_rerank(
+    goal: str,
+    papers: list[PaperRecord],
+    videos: list[VideoInfo],
+    config: DistillConfig,
+    tracker: CostTracker | None,
+) -> list[_RankedDiscoverItem]:
+    return _discover_support.discover_rerank(goal, papers, videos, config, tracker)
+
+
+def _display_ranked_discover(items: list[_RankedDiscoverItem], title: str) -> None:
+    _discover_support.display_ranked_discover(items, title)
+
+
 app = typer.Typer(
     help=(
         "Distill source material into usable intelligence.\n\n"
         "Pick a starting point:\n"
+        '  Build a topic corpus?   distill topic create "Microsoft Fabric best practices" --videos 10 --papers 10\n'
         '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'
         "  Have one website URL?  distill site https://example.com/page --topic scratch --seed-only\n"
         "  Have one paper URL?    distill paper https://arxiv.org/abs/2602.12670 --topic papers\n"
@@ -127,6 +497,19 @@ app = typer.Typer(
     invoke_without_command=True,
     rich_markup_mode="rich",
 )
+
+topic_app = typer.Typer(
+    help=(
+        "Topic-first workflows.\n\n"
+        "Recommended flow:\n"
+        '  distill topic create "topic here" --videos 10 --papers 10\n'
+        "  distill topic update <topic>\n"
+        "  distill topic brief <topic>\n"
+        "  distill topic report <topic>\n"
+    ),
+    rich_markup_mode="rich",
+)
+app.add_typer(topic_app, name="topic")
 
 
 @app.callback()
@@ -141,6 +524,216 @@ def _default(ctx: typer.Context):
 def get_config() -> DistillConfig:
     load_dotenv()
     return DistillConfig()
+
+
+_TOPIC_PROFILE_VERSION = 1
+
+
+def _topic_profile_path(config: DistillConfig, topic: str) -> Path:
+    return config.topic_dir(topic) / "topic_profile.json"
+
+
+def _topic_exists(config: DistillConfig, topic: str) -> bool:
+    lib = Library(config)
+    return topic in lib.get_topics() or config.topic_dir(topic).exists()
+
+
+def _load_topic_profile(config: DistillConfig, topic: str) -> dict | None:
+    path = _topic_profile_path(config, topic)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _save_topic_profile(
+    config: DistillConfig,
+    *,
+    topic: str,
+    goal: str,
+    videos: int,
+    papers: int,
+    days: int,
+    shorts: bool,
+) -> Path:
+    path = _topic_profile_path(config, topic)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    prior = _load_topic_profile(config, topic) or {}
+    created_at = str(prior.get("created_at", "")) or datetime.now().isoformat()
+    payload = {
+        "version": _TOPIC_PROFILE_VERSION,
+        "topic": topic,
+        "goal": goal,
+        "videos": videos,
+        "papers": papers,
+        "days": days,
+        "shorts": shorts,
+        "created_at": created_at,
+        "updated_at": datetime.now().isoformat(),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _resolve_topic_workflow_config(
+    config: DistillConfig,
+    *,
+    topic: str,
+    goal: str,
+    videos: int,
+    papers: int,
+    days: int,
+    shorts: bool,
+) -> dict:
+    goal_text = " ".join(goal.split()).strip()
+    if not goal_text:
+        console.print("[red]Goal cannot be empty[/red]")
+        raise typer.Exit(1)
+    if days <= 0:
+        console.print("[red]--days must be positive[/red]")
+        raise typer.Exit(1)
+    if videos < 0 or papers < 0:
+        console.print("[red]--videos and --papers cannot be negative[/red]")
+        raise typer.Exit(1)
+    if videos == 0 and papers == 0:
+        console.print("[red]Specify at least one source with --videos or --papers[/red]")
+        raise typer.Exit(1)
+    topic_name = topic.strip() or _topic_from_query(goal_text[:80])
+    return {
+        "topic": topic_name,
+        "goal": goal_text,
+        "videos": videos,
+        "papers": papers,
+        "days": days,
+        "shorts": shorts,
+        "mixed_sources": papers > 0,
+    }
+
+
+def _run_topic_workflow(
+    *,
+    goal: str,
+    topic: str,
+    videos: int,
+    papers: int,
+    days: int,
+    shorts: bool,
+    preview: bool,
+    brief: bool,
+    report_after: bool,
+    test: bool,
+) -> str:
+    config = get_config()
+    resolved = _resolve_topic_workflow_config(
+        config,
+        topic=topic,
+        goal=goal,
+        videos=videos,
+        papers=papers,
+        days=days,
+        shorts=shorts,
+    )
+    topic_name = str(resolved["topic"])
+
+    if bool(resolved["mixed_sources"]):
+        discover(
+            goal=str(resolved["goal"]),
+            goal_file=None,
+            topic=topic_name,
+            paper_limit=int(resolved["papers"]),
+            video_limit=int(resolved["videos"]),
+            days=int(resolved["days"]),
+            shorts=bool(resolved["shorts"]),
+            preview=preview,
+            yes=True,
+        )
+    else:
+        _run_learning_command(
+            str(resolved["goal"]),
+            topic=topic_name,
+            days=int(resolved["days"]),
+            limit=int(resolved["videos"]),
+            sort="relevance",
+            per_channel_cap=max(2, min(int(resolved["videos"]), 3)),
+            shorts=bool(resolved["shorts"]),
+            rerank=True,
+            save=True,
+            report=False,
+            test=test,
+            generate_brief=False,
+            header="Topic Create" if not preview else "Topic Preview",
+        )
+
+    if preview:
+        console.print(
+            f"\n[dim]Preview only. Run `distill topic create \"{resolved['goal']}\" --topic {topic_name}` to ingest.[/dim]"
+        )
+        return topic_name
+
+    profile_path = _save_topic_profile(
+        config,
+        topic=topic_name,
+        goal=str(resolved["goal"]),
+        videos=int(resolved["videos"]),
+        papers=int(resolved["papers"]),
+        days=int(resolved["days"]),
+        shorts=bool(resolved["shorts"]),
+    )
+    console.print(f"[dim]Saved topic profile: {profile_path}[/dim]")
+
+    if brief:
+        _generate_and_export_topic_brief(topic_name, config, CostTracker())
+    if report_after:
+        report(topic=topic_name, test=test)
+    return topic_name
+
+
+def _render_topic_summary(topic: str) -> None:
+    config = get_config()
+    lib = Library(config)
+    if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
+        console.print(f"[red]Topic not found: {topic}[/red]")
+        raise typer.Exit(1)
+
+    channels = lib.get_channels(topic)
+    video_count = 0
+    for ch in channels:
+        state = ChannelState(config.channel_dir(topic, ch.name) / "state.json")
+        video_count += state.get_processed_count()
+
+    artifacts = []
+    for label, fname in [
+        ("topic synthesis", "topic_synthesis.md"),
+        ("brief", "brief.md"),
+        ("report", "report.md"),
+        ("paper synthesis", "paper_synthesis.md"),
+        ("corpus synthesis", "corpus_synthesis.md"),
+    ]:
+        if (config.topic_dir(topic) / fname).exists():
+            artifacts.append(label)
+
+    profile = _load_topic_profile(config, topic)
+    lines = [f"[bold]{topic}[/bold]"]
+    if profile and profile.get("goal"):
+        lines.append(f"[dim]Goal:[/dim] {profile['goal']}")
+    lines.append(
+        f"[dim]Corpus:[/dim] {len(channels)} channel(s), {video_count} processed video(s), { _count_paper_corpus(config, topic) } paper(s), { _count_site_corpus(config, topic) } site page(s)"
+    )
+    if profile:
+        lines.append(
+            f"[dim]Plan:[/dim] videos={profile.get('videos', 0)} papers={profile.get('papers', 0)} days={profile.get('days', 0)} shorts={'on' if profile.get('shorts') else 'off'}"
+        )
+    if artifacts:
+        lines.append(f"[dim]Artifacts:[/dim] {', '.join(artifacts)}")
+    lines.append(
+        f"[dim]Next:[/dim] distill topic update {topic}  |  distill topic brief {topic}  |  distill topic report {topic}"
+    )
+    console.print(Panel("\n".join(lines), title="Topic Summary", border_style="cyan"))
 
 
 def _complete_watched_channels(incomplete: str) -> list[str]:
@@ -174,6 +767,249 @@ def _complete_topics(incomplete: str) -> list[str]:
         return [t for t in lib.get_topics() if t.lower().startswith(incomplete.lower())]
     except Exception:
         return []
+
+
+@topic_app.command("create")
+def topic_create(
+    goal: str = typer.Argument(help="Natural-language topic goal or research prompt"),
+    topic: str = typer.Option("", "--topic", "-t", help="Explicit topic slug/name"),
+    videos: int = typer.Option(10, "--videos", help="How many videos to ingest"),
+    papers: int = typer.Option(10, "--papers", help="How many papers to ingest"),
+    days: int = typer.Option(30, "--days", "-d", help="Video recency window in days"),
+    shorts: bool = typer.Option(
+        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
+    ),
+    preview: bool = typer.Option(
+        False, "--preview", help="Show the plan without ingesting the topic corpus"
+    ),
+    brief: bool = typer.Option(
+        False, "--brief", help="Generate a concise topic brief after ingestion"
+    ),
+    report_after: bool = typer.Option(
+        False, "--report", help="Generate a full topic report after ingestion"
+    ),
+    test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
+):
+    """Create a topic corpus from a single goal using the configured source mix."""
+    _run_topic_workflow(
+        goal=goal,
+        topic=topic,
+        videos=videos,
+        papers=papers,
+        days=days,
+        shorts=shorts,
+        preview=preview,
+        brief=brief,
+        report_after=report_after,
+        test=test,
+    )
+
+
+@topic_app.command("preview")
+def topic_preview(
+    goal: str = typer.Argument(help="Natural-language topic goal or research prompt"),
+    topic: str = typer.Option("", "--topic", "-t", help="Optional topic slug/name"),
+    videos: int = typer.Option(10, "--videos", help="How many videos to plan for"),
+    papers: int = typer.Option(10, "--papers", help="How many papers to plan for"),
+    days: int = typer.Option(30, "--days", "-d", help="Video recency window in days"),
+    shorts: bool = typer.Option(
+        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
+    ),
+):
+    """Preview the topic plan without ingesting anything."""
+    _run_topic_workflow(
+        goal=goal,
+        topic=topic,
+        videos=videos,
+        papers=papers,
+        days=days,
+        shorts=shorts,
+        preview=True,
+        brief=False,
+        report_after=False,
+        test=False,
+    )
+
+
+@topic_app.command("update")
+def topic_update(
+    topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
+    goal: str | None = typer.Option(None, "--goal", help="Override the stored goal"),
+    videos: int | None = typer.Option(None, "--videos", help="Override stored video count"),
+    papers: int | None = typer.Option(None, "--papers", help="Override stored paper count"),
+    days: int | None = typer.Option(None, "--days", "-d", help="Override stored day window"),
+    shorts: bool | None = typer.Option(
+        None, "--shorts/--no-shorts", help="Override whether Shorts are included"
+    ),
+    preview: bool = typer.Option(False, "--preview", help="Preview the refreshed plan only"),
+    brief: bool = typer.Option(False, "--brief", help="Generate a brief after update"),
+    report_after: bool = typer.Option(False, "--report", help="Generate a report after update"),
+    test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
+):
+    """Refresh a topic using its saved topic profile, with optional overrides."""
+    config = get_config()
+    profile = _load_topic_profile(config, topic)
+    if profile is None:
+        console.print(
+            f"[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create \"...\" --topic {topic}`[/dim]"
+        )
+        raise typer.Exit(1)
+
+    resolved_goal = goal or str(profile.get("goal", "")).strip()
+    resolved_videos = int(profile.get("videos", 0) if videos is None else videos)
+    resolved_papers = int(profile.get("papers", 0) if papers is None else papers)
+    resolved_days = int(profile.get("days", 30) if days is None else days)
+    resolved_shorts = bool(profile.get("shorts", False) if shorts is None else shorts)
+
+    _run_topic_workflow(
+        goal=resolved_goal,
+        topic=topic,
+        videos=resolved_videos,
+        papers=resolved_papers,
+        days=resolved_days,
+        shorts=resolved_shorts,
+        preview=preview,
+        brief=brief,
+        report_after=report_after,
+        test=test,
+    )
+
+
+@topic_app.command("brief")
+def topic_brief(
+    topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
+    report_after: bool = typer.Option(False, "--report", help="Also generate a full report"),
+    test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
+):
+    """Generate a concise markdown brief from an existing topic corpus."""
+    config = get_config()
+    if not _topic_exists(config, topic):
+        console.print(f"[red]Topic not found: {topic}[/red]")
+        raise typer.Exit(1)
+    _generate_and_export_topic_brief(topic, config, CostTracker())
+    if report_after:
+        report(topic=topic, test=test)
+
+
+@topic_app.command("report")
+def topic_report(
+    topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
+    focus: str | None = typer.Option(None, "--focus", "-f", help="Custom research focus"),
+    test: bool = typer.Option(False, "--test", "-t", help="Test mode (cheaper, faster)"),
+    legacy: bool = typer.Option(
+        False, "--legacy", help="Use single-shot Deep Research (no section writing)"
+    ),
+    research_only: bool = typer.Option(
+        False, "--research-only", help="Run Phase 1 only (raw research, no section writing)"
+    ),
+    sections_filter: str | None = typer.Option(
+        None, "--sections", "-s", help="Comma-separated section IDs to write"
+    ),
+    no_qa: bool = typer.Option(False, "--no-qa", help="Skip QA review phase"),
+):
+    """Generate a full research report for an existing topic."""
+    report(
+        topic=topic,
+        channel=None,
+        all_topics=False,
+        focus=focus,
+        test=test,
+        legacy=legacy,
+        research_only=research_only,
+        sections_filter=sections_filter,
+        no_qa=no_qa,
+    )
+
+
+@topic_app.command("show")
+def topic_show(
+    topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
+    what: str = typer.Option(
+        "summary",
+        "--what",
+        "-w",
+        help="What to show: summary, synthesis, report",
+    ),
+):
+    """Show the current state or key outputs for a topic."""
+    if what == "summary":
+        _render_topic_summary(topic)
+        return
+    if what == "synthesis":
+        synthesis(topic=topic, channel=None)
+        return
+    if what == "report":
+        findings(topic=topic, channel=None)
+        return
+    console.print("[red]Unknown --what. Use: summary, synthesis, report[/red]")
+    raise typer.Exit(1)
+
+
+@topic_app.command("export")
+def topic_export(
+    topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
+    what: str = typer.Option(
+        "report",
+        "--what",
+        "-w",
+        help="What to export: report, synthesis, bundle",
+    ),
+    bundle_format: str = typer.Option(
+        "bundle", "--format", help="Bundle format for --what bundle: bundle or deepr"
+    ),
+):
+    """Export topic artifacts in the same formats as the lower-level export command."""
+    export(topic=topic, what=what, channel=None, bundle_format=bundle_format)
+
+
+@topic_app.command("watch")
+def topic_watch(
+    topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
+    cadence: str = typer.Option("daily", "--cadence", help="Run cadence: daily or weekly"),
+    days: int | None = typer.Option(None, "--days", "-d", help="Override lookback window"),
+    limit: int | None = typer.Option(None, "--videos", help="Override video pick count"),
+    name: str = typer.Option("", "--name", help="Explicit watch name"),
+    report_after: bool = typer.Option(
+        False, "--report", help="Also generate a full topic report when this watch runs"
+    ),
+    max_run_cost: float = typer.Option(
+        0.0, "--max-run-cost", help="Pause this watch if projected run cost exceeds this amount"
+    ),
+    monthly_budget: float = typer.Option(
+        0.0,
+        "--monthly-budget",
+        help="Pause this watch if projected 30-day spend exceeds this amount",
+    ),
+    now: bool = typer.Option(False, "--now", help="Run the watch immediately after creating it"),
+    preview: bool = typer.Option(
+        False, "--preview", help="Preview the selected best-pick videos instead of processing"
+    ),
+):
+    """Create a recurring topic watch using the saved topic profile."""
+    config = get_config()
+    profile = _load_topic_profile(config, topic)
+    if profile is None:
+        console.print(
+            f"[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create \"...\" --topic {topic}`[/dim]"
+        )
+        raise typer.Exit(1)
+
+    monitor(
+        query=str(profile.get("goal", "")).strip(),
+        topic=topic,
+        name=name,
+        cadence=cadence,
+        days=int(profile.get("days", 30) if days is None else days),
+        limit=int(profile.get("videos", 10) if limit is None else limit),
+        sort="date",
+        per_channel_cap=3,
+        ranking="balanced",
+        report=report_after,
+        max_run_cost=max_run_cost,
+        monthly_budget=monthly_budget,
+        now=now,
+        preview=preview,
+    )
 
 
 def _resolve_topic_for_channel(
@@ -379,245 +1215,6 @@ def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 
     return result
 
 
-def _load_recent_cost_runs(log_file: Path, limit: int = 5) -> list[dict]:
-    if not log_file.exists():
-        return []
-    entries = []
-    try:
-        for line in log_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    except OSError:
-        return []
-    return entries[-limit:]
-
-
-def _load_all_cost_runs(log_file: Path) -> list[dict]:
-    return _load_recent_cost_runs(log_file, limit=10000)
-
-
-def _load_latest_run_payload(log_dir: Path) -> dict:
-    latest = log_dir / "latest_run.json"
-    if not latest.exists():
-        return {}
-    try:
-        return json.loads(latest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _estimated_topic_watch_sweep(topic_watchlist) -> float:
-    total = 0.0
-    for entry in topic_watchlist:
-        total += entry.limit * 0.006
-        if entry.report:
-            total += 2.55
-    return total
-
-
-def _estimate_topic_watch_cost(entry) -> float:
-    total = entry.limit * 0.006
-    if entry.report:
-        total += 2.55
-    return total
-
-
-def _topic_spend_last_days(entries: list[dict], topic: str, days: int = 30) -> float:
-    cutoff = datetime.now() - timedelta(days=days)
-    total = 0.0
-    for entry in entries:
-        metadata = entry.get("metadata") or {}
-        if metadata.get("topic") != topic:
-            continue
-        ts = _parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None or ts < cutoff:
-            continue
-        try:
-            total += float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
-            continue
-    return total
-
-
-def _topic_recent_costs(entries: list[dict], topic: str, limit: int = 5) -> list[float]:
-    values: list[tuple[datetime, float]] = []
-    for entry in entries:
-        metadata = entry.get("metadata") or {}
-        if metadata.get("topic") != topic:
-            continue
-        ts = _parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None:
-            continue
-        try:
-            cost = float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        values.append((ts, cost))
-    values.sort(key=lambda item: item[0], reverse=True)
-    return [cost for _, cost in values[:limit]]
-
-
-def _topic_watch_budget_messages(entry, all_cost_entries: list[dict]) -> list[str]:
-    messages: list[str] = []
-    projected = _estimate_topic_watch_cost(entry)
-    if entry.max_run_cost and projected > entry.max_run_cost:
-        messages.append(
-            f"{entry.name} projected ${projected:.2f} exceeds max-run budget ${entry.max_run_cost:.2f}"
-        )
-    if entry.monthly_budget:
-        monthly_spend = _topic_spend_last_days(all_cost_entries, entry.topic, days=30)
-        if monthly_spend + projected > entry.monthly_budget:
-            messages.append(
-                f"{entry.name} projected monthly spend ${monthly_spend + projected:.2f} exceeds monthly budget ${entry.monthly_budget:.2f}"
-            )
-    recent_costs = _topic_recent_costs(all_cost_entries, entry.topic, limit=4)
-    if len(recent_costs) >= 2:
-        baseline = sum(recent_costs[1:]) / max(len(recent_costs) - 1, 1)
-        latest = recent_costs[0]
-        if baseline > 0 and latest >= baseline * 2.5:
-            messages.append(
-                f"{entry.topic} spend spike: latest ${latest:.2f} vs recent baseline ${baseline:.2f}"
-            )
-    return messages
-
-
-def _entry_source_type(entry: dict) -> str:
-    metadata = entry.get("metadata") or {}
-    source_type = metadata.get("source_type")
-    if source_type:
-        return str(source_type)
-    command = str(entry.get("command", ""))
-    if command in {"site", "site-batch"}:
-        return "website"
-    if command == "report":
-        return "report"
-    return "youtube"
-
-
-def _topic_cost_rollups(
-    entries: list[dict], days: int = 30, limit: int = 5
-) -> list[tuple[str, float, int]]:
-    cutoff = datetime.now() - timedelta(days=days)
-    rollups: dict[str, dict[str, float | int]] = {}
-    for entry in entries:
-        ts = _parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None or ts < cutoff:
-            continue
-        metadata = entry.get("metadata") or {}
-        topic = str(metadata.get("topic") or "").strip()
-        if not topic:
-            continue
-        bucket = rollups.setdefault(topic, {"cost": 0.0, "runs": 0})
-        try:
-            bucket["cost"] += float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        bucket["runs"] += 1
-    items = [(topic, float(data["cost"]), int(data["runs"])) for topic, data in rollups.items()]
-    items.sort(key=lambda item: item[1], reverse=True)
-    return items[:limit]
-
-
-def _source_cost_rollups(entries: list[dict], days: int = 30) -> list[tuple[str, float, int]]:
-    cutoff = datetime.now() - timedelta(days=days)
-    rollups: dict[str, dict[str, float | int]] = {}
-    for entry in entries:
-        ts = _parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None or ts < cutoff:
-            continue
-        source_type = _entry_source_type(entry)
-        bucket = rollups.setdefault(source_type, {"cost": 0.0, "runs": 0})
-        try:
-            bucket["cost"] += float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        bucket["runs"] += 1
-    items = [(source, float(data["cost"]), int(data["runs"])) for source, data in rollups.items()]
-    items.sort(key=lambda item: item[1], reverse=True)
-    return items
-
-
-def _count_site_corpus(config: DistillConfig, topics: list[str]) -> tuple[int, int]:
-    site_count = 0
-    page_count = 0
-    for topic in topics:
-        sites_dir = config.sites_dir(topic)
-        if not sites_dir.exists():
-            continue
-        for site_dir in sites_dir.iterdir():
-            if not site_dir.is_dir():
-                continue
-            site_count += 1
-            pages_dir = site_dir / "pages"
-            if not pages_dir.exists():
-                continue
-            for page_dir in pages_dir.iterdir():
-                if page_dir.is_dir() and (page_dir / "content.md").exists():
-                    page_count += 1
-    return site_count, page_count
-
-
-def _count_paper_corpus(config: DistillConfig, topics: list[str]) -> int:
-    total = 0
-    for topic in topics:
-        papers_dir = config.papers_dir(topic)
-        if not papers_dir.exists():
-            continue
-        for paper_dir in papers_dir.iterdir():
-            if paper_dir.is_dir() and (paper_dir / "paper.md").exists():
-                total += 1
-    return total
-
-
-def _count_topic_outputs(config: DistillConfig, topics: list[str]) -> tuple[int, int, int]:
-    report_count = 0
-    brief_count = 0
-    synthesis_count = 0
-    for topic in topics:
-        topic_dir = config.topic_dir(topic)
-        if (topic_dir / "report.md").exists():
-            report_count += 1
-        if (topic_dir / "brief.md").exists():
-            brief_count += 1
-        if (topic_dir / "topic_synthesis.md").exists():
-            synthesis_count += 1
-    return report_count, brief_count, synthesis_count
-
-
-def _load_site_manifest(path: Path) -> dict:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _build_site_section_state(pages) -> list[dict]:
-    section_buckets: dict[str, list] = {}
-    for page in pages:
-        section = site_section_key(page.final_url or page.url)
-        section_buckets.setdefault(section, []).append(page)
-
-    section_state: list[dict] = []
-    for section, section_pages in sorted(section_buckets.items()):
-        urls = sorted({page.final_url or page.url for page in section_pages})
-        section_state.append(
-            {
-                "section": section,
-                "page_count": len(section_pages),
-                "urls": urls,
-                "page_types": sorted({page.page_type for page in section_pages}),
-            }
-        )
-    return section_state
-
-
 def _site_section_change_summary(previous: dict, current_sections: list[dict]) -> list[str]:
     previous_sections = {
         item.get("section", ""): item
@@ -653,1030 +1250,11 @@ def _content_hash(text: str) -> str:
     return sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
-def _sum_recent_cost(entries: list[dict]) -> float:
-    total = 0.0
-    for entry in entries:
-        try:
-            total += float(entry.get("actual_cost") or 0)
-        except (TypeError, ValueError):
-            continue
-    return total
-
-
 def _dashboard_metric(label: str, value: str, note: str = "") -> Panel:
     body = f"[bold]{value}[/bold]"
     if note:
         body += f"\n[dim]{note}[/dim]"
     return Panel(body, title=label, border_style="dim", padding=(0, 1))
-
-
-def _format_run_timestamp(value: str) -> str:
-    if not value:
-        return "unknown"
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt.strftime("%b %d %I:%M %p")
-    except ValueError:
-        return value
-
-
-def _parse_run_datetime(value: str) -> datetime | None:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if dt.tzinfo is not None:
-            dt = dt.replace(tzinfo=None)
-        return dt
-    except ValueError:
-        return None
-
-
-def _collect_recent_artifacts(
-    config: DistillConfig, topics: list[str], limit: int = 6
-) -> list[tuple[datetime, str, str]]:
-    artifacts = []
-    for topic in topics:
-        topic_dir = config.topic_dir(topic)
-        candidates = [
-            (topic_dir / "topic_synthesis.md", "topic synthesis", topic),
-            (topic_dir / "corpus_synthesis.md", "corpus synthesis", topic),
-            (topic_dir / "paper_synthesis.md", "paper synthesis", topic),
-            (topic_dir / "report.md", "report", topic),
-            (topic_dir / "brief.md", "brief", topic),
-        ]
-        sites_dir = config.sites_dir(topic)
-        if sites_dir.exists():
-            for site_dir in sites_dir.iterdir():
-                if site_dir.is_dir():
-                    candidates.append(
-                        (site_dir / "synthesis.md", "site synthesis", f"{topic} / {site_dir.name}")
-                    )
-                    candidates.append(
-                        (site_dir / "site_update.md", "site update", f"{topic} / {site_dir.name}")
-                    )
-        for path_obj, kind, label in candidates:
-            if not path_obj.exists():
-                continue
-            try:
-                mtime = datetime.fromtimestamp(path_obj.stat().st_mtime)
-            except OSError:
-                continue
-            artifacts.append((mtime, kind, label))
-    artifacts.sort(key=lambda x: x[0], reverse=True)
-    return artifacts[:limit]
-
-
-def _collect_stale_topic_watches(topic_watchlist) -> list[str]:
-    stale = []
-    now = datetime.now()
-    for entry in topic_watchlist:
-        if not entry.last_run_at:
-            stale.append(f"{entry.name} has never run")
-            continue
-        last = _parse_run_datetime(entry.last_run_at)
-        if last is None:
-            stale.append(f"{entry.name} has invalid last-run state")
-            continue
-        max_age_days = 2 if entry.cadence == "daily" else 8
-        if (now - last).days >= max_age_days:
-            stale.append(f"{entry.name} is stale for its {entry.cadence} cadence")
-    return stale
-
-
-def _collect_corpus_health_warnings(
-    config: DistillConfig,
-    lib: Library,
-    topics: list[str],
-    *,
-    limit: int = 8,
-) -> list[str]:
-    warnings: list[str] = []
-    stale_cutoff = datetime.now() - timedelta(days=90)
-    site_section_cutoff = datetime.now() - timedelta(days=30)
-
-    for topic in topics:
-        topic_dir = config.topic_dir(topic)
-        for name in (
-            "topic_synthesis.md",
-            "paper_synthesis.md",
-            "corpus_synthesis.md",
-            "report.md",
-        ):
-            path_obj = topic_dir / name
-            if not path_obj.exists():
-                continue
-            try:
-                mtime = datetime.fromtimestamp(path_obj.stat().st_mtime)
-            except OSError:
-                continue
-            if mtime < stale_cutoff:
-                warnings.append(f"{topic} {name} is stale ({(datetime.now() - mtime).days}d old)")
-                if len(warnings) >= limit:
-                    return warnings
-
-        for channel in lib.get_channels(topic):
-            videos_dir = config.channel_dir(topic, channel.name) / "videos"
-            if not videos_dir.exists():
-                continue
-            for video_dir in videos_dir.iterdir():
-                if not video_dir.is_dir():
-                    continue
-                metadata = {}
-                meta_path = video_dir / "metadata.json"
-                if meta_path.exists():
-                    try:
-                        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
-                        metadata = {}
-                title = str(metadata.get("title") or video_dir.name)
-                duration = int(metadata.get("duration") or 0)
-
-                transcript_path = video_dir / "transcript.txt"
-                if transcript_path.exists():
-                    try:
-                        transcript_len = len(transcript_path.read_text(encoding="utf-8").strip())
-                    except OSError:
-                        transcript_len = 0
-                    if duration >= 1800 and transcript_len < 500:
-                        warnings.append(
-                            f"{topic} / {channel.name}: {title} transcript looks thin ({transcript_len} chars for {_duration_str(duration)})"
-                        )
-                        if len(warnings) >= limit:
-                            return warnings
-
-                insights_path = video_dir / "insights.md"
-                if insights_path.exists():
-                    try:
-                        insight_len = len(
-                            _strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()
-                        )
-                    except OSError:
-                        insight_len = 0
-                    if insight_len and insight_len < 250:
-                        warnings.append(
-                            f"{topic} / {channel.name}: {title} insights look thin ({insight_len} chars)"
-                        )
-                        if len(warnings) >= limit:
-                            return warnings
-
-        sites_dir = config.sites_dir(topic)
-        if sites_dir.exists():
-            for site_dir in sites_dir.iterdir():
-                if not site_dir.is_dir():
-                    continue
-                site_manifest = _load_site_manifest(site_dir / "site.json")
-                for section in site_manifest.get("sections", []):
-                    last_crawled_at = _parse_run_datetime(str(section.get("last_crawled_at", "")))
-                    if last_crawled_at and last_crawled_at < site_section_cutoff:
-                        warnings.append(
-                            f"{topic} / {site_dir.name}: section {section.get('section', 'unknown')} is stale ({(datetime.now() - last_crawled_at).days}d old)"
-                        )
-                        if len(warnings) >= limit:
-                            return warnings
-                pages_dir = site_dir / "pages"
-                if not pages_dir.exists():
-                    continue
-                for page_dir in pages_dir.iterdir():
-                    if not page_dir.is_dir():
-                        continue
-                    metadata = {}
-                    meta_path = page_dir / "metadata.json"
-                    if meta_path.exists():
-                        try:
-                            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-                        except (OSError, json.JSONDecodeError):
-                            metadata = {}
-                    title = str(metadata.get("title") or page_dir.name)
-                    insights_path = page_dir / "insights.md"
-                    if insights_path.exists():
-                        try:
-                            insight_len = len(
-                                _strip_frontmatter(
-                                    insights_path.read_text(encoding="utf-8")
-                                ).strip()
-                            )
-                        except OSError:
-                            insight_len = 0
-                        if insight_len and insight_len < 200:
-                            warnings.append(
-                                f"{topic} / {site_dir.name}: {title} page insights look thin ({insight_len} chars)"
-                            )
-                            if len(warnings) >= limit:
-                                return warnings
-
-        papers_dir = config.papers_dir(topic)
-        if papers_dir.exists():
-            for paper_dir in papers_dir.iterdir():
-                if not paper_dir.is_dir():
-                    continue
-                metadata = {}
-                meta_path = paper_dir / "metadata.json"
-                if meta_path.exists():
-                    try:
-                        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
-                        metadata = {}
-                title = str(metadata.get("title") or paper_dir.name)
-                insights_path = paper_dir / "insights.md"
-                if insights_path.exists():
-                    try:
-                        insight_len = len(
-                            _strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()
-                        )
-                    except OSError:
-                        insight_len = 0
-                    if insight_len and insight_len < 200:
-                        warnings.append(
-                            f"{topic}: {title} paper insights look thin ({insight_len} chars)"
-                        )
-                        if len(warnings) >= limit:
-                            return warnings
-
-    return warnings
-
-
-def _collect_topic_changes(
-    config: DistillConfig, lib: Library, topics: list[str], topic_watchlist, limit: int = 6
-) -> list[tuple[str, str]]:
-    now = datetime.now()
-    watch_baselines: dict[str, datetime | None] = {}
-    for entry in topic_watchlist:
-        parsed = _parse_run_datetime(entry.last_run_at)
-        current = watch_baselines.get(entry.topic)
-        if current is None or (parsed is not None and parsed > current):
-            watch_baselines[entry.topic] = parsed
-
-    changes: list[tuple[datetime, str, str]] = []
-    for topic in topics:
-        baseline = watch_baselines.get(topic)
-        if baseline is None:
-            baseline = now - timedelta(days=7)
-
-        new_videos = 0
-        new_pages = 0
-        refreshed_outputs: list[str] = []
-        last_change = baseline
-
-        for ch in lib.get_channels(topic):
-            videos_dir = config.channel_dir(topic, ch.name) / "videos"
-            if not videos_dir.exists():
-                continue
-            for video_dir in videos_dir.iterdir():
-                insight_path = video_dir / "insights.md"
-                if not video_dir.is_dir() or not insight_path.exists():
-                    continue
-                try:
-                    mtime = datetime.fromtimestamp(insight_path.stat().st_mtime)
-                except OSError:
-                    continue
-                if mtime > baseline:
-                    new_videos += 1
-                    last_change = max(last_change, mtime)
-
-        sites_dir = config.sites_dir(topic)
-        if sites_dir.exists():
-            for site_dir in sites_dir.iterdir():
-                if not site_dir.is_dir():
-                    continue
-                pages_dir = site_dir / "pages"
-                if pages_dir.exists():
-                    for page_dir in pages_dir.iterdir():
-                        content_path = page_dir / "content.md"
-                        if not page_dir.is_dir() or not content_path.exists():
-                            continue
-                        try:
-                            mtime = datetime.fromtimestamp(content_path.stat().st_mtime)
-                        except OSError:
-                            continue
-                        if mtime > baseline:
-                            new_pages += 1
-                            last_change = max(last_change, mtime)
-                site_synth = site_dir / "synthesis.md"
-                if site_synth.exists():
-                    try:
-                        mtime = datetime.fromtimestamp(site_synth.stat().st_mtime)
-                    except OSError:
-                        mtime = None
-                    if mtime and mtime > baseline:
-                        refreshed_outputs.append("site synthesis")
-                        last_change = max(last_change, mtime)
-
-        topic_dir = config.topic_dir(topic)
-        for label, filename in (
-            ("synthesis", "topic_synthesis.md"),
-            ("brief", "brief.md"),
-            ("report", "report.md"),
-        ):
-            path_obj = topic_dir / filename
-            if not path_obj.exists():
-                continue
-            try:
-                mtime = datetime.fromtimestamp(path_obj.stat().st_mtime)
-            except OSError:
-                continue
-            if mtime > baseline:
-                refreshed_outputs.append(label)
-                last_change = max(last_change, mtime)
-
-        if new_videos or new_pages or refreshed_outputs:
-            parts = []
-            if new_videos:
-                parts.append(f"+{new_videos} video{'s' if new_videos != 1 else ''}")
-            if new_pages:
-                parts.append(f"+{new_pages} page{'s' if new_pages != 1 else ''}")
-            if refreshed_outputs:
-                parts.append(", ".join(dict.fromkeys(refreshed_outputs)) + " refreshed")
-            changes.append((last_change, topic, " · ".join(parts)))
-        elif topic in watch_baselines:
-            changes.append(
-                (baseline, topic, f"quiet since {_format_run_timestamp(baseline.isoformat())}")
-            )
-
-    changes.sort(key=lambda item: item[0], reverse=True)
-    return [(topic, summary) for _, topic, summary in changes[:limit]]
-
-
-def _read_json_file(path_obj: Path) -> dict:
-    try:
-        return json.loads(path_obj.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _topic_change_history_path(config: DistillConfig, topic: str) -> Path:
-    return config.topic_dir(topic) / "change_history.jsonl"
-
-
-def _topic_diff_output_path(config: DistillConfig, topic: str) -> Path:
-    return config.topic_dir(topic) / "topic_diff.md"
-
-
-def _topic_trends_output_path(config: DistillConfig, topic: str) -> Path:
-    return config.topic_dir(topic) / "topic_trends.md"
-
-
-def _watch_alerts_output_path(config: DistillConfig) -> Path:
-    return config.library_dir / "watch_alerts.md"
-
-
-def _relative_library_path(config: DistillConfig, path_obj: Path) -> str:
-    try:
-        return str(path_obj.resolve().relative_to(config.library_dir.resolve()))
-    except ValueError:
-        return str(path_obj.resolve())
-
-
-def _collect_topic_change_details(
-    config: DistillConfig,
-    lib: Library,
-    topic: str,
-    baseline: datetime | None,
-) -> dict[str, object]:
-    now = datetime.now()
-    effective_baseline = baseline or (now - timedelta(days=7))
-
-    new_videos: list[dict[str, object]] = []
-    new_pages: list[dict[str, object]] = []
-    new_papers: list[dict[str, object]] = []
-    refreshed_outputs: list[dict[str, object]] = []
-    last_change: datetime | None = None
-
-    def mark_change(changed_at: datetime | None) -> None:
-        nonlocal last_change
-        if changed_at is None:
-            return
-        last_change = changed_at if last_change is None else max(last_change, changed_at)
-
-    for ch in lib.get_channels(topic):
-        videos_dir = config.channel_dir(topic, ch.name) / "videos"
-        if not videos_dir.exists():
-            continue
-        for video_dir in videos_dir.iterdir():
-            insight_path = video_dir / "insights.md"
-            if not video_dir.is_dir() or not insight_path.exists():
-                continue
-            try:
-                changed_at = datetime.fromtimestamp(insight_path.stat().st_mtime)
-            except OSError:
-                continue
-            if changed_at <= effective_baseline:
-                continue
-            meta = _read_json_file(video_dir / "metadata.json")
-            new_videos.append(
-                {
-                    "title": meta.get("title", video_dir.name),
-                    "channel": ch.name,
-                    "upload_date": meta.get("upload_date", ""),
-                    "changed_at": changed_at,
-                    "path": insight_path,
-                }
-            )
-            mark_change(changed_at)
-
-        synth_path = config.channel_dir(topic, ch.name) / "synthesis.md"
-        if synth_path.exists():
-            try:
-                changed_at = datetime.fromtimestamp(synth_path.stat().st_mtime)
-            except OSError:
-                changed_at = None
-            if changed_at and changed_at > effective_baseline:
-                refreshed_outputs.append(
-                    {
-                        "label": f"channel synthesis: {ch.name}",
-                        "changed_at": changed_at,
-                        "path": synth_path,
-                    }
-                )
-                mark_change(changed_at)
-
-    sites_dir = config.sites_dir(topic)
-    if sites_dir.exists():
-        for site_dir in sites_dir.iterdir():
-            if not site_dir.is_dir():
-                continue
-            pages_dir = site_dir / "pages"
-            if pages_dir.exists():
-                for page_dir in pages_dir.iterdir():
-                    content_path = page_dir / "content.md"
-                    if not page_dir.is_dir() or not content_path.exists():
-                        continue
-                    try:
-                        changed_at = datetime.fromtimestamp(content_path.stat().st_mtime)
-                    except OSError:
-                        continue
-                    if changed_at <= effective_baseline:
-                        continue
-                    meta = _read_json_file(page_dir / "metadata.json")
-                    new_pages.append(
-                        {
-                            "title": meta.get("title", page_dir.name),
-                            "site": site_dir.name,
-                            "url": meta.get("url", ""),
-                            "changed_at": changed_at,
-                            "path": content_path,
-                        }
-                    )
-                    mark_change(changed_at)
-
-            site_synth = site_dir / "synthesis.md"
-            if site_synth.exists():
-                try:
-                    changed_at = datetime.fromtimestamp(site_synth.stat().st_mtime)
-                except OSError:
-                    changed_at = None
-                if changed_at and changed_at > effective_baseline:
-                    refreshed_outputs.append(
-                        {
-                            "label": f"site synthesis: {site_dir.name}",
-                            "changed_at": changed_at,
-                            "path": site_synth,
-                        }
-                    )
-                    mark_change(changed_at)
-
-    papers_dir = config.papers_dir(topic)
-    if papers_dir.exists():
-        for paper_dir in papers_dir.iterdir():
-            insights_path = paper_dir / "insights.md"
-            if not paper_dir.is_dir() or not insights_path.exists():
-                continue
-            try:
-                changed_at = datetime.fromtimestamp(insights_path.stat().st_mtime)
-            except OSError:
-                continue
-            if changed_at <= effective_baseline:
-                continue
-            meta = _read_json_file(paper_dir / "metadata.json")
-            new_papers.append(
-                {
-                    "title": meta.get("title", paper_dir.name),
-                    "paper_id": meta.get("paper_id", ""),
-                    "changed_at": changed_at,
-                    "path": insights_path,
-                }
-            )
-            mark_change(changed_at)
-
-    topic_dir = config.topic_dir(topic)
-    for label, filename in (
-        ("topic synthesis", "topic_synthesis.md"),
-        ("paper synthesis", "paper_synthesis.md"),
-        ("corpus synthesis", "corpus_synthesis.md"),
-        ("brief", "brief.md"),
-        ("report", "report.md"),
-        ("watch update", "watch_update.md"),
-    ):
-        path_obj = topic_dir / filename
-        if not path_obj.exists():
-            continue
-        try:
-            changed_at = datetime.fromtimestamp(path_obj.stat().st_mtime)
-        except OSError:
-            continue
-        if changed_at > effective_baseline:
-            refreshed_outputs.append(
-                {
-                    "label": label,
-                    "changed_at": changed_at,
-                    "path": path_obj,
-                }
-            )
-            mark_change(changed_at)
-
-    new_videos.sort(key=lambda item: item["changed_at"], reverse=True)
-    new_pages.sort(key=lambda item: item["changed_at"], reverse=True)
-    new_papers.sort(key=lambda item: item["changed_at"], reverse=True)
-    refreshed_outputs.sort(key=lambda item: item["changed_at"], reverse=True)
-
-    if new_videos or new_pages or new_papers or refreshed_outputs:
-        parts = []
-        if new_videos:
-            parts.append(f"+{len(new_videos)} video{'s' if len(new_videos) != 1 else ''}")
-        if new_pages:
-            parts.append(f"+{len(new_pages)} page{'s' if len(new_pages) != 1 else ''}")
-        if new_papers:
-            parts.append(f"+{len(new_papers)} paper{'s' if len(new_papers) != 1 else ''}")
-        if refreshed_outputs:
-            labels = [str(item["label"]) for item in refreshed_outputs]
-            parts.append(", ".join(dict.fromkeys(labels)) + " refreshed")
-        summary = " · ".join(parts)
-    elif baseline is not None:
-        summary = f"quiet since {_format_run_timestamp(baseline.isoformat())}"
-    else:
-        summary = "no recent change detected"
-
-    return {
-        "topic": topic,
-        "baseline": baseline,
-        "effective_baseline": effective_baseline,
-        "generated_at": now,
-        "last_change": last_change,
-        "summary": summary,
-        "new_videos": new_videos,
-        "new_pages": new_pages,
-        "new_papers": new_papers,
-        "refreshed_outputs": refreshed_outputs,
-    }
-
-
-def _topic_change_snapshot(
-    config: DistillConfig, lib: Library, topic: str, baseline: datetime | None
-) -> tuple[datetime | None, str]:
-    details = _collect_topic_change_details(config, lib, topic, baseline)
-    return details.get("last_change"), str(details.get("summary", "no recent change detected"))
-
-
-def _render_topic_diff_markdown(
-    config: DistillConfig,
-    *,
-    title: str,
-    topic: str,
-    summary: str,
-    baseline: datetime | None,
-    effective_baseline: datetime,
-    generated_at: datetime,
-    new_videos: list[dict[str, object]],
-    new_pages: list[dict[str, object]],
-    new_papers: list[dict[str, object]],
-    refreshed_outputs: list[dict[str, object]],
-    watch_name: str | None = None,
-    query: str | None = None,
-    cadence: str | None = None,
-    limit: int = 10,
-) -> str:
-    lines = [title, "", f"- Topic: `{topic}`"]
-    if watch_name:
-        lines.append(f"- Watch: `{watch_name}`")
-    if query:
-        lines.append(f"- Query: `{query}`")
-    if cadence:
-        lines.append(f"- Cadence: `{cadence}`")
-    lines.append(f"- Generated: `{generated_at.isoformat(timespec='seconds')}`")
-    if baseline is not None:
-        lines.append(f"- Compared Against: `{baseline.isoformat(timespec='seconds')}`")
-    else:
-        lines.append(f"- Window Start: `{effective_baseline.isoformat(timespec='seconds')}`")
-    lines.extend(["", "## Summary", "", f"- {summary}", ""])
-
-    def append_section(header: str, items: list[dict[str, object]], formatter) -> None:
-        if not items:
-            return
-        lines.extend([f"## {header}", ""])
-        for item in items[:limit]:
-            rendered = formatter(item)
-            lines.extend(rendered.splitlines())
-        remaining = len(items) - limit
-        if remaining > 0:
-            lines.append(f"- ...and {remaining} more")
-        lines.append("")
-
-    append_section(
-        "New Video Insights",
-        new_videos,
-        lambda item: (
-            f"- `{item['channel']}` — {item['title']}"
-            f" ({_format_date(str(item.get('upload_date') or ''))}; changed {_format_run_timestamp(item['changed_at'].isoformat())})"
-            f"  [`{_relative_library_path(config, item['path'])}`]"
-        ),
-    )
-    append_section(
-        "New Website Pages",
-        new_pages,
-        lambda item: "\n".join(
-            [
-                f"- `{item['site']}` — {item['title']} ({_format_run_timestamp(item['changed_at'].isoformat())})",
-                *([f"  URL: {item['url']}"] if item.get("url") else []),
-                f"  Path: `{_relative_library_path(config, item['path'])}`",
-            ]
-        ),
-    )
-    append_section(
-        "New Paper Insights",
-        new_papers,
-        lambda item: (
-            f"- {item['title']}"
-            + (f" (`{item['paper_id']}`)" if item.get("paper_id") else "")
-            + f" ({_format_run_timestamp(item['changed_at'].isoformat())})"
-            + f"  [`{_relative_library_path(config, item['path'])}`]"
-        ),
-    )
-    append_section(
-        "Refreshed Outputs",
-        refreshed_outputs,
-        lambda item: (
-            f"- {item['label']} ({_format_run_timestamp(item['changed_at'].isoformat())})"
-            f"  [`{_relative_library_path(config, item['path'])}`]"
-        ),
-    )
-
-    if not new_videos and not new_pages and not new_papers and not refreshed_outputs:
-        lines.extend(["## Details", "", "- No new artifacts crossed the comparison window.", ""])
-
-    return "\n".join(lines)
-
-
-def _append_topic_change_history(
-    config: DistillConfig,
-    *,
-    topic: str,
-    summary: str,
-    baseline: datetime | None,
-    generated_at: datetime,
-    watch_name: str | None,
-    query: str | None,
-    cadence: str | None,
-    new_videos: list[dict[str, object]],
-    new_pages: list[dict[str, object]],
-    new_papers: list[dict[str, object]],
-    refreshed_outputs: list[dict[str, object]],
-) -> Path:
-    history_path = _topic_change_history_path(config, topic)
-    history_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "generated_at": generated_at.isoformat(),
-        "topic": topic,
-        "watch_name": watch_name or "",
-        "query": query or "",
-        "cadence": cadence or "",
-        "baseline": baseline.isoformat() if baseline is not None else "",
-        "summary": summary,
-        "counts": {
-            "videos": len(new_videos),
-            "pages": len(new_pages),
-            "papers": len(new_papers),
-            "outputs": len(refreshed_outputs),
-        },
-    }
-    with history_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload) + "\n")
-    return history_path
-
-
-def _load_topic_change_history(config: DistillConfig, topic: str) -> list[dict[str, object]]:
-    history_path = _topic_change_history_path(config, topic)
-    if not history_path.exists():
-        return []
-
-    records: list[dict[str, object]] = []
-    for line in history_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        generated_at = _parse_run_datetime(str(payload.get("generated_at", "")))
-        if generated_at is None:
-            continue
-        counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
-        records.append(
-            {
-                "generated_at": generated_at,
-                "topic": payload.get("topic", topic),
-                "watch_name": payload.get("watch_name", "") or "",
-                "query": payload.get("query", "") or "",
-                "cadence": payload.get("cadence", "") or "",
-                "baseline": payload.get("baseline", "") or "",
-                "summary": payload.get("summary", "") or "",
-                "counts": {
-                    "videos": int(counts.get("videos", 0) or 0),
-                    "pages": int(counts.get("pages", 0) or 0),
-                    "papers": int(counts.get("papers", 0) or 0),
-                    "outputs": int(counts.get("outputs", 0) or 0),
-                },
-            }
-        )
-    records.sort(key=lambda item: item["generated_at"], reverse=True)
-    return records
-
-
-def _topic_trend_direction(records: list[dict[str, object]]) -> str:
-    if len(records) < 2:
-        return "not enough history yet"
-    latest = sum(int(v) for v in records[0]["counts"].values())
-    previous = sum(int(v) for v in records[1]["counts"].values())
-    if latest > previous:
-        return "activity is increasing"
-    if latest < previous:
-        return "activity is cooling"
-    return "activity is steady"
-
-
-def _topic_trend_label(config: DistillConfig, topic: str, *, min_records: int = 2) -> str | None:
-    records = _load_topic_change_history(config, topic)
-    if len(records) < min_records:
-        return None
-    direction = _topic_trend_direction(records[:2])
-    if direction == "not enough history yet":
-        return None
-    if direction == "activity is increasing":
-        return "trend: rising"
-    if direction == "activity is cooling":
-        return "trend: cooling"
-    return "trend: steady"
-
-
-def _topic_watch_alert_lines(
-    *,
-    watch_name: str,
-    topic: str,
-    ranking_label: str,
-    summary: str,
-    change_details: dict[str, object],
-    trend_label: str | None,
-) -> list[str]:
-    counts = {
-        "videos": len(list(change_details.get("new_videos", []))),
-        "pages": len(list(change_details.get("new_pages", []))),
-        "papers": len(list(change_details.get("new_papers", []))),
-        "outputs": len(list(change_details.get("refreshed_outputs", []))),
-    }
-    signal_score = counts["videos"] + counts["pages"] + counts["papers"] + counts["outputs"]
-    notable = signal_score > 0 or trend_label == "trend: rising"
-    if not notable:
-        return []
-
-    bits = [summary]
-    if trend_label:
-        bits.append(trend_label)
-    bits.append(ranking_label)
-    return [f"- `{watch_name}` ({topic}): " + " / ".join(bits)]
-
-
-def _write_watch_alert_digest(
-    config: DistillConfig,
-    *,
-    generated_at: datetime,
-    alert_lines: list[str],
-) -> Path:
-    output_path = _watch_alerts_output_path(config)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        "# Topic Watch Alerts",
-        "",
-        f"- Generated: `{generated_at.isoformat(timespec='seconds')}`",
-        f"- Alerts: `{len(alert_lines)}`",
-        "",
-        "## Highlights",
-        "",
-    ]
-    if alert_lines:
-        lines.extend(alert_lines)
-    else:
-        lines.append("- No notable watch alerts in this run.")
-    lines.append("")
-    output_path.write_text("\n".join(lines), encoding="utf-8")
-    return output_path
-
-
-def _render_topic_trends_markdown(
-    config: DistillConfig,
-    *,
-    topic: str,
-    records: list[dict[str, object]],
-    generated_at: datetime,
-    limit: int,
-) -> str:
-    selected = records[:limit]
-    total_video = sum(int(item["counts"].get("videos", 0)) for item in selected)
-    total_pages = sum(int(item["counts"].get("pages", 0)) for item in selected)
-    total_papers = sum(int(item["counts"].get("papers", 0)) for item in selected)
-    total_outputs = sum(int(item["counts"].get("outputs", 0)) for item in selected)
-    active_windows = sum(1 for item in selected if sum(int(v) for v in item["counts"].values()) > 0)
-    primary_watch = next((item["watch_name"] for item in selected if item.get("watch_name")), "")
-
-    lines = [
-        f"# Topic Trends: {topic}",
-        "",
-        f"- Topic: `{topic}`",
-        f"- Generated: `{generated_at.isoformat(timespec='seconds')}`",
-        f"- Windows Considered: `{len(selected)}`",
-    ]
-    if primary_watch:
-        lines.append(f"- Primary Watch: `{primary_watch}`")
-    lines.extend(
-        [
-            "",
-            "## Summary",
-            "",
-            f"- {_topic_trend_direction(selected)}",
-            f"- {active_windows}/{len(selected)} recent windows had measurable change"
-            if selected
-            else "- No recent windows yet",
-            f"- Totals across selected windows: +{total_video} videos, +{total_pages} pages, +{total_papers} papers, {total_outputs} refreshed outputs",
-            "",
-        ]
-    )
-
-    if not selected:
-        lines.extend(["## History", "", "- No topic change history has been recorded yet.", ""])
-        return "\n".join(lines)
-
-    lines.extend(["## Recent Windows", ""])
-    for item in selected:
-        changed_at = _format_run_timestamp(item["generated_at"].isoformat())
-        counts = item["counts"]
-        count_bits = [
-            f"+{counts['videos']} video{'s' if counts['videos'] != 1 else ''}"
-            if counts["videos"]
-            else None,
-            f"+{counts['pages']} page{'s' if counts['pages'] != 1 else ''}"
-            if counts["pages"]
-            else None,
-            f"+{counts['papers']} paper{'s' if counts['papers'] != 1 else ''}"
-            if counts["papers"]
-            else None,
-            f"{counts['outputs']} output{'s' if counts['outputs'] != 1 else ''} refreshed"
-            if counts["outputs"]
-            else None,
-        ]
-        count_bits = [bit for bit in count_bits if bit]
-        lines.append(
-            f"- `{changed_at}` — {item['summary'] or ', '.join(count_bits) or 'no recorded change'}"
-        )
-        if item.get("watch_name"):
-            lines.append(f"  Watch: `{item['watch_name']}`")
-    lines.append("")
-
-    lines.extend(
-        [
-            "## Artifacts",
-            "",
-            f"- History: `{_topic_change_history_path(config, topic)}`",
-            f"- Latest diff: `{_topic_diff_output_path(config, topic)}`",
-            "",
-        ]
-    )
-    return "\n".join(lines)
-
-
-def _write_topic_change_briefing(
-    config: DistillConfig,
-    *,
-    watch_name: str,
-    topic: str,
-    query: str,
-    cadence: str,
-    baseline: datetime | None,
-    summary: str,
-    change_details: dict[str, object] | None = None,
-) -> Path:
-    details = change_details or _collect_topic_change_details(
-        config,
-        Library(config),
-        topic,
-        baseline,
-    )
-    generated_at = details.get("generated_at") or datetime.now()
-    effective_baseline = details.get("effective_baseline") or (baseline or generated_at)
-    new_videos = list(details.get("new_videos", []))
-    new_pages = list(details.get("new_pages", []))
-    new_papers = list(details.get("new_papers", []))
-    refreshed_outputs = list(details.get("refreshed_outputs", []))
-
-    topic_dir = config.topic_dir(topic)
-    topic_dir.mkdir(parents=True, exist_ok=True)
-    briefing_path = topic_dir / "watch_update.md"
-    briefing_path.write_text(
-        _render_topic_diff_markdown(
-            config,
-            title=f"# Topic Watch Update: {watch_name}",
-            topic=topic,
-            summary=summary,
-            baseline=baseline,
-            effective_baseline=effective_baseline,
-            generated_at=generated_at,
-            watch_name=watch_name,
-            query=query,
-            cadence=cadence,
-            new_videos=new_videos,
-            new_pages=new_pages,
-            new_papers=new_papers,
-            refreshed_outputs=refreshed_outputs,
-        ),
-        encoding="utf-8",
-    )
-
-    diff_path = _topic_diff_output_path(config, topic)
-    diff_path.write_text(
-        _render_topic_diff_markdown(
-            config,
-            title=f"# Topic Diff: {topic}",
-            topic=topic,
-            summary=summary,
-            baseline=baseline,
-            effective_baseline=effective_baseline,
-            generated_at=generated_at,
-            watch_name=watch_name,
-            query=query,
-            cadence=cadence,
-            new_videos=new_videos,
-            new_pages=new_pages,
-            new_papers=new_papers,
-            refreshed_outputs=refreshed_outputs,
-        ),
-        encoding="utf-8",
-    )
-
-    history_path = _append_topic_change_history(
-        config,
-        topic=topic,
-        summary=summary,
-        baseline=baseline,
-        generated_at=generated_at,
-        watch_name=watch_name,
-        query=query,
-        cadence=cadence,
-        new_videos=new_videos,
-        new_pages=new_pages,
-        new_papers=new_papers,
-        refreshed_outputs=refreshed_outputs,
-    )
-
-    latest_path = config.library_dir / "latest_changes.md"
-    existing = latest_path.read_text(encoding="utf-8") if latest_path.exists() else ""
-    entry = (
-        f"## {watch_name}\n"
-        f"- Topic: `{topic}`\n"
-        f"- Generated: `{generated_at.isoformat(timespec='seconds')}`\n"
-        f"- Summary: {summary}\n"
-        f"- Diff: `{diff_path}`\n"
-        f"- History: `{history_path}`\n"
-        f"- File: `{briefing_path}`\n\n"
-    )
-    latest_path.write_text(entry + existing, encoding="utf-8")
-    return briefing_path
-
-
-def _resolve_topic_diff_baseline(
-    lib: Library,
-    topic: str,
-    *,
-    watch_name: str | None,
-    days: int,
-) -> tuple[datetime | None, str | None, str | None, str | None]:
-    if watch_name:
-        entry = lib.get_topic_watch_entry(watch_name)
-        if entry is None:
-            raise typer.BadParameter(f"Unknown topic watch: {watch_name}")
-        if entry.topic.lower() != topic.lower():
-            raise typer.BadParameter(
-                f"Topic watch {watch_name} belongs to {entry.topic}, not {topic}"
-            )
-        return _parse_run_datetime(entry.last_run_at), entry.name, entry.query, entry.cadence
-
-    matching = [
-        e for e in lib.get_topic_watchlist() if e.topic.lower() == topic.lower() and e.last_run_at
-    ]
-    if matching:
-        matching.sort(
-            key=lambda e: _parse_run_datetime(e.last_run_at) or datetime.min, reverse=True
-        )
-        entry = matching[0]
-        return _parse_run_datetime(entry.last_run_at), entry.name, entry.query, entry.cadence
-
-    return datetime.now() - timedelta(days=days), None, None, None
 
 
 def _build_start_here_table() -> Table:
@@ -2200,88 +1778,7 @@ def _detect_ramp_source(target: str) -> str:
 
 
 def _dashboard_snapshot(config: DistillConfig) -> dict:
-    lib = Library(config)
-    topics = lib.get_topics()
-    watchlist = lib.get_watchlist()
-    topic_watchlist = lib.get_topic_watchlist()
-
-    total_channels = sum(len(lib.get_channels(t)) for t in topics)
-    total_videos = 0
-    full_videos = 0
-    scan_videos = 0
-    for topic in topics:
-        for ch in lib.get_channels(topic):
-            vdir = config.channel_dir(topic, ch.name) / "videos"
-            if not vdir.exists():
-                continue
-            for d in vdir.iterdir():
-                if not d.is_dir() or not (d / "insights.md").exists():
-                    continue
-                total_videos += 1
-                meta_path = d / "metadata.json"
-                try:
-                    if meta_path.exists():
-                        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                        if meta.get("analysis_mode") == "scan":
-                            scan_videos += 1
-                        else:
-                            full_videos += 1
-                    else:
-                        full_videos += 1
-                except (OSError, json.JSONDecodeError):
-                    full_videos += 1
-
-    site_count, page_count = _count_site_corpus(config, topics)
-    paper_count = _count_paper_corpus(config, topics)
-    report_count, brief_count, synthesis_count = _count_topic_outputs(config, topics)
-    all_cost_entries = _load_all_cost_runs(config.library_dir / "cost_log.jsonl")
-    recent_runs = all_cost_entries[-6:]
-    recent_spend = _sum_recent_cost(recent_runs)
-    latest_run = _load_latest_run_payload(config.library_dir)
-    latest_results = latest_run.get("results", {}) if latest_run else {}
-    latest_issues = latest_run.get("issues", []) if latest_run else []
-    recent_artifacts = _collect_recent_artifacts(config, topics, limit=6)
-    topic_changes = _collect_topic_changes(config, lib, topics, topic_watchlist, limit=6)
-    stale_topic_watches = _collect_stale_topic_watches(topic_watchlist)
-    corpus_health_warnings = _collect_corpus_health_warnings(config, lib, topics, limit=8)
-    next_sweep_cost = _estimated_topic_watch_sweep(topic_watchlist)
-    due_topic_watches = len(stale_topic_watches)
-    topic_spend_rollups = _topic_cost_rollups(all_cost_entries, days=30, limit=4)
-    source_spend_rollups = _source_cost_rollups(all_cost_entries, days=30)
-    budget_messages: list[str] = []
-    for entry in topic_watchlist:
-        budget_messages.extend(_topic_watch_budget_messages(entry, all_cost_entries))
-
-    return {
-        "lib": lib,
-        "topics": topics,
-        "watchlist": watchlist,
-        "topic_watchlist": topic_watchlist,
-        "total_channels": total_channels,
-        "total_videos": total_videos,
-        "full_videos": full_videos,
-        "scan_videos": scan_videos,
-        "site_count": site_count,
-        "page_count": page_count,
-        "paper_count": paper_count,
-        "report_count": report_count,
-        "brief_count": brief_count,
-        "synthesis_count": synthesis_count,
-        "all_cost_entries": all_cost_entries,
-        "recent_runs": recent_runs,
-        "recent_spend": recent_spend,
-        "latest_results": latest_results,
-        "latest_issues": latest_issues,
-        "recent_artifacts": recent_artifacts,
-        "topic_changes": topic_changes,
-        "stale_topic_watches": stale_topic_watches,
-        "corpus_health_warnings": corpus_health_warnings,
-        "next_sweep_cost": next_sweep_cost,
-        "due_topic_watches": due_topic_watches,
-        "topic_spend_rollups": topic_spend_rollups,
-        "source_spend_rollups": source_spend_rollups,
-        "budget_messages": budget_messages,
-    }
+    return _shared_dashboard_snapshot(config)
 
 
 def _render_dashboard_html(version: str, snapshot: dict) -> str:
@@ -2688,468 +2185,6 @@ def channel_cmd(
             channel_name=name,
             test=test,
         )
-
-
-def _expand_learning_queries(
-    query: str,
-    config: DistillConfig | None = None,
-    tracker: CostTracker | None = None,
-    *,
-    skeptical: bool = False,
-    expand: bool = True,
-) -> list[str]:
-    query = query.strip()
-    if query.startswith("http://") or query.startswith("https://"):
-        return [query]
-
-    normalized = " ".join(query.split())
-    variants = _heuristic_learning_queries(normalized, skeptical=skeptical)
-    if expand and config and config.xai_api_key:
-        llm_variants = _llm_expand_learning_queries(
-            normalized,
-            config,
-            tracker=tracker,
-            skeptical=skeptical,
-        )
-        if llm_variants:
-            variants = [normalized, *llm_variants, *variants]
-    return _dedupe_query_strings(variants)[:6]
-
-
-def _heuristic_learning_queries(query: str, *, skeptical: bool = False) -> list[str]:
-    normalized = " ".join(query.split())
-    lowered = normalized.lower()
-    variants = [normalized]
-
-    if "best practices" in lowered:
-        variants.append(
-            _replace_case_insensitive(normalized, "best practices", "architecture best practices")
-        )
-        variants.append(
-            _replace_case_insensitive(normalized, "best practices", "implementation guide")
-        )
-        variants.append(_replace_case_insensitive(normalized, "best practices", "tutorial"))
-    elif "best practice" in lowered:
-        variants.append(
-            _replace_case_insensitive(normalized, "best practice", "architecture best practices")
-        )
-
-    if any(
-        term in lowered
-        for term in [
-            "best practice",
-            "best practices",
-            "architecture",
-            "implementation",
-            "guide",
-        ]
-    ):
-        base = _strip_intent_terms(normalized)
-        if base and base.lower() != normalized.lower():
-            variants.append(f"{base} architecture")
-            variants.append(f"{base} implementation")
-            variants.append(f"{base} walkthrough")
-
-    if skeptical or _looks_like_rumor_query(normalized):
-        base = _strip_noise_terms(normalized) or normalized
-        variants.extend(
-            [
-                f"{base} source code",
-                f"{base} sourcemap",
-                f"{base} validation",
-                f"{base} debunk",
-                f"{base} what leaked",
-            ]
-        )
-
-    return _dedupe_query_strings(variants)
-
-
-def _llm_expand_learning_queries(
-    query: str,
-    config: DistillConfig,
-    *,
-    tracker: CostTracker | None = None,
-    skeptical: bool = False,
-) -> list[str]:
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
-    prompt = search_query_expansion_prompt(query, skeptical=skeptical)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=512,
-        timeout=90,
-    )
-    if tracker and response.usage:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
-                call_type="search_expand",
-            )
-        )
-    content = response.choices[0].message.content if response.choices else ""
-    if not content:
-        return []
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    data = json.loads(text)
-    queries = data.get("queries", []) if isinstance(data, dict) else []
-    return [q.strip() for q in queries if isinstance(q, str) and q.strip()]
-
-
-def _dedupe_query_strings(queries: list[str]) -> list[str]:
-    deduped = []
-    seen = set()
-    for item in queries:
-        key = item.strip().lower()
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        deduped.append(item.strip())
-    return deduped
-
-
-def _expand_paper_queries(
-    query: str,
-    config: DistillConfig | None = None,
-    tracker: CostTracker | None = None,
-    *,
-    expand: bool = True,
-) -> list[str]:
-    """Expand a single arXiv query into a small set of variants.
-
-    Mirrors _expand_learning_queries but with paper-appropriate heuristics.
-    Returns at most 6 unique queries, always including the original.
-    """
-    normalized = " ".join(query.split())
-    if not normalized:
-        return []
-    variants = [normalized]
-    if expand and config and config.xai_api_key:
-        try:
-            llm_variants = _llm_expand_paper_queries(normalized, config, tracker=tracker)
-        except Exception as e:
-            console.print(f"  [yellow]Query expansion fallback: {e}[/yellow]")
-            llm_variants = []
-        variants.extend(llm_variants)
-    return _dedupe_query_strings(variants)[:6]
-
-
-def _llm_expand_paper_queries(
-    query: str,
-    config: DistillConfig,
-    *,
-    tracker: CostTracker | None = None,
-) -> list[str]:
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
-    prompt = paper_query_expansion_prompt(query)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=512,
-        timeout=90,
-    )
-    if tracker and response.usage:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
-                call_type="paper_expand",
-            )
-        )
-    content = response.choices[0].message.content if response.choices else ""
-    if not content:
-        return []
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    data = json.loads(text)
-    queries = data.get("queries", []) if isinstance(data, dict) else []
-    return [q.strip() for q in queries if isinstance(q, str) and q.strip()]
-
-
-def _display_ranked_papers(ranked: list[RankedPaper], title: str) -> None:
-    table = Table(title=title, box=box.SIMPLE_HEAVY)
-    table.add_column("#", justify="right")
-    table.add_column("Title", overflow="fold")
-    table.add_column("Authors", overflow="fold")
-    table.add_column("Published")
-    table.add_column("Categories", overflow="fold")
-    table.add_column("Score", justify="right")
-    table.add_column("Why", overflow="fold")
-    for idx, item in enumerate(ranked, 1):
-        authors = ", ".join(item.paper.authors[:2]) if item.paper.authors else "unknown"
-        if item.paper.authors and len(item.paper.authors) > 2:
-            authors += f" +{len(item.paper.authors) - 2}"
-        categories = ", ".join(item.paper.categories[:3]) if item.paper.categories else "-"
-        published = (item.paper.published_at or "")[:10] or "-"
-        table.add_row(
-            str(idx),
-            item.paper.title,
-            authors,
-            published,
-            categories,
-            f"{item.final_score:.2f}",
-            item.rationale,
-        )
-    console.print(table)
-
-
-def _replace_case_insensitive(text: str, old: str, new: str) -> str:
-    idx = text.lower().find(old.lower())
-    if idx < 0:
-        return text
-    return text[:idx] + new + text[idx + len(old) :]
-
-
-def _strip_intent_terms(query: str) -> str:
-    intent_terms = {
-        "best",
-        "practice",
-        "practices",
-        "architecture",
-        "implementation",
-        "guide",
-        "walkthrough",
-        "tutorial",
-        "how",
-        "to",
-        "for",
-    }
-    words = [word for word in query.split() if word.lower() not in intent_terms]
-    return " ".join(words).strip()
-
-
-def _strip_noise_terms(query: str) -> str:
-    noise_terms = {
-        "analysis",
-        "latest",
-        "news",
-        "rumor",
-        "rumour",
-        "leak",
-        "leaked",
-    }
-    words = [word for word in query.split() if word.lower() not in noise_terms]
-    return " ".join(words).strip()
-
-
-def _looks_like_rumor_query(query: str) -> bool:
-    lowered = query.lower()
-    rumor_terms = {
-        "leak",
-        "leaked",
-        "rumor",
-        "rumour",
-        "source code",
-        "hack",
-        "breach",
-        "exposed",
-        "incident",
-        "analysis",
-    }
-    return any(term in lowered for term in rumor_terms)
-
-
-def _auto_skeptical_mode(query: str, *, hours: int | None, days: int) -> bool:
-    now = datetime.now()
-    if now.month == 4 and now.day == 1 and (hours is None or hours <= 48 or days <= 2):
-        return True
-    return _looks_like_rumor_query(query)
-
-
-def _effective_days(days: int, hours: int | None) -> int:
-    if hours is None:
-        return days
-    return max(days, max(1, (hours + 23) // 24))
-
-
-def _window_label(days: int, hours: int | None) -> str:
-    if hours is not None:
-        return f"{hours} hours"
-    return f"{days} days"
-
-
-def _default_report_focus(query: str, *, skeptical: bool) -> str | None:
-    if not skeptical:
-        return None
-    return (
-        f"Treat this as a rumor-sensitive topic. Cross-validate creator claims for '{query}' across independent videos and external primary sources. "
-        "Separate concrete technical evidence from reaction content, satire, April 1 jokes, and unsupported amplification."
-    )
-
-
-def _filter_recent_candidates(videos: list, days: int, hours: int | None = None) -> list:
-    cutoff = (
-        datetime.now() - timedelta(hours=hours)
-        if hours is not None
-        else datetime.now() - timedelta(days=days)
-    )
-    filtered = []
-    for video in videos:
-        published_at = getattr(video, "published_at", "")
-        if published_at:
-            try:
-                upload_dt = datetime.fromisoformat(published_at)
-            except ValueError:
-                upload_dt = None
-            if upload_dt is not None:
-                if upload_dt >= cutoff:
-                    filtered.append(video)
-                continue
-        if not getattr(video, "upload_date", ""):
-            filtered.append(video)
-            continue
-        try:
-            upload_dt = datetime.strptime(video.upload_date, "%Y%m%d")
-        except ValueError:
-            filtered.append(video)
-            continue
-        if upload_dt >= cutoff:
-            filtered.append(video)
-    return filtered
-
-
-def _dedupe_candidates(videos: list) -> list:
-    deduped = []
-    seen = set()
-    for video in videos:
-        if video.video_id in seen:
-            continue
-        seen.add(video.video_id)
-        deduped.append(video)
-    return deduped
-
-
-def _format_metric(value: int) -> str:
-    if not value:
-        return "-"
-    if value >= 1_000_000:
-        return f"{value / 1_000_000:.1f}M"
-    if value >= 1_000:
-        return f"{value / 1_000:.1f}K"
-    return str(value)
-
-
-def _select_learning_videos(
-    query: str,
-    config: DistillConfig,
-    tracker: CostTracker,
-    days: int,
-    limit: int,
-    sort: str,
-    per_channel_cap: int,
-    shorts: bool,
-    rerank: bool,
-    *,
-    hours: int | None = None,
-    skeptical: bool = False,
-    expand: bool = True,
-):
-    effective_days = _effective_days(days, hours)
-    candidate_limit = max(limit * 2, 12)
-    raw_candidates = []
-    queries = _expand_learning_queries(
-        query,
-        config,
-        tracker,
-        skeptical=skeptical,
-        expand=expand,
-    )
-    for idx, variant in enumerate(queries, 1):
-        console.print(f"[dim]Candidate search {idx}/{len(queries)}: {variant}[/dim]")
-        raw_candidates.extend(
-            search_youtube_results(
-                variant,
-                days=effective_days,
-                hours=hours,
-                limit=candidate_limit,
-            )
-        )
-    raw_candidates = _dedupe_candidates(raw_candidates)
-    if not raw_candidates:
-        console.print(
-            "[dim]Browser-based search returned no candidates; falling back to yt-dlp search[/dim]"
-        )
-        raw_candidates = search_videos(
-            query,
-            days=effective_days,
-            limit=candidate_limit,
-            sort=sort,
-            per_channel_cap=max(per_channel_cap * 2, 4),
-        )
-    if not shorts:
-        raw_candidates = [v for v in raw_candidates if v.duration > SHORTS_THRESHOLD]
-        console.print(f"[dim]Filtered to {len(raw_candidates)} full-length candidates[/dim]")
-
-    if not raw_candidates:
-        return [], []
-
-    enriched = enrich_videos(raw_candidates, max_videos=min(len(raw_candidates), 12))
-    enriched = _filter_recent_candidates(enriched, effective_days, hours=hours)
-    ranked = rerank_videos(
-        query,
-        enriched,
-        config,
-        tracker=tracker,
-        top_n=max(limit * 2, 10),
-        use_llm=rerank,
-        skeptical=skeptical,
-    )
-    selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
-    return enriched, selected
-
-
-def _apply_ranked_channel_cap(ranked, limit: int, per_channel_cap: int):
-    selected = []
-    counts = {}
-    for item in ranked:
-        channel_key = (item.video.channel_name or "unknown").strip().lower() or "unknown"
-        if counts.get(channel_key, 0) >= per_channel_cap:
-            continue
-        selected.append(item)
-        counts[channel_key] = counts.get(channel_key, 0) + 1
-        if len(selected) >= limit:
-            break
-    return selected
-
-
-def _display_ranked_videos(ranked, title: str):
-    table = Table(title=title, box=box.SIMPLE_HEAVY)
-    table.add_column("#", justify="right")
-    table.add_column("Title", overflow="fold")
-    table.add_column("Channel")
-    table.add_column("Date")
-    table.add_column("Views", justify="right")
-    table.add_column("Score", justify="right")
-    table.add_column("Why", overflow="fold")
-    for idx, item in enumerate(ranked, 1):
-        table.add_row(
-            str(idx),
-            item.video.title,
-            item.video.channel_name or "unknown",
-            _format_date(item.video.upload_date),
-            _format_metric(item.video.view_count),
-            f"{item.final_score:.2f}",
-            item.rationale,
-        )
-    console.print(table)
 
 
 @app.command(name="search", rich_help_panel="Discover")
@@ -3588,315 +2623,6 @@ def synthesize_cmd(
         f"{summary['total_output_tokens']:,} out — "
         f"Cost: {summary['estimated_total_cost']}[/dim]"
     )
-
-
-def _validate_learning_options(
-    sort: str, limit: int, days: int, per_channel_cap: int, hours: int | None = None
-) -> None:
-    if sort not in {"relevance", "date"}:
-        console.print("[red]--sort must be 'relevance' or 'date'[/red]")
-        raise typer.Exit(1)
-    if limit <= 0 or days <= 0 or per_channel_cap <= 0:
-        console.print("[red]--limit, --days, and --channel-cap must be positive[/red]")
-        raise typer.Exit(1)
-    if hours is not None and hours <= 0:
-        console.print("[red]--hours must be positive[/red]")
-        raise typer.Exit(1)
-
-
-def _preview_learning_selection(
-    query: str,
-    *,
-    days: int,
-    limit: int,
-    sort: str,
-    per_channel_cap: int,
-    shorts: bool,
-    rerank: bool,
-    header: str,
-    table_title: str,
-    hours: int | None = None,
-    skeptical: bool | None = None,
-    expand: bool = True,
-):
-    config = get_config()
-    tracker = CostTracker()
-    skeptical_mode = (
-        _auto_skeptical_mode(query, hours=hours, days=days) if skeptical is None else skeptical
-    )
-    console.print(f"\n[bold]{header}: {query}[/bold]")
-    console.print(
-        f"[dim]Window: {_window_label(days, hours)} | Best picks: {limit} | Candidate order: {sort} | "
-        f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
-    )
-
-    _, selected = _select_learning_videos(
-        query,
-        config,
-        tracker,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        hours=hours,
-        skeptical=skeptical_mode,
-        expand=expand,
-    )
-    if not selected:
-        console.print("[yellow]No recent videos matched the search criteria[/yellow]")
-        raise typer.Exit(0)
-
-    _display_ranked_videos(selected, title=table_title)
-    return config, tracker, selected
-
-
-def _run_learning_command(
-    query: str,
-    *,
-    topic: str | None,
-    days: int,
-    limit: int,
-    sort: str,
-    per_channel_cap: int,
-    shorts: bool,
-    rerank: bool,
-    save: bool,
-    report: bool,
-    test: bool,
-    generate_brief: bool,
-    header: str,
-    hours: int | None = None,
-    skeptical: bool | None = None,
-    expand: bool = True,
-    focus: str | None = None,
-) -> None:
-    config = get_config()
-    if not config.xai_api_key:
-        console.print("[red]XAI_API_KEY required[/red]")
-        raise typer.Exit(1)
-
-    topic_name = topic or _topic_from_query(query)
-    tracker = CostTracker()
-    skeptical_mode = (
-        _auto_skeptical_mode(query, hours=hours, days=days) if skeptical is None else skeptical
-    )
-    report_focus = focus or _default_report_focus(query, skeptical=skeptical_mode)
-    console.print(f"\n[bold]{header}: {query}[/bold]")
-    console.print(
-        f"[dim]Topic: {topic_name} | Window: {_window_label(days, hours)} | Best picks: {limit} | Candidate order: {sort} | "
-        f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
-    )
-    if skeptical_mode:
-        console.print(
-            "[yellow]Suspicion-aware discovery enabled for rumor-heavy or April 1 style coverage[/yellow]\n"
-        )
-
-    _, selected = _select_learning_videos(
-        query,
-        config,
-        tracker,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        hours=hours,
-        skeptical=skeptical_mode,
-        expand=expand,
-    )
-    if not selected:
-        console.print("[yellow]No recent videos matched the search criteria[/yellow]")
-        raise typer.Exit(0)
-
-    _display_ranked_videos(selected, title="Selected Learning Set")
-    _process_learning_selection(
-        topic_name,
-        config,
-        tracker,
-        selected,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=generate_brief,
-        report_focus=report_focus,
-    )
-
-
-def _process_learning_selection(
-    topic_name: str,
-    config: DistillConfig,
-    tracker: CostTracker,
-    selected,
-    *,
-    save: bool,
-    report: bool,
-    test: bool,
-    generate_brief: bool,
-    report_focus: str | None = None,
-) -> None:
-    grouped = {}
-    for item in selected:
-        video = item.video
-        channel_name = (video.channel_name or "unknown").strip() or "unknown"
-        grouped.setdefault(channel_name, []).append(video)
-
-    lib = Library(config)
-    summary = RunSummary(command="learn")
-    summary.set_metadata(topic=topic_name, workflow="learn", source_type="youtube")
-
-    # Pre-run estimate
-    all_vids = [item.video for item in selected]
-    full_est = sum(1 for v in all_vids if v.duration > SHORTS_THRESHOLD)
-    short_est = sum(1 for v in all_vids if v.duration <= SHORTS_THRESHOLD)
-    display_estimate(full_est, short_est, console=console, include_report=report)
-
-    console.print(f"  Processing {len(selected)} best-pick videos across {len(grouped)} channels")
-
-    for channel_name, videos in grouped.items():
-        channel_url = next((v.channel_url for v in videos if v.channel_url), "")
-        if save and channel_url:
-            if lib.add_channel(topic_name, channel_url, channel_name):
-                console.print(f"[green]Added {channel_name} to {topic_name}[/green]")
-            else:
-                console.print(f"[dim]{channel_name} already in {topic_name}[/dim]")
-        elif save:
-            console.print(
-                f"[yellow]Could not resolve a stable channel URL for {channel_name}; processing without library registration[/yellow]"
-            )
-
-        console.print(f"\n[bold]Channel: {channel_name}[/bold]")
-        state = ChannelState(config.channel_dir(topic_name, channel_name) / "state.json")
-        _ensure_channel_context(topic_name, channel_name, videos, config, tracker)
-        eta = ETATracker(total=len(videos))
-
-        for i, video in enumerate(videos, 1):
-            if state.is_processed(video.video_id):
-                console.print(f"  [{i}/{len(videos)}] [dim]Already done: {video.title[:60]}[/dim]")
-                continue
-
-            eta_hint = f"  [dim]{eta.eta_str}[/dim]" if eta.eta_str else ""
-            console.print(f"\n  [{i}/{len(videos)}] [bold]{video.title}[/bold]")
-            console.print(
-                f"  [dim]{_format_date(video.upload_date)} | {_duration_str(video.duration)}[/dim]{eta_hint}"
-            )
-            _process_video(
-                topic_name,
-                channel_name,
-                video,
-                config,
-                tracker,
-                summary,
-                state=state,
-                eta=eta,
-            )
-
-        console.print(f"\nSynthesizing {channel_name}...")
-        try:
-            synthesize_channel(topic_name, channel_name, config, tracker=tracker)
-            synth_file = config.channel_dir(topic_name, channel_name) / "synthesis.md"
-            cli_shared.record_output_or_issue(
-                summary,
-                synth_file,
-                stage="channel-synthesis",
-                context=f"{topic_name}/{channel_name}",
-                details={"topic": topic_name, "channel": channel_name},
-                missing_message="No synthesis output written",
-            )
-        except Exception as e:
-            console.print(f"[red]Synthesis failed: {e}[/red]")
-            cli_shared.record_exception_issue(
-                summary,
-                stage="channel-synthesis",
-                exc=e,
-                context=f"{topic_name}/{channel_name}",
-                details={"topic": topic_name, "channel": channel_name},
-            )
-
-    if grouped:
-        console.print(f"\nSynthesizing topic '{topic_name}'...")
-        try:
-            synthesize_topic(topic_name, config, tracker=tracker)
-            topic_synth = config.topic_dir(topic_name) / "topic_synthesis.md"
-            cli_shared.record_output_or_issue(
-                summary,
-                topic_synth,
-                stage="topic-synthesis",
-                context=topic_name,
-                details={"topic": topic_name},
-                missing_message="No topic synthesis output written",
-            )
-        except Exception as e:
-            console.print(f"[red]Topic synthesis failed: {e}[/red]")
-            cli_shared.record_exception_issue(
-                summary,
-                stage="topic-synthesis",
-                exc=e,
-                context=topic_name,
-                details={"topic": topic_name},
-            )
-    try:
-        corpus_synth = synthesize_corpus(topic_name, config, tracker=tracker)
-        if corpus_synth:
-            summary.add_output(config.topic_dir(topic_name) / "corpus_synthesis.md")
-    except Exception as e:
-        cli_shared.record_exception_issue(
-            summary,
-            stage="corpus-synthesis",
-            exc=e,
-            context=topic_name,
-            details={"topic": topic_name},
-        )
-
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-
-    if not generate_brief and not report:
-        console.print("\n  [dim]What's next:[/dim]")
-        console.print(
-            f"  [dim]  distill show {topic_name}                    View video insights[/dim]"
-        )
-        console.print(
-            f"  [dim]  distill synthesis {topic_name}               Read the synthesis[/dim]"
-        )
-        console.print(
-            f"  [dim]  distill report {topic_name}                  Deep research report[/dim]"
-        )
-        console.print(
-            f"  [dim]  distill videos {topic_name}                  List all processed videos[/dim]"
-        )
-
-    if generate_brief:
-        _generate_and_export_topic_brief(topic_name, config, tracker)
-
-    if report:
-        _run_scope_report(
-            topic_name,
-            config,
-            tracker,
-            scope="topic",
-            test=test,
-            summary=summary,
-            focus=report_focus,
-        )
-
-
-def _generate_and_export_topic_brief(
-    topic_name: str, config: DistillConfig, tracker: CostTracker
-) -> None:
-    console.print(f"\n[bold cyan]Generating brief for {topic_name}...[/bold cyan]")
-    brief_path = generate_topic_brief(topic_name, config, tracker=tracker)
-    if not brief_path:
-        console.print("[yellow]Brief generation did not produce content[/yellow]")
-        return
-
-    import shutil
-
-    output_copy = _output_path(config, f"brief-{topic_name}.md")
-    shutil.copy2(brief_path, output_copy)
-    console.print(f"[green]Brief:   {brief_path}[/green]")
-    console.print(f"[green]Output:  {output_copy}[/green]")
 
 
 # ─── Library Management ───────────────────────────────────────────────
@@ -7312,227 +6038,6 @@ def papers(
     if corpus_synth:
         summary.add_output(config.topic_dir(topic_name) / "corpus_synthesis.md")
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-
-
-@dataclass
-class _RankedDiscoverItem:
-    kind: str  # "paper" or "video"
-    identifier: str
-    title: str
-    subtitle: str
-    date: str
-    final_score: float
-    goal_fit: float
-    depth_score: float
-    complementarity_score: float
-    rationale: str
-    paper: PaperRecord | None = None
-    video: VideoInfo | None = None
-
-
-def _discover_generate_queries(
-    goal: str,
-    config: DistillConfig,
-    tracker: CostTracker | None,
-    *,
-    paper_count: int,
-    video_count: int,
-) -> tuple[list[str], list[str]]:
-    """Ask Grok for paper + video search queries that serve the goal."""
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
-    prompt = discover_query_generation_prompt(
-        goal, paper_count=paper_count, video_count=video_count
-    )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=768,
-        timeout=120,
-    )
-    if tracker and response.usage:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
-                call_type="discover_plan",
-            )
-        )
-    content = response.choices[0].message.content if response.choices else ""
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    if not text:
-        return [], []
-    data = json.loads(text)
-    paper_qs = data.get("paper_queries", []) if isinstance(data, dict) else []
-    video_qs = data.get("video_queries", []) if isinstance(data, dict) else []
-    paper_qs = _dedupe_query_strings([q for q in paper_qs if isinstance(q, str)])
-    video_qs = _dedupe_query_strings([q for q in video_qs if isinstance(q, str)])
-    return paper_qs, video_qs
-
-
-def _discover_fetch_videos(
-    queries: list[str],
-    effective_days: int,
-    candidate_cap: int,
-    shorts: bool,
-) -> list[VideoInfo]:
-    raw: list[VideoInfo] = []
-    for idx, q in enumerate(queries, 1):
-        console.print(f"[dim]Video search {idx}/{len(queries)}: {q}[/dim]")
-        raw.extend(search_youtube_results(q, days=effective_days, hours=None, limit=candidate_cap))
-    raw = _dedupe_candidates(raw)
-    if not raw:
-        return []
-    if not shorts:
-        raw = [v for v in raw if v.duration > SHORTS_THRESHOLD]
-    if not raw:
-        return []
-    enriched = enrich_videos(raw, max_videos=min(len(raw), 20))
-    return _filter_recent_candidates(enriched, effective_days, hours=None)
-
-
-def _discover_rerank(
-    goal: str,
-    papers: list[PaperRecord],
-    videos: list[VideoInfo],
-    config: DistillConfig,
-    tracker: CostTracker | None,
-) -> list[_RankedDiscoverItem]:
-    candidates: list[dict] = []
-    paper_by_id = {p.paper_id: p for p in papers}
-    video_by_id = {v.video_id: v for v in videos}
-    for p in papers:
-        candidates.append(
-            {
-                "kind": "paper",
-                "identifier": p.paper_id,
-                "title": p.title,
-                "subtitle": ", ".join((p.authors or [])[:3]) or "unknown",
-                "date": (p.published_at or "")[:10],
-                "description": p.abstract or "",
-            }
-        )
-    for v in videos:
-        candidates.append(
-            {
-                "kind": "video",
-                "identifier": v.video_id,
-                "title": v.title,
-                "subtitle": v.channel_name or "unknown",
-                "date": v.upload_date or "",
-                "description": getattr(v, "description", "") or "",
-            }
-        )
-    if not candidates:
-        return []
-
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
-    prompt = discover_rerank_prompt(goal, candidates)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=8192,
-        timeout=240,
-    )
-    if tracker and response.usage:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
-                call_type="discover_rerank",
-            )
-        )
-    content = response.choices[0].message.content if response.choices else ""
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    if not text:
-        return []
-    data = json.loads(text)
-    items = data.get("ranked_items", []) if isinstance(data, dict) else data
-    if not isinstance(items, list):
-        return []
-
-    ranked: list[_RankedDiscoverItem] = []
-    for entry in items:
-        kind = str(entry.get("kind", "")).strip()
-        identifier = str(entry.get("identifier", "")).strip()
-        if kind == "paper":
-            paper = paper_by_id.get(identifier)
-            if not paper:
-                continue
-            ranked.append(
-                _RankedDiscoverItem(
-                    kind="paper",
-                    identifier=identifier,
-                    title=paper.title,
-                    subtitle=", ".join((paper.authors or [])[:2]) or "unknown",
-                    date=(paper.published_at or "")[:10],
-                    final_score=float(entry.get("final_score", 0.0)),
-                    goal_fit=float(entry.get("goal_fit", 0.0)),
-                    depth_score=float(entry.get("depth_score", 0.0)),
-                    complementarity_score=float(entry.get("complementarity_score", 0.0)),
-                    rationale=str(entry.get("rationale", "")).strip(),
-                    paper=paper,
-                )
-            )
-        elif kind == "video":
-            video = video_by_id.get(identifier)
-            if not video:
-                continue
-            ranked.append(
-                _RankedDiscoverItem(
-                    kind="video",
-                    identifier=identifier,
-                    title=video.title,
-                    subtitle=video.channel_name or "unknown",
-                    date=_format_date(video.upload_date or ""),
-                    final_score=float(entry.get("final_score", 0.0)),
-                    goal_fit=float(entry.get("goal_fit", 0.0)),
-                    depth_score=float(entry.get("depth_score", 0.0)),
-                    complementarity_score=float(entry.get("complementarity_score", 0.0)),
-                    rationale=str(entry.get("rationale", "")).strip(),
-                    video=video,
-                )
-            )
-    return sorted(ranked, key=lambda x: x.final_score, reverse=True)
-
-
-def _display_ranked_discover(items: list[_RankedDiscoverItem], title: str) -> None:
-    table = Table(title=title, box=box.SIMPLE_HEAVY)
-    table.add_column("#", justify="right")
-    table.add_column("Type")
-    table.add_column("Title", overflow="fold")
-    table.add_column("Source", overflow="fold")
-    table.add_column("Date")
-    table.add_column("Score", justify="right")
-    table.add_column("Why", overflow="fold")
-    for idx, item in enumerate(items, 1):
-        table.add_row(
-            str(idx),
-            item.kind,
-            item.title,
-            item.subtitle,
-            item.date or "-",
-            f"{item.final_score:.2f}",
-            item.rationale or "-",
-        )
-    console.print(table)
 
 
 @app.command(rich_help_panel="Discover")

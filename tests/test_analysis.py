@@ -6,9 +6,11 @@ import pytest
 
 from distill.analysis import (
     _call_grok,
+    analyze_scan,
     analyze_short,
     analyze_video,
     generate_channel_context,
+    generate_watch_instructions,
 )
 from distill.config import DistillConfig
 from distill.costs import CostTracker
@@ -119,3 +121,40 @@ def test_generate_channel_context_delegates_to_grok(tmp_path, monkeypatch):
     result = generate_channel_context("Creator", ["One", "Two"], config)
 
     assert result == "channel context"
+
+
+def test_analyze_scan_marks_scan_mode(tmp_path, monkeypatch):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    monkeypatch.setattr("distill.analysis._get_client", lambda config: object())
+    monkeypatch.setattr(
+        "distill.analysis._call_grok",
+        lambda client, prompt, model="", tracker=None, call_type="", max_tokens=8192, retries=2: (
+            "scan body"
+        ),
+    )
+
+    result = analyze_scan("Scan title", "20260312", "Creator", "transcript", config)
+
+    assert "analysis_mode: scan" in result
+    assert result.rstrip().endswith("scan body")
+
+
+def test_generate_watch_instructions_delegates_to_grok(tmp_path, monkeypatch):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    monkeypatch.setattr("distill.analysis._get_client", lambda config: object())
+    monkeypatch.setattr(
+        "distill.analysis._call_grok",
+        lambda client, prompt, model="", tracker=None, call_type="", max_tokens=8192, retries=2: (
+            "watch instructions"
+        ),
+    )
+
+    result = generate_watch_instructions("Creator", ["One", "Two"], config)
+
+    assert result == "watch instructions"
+
+
+def test_call_grok_returns_empty_when_no_choices():
+    client = FakeClient([SimpleNamespace(choices=[], usage=None)])
+
+    assert _call_grok(client, "prompt", model="grok-4-1-fast-reasoning") == ""

@@ -54,6 +54,7 @@ async def channel_detail(request: Request, topic: str, channel: str):
         context = ctx_path.read_text(encoding="utf-8")
 
     return templates.TemplateResponse(
+        request,
         "channel_detail.html",
         {
             "request": request,

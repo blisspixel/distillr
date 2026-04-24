@@ -362,12 +362,14 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
     lib.add_channel("ai", "https://www.youtube.com/@TestCh", "TestCh")
     log_file = config.library_dir / "cost_log.jsonl"
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    recent_one = (datetime.now() - timedelta(days=2)).replace(microsecond=0).isoformat()
+    recent_two = (datetime.now() - timedelta(days=1)).replace(microsecond=0).isoformat()
     log_file.write_text(
         "\n".join(
             [
-                '{"timestamp":"2026-03-21T10:00:00","command":"learn","actual_cost":0.40,"elapsed_seconds":8.5,"metadata":{"topic":"ai","source_type":"youtube"}}',
-                '{"timestamp":"2026-03-21T12:00:00","command":"site-batch","actual_cost":0.70,"elapsed_seconds":22.0,"metadata":{"topic":"vendor-site","source_type":"website"}}',
-                '{"timestamp":"2026-03-22T08:00:00","command":"report","actual_cost":2.50,"elapsed_seconds":180.0,"metadata":{"topic":"ai","workflow":"report"}}',
+                f'{{"timestamp":"{recent_one}","command":"learn","actual_cost":0.40,"elapsed_seconds":8.5,"metadata":{{"topic":"ai","source_type":"youtube"}}}}',
+                f'{{"timestamp":"{recent_one}","command":"site-batch","actual_cost":0.70,"elapsed_seconds":22.0,"metadata":{{"topic":"vendor-site","source_type":"website"}}}}',
+                f'{{"timestamp":"{recent_two}","command":"report","actual_cost":2.50,"elapsed_seconds":180.0,"metadata":{{"topic":"ai","workflow":"report"}}}}',
             ]
         ),
         encoding="utf-8",
