@@ -43,6 +43,6 @@ Three priority directions for the next minor releases:
 
 **3. Tighter handoff to agent workflows.** Richer export presets (zipped MD/JSON bundles with metadata and confidence tags), more MCP tools around gap detection and scheduled ingestion, native notification channels for watch alerts. Includes a goal-file refresh hook for `distill watch` so goal-driven topics stay current the same way keyword topics do.
 
-Plus ongoing polish: live cost tickers, better crawl-boundary controls, semantic dedup across sources, structured logging, scheduled refresh via cron/task scheduler.
+Plus ongoing polish: live cost tickers, better crawl-boundary controls, semantic dedup across sources, structured logging, scheduled refresh via cron/task scheduler, and continued quality hardening (raising typing coverage, paying down CLI monolith debt, and moving Pyright toward a blocking gate).
 
 Full priority breakdown by area (stay-current, dashboard, papers, cross-source intelligence, etc.) lives in [`docs/roadmap.md`](docs/roadmap.md).

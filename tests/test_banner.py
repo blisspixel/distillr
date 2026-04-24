@@ -4,6 +4,7 @@ from rich.console import Console
 
 from distill.banner import (
     BANNER_ART,
+    _animate_sweep,
     _detect_capabilities,
     _ease_in_out_cubic,
     _is_banner_enabled,
@@ -216,6 +217,20 @@ class TestShowBanner:
         result = show_banner(console, art="TEST")
         assert result is True
 
+    def test_uses_animation_when_advanced_terminal(self, monkeypatch):
+        import distill.banner as banner_mod
+
+        called = []
+        monkeypatch.delenv("DISTILL_BANNER", raising=False)
+        monkeypatch.setattr(banner_mod, "_detect_capabilities", lambda: (True, False, False, False))
+        monkeypatch.setattr(banner_mod, "_animate_sweep", lambda console, art, duration=1.5: called.append(art))
+        console = Console(record=True, width=120, force_terminal=True, color_system="truecolor")
+
+        result = show_banner(console, art="TEST")
+
+        assert result is True
+        assert called == ["TEST"]
+
     def test_returns_false_in_ci(self, monkeypatch):
         import distill.banner as banner_mod
 
@@ -224,3 +239,34 @@ class TestShowBanner:
         console = Console(record=True, width=120, force_terminal=True)
         result = show_banner(console)
         assert result is False
+
+
+class TestAnimateSweep:
+    def test_writes_frames_and_restores_cursor(self, monkeypatch):
+        import io
+
+        monkeypatch.setattr("distill.banner._precise_sleep", lambda _target: None)
+        monkeypatch.setattr("distill.banner.time.perf_counter", lambda: 0.0)
+        console = Console(file=io.StringIO(), width=120, force_terminal=True, color_system="truecolor")
+
+        _animate_sweep(console, art="AB\nCD", duration=0.02)
+
+        output = console.file.getvalue()
+        assert "\033[?25l" in output
+        assert "\033[?25h" in output
+
+    def test_falls_back_to_static_banner_on_error(self, monkeypatch):
+        import io
+
+        console = Console(file=io.StringIO(), width=120, force_terminal=True, color_system="truecolor")
+        monkeypatch.setattr(
+            "distill.banner._precompute_gradient",
+            lambda _width: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+
+        _animate_sweep(console, art="AB", duration=0.02)
+
+        output = console.file.getvalue()
+        assert "\033[?25h" in output
+        assert "A" in output
+        assert "B" in output

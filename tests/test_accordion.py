@@ -11,6 +11,7 @@ from distill.accordion import (
     _extract_section_feedback,
     _gather_tagged_materials,
     _get_dossier_path,
+    _get_research_path,
     _load_syntheses,
     _load_tagged_insights,
     _parse_qa_failures,
@@ -288,6 +289,22 @@ class TestDossierPath:
         assert path.name == "dossier.md"
 
 
+class TestResearchPath:
+    def test_topic_path(self, config):
+        path = _get_research_path("ai", config, "topic", None)
+        assert path.name == "research.md"
+        assert "ai" in str(path)
+
+    def test_channel_path(self, config):
+        path = _get_research_path("ai", config, "channel", "TestCh")
+        assert path.name == "research.md"
+        assert "TestCh" in str(path)
+
+    def test_all_path(self, config):
+        path = _get_research_path("all", config, "all", None)
+        assert path.name == "research.md"
+
+
 class TestCountSources:
     def test_counts_videos(self, populated_channel):
         config, _lib = populated_channel
@@ -339,6 +356,30 @@ class TestCallGrokSection:
         result = _call_grok_section(mock_client, "prompt", "Section", retries=1)
         assert result == "recovered"
 
+    @patch("distill.accordion.time.sleep")
+    def test_returns_empty_after_all_retries_fail(self, mock_sleep):
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("boom")
+
+        result = _call_grok_section(mock_client, "prompt", "Section", retries=1)
+
+        assert result == ""
+        mock_sleep.assert_called_once()
+
+    def test_records_token_usage(self):
+        mock_client = MagicMock()
+        mock_tracker = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="Tracked content"))]
+        mock_response.usage.prompt_tokens = 12
+        mock_response.usage.completion_tokens = 34
+        mock_client.chat.completions.create.return_value = mock_response
+
+        result = _call_grok_section(mock_client, "prompt", "Tracked Section", tracker=mock_tracker)
+
+        assert result == "Tracked content"
+        mock_tracker.record.assert_called_once()
+
 
 class TestWriteSections:
     @patch("distill.accordion.time.sleep")
@@ -389,6 +430,27 @@ class TestWriteSections:
             tagged_materials={},
         )
         assert len(result) == 0
+
+    @patch("distill.accordion.time.sleep")
+    @patch("distill.accordion._call_grok_section")
+    def test_uses_active_sections_override(self, mock_call, mock_sleep, config):
+        mock_call.return_value = "Override content."
+        active_sections = [REPORT_SECTIONS[0], REPORT_SECTIONS[1]]
+
+        result = _write_sections(
+            topic="ai",
+            config=config,
+            dossier="test dossier",
+            scope="topic",
+            channel_name=None,
+            tagged_materials={},
+            active_sections=active_sections,
+        )
+
+        assert [section["id"] for section in result] == [
+            REPORT_SECTIONS[0]["id"],
+            REPORT_SECTIONS[1]["id"],
+        ]
 
 
 class TestQaHelpers:
@@ -443,6 +505,44 @@ class TestTaggedHelpers:
         assert "Test Video 1" in loaded
         assert "Test Video 0" not in loaded
 
+    def test_load_syntheses_across_all_topics(self, config):
+        for topic, channel in [("ai", "Alpha"), ("security", "Beta")]:
+            ch_dir = config.channel_dir(topic, channel)
+            ch_dir.mkdir(parents=True, exist_ok=True)
+            (ch_dir / "synthesis.md").write_text(
+                f"# {channel} synthesis", encoding="utf-8"
+            )
+
+        loaded = _load_syntheses("ai", config, "all", None)
+
+        assert "Alpha Channel Synthesis" in loaded
+        assert "Beta Channel Synthesis" in loaded
+
+    def test_load_tagged_insights_respects_max_chars(self, config):
+        config.channel_dir("ai", "TestChannel").mkdir(parents=True, exist_ok=True)
+        for idx in range(2):
+            vid_dir = config.video_dir("ai", "TestChannel", f"vid{idx}")
+            vid_dir.mkdir(parents=True, exist_ok=True)
+            (vid_dir / "metadata.json").write_text(
+                f'{{"title":"Video {idx}"}}', encoding="utf-8"
+            )
+            (vid_dir / "insights.md").write_text(
+                "Microsoft enterprise deployment notes " * 3,
+                encoding="utf-8",
+            )
+
+        loaded = _load_tagged_insights(
+            "ai",
+            config,
+            "all",
+            None,
+            keywords=["Microsoft"],
+            max_chars=150,
+        )
+
+        assert "Video 0" in loaded
+        assert "Video 1" not in loaded
+
 
 class TestQaPhase:
     @patch("distill.accordion._call_grok_section")
@@ -478,6 +578,61 @@ class TestQaPhase:
             {
                 "id": "executive_briefing",
                 "title": "Executive Briefing",
+                "content": "old content",
+                "word_count": 2,
+            },
+        ]
+
+        updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
+
+        assert rewrote == 0
+        assert updated == written_sections
+
+    @patch(
+        "distill.accordion._call_grok_section",
+        return_value="### Executive Briefing\n**Score**: PASS\nLooks good.",
+    )
+    def test_run_qa_phase_with_no_failures(self, mock_call, config):
+        written_sections = [
+            {
+                "id": "executive_briefing",
+                "title": "Executive Briefing",
+                "content": "old content",
+                "word_count": 2,
+            },
+        ]
+
+        updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
+
+        assert rewrote == 0
+        assert updated == written_sections
+
+    @patch("distill.accordion._call_grok_section")
+    def test_run_qa_phase_keeps_original_when_rewrite_fails(self, mock_call, config):
+        written_sections = [
+            {
+                "id": "executive_briefing",
+                "title": "Executive Briefing",
+                "content": "old content",
+                "word_count": 2,
+            },
+        ]
+        mock_call.side_effect = ["### Executive Briefing\n**Score**: FAIL", ""]
+
+        updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
+
+        assert rewrote == 0
+        assert updated[0]["content"] == "old content"
+
+    @patch(
+        "distill.accordion._call_grok_section",
+        return_value="### Unknown Section\n**Score**: FAIL\nNeeds work.",
+    )
+    def test_run_qa_phase_ignores_unknown_section_ids(self, mock_call, config):
+        written_sections = [
+            {
+                "id": "missing_id",
+                "title": "Unknown Section",
                 "content": "old content",
                 "word_count": 2,
             },
@@ -543,8 +698,102 @@ class TestDossierPhase:
         assert result == "dossier body"
         assert deleted == ["store-1"]
 
+    @patch("distill.accordion.time.sleep", lambda seconds: None)
+    def test_run_dossier_phase_returns_none_on_failed_status(self, config, monkeypatch):
+        deleted = []
+        monkeypatch.setattr(
+            "distill.accordion.create_research_store",
+            lambda *args, **kwargs: ("store-1", 2),
+        )
+        monkeypatch.setattr(
+            "distill.accordion.delete_store", lambda client, name: deleted.append(name)
+        )
+
+        class FakeInteractions:
+            def create(self, **kwargs):
+                return SimpleNamespace(id="job-1")
+
+            def get(self, interaction_id):
+                return SimpleNamespace(status="failed", error="bad request")
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                self.interactions = FakeInteractions()
+
+        monkeypatch.setattr("distill.accordion.genai.Client", FakeClient)
+
+        result = _run_dossier_phase("ai", config, "topic", None, None, False)
+
+        assert result is None
+        assert deleted == ["store-1", "store-1"]
+
+    @patch("distill.accordion.time.sleep", lambda seconds: None)
+    def test_run_dossier_phase_returns_none_when_output_empty(self, config, monkeypatch):
+        deleted = []
+        monkeypatch.setattr(
+            "distill.accordion.create_research_store",
+            lambda *args, **kwargs: ("store-1", 2),
+        )
+        monkeypatch.setattr(
+            "distill.accordion.delete_store", lambda client, name: deleted.append(name)
+        )
+
+        class FakeInteractions:
+            def create(self, **kwargs):
+                return SimpleNamespace(id="job-1")
+
+            def get(self, interaction_id):
+                return SimpleNamespace(status="completed", outputs=[])
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                self.interactions = FakeInteractions()
+
+        monkeypatch.setattr("distill.accordion.genai.Client", FakeClient)
+
+        result = _run_dossier_phase("ai", config, "topic", None, None, False)
+
+        assert result is None
+        assert deleted == ["store-1", "store-1"]
+
+    @patch("distill.accordion.time.sleep", lambda seconds: None)
+    def test_run_dossier_phase_records_tracker_usage(self, config, monkeypatch):
+        tracker = MagicMock()
+        monkeypatch.setattr(
+            "distill.accordion.create_research_store",
+            lambda *args, **kwargs: ("store-1", 2),
+        )
+        monkeypatch.setattr("distill.accordion.delete_store", lambda *args, **kwargs: None)
+
+        class FakeInteractions:
+            def create(self, **kwargs):
+                return SimpleNamespace(id="job-1")
+
+            def get(self, interaction_id):
+                return SimpleNamespace(
+                    status="completed", outputs=[SimpleNamespace(text="dossier body")]
+                )
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                self.interactions = FakeInteractions()
+
+        monkeypatch.setattr("distill.accordion.genai.Client", FakeClient)
+
+        result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
+
+        assert result == "dossier body"
+        tracker.record_gemini_query.assert_called_once_with()
+
 
 class TestAccordionRun:
+    def test_run_accordion_research_returns_none_when_dossier_fails(self, config, monkeypatch):
+        monkeypatch.setattr("distill.accordion._run_dossier_phase", lambda *args, **kwargs: None)
+
+        result = run_accordion_research("ai", config)
+
+        assert result is None
+
     def test_run_accordion_research_dossier_only(self, config, monkeypatch):
         monkeypatch.setattr(
             "distill.accordion._run_dossier_phase",
@@ -599,3 +848,42 @@ class TestAccordionRun:
 
         assert "section body" in result
         assert (config.topic_dir("ai") / "report.md").exists()
+
+    def test_run_accordion_research_reassembles_after_qa_rewrite(self, config, monkeypatch):
+        monkeypatch.setattr(
+            "distill.accordion._run_dossier_phase",
+            lambda *args, **kwargs: "dossier body",
+        )
+        monkeypatch.setattr("distill.accordion._count_sources", lambda *args, **kwargs: (3, 2))
+        monkeypatch.setattr(
+            "distill.accordion._gather_tagged_materials", lambda *args, **kwargs: {}
+        )
+        monkeypatch.setattr(
+            "distill.accordion._write_sections",
+            lambda *args, **kwargs: [
+                {
+                    "id": "executive_briefing",
+                    "title": "Executive Briefing",
+                    "content": "original",
+                    "word_count": 1,
+                },
+            ],
+        )
+        monkeypatch.setattr(
+            "distill.accordion._run_qa_phase",
+            lambda *args, **kwargs: (
+                [
+                    {
+                        "id": "executive_briefing",
+                        "title": "Executive Briefing",
+                        "content": "rewritten",
+                        "word_count": 1,
+                    },
+                ],
+                1,
+            ),
+        )
+
+        result = run_accordion_research("ai", config)
+
+        assert "rewritten" in result

@@ -1,4 +1,5 @@
 import importlib
+from types import SimpleNamespace
 
 SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -96,3 +97,78 @@ def test_build_paper_document_contains_key_sections():
     assert "# Agent Memory Systems" in doc
     assert "## Abstract" in doc
     assert "Alice, Bob" in doc
+
+
+def test_search_arxiv_multi_dedupes_and_continues_on_failures(monkeypatch):
+    paper_ingest = importlib.import_module("distill.paper_ingest")
+    calls = []
+
+    def fake_search(query, **kwargs):
+        calls.append(query)
+        if query == "bad":
+            raise RuntimeError("network")
+        record = paper_ingest.PaperRecord(
+            paper_id="2602.12670v1" if query != "extra" else "2603.00001",
+            title=f"Paper {query}",
+            abstract="Summary",
+        )
+        return [record]
+
+    monkeypatch.setattr("distill.paper_ingest.search_arxiv_papers", fake_search)
+    sleeps = []
+    monkeypatch.setattr("distill.paper_ingest.time.sleep", lambda seconds: sleeps.append(seconds))
+
+    records = paper_ingest.search_arxiv_multi(["first", "bad", "extra"])
+
+    assert [record.paper_id for record in records] == ["2602.12670v1", "2603.00001"]
+    assert calls == ["first", "bad", "extra"]
+    assert sleeps == [3.5, 3.5]
+
+
+def test_fetch_paper_pdf_text_reads_and_truncates(monkeypatch):
+    paper_ingest = importlib.import_module("distill.paper_ingest")
+
+    class FakePage:
+        def extract_text(self):
+            return "A" * 50000
+
+    monkeypatch.setattr(
+        "distill.paper_ingest.requests.get",
+        lambda *args, **kwargs: SimpleNamespace(
+            content=b"%PDF", raise_for_status=lambda: None
+        ),
+    )
+    monkeypatch.setattr(
+        "distill.paper_ingest.PdfReader",
+        lambda stream: SimpleNamespace(pages=[FakePage(), FakePage(), FakePage()]),
+    )
+
+    text = paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf")
+
+    assert len(text) == 100000
+
+
+def test_fetch_paper_pdf_text_returns_empty_on_errors(monkeypatch):
+    paper_ingest = importlib.import_module("distill.paper_ingest")
+    monkeypatch.setattr(
+        "distill.paper_ingest.requests.get",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    assert paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf") == ""
+
+
+def test_paper_record_metadata_round_trips():
+    paper_ingest = importlib.import_module("distill.paper_ingest")
+    record = paper_ingest.PaperRecord(
+        paper_id="2602.12670v1",
+        title="Agent Memory Systems",
+        abstract="A paper about memory systems.",
+        authors=["Alice", "Bob"],
+        categories=["cs.AI"],
+    )
+
+    metadata = record.metadata()
+
+    assert metadata["paper_id"] == "2602.12670v1"
+    assert metadata["authors"] == ["Alice", "Bob"]

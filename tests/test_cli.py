@@ -4,6 +4,7 @@ import json
 import os
 import zipfile
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -84,6 +85,7 @@ class TestTopLevelExperience:
         result = runner.invoke(cli.app, ["--help"])
         assert result.exit_code == 0
         assert "Have one YouTube URL?" in result.output
+        assert "Build a topic corpus?" in result.output
         assert "Want recurring updates?" in result.output
         assert "distill monitor" in result.output
         assert "Microsoft AI news" in result.output
@@ -817,6 +819,179 @@ class TestLearnHelpers:
         )
 
         assert [item.video.video_id for item in selected] == ["v1"]
+
+
+class TestTopicCommands:
+    def test_topic_create_mixed_dispatches_to_discover_and_saves_profile(
+        self, mock_config, monkeypatch
+    ):
+        captured = {}
+
+        def fake_discover(**kwargs):
+            captured.update(kwargs)
+
+        monkeypatch.setattr(cli, "discover", fake_discover)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "topic",
+                "create",
+                "Microsoft Fabric best practices",
+                "--topic",
+                "fabric",
+                "--videos",
+                "10",
+                "--papers",
+                "10",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert captured["goal"] == "Microsoft Fabric best practices"
+        assert captured["topic"] == "fabric"
+        assert captured["video_limit"] == 10
+        assert captured["paper_limit"] == 10
+        profile = json.loads(
+            (mock_config.topic_dir("fabric") / "topic_profile.json").read_text(encoding="utf-8")
+        )
+        assert profile["goal"] == "Microsoft Fabric best practices"
+        assert profile["videos"] == 10
+        assert profile["papers"] == 10
+
+    def test_topic_create_videos_only_uses_learning_pipeline(self, mock_config, monkeypatch):
+        captured = {}
+
+        def fake_run_learning_command(query, **kwargs):
+            captured["query"] = query
+            captured["kwargs"] = kwargs
+
+        monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "topic",
+                "create",
+                "Agent memory systems",
+                "--topic",
+                "memory",
+                "--videos",
+                "8",
+                "--papers",
+                "0",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert captured["query"] == "Agent memory systems"
+        assert captured["kwargs"]["topic"] == "memory"
+        assert captured["kwargs"]["limit"] == 8
+        assert captured["kwargs"]["header"] == "Topic Create"
+
+    def test_topic_preview_does_not_save_profile(self, mock_config, monkeypatch):
+        monkeypatch.setattr(cli, "discover", lambda **kwargs: None)
+
+        result = runner.invoke(
+            cli.app,
+            ["topic", "preview", "AI coding agents", "--topic", "agents", "--videos", "5"],
+        )
+
+        assert result.exit_code == 0
+        assert not (mock_config.topic_dir("agents") / "topic_profile.json").exists()
+
+    def test_topic_update_reuses_saved_profile_and_allows_overrides(
+        self, mock_config, monkeypatch
+    ):
+        (mock_config.topic_dir("fabric")).mkdir(parents=True, exist_ok=True)
+        (mock_config.topic_dir("fabric") / "topic_profile.json").write_text(
+            json.dumps(
+                {
+                    "goal": "Microsoft Fabric best practices",
+                    "videos": 10,
+                    "papers": 10,
+                    "days": 30,
+                    "shorts": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        captured = {}
+        monkeypatch.setattr(cli, "discover", lambda **kwargs: captured.update(kwargs))
+
+        result = runner.invoke(
+            cli.app,
+            ["topic", "update", "fabric", "--videos", "6", "--preview"],
+        )
+
+        assert result.exit_code == 0
+        assert captured["goal"] == "Microsoft Fabric best practices"
+        assert captured["video_limit"] == 6
+        assert captured["paper_limit"] == 10
+        assert captured["preview"] is True
+
+    def test_topic_show_summary_reads_profile(self, mock_config):
+        topic_dir = mock_config.topic_dir("fabric")
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_profile.json").write_text(
+            json.dumps(
+                {
+                    "goal": "Microsoft Fabric best practices",
+                    "videos": 10,
+                    "papers": 10,
+                    "days": 30,
+                    "shorts": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["topic", "show", "fabric"])
+
+        assert result.exit_code == 0
+        assert "Topic Summary" in result.output
+        assert "Microsoft Fabric best practices" in result.output
+        assert "videos=10 papers=10 days=30" in result.output
+
+    def test_topic_watch_uses_saved_profile(self, mock_config, monkeypatch):
+        topic_dir = mock_config.topic_dir("fabric")
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_profile.json").write_text(
+            json.dumps(
+                {
+                    "goal": "Microsoft Fabric best practices",
+                    "videos": 9,
+                    "papers": 4,
+                    "days": 21,
+                    "shorts": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        captured = {}
+
+        def fake_monitor(**kwargs):
+            captured.update(kwargs)
+
+        monkeypatch.setattr(cli, "monitor", fake_monitor)
+
+        result = runner.invoke(cli.app, ["topic", "watch", "fabric", "--preview"])
+
+        assert result.exit_code == 0
+        assert captured["query"] == "Microsoft Fabric best practices"
+        assert captured["topic"] == "fabric"
+        assert captured["days"] == 21
+        assert captured["limit"] == 9
+        assert captured["preview"] is True
+
+    def test_topic_create_requires_at_least_one_source(self, mock_config):
+        result = runner.invoke(
+            cli.app,
+            ["topic", "create", "Microsoft Fabric best practices", "--videos", "0", "--papers", "0"],
+        )
+
+        assert result.exit_code == 1
+        assert "Specify at least one source" in result.output
 
 
 class TestReadCommands:
@@ -2206,3 +2381,261 @@ def test_filter_recent_candidates_prefers_exact_published_at_hours():
     filtered = cli._filter_recent_candidates([recent, stale], days=2, hours=20)
 
     assert [video.video_id for video in filtered] == ["v1"]
+
+
+def test_cli_query_helpers_cover_noise_and_focus_defaults():
+    assert cli._replace_case_insensitive("Hello Leak", "leak", "news") == "Hello news"
+    assert cli._strip_intent_terms("best practices for implementation guide") == ""
+    assert cli._strip_noise_terms("latest rumor analysis leak") == ""
+    assert cli._looks_like_rumor_query("security breach analysis") is True
+    assert cli._effective_days(2, 49) == 3
+    assert cli._window_label(3, None) == "3 days"
+    assert cli._window_label(3, 12) == "12 hours"
+    assert cli._default_report_focus("Claude Code leak", skeptical=False) is None
+    assert "rumor-sensitive" in cli._default_report_focus("Claude Code leak", skeptical=True)
+    assert cli._format_metric(1500) == "1.5K"
+    assert cli._format_metric(2_500_000) == "2.5M"
+
+
+def test_cli_dedupe_and_ranked_channel_cap():
+    from types import SimpleNamespace
+
+    v1 = SimpleNamespace(video_id="one")
+    v2 = SimpleNamespace(video_id="one")
+    v3 = SimpleNamespace(video_id="two")
+    deduped = cli._dedupe_candidates([v1, v2, v3])
+
+    ranked = [
+        SimpleNamespace(video=SimpleNamespace(channel_name="ChanA")),
+        SimpleNamespace(video=SimpleNamespace(channel_name="ChanA")),
+        SimpleNamespace(video=SimpleNamespace(channel_name="ChanB")),
+    ]
+    selected = cli._apply_ranked_channel_cap(ranked, limit=3, per_channel_cap=1)
+
+    assert deduped == [v1, v3]
+    assert [item.video.channel_name for item in selected] == ["ChanA", "ChanB"]
+
+
+def test_select_learning_videos_falls_back_and_filters_shorts(mock_config, monkeypatch):
+    from distill.discovery import VideoInfo
+
+    short = VideoInfo(
+        "short1",
+        "Short",
+        _recent(1),
+        60,
+        "https://youtube.com/watch?v=short1",
+        "CreatorOne",
+        view_count=1000,
+    )
+    full = VideoInfo(
+        "full1",
+        "Full",
+        _recent(1),
+        900,
+        "https://youtube.com/watch?v=full1",
+        "CreatorTwo",
+        view_count=2000,
+    )
+
+    monkeypatch.setattr(cli, "_expand_learning_queries", lambda *args, **kwargs: ["query"])
+    monkeypatch.setattr(cli, "search_youtube_results", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli, "search_videos", lambda *args, **kwargs: [short, full])
+    monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+    monkeypatch.setattr(
+        cli,
+        "rerank_videos",
+        lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: [
+            SimpleNamespace(video=v, final_score=0.9, rationale="fit") for v in vids
+        ],
+    )
+
+    enriched, selected = cli._select_learning_videos(
+        "query",
+        mock_config,
+        cli.CostTracker(),
+        days=7,
+        limit=2,
+        sort="relevance",
+        per_channel_cap=2,
+        shorts=False,
+        rerank=False,
+    )
+
+    assert [video.video_id for video in enriched] == ["full1"]
+    assert [item.video.video_id for item in selected] == ["full1"]
+
+
+def test_cli_topic_change_helpers_cover_rendering_and_history(mock_config_with_library):
+    _populate_videos(mock_config_with_library, "ai", "TestCh", count=1)
+
+    page_dir = mock_config_with_library.site_page_dir("ai", "example.com", "Page One")
+    page_dir.mkdir(parents=True, exist_ok=True)
+    (page_dir / "content.md").write_text("content", encoding="utf-8")
+    (page_dir / "metadata.json").write_text(
+        json.dumps({"title": "Page One", "url": "https://example.com/page"}),
+        encoding="utf-8",
+    )
+    (mock_config_with_library.site_dir("ai", "example.com") / "synthesis.md").write_text(
+        "# Site synthesis", encoding="utf-8"
+    )
+
+    paper_dir = mock_config_with_library.paper_dir("ai", "Paper One", "2602.12670")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "insights.md").write_text("insight", encoding="utf-8")
+    (paper_dir / "metadata.json").write_text(
+        json.dumps({"title": "Paper One", "paper_id": "2602.12670"}),
+        encoding="utf-8",
+    )
+
+    topic_dir = mock_config_with_library.topic_dir("ai")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "topic_synthesis.md").write_text("# Topic synth", encoding="utf-8")
+    (topic_dir / "brief.md").write_text("# Brief", encoding="utf-8")
+
+    lib = Library(mock_config_with_library)
+    details = cli._collect_topic_change_details(mock_config_with_library, lib, "ai", None)
+    markdown = cli._render_topic_diff_markdown(
+        mock_config_with_library,
+        title="# Topic Diff: ai",
+        topic="ai",
+        summary=str(details["summary"]),
+        baseline=None,
+        effective_baseline=details["effective_baseline"],
+        generated_at=details["generated_at"],
+        new_videos=details["new_videos"],
+        new_pages=details["new_pages"],
+        new_papers=details["new_papers"],
+        refreshed_outputs=details["refreshed_outputs"],
+        watch_name="AI Daily",
+        query="AI daily",
+        cadence="daily",
+        limit=2,
+    )
+    history_path = cli._append_topic_change_history(
+        mock_config_with_library,
+        topic="ai",
+        summary=str(details["summary"]),
+        baseline=None,
+        generated_at=details["generated_at"],
+        watch_name="AI Daily",
+        query="AI daily",
+        cadence="daily",
+        new_videos=details["new_videos"],
+        new_pages=details["new_pages"],
+        new_papers=details["new_papers"],
+        refreshed_outputs=details["refreshed_outputs"],
+    )
+    history = cli._load_topic_change_history(mock_config_with_library, "ai")
+    briefing_path = cli._write_topic_change_briefing(
+        mock_config_with_library,
+        watch_name="AI Daily",
+        topic="ai",
+        query="AI daily",
+        cadence="daily",
+        baseline=None,
+        summary=str(details["summary"]),
+        change_details=details,
+    )
+
+    assert "New Video Insights" in markdown
+    assert "New Website Pages" in markdown
+    assert "New Paper Insights" in markdown
+    assert history_path.exists()
+    assert history[0]["topic"] == "ai"
+    assert briefing_path.exists()
+    assert (topic_dir / "topic_diff.md").exists()
+
+
+def test_cli_trend_and_alert_helpers(mock_config):
+    generated_at = datetime.now().replace(microsecond=0)
+    records = [
+        {
+            "generated_at": generated_at,
+            "watch_name": "AI Daily",
+            "summary": "+2 videos",
+            "counts": {"videos": 2, "pages": 0, "papers": 0, "outputs": 1},
+        },
+        {
+            "generated_at": generated_at - timedelta(days=1),
+            "watch_name": "AI Daily",
+            "summary": "+1 video",
+            "counts": {"videos": 1, "pages": 0, "papers": 0, "outputs": 0},
+        },
+    ]
+
+    trends = cli._render_topic_trends_markdown(
+        mock_config,
+        topic="ai",
+        records=records,
+        generated_at=generated_at,
+        limit=5,
+    )
+    alerts = cli._topic_watch_alert_lines(
+        watch_name="AI Daily",
+        topic="ai",
+        ranking_label="balanced",
+        summary="+2 videos",
+        change_details={
+            "new_videos": [1],
+            "new_pages": [],
+            "new_papers": [],
+            "refreshed_outputs": [],
+        },
+        trend_label="trend: rising",
+    )
+    digest = cli._write_watch_alert_digest(
+        mock_config,
+        generated_at=generated_at,
+        alert_lines=alerts,
+    )
+
+    assert cli._topic_trend_direction(records) == "activity is increasing"
+    assert "Topic Trends: ai" in trends
+    assert "activity is increasing" in trends
+    assert alerts and "trend: rising" in alerts[0]
+    assert digest.exists()
+
+
+def test_cli_misc_helpers_and_baseline_resolution(mock_config):
+    lib = Library(mock_config)
+    lib.add_to_topic_watchlist(
+        "ai-daily",
+        "AI daily",
+        topic="ai",
+        cadence="daily",
+        limit=5,
+    )
+    lib.mark_topic_watch_run(
+        "ai-daily",
+        (datetime.now() - timedelta(days=2)).replace(microsecond=0).isoformat(),
+    )
+
+    current_sections = [
+        {"section": "topic/ai", "page_count": 2, "urls": ["a", "b"]},
+        {"section": "topic/ml", "page_count": 1, "urls": ["c"]},
+    ]
+    previous = {
+        "sections": [
+            {"section": "topic/ai", "page_count": 1, "urls": ["a"]},
+            {"section": "topic/old", "page_count": 3, "urls": ["x", "y", "z"]},
+        ]
+    }
+    json_path = mock_config.library_dir / "data.json"
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text('{"ok": true}', encoding="utf-8")
+
+    baseline, watch_name, query, cadence = cli._resolve_topic_diff_baseline(
+        lib, "ai", watch_name="ai-daily", days=7
+    )
+
+    assert cli._truncate_channel_list(["Alpha", "Beta", "Gamma"], max_width=10) == "Alpha +2 more"
+    messages = cli._site_section_change_summary(previous, current_sections)
+    assert any("topic/ml added" in message for message in messages)
+    assert any("topic/old missing" in message for message in messages)
+    assert cli._read_json_file(json_path) == {"ok": True}
+    assert cli._content_hash("abc") == cli._content_hash("abc")
+    assert watch_name == "ai-daily"
+    assert query == "AI daily"
+    assert cadence == "daily"
+    assert baseline is not None

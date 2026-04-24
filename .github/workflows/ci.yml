@@ -31,7 +31,7 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run tests
-        run: pytest -q
+        run: pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=80
 
   lint:
     name: Lint (ruff)
