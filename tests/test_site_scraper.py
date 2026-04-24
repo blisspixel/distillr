@@ -33,7 +33,10 @@ def test_load_site_batch_from_text(tmp_path):
     batch = load_site_batch(path, topic_override="agents")
 
     assert batch.topic == "agents"
-    assert [seed.url for seed in batch.seeds] == ["https://example.com", "https://vendor.example.com"]
+    assert [seed.url for seed in batch.seeds] == [
+        "https://example.com",
+        "https://vendor.example.com",
+    ]
 
 
 def test_load_site_batch_from_json_with_collections(tmp_path):
@@ -157,8 +160,12 @@ def test_url_helpers_normalize_and_filter():
 
 
 def test_site_section_key_uses_first_two_segments():
-    assert site_section_key("https://www.example.com/topic/applied-ai/overview") == "topic/applied-ai"
-    assert site_section_key("https://www.example.com/partner/windsurf/explore") == "partner/windsurf"
+    assert (
+        site_section_key("https://www.example.com/topic/applied-ai/overview") == "topic/applied-ai"
+    )
+    assert (
+        site_section_key("https://www.example.com/partner/windsurf/explore") == "partner/windsurf"
+    )
     assert site_section_key("https://example.com") == "root"
 
 

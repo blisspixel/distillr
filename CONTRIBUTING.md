@@ -22,7 +22,7 @@ You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test s
 ```bash
 pytest -q                          # default — unit + contract tests, no network
 pytest -m integration              # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
-pytest --cov=distill               # with coverage
+pytest --cov=distill --cov-fail-under=80
 ```
 
 ## Quality gates
@@ -31,6 +31,7 @@ CI enforces the following on every push. Before opening a PR, at least run:
 
 ```bash
 pytest -q                          # unit + contract tests pass
+pytest --cov=distill --cov-fail-under=80   # coverage stays at or above 80%
 ruff check .                       # lint clean
 ruff format --check .              # formatting clean
 bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
@@ -55,7 +56,7 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 | Tool | Purpose | Runs in CI? |
 |---|---|---|
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
-| **pytest** | Unit + contract tests | Yes, blocking (integration tests gated behind `-m integration`) |
+| **pytest + coverage** | Unit + contract tests, plus 80% package coverage floor | Yes, blocking (integration tests gated behind `-m integration`) |
 | **bandit** | Python security scanner | Yes, blocking on MEDIUM+ |
 | **pip-audit** | Known-CVE scanner for dependencies | Yes, blocking |
 | **pyright** | Static type checker | Yes, advisory (non-blocking while the codebase is incrementally typed) |

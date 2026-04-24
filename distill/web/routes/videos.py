@@ -31,6 +31,7 @@ async def video_detail(request: Request, topic: str, channel: str, slug: str):
         transcript = transcript_path.read_text(encoding="utf-8")
 
     return templates.TemplateResponse(
+        request,
         "video_detail.html",
         {
             "request": request,
