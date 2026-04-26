@@ -74,8 +74,11 @@ jobs:
       - name: Bandit (fail on MEDIUM+ severity)
         run: bandit -r distill/ -c pyproject.toml --severity-level medium
 
-      - name: pip-audit (installed distribution)
-        run: pip-audit --strict --skip-editable
+      - name: pip-audit (installed dependencies)
+        # Skip the editable distillr install itself (it is not on PyPI under
+        # this name yet); audit its dependencies. Drop --strict so the
+        # "skipped editable" notice does not fail the job.
+        run: pip-audit --skip-editable
 
   types:
     name: Type check (pyright, advisory)
