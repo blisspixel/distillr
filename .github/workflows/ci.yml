@@ -75,7 +75,7 @@ jobs:
         run: bandit -r distill/ -c pyproject.toml --severity-level medium
 
       - name: pip-audit (installed distribution)
-        run: pip-audit --strict
+        run: pip-audit --strict --skip-editable
 
   types:
     name: Type check (pyright, advisory)

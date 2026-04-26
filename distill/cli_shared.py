@@ -1,5 +1,4 @@
 import json
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -127,7 +126,7 @@ def print_markdown_safely(
     details: dict | None = None,
 ) -> None:
     """Render markdown when safe, otherwise fall back to console-safe plain text."""
-    if os.name == "nt" and getattr(console, "legacy_windows", True):
+    if getattr(console, "legacy_windows", False):
         print_text_safely(console, safe_console_text(console, content))
         return
     try:
