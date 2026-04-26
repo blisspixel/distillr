@@ -190,12 +190,12 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 
 ## Roadmap and changelog
 
-- [`CHANGELOG.md`](CHANGELOG.md) — what shipped in `0.1.0`
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped in `0.1.0`
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for dev setup, quality gates, and scope. Security disclosures go through [`SECURITY.md`](SECURITY.md).
+See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for dev setup, quality gates, and scope. Security disclosures go through [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## License
 
