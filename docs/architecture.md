@@ -174,6 +174,26 @@ State tracking is built in. `--refresh` is the expected workflow — run on a ca
 - SHA-1 used for content dedup is annotated `usedforsecurity=False` to make the non-cryptographic intent explicit.
 - Subprocess calls to `yt-dlp` / `scribe` pass arguments as lists (not shell strings), avoiding injection.
 
+## Context engineering principles
+
+Distill treats the prompt context window as a scarce, actively managed resource — not a place to dump everything. This is the same posture the 2025–2026 context-engineering literature converged on (Mei et al.'s 1,400-paper survey; Anthropic's compaction guidance; the ACE framework on evolving playbooks; LangChain's write/select/compress/isolate taxonomy). The lens is useful because it names *why* certain decisions in distillr are the way they are, and where the system is heading.
+
+**Library is external memory, the prompt is working memory.** Every artifact lives on disk as plain markdown — `library/topics/<topic>/...` is the durable store; the prompt window is what we hydrate at inference time from that store. The same logic underpins the refresh-first design (only re-process what's new) and the watch lists (state lives in `library/watch_state.json`, not in chat history). This maps to the "Write" pillar: persist outside the model so the active window stays lean.
+
+**Just-in-time hydration over preloading.** `distill discover` pulls papers + videos *against a goal* and reranks before ingesting; `distill papers` expands and reranks before per-paper analysis; channel watches load only delta videos since the last run. The system never asks "load everything for this topic and let the model figure it out" — it asks "what's the smallest sufficient set for this query?" This is the "Select" pillar.
+
+**Workload-tuned model routing trades fidelity against context budget.** Bulk videos go to Grok 4.1 Fast Reasoning (cheap, fast, good enough on transcripts); messy mid-length artifacts (papers, sites, multi-topic syntheses) go to Grok 4.20 Reasoning where the larger working memory and higher fidelity matter; report Phase 1 goes to Gemini Deep Research for web-grounded retrieval. Each model gets the workload its effective context window handles best, not the largest claimed window.
+
+**Confidence labels and source tagging keep provenance in-band.** `[Confirmed]` / `[Reported]` / `[Estimated]` / `[Speculated]` / `[Analysis]` aren't decorative — they're how downstream prompts (synthesis, report, briefing) avoid laundering uncertainty across handoffs. This is the "Provenance" criterion from Vishnyakova's production-grade context-engineering rubric.
+
+**Where distillr is still naïve about context.** Three known gaps that the roadmap ([`../ROADMAP.md`](../ROADMAP.md)) explicitly addresses:
+
+1. *Paper analysis* dumps a 100K-char PDF into a single Grok prompt — vulnerable to lost-in-the-middle on long methods/results sections. Fix: chunk-and-rerank by section.
+2. *MCP tool returns* hand the consuming agent full markdown files — Anthropic's published example shows ~98% token savings from switching to filtered/path-based returns instead. Fix: paths-not-payloads with a drill-down second tool call.
+3. *4-phase report pipeline* carries full prior-section context forward to enforce no-repeat. Fix: high-recall-then-precision compaction; opaque continuation items where the API supports them.
+
+These aren't theoretical concerns — they're concrete token-budget and quality wins, with the research literature giving us the patterns to apply.
+
 ## Package layout
 
 ```

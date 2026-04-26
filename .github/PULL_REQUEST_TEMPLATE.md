@@ -1,6 +1,6 @@
 <!--
 Thanks for the contribution. A short description here plus the checklist below
-is usually enough. See CONTRIBUTING.md for the full guide.
+is usually enough. See `docs/CONTRIBUTING.md` for the full guide.
 -->
 
 ## What this PR does
@@ -26,7 +26,7 @@ Integration test against real APIs? Be honest about what you did and didn't test
 - [ ] I've run `ruff check .` and `ruff format --check .` (or relied on pre-commit)
 - [ ] I've run `bandit -r distill/ --severity-level medium` if the change touches security-sensitive code (subprocess, URL handling, secrets, MCP surface)
 - [ ] If I added a new user-facing command or flag, `README.md` reflects it
-- [ ] If I changed prompt templates or model routing, `CHANGELOG.md` notes the behavior change
+- [ ] If I changed prompt templates or model routing, `docs/CHANGELOG.md` notes the behavior change
 - [ ] If I added a new dependency, it's justified in the PR description
 
 ## Notes for the reviewer

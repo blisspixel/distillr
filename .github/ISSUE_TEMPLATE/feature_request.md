@@ -26,7 +26,7 @@ propose multiple options and list the tradeoffs.
 
 ## Scope check
 
-Please confirm this fits distill's direction (from ROADMAP.md / CONTRIBUTING.md):
+Please confirm this fits distill's direction (from `ROADMAP.md` / `docs/CONTRIBUTING.md`):
 
 - [ ] Fits one of the three core jobs (stay current / learn fast / build a reusable corpus)
 - [ ] Produces markdown artifacts, not a proprietary format

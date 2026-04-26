@@ -335,10 +335,27 @@ distill open --what report ai                       # open the report
 ```bash
 distill status                                      # quick library overview
 distill doctor                                      # check API keys + system health
+distill doctor --update                             # upgrade yt-dlp via pip
 distill costs                                       # cost history across runs
 distill health ai                                   # audit stale syntheses + thin artifacts
 
 # Maintenance
 distill migrate                                     # rename legacy ID-based video dirs
 distill cleanup                                     # delete orphaned Gemini File Search stores
+```
+
+### yt-dlp staleness preflight
+
+YouTube-touching commands (`channel`, `search`, `explore`, `learn`, `latest`,
+`discover`, `topic update`, `catch-up`, `topic-watch run`, `ramp-up`) run a
+zero-network version-age check on entry. If yt-dlp's date-stamped release is
+more than 14 days old, you'll see a one-line yellow warning pointing at
+`distill doctor --update`. The result is cached for 24 hours in
+`library/.preflight.json`, so the check adds essentially no overhead on
+repeated runs.
+
+To opt out (CI, scripted automation):
+
+```bash
+export DISTILL_NO_PREFLIGHT=1
 ```

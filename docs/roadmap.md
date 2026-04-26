@@ -2,7 +2,7 @@
 
 The short public summary lives at [`../ROADMAP.md`](../ROADMAP.md). This file is the un-trimmed backlog with priority breakdowns by area — useful if you're considering contributing or want to see how something specific is prioritized.
 
-Shipped work lives in [`../CHANGELOG.md`](../CHANGELOG.md) (the 0.1.0 entry covers the initial public release; the "Pre-release Development" section covers everything built before that).
+Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md) (the 0.1.0 entry covers the initial public release; the "Pre-release Development" section covers everything built before that).
 
 ## Current Direction
 
@@ -54,6 +54,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place
 - [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
+- [ ] **Per-prompt token telemetry.** Log prompt-input length, output length, and elapsed time *per call* (not just per run) to `library/cost_log.jsonl` — needed to make context-engineering improvements (chunked paper analysis, report-pipeline compaction) measurable. Surface a "biggest prompts" view in `distill costs` so prompt budget regressions are visible.
 
 ### 3. Productize the core workflow
 
@@ -92,6 +93,8 @@ be moved to `CHANGELOG.md` on next release).
 - [x] Paper ingestion pipeline — PDF/text extraction (pypdf, 100K char cap, surrogate-sanitized), paper-specific analysis via Grok 4.20, per-paper insights, paper-level and mixed-source corpus synthesis
 - [x] Paper-specific storage and metadata conventions that match the existing corpus model
 - [x] Paper-first workflows for "learn this research area fast" — `distill papers <query> --topic <name> --limit N` pulls LLM-ranked arXiv papers, extracts full PDF text, runs structured analysis, and produces per-topic paper synthesis without forcing YouTube- or website-shaped commands
+- [ ] **Chunk-and-rerank paper analysis (effective-context-aware).** Today the full PDF (truncated at 100K chars) is dumped into a single Grok prompt, which is exactly the "Dump Truck" anti-pattern that LongBench v2 / RULER / ∞Bench / STRING benchmarks show degrades sharply when relevant evidence sits mid-document. Replace with: section-aware chunker (use PDF headings; fall back to page+window slicing); per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"); small-window analysis loop assembling `insights.md` from focused passes. Outcome: better fidelity on long papers without higher token spend; per-prompt token counts as a first-class telemetry surface.
+- [ ] **Lift the 100K char cap once chunking is in place.** The cap was a defensive band-aid for the dump-truck pattern; once analysis runs over chunks, full long papers can be processed without prompt blowups.
 
 ### 7. Strengthen corpus quality and reuse
 
@@ -139,13 +142,20 @@ without locking users into any particular viewer or requiring bespoke tooling.
 - [ ] `distill open --vault` (or equivalent hint in `distill dashboard`): launch the user's default markdown editor pointed at `library/`, so the free graph view and backlinks come with zero install steps.
 - [ ] Stable slug/link discipline: enforce one canonical URL per artifact so renames don't break backlinks. Link-check pass available via `distill doctor --links`.
 
-*Tier 2 — LLM-maintained concept layer (the Karpathy pattern)*
+*Tier 2 — LLM-maintained concept layer (Karpathy + ACE)*
 
-- [ ] Concept extraction pass: after each ingestion run, detect named techniques, architectures, people, vendors, and methodologies mentioned across 3+ insights. Emit `library/concepts/<slug>.md` stubs with an LLM-written canonical summary and `[[backlinks]]` to every source that mentioned the concept.
-- [ ] Entity notes for people and vendors: `library/entities/<slug>.md` with role, affiliation, the sources that discuss them, and stable backlinks.
-- [ ] Intelligent merging on refresh: when a new source mentions an existing concept, the agent updates the concept note — adds new context, preserves provenance, does not overwrite prior revisions. Prior versions stay in `.history/` (append-only).
-- [ ] Contradiction flagging: when two sources make incompatible claims about a concept/entity, surface the disagreement on the concept note explicitly (and in `distill health` so stewards see it).
-- [ ] Concept/entity graph export: a `concepts.jsonl` and `entities.jsonl` suitable for programmatic downstream use (agents, RAG pipelines, external graph DBs) — parallel to the existing handoff exports.
+This tier follows the Agentic Context Engineering (ACE) framework's
+architectural choice: concept notes are evolving structured *playbooks*, not
+prose summaries. ACE empirically outperforms compressed-summary approaches
+(Dynamic Cheatsheet, GEPA) on agent benchmarks specifically because itemized
+deltas avoid the *context-collapse* failure mode (the documented case where
+an 18K-token playbook compressed to 122 tokens lost most of its recall).
+
+- [ ] Concept extraction pass: after each ingestion run, detect named techniques, architectures, people, vendors, and methodologies mentioned across 3+ insights. Emit `library/concepts/<slug>.md` stubs as *itemized playbook entries* (not freeform prose), each with stable `id`, `[[backlinks]]` to every source that mentioned the concept, and metadata fields (`first_seen`, `last_seen`, `helpful_count`, `harmful_count`, `provenance`). Updates are deterministic delta merges (append / modify / dedup-via-embedding), never wholesale rewrites.
+- [ ] Entity notes for people and vendors: `library/entities/<slug>.md` with role, affiliation, the sources that discuss them, and stable backlinks. Same playbook-entry shape as concept notes.
+- [ ] Intelligent merging on refresh: when a new source mentions an existing concept, the agent issues a *delta update* — appends a new entry with provenance, increments `helpful_count` if the new source corroborates an existing entry, adds a `[contested]` annotation if it contradicts. Prior versions stay in `.history/` (append-only). No monolithic rewrites.
+- [ ] Contradiction flagging: when two sources make incompatible claims about a concept/entity, surface the disagreement as a flagged `[contested]` entry on the concept note rather than averaging the claims, and lift it into `distill health` so stewards see it. This matches the ACE framework's explicit handling of `harmful_count` and the production-grade context-engineering "Provenance" criterion (Vishnyakova 2026).
+- [ ] Concept/entity graph export: a `concepts.jsonl` and `entities.jsonl` suitable for programmatic downstream use (agents, RAG pipelines, external graph DBs) — parallel to the existing handoff exports. Entries carry the same metadata shape so consumers can reason about confidence and provenance.
 - [ ] Optional: `distill ingest <path>` takes a local file (PDF, markdown, clipped article) and routes it through the same capture -> analyze -> integrate pipeline, mirroring how Obsidian's Web Clipper feeds Karpathy's wiki.
 
 *Tier 3 — explicitly not in scope*
@@ -165,3 +175,21 @@ updates on refresh, and flags when a new paper contradicts prior findings." The
 ingestion, synthesis, and per-source provenance layers needed for that already
 exist; the missing pieces are cross-linking conventions and a concept-extraction
 pass.
+
+### 11. Context engineering hardening
+
+The 2025–2026 context-engineering literature (Mei et al.'s 1,400-paper survey;
+Anthropic's compaction guidance; the ACE framework on evolving playbooks;
+Vishnyakova's production-grade context-engineering criteria) makes three
+empirical points distillr should act on: claimed context windows are not
+effective windows, lost-in-the-middle dominates failures on long inputs, and
+JSON handoffs strip semantic richness in ways that compound across phases.
+Items below are concrete plumbing work that protects output quality and
+controls token spend as the corpus grows. See [`architecture.md#context-engineering-principles`](architecture.md#context-engineering-principles)
+for the principles these items derive from.
+
+- [ ] **Just-in-time MCP context (paths-not-payloads).** Today `distill-mcp` returns full markdown files; a 50KB `synthesis.md` blows the consuming agent's window for what may be a one-line lookup. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. Add `find_insights(topic, query)` returning ranked `(path, one_line_preview, score)` tuples; add `read_insight(path, section?)` for drill-down. Existing tools that return full bodies stay (for explicit "give me the file" calls) but stop being the default response shape.
+- [ ] **Compaction in the 4-phase report pipeline.** Phase 2 (section writing) and Phase 4 (QA) currently carry full prior-section context forward to enforce no-repeat. Switch to high-recall-then-precision compaction (the Anthropic pattern) and OpenAI-style opaque continuation items where the API supports them. Goal: significant token-spend reduction on long reports with no loss of cross-section coherence. Measure via the per-prompt token telemetry from section 2.
+- [ ] **Effective-context regression tests.** Add a small fixture suite that runs paper-analysis / synthesis / report prompts against representative long inputs and asserts the output covers known mid-document evidence (a "lost-in-the-middle" smoke test). Wire into CI so regressions surface in PRs rather than user reports.
+- [ ] **Tool-result clearing in iterative loops.** Long-running watch and discover loops accumulate tool-call results that are no longer relevant. Implement Anthropic's "clear stale tool results" pattern as a baseline compaction step before each new LLM call in those loops.
+- [ ] **Document the principles in the contributor guide.** Add a "context engineering" section to `docs/CONTRIBUTING.md` so new prompt and pipeline work follows the same posture (just-in-time hydration, paths-not-payloads, structured deltas-not-rewrites).
