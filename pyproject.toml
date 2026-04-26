@@ -155,5 +155,14 @@ reportGeneralTypeIssues = "warning"
 reportOptionalMemberAccess = "warning"
 reportOptionalSubscript = "warning"
 reportOptionalCall = "warning"
+# Categories that fire heavily on third-party libraries without type stubs
+# (mcp ContentUnion, yt-dlp, python-docx) and on typer-Optional CLI args.
+# Kept on as warnings so they still surface in IDE/CLI without failing CI.
+reportAttributeAccessIssue = "warning"
+reportArgumentType = "warning"
+reportAssignmentType = "warning"
+reportReturnType = "warning"
+reportIndexIssue = "warning"
+reportPossiblyUnboundVariable = "warning"
 pythonVersion = "3.10"
 pythonPlatform = "All"
