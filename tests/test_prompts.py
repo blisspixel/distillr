@@ -156,7 +156,9 @@ class TestAdditionalPromptBuilders:
         assert "Video 15" not in result
 
     def test_scan_insight_prompt_includes_custom_instructions(self):
-        result = scan_insight_prompt("Title", "20250101", "Channel", "Transcript", "Focus on benchmarks")
+        result = scan_insight_prompt(
+            "Title", "20250101", "Channel", "Transcript", "Focus on benchmarks"
+        )
         assert "CUSTOM ANALYSIS INSTRUCTIONS" in result
         assert "Focus on benchmarks" in result
 
@@ -192,7 +194,16 @@ class TestAdditionalPromptBuilders:
     def test_discover_rerank_and_paper_rerank_prompt_truncate_content(self):
         discover_prompt = discover_rerank_prompt(
             "goal",
-            [{"kind": "paper", "identifier": "p1", "title": "Paper", "subtitle": "Authors", "date": "2025", "description": "y" * 600}],
+            [
+                {
+                    "kind": "paper",
+                    "identifier": "p1",
+                    "title": "Paper",
+                    "subtitle": "Authors",
+                    "date": "2025",
+                    "description": "y" * 600,
+                }
+            ],
         )
         assert "..." in discover_prompt
 

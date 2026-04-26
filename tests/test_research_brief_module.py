@@ -114,7 +114,9 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
             self.interactions = FakeInteractions(statuses)
 
     monkeypatch.setattr("distill.research_brief._upload_files", lambda *_args, **_kwargs: 2)
-    monkeypatch.setattr("distill.research_brief.delete_store", lambda _client, name: deleted.append(name))
+    monkeypatch.setattr(
+        "distill.research_brief.delete_store", lambda _client, name: deleted.append(name)
+    )
     monkeypatch.setattr("distill.research_brief.time.sleep", lambda _seconds: None)
 
     no_key = DistillConfig(distill_output_dir=tmp_path / "empty")
@@ -133,7 +135,9 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     )
     monkeypatch.setattr(
         "distill.research_brief.genai.Client",
-        lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", outputs=[])], store_name=""),
+        lambda **_kwargs: FakeClient(
+            [SimpleNamespace(status="completed", outputs=[])], store_name=""
+        ),
     )
     assert run_research_brief(["ai"], "ctx", "demo", config) is None
 

@@ -184,7 +184,9 @@ def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
     assert _extract_youtube_video_id("https://www.youtube.com/shorts/abc123xyz99") == "abc123xyz99"
     assert _extract_youtube_video_id("https://example.com/video") == ""
 
-    no_id_attachment = type(video_attachment)(**{**video_attachment.to_dict(), "url": "https://example.com"})
+    no_id_attachment = type(video_attachment)(
+        **{**video_attachment.to_dict(), "url": "https://example.com"}
+    )
     failed_video, context = _ingest_youtube_attachment(no_id_attachment, attachments_dir, config)
     assert failed_video.status == "failed"
     assert context == ""

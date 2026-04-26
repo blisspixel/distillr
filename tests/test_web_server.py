@@ -149,7 +149,9 @@ def test_channel_video_collection_handles_missing_and_invalid_metadata(tmp_path)
 def test_dashboard_route_falls_back_to_dev_version(monkeypatch, config):
     import importlib.metadata
 
-    monkeypatch.setattr(importlib.metadata, "version", lambda _name: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        importlib.metadata, "version", lambda _name: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
 
     client = TestClient(create_app(config))
 

@@ -53,7 +53,9 @@ async def topic_list(request: Request):
     templates = request.app.state.templates
     lib = Library(config)
     topics = [_topic_summary(config, lib, t) for t in lib.get_topics()]
-    return templates.TemplateResponse(request, "topic_list.html", {"request": request, "topics": topics})
+    return templates.TemplateResponse(
+        request, "topic_list.html", {"request": request, "topics": topics}
+    )
 
 
 @router.get("/topics/{topic}")

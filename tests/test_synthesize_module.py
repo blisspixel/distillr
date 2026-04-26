@@ -28,7 +28,9 @@ def test_run_synthesis_handles_missing_key_empty_corpus_and_success(tmp_path, mo
     assert run_synthesis(["ai"], "ctx", "demo", config) is None
 
     tracker = CostTracker()
-    monkeypatch.setattr("distill.synthesize._call_grok", lambda *_args, **_kwargs: "final synthesis")
+    monkeypatch.setattr(
+        "distill.synthesize._call_grok", lambda *_args, **_kwargs: "final synthesis"
+    )
     result = run_synthesis(["ai"], "ctx", "demo", config, tracker=tracker)
 
     assert result is not None

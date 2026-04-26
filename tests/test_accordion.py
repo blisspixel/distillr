@@ -509,9 +509,7 @@ class TestTaggedHelpers:
         for topic, channel in [("ai", "Alpha"), ("security", "Beta")]:
             ch_dir = config.channel_dir(topic, channel)
             ch_dir.mkdir(parents=True, exist_ok=True)
-            (ch_dir / "synthesis.md").write_text(
-                f"# {channel} synthesis", encoding="utf-8"
-            )
+            (ch_dir / "synthesis.md").write_text(f"# {channel} synthesis", encoding="utf-8")
 
         loaded = _load_syntheses("ai", config, "all", None)
 
@@ -523,9 +521,7 @@ class TestTaggedHelpers:
         for idx in range(2):
             vid_dir = config.video_dir("ai", "TestChannel", f"vid{idx}")
             vid_dir.mkdir(parents=True, exist_ok=True)
-            (vid_dir / "metadata.json").write_text(
-                f'{{"title":"Video {idx}"}}', encoding="utf-8"
-            )
+            (vid_dir / "metadata.json").write_text(f'{{"title":"Video {idx}"}}', encoding="utf-8")
             (vid_dir / "insights.md").write_text(
                 "Microsoft enterprise deployment notes " * 3,
                 encoding="utf-8",
