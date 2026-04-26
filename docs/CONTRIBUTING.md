@@ -37,7 +37,7 @@ ruff format --check .              # formatting clean
 bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
 ```
 
-The first three are cheap; run them locally. Bandit is cheap too. `pip-audit --strict` runs in CI against the installed distribution and catches known CVEs in transitive dependencies.
+The first three are cheap; run them locally. Bandit is cheap too. `pip-audit --skip-editable` runs in CI against the installed distribution and catches known CVEs in transitive dependencies (it skips the editable distillr install itself, since the package isn't on PyPI under this name yet).
 
 ### Pre-commit hooks
 
@@ -107,4 +107,4 @@ Open a GitHub issue before doing significant work on something new. A short desc
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same MIT License that covers the rest of the project (see `LICENSE`).
+By contributing, you agree that your contributions will be licensed under the same MIT License that covers the rest of the project (see [`../LICENSE`](../LICENSE)).
