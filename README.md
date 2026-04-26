@@ -1,5 +1,7 @@
 # Distill
 
+*Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI is `distill`.*
+
 [![CI](https://github.com/blisspixel/distillr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/distillr/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/distillr.svg)](https://pypi.org/project/distillr/)
 [![Python](https://img.shields.io/pypi/pyversions/distillr.svg)](https://pypi.org/project/distillr/)
