@@ -134,9 +134,7 @@ def test_fetch_paper_pdf_text_reads_and_truncates(monkeypatch):
 
     monkeypatch.setattr(
         "distill.paper_ingest.requests.get",
-        lambda *args, **kwargs: SimpleNamespace(
-            content=b"%PDF", raise_for_status=lambda: None
-        ),
+        lambda *args, **kwargs: SimpleNamespace(content=b"%PDF", raise_for_status=lambda: None),
     )
     monkeypatch.setattr(
         "distill.paper_ingest.PdfReader",

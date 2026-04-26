@@ -168,12 +168,17 @@ def test_select_learning_videos_uses_browser_search_and_channel_cap(config, monk
     monkeypatch.setattr(
         learning,
         "search_youtube_results",
-        lambda query, days=None, hours=None, limit=None: query_calls.append(query)
-        or [raw_one, raw_two if query == "q1" else raw_three],
+        lambda query, days=None, hours=None, limit=None: (
+            query_calls.append(query) or [raw_one, raw_two if query == "q1" else raw_three]
+        ),
     )
-    monkeypatch.setattr(learning, "_dedupe_candidates", lambda videos: [raw_one, raw_two, raw_three])
+    monkeypatch.setattr(
+        learning, "_dedupe_candidates", lambda videos: [raw_one, raw_two, raw_three]
+    )
     monkeypatch.setattr(learning, "enrich_videos", lambda videos, max_videos=None: videos)
-    monkeypatch.setattr(learning, "_filter_recent_candidates", lambda videos, days, hours=None: videos)
+    monkeypatch.setattr(
+        learning, "_filter_recent_candidates", lambda videos, days, hours=None: videos
+    )
     monkeypatch.setattr(
         learning,
         "rerank_videos",
@@ -224,13 +229,14 @@ def test_select_learning_videos_falls_back_to_search_videos(config, monkeypatch)
     monkeypatch.setattr(
         learning,
         "search_videos",
-        lambda query, days, limit, sort, per_channel_cap: fallback_calls.append(
-            (query, days, limit, sort, per_channel_cap)
-        )
-        or [short, full],
+        lambda query, days, limit, sort, per_channel_cap: (
+            fallback_calls.append((query, days, limit, sort, per_channel_cap)) or [short, full]
+        ),
     )
     monkeypatch.setattr(learning, "enrich_videos", lambda videos, max_videos=None: videos)
-    monkeypatch.setattr(learning, "_filter_recent_candidates", lambda videos, days, hours=None: videos)
+    monkeypatch.setattr(
+        learning, "_filter_recent_candidates", lambda videos, days, hours=None: videos
+    )
     monkeypatch.setattr(
         learning,
         "rerank_videos",

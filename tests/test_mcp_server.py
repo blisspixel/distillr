@@ -897,7 +897,9 @@ class TestSearchVideos:
             patch("distill.mcp_server._config", return_value=mock_config),
             patch("distill.browser_search.search_youtube_results", return_value=[]),
             patch("distill.discovery.search_videos", return_value=[vid1, vid2]),
-            patch("distill.discovery.enrich_videos", side_effect=lambda videos, **_: videos) as mock_enrich,
+            patch(
+                "distill.discovery.enrich_videos", side_effect=lambda videos, **_: videos
+            ) as mock_enrich,
             patch("distill.ranking.rerank_videos", return_value=[ranked]),
             patch("distill.mcp_server._cost_summary", return_value=_FAKE_COST),
         ):

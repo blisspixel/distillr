@@ -150,7 +150,9 @@ def test_run_learning_command_processes_selected_items(config):
         default_report_focus=lambda query, skeptical: "focus text",
         window_label=lambda days, hours: "3d",
         select_learning_videos=lambda *args, **kwargs: ([], selected),
-        display_ranked_videos=lambda items, title: captured.update(display_title=title, items=items),
+        display_ranked_videos=lambda items, title: captured.update(
+            display_title=title, items=items
+        ),
         process_learning_selection=lambda *args, **kwargs: captured.update(
             topic_name=args[0], process_kwargs=kwargs
         ),

@@ -223,7 +223,9 @@ class TestShowBanner:
         called = []
         monkeypatch.delenv("DISTILL_BANNER", raising=False)
         monkeypatch.setattr(banner_mod, "_detect_capabilities", lambda: (True, False, False, False))
-        monkeypatch.setattr(banner_mod, "_animate_sweep", lambda console, art, duration=1.5: called.append(art))
+        monkeypatch.setattr(
+            banner_mod, "_animate_sweep", lambda console, art, duration=1.5: called.append(art)
+        )
         console = Console(record=True, width=120, force_terminal=True, color_system="truecolor")
 
         result = show_banner(console, art="TEST")
@@ -247,7 +249,9 @@ class TestAnimateSweep:
 
         monkeypatch.setattr("distill.banner._precise_sleep", lambda _target: None)
         monkeypatch.setattr("distill.banner.time.perf_counter", lambda: 0.0)
-        console = Console(file=io.StringIO(), width=120, force_terminal=True, color_system="truecolor")
+        console = Console(
+            file=io.StringIO(), width=120, force_terminal=True, color_system="truecolor"
+        )
 
         _animate_sweep(console, art="AB\nCD", duration=0.02)
 
@@ -258,7 +262,9 @@ class TestAnimateSweep:
     def test_falls_back_to_static_banner_on_error(self, monkeypatch):
         import io
 
-        console = Console(file=io.StringIO(), width=120, force_terminal=True, color_system="truecolor")
+        console = Console(
+            file=io.StringIO(), width=120, force_terminal=True, color_system="truecolor"
+        )
         monkeypatch.setattr(
             "distill.banner._precompute_gradient",
             lambda _width: (_ for _ in ()).throw(RuntimeError("boom")),

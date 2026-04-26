@@ -305,7 +305,9 @@ def process_learning_selection(
 
     if not generate_brief and not report:
         console.print("\n  [dim]What's next:[/dim]")
-        console.print(f"  [dim]  distill show {topic_name}                    View video insights[/dim]")
+        console.print(
+            f"  [dim]  distill show {topic_name}                    View video insights[/dim]"
+        )
         console.print(
             f"  [dim]  distill synthesis {topic_name}               Read the synthesis[/dim]"
         )
