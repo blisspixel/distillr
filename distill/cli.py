@@ -3887,8 +3887,9 @@ def open_cmd(
         raise typer.Exit(1)
 
     console.print(f"Opening [bold]{target}[/bold]")
-    if os.name == "nt":
-        os.startfile(target)
+    startfile = getattr(os, "startfile", None)
+    if startfile is not None:
+        startfile(target)
     else:
         subprocess.run(["open" if os.uname().sysname == "Darwin" else "xdg-open", str(target)])
 
@@ -6237,7 +6238,8 @@ def site_cmd(
     """Crawl a website, extract page insights, synthesize, and optionally report."""
     config = get_config()
     if report and scrape_only:
-        raise typer.BadParameter("--report cannot be used with --scrape-only")
+        console.print("[red]--report cannot be used with --scrape-only[/red]")
+        raise typer.Exit(2)
     if not scrape_only:
         _require_api_key(config.xai_api_key, "XAI_API_KEY required for website analysis")
     tracker = CostTracker()
@@ -6312,7 +6314,8 @@ def site_batch_cmd(
     """Process a simple list or JSON config of websites."""
     config = get_config()
     if report and scrape_only:
-        raise typer.BadParameter("--report cannot be used with --scrape-only")
+        console.print("[red]--report cannot be used with --scrape-only[/red]")
+        raise typer.Exit(2)
     if not scrape_only:
         _require_api_key(config.xai_api_key, "XAI_API_KEY required for website analysis")
     batch = load_site_batch(path, topic_override=topic)
