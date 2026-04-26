@@ -303,7 +303,7 @@ def test_topic_change_history_and_labels(config):
             [
                 '{"generated_at":"2026-04-10T08:00:00","summary":"fresh","counts":{"videos":2,"pages":1,"papers":0,"outputs":1}}',
                 '{"generated_at":"2026-04-09T08:00:00","summary":"older","counts":{"videos":1,"pages":1,"papers":0,"outputs":0}}',
-                'bad-json',
+                "bad-json",
             ]
         ),
         encoding="utf-8",
@@ -346,9 +346,9 @@ def test_collect_topic_changes_and_corpus_warnings(config):
                 "sections": [
                     {
                         "section": "topic/ai",
-                        "last_crawled_at": (
-                            datetime.now() - timedelta(days=45)
-                        ).replace(microsecond=0).isoformat(),
+                        "last_crawled_at": (datetime.now() - timedelta(days=45))
+                        .replace(microsecond=0)
+                        .isoformat(),
                     }
                 ]
             }

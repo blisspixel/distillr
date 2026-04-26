@@ -106,6 +106,13 @@ from distill.paper_ingest import (
     search_arxiv_multi,
     search_arxiv_papers,
 )
+from distill.preflight import (
+    YTDLP_STALE_DAYS,
+    invalidate_preflight_cache,
+    preflight_ytdlp,
+    update_ytdlp,
+    ytdlp_age_days,
+)
 from distill.ranking import rerank_papers, rerank_videos
 from distill.research import run_deep_research
 from distill.research_brief import run_research_brief
@@ -356,6 +363,7 @@ def _run_learning_command(
     expand: bool = True,
     focus: str | None = None,
 ) -> None:
+    _preflight()
     _learning_flow_support.run_learning_command(
         query,
         topic=topic,
@@ -526,6 +534,15 @@ def get_config() -> DistillConfig:
     return DistillConfig()
 
 
+def _preflight() -> None:
+    """Warn (non-blocking) if yt-dlp is stale. Cached daily; honors DISTILL_NO_PREFLIGHT."""
+    try:
+        library_dir = get_config().library_dir
+    except Exception:
+        library_dir = None
+    preflight_ytdlp(console, library_dir)
+
+
 _TOPIC_PROFILE_VERSION = 1
 
 
@@ -671,7 +688,7 @@ def _run_topic_workflow(
 
     if preview:
         console.print(
-            f"\n[dim]Preview only. Run `distill topic create \"{resolved['goal']}\" --topic {topic_name}` to ingest.[/dim]"
+            f'\n[dim]Preview only. Run `distill topic create "{resolved["goal"]}" --topic {topic_name}` to ingest.[/dim]'
         )
         return topic_name
 
@@ -718,11 +735,13 @@ def _render_topic_summary(topic: str) -> None:
             artifacts.append(label)
 
     profile = _load_topic_profile(config, topic)
+    paper_count = _count_paper_corpus(config, [topic])
+    site_count, page_count = _count_site_corpus(config, [topic])
     lines = [f"[bold]{topic}[/bold]"]
     if profile and profile.get("goal"):
         lines.append(f"[dim]Goal:[/dim] {profile['goal']}")
     lines.append(
-        f"[dim]Corpus:[/dim] {len(channels)} channel(s), {video_count} processed video(s), { _count_paper_corpus(config, topic) } paper(s), { _count_site_corpus(config, topic) } site page(s)"
+        f"[dim]Corpus:[/dim] {len(channels)} channel(s), {video_count} processed video(s), {paper_count} paper(s), {site_count} site(s) / {page_count} page(s)"
     )
     if profile:
         lines.append(
@@ -847,11 +866,12 @@ def topic_update(
     test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
 ):
     """Refresh a topic using its saved topic profile, with optional overrides."""
+    _preflight()
     config = get_config()
     profile = _load_topic_profile(config, topic)
     if profile is None:
         console.print(
-            f"[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create \"...\" --topic {topic}`[/dim]"
+            f'[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create "..." --topic {topic}`[/dim]'
         )
         raise typer.Exit(1)
 
@@ -990,7 +1010,7 @@ def topic_watch(
     profile = _load_topic_profile(config, topic)
     if profile is None:
         console.print(
-            f"[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create \"...\" --topic {topic}`[/dim]"
+            f'[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create "..." --topic {topic}`[/dim]'
         )
         raise typer.Exit(1)
 
@@ -2092,6 +2112,7 @@ def channel_cmd(
       distill channel https://www.youtube.com/@SecurityGuy --topic security --months 6
       distill channel https://www.youtube.com/@NateBJones --report
     """
+    _preflight()
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required")
 
@@ -2213,6 +2234,7 @@ def search_cmd(
     ),
 ):
     """Preview the best recent YouTube videos Distill would learn from."""
+    _preflight()
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
     config, _tracker, _selected = _preview_learning_selection(
         query,
@@ -2252,6 +2274,7 @@ def explore_cmd(
     ),
 ):
     """Broader preview mode for exploring a topic before processing it."""
+    _preflight()
     _validate_learning_options(sort, limit, days, per_channel_cap)
     config, _tracker, _selected = _preview_learning_selection(
         query,
@@ -4155,10 +4178,26 @@ def status(
 
 
 @app.command(rich_help_panel="Maintain")
-def doctor():
+def doctor(
+    update: bool = typer.Option(
+        False,
+        "--update",
+        help="Upgrade yt-dlp via pip if it is older than the freshness threshold",
+    ),
+):
     """Check API keys, tools, and library health."""
     _ACCENT = "rgb(100,149,237)"
     config = get_config()
+
+    if update:
+        console.print("[dim]Upgrading yt-dlp via pip...[/dim]")
+        ok, detail = update_ytdlp()
+        if ok:
+            console.print(f"  [green]OK[/green]  yt-dlp upgraded to [bold]v{detail}[/bold]")
+            invalidate_preflight_cache(config.library_dir)
+        else:
+            console.print(f"  [red]XX[/red]  yt-dlp upgrade failed: [red]{detail}[/red]")
+        console.print()
 
     console.print()
     console.print("  [bold]API Keys[/bold]")
@@ -4223,10 +4262,20 @@ def doctor():
     console.print(f"  [dim]{'-' * 50}[/dim]")
 
     try:
-        import yt_dlp
+        import importlib.metadata
 
+        import yt_dlp  # noqa: F401  -- imported to verify availability
+
+        ytdlp_version = importlib.metadata.version("yt-dlp")
+        age = ytdlp_age_days()
+        if age is None:
+            age_label = ""
+        elif age > YTDLP_STALE_DAYS:
+            age_label = f"  [yellow]({age}d old; run `distill doctor --update`)[/yellow]"
+        else:
+            age_label = f"  [dim]({age}d old)[/dim]"
         console.print(
-            f"  [green]OK[/green]  yt-dlp            [dim]v{yt_dlp.version.__version__}[/dim]"
+            f"  [green]OK[/green]  yt-dlp            [dim]v{ytdlp_version}[/dim]{age_label}"
         )
     except Exception:
         console.print("  [red]XX[/red]  yt-dlp            [red]not found[/red]")
@@ -4751,6 +4800,7 @@ def topic_watch_run(
     ),
 ):
     """Run recurring topic watches using the existing topic-learning pipeline."""
+    _preflight()
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required")
     lib = Library(config)
@@ -5248,6 +5298,7 @@ def catch_up(
       distill catch-up --topic deals --days 1
       distill catch-up --dry-run
     """
+    _preflight()
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required")
     lib = Library(config)
@@ -6068,6 +6119,7 @@ def discover(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt"),
 ):
     """Goal-aware cross-source discovery: papers + videos, reranked against a goal."""
+    _preflight()
     if goal_file is not None:
         if not goal_file.exists():
             console.print(f"[red]Goal file not found: {goal_file}[/red]")

@@ -10,6 +10,28 @@ from rich.console import Console
 console = Console()
 
 
+_EXTRACTOR_ERROR_HINTS = (
+    "extractor",
+    "unable to extract",
+    "unable to download",
+    "youtube said",
+    "sign in to confirm",
+    "http error 4",
+)
+
+
+def _looks_like_extractor_failure(message: str) -> bool:
+    msg = message.lower()
+    return any(hint in msg for hint in _EXTRACTOR_ERROR_HINTS)
+
+
+def _print_extractor_hint() -> None:
+    console.print(
+        "  [yellow]hint: yt-dlp may be outdated; "
+        "run [bold]distill doctor --update[/bold] to refresh.[/yellow]"
+    )
+
+
 class _QuietLogger(logging.Logger):
     """Swallow yt-dlp error messages (e.g. members-only videos) to keep output clean."""
 
@@ -75,17 +97,6 @@ def discover_videos(
     # Keeps short lookbacks fast while still catching prolific uploaders.
     playlist_depth = min(max(lookback_days * 5, 15), 200)
 
-    ydl_opts = {
-        "daterange": yt_dlp.utils.DateRange(cutoff_str),
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": False,
-        "lazy_playlist": True,
-        "ignoreerrors": True,
-        "playlistend": playlist_depth,
-        "logger": _QuietLogger("yt-dlp"),
-    }
-
     seen_ids = set()
     for scan_url in urls_to_scan:
         tab = "shorts" if scan_url.endswith("/shorts") else "videos"
@@ -93,6 +104,16 @@ def discover_videos(
             console.print(f"  [dim]Scanning {tab} tab for content after {cutoff_str}...[/dim]")
 
         try:
+            ydl_opts = {
+                "daterange": yt_dlp.utils.DateRange(cutoff_str),
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": False,
+                "lazy_playlist": True,
+                "ignoreerrors": True,
+                "playlistend": playlist_depth,
+                "logger": _QuietLogger("yt-dlp"),
+            }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(scan_url, download=False)
 
@@ -120,6 +141,8 @@ def discover_videos(
 
         except Exception as e:
             console.print(f"  [red]Discovery error ({tab}): {e}[/red]")
+            if _looks_like_extractor_failure(str(e)):
+                _print_extractor_hint()
 
     videos.sort(key=lambda v: v.upload_date, reverse=True)
     if not quiet:
@@ -199,6 +222,8 @@ def search_videos(
             info = ydl.extract_info(search_expr, download=False)
     except Exception as e:
         console.print(f"  [red]Search error: {e}[/red]")
+        if _looks_like_extractor_failure(str(e)):
+            _print_extractor_hint()
         return []
 
     if not info or info.get("entries") is None:

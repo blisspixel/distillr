@@ -900,9 +900,7 @@ class TestTopicCommands:
         assert result.exit_code == 0
         assert not (mock_config.topic_dir("agents") / "topic_profile.json").exists()
 
-    def test_topic_update_reuses_saved_profile_and_allows_overrides(
-        self, mock_config, monkeypatch
-    ):
+    def test_topic_update_reuses_saved_profile_and_allows_overrides(self, mock_config, monkeypatch):
         (mock_config.topic_dir("fabric")).mkdir(parents=True, exist_ok=True)
         (mock_config.topic_dir("fabric") / "topic_profile.json").write_text(
             json.dumps(
@@ -987,7 +985,15 @@ class TestTopicCommands:
     def test_topic_create_requires_at_least_one_source(self, mock_config):
         result = runner.invoke(
             cli.app,
-            ["topic", "create", "Microsoft Fabric best practices", "--videos", "0", "--papers", "0"],
+            [
+                "topic",
+                "create",
+                "Microsoft Fabric best practices",
+                "--videos",
+                "0",
+                "--papers",
+                "0",
+            ],
         )
 
         assert result.exit_code == 1

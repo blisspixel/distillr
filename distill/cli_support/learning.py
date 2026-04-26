@@ -475,4 +475,3 @@ def _display_ranked_videos(ranked, title: str):
             item.rationale,
         )
     console.print(table)
-
