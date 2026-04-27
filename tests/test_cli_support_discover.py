@@ -74,6 +74,61 @@ def test_discover_generate_queries_returns_empty_for_blank_response(config, monk
     assert video_queries == []
 
 
+def test_discover_generate_queries_short_circuits_when_both_counts_zero(config, monkeypatch):
+    """--papers-only AND --videos-only is a contradiction; defensive guard so we
+    don't accidentally pay for query generation that nothing will use."""
+    called = []
+
+    def fake_openai(**_kwargs):
+        called.append(True)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(discover, "OpenAI", fake_openai)
+
+    paper_queries, video_queries = discover.discover_generate_queries(
+        "goal",
+        config,
+        None,
+        paper_count=0,
+        video_count=0,
+        dedupe_query_strings=lambda items: items,
+    )
+
+    assert paper_queries == []
+    assert video_queries == []
+    assert called == []  # never hit the OpenAI client
+
+
+def test_discover_generate_queries_drops_disabled_side_after_llm(config, monkeypatch):
+    """Even if the LLM ignores the count and emits paper queries when
+    paper_count=0 (or vice versa), the disabled side is forced to []."""
+    monkeypatch.setattr(
+        discover,
+        "OpenAI",
+        lambda **kwargs: SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **_: _fake_openai_response(
+                        '{"paper_queries":["should-be-dropped"],"video_queries":["walkthrough"]}'
+                    )
+                )
+            )
+        ),
+    )
+
+    paper_queries, video_queries = discover.discover_generate_queries(
+        "goal",
+        config,
+        None,
+        paper_count=0,  # videos-only mode
+        video_count=3,
+        dedupe_query_strings=lambda items: list(dict.fromkeys(items)),
+    )
+
+    assert paper_queries == []
+    assert video_queries == ["walkthrough"]
+
+
 def test_discover_fetch_videos_dedupes_filters_and_enriches(monkeypatch):
     video_short = VideoInfo("v1", "Short", "20260420", 30, "https://youtube.com/watch?v=v1")
     video_full = VideoInfo(

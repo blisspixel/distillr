@@ -36,9 +36,10 @@ Flags:
 
 - `--topic / -t` — topic folder to file outputs under (defaults to a slug of the goal)
 - `--paper-limit` / `--video-limit` — max per-source ingestion targets (default 10 each)
+- `--papers-only` / `--videos-only` — mutually exclusive, skip the other source type entirely (also short-circuits the LLM query-generation call for the disabled side, so you don't pay for queries the run will throw away). Useful when one source type has thin coverage of the topic.
 - `--days / -d` — YouTube recency window (default 365)
 - `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
-- `--preview` — show the ranked plan without ingesting (free, ~$0.05)
+- `--preview` — show the ranked plan without ingesting (~$0.05). Preview-only spend lands in `cost_log.jsonl` as `discover_preview` so iterative preview cycles are visible separately from ingest spend.
 - `--yes / -y` — skip the interactive confirmation prompt
 - `--goal-file` — load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
 
@@ -57,6 +58,12 @@ distill latest "Claude Code leak analysis" --topic claude-code-leak --hours 20 -
 ```
 
 `distill latest` defaults to a date-first, Shorts-inclusive, multi-query discovery pass tuned for stay-current workflows. `--hours` gives sub-day precision. For rumor-heavy or April 1 style topics, the selector leans skeptical (favors concrete evidence terms).
+
+For strict "last N uploads in the window" semantics — bypassing both the LLM rerank and the heuristic relevance/depth mix and sorting purely by upload date — pass `--top-by-date`. Channel cap still applies, and `--rerank` is force-disabled so query-expansion spend isn't billed for output that's then ignored.
+
+```bash
+distill latest "Sora 2 demos" --topic sora --days 7 --top-by-date --limit 5
+```
 
 After a run, inspect what changed:
 

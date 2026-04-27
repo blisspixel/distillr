@@ -8,6 +8,7 @@ from distill.summary import (
     _file_size,
     display_estimate,
     display_summary,
+    log_preview_cost,
 )
 
 
@@ -139,6 +140,70 @@ def test_display_summary_noop_when_empty():
     display_summary(RunSummary(command="learn"), console=console)
 
     assert console.export_text() == ""
+
+
+def test_display_summary_preview_logs_cost_even_when_empty(tmp_path):
+    """Preview-mode display_summary writes a cost-log entry even with no
+    outputs/results (preview pays for query expansion + rerank but produces
+    no artifacts). Suffix is `<command>_preview`."""
+    import json
+
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=300,
+            completion_tokens=120,
+            model="grok-4-1-fast-reasoning",
+            call_type="discover_rerank",
+        )
+    )
+
+    display_summary(
+        RunSummary(command="discover"),
+        cost_tracker=tracker,
+        console=Console(record=True, width=120),
+        log_dir=tmp_path,
+        preview=True,
+    )
+
+    log_path = tmp_path / "cost_log.jsonl"
+    assert log_path.exists()
+    entry = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert entry["command"] == "discover_preview"
+    assert entry["total_input_tokens"] == 300
+
+
+def test_log_preview_cost_writes_suffixed_command(tmp_path):
+    import json
+
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=150,
+            completion_tokens=40,
+            model="grok-4-1-fast-reasoning",
+            call_type="search_rerank",
+        )
+    )
+
+    log_preview_cost(tracker, tmp_path, "latest", metadata={"topic": "ctc"})
+
+    entry = json.loads((tmp_path / "cost_log.jsonl").read_text(encoding="utf-8").strip())
+    assert entry["command"] == "latest_preview"
+    assert entry["metadata"] == {"topic": "ctc"}
+
+
+def test_log_preview_cost_skips_when_tracker_empty(tmp_path):
+    """No spend means nothing to log — silent no-op, no zero-row noise in the log."""
+    log_preview_cost(CostTracker(), tmp_path, "latest")
+    assert not (tmp_path / "cost_log.jsonl").exists()
+
+
+def test_log_preview_cost_skips_when_log_dir_none():
+    # Should not raise.
+    tracker = CostTracker()
+    tracker.record(TokenUsage(prompt_tokens=10, completion_tokens=5, model="grok"))
+    log_preview_cost(tracker, None, "latest")
 
 
 def test_file_size_formats_units(tmp_path):

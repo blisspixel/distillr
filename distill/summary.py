@@ -231,10 +231,14 @@ def display_summary(
     cost_tracker=None,
     console: Console | None = None,
     log_dir: Path | None = None,
+    preview: bool = False,
 ) -> None:
     con = console or Console()
 
-    if not summary.results and not summary.output_files and not summary.issues:
+    is_empty = not summary.results and not summary.output_files and not summary.issues
+    # Preview runs intentionally produce no outputs/results, but they still pay
+    # for query expansion + rerank and need their cost logged separately.
+    if is_empty and not preview:
         return
 
     if cost_tracker and log_dir:
@@ -249,9 +253,15 @@ def display_summary(
                 shorts=summary.shorts_count,
                 elapsed_seconds=summary.elapsed,
                 metadata=summary.metadata,
+                preview=preview,
             )
         except Exception:
             pass
+
+    # Preview runs skip the visual summary block — the preview already showed
+    # the ranked table; only the cost log needed to be written.
+    if is_empty and preview:
+        return
 
     if log_dir:
         with suppress(Exception):
@@ -413,3 +423,38 @@ def _file_size(path: Path) -> str:
     if size < 1024 * 1024:
         return f"{size / 1024:.1f} KB"
     return f"{size / (1024 * 1024):.1f} MB"
+
+
+def log_preview_cost(
+    tracker,
+    log_dir: Path | None,
+    command: str,
+    *,
+    metadata: dict[str, str] | None = None,
+    elapsed_seconds: float = 0.0,
+) -> None:
+    """Log preview-only cost to ``cost_log.jsonl`` with a ``_preview`` suffix.
+
+    Preview paths (``--preview``) intentionally produce no outputs but still pay
+    for query expansion and rerank. This helper records that spend so iterative
+    preview cycles are visible in ``distill costs`` separately from ingest runs.
+    No-op if the tracker has no entries or ``log_dir`` is None.
+    """
+    if tracker is None or log_dir is None:
+        return
+    has_spend = bool(getattr(tracker, "entries", [])) or getattr(tracker, "gemini_queries", 0)
+    if not has_spend:
+        return
+    try:
+        from distill.costs import save_run_log
+
+        save_run_log(
+            log_dir=log_dir,
+            command=command,
+            tracker=tracker,
+            metadata=metadata or {},
+            elapsed_seconds=elapsed_seconds,
+            preview=True,
+        )
+    except Exception:
+        pass

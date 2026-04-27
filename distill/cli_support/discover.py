@@ -45,6 +45,11 @@ def discover_generate_queries(
     video_count: int,
     dedupe_query_strings,
 ) -> tuple[list[str], list[str]]:
+    # Guard against the LLM being asked to do nothing useful when both sides are
+    # disabled (e.g. via --papers-only and --videos-only somehow both off — caller
+    # should have validated, but be defensive).
+    if paper_count <= 0 and video_count <= 0:
+        return [], []
     client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
     model = config.xai_model_for("rerank")
     prompt = discover_query_generation_prompt(
@@ -81,6 +86,13 @@ def discover_generate_queries(
     video_qs = data.get("video_queries", []) if isinstance(data, dict) else []
     paper_qs = dedupe_query_strings([q for q in paper_qs if isinstance(q, str)])
     video_qs = dedupe_query_strings([q for q in video_qs if isinstance(q, str)])
+    # Honor the requested counts even if the LLM produced more on the disabled
+    # side — keeps --papers-only / --videos-only from accidentally fetching the
+    # excluded source type.
+    if paper_count <= 0:
+        paper_qs = []
+    if video_count <= 0:
+        video_qs = []
     return paper_qs, video_qs
 
 
