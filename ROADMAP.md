@@ -29,11 +29,20 @@ Initial public release as `distillr` on PyPI (2026-04-20). Core capabilities:
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for the full 0.1.0 entry plus consolidated pre-release history.
 
-## Recently shipped (Unreleased)
+## What shipped in 0.2.0
 
-**yt-dlp staleness preflight + `distill doctor --update`.** yt-dlp ships date-stamped releases (`2026.3.17`) and breaks frequently when YouTube changes things, so commands that touch it now do a zero-network version-age check on entry — locally parses the version, warns once if older than 14 days, caches the result for 24h, honors `DISTILL_NO_PREFLIGHT=1` for CI. `distill doctor --update` shells `pip install --upgrade yt-dlp` and invalidates the cache. Discovery errors that match extractor-failure patterns now print a one-line hint pointing at the fix.
+Released 2026-04-27. Discovery loop hardening: the goal-aware front door is in,
+yt-dlp ergonomics are solid, and the preview → approve → ingest workflow now
+respects what the user actually asked for.
 
-**Goal-aware discover phase.** Closed the front-door gap. `distill discover "<goal>"` (or `--goal-file PATH`) generates paper + video queries from a goal, runs them, LLM-reranks candidates *against the goal* across both source types, shows one unified ranked table, and ingests the shortlist after confirmation. `distill papers` was brought up to parity with `distill latest` in the same pass (query expansion, LLM rerank, `--preview`). See CHANGELOG Unreleased.
+- **Goal-aware `distill discover`.** Generates paper + video queries from a natural-language goal (or `--goal-file`), fans out to arXiv and YouTube, runs a unified goal-aware LLM rerank across both source types, shows one ranked cross-source table, and ingests the shortlist after confirmation. `distill papers` was brought to parity with `distill latest` in the same pass (query expansion, LLM rerank, `--preview`).
+- **`--papers-only` / `--videos-only` for discover.** Mutually exclusive, short-circuits the LLM query-generation call for the disabled side so spend matches intent.
+- **`--top-by-date` for `distill latest`.** Strict "last N uploads in the window" semantics — bypasses both LLM rerank and the heuristic mix, sorts purely by upload date. Channel cap still applies.
+- **Preview-mode cost logging.** Iterative preview cycles (probe, retune, re-probe) now land in `cost_log.jsonl` as `<command>_preview` rows so they're visible separately from ingest spend in `distill costs`.
+- **yt-dlp staleness preflight + `distill doctor --update`.** Zero-network version-age check on entry; caches for 24h; honors `DISTILL_NO_PREFLIGHT=1` for CI. After a successful upgrade attempt, doctor reports "(latest available release)" instead of nagging again. Discovery errors that match extractor-failure patterns print a one-line hint pointing at the fix.
+- **Windows cp1252 console crash fix.** Stdio is reconfigured to UTF-8 at startup so the preflight `⚠` glyph (now also softened to an ASCII `!` as belt-and-suspenders) doesn't crash on default Windows consoles.
+
+See [`docs/CHANGELOG.md#020--2026-04-27`](docs/CHANGELOG.md) for the complete entry.
 
 ## What's next
 
@@ -48,6 +57,8 @@ The 2025–2026 research consensus on context engineering — that *effective* c
 **4. Obsidian-native output (the artifact layer for the above).** Wiki-style cross-linking (`[[papers/<slug>/insights|Title]]`), standardized YAML frontmatter with tags and confidence labels, `distill open --vault`. Interop with Obsidian / Logseq / Dendron — no new UI to build. Naturally pairs with the concept playbook layer above (concept notes become first-class vault citizens with backlinks).
 
 **5. Compaction in the 4-phase report pipeline.** Today each report phase carries the full prior-section context forward to enforce no-repeat. Switching to high-recall-then-precision compaction (the Anthropic pattern) and OpenAI-style opaque continuation items would significantly cut token spend on long reports, with no loss of cross-section coherence. Includes adding per-phase token telemetry so we can see the savings.
+
+**6. Preview-first research workflow with quality-cliff detection and spend approval.** `distill discover --preview` already surfaces a goal-ranked plan, but right-sizing the real run still puts the burden on the user: read the table, eyeball where the score cliff falls, mentally do the cost arithmetic, re-run with adjusted limits. The pattern that surfaces naturally during real research sessions is: probe the candidate pool wide, detect the rerank-score cliff, and present "top N excellent" / "top M including good" / "everything ≥ threshold" sizing options with per-option ballpark cost *before* the user commits. Three concrete pieces: (a) cliff detection in the rerank output (largest score gap, or score < cutoff) so we can suggest a defensible N rather than asking for one; (b) a unified papers+videos preview (today `discover` and `latest` are separate commands that hit the same `--topic` from different doors); (c) a "rigor / fuzziness" knob — `--rigor strict|balanced|loose` — so a topic with thin academic coverage but rich video coverage (or vice versa) can relax the goal-fit bar on one source type without dragging the other down. Output: a single approval prompt that quotes spend per sizing option, not a flag the user has to guess.
 
 Plus ongoing polish: live cost tickers, better crawl-boundary controls, semantic dedup across sources, structured logging, scheduled refresh via cron/task scheduler, and continued quality hardening (raising typing coverage, paying down CLI monolith debt, and moving Pyright toward a blocking gate).
 

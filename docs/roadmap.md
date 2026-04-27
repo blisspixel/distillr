@@ -193,3 +193,78 @@ for the principles these items derive from.
 - [ ] **Effective-context regression tests.** Add a small fixture suite that runs paper-analysis / synthesis / report prompts against representative long inputs and asserts the output covers known mid-document evidence (a "lost-in-the-middle" smoke test). Wire into CI so regressions surface in PRs rather than user reports.
 - [ ] **Tool-result clearing in iterative loops.** Long-running watch and discover loops accumulate tool-call results that are no longer relevant. Implement Anthropic's "clear stale tool results" pattern as a baseline compaction step before each new LLM call in those loops.
 - [ ] **Document the principles in the contributor guide.** Add a "context engineering" section to `docs/CONTRIBUTING.md` so new prompt and pipeline work follows the same posture (just-in-time hydration, paths-not-payloads, structured deltas-not-rewrites).
+
+### 12. Discovery loop hardening (preview → approve → ingest)
+
+These items came out of real research-session friction during a multi-topic
+ingest run on closed timelike curves: previewing the candidate pool, sizing the
+real run, approving spend, and watching costs accumulate across iterative
+preview cycles. The pieces shipped in 0.2.0 (preview cost-log differentiation,
+`--papers-only` / `--videos-only`, `--top-by-date` for `latest`) closed the
+near-term gaps; the items below are the deeper design questions that surfaced
+in the same session and deserve their own write-ups before implementation.
+
+- [ ] **Rerank determinism: preview → ingest commit-by-ID.** Previewing the
+  goal-ranked shortlist and then running the real ingest can produce a different
+  shortlist (LLM rerank is non-deterministic). For research-quality work, the
+  user should be able to commit to *the exact set they previewed*. Two design
+  options to evaluate: (a) cache the previewed shortlist by hash of (goal,
+  model, candidates) under `library/.preview_cache/<id>.json` and add
+  `--from-preview <id>` so the ingest replays the exact selection; (b) make
+  the rerank deterministic via temperature=0 + a stable seed. (a) is more
+  honest about the LLM rerank being a judgment call rather than a lookup; (b)
+  is cheaper to implement but doesn't address the seed-drift between model
+  releases. Likely answer: ship (a) and use (b) as a fallback when no preview
+  cache exists.
+- [ ] **Calibration: unify or differentiate the discover and latest rerank
+  prompts.** A real session showed `discover --preview` ranking 0/33 candidate
+  videos as worth ingesting on a topic, while `latest --preview` on the same
+  topic surfaced 5 strong picks (including expert lectures by authors of the
+  top-ranked papers in the same session). Both commands run the same Grok
+  model with similar inputs; the divergence is in prompt calibration. Audit
+  the two rerank prompts side by side, decide whether the divergence is
+  intentional (discover = rigor-tuned, latest = relevance-tuned) or
+  accidental, and either unify them or expose a `--rigor strict|balanced|loose`
+  knob that callers can tune per source type. Without this, the "unified front
+  door" promise of `discover` doesn't hold for any topic where strong videos
+  exist but the rigor bar excludes them.
+- [ ] **Real cost estimator that reads candidate metadata.** Today's pre-run
+  estimate is a flat `$0.05/paper` × N rate that misses 2–3× actual on short
+  papers and undershoots on long ones. Build an estimator that reads candidate
+  metadata before the run: arXiv abstract length and PDF page count for papers,
+  `yt-dlp --print duration` for videos, page count and content-length headers
+  for sites. Calibrate against historical `cost_log.jsonl` rows so the estimate
+  improves over time. Surface as the spend half of the unified preview-and-
+  approval prompt described in `ROADMAP.md` "What's next" item 6.
+- [ ] **Preview-as-primary-flow UX.** Today `--preview` is a flag the user adds
+  to a command they're about to run anyway. The mental model that surfaces
+  during real research is the opposite: probe the candidate pool, see the
+  quality cliff, decide a sizing, see the cost, *then* commit. Reshape so the
+  default flow on a fresh topic is: `distill discover "<goal>"` → goal-ranked
+  table with cliff-detected sizing options ("3 excellent / 5 including good /
+  7 including OK") and per-option spend → typed approval → ingest. Depends on
+  the rerank-determinism work above (commit-by-ID) and the real cost estimator;
+  builds on `ROADMAP.md` item 6.
+- [ ] **Synthesis register styles, with PhD-level as the new default.** Today
+  `distill synthesize` is a single-call Grok 4.20 corpus-only pass with a
+  prompt calibrated for an executive-briefing register. The pattern that
+  surfaced during the CTC research session — produce thorough per-source
+  analyses first, then load *all* of them into one Grok 4.20 prompt and ask
+  for graduate-level cross-document analysis (open questions, methodological
+  tensions, citation-style claim attribution, evidence map, open-vs-settled
+  scoreboard) — should be the *default* `distill synthesize` output, since
+  it's what the corpus is actually built for. Demote the executive-briefing
+  variant to an explicit opt-in (`--style exec` or `distill synth-exec`).
+  Plan: (a) extract synthesis register prompts into a `--style` registry
+  (`phd` default, `exec` for one-page briefing, `pop` for accessible
+  explainer, room for more — `landscape`, `disagreements-only`, etc.); (b)
+  context-budget preflight that enumerates what fits in Grok 4.20's ~256K
+  window (typically 5–25 papers' worth of insights at 7–10 KB each), warns
+  on overflow, and lets the user choose to drop low-confidence items rather
+  than truncate; (c) per-claim source attribution in the PhD output so
+  readers can trace each finding to a specific `insights.md`; (d) distinct
+  artifact filenames (`synthesis_phd.md` / `synthesis_exec.md` / etc.) so
+  styles coexist and can be compared side by side. This is the opposite
+  trade-off from `roadmap.md` item 6 (chunk-and-rerank): chunking handles
+  "input is too long for one prompt"; deep synthesis handles "every claim
+  needs to be visible at once for cross-document reasoning."

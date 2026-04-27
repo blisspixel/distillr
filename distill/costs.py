@@ -119,14 +119,21 @@ def save_run_log(
     shorts: int = 0,
     elapsed_seconds: float = 0,
     metadata: dict[str, str] | None = None,
+    preview: bool = False,
 ):
-    """Append a run cost entry to the cost log for estimate calibration."""
+    """Append a run cost entry to the cost log for estimate calibration.
+
+    When ``preview=True``, the recorded ``command`` field is suffixed with
+    ``_preview`` so iterative preview spend is visible separately from ingest
+    spend in ``cost_log.jsonl``.
+    """
     log_file = log_dir / "cost_log.jsonl"
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    recorded_command = f"{command}_preview" if preview else command
     entry = {
         "timestamp": datetime.now().isoformat(),
-        "command": command,
+        "command": recorded_command,
         "full_videos": full_videos,
         "shorts": shorts,
         "grok_calls": len(tracker.entries),

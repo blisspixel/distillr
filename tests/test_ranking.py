@@ -15,6 +15,7 @@ from distill.ranking import (
     _query_overlap,
     _tokenize,
     _topicality_score,
+    chronological_rank,
     rerank_videos,
 )
 
@@ -462,3 +463,54 @@ def test_search_arxiv_multi_dedupes_and_preserves_order(monkeypatch):
 
     assert [r.paper_id for r in result] == ["1", "2", "3"]
     assert calls == ["a", "b"]
+
+
+def _video(video_id: str, upload_date: str, *, title: str = "T") -> VideoInfo:
+    return VideoInfo(
+        video_id,
+        title,
+        upload_date,
+        600,
+        f"https://youtube.com/watch?v={video_id}",
+        view_count=0,
+        like_count=0,
+        comment_count=0,
+        channel_name="ch",
+    )
+
+
+def test_chronological_rank_returns_videos_in_descending_upload_date_order():
+    older = _video("v_old", _date_ago(60), title="old upload")
+    newer = _video("v_new", _date_ago(2), title="new upload")
+    middle = _video("v_mid", _date_ago(20), title="middle upload")
+
+    ranked = chronological_rank([older, newer, middle], top_n=5)
+
+    assert [r.video.video_id for r in ranked] == ["v_new", "v_mid", "v_old"]
+
+
+def test_chronological_rank_truncates_at_top_n():
+    videos = [_video(f"v{i}", _date_ago(i)) for i in range(10)]
+
+    ranked = chronological_rank(videos, top_n=3)
+
+    assert len(ranked) == 3
+    # Smallest days_ago == most recent.
+    assert [r.video.video_id for r in ranked] == ["v0", "v1", "v2"]
+
+
+def test_chronological_rank_sorts_unparseable_dates_to_bottom():
+    good = _video("good", _date_ago(5))
+    broken = _video("broken", "not-a-date")
+
+    ranked = chronological_rank([broken, good], top_n=2)
+
+    assert [r.video.video_id for r in ranked] == ["good", "broken"]
+
+
+def test_chronological_rank_records_selected_by_chronological():
+    """The provenance field tells downstream code (and the user-facing rationale)
+    that scores came from upload date alone, not the heuristic mix."""
+    ranked = chronological_rank([_video("v", _date_ago(3))], top_n=1)
+    assert ranked[0].selected_by == "chronological"
+    assert "upload date" in ranked[0].rationale

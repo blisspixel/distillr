@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from distill._bootstrap import ensure_utf8_stdio
 from distill.cli_shared import (
     duration_str,
     format_date,
@@ -18,6 +19,50 @@ from distill.cli_shared import (
     topic_from_query,
     write_video_metadata,
 )
+
+
+class TestEnsureUtf8Stdio:
+    def test_calls_reconfigure_on_capable_streams(self, monkeypatch):
+        calls = []
+
+        class FakeStream:
+            def reconfigure(self, **kwargs):
+                calls.append(kwargs)
+
+        fake_out = FakeStream()
+        fake_err = FakeStream()
+        monkeypatch.setattr(sys, "stdout", fake_out)
+        monkeypatch.setattr(sys, "stderr", fake_err)
+
+        ensure_utf8_stdio()
+
+        assert calls == [
+            {"encoding": "utf-8", "errors": "replace"},
+            {"encoding": "utf-8", "errors": "replace"},
+        ]
+
+    def test_silent_when_stream_lacks_reconfigure(self, monkeypatch):
+        # pytest's capsys streams don't expose reconfigure -- must not raise.
+        class StreamWithoutReconfigure:
+            def write(self, *_args, **_kwargs):
+                pass
+
+        monkeypatch.setattr(sys, "stdout", StreamWithoutReconfigure())
+        monkeypatch.setattr(sys, "stderr", StreamWithoutReconfigure())
+
+        # Should not raise.
+        ensure_utf8_stdio()
+
+    def test_swallows_oserror_from_underlying_buffer(self, monkeypatch):
+        class FlakyStream:
+            def reconfigure(self, **_kwargs):
+                raise OSError("buffer not seekable")
+
+        monkeypatch.setattr(sys, "stdout", FlakyStream())
+        monkeypatch.setattr(sys, "stderr", FlakyStream())
+
+        # Should not raise.
+        ensure_utf8_stdio()
 
 
 class TestFormatDate:
