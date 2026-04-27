@@ -127,16 +127,25 @@ def preflight_ytdlp(console, library_dir: Path | None = None) -> None:
 
 def _emit_stale_warning(console, version: str | None, age: int) -> None:
     label = f"v{version}" if version else "unknown"
+    # ASCII marker (`!`) instead of U+26A0 so even legacy Windows consoles that
+    # somehow bypass the UTF-8 stdio bootstrap don't crash on this banner.
     with contextlib.suppress(Exception):
         console.print(
-            f"[yellow]⚠ yt-dlp {label} is {age} days old. "
+            f"[yellow]! yt-dlp {label} is {age} days old. "
             f"YouTube extractors may be stale; run "
             f"[bold]distill doctor --update[/bold] to refresh.[/yellow]"
         )
 
 
-def update_ytdlp(timeout: int = 300) -> tuple[bool, str]:
-    """Run ``pip install --upgrade yt-dlp``. Returns (success, detail)."""
+def update_ytdlp(timeout: int = 300) -> tuple[bool, str, bool]:
+    """Run ``pip install --upgrade yt-dlp``.
+
+    Returns ``(success, detail, was_noop)`` where ``was_noop`` is True when pip
+    exited cleanly but the installed version did not change — i.e. the user
+    already had the latest published release. Callers should report this case
+    as "already at the latest release" rather than "upgraded".
+    """
+    old_version = get_ytdlp_version()
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
@@ -145,14 +154,17 @@ def update_ytdlp(timeout: int = 300) -> tuple[bool, str]:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        return False, "pip upgrade timed out"
+        return False, "pip upgrade timed out", False
     except Exception as exc:
-        return False, str(exc)
+        return False, str(exc), False
 
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "pip exited non-zero").strip()
-        return False, detail[:500]
-    return True, get_ytdlp_version() or "unknown"
+        return False, detail[:500], False
+
+    new_version = get_ytdlp_version() or "unknown"
+    was_noop = old_version is not None and new_version == old_version
+    return True, new_version, was_noop
 
 
 def invalidate_preflight_cache(library_dir: Path | None) -> None:

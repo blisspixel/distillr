@@ -527,8 +527,13 @@ def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
     cli.get_config = lambda: config
     calls = []
 
+    from distill.costs import CostTracker as _CostTracker
+
     def fake_preview_learning_selection(query, **kwargs):
         calls.append((query, kwargs))
+        # topic-watch preview now unpacks (config, tracker, selected) so it can
+        # log preview cost — return a real shape, not None.
+        return config, _CostTracker(), []
 
     monkeypatch.setattr(cli, "_preview_learning_selection", fake_preview_learning_selection)
 

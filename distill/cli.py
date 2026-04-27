@@ -113,7 +113,7 @@ from distill.preflight import (
     update_ytdlp,
     ytdlp_age_days,
 )
-from distill.ranking import rerank_papers, rerank_videos
+from distill.ranking import chronological_rank, rerank_papers, rerank_videos
 from distill.research import run_deep_research
 from distill.research_brief import run_research_brief
 from distill.site_analysis import analyze_site_page, synthesize_site, synthesize_site_topic
@@ -129,7 +129,14 @@ from distill.site_scraper import (
     load_site_batch,
 )
 from distill.state import ChannelState
-from distill.summary import ETATracker, RunSummary, VideoResult, display_estimate, display_summary
+from distill.summary import (
+    ETATracker,
+    RunSummary,
+    VideoResult,
+    display_estimate,
+    display_summary,
+    log_preview_cost,
+)
 from distill.synthesis import synthesize_channel, synthesize_topic
 from distill.synthesize import run_synthesis
 from distill.transcripts import get_transcript
@@ -239,6 +246,7 @@ def _select_learning_videos(
     hours: int | None = None,
     skeptical: bool = False,
     expand: bool = True,
+    top_by_date: bool = False,
 ):
     effective_days = _effective_days(days, hours)
     candidate_limit = max(limit * 2, 12)
@@ -281,15 +289,21 @@ def _select_learning_videos(
 
     enriched = enrich_videos(raw_candidates, max_videos=min(len(raw_candidates), 12))
     enriched = _filter_recent_candidates(enriched, effective_days, hours=hours)
-    ranked = rerank_videos(
-        query,
-        enriched,
-        config,
-        tracker=tracker,
-        top_n=max(limit * 2, 10),
-        use_llm=rerank,
-        skeptical=skeptical,
-    )
+    if top_by_date:
+        # Strict chronological pick — bypass both LLM rerank and the heuristic
+        # mix. Channel cap still applies to keep one prolific uploader from
+        # monopolizing the slate.
+        ranked = chronological_rank(enriched, top_n=max(limit * 2, 10))
+    else:
+        ranked = rerank_videos(
+            query,
+            enriched,
+            config,
+            tracker=tracker,
+            top_n=max(limit * 2, 10),
+            use_llm=rerank,
+            skeptical=skeptical,
+        )
     selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
     return enriched, selected
 
@@ -320,6 +334,7 @@ def _preview_learning_selection(
     hours: int | None = None,
     skeptical: bool | None = None,
     expand: bool = True,
+    top_by_date: bool = False,
 ):
     return _learning_flow_support.preview_learning_selection(
         query,
@@ -340,6 +355,7 @@ def _preview_learning_selection(
         hours=hours,
         skeptical=skeptical,
         expand=expand,
+        top_by_date=top_by_date,
     )
 
 
@@ -362,6 +378,7 @@ def _run_learning_command(
     skeptical: bool | None = None,
     expand: bool = True,
     focus: str | None = None,
+    top_by_date: bool = False,
 ) -> None:
     _preflight()
     _learning_flow_support.run_learning_command(
@@ -391,6 +408,7 @@ def _run_learning_command(
         skeptical=skeptical,
         expand=expand,
         focus=focus,
+        top_by_date=top_by_date,
     )
 
 
@@ -2236,7 +2254,7 @@ def search_cmd(
     """Preview the best recent YouTube videos Distill would learn from."""
     _preflight()
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    config, _tracker, _selected = _preview_learning_selection(
+    config, tracker, _selected = _preview_learning_selection(
         query,
         days=days,
         limit=limit,
@@ -2251,6 +2269,7 @@ def search_cmd(
     if rerank and not config.xai_api_key:
         console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
     console.print('\n[dim]Run `distill learn "..."` to process these picks.[/dim]')
+    log_preview_cost(tracker, config.library_dir, "search")
 
 
 @app.command(name="explore", rich_help_panel="Discover")
@@ -2276,7 +2295,7 @@ def explore_cmd(
     """Broader preview mode for exploring a topic before processing it."""
     _preflight()
     _validate_learning_options(sort, limit, days, per_channel_cap)
-    config, _tracker, _selected = _preview_learning_selection(
+    config, tracker, _selected = _preview_learning_selection(
         query,
         days=days,
         limit=limit,
@@ -2292,6 +2311,7 @@ def explore_cmd(
     console.print(
         '\n[dim]Run `distill latest "..."` or `distill learn "..."` to process the best set.[/dim]'
     )
+    log_preview_cost(tracker, config.library_dir, "explore")
 
 
 @app.command(name="learn", rich_help_panel="Discover")
@@ -2376,6 +2396,13 @@ def latest_cmd(
         "--rerank/--no-rerank",
         help="Use LLM reranking to pick the best videos (default: on)",
     ),
+    top_by_date: bool = typer.Option(
+        False,
+        "--top-by-date",
+        help="Pick the most-recently-uploaded videos in the window, ignoring "
+        "rerank quality scoring. Use when you literally want 'last N uploads' "
+        "rather than relevance- or quality-ranked picks. Implies --no-rerank.",
+    ),
     save: bool = typer.Option(
         True,
         "--save/--ephemeral",
@@ -2394,8 +2421,12 @@ def latest_cmd(
 ):
     """Opinionated topic-first workflow for getting current fast."""
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
+    # --top-by-date is the user saying "I want the N most recent uploads, period."
+    # Force-disable LLM rerank so we don't quietly pay for query expansion that
+    # we'll then ignore.
+    effective_rerank = rerank and not top_by_date
     if preview:
-        config, _tracker, _selected = _preview_learning_selection(
+        config, tracker, _selected = _preview_learning_selection(
             query,
             days=days,
             hours=hours,
@@ -2403,15 +2434,22 @@ def latest_cmd(
             sort=sort,
             per_channel_cap=per_channel_cap,
             shorts=shorts,
-            rerank=rerank,
+            rerank=effective_rerank,
             header="Latest",
             table_title="Latest Best-Pick Learning Set",
+            top_by_date=top_by_date,
         )
-        if rerank and not config.xai_api_key:
+        if effective_rerank and not config.xai_api_key:
             console.print(
                 "[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]"
             )
         console.print("\n[dim]Run without `--preview` to process this set.[/dim]")
+        log_preview_cost(
+            tracker,
+            config.library_dir,
+            "latest",
+            metadata={"topic": topic} if topic else None,
+        )
         return
 
     _run_learning_command(
@@ -2423,12 +2461,13 @@ def latest_cmd(
         sort=sort,
         per_channel_cap=per_channel_cap,
         shorts=shorts,
-        rerank=rerank,
+        rerank=effective_rerank,
         save=save,
         report=report,
         test=test,
         generate_brief=brief,
         header="Latest",
+        top_by_date=top_by_date,
     )
 
 
@@ -4189,11 +4228,19 @@ def doctor(
     _ACCENT = "rgb(100,149,237)"
     config = get_config()
 
+    update_succeeded = False
     if update:
         console.print("[dim]Upgrading yt-dlp via pip...[/dim]")
-        ok, detail = update_ytdlp()
+        ok, detail, was_noop = update_ytdlp()
         if ok:
-            console.print(f"  [green]OK[/green]  yt-dlp upgraded to [bold]v{detail}[/bold]")
+            update_succeeded = True
+            if was_noop:
+                console.print(
+                    f"  [green]OK[/green]  yt-dlp [bold]v{detail}[/bold] "
+                    "is already the latest published release"
+                )
+            else:
+                console.print(f"  [green]OK[/green]  yt-dlp upgraded to [bold]v{detail}[/bold]")
             invalidate_preflight_cache(config.library_dir)
         else:
             console.print(f"  [red]XX[/red]  yt-dlp upgrade failed: [red]{detail}[/red]")
@@ -4268,7 +4315,11 @@ def doctor(
 
         ytdlp_version = importlib.metadata.version("yt-dlp")
         age = ytdlp_age_days()
-        if age is None:
+        if update_succeeded and (age is None or age > YTDLP_STALE_DAYS):
+            # Suppress the "X days old; run --update" nag right after a successful
+            # upgrade attempt — pypi simply hasn't shipped a newer release yet.
+            age_label = "  [dim](latest available release)[/dim]"
+        elif age is None:
             age_label = ""
         elif age > YTDLP_STALE_DAYS:
             age_label = f"  [yellow]({age}d old; run `distill doctor --update`)[/yellow]"
@@ -4848,7 +4899,7 @@ def topic_watch_run(
             console.print(f"  [dim]distill topic-watch run {entry.name} --ignore-budget[/dim]")
             continue
         if preview:
-            _preview_learning_selection(
+            preview_config, preview_tracker, _ = _preview_learning_selection(
                 entry.query,
                 days=entry.days,
                 limit=entry.limit,
@@ -4858,6 +4909,12 @@ def topic_watch_run(
                 rerank=bool(ranking["rerank"]),
                 header=f"Topic Watch Preview: {entry.name}",
                 table_title=f"Selected Learning Set: {entry.name}",
+            )
+            log_preview_cost(
+                preview_tracker,
+                preview_config.library_dir,
+                "topic-watch",
+                metadata={"watch": entry.name, "topic": entry.topic or ""},
             )
             continue
 
@@ -4993,7 +5050,7 @@ def monitor(
         console.print(f"  [dim]{watch_name} already exists; using existing watch[/dim]")
 
     if preview:
-        _preview_learning_selection(
+        preview_config, preview_tracker, _ = _preview_learning_selection(
             query,
             days=days,
             limit=limit,
@@ -5003,6 +5060,12 @@ def monitor(
             rerank=bool(ranking_strategy["rerank"]),
             header=f"Monitor Preview: {watch_name}",
             table_title=f"Selected Learning Set: {watch_name}",
+        )
+        log_preview_cost(
+            preview_tracker,
+            preview_config.library_dir,
+            "monitor",
+            metadata={"watch": watch_name, "topic": topic_name or ""},
         )
         return
 
@@ -6068,7 +6131,13 @@ def papers(
     if preview:
         _display_ranked_papers(ranked, title="Paper Best-Pick Learning Set")
         console.print("\n[dim]Run without `--preview` to process this set.[/dim]")
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        display_summary(
+            summary,
+            cost_tracker=tracker,
+            console=console,
+            log_dir=config.library_dir,
+            preview=True,
+        )
         return
 
     _display_ranked_papers(ranked, title="Selected Papers")
@@ -6107,6 +6176,18 @@ def discover(
     topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
     paper_limit: int = typer.Option(10, "--paper-limit", help="Max papers to ingest (default: 10)"),
     video_limit: int = typer.Option(10, "--video-limit", help="Max videos to ingest (default: 10)"),
+    papers_only: bool = typer.Option(
+        False,
+        "--papers-only",
+        help="Skip videos entirely (equivalent to --video-limit 0). Use when the topic "
+        "has thin or unrigorous YouTube coverage and you only want academic sources.",
+    ),
+    videos_only: bool = typer.Option(
+        False,
+        "--videos-only",
+        help="Skip papers entirely (equivalent to --paper-limit 0). Use when the topic "
+        "is better covered by talks/lectures than by formal papers.",
+    ),
     days: int = typer.Option(
         365, "--days", "-d", help="YouTube recency window in days (default: 365)"
     ),
@@ -6120,6 +6201,16 @@ def discover(
 ):
     """Goal-aware cross-source discovery: papers + videos, reranked against a goal."""
     _preflight()
+    if papers_only and videos_only:
+        console.print(
+            "[red]--papers-only and --videos-only are mutually exclusive. "
+            "Pick one, or omit both to discover across both sources.[/red]"
+        )
+        raise typer.Exit(1)
+    if papers_only:
+        video_limit = 0
+    if videos_only:
+        paper_limit = 0
     if goal_file is not None:
         if not goal_file.exists():
             console.print(f"[red]Goal file not found: {goal_file}[/red]")
@@ -6146,8 +6237,12 @@ def discover(
         f"| Days: {days}[/dim]\n"
     )
 
+    # When the user has restricted to a single source via --papers-only / --videos-only,
+    # don't pay for query generation on the disabled side.
+    paper_query_count = 5 if paper_limit > 0 else 0
+    video_query_count = 5 if video_limit > 0 else 0
     paper_queries, video_queries = _discover_generate_queries(
-        goal, config, tracker, paper_count=5, video_count=5
+        goal, config, tracker, paper_count=paper_query_count, video_count=video_query_count
     )
     if not paper_queries and not video_queries:
         console.print("[red]Query generation produced no queries. Try a more concrete goal.[/red]")
@@ -6199,7 +6294,13 @@ def discover(
 
     if preview:
         console.print("\n[dim]Run without `--preview` to ingest this set.[/dim]")
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        display_summary(
+            summary,
+            cost_tracker=tracker,
+            console=console,
+            log_dir=config.library_dir,
+            preview=True,
+        )
         return
 
     if not yes:

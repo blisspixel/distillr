@@ -78,3 +78,41 @@ def test_cost_tracker_uses_model_specific_pricing():
 
     assert tracker.total_grok_cost == 8.0
     assert tracker.summary_dict()["by_model"]["grok-4.20"]["calls"] == 1
+
+
+def test_save_run_log_preview_suffixes_command(tmp_path):
+    """Preview-only runs land in cost_log.jsonl as `<command>_preview` so they're
+    visible separately from ingest spend in `distill costs`."""
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=200,
+            completion_tokens=80,
+            model="grok-4-1-fast-reasoning",
+            call_type="discover_plan",
+        )
+    )
+
+    save_run_log(tmp_path, "discover", tracker, preview=True)
+
+    entry = json.loads((tmp_path / "cost_log.jsonl").read_text(encoding="utf-8").strip())
+    assert entry["command"] == "discover_preview"
+
+
+def test_save_run_log_default_does_not_suffix(tmp_path):
+    """Without preview=True, the command name is recorded verbatim — preserves
+    backward compatibility for all existing ingest-path call sites."""
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=100,
+            completion_tokens=50,
+            model="grok-4-1-fast-reasoning",
+            call_type="paper",
+        )
+    )
+
+    save_run_log(tmp_path, "papers", tracker)
+
+    entry = json.loads((tmp_path / "cost_log.jsonl").read_text(encoding="utf-8").strip())
+    assert entry["command"] == "papers"

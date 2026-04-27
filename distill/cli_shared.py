@@ -1,7 +1,14 @@
+# ruff: noqa: I001  -- bootstrap must import before rich/typer to set UTF-8 stdio
 import json
 import shutil
 from datetime import datetime
 from pathlib import Path
+
+# Side-effect import: reconfigures stdout/stderr to UTF-8 *before* rich.Console
+# is constructed below or any other distill module creates its own Console.
+# Required for Windows cp1252 consoles to render the preflight banner without
+# raising UnicodeEncodeError. Don't move this lower.
+from distill import _bootstrap  # noqa: F401  -- imported for stdio side effect
 
 import typer
 from rich.console import Console

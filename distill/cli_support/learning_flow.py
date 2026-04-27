@@ -51,6 +51,7 @@ def preview_learning_selection(
     hours: int | None = None,
     skeptical: bool | None = None,
     expand: bool = True,
+    top_by_date: bool = False,
 ):
     config = get_config()
     tracker = cost_tracker_factory()
@@ -58,10 +59,19 @@ def preview_learning_selection(
         auto_skeptical_mode(query, hours=hours, days=days) if skeptical is None else skeptical
     )
     console.print(f"\n[bold]{header}: {query}[/bold]")
-    console.print(
-        f"[dim]Window: {window_label(days, hours)} | Best picks: {limit} | Candidate order: {sort} | "
-        f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
-    )
+    if top_by_date:
+        # When the user asked for strict chronological semantics, the rerank /
+        # skeptical knobs are bypassed entirely — say so up front so the table
+        # output isn't confusing.
+        console.print(
+            f"[dim]Window: {window_label(days, hours)} | Best picks: {limit} | "
+            f"Mode: top-by-date (no rerank) | Channel cap: {per_channel_cap}[/dim]\n"
+        )
+    else:
+        console.print(
+            f"[dim]Window: {window_label(days, hours)} | Best picks: {limit} | Candidate order: {sort} | "
+            f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
+        )
 
     _, selected = select_learning_videos(
         query,
@@ -76,6 +86,7 @@ def preview_learning_selection(
         hours=hours,
         skeptical=skeptical_mode,
         expand=expand,
+        top_by_date=top_by_date,
     )
     if not selected:
         console.print("[yellow]No recent videos matched the search criteria[/yellow]")
@@ -113,6 +124,7 @@ def run_learning_command(
     skeptical: bool | None = None,
     expand: bool = True,
     focus: str | None = None,
+    top_by_date: bool = False,
 ) -> None:
     config = get_config()
     if not config.xai_api_key:
@@ -126,11 +138,17 @@ def run_learning_command(
     )
     report_focus = focus or default_report_focus(query, skeptical=skeptical_mode)
     console.print(f"\n[bold]{header}: {query}[/bold]")
-    console.print(
-        f"[dim]Topic: {topic_name} | Window: {window_label(days, hours)} | Best picks: {limit} | Candidate order: {sort} | "
-        f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
-    )
-    if skeptical_mode:
+    if top_by_date:
+        console.print(
+            f"[dim]Topic: {topic_name} | Window: {window_label(days, hours)} | Best picks: {limit} | "
+            f"Mode: top-by-date (no rerank) | Channel cap: {per_channel_cap}[/dim]\n"
+        )
+    else:
+        console.print(
+            f"[dim]Topic: {topic_name} | Window: {window_label(days, hours)} | Best picks: {limit} | Candidate order: {sort} | "
+            f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
+        )
+    if skeptical_mode and not top_by_date:
         console.print(
             "[yellow]Suspicion-aware discovery enabled for rumor-heavy or April 1 style coverage[/yellow]\n"
         )
@@ -148,6 +166,7 @@ def run_learning_command(
         hours=hours,
         skeptical=skeptical_mode,
         expand=expand,
+        top_by_date=top_by_date,
     )
     if not selected:
         console.print("[yellow]No recent videos matched the search criteria[/yellow]")

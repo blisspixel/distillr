@@ -228,6 +228,40 @@ def _freshness_score(upload_date: str) -> float:
     return 0.25
 
 
+def chronological_rank(videos: list[VideoInfo], top_n: int) -> list[RankedVideo]:
+    """Return the ``top_n`` most recent videos by upload date, no quality scoring.
+
+    Use when the user wants strict "last N uploads" semantics and explicitly
+    does not want the LLM rerank or the heuristic mix of relevance/depth/etc.
+    Videos with unparseable upload dates land at the bottom of the order.
+    """
+
+    def _sort_key(video: VideoInfo):
+        try:
+            return datetime.strptime(video.upload_date or "", "%Y%m%d")
+        except ValueError:
+            return datetime(1, 1, 1)
+
+    sorted_by_date = sorted(videos, key=_sort_key, reverse=True)
+    ranked = []
+    for video in sorted_by_date[:top_n]:
+        freshness = _freshness_score(video.upload_date or "")
+        ranked.append(
+            RankedVideo(
+                video=video,
+                final_score=freshness,
+                relevance_score=0.0,
+                depth_score=0.0,
+                practicality_score=0.0,
+                freshness_score=freshness,
+                credibility_score=0.0,
+                rationale="selected by upload date",
+                selected_by="chronological",
+            )
+        )
+    return ranked
+
+
 def _credibility_score(video: VideoInfo) -> float:
     views = math.log10(max(1, video.view_count)) / 6 if video.view_count else 0.2
     engagement = (

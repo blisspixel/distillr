@@ -47,6 +47,9 @@ def test_preflight_ytdlp_warns_when_stale(monkeypatch, tmp_path):
     preflight.preflight_ytdlp(console, library_dir=tmp_path)
 
     assert any("yt-dlp" in line and "30 days" in line for line in console.lines)
+    # Banner must use ASCII marker, not U+26A0, so cp1252 consoles don't crash.
+    for line in console.lines:
+        assert "⚠" not in line
     cache = json.loads((tmp_path / preflight.PREFLIGHT_CACHE_NAME).read_text())
     assert cache["yt-dlp"]["warned_age_days"] == 30
 
@@ -147,9 +150,10 @@ def test_update_ytdlp_returns_failure_on_pip_error(monkeypatch):
         return _Result()
 
     monkeypatch.setattr(preflight.subprocess, "run", fake_run)
-    ok, detail = preflight.update_ytdlp()
+    ok, detail, was_noop = preflight.update_ytdlp()
     assert ok is False
     assert "pip exploded" in detail
+    assert was_noop is False
 
 
 def test_update_ytdlp_returns_success_on_pip_zero_exit(monkeypatch):
@@ -159,7 +163,43 @@ def test_update_ytdlp_returns_success_on_pip_zero_exit(monkeypatch):
         stdout = ""
 
     monkeypatch.setattr(preflight.subprocess, "run", lambda *a, **k: _Result())
-    monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.4.20")
-    ok, detail = preflight.update_ytdlp()
+    # Different before/after means a real upgrade happened.
+    versions = iter(["2026.1.1", "2026.4.20"])
+    monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: next(versions))
+    ok, detail, was_noop = preflight.update_ytdlp()
     assert ok is True
     assert detail == "2026.4.20"
+    assert was_noop is False
+
+
+def test_update_ytdlp_marks_noop_when_version_unchanged(monkeypatch):
+    """pypi already has the latest release -- pip exits 0 but version doesn't change."""
+
+    class _Result:
+        returncode = 0
+        stderr = ""
+        stdout = "Requirement already satisfied: yt-dlp"
+
+    monkeypatch.setattr(preflight.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.3.17")
+    ok, detail, was_noop = preflight.update_ytdlp()
+    assert ok is True
+    assert detail == "2026.3.17"
+    assert was_noop is True
+
+
+def test_update_ytdlp_returns_noop_false_when_pre_version_unknown(monkeypatch):
+    """If we couldn't read the pre-upgrade version, can't claim no-op safely."""
+
+    class _Result:
+        returncode = 0
+        stderr = ""
+        stdout = ""
+
+    monkeypatch.setattr(preflight.subprocess, "run", lambda *a, **k: _Result())
+    versions = iter([None, "2026.4.20"])
+    monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: next(versions))
+    ok, detail, was_noop = preflight.update_ytdlp()
+    assert ok is True
+    assert detail == "2026.4.20"
+    assert was_noop is False
