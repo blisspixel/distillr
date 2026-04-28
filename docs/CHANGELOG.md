@@ -9,10 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Obsidian-native output: wiki-style cross-linking, standardized YAML frontmatter, `distill open --vault` hint. See ROADMAP section 10 (Tier 1).
+- Obsidian-native output: wiki-style cross-linking and `distill open --vault` hint. See ROADMAP section 10 (Tier 1).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
+
+## [0.3.0] — 2026-04-28
+
+Knowledge-base artifact contract: generated Markdown now behaves like a durable PKM / AI-native corpus instead of a pile of repeated generic filenames.
+
+### Added
+
+- Globally descriptive artifact names for new Markdown and text outputs, such as `<video-slug>_Insights.md`, `<paper-slug>_Paper.md`, `<topic>_Topic_Synthesis.md`, `<topic>_Report.md`, and `<topic>_Topic_Diff.md`.
+- Standard YAML frontmatter on generated Markdown artifacts, including fields such as `title`, `type`, `topic`, `source`, `source_id`, `url`, `date`, `authors`, `tags`, `confidence`, and artifact-specific metadata.
+- Shared artifact helpers for modern filename generation, frontmatter writing, and legacy fallback reads.
+
+### Changed
+
+- Video, paper, website, synthesis, briefing, report, topic-watch, MCP, dashboard, and web routes now read through the shared artifact layer.
+- Existing libraries with legacy names such as `insights.md`, `paper.md`, `content.md`, `synthesis.md`, and `topic_synthesis.md` remain readable, but new writes use the knowledge-base naming contract.
+- README and output docs now frame Distill as a local corpus engine for Markdown tools, MCP clients, and AI assistants rather than an Obsidian-only integration.
+- ROADMAP pulls the stable slug/frontmatter work forward into the 0.3 build and leaves wiki-links/concept notes for the later living-wiki milestones.
+
+### Fixed
+
+- Stale or missing local installs now work cleanly when reinstalled from the current checkout.
+- CI formatting drift from the artifact naming work was normalized with `ruff format`.
 
 ## [0.2.0] — 2026-04-27
 
