@@ -13,6 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
+from distill.artifacts import artifact_exists, find_artifact
 from distill.config import DistillConfig
 from distill.costs import CostTracker, save_run_log
 from distill.library import Library
@@ -52,8 +53,8 @@ def _video_list(config: DistillConfig, topic: str, channel_name: str) -> list[di
         if meta_file.exists():
             meta = json.loads(meta_file.read_text(encoding="utf-8"))
             meta["_dir"] = str(vid_dir)
-            meta["has_transcript"] = (vid_dir / "transcript.txt").exists()
-            meta["has_insights"] = (vid_dir / "insights.md").exists()
+            meta["has_transcript"] = artifact_exists(vid_dir, "transcript", extension="txt")
+            meta["has_insights"] = artifact_exists(vid_dir, "insights")
             vid_list.append(meta)
     vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
     return vid_list
@@ -112,7 +113,11 @@ def _topic_source_inventory(config: DistillConfig, topic: str) -> dict:
         for site_dir in sorted(sites_dir.iterdir()):
             if not site_dir.is_dir():
                 continue
-            if (site_dir / "synthesis.md").exists():
+            if artifact_exists(
+                site_dir,
+                "site_synthesis",
+                identity=f"{topic}_{site_dir.name}",
+            ):
                 sites_with_synthesis += 1
             pages_dir = site_dir / "pages"
             if not pages_dir.exists():
@@ -120,7 +125,7 @@ def _topic_source_inventory(config: DistillConfig, topic: str) -> dict:
             for page_dir in sorted(pages_dir.iterdir()):
                 if not page_dir.is_dir():
                     continue
-                if (page_dir / "content.md").exists() or (page_dir / "insights.md").exists():
+                if artifact_exists(page_dir, "content") or artifact_exists(page_dir, "insights"):
                     page_count += 1
 
     papers_dir = config.papers_dir(topic)
@@ -128,17 +133,17 @@ def _topic_source_inventory(config: DistillConfig, topic: str) -> dict:
         for paper_dir in sorted(papers_dir.iterdir()):
             if not paper_dir.is_dir():
                 continue
-            if (paper_dir / "insights.md").exists() or (paper_dir / "paper.md").exists():
+            if artifact_exists(paper_dir, "insights") or artifact_exists(paper_dir, "paper"):
                 papers_with_insights += 1
 
     topic_dir = config.topic_dir(topic)
     artifacts = {
-        "topic_synthesis": (topic_dir / "topic_synthesis.md").exists(),
-        "paper_synthesis": (topic_dir / "paper_synthesis.md").exists(),
-        "corpus_synthesis": (topic_dir / "corpus_synthesis.md").exists(),
-        "topic_diff": (topic_dir / "topic_diff.md").exists(),
-        "topic_trends": (topic_dir / "topic_trends.md").exists(),
-        "report": (topic_dir / "report.md").exists(),
+        "topic_synthesis": artifact_exists(topic_dir, "topic_synthesis", identity=topic),
+        "paper_synthesis": artifact_exists(topic_dir, "paper_synthesis", identity=topic),
+        "corpus_synthesis": artifact_exists(topic_dir, "corpus_synthesis", identity=topic),
+        "topic_diff": artifact_exists(topic_dir, "topic_diff", identity=topic),
+        "topic_trends": artifact_exists(topic_dir, "topic_trends", identity=topic),
+        "report": artifact_exists(topic_dir, "report", identity=topic),
     }
     active_source_types = [
         name
@@ -183,7 +188,7 @@ def _topic_gap_summary(config: DistillConfig, topic: str) -> dict:
                 missing_insights.append(f"{ch.name}: {video.get('title', 'Unknown')}")
             if not video.get("has_transcript", False):
                 missing_transcripts.append(f"{ch.name}: {video.get('title', 'Unknown')}")
-            insights_path = Path(video.get("_dir", "")) / "insights.md"
+            insights_path = find_artifact(Path(video.get("_dir", "")), "insights")
             if (
                 insights_path.exists()
                 and len(_strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()) < 800
@@ -616,8 +621,9 @@ def process_video_url(url: str, topic: str = "ai") -> str:
     }
 
     if success:
-        insights_file = (
-            config.video_dir_slug(topic, channel_name, info.title, info.video_id) / "insights.md"
+        insights_file = find_artifact(
+            config.video_dir_slug(topic, channel_name, info.title, info.video_id),
+            "insights",
         )
         if insights_file.exists():
             result["insights"] = _strip_frontmatter(insights_file.read_text(encoding="utf-8"))
@@ -861,14 +867,18 @@ def get_topic_videos(topic: str) -> str:
 def get_topic_synthesis(topic: str) -> str:
     """Read the topic synthesis document."""
     config = _config()
-    path = config.topic_dir(topic) / "topic_synthesis.md"
+    path = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
     if path.exists():
         return path.read_text(encoding="utf-8")
     # Fall back to first channel synthesis
     lib = _lib(config)
     channels = lib.get_channels(topic)
     for ch in channels:
-        ch_path = config.channel_dir(topic, ch.name) / "synthesis.md"
+        ch_path = find_artifact(
+            config.channel_dir(topic, ch.name),
+            "synthesis",
+            identity=f"{topic}_{ch.name}",
+        )
         if ch_path.exists():
             return ch_path.read_text(encoding="utf-8")
     return f"No synthesis found for topic '{topic}'. Run catch_up or learn_topic first."
@@ -879,7 +889,7 @@ def get_topic_corpus(topic: str) -> str:
     """Read the mixed-source corpus synthesis document when available."""
     config = _config()
     return _read_markdown_resource(
-        config.topic_dir(topic) / "corpus_synthesis.md",
+        find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic),
         f"No corpus synthesis found for '{topic}'. Run distill corpus {topic} after the topic has multiple source types.",
     )
 
@@ -896,7 +906,7 @@ def get_topic_diff(topic: str) -> str:
     """Read the latest topic diff briefing when available."""
     config = _config()
     return _read_markdown_resource(
-        config.topic_dir(topic) / "topic_diff.md",
+        find_artifact(config.topic_dir(topic), "topic_diff", identity=topic),
         f"No topic diff found for '{topic}'. Run distill diff {topic} or topic-watch refresh first.",
     )
 
@@ -906,7 +916,7 @@ def get_topic_trends(topic: str) -> str:
     """Read the latest topic trends summary when available."""
     config = _config()
     return _read_markdown_resource(
-        config.topic_dir(topic) / "topic_trends.md",
+        find_artifact(config.topic_dir(topic), "topic_trends", identity=topic),
         f"No topic trends found for '{topic}'. Run distill trends {topic} after accumulating change history.",
     )
 
@@ -916,7 +926,7 @@ def get_watch_alerts() -> str:
     """Read the latest watch alert digest when available."""
     config = _config()
     return _read_markdown_resource(
-        config.library_dir / "watch_alerts.md",
+        find_artifact(config.library_dir, "watch_alerts", identity="library"),
         "No watch alerts found. Run distill topic-watch run after adding some watches.",
     )
 
@@ -925,7 +935,11 @@ def get_watch_alerts() -> str:
 def get_channel_synthesis(topic: str, channel: str) -> str:
     """Read a channel's synthesis document."""
     config = _config()
-    path = config.channel_dir(topic, channel) / "synthesis.md"
+    path = find_artifact(
+        config.channel_dir(topic, channel),
+        "synthesis",
+        identity=f"{topic}_{channel}",
+    )
     if path.exists():
         return path.read_text(encoding="utf-8")
     return f"No synthesis for {channel}. Run catch_up first."
@@ -952,7 +966,7 @@ def get_video_insights(topic: str, channel: str, index: str) -> str:
 
     video = vid_list[idx - 1]
     vid_dir = Path(video["_dir"])
-    insights_file = vid_dir / "insights.md"
+    insights_file = find_artifact(vid_dir, "insights")
     if not insights_file.exists():
         return f"No insights for '{video.get('title', 'Unknown')}'. Video may not be analyzed yet."
 

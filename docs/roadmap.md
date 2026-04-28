@@ -93,7 +93,7 @@ be moved to `CHANGELOG.md` on next release).
 - [x] Paper ingestion pipeline — PDF/text extraction (pypdf, 100K char cap, surrogate-sanitized), paper-specific analysis via Grok 4.20, per-paper insights, paper-level and mixed-source corpus synthesis
 - [x] Paper-specific storage and metadata conventions that match the existing corpus model
 - [x] Paper-first workflows for "learn this research area fast" — `distill papers <query> --topic <name> --limit N` pulls LLM-ranked arXiv papers, extracts full PDF text, runs structured analysis, and produces per-topic paper synthesis without forcing YouTube- or website-shaped commands
-- [ ] **Chunk-and-rerank paper analysis (effective-context-aware).** Today the full PDF (truncated at 100K chars) is dumped into a single Grok prompt, which is exactly the "Dump Truck" anti-pattern that LongBench v2 / RULER / ∞Bench / STRING benchmarks show degrades sharply when relevant evidence sits mid-document. Replace with: section-aware chunker (use PDF headings; fall back to page+window slicing); per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"); small-window analysis loop assembling `insights.md` from focused passes. Outcome: better fidelity on long papers without higher token spend; per-prompt token counts as a first-class telemetry surface.
+- [ ] **Chunk-and-rerank paper analysis (effective-context-aware).** Today the full PDF (truncated at 100K chars) is dumped into a single Grok prompt, which is exactly the "Dump Truck" anti-pattern that LongBench v2 / RULER / ∞Bench / STRING benchmarks show degrades sharply when relevant evidence sits mid-document. Replace with: section-aware chunker (use PDF headings; fall back to page+window slicing); per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"); small-window analysis loop assembling `<paper-slug>_Insights.md` from focused passes. Outcome: better fidelity on long papers without higher token spend; per-prompt token counts as a first-class telemetry surface.
 - [ ] **Lift the 100K char cap once chunking is in place.** The cap was a defensive band-aid for the dump-truck pattern; once analysis runs over chunks, full long papers can be processed without prompt blowups.
 
 ### 7. Strengthen corpus quality and reuse
@@ -137,8 +137,8 @@ without locking users into any particular viewer or requiring bespoke tooling.
 
 *Tier 1 — Obsidian-native output (low-effort, immediate ecosystem lift)*
 
-- [ ] Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs: when an artifact cites a paper/video/page, emit `[[papers/<slug>/insights|Paper Title]]` instead of a plain citation. Prompt-level change; file paths are already known at generation time.
-- [ ] Standardized YAML frontmatter across every artifact: `type`, `topic`, `source`, `date`, `authors`, `tags` (e.g. `#technique/tkg`, `#concept/memory-consolidation`), `confidence` (`corpus-consensus | single-paper | contested | interpretation`). Unlocks Dataview-style queries inside Obsidian.
+- [ ] Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs: when an artifact cites a paper/video/page, emit `[[<slug>_Insights|Paper Title]]` instead of a plain citation. Prompt-level change; file paths are already known at generation time.
+- [x] Standardized YAML frontmatter across generated Markdown artifacts: `type`, `topic`, `source`, `date`, `authors`, `tags`, `confidence`. Concept/entity-specific tags such as `#technique/tkg` and contested/corpus-consensus labels continue in Tier 2.
 - [ ] `distill open --vault` (or equivalent hint in `distill dashboard`): launch the user's default markdown editor pointed at `library/`, so the free graph view and backlinks come with zero install steps.
 - [ ] Stable slug/link discipline: enforce one canonical URL per artifact so renames don't break backlinks. Link-check pass available via `distill doctor --links`.
 
@@ -188,7 +188,7 @@ Items below are concrete plumbing work that protects output quality and
 controls token spend as the corpus grows. See [`architecture.md#context-engineering-principles`](architecture.md#context-engineering-principles)
 for the principles these items derive from.
 
-- [ ] **Just-in-time MCP context (paths-not-payloads).** Today `distill-mcp` returns full markdown files; a 50KB `synthesis.md` blows the consuming agent's window for what may be a one-line lookup. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. Add `find_insights(topic, query)` returning ranked `(path, one_line_preview, score)` tuples; add `read_insight(path, section?)` for drill-down. Existing tools that return full bodies stay (for explicit "give me the file" calls) but stop being the default response shape.
+- [ ] **Just-in-time MCP context (paths-not-payloads).** Today `distill-mcp` returns full markdown files; a 50KB synthesis artifact blows the consuming agent's window for what may be a one-line lookup. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. Add `find_insights(topic, query)` returning ranked `(path, one_line_preview, score)` tuples; add `read_insight(path, section?)` for drill-down. Existing tools that return full bodies stay (for explicit "give me the file" calls) but stop being the default response shape.
 - [ ] **Compaction in the 4-phase report pipeline.** Phase 2 (section writing) and Phase 4 (QA) currently carry full prior-section context forward to enforce no-repeat. Switch to high-recall-then-precision compaction (the Anthropic pattern) and OpenAI-style opaque continuation items where the API supports them. Goal: significant token-spend reduction on long reports with no loss of cross-section coherence. Measure via the per-prompt token telemetry from section 2.
 - [ ] **Effective-context regression tests.** Add a small fixture suite that runs paper-analysis / synthesis / report prompts against representative long inputs and asserts the output covers known mid-document evidence (a "lost-in-the-middle" smoke test). Wire into CI so regressions surface in PRs rather than user reports.
 - [ ] **Tool-result clearing in iterative loops.** Long-running watch and discover loops accumulate tool-call results that are no longer relevant. Implement Anthropic's "clear stale tool results" pattern as a baseline compaction step before each new LLM call in those loops.
@@ -262,7 +262,7 @@ in the same session and deserve their own write-ups before implementation.
   window (typically 5–25 papers' worth of insights at 7–10 KB each), warns
   on overflow, and lets the user choose to drop low-confidence items rather
   than truncate; (c) per-claim source attribution in the PhD output so
-  readers can trace each finding to a specific `insights.md`; (d) distinct
+  readers can trace each finding to a specific `_Insights.md` artifact; (d) distinct
   artifact filenames (`synthesis_phd.md` / `synthesis_exec.md` / etc.) so
   styles coexist and can be compared side by side. This is the opposite
   trade-off from `roadmap.md` item 6 (chunk-and-rerank): chunking handles

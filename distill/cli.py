@@ -29,6 +29,14 @@ from distill.analysis import (
     analyze_video,
     generate_channel_context,
 )
+from distill.artifacts import (
+    artifact_exists,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+    write_text_artifact,
+)
 from distill.banner import show_banner
 from distill.briefing import generate_topic_brief
 from distill.browser_search import search_youtube_results
@@ -742,14 +750,15 @@ def _render_topic_summary(topic: str) -> None:
         video_count += state.get_processed_count()
 
     artifacts = []
-    for label, fname in [
-        ("topic synthesis", "topic_synthesis.md"),
-        ("brief", "brief.md"),
-        ("report", "report.md"),
-        ("paper synthesis", "paper_synthesis.md"),
-        ("corpus synthesis", "corpus_synthesis.md"),
+    topic_dir = config.topic_dir(topic)
+    for label, path_obj in [
+        ("topic synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
+        ("brief", find_artifact(topic_dir, "brief", identity=topic)),
+        ("report", find_artifact(topic_dir, "report", identity=topic)),
+        ("paper synthesis", find_artifact(topic_dir, "paper_synthesis", identity=topic)),
+        ("corpus synthesis", find_artifact(topic_dir, "corpus_synthesis", identity=topic)),
     ]:
-        if (config.topic_dir(topic) / fname).exists():
+        if path_obj.exists():
             artifacts.append(label)
 
     profile = _load_topic_profile(config, topic)
@@ -1090,7 +1099,7 @@ def _show_latest_insights(
         if not vid_dir.is_dir():
             continue
         meta_file = vid_dir / "metadata.json"
-        insights_file = vid_dir / "insights.md"
+        insights_file = find_artifact(vid_dir, "insights")
         if not meta_file.exists() or not insights_file.exists():
             continue
         try:
@@ -1109,7 +1118,7 @@ def _show_latest_insights(
         title = meta.get("title", "Unknown")
         date = _format_date(meta.get("upload_date", ""))
         vid_dir = meta["_dir"]
-        insights_file = vid_dir / "insights.md"
+        insights_file = find_artifact(vid_dir, "insights")
         content = insights_file.read_text(encoding="utf-8")
         # Strip frontmatter
         content = _strip_frontmatter(content)
@@ -1374,7 +1383,7 @@ def _show_dashboard():
             if not vdir.exists():
                 continue
             for d in vdir.iterdir():
-                if not d.is_dir() or not (d / "insights.md").exists():
+                if not d.is_dir() or not artifact_exists(d, "insights"):
                     continue
                 total_videos += 1
                 meta_path = d / "metadata.json"
@@ -1747,7 +1756,7 @@ def _topic_bundle_manifest(
         if not videos_dir.exists():
             continue
         for video_dir in videos_dir.iterdir():
-            if video_dir.is_dir() and (video_dir / "insights.md").exists():
+            if video_dir.is_dir() and artifact_exists(video_dir, "insights"):
                 video_count += 1
     return {
         "topic": topic,
@@ -2003,7 +2012,7 @@ def _render_dashboard_html(version: str, snapshot: dict) -> str:
     <div class="footer">
       Source artifacts: <span class="accent">library/latest_run.json</span>,
       <span class="accent">library/latest_run_errors.md</span>,
-      <span class="accent">library/latest_changes.md</span>
+      <span class="accent">library/library_Latest_Changes.md</span>
     </div>
   </div>
 </body>
@@ -2057,8 +2066,8 @@ def video(
         raise typer.Exit(1)
 
     video_dir = config.video_dir_slug(topic, channel_name, info.title, info.video_id)
-    transcript_file = video_dir / "transcript.txt"
-    insights_file = video_dir / "insights.md"
+    transcript_file = find_artifact(video_dir, "transcript", extension="txt")
+    insights_file = find_artifact(video_dir, "insights")
 
     try:
         console.print(
@@ -2097,8 +2106,8 @@ def video(
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
     console.print()
-    console.print(f"  transcript.txt  {_file_link(transcript_file)}")
-    console.print(f"  insights.md    {_file_link(insights_file)}")
+    console.print(f"  transcript      {_file_link(transcript_file)}")
+    console.print(f"  insights        {_file_link(insights_file)}")
     if not show:
         console.print("  [dim]Use --show to print the analysis inline[/dim]")
     console.print(
@@ -2186,7 +2195,11 @@ def channel_cmd(
     console.print(f"\nSynthesizing {name}...")
     try:
         synthesize_channel(topic, name, config, tracker=tracker)
-        synth_file = config.channel_dir(topic, name) / "synthesis.md"
+        synth_file = find_artifact(
+            config.channel_dir(topic, name),
+            "synthesis",
+            identity=f"{topic}_{name}",
+        )
         if synth_file.exists():
             summary.add_output(synth_file)
         else:
@@ -2768,9 +2781,10 @@ def library_cmd():
             state = ChannelState(state_file)
 
             artifacts = []
-            if (config.channel_dir(topic, ch.name) / "synthesis.md").exists():
+            channel_dir = config.channel_dir(topic, ch.name)
+            if artifact_exists(channel_dir, "synthesis", identity=f"{topic}_{ch.name}"):
                 artifacts.append("synthesis")
-            if (config.channel_dir(topic, ch.name) / "report.md").exists():
+            if artifact_exists(channel_dir, "report", identity=f"{topic}_{ch.name}"):
                 artifacts.append("report")
 
             table.add_row(
@@ -2784,10 +2798,11 @@ def library_cmd():
 
         # Topic-level artifacts
         topic_artifacts = []
-        if (config.topic_dir(topic) / "topic_synthesis.md").exists():
-            topic_artifacts.append("topic_synthesis.md")
-        if (config.topic_dir(topic) / "report.md").exists():
-            topic_artifacts.append("report.md")
+        topic_dir = config.topic_dir(topic)
+        if artifact_exists(topic_dir, "topic_synthesis", identity=topic):
+            topic_artifacts.append("topic synthesis")
+        if artifact_exists(topic_dir, "report", identity=topic):
+            topic_artifacts.append("report")
         if topic_artifacts:
             console.print(f"  [dim]Topic files: {', '.join(topic_artifacts)}[/dim]")
 
@@ -2838,8 +2853,12 @@ def videos(
             if meta_file.exists():
                 meta = json.loads(meta_file.read_text(encoding="utf-8"))
                 meta["_dir"] = vid_dir
-                meta["_has_transcript"] = (vid_dir / "transcript.txt").exists()
-                meta["_has_insights"] = (vid_dir / "insights.md").exists()
+                meta["_has_transcript"] = artifact_exists(
+                    vid_dir,
+                    "transcript",
+                    extension="txt",
+                )
+                meta["_has_insights"] = artifact_exists(vid_dir, "insights")
                 vid_list.append(meta)
 
         # Sort by upload date, newest first
@@ -2968,7 +2987,7 @@ def show(
     pos_label = f"[dim][{index}/{total}][/dim]"
 
     if what == "insights":
-        file_path = vid_dir / "insights.md"
+        file_path = find_artifact(vid_dir, "insights")
         if not file_path.exists():
             console.print("[red]No insights found for this video[/red]")
             console.print(f"[dim]Run: distill run {topic} -c {ch_name} --refresh[/dim]")
@@ -3001,7 +3020,7 @@ def show(
         console.print(f"  [dim]-w transcript[/dim]  |  {_file_link(file_path)}")
 
     elif what == "transcript":
-        file_path = vid_dir / "transcript.txt"
+        file_path = find_artifact(vid_dir, "transcript", extension="txt")
         if not file_path.exists():
             console.print("[red]No transcript found[/red]")
             console.print(f"[dim]Run: distill run {topic} -c {ch_name} --refresh[/dim]")
@@ -3101,7 +3120,7 @@ def package_latest(
             parts.append(f"**Link:** {url}\n")
 
         # Insights
-        insights_file = vid_dir / "insights.md"
+        insights_file = find_artifact(vid_dir, "insights")
         if insights_file.exists():
             content = insights_file.read_text(encoding="utf-8")
             # Strip YAML frontmatter
@@ -3113,7 +3132,7 @@ def package_latest(
 
         # Transcript (optional)
         if include_transcript:
-            transcript_file = vid_dir / "transcript.txt"
+            transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
             if transcript_file.exists():
                 transcript = transcript_file.read_text(encoding="utf-8")
                 parts.append(f"\n### Transcript\n\n{transcript}\n")
@@ -3145,18 +3164,26 @@ def synthesis(
     topic, channel = _resolve_topic_for_channel(lib, topic, channel)
 
     if channel:
-        file_path = config.channel_dir(topic, channel) / "synthesis.md"
+        file_path = find_artifact(
+            config.channel_dir(topic, channel),
+            "synthesis",
+            identity=f"{topic}_{channel}",
+        )
         label = f"Channel Synthesis: {channel}"
     else:
         # Try topic synthesis first, fall back to first channel
-        file_path = config.topic_dir(topic) / "topic_synthesis.md"
+        file_path = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
         label = f"Topic Synthesis: {topic}"
         if not file_path.exists():
             # Fall back to first channel synthesis
             lib = Library(config)
             channels = lib.get_channels(topic)
             if channels:
-                file_path = config.channel_dir(topic, channels[0].name) / "synthesis.md"
+                file_path = find_artifact(
+                    config.channel_dir(topic, channels[0].name),
+                    "synthesis",
+                    identity=f"{topic}_{channels[0].name}",
+                )
                 label = f"Channel Synthesis: {channels[0].name}"
 
     if not file_path.exists():
@@ -3188,11 +3215,19 @@ def synthesis(
                 if channel:
                     synthesize_channel(topic, channel, config, tracker=tracker)
                     console.print(f"[green]Synthesis generated for {channel}[/green]")
-                    file_path = config.channel_dir(topic, channel) / "synthesis.md"
+                    file_path = find_artifact(
+                        config.channel_dir(topic, channel),
+                        "synthesis",
+                        identity=f"{topic}_{channel}",
+                    )
                 else:
                     synthesize_topic(topic, config, tracker=tracker)
                     console.print(f"[green]Topic synthesis generated for {topic}[/green]")
-                    file_path = config.topic_dir(topic) / "topic_synthesis.md"
+                    file_path = find_artifact(
+                        config.topic_dir(topic),
+                        "topic_synthesis",
+                        identity=topic,
+                    )
             except Exception as e:
                 console.print(f"[red]Synthesis failed: {e}[/red]")
                 return
@@ -3226,10 +3261,14 @@ def findings(
     topic, channel = _resolve_topic_for_channel(lib, topic, channel)
 
     if channel:
-        file_path = config.channel_dir(topic, channel) / "report.md"
+        file_path = find_artifact(
+            config.channel_dir(topic, channel),
+            "report",
+            identity=f"{topic}_{channel}",
+        )
         label = f"Report: {channel}"
     else:
-        file_path = config.topic_dir(topic) / "report.md"
+        file_path = find_artifact(config.topic_dir(topic), "report", identity=topic)
         label = f"Report: {topic}"
 
     if not file_path.exists():
@@ -3263,7 +3302,7 @@ def diff(
     write: bool = typer.Option(
         True,
         "--write/--no-write",
-        help="Write the latest topic diff to library/topics/<topic>/topic_diff.md",
+        help="Write the latest topic diff as a slugged Markdown artifact",
     ),
 ):
     """Show what changed in a topic since the last watch run or a fallback window."""
@@ -3307,9 +3346,26 @@ def diff(
     _print_markdown_safely(console, rendered)
 
     if write:
-        diff_path = _topic_diff_output_path(config, topic)
-        diff_path.parent.mkdir(parents=True, exist_ok=True)
-        diff_path.write_text(rendered, encoding="utf-8")
+        diff_path = write_markdown_artifact(
+            config.topic_dir(topic),
+            "topic_diff",
+            rendered,
+            identity=topic,
+            frontmatter=base_frontmatter(
+                artifact_type="topic_diff",
+                title=f"Topic Diff: {topic}",
+                topic=topic,
+                source="distill",
+                tags=tags_for(topic, "diff"),
+                confidence="operational",
+                extra={
+                    "watch_name": watch_name or "",
+                    "query": query or "",
+                    "cadence": cadence or "",
+                    "legacy_filename": "topic_diff.md",
+                },
+            ),
+        )
         history_path = _append_topic_change_history(
             config,
             topic=topic,
@@ -3339,7 +3395,7 @@ def trends(
     write: bool = typer.Option(
         True,
         "--write/--no-write",
-        help="Write the latest topic trends to library/topics/<topic>/topic_trends.md",
+        help="Write the latest topic trends as a slugged Markdown artifact",
     ),
 ):
     """Show recent topic momentum using recorded diff history."""
@@ -3364,9 +3420,21 @@ def trends(
     _print_markdown_safely(console, rendered)
 
     if write:
-        trends_path = _topic_trends_output_path(config, topic)
-        trends_path.parent.mkdir(parents=True, exist_ok=True)
-        trends_path.write_text(rendered, encoding="utf-8")
+        trends_path = write_markdown_artifact(
+            config.topic_dir(topic),
+            "topic_trends",
+            rendered,
+            identity=topic,
+            frontmatter=base_frontmatter(
+                artifact_type="topic_trends",
+                title=f"Topic Trends: {topic}",
+                topic=topic,
+                source="distill",
+                tags=tags_for(topic, "trends"),
+                confidence="operational",
+                extra={"legacy_filename": "topic_trends.md"},
+            ),
+        )
         console.print()
         console.print(f"  {_file_link(trends_path)}")
         console.print(f"  {_file_link(_topic_change_history_path(config, topic))}")
@@ -3506,11 +3574,12 @@ def run(
                     "upload_date": video.upload_date,
                     "duration": video.duration,
                     "url": video.url,
+                    "channel": ch.name,
                 }
                 (vid_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
                 # Get transcript
-                transcript_file = vid_dir / "transcript.txt"
+                transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
                 if transcript_file.exists():
                     console.print("    [dim]Transcript already exists[/dim]")
                 else:
@@ -3566,9 +3635,31 @@ def run(
                             config,
                             tracker=tracker,
                         )
-                    insights_file = vid_dir / "insights.md"
-                    insights_file.write_text(insights, encoding="utf-8")
+                    analysis_mode = "short" if is_short else "full"
+                    insights_file = write_markdown_artifact(
+                        vid_dir,
+                        "insights",
+                        insights,
+                        frontmatter=base_frontmatter(
+                            artifact_type="insights",
+                            title=video.title,
+                            topic=t,
+                            source="youtube",
+                            source_id=video.video_id,
+                            url=video.url,
+                            date=video.upload_date,
+                            tags=tags_for(t, "youtube", analysis_mode),
+                            confidence="single-source",
+                            extra={
+                                "channel": ch.name,
+                                "duration_seconds": video.duration,
+                                "analysis_mode": analysis_mode,
+                                "legacy_filename": "insights.md",
+                            },
+                        ),
+                    )
                     console.print("    [green]Insights saved[/green]")
+                    summary.add_output(insights_file)
 
                     state.mark_processed(video.video_id, video.title, video.upload_date)
                     summary.add_result(
@@ -3603,7 +3694,11 @@ def run(
             console.print(f"\n  Synthesizing channel: {ch.name}...")
             try:
                 synthesize_channel(t, ch.name, config, tracker=tracker)
-                synth_file = config.channel_dir(t, ch.name) / "synthesis.md"
+                synth_file = find_artifact(
+                    config.channel_dir(t, ch.name),
+                    "synthesis",
+                    identity=f"{t}_{ch.name}",
+                )
                 cli_shared.record_output_or_issue(
                     summary,
                     synth_file,
@@ -3625,7 +3720,7 @@ def run(
         # Topic synthesis (only if multiple channels)
         try:
             synthesize_topic(t, config, tracker=tracker)
-            topic_synth = config.topic_dir(t) / "topic_synthesis.md"
+            topic_synth = find_artifact(config.topic_dir(t), "topic_synthesis", identity=t)
             cli_shared.record_output_or_issue(
                 summary,
                 topic_synth,
@@ -3866,17 +3961,25 @@ def export(
 
     if what == "report":
         if channel:
-            md_path = config.channel_dir(topic, channel) / "report.md"
+            md_path = find_artifact(
+                config.channel_dir(topic, channel),
+                "report",
+                identity=f"{topic}_{channel}",
+            )
             title = f"Report: {channel}"
         else:
-            md_path = config.topic_dir(topic) / "report.md"
+            md_path = find_artifact(config.topic_dir(topic), "report", identity=topic)
             title = f"Strategic Intelligence: {topic}"
     elif what == "synthesis":
         if channel:
-            md_path = config.channel_dir(topic, channel) / "synthesis.md"
+            md_path = find_artifact(
+                config.channel_dir(topic, channel),
+                "synthesis",
+                identity=f"{topic}_{channel}",
+            )
             title = f"Channel Synthesis: {channel}"
         else:
-            md_path = config.topic_dir(topic) / "topic_synthesis.md"
+            md_path = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
             title = f"Topic Synthesis: {topic}"
     else:
         console.print(f"[red]Unknown export type: {what}. Use: report, synthesis, bundle[/red]")
@@ -3935,9 +4038,13 @@ def open_cmd(
         scope = "channel" if channel else "topic"
         target = _get_report_path(topic, config, scope, channel)
     elif what == "synthesis" and topic and channel:
-        target = config.channel_dir(topic, channel) / "synthesis.md"
+        target = find_artifact(
+            config.channel_dir(topic, channel),
+            "synthesis",
+            identity=f"{topic}_{channel}",
+        )
     elif what == "synthesis" and topic:
-        target = config.topic_dir(topic) / "topic_synthesis.md"
+        target = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
     else:
         target = config.library_dir.parent / "output"
 
@@ -4126,12 +4233,12 @@ def status(
             # Artifacts
             ch_dir = config.channel_dir(topic, ch.name)
             artifacts = []
-            for a_name, a_file in [
-                ("context", "channel_context.md"),
-                ("synthesis", "synthesis.md"),
-                ("report", "report.md"),
+            for a_name, path in [
+                ("context", ch_dir / "channel_context.md"),
+                ("synthesis", find_artifact(ch_dir, "synthesis", identity=f"{topic}_{ch.name}")),
+                ("report", find_artifact(ch_dir, "report", identity=f"{topic}_{ch.name}")),
             ]:
-                if (ch_dir / a_file).exists():
+                if path.exists():
                     artifacts.append(a_name)
 
             if last:
@@ -4158,12 +4265,11 @@ def status(
         # Topic-level outputs with dates
         topic_dir = config.topic_dir(topic)
         topic_outs = []
-        for label, fname in [
-            ("synthesis", "topic_synthesis.md"),
-            ("brief", "brief.md"),
-            ("report", "report.md"),
+        for label, path in [
+            ("synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
+            ("brief", find_artifact(topic_dir, "brief", identity=topic)),
+            ("report", find_artifact(topic_dir, "report", identity=topic)),
         ]:
-            path = topic_dir / fname
             if path.exists():
                 mtime = datetime.fromtimestamp(path.stat().st_mtime)
                 topic_outs.append(f"{label} ({mtime.strftime('%b %d')})")
@@ -5482,7 +5588,11 @@ def catch_up(
         ):
             try:
                 synthesize_channel(entry.topic, entry.name, config, tracker=tracker)
-                synth_file = config.channel_dir(entry.topic, entry.name) / "synthesis.md"
+                synth_file = find_artifact(
+                    config.channel_dir(entry.topic, entry.name),
+                    "synthesis",
+                    identity=f"{entry.topic}_{entry.name}",
+                )
                 cli_shared.record_output_or_issue(
                     summary,
                     synth_file,
@@ -5511,7 +5621,11 @@ def catch_up(
         ):
             try:
                 synthesize_topic(topic, config, tracker=tracker)
-                topic_synth = config.topic_dir(topic) / "topic_synthesis.md"
+                topic_synth = find_artifact(
+                    config.topic_dir(topic),
+                    "topic_synthesis",
+                    identity=topic,
+                )
                 cli_shared.record_output_or_issue(
                     summary,
                     topic_synth,
@@ -5556,7 +5670,7 @@ def resynthesize(
 ):
     """Regenerate synthesis from existing insights -- no re-analysis.
 
-    Rebuilds channel synthesis and topic synthesis from the insights.md files
+    Rebuilds channel synthesis and topic synthesis from existing insight artifacts
     already on disk. Fast and cheap -- useful after manual edits or to refresh
     synthesis with updated prompts.
 
@@ -5590,7 +5704,11 @@ def resynthesize(
         console.print(f"  Synthesizing [bold]{ch.name}[/bold]...")
         try:
             synthesize_channel(topic, ch.name, config, tracker=tracker)
-            synth_file = config.channel_dir(topic, ch.name) / "synthesis.md"
+            synth_file = find_artifact(
+                config.channel_dir(topic, ch.name),
+                "synthesis",
+                identity=f"{topic}_{ch.name}",
+            )
             ok = cli_shared.record_output_or_issue(
                 summary,
                 synth_file,
@@ -5613,7 +5731,7 @@ def resynthesize(
     console.print(f"  Synthesizing topic [bold]{topic}[/bold]...")
     try:
         synthesize_topic(topic, config, tracker=tracker)
-        topic_synth = config.topic_dir(topic) / "topic_synthesis.md"
+        topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
         ok = cli_shared.record_output_or_issue(
             summary,
             topic_synth,
@@ -5647,8 +5765,8 @@ def reanalyze(
 ):
     """Re-run Grok analysis on existing transcripts -- skip re-downloading.
 
-    Walks all video directories that have a transcript.txt, re-runs the
-    2-pass (full) or 1-pass (Short) analysis, overwrites insights.md,
+    Walks all video directories that have a transcript artifact, re-runs the
+    2-pass (full) or 1-pass (Short) analysis, overwrites the insight artifact,
     then resynthesizes channel and topic.
 
     Use --deep to upgrade only scan-analyzed videos to full 2-pass analysis.
@@ -5682,7 +5800,7 @@ def reanalyze(
         for d in sorted(vdir.iterdir()):
             if not d.is_dir():
                 continue
-            transcript = d / "transcript.txt"
+            transcript = find_artifact(d, "transcript", extension="txt")
             meta_file = d / "metadata.json"
             if not transcript.exists() or transcript.stat().st_size == 0:
                 continue
@@ -5736,7 +5854,9 @@ def reanalyze(
 
         title = meta.get("title", vid_dir.name)
         upload_date = meta.get("upload_date", "")
-        transcript = (vid_dir / "transcript.txt").read_text(encoding="utf-8")
+        transcript = find_artifact(vid_dir, "transcript", extension="txt").read_text(
+            encoding="utf-8"
+        )
 
         label = "Short" if is_short else "Analyzing"
         console.print(f"    {label}: {title[:60]}...")
@@ -5750,7 +5870,31 @@ def reanalyze(
                 insights = analyze_video(
                     title, upload_date, ch_name, transcript, config, tracker=tracker
                 )
-            (vid_dir / "insights.md").write_text(insights, encoding="utf-8")
+            source_id = meta.get("video_id", vid_dir.name)
+            analysis_mode = "short" if is_short else "full"
+            insights_path = write_markdown_artifact(
+                vid_dir,
+                "insights",
+                insights,
+                frontmatter=base_frontmatter(
+                    artifact_type="insights",
+                    title=title,
+                    topic=topic,
+                    source="youtube",
+                    source_id=source_id,
+                    url=meta.get("url", ""),
+                    date=upload_date,
+                    tags=tags_for(topic, "youtube", analysis_mode),
+                    confidence="single-source",
+                    extra={
+                        "channel": ch_name,
+                        "duration_seconds": meta.get("duration", 0),
+                        "analysis_mode": analysis_mode,
+                        "legacy_filename": "insights.md",
+                    },
+                ),
+            )
+            summary.add_output(insights_path)
             summary.add_result(
                 VideoResult(
                     meta.get("video_id", vid_dir.name),
@@ -5776,7 +5920,11 @@ def reanalyze(
         console.print(f"\n  Synthesizing {ch.name}...")
         try:
             synthesize_channel(topic, ch.name, config, tracker=tracker)
-            synth_file = config.channel_dir(topic, ch.name) / "synthesis.md"
+            synth_file = find_artifact(
+                config.channel_dir(topic, ch.name),
+                "synthesis",
+                identity=f"{topic}_{ch.name}",
+            )
             cli_shared.record_output_or_issue(
                 summary,
                 synth_file,
@@ -5798,7 +5946,7 @@ def reanalyze(
     console.print(f"\n  Synthesizing topic '{topic}'...")
     try:
         synthesize_topic(topic, config, tracker=tracker)
-        topic_synth = config.topic_dir(topic) / "topic_synthesis.md"
+        topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
         cli_shared.record_output_or_issue(
             summary,
             topic_synth,
@@ -5870,7 +6018,6 @@ def _process_site_seed(
     site_manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     summary.add_output(site_manifest_path)
     if section_changes:
-        update_path = site_dir / "site_update.md"
         update_lines = [
             f"# Site Update: {site_name}",
             "",
@@ -5880,7 +6027,22 @@ def _process_site_seed(
             "## Section Changes",
         ]
         update_lines.extend(f"- {item}" for item in section_changes)
-        update_path.write_text("\n".join(update_lines) + "\n", encoding="utf-8")
+        update_path = write_markdown_artifact(
+            site_dir,
+            "site_update",
+            "\n".join(update_lines),
+            identity=f"{seed.topic}_{site_name}",
+            frontmatter=base_frontmatter(
+                artifact_type="site_update",
+                title=f"Site Update: {site_name}",
+                topic=seed.topic,
+                source="website",
+                url=seed.url,
+                tags=tags_for(seed.topic, "website", "update"),
+                confidence="operational",
+                extra={"site": site_name, "legacy_filename": "site_update.md"},
+            ),
+        )
         summary.add_output(update_path)
 
     analyzed_pages = 0
@@ -5919,16 +6081,43 @@ def _process_site_seed(
         metadata_path = page_dir / "metadata.json"
         metadata_path.write_text(json.dumps(page_meta, indent=2), encoding="utf-8")
         summary.add_output(metadata_path)
-        content_path = page_dir / "content.md"
-        content_path.write_text(page_document, encoding="utf-8")
+        page_frontmatter = base_frontmatter(
+            artifact_type="content",
+            title=page_obj.title,
+            topic=seed.topic,
+            source="website",
+            source_id=page_obj.page_id,
+            url=page_obj.final_url or page_obj.url,
+            date=page_obj.published_at,
+            authors=page_obj.authors,
+            tags=[*tags_for(seed.topic, "website"), *page_obj.tags],
+            confidence="source-content",
+            extra={
+                "site": page_obj.site_name,
+                "page_type": page_obj.page_type,
+                "canonical_url": page_meta.get("canonical_url", ""),
+                "section": page_meta.get("section", ""),
+                "legacy_filename": "content.md",
+            },
+        )
+        content_path = write_markdown_artifact(
+            page_dir,
+            "content",
+            page_document,
+            frontmatter=page_frontmatter,
+        )
         summary.add_output(content_path)
         if page_obj.transcript.strip():
-            transcript_path = page_dir / "transcript.txt"
-            transcript_path.write_text(page_obj.transcript, encoding="utf-8")
+            transcript_path = write_text_artifact(
+                page_dir,
+                "transcript",
+                page_obj.transcript,
+                extension="txt",
+            )
             summary.add_output(transcript_path)
         if scrape_only:
             continue
-        insights_path = page_dir / "insights.md"
+        insights_path = find_artifact(page_dir, "insights")
         if previous_metadata.get("content_hash") == content_hash and insights_path.exists():
             skipped_pages += 1
             summary.add_output(insights_path)
@@ -5936,7 +6125,17 @@ def _process_site_seed(
             continue
         try:
             insights = analyze_site_page(page_obj, config, tracker=tracker)
-            insights_path.write_text(insights, encoding="utf-8")
+            insights_path = write_markdown_artifact(
+                page_dir,
+                "insights",
+                insights,
+                frontmatter={
+                    **page_frontmatter,
+                    "type": "insights",
+                    "confidence": "single-source",
+                    "legacy_filename": "insights.md",
+                },
+            )
             summary.add_output(insights_path)
             analyzed_pages += 1
         except Exception as exc:
@@ -5959,7 +6158,13 @@ def _process_site_seed(
     try:
         synthesis = synthesize_site(seed.topic, site_name, config, tracker=tracker)
         if synthesis:
-            summary.add_output(config.site_dir(seed.topic, site_name) / "synthesis.md")
+            summary.add_output(
+                find_artifact(
+                    config.site_dir(seed.topic, site_name),
+                    "site_synthesis",
+                    identity=f"{seed.topic}_{site_name}",
+                )
+            )
     except Exception as exc:
         cli_shared.record_exception_issue(
             summary,
@@ -5986,8 +6191,37 @@ def _write_paper_artifacts(
         encoding="utf-8",
     )
     paper_doc = document if document is not None else build_paper_document(paper)
-    (paper_dir / "paper.md").write_text(paper_doc, encoding="utf-8")
-    (paper_dir / "insights.md").write_text(insights, encoding="utf-8")
+    paper_frontmatter = base_frontmatter(
+        artifact_type="paper",
+        title=paper.title,
+        topic=topic,
+        source=paper.source,
+        source_id=paper.paper_id,
+        url=paper.abs_url,
+        date=paper.published_at,
+        authors=paper.authors,
+        tags=[*tags_for(topic, paper.source), *paper.categories],
+        confidence="source-content",
+        extra={
+            "paper_id": paper.paper_id,
+            "pdf_url": paper.pdf_url,
+            "updated_at": paper.updated_at,
+            "categories": paper.categories,
+            "legacy_filename": "paper.md",
+        },
+    )
+    write_markdown_artifact(paper_dir, "paper", paper_doc, frontmatter=paper_frontmatter)
+    write_markdown_artifact(
+        paper_dir,
+        "insights",
+        insights,
+        frontmatter={
+            **paper_frontmatter,
+            "type": "insights",
+            "confidence": "single-paper",
+            "legacy_filename": "insights.md",
+        },
+    )
     return paper_dir
 
 
@@ -6014,14 +6248,16 @@ def paper(
         console.print(f"[dim]{', '.join(paper_record.authors[:6])}[/dim]")
     insights, document = analyze_paper(paper_record, config, tracker=tracker)
     paper_dir = _write_paper_artifacts(topic, paper_record, config, insights, document)
-    summary.add_output(paper_dir / "paper.md")
-    summary.add_output(paper_dir / "insights.md")
+    summary.add_output(find_artifact(paper_dir, "paper"))
+    summary.add_output(find_artifact(paper_dir, "insights"))
     synthesis = synthesize_papers(topic, config, tracker=tracker)
     if synthesis:
-        summary.add_output(config.topic_dir(topic) / "paper_synthesis.md")
+        summary.add_output(find_artifact(config.topic_dir(topic), "paper_synthesis", identity=topic))
     corpus_synth = synthesize_corpus(topic, config, tracker=tracker)
     if corpus_synth:
-        summary.add_output(config.topic_dir(topic) / "corpus_synthesis.md")
+        summary.add_output(
+            find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic)
+        )
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -6046,7 +6282,7 @@ def corpus(
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
         raise typer.Exit(1)
 
-    summary.add_output(config.topic_dir(topic) / "corpus_synthesis.md")
+    summary.add_output(find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic))
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -6149,15 +6385,19 @@ def papers(
         console.print(f"  [{idx}/{len(records)}] [bold]{record.title}[/bold]")
         insights, document = analyze_paper(record, config, tracker=tracker)
         paper_dir = _write_paper_artifacts(topic_name, record, config, insights, document)
-        summary.add_output(paper_dir / "paper.md")
-        summary.add_output(paper_dir / "insights.md")
+        summary.add_output(find_artifact(paper_dir, "paper"))
+        summary.add_output(find_artifact(paper_dir, "insights"))
 
     synthesis = synthesize_papers(topic_name, config, tracker=tracker)
     if synthesis:
-        summary.add_output(config.topic_dir(topic_name) / "paper_synthesis.md")
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
+        )
     corpus_synth = synthesize_corpus(topic_name, config, tracker=tracker)
     if corpus_synth:
-        summary.add_output(config.topic_dir(topic_name) / "corpus_synthesis.md")
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
+        )
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -6325,11 +6565,13 @@ def discover(
             console.print(f"  [{idx}/{len(ranked_papers)}] [bold]{paper.title}[/bold]")
             insights, document = analyze_paper(paper, config, tracker=tracker)
             paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
-            summary.add_output(paper_dir / "paper.md")
-            summary.add_output(paper_dir / "insights.md")
+            summary.add_output(find_artifact(paper_dir, "paper"))
+            summary.add_output(find_artifact(paper_dir, "insights"))
         synth = synthesize_papers(topic_name, config, tracker=tracker)
         if synth:
-            summary.add_output(config.topic_dir(topic_name) / "paper_synthesis.md")
+            summary.add_output(
+                find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
+            )
 
     # Ingest videos (reuse the learning pipeline)
     if ranked_videos:
@@ -6352,7 +6594,9 @@ def discover(
 
     corpus = synthesize_corpus(topic_name, config, tracker=tracker)
     if corpus:
-        summary.add_output(config.topic_dir(topic_name) / "corpus_synthesis.md")
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
+        )
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -6419,10 +6663,14 @@ def site_cmd(
         try:
             topic_synth = synthesize_site_topic(topic, config, tracker=tracker)
             if topic_synth:
-                summary.add_output(config.topic_dir(topic) / "topic_synthesis.md")
+                summary.add_output(
+                    find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
+                )
             corpus_synth = synthesize_corpus(topic, config, tracker=tracker)
             if corpus_synth:
-                summary.add_output(config.topic_dir(topic) / "corpus_synthesis.md")
+                summary.add_output(
+                    find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic)
+                )
         except Exception as exc:
             cli_shared.record_exception_issue(
                 summary,
@@ -6500,10 +6748,22 @@ def site_batch_cmd(
         try:
             topic_synth = synthesize_site_topic(target_topic, config, tracker=tracker)
             if topic_synth:
-                summary.add_output(config.topic_dir(target_topic) / "topic_synthesis.md")
+                summary.add_output(
+                    find_artifact(
+                        config.topic_dir(target_topic),
+                        "topic_synthesis",
+                        identity=target_topic,
+                    )
+                )
             corpus_synth = synthesize_corpus(target_topic, config, tracker=tracker)
             if corpus_synth:
-                summary.add_output(config.topic_dir(target_topic) / "corpus_synthesis.md")
+                summary.add_output(
+                    find_artifact(
+                        config.topic_dir(target_topic),
+                        "corpus_synthesis",
+                        identity=target_topic,
+                    )
+                )
         except Exception as exc:
             cli_shared.record_exception_issue(
                 summary,

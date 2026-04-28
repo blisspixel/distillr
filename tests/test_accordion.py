@@ -21,6 +21,7 @@ from distill.accordion import (
     _write_sections,
     run_accordion_research,
 )
+from distill.artifacts import artifact_path, strip_frontmatter
 from distill.prompts_accordion import (
     REPORT_SECTIONS,
     dossier_prompt,
@@ -292,17 +293,17 @@ class TestDossierPath:
 class TestResearchPath:
     def test_topic_path(self, config):
         path = _get_research_path("ai", config, "topic", None)
-        assert path.name == "research.md"
+        assert path.name == "ai_Research.md"
         assert "ai" in str(path)
 
     def test_channel_path(self, config):
         path = _get_research_path("ai", config, "channel", "TestCh")
-        assert path.name == "research.md"
+        assert path.name == "ai_TestCh_Research.md"
         assert "TestCh" in str(path)
 
     def test_all_path(self, config):
         path = _get_research_path("all", config, "all", None)
-        assert path.name == "research.md"
+        assert path.name == "library_Research.md"
 
 
 class TestCountSources:
@@ -800,9 +801,8 @@ class TestAccordionRun:
         result = run_accordion_research("ai", config, dossier_only=True)
 
         assert result == "dossier body"
-        assert (config.topic_dir("ai") / "research.md").read_text(
-            encoding="utf-8"
-        ) == "dossier body"
+        research_path = artifact_path(config.topic_dir("ai"), "research", identity="ai")
+        assert strip_frontmatter(research_path.read_text(encoding="utf-8")) == "dossier body"
 
     def test_run_accordion_research_returns_none_when_sections_empty(self, config, monkeypatch):
         monkeypatch.setattr(
@@ -843,7 +843,7 @@ class TestAccordionRun:
         result = run_accordion_research("ai", config, skip_qa=True)
 
         assert "section body" in result
-        assert (config.topic_dir("ai") / "report.md").exists()
+        assert artifact_path(config.topic_dir("ai"), "report", identity="ai").exists()
 
     def test_run_accordion_research_reassembles_after_qa_rewrite(self, config, monkeypatch):
         monkeypatch.setattr(

@@ -8,6 +8,7 @@ from openai import OpenAI
 from rich.console import Console
 
 from distill.analysis import XAI_BASE_URL
+from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
 from distill.config import DistillConfig
 from distill.costs import CostTracker, TokenUsage
 from distill.prompts import (
@@ -109,7 +110,7 @@ def synthesize_site(
     for page_dir in sorted(pages_dir.iterdir()):
         if not page_dir.is_dir():
             continue
-        insights_file = page_dir / "insights.md"
+        insights_file = find_artifact(page_dir, "insights")
         if not insights_file.exists():
             continue
         parts.append(f"\n\n---\n{insights_file.read_text(encoding='utf-8')}")
@@ -126,8 +127,22 @@ def synthesize_site(
         tracker=tracker,
         call_type="site_synthesis",
     )
-    output = config.site_dir(topic, site_name) / "synthesis.md"
-    output.write_text(synthesis, encoding="utf-8")
+    site_dir = config.site_dir(topic, site_name)
+    write_markdown_artifact(
+        site_dir,
+        "site_synthesis",
+        synthesis,
+        identity=f"{topic}_{site_dir.name}",
+        frontmatter=base_frontmatter(
+            artifact_type="site-synthesis",
+            title=f"Site synthesis: {site_name}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "website"),
+            confidence="corpus-consensus",
+            extra={"site": site_name, "legacy_filename": "synthesis.md"},
+        ),
+    )
     return synthesis
 
 
@@ -144,7 +159,11 @@ def synthesize_site_topic(
     for site_dir in sorted(sites_dir.iterdir()):
         if not site_dir.is_dir():
             continue
-        synth_file = site_dir / "synthesis.md"
+        synth_file = find_artifact(
+            site_dir,
+            "site_synthesis",
+            identity=f"{topic}_{site_dir.name}",
+        )
         if synth_file.exists():
             site_summaries[site_dir.name] = synth_file.read_text(encoding="utf-8")
 
@@ -160,6 +179,19 @@ def synthesize_site_topic(
         tracker=tracker,
         call_type="site_topic_synthesis",
     )
-    output = config.topic_dir(topic) / "topic_synthesis.md"
-    output.write_text(synthesis, encoding="utf-8")
+    write_markdown_artifact(
+        config.topic_dir(topic),
+        "topic_synthesis",
+        synthesis,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="topic-synthesis",
+            title=f"Topic synthesis: {topic}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "website"),
+            confidence="corpus-consensus",
+            extra={"legacy_filename": "topic_synthesis.md"},
+        ),
+    )
     return synthesis

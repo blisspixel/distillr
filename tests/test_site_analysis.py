@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
 from distill.costs import CostTracker
 from distill.site_analysis import (
@@ -121,9 +122,13 @@ def test_synthesize_site_writes_output(tmp_path, monkeypatch):
     result = synthesize_site("web", "example.com", config)
 
     assert result == "site synthesis"
-    assert (config.site_dir("web", "example.com") / "synthesis.md").read_text(
-        encoding="utf-8"
-    ) == "site synthesis"
+    output = find_artifact(
+        config.site_dir("web", "example.com"),
+        "site_synthesis",
+        identity="web_example.com",
+    )
+    assert output.name == "web_example_com_Site_Synthesis.md"
+    assert strip_frontmatter(output.read_text(encoding="utf-8")) == "site synthesis"
 
 
 def test_synthesize_site_returns_empty_without_pages(tmp_path):
@@ -149,9 +154,9 @@ def test_synthesize_site_topic_writes_output(tmp_path, monkeypatch):
     result = synthesize_site_topic("web", config)
 
     assert result == "topic synthesis"
-    assert (config.topic_dir("web") / "topic_synthesis.md").read_text(
-        encoding="utf-8"
-    ) == "topic synthesis"
+    output = find_artifact(config.topic_dir("web"), "topic_synthesis", identity="web")
+    assert output.name == "web_Topic_Synthesis.md"
+    assert strip_frontmatter(output.read_text(encoding="utf-8")) == "topic synthesis"
 
 
 def test_synthesize_site_topic_returns_empty_without_sites(tmp_path):

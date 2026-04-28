@@ -6,6 +6,7 @@ from openai import OpenAI
 from rich.console import Console
 
 from distill.analysis import XAI_BASE_URL
+from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
 from distill.config import DistillConfig
 from distill.costs import CostTracker, TokenUsage
 from distill.prompts import channel_synthesis_prompt, topic_synthesis_prompt
@@ -77,7 +78,13 @@ def synthesize_channel(
     channel_context = context_file.read_text(encoding="utf-8") if context_file.exists() else ""
 
     all_insights = ""
-    insight_files = sorted(videos_dir.glob("*/insights.md"))
+    insight_files = [
+        path
+        for video_dir in sorted(videos_dir.iterdir())
+        if video_dir.is_dir()
+        for path in [find_artifact(video_dir, "insights")]
+        if path.exists()
+    ]
 
     if not insight_files:
         console.print(f"  [yellow]No insights found for {channel_name}[/yellow]")
@@ -103,8 +110,21 @@ def synthesize_channel(
         console.print(f"  [red]Channel synthesis API error: {e}[/red]")
         return ""
 
-    output_file = channel_dir / "synthesis.md"
-    output_file.write_text(synthesis, encoding="utf-8")
+    output_file = write_markdown_artifact(
+        channel_dir,
+        "synthesis",
+        synthesis,
+        identity=f"{topic}_{channel_dir.name}",
+        frontmatter=base_frontmatter(
+            artifact_type="channel-synthesis",
+            title=f"Channel synthesis: {channel_name}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "youtube"),
+            confidence="corpus-consensus",
+            extra={"channel": channel_name, "legacy_filename": "synthesis.md"},
+        ),
+    )
     console.print(f"  [green]Saved {output_file}[/green]")
 
     return synthesis
@@ -126,7 +146,7 @@ def synthesize_topic(
     for channel_dir in sorted(channels_dir.iterdir()):
         if not channel_dir.is_dir():
             continue
-        synth_file = channel_dir / "synthesis.md"
+        synth_file = find_artifact(channel_dir, "synthesis", identity=f"{topic}_{channel_dir.name}")
         if synth_file.exists():
             channel_syntheses[channel_dir.name] = synth_file.read_text(encoding="utf-8")
 
@@ -155,8 +175,21 @@ def synthesize_topic(
         console.print(f"  [red]Topic synthesis API error: {e}[/red]")
         return ""
 
-    output_file = topic_dir / "topic_synthesis.md"
-    output_file.write_text(synthesis, encoding="utf-8")
+    output_file = write_markdown_artifact(
+        topic_dir,
+        "topic_synthesis",
+        synthesis,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="topic-synthesis",
+            title=f"Topic synthesis: {topic}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "youtube"),
+            confidence="corpus-consensus",
+            extra={"legacy_filename": "topic_synthesis.md"},
+        ),
+    )
     console.print(f"  [green]Saved {output_file}[/green]")
 
     return synthesis

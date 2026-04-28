@@ -3,6 +3,7 @@
 import json
 from types import SimpleNamespace
 
+from distill.artifacts import artifact_path, strip_frontmatter
 from distill.config import DistillConfig
 from distill.research import (
     _gather_corpus_condensed,
@@ -14,12 +15,16 @@ from distill.research import (
 def test_get_report_path_respects_scope(tmp_path):
     config = DistillConfig(distill_output_dir=tmp_path / "lib")
 
-    assert _get_report_path("ai", config, "topic", None) == config.topic_dir("ai") / "report.md"
+    assert _get_report_path("ai", config, "topic", None) == artifact_path(
+        config.topic_dir("ai"), "report", identity="ai"
+    )
     assert (
         _get_report_path("ai", config, "channel", "Creator")
-        == config.channel_dir("ai", "Creator") / "report.md"
+        == artifact_path(config.channel_dir("ai", "Creator"), "report", identity="ai_Creator")
     )
-    assert _get_report_path("all", config, "all", None) == config.library_dir / "report.md"
+    assert _get_report_path("all", config, "all", None) == artifact_path(
+        config.library_dir, "report", identity="library"
+    )
 
 
 def test_gather_corpus_condensed_includes_context_synthesis_and_insights(tmp_path):
@@ -99,7 +104,8 @@ def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
     result = run_deep_research("ai", config)
 
     assert result == "final report"
-    assert (config.topic_dir("ai") / "report.md").read_text(encoding="utf-8") == "final report"
+    report_path = artifact_path(config.topic_dir("ai"), "report", identity="ai")
+    assert strip_frontmatter(report_path.read_text(encoding="utf-8")) == "final report"
     assert deleted == ["store-1"]
 
 

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typer.testing import CliRunner
 
 from distill import cli
+from distill.artifacts import artifact_path
 from distill.config import DistillConfig
 from distill.library import Library, TopicWatchEntry
 
@@ -188,19 +189,19 @@ def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
         assert result.exit_code == 0
         assert "Update" in result.output
         assert "+1 video" in result.output
-        topic_update = config.topic_dir("ai") / "watch_update.md"
+        topic_update = artifact_path(config.topic_dir("ai"), "watch_update", identity="ai")
         assert topic_update.exists()
         text = topic_update.read_text(encoding="utf-8")
         assert "Topic Watch Update: microsoft-news" in text
         assert "Microsoft AI news" in text
         assert "+1 video" in text
-        latest_changes = config.library_dir / "latest_changes.md"
+        latest_changes = artifact_path(config.library_dir, "latest_changes", identity="library")
         assert latest_changes.exists()
         latest_text = latest_changes.read_text(encoding="utf-8")
         assert "microsoft-news" in latest_text
-        assert "topic_diff.md" in latest_text
+        assert "ai_Topic_Diff.md" in latest_text
 
-        topic_diff = config.topic_dir("ai") / "topic_diff.md"
+        topic_diff = cli._topic_diff_output_path(config, "ai")
         assert topic_diff.exists()
         diff_text = topic_diff.read_text(encoding="utf-8")
         assert "# Topic Diff: ai" in diff_text
@@ -214,7 +215,7 @@ def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
         assert history_lines
         assert '"videos": 1' in history_lines[-1]
 
-        alerts_path = config.library_dir / "watch_alerts.md"
+        alerts_path = cli._watch_alerts_output_path(config)
         assert alerts_path.exists()
         alerts_text = alerts_path.read_text(encoding="utf-8")
         assert "Topic Watch Alerts" in alerts_text
@@ -461,7 +462,7 @@ def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, m
         assert "+1 video" in result.output
         assert "AI daily" in result.output
 
-        diff_path = config.topic_dir("ai") / "topic_diff.md"
+        diff_path = cli._topic_diff_output_path(config, "ai")
         assert diff_path.exists()
         assert "New Signal" in diff_path.read_text(encoding="utf-8")
 
@@ -584,7 +585,7 @@ def test_trends_command_handles_empty_history(tmp_path):
         assert "Topic Trends: ai" in result.output
         assert "No topic change history has been recorded yet" in result.output
 
-        trends_path = config.topic_dir("ai") / "topic_trends.md"
+        trends_path = cli._topic_trends_output_path(config, "ai")
         assert trends_path.exists()
     finally:
         cli.get_config = original
@@ -620,12 +621,12 @@ def test_trends_command_summarizes_recent_windows(tmp_path):
         assert "+2 pages" in result.output or "+2 page" in result.output
         assert "ai-daily" in result.output
 
-        trends_path = topic_dir / "topic_trends.md"
+        trends_path = cli._topic_trends_output_path(config, "ai")
         assert trends_path.exists()
         trends_text = trends_path.read_text(encoding="utf-8")
         assert "# Topic Trends: ai" in trends_text
         assert "## Recent Windows" in trends_text
-        assert "topic_diff.md" in trends_text
+        assert "ai_Topic_Diff.md" in trends_text
     finally:
         cli.get_config = original
 

@@ -9,6 +9,14 @@ from google import genai
 from openai import OpenAI
 from rich.console import Console
 
+from distill.artifacts import (
+    artifact_exists,
+    artifact_path,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.config import DistillConfig
 from distill.costs import CostTracker, TokenUsage
 from distill.file_search import create_research_store, delete_store
@@ -56,7 +64,21 @@ def run_accordion_research(
     # Save research as standalone artifact
     research_path = _get_research_path(topic, config, scope, channel_name)
     research_path.parent.mkdir(parents=True, exist_ok=True)
-    research_path.write_text(dossier, encoding="utf-8")
+    write_markdown_artifact(
+        research_path.parent,
+        "research",
+        dossier,
+        identity=research_path.stem.removesuffix("_Research"),
+        frontmatter=base_frontmatter(
+            artifact_type="research",
+            title=f"Research dossier: {_scope_label(scope, topic, channel_name)}",
+            topic=topic if scope != "all" else "",
+            source="distill",
+            tags=tags_for(topic, "research") if scope != "all" else tags_for("", "research"),
+            confidence="interpretation",
+            extra={"legacy_filename": "research.md"},
+        ),
+    )
     console.print(f"[dim]Research saved: {research_path}[/dim]")
 
     if dossier_only:
@@ -131,7 +153,21 @@ def run_accordion_research(
     # Save
     output_path = _get_report_path(topic, config, scope, channel_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(report, encoding="utf-8")
+    write_markdown_artifact(
+        output_path.parent,
+        "report",
+        report,
+        identity=output_path.stem.removesuffix("_Report"),
+        frontmatter=base_frontmatter(
+            artifact_type="report",
+            title=f"Report: {_scope_label(scope, topic, channel_name)}",
+            topic=topic if scope != "all" else "",
+            source="distill",
+            tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
+            confidence="interpretation",
+            extra={"legacy_filename": "report.md"},
+        ),
+    )
 
     total_words = len(report.split())
     console.print(
@@ -653,12 +689,16 @@ def _load_syntheses(
                     )
 
     for t, ch in channels:
-        synth_file = config.channel_dir(t, ch) / "synthesis.md"
+        synth_file = find_artifact(
+            config.channel_dir(t, ch),
+            "synthesis",
+            identity=f"{t}_{ch}",
+        )
         if synth_file.exists():
             parts.append(f"### {ch} Channel Synthesis\n{synth_file.read_text(encoding='utf-8')}")
 
     # Topic synthesis
-    topic_synth = config.topic_dir(topic) / "topic_synthesis.md"
+    topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
     if topic_synth.exists():
         parts.append(f"### Topic Synthesis: {topic}\n{topic_synth.read_text(encoding='utf-8')}")
 
@@ -707,7 +747,7 @@ def _load_tagged_insights(
         for vid_dir in sorted(videos_dir.iterdir()):
             if not vid_dir.is_dir():
                 continue
-            insights_file = vid_dir / "insights.md"
+            insights_file = find_artifact(vid_dir, "insights")
             if not insights_file.exists():
                 continue
 
@@ -758,11 +798,15 @@ def _get_research_path(
 ) -> Path:
     """Path for the Phase 1 research notes."""
     if scope == "channel" and channel_name:
-        return config.channel_dir(topic, channel_name) / "research.md"
+        return artifact_path(
+            config.channel_dir(topic, channel_name),
+            "research",
+            identity=f"{topic}_{channel_name}",
+        )
     elif scope == "topic":
-        return config.topic_dir(topic) / "research.md"
+        return artifact_path(config.topic_dir(topic), "research", identity=topic)
     else:
-        return config.library_dir / "research.md"
+        return artifact_path(config.library_dir, "research", identity="library")
 
 
 def _get_dossier_path(
@@ -823,7 +867,7 @@ def _count_sources(
         vdir = config.videos_dir(t, ch)
         if vdir.exists():
             video_count += sum(
-                1 for d in vdir.iterdir() if d.is_dir() and (d / "insights.md").exists()
+                1 for d in vdir.iterdir() if d.is_dir() and artifact_exists(d, "insights")
             )
 
     return video_count, len(channels)
