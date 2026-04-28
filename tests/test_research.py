@@ -18,9 +18,8 @@ def test_get_report_path_respects_scope(tmp_path):
     assert _get_report_path("ai", config, "topic", None) == artifact_path(
         config.topic_dir("ai"), "report", identity="ai"
     )
-    assert (
-        _get_report_path("ai", config, "channel", "Creator")
-        == artifact_path(config.channel_dir("ai", "Creator"), "report", identity="ai_Creator")
+    assert _get_report_path("ai", config, "channel", "Creator") == artifact_path(
+        config.channel_dir("ai", "Creator"), "report", identity="ai_Creator"
     )
     assert _get_report_path("all", config, "all", None) == artifact_path(
         config.library_dir, "report", identity="library"

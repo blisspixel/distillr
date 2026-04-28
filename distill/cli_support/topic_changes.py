@@ -710,7 +710,9 @@ def _write_topic_change_briefing(
     )
 
     latest_path = artifact_path(config.library_dir, "latest_changes", identity="library")
-    existing = strip_frontmatter(latest_path.read_text(encoding="utf-8")) if latest_path.exists() else ""
+    existing = (
+        strip_frontmatter(latest_path.read_text(encoding="utf-8")) if latest_path.exists() else ""
+    )
     entry = (
         f"## {watch_name}\n"
         f"- Topic: `{topic}`\n"
