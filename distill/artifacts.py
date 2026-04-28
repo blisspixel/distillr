@@ -77,7 +77,9 @@ def artifact_path(
     extension: str = "md",
 ) -> Path:
     """Return the modern, Obsidian-friendly artifact path for a directory."""
-    return directory / artifact_filename(identity or directory.name, artifact_type, extension=extension)
+    return directory / artifact_filename(
+        identity or directory.name, artifact_type, extension=extension
+    )
 
 
 def legacy_artifact_path(directory: Path, artifact_type: str) -> Path:
@@ -113,9 +115,7 @@ def artifact_exists(
     identity: str | None = None,
     extension: str = "md",
 ) -> bool:
-    return find_artifact(
-        directory, artifact_type, identity=identity, extension=extension
-    ).exists()
+    return find_artifact(directory, artifact_type, identity=identity, extension=extension).exists()
 
 
 def read_artifact(
