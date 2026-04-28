@@ -20,6 +20,12 @@ from distill.analysis import (
     analyze_video,
     generate_channel_context,
 )
+from distill.artifacts import (
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.config import DistillConfig, slugify_title
 from distill.costs import CostTracker
 from distill.state import ChannelState
@@ -261,7 +267,7 @@ def process_video(
     _ACCENT = "rgb(100,149,237)"
     write_video_metadata(vid_dir, video, channel_name, analysis_mode=effective_mode)
 
-    transcript_file = vid_dir / "transcript.txt"
+    transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
     transcript_bytes = transcript_file.stat().st_size if transcript_file.exists() else 0
 
     if not transcript_file.exists():
@@ -338,8 +344,37 @@ def process_video(
                     tracker=tracker,
                     custom_instructions=custom_instructions,
                 )
-        insights_file = vid_dir / "insights.md"
-        insights_file.write_text(insights, encoding="utf-8")
+        meta = {
+            "video_id": video.video_id,
+            "title": video.title,
+            "upload_date": video.upload_date,
+            "duration": video.duration,
+            "url": video.url,
+            "channel": getattr(video, "channel_name", "") or channel_name or "",
+            "analysis_mode": effective_mode,
+        }
+        insights_file = write_markdown_artifact(
+            vid_dir,
+            "insights",
+            insights,
+            frontmatter=base_frontmatter(
+                artifact_type="insights",
+                title=video.title,
+                topic=topic,
+                source="youtube",
+                source_id=video.video_id,
+                url=video.url,
+                date=video.upload_date,
+                tags=tags_for(topic, "youtube", effective_mode),
+                confidence="single-source",
+                extra={
+                    "channel": meta["channel"],
+                    "duration_seconds": video.duration,
+                    "analysis_mode": effective_mode,
+                    "legacy_filename": "insights.md",
+                },
+            ),
+        )
         size = f"{transcript_bytes:,}b" if transcript_bytes else ""
         console.print(f"    [{_ACCENT}]done[/{_ACCENT}]  [dim]{size}[/dim]")
         if state is not None:

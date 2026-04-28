@@ -7,6 +7,13 @@ from pathlib import Path
 from google import genai
 from rich.console import Console
 
+from distill.artifacts import (
+    artifact_path,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.config import DistillConfig
 from distill.file_search import create_research_store, delete_store
 from distill.prompts import deep_research_prompt
@@ -86,9 +93,7 @@ def run_deep_research(
             delete_store(client, store_name)
             return None
 
-        output_path = _get_report_path(topic, config, scope, channel_name)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(result_text, encoding="utf-8")
+        output_path = _write_report_artifact(result_text, topic, config, scope, channel_name)
         console.print(f"[green]Findings saved to {output_path}[/green]")
         return result_text
     except Exception as exc:
@@ -134,7 +139,11 @@ def _gather_corpus_condensed(
         if ctx_file.exists():
             parts.append(f"\n# Channel: {ch}\n{ctx_file.read_text(encoding='utf-8')}")
 
-        synth_file = config.channel_dir(t, ch) / "synthesis.md"
+        synth_file = find_artifact(
+            config.channel_dir(t, ch),
+            "synthesis",
+            identity=f"{t}_{ch}",
+        )
         if synth_file.exists():
             parts.append(f"\n## Channel Synthesis\n{synth_file.read_text(encoding='utf-8')}")
 
@@ -151,7 +160,7 @@ def _gather_corpus_condensed(
                     meta = json.loads(meta_file.read_text(encoding="utf-8"))
                     title = meta.get("title", vid_dir.name)
                     date = meta.get("upload_date", "")
-                insights_file = vid_dir / "insights.md"
+                insights_file = find_artifact(vid_dir, "insights")
                 if insights_file.exists():
                     content = insights_file.read_text(encoding="utf-8")
                     if content.startswith("---"):
@@ -177,7 +186,11 @@ def _gather_corpus_condensed(
         for site_dir in sorted(sites_dir.iterdir()):
             if not site_dir.is_dir():
                 continue
-            synth_file = site_dir / "synthesis.md"
+            synth_file = find_artifact(
+                site_dir,
+                "site_synthesis",
+                identity=f"{site_topic}_{site_dir.name}",
+            )
             if synth_file.exists():
                 parts.append(
                     f"\n## Site Synthesis: {site_dir.name}\n{synth_file.read_text(encoding='utf-8')}"
@@ -188,7 +201,7 @@ def _gather_corpus_condensed(
             for page_dir in sorted(pages_dir.iterdir()):
                 if not page_dir.is_dir():
                     continue
-                insights_file = page_dir / "insights.md"
+                insights_file = find_artifact(page_dir, "insights")
                 meta_file = page_dir / "metadata.json"
                 if not insights_file.exists():
                     continue
@@ -222,7 +235,7 @@ def _gather_corpus_condensed(
         for paper_dir in sorted(papers_dir.iterdir()):
             if not paper_dir.is_dir():
                 continue
-            insights_file = paper_dir / "insights.md"
+            insights_file = find_artifact(paper_dir, "insights")
             meta_file = paper_dir / "metadata.json"
             if not insights_file.exists():
                 continue
@@ -240,17 +253,17 @@ def _gather_corpus_condensed(
             )
 
     if scope == "topic":
-        topic_synth = config.topic_dir(topic) / "topic_synthesis.md"
+        topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
         if topic_synth.exists():
             parts.append(
                 f"\n## Topic Synthesis: {topic}\n{topic_synth.read_text(encoding='utf-8')}"
             )
-        paper_synth = config.topic_dir(topic) / "paper_synthesis.md"
+        paper_synth = find_artifact(config.topic_dir(topic), "paper_synthesis", identity=topic)
         if paper_synth.exists():
             parts.append(
                 f"\n## Paper Synthesis: {topic}\n{paper_synth.read_text(encoding='utf-8')}"
             )
-        corpus_synth = config.topic_dir(topic) / "corpus_synthesis.md"
+        corpus_synth = find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic)
         if corpus_synth.exists():
             parts.append(
                 f"\n## Corpus Synthesis: {topic}\n{corpus_synth.read_text(encoding='utf-8')}"
@@ -261,17 +274,29 @@ def _gather_corpus_condensed(
             for t_dir in sorted(topics_root.iterdir()):
                 if not t_dir.is_dir():
                     continue
-                topic_synth = t_dir / "topic_synthesis.md"
+                topic_synth = find_artifact(
+                    t_dir,
+                    "topic_synthesis",
+                    identity=t_dir.name,
+                )
                 if topic_synth.exists():
                     parts.append(
                         f"\n## Topic Synthesis: {t_dir.name}\n{topic_synth.read_text(encoding='utf-8')}"
                     )
-                paper_synth = t_dir / "paper_synthesis.md"
+                paper_synth = find_artifact(
+                    t_dir,
+                    "paper_synthesis",
+                    identity=t_dir.name,
+                )
                 if paper_synth.exists():
                     parts.append(
                         f"\n## Paper Synthesis: {t_dir.name}\n{paper_synth.read_text(encoding='utf-8')}"
                     )
-                corpus_synth = t_dir / "corpus_synthesis.md"
+                corpus_synth = find_artifact(
+                    t_dir,
+                    "corpus_synthesis",
+                    identity=t_dir.name,
+                )
                 if corpus_synth.exists():
                     parts.append(
                         f"\n## Corpus Synthesis: {t_dir.name}\n{corpus_synth.read_text(encoding='utf-8')}"
@@ -287,7 +312,51 @@ def _get_report_path(
     channel_name: str | None,
 ) -> Path:
     if scope == "channel" and channel_name:
-        return config.channel_dir(topic, channel_name) / "report.md"
+        return artifact_path(
+            config.channel_dir(topic, channel_name),
+            "report",
+            identity=f"{topic}_{channel_name}",
+        )
     if scope == "topic":
-        return config.topic_dir(topic) / "report.md"
-    return config.library_dir / "report.md"
+        return artifact_path(config.topic_dir(topic), "report", identity=topic)
+    return artifact_path(config.library_dir, "report", identity="library")
+
+
+def _write_report_artifact(
+    content: str,
+    topic: str,
+    config: DistillConfig,
+    scope: str,
+    channel_name: str | None,
+) -> Path:
+    if scope == "channel" and channel_name:
+        directory = config.channel_dir(topic, channel_name)
+        identity = f"{topic}_{channel_name}"
+        title = f"Channel report: {channel_name}"
+        extra = {"channel": channel_name, "legacy_filename": "report.md"}
+    elif scope == "topic":
+        directory = config.topic_dir(topic)
+        identity = topic
+        title = f"Topic report: {topic}"
+        extra = {"legacy_filename": "report.md"}
+    else:
+        directory = config.library_dir
+        identity = "library"
+        title = "Library report"
+        extra = {"legacy_filename": "report.md"}
+    directory.mkdir(parents=True, exist_ok=True)
+    return write_markdown_artifact(
+        directory,
+        "report",
+        content,
+        identity=identity,
+        frontmatter=base_frontmatter(
+            artifact_type="report",
+            title=title,
+            topic=topic if scope != "all" else "",
+            source="distill",
+            tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
+            confidence="interpretation",
+            extra=extra,
+        ),
+    )

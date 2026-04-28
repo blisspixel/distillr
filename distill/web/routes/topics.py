@@ -5,6 +5,7 @@ import json
 
 from fastapi import APIRouter, Request
 
+from distill.artifacts import artifact_exists, find_artifact
 from distill.config import DistillConfig
 from distill.library import Library
 
@@ -18,7 +19,7 @@ def _topic_summary(config: DistillConfig, lib: Library, topic: str) -> dict:
         vdir = config.channel_dir(topic, ch.name) / "videos"
         if vdir.exists():
             video_count += sum(
-                1 for d in vdir.iterdir() if d.is_dir() and (d / "insights.md").exists()
+                1 for d in vdir.iterdir() if d.is_dir() and artifact_exists(d, "insights")
             )
     site_count = 0
     sites_dir = config.sites_dir(topic)
@@ -28,12 +29,12 @@ def _topic_summary(config: DistillConfig, lib: Library, topic: str) -> dict:
     papers_dir = config.papers_dir(topic)
     if papers_dir.exists():
         paper_count = sum(
-            1 for d in papers_dir.iterdir() if d.is_dir() and (d / "paper.md").exists()
+            1 for d in papers_dir.iterdir() if d.is_dir() and artifact_exists(d, "paper")
         )
     topic_dir = config.topic_dir(topic)
-    has_synthesis = (topic_dir / "topic_synthesis.md").exists()
-    has_report = (topic_dir / "report.md").exists()
-    has_brief = (topic_dir / "brief.md").exists()
+    has_synthesis = artifact_exists(topic_dir, "topic_synthesis", identity=topic)
+    has_report = artifact_exists(topic_dir, "report", identity=topic)
+    has_brief = artifact_exists(topic_dir, "brief", identity=topic)
     return {
         "name": topic,
         "channels": channels,
@@ -67,12 +68,14 @@ async def topic_detail(request: Request, topic: str):
     topic_dir = config.topic_dir(topic)
 
     synthesis = ""
-    if (topic_dir / "topic_synthesis.md").exists():
-        synthesis = (topic_dir / "topic_synthesis.md").read_text(encoding="utf-8")
+    synthesis_path = find_artifact(topic_dir, "topic_synthesis", identity=topic)
+    if synthesis_path.exists():
+        synthesis = synthesis_path.read_text(encoding="utf-8")
 
     brief = ""
-    if (topic_dir / "brief.md").exists():
-        brief = (topic_dir / "brief.md").read_text(encoding="utf-8")
+    brief_path = find_artifact(topic_dir, "brief", identity=topic)
+    if brief_path.exists():
+        brief = brief_path.read_text(encoding="utf-8")
 
     # Gather sites
     sites = []
@@ -85,7 +88,7 @@ async def topic_detail(request: Request, topic: str):
             pages_dir = site_dir / "pages"
             if pages_dir.exists():
                 page_count = sum(
-                    1 for p in pages_dir.iterdir() if p.is_dir() and (p / "content.md").exists()
+                    1 for p in pages_dir.iterdir() if p.is_dir() and artifact_exists(p, "content")
                 )
             sites.append({"name": site_dir.name, "page_count": page_count})
 

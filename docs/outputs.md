@@ -1,6 +1,8 @@
 # Output reference
 
-What distill writes to disk. Every artifact is plain markdown or JSON under a local `library/` directory.
+What distill writes to disk. Every artifact is plain Markdown, text, or JSON under a local `library/` directory.
+
+New Markdown artifacts use globally descriptive filenames and YAML frontmatter so they work well in Markdown knowledge-base tools and AI assistants. Older generic filenames such as `insights.md` and `topic_synthesis.md` are still readable for backwards compatibility, but new writes use names like `<paper-slug>_Insights.md` and `<topic>_Corpus_Synthesis.md`.
 
 ## Directory layout
 
@@ -9,15 +11,15 @@ library/
 ├── library.json                   # Master index
 ├── cost_log.jsonl                 # Per-run cost history
 └── topics/<topic>/
-    ├── topic_synthesis.md         # Cross-source synthesis for the topic
-    ├── corpus_synthesis.md        # Mixed-source view (when multiple source types exist)
-    ├── paper_synthesis.md         # Cross-paper synthesis (when papers exist)
-    ├── research.md                # Deep Research Phase 1 output
-    ├── report.md                  # Full 4-phase report
-    ├── brief.md                   # Lightweight brief
-    ├── watch_update.md            # Last topic-watch delta
-    ├── topic_diff.md              # Latest change report
-    ├── topic_trends.md            # Momentum summary
+    ├── <topic>_Topic_Synthesis.md # Cross-source synthesis for the topic
+    ├── <topic>_Corpus_Synthesis.md# Mixed-source view (when multiple source types exist)
+    ├── <topic>_Paper_Synthesis.md # Cross-paper synthesis (when papers exist)
+    ├── <topic>_Research.md        # Deep Research Phase 1 output
+    ├── <topic>_Report.md          # Full 4-phase report
+    ├── <topic>_Brief.md           # Lightweight brief
+    ├── <topic>_Watch_Update.md    # Last topic-watch delta
+    ├── <topic>_Topic_Diff.md      # Latest change report
+    ├── <topic>_Topic_Trends.md    # Momentum summary
     ├── change_history.jsonl       # Timestamped change counts
     ├── channels/<channel>/        # Per-channel artifacts
     ├── sites/<hostname>/          # Per-site artifacts
@@ -26,9 +28,9 @@ library/
 
 ## Per video (full-length, >3 min) — 2-pass analysis
 
-- **`transcript.txt`** — Full transcript (YouTube captions → scribe fallback)
+- **`<video-slug>_Transcript.txt`** — Full transcript (YouTube captions → scribe fallback)
 - **`metadata.json`** — Video ID, title, upload date, duration, URL
-- **`insights.md`** — Deep structured insight document:
+- **`<video-slug>_Insights.md`** — Deep structured insight document:
   - Summary — core argument and why it matters
   - Key Announcements — products, policies, personnel, with status tags
   - Technical Insights — architecture, benchmarks, specific numbers
@@ -39,9 +41,9 @@ library/
 
 ## Per Short (≤3 min) — 1-pass extraction
 
-- **`transcript.txt`** — Full transcript
+- **`<video-slug>_Transcript.txt`** — Full transcript
 - **`metadata.json`** — Video metadata
-- **`insights.md`** — Lightweight quick insight:
+- **`<video-slug>_Insights.md`** — Lightweight quick insight:
   - Quick Take — 1–2 sentence signal summary
   - News & Updates — breaking announcements
   - Hot Take — creator's opinion or reaction
@@ -52,49 +54,49 @@ library/
 
 Used by `distill catch-up`. Custom per-channel instructions shape the output.
 
-- **`transcript.txt`** — Full transcript
+- **`<video-slug>_Transcript.txt`** — Full transcript
 - **`metadata.json`** — Video metadata (`analysis_mode: "scan"`)
-- **`insights.md`** — Fast scan output with optional custom extraction
+- **`<video-slug>_Insights.md`** — Fast scan output with optional custom extraction
 
 ## Per channel
 
 - **`channel_context.md`** — Auto-generated profile: who they are, what they cover, perspective/bias
-- **`synthesis.md`** — Cross-video knowledge base that evolves on each refresh
+- **`<topic>_<channel>_Synthesis.md`** — Cross-video knowledge base that evolves on each refresh
 - **`state.json`** — Tracks what's been processed (enables `--refresh`)
 
 ## Per topic
 
-- **`topic_synthesis.md`** — Cross-source knowledge base
-- **`corpus_synthesis.md`** — Mixed-source view when videos, sites, and papers contribute to the same topic (this is what `distill discover` produces by default once its shortlist finishes ingesting)
-- **`brief.md`** — Lightweight "what matters now" brief
+- **`<topic>_Topic_Synthesis.md`** — Cross-source knowledge base
+- **`<topic>_Corpus_Synthesis.md`** — Mixed-source view when videos, sites, and papers contribute to the same topic (this is what `distill discover` produces by default once its shortlist finishes ingesting)
+- **`<topic>_Brief.md`** — Lightweight "what matters now" brief
 
 ## Per website page
 
 - **`metadata.json`** — URL, final URL, canonical URL, page type, title, links, embedded video links, PDF links, crawl depth
-- **`content.md`** — Normalized visible page content
-- **`transcript.txt`** — Optional transcript when a page exposes one
+- **`<page-slug>_Content.md`** — Normalized visible page content
+- **`<page-slug>_Transcript.txt`** — Optional transcript when a page exposes one
 - **`attachments.json`** — Structured attachment inventory
 - **`attachments/*.txt`** — Optional extracted PDF text or embedded-video transcript
-- **`insights.md`** — Structured page-level analysis
+- **`<page-slug>_Insights.md`** — Structured page-level analysis
 
 ## Per site / site batch
 
 - **`site.json`** — Manifest of processed pages (includes section-level crawl state)
-- **`site_update.md`** — Section change summary between runs
-- **`synthesis.md`** — Cross-page synthesis
+- **`<topic>_<site>_Site_Update.md`** — Section change summary between runs
+- **`<topic>_<site>_Site_Synthesis.md`** — Cross-page synthesis
 
 ## Per arXiv paper
 
 - **`metadata.json`** — arXiv ID, title, authors, categories, abstract URL, PDF URL
-- **`paper.md`** — Full paper document (abstract + extracted PDF text, up to 100K chars)
-- **`insights.md`** — Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
+- **`<paper-slug>_Paper.md`** — Full paper document (abstract + extracted PDF text, up to 100K chars)
+- **`<paper-slug>_Insights.md`** — Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
 
 Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal (and short-circuited when `--preview` is set). The shortlist itself is not persisted as a file today — if you want to capture it, use `--preview` and copy the table, or re-run with `--yes` to commit directly to ingestion.
 
 ## Reports (any scope)
 
-- **`research.md`** — Phase 1 output: structured raw facts from Deep Research with descriptive citations and confidence levels
-- **`report.md`** — The capstone. Typically 30–50 pages for a full multi-source topic, though actual length varies. Sections adapt to scope:
+- **`<scope>_Research.md`** — Phase 1 output: structured raw facts from Deep Research with descriptive citations and confidence levels
+- **`<topic>_Report.md`** — The capstone. Typically 30–50 pages for a full multi-source topic, though actual length varies. Sections adapt to scope:
 
 ### Single-channel reports (10 sections)
 
@@ -129,21 +131,44 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 
 ## Topic watch artifacts
 
-- **`library/topics/<topic>/watch_update.md`** — Per-watch delta summary
-- **`library/topics/<topic>/topic_diff.md`** — Topic-level change report
-- **`library/topics/<topic>/topic_trends.md`** — Momentum over recent diff windows
+- **`library/topics/<topic>/<topic>_Watch_Update.md`** — Per-watch delta summary
+- **`library/topics/<topic>/<topic>_Topic_Diff.md`** — Topic-level change report
+- **`library/topics/<topic>/<topic>_Topic_Trends.md`** — Momentum over recent diff windows
 - **`library/topics/<topic>/change_history.jsonl`** — Timestamped change counts
-- **`library/latest_changes.md`** — Library-level rollup
-- **`library/watch_alerts.md`** — Digest of notable changes
+- **`library/library_Latest_Changes.md`** — Library-level rollup
+- **`library/library_Watch_Alerts.md`** — Digest of notable changes
 
-## Sample insights.md (arXiv paper)
+## Standard YAML frontmatter
+
+Every generated Markdown artifact starts with a YAML block intended for Markdown knowledge-base tools, Dataview-style database plugins, importers, and AI assistants:
+
+```yaml
+---
+title: "The real difference between Gemini 3 and ChatGPT 5.1"
+type: "insights"
+topic: "ai-agents"
+source: "youtube"
+source_id: "abc123"
+url: "https://www.youtube.com/watch?v=abc123"
+date: "2026-03-09"
+tags: ["distill/ai_agents", "source/youtube"]
+confidence: "single-source"
+channel: "NateBJones"
+---
+```
+
+## Sample `<paper-slug>_Insights.md` (arXiv paper)
 
 ```markdown
 ---
-paper_title: "Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge Graphs"
-paper_id: 2604.11544v1
+title: "Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge Graphs"
+type: "insights"
+topic: "tkg"
 source: arxiv
+source_id: 2604.11544v1
 url: https://arxiv.org/abs/2604.11544v1
+tags: ["distill/tkg", "source/arxiv"]
+confidence: "single-paper"
 analyzed_by: grok-4.20-0309-reasoning
 source_mode: full_pdf
 ---
@@ -175,7 +200,7 @@ Analysis derived from the full PDF. Quantitative claims traced to specific table
 and figures in the source.
 ```
 
-## Sample paper_synthesis.md excerpt
+## Sample `<topic>_Paper_Synthesis.md` excerpt
 
 ```markdown
 ## Strongest Research Signals

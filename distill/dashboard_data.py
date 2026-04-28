@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from distill.artifacts import artifact_exists, find_artifact
 from distill.cli_shared import duration_str, strip_frontmatter
 from distill.config import DistillConfig
 from distill.library import Library
@@ -235,7 +236,7 @@ def count_site_corpus(config: DistillConfig, topics: list[str]) -> tuple[int, in
             if not pages_dir.exists():
                 continue
             for page_dir in pages_dir.iterdir():
-                if page_dir.is_dir() and (page_dir / "content.md").exists():
+                if page_dir.is_dir() and artifact_exists(page_dir, "content"):
                     page_count += 1
     return site_count, page_count
 
@@ -247,7 +248,7 @@ def count_paper_corpus(config: DistillConfig, topics: list[str]) -> int:
         if not papers_dir.exists():
             continue
         for paper_dir in papers_dir.iterdir():
-            if paper_dir.is_dir() and (paper_dir / "paper.md").exists():
+            if paper_dir.is_dir() and artifact_exists(paper_dir, "paper"):
                 total += 1
     return total
 
@@ -258,11 +259,11 @@ def count_topic_outputs(config: DistillConfig, topics: list[str]) -> tuple[int, 
     synthesis_count = 0
     for topic in topics:
         topic_dir = config.topic_dir(topic)
-        if (topic_dir / "report.md").exists():
+        if artifact_exists(topic_dir, "report", identity=topic):
             report_count += 1
-        if (topic_dir / "brief.md").exists():
+        if artifact_exists(topic_dir, "brief", identity=topic):
             brief_count += 1
-        if (topic_dir / "topic_synthesis.md").exists():
+        if artifact_exists(topic_dir, "topic_synthesis", identity=topic):
             synthesis_count += 1
     return report_count, brief_count, synthesis_count
 
@@ -277,21 +278,49 @@ def collect_recent_artifacts(
     for topic in topics:
         topic_dir = config.topic_dir(topic)
         candidates = [
-            (topic_dir / "topic_synthesis.md", "topic synthesis", topic),
-            (topic_dir / "corpus_synthesis.md", "corpus synthesis", topic),
-            (topic_dir / "paper_synthesis.md", "paper synthesis", topic),
-            (topic_dir / "report.md", "report", topic),
-            (topic_dir / "brief.md", "brief", topic),
+            (
+                find_artifact(topic_dir, "topic_synthesis", identity=topic),
+                "topic synthesis",
+                topic,
+            ),
+            (
+                find_artifact(topic_dir, "corpus_synthesis", identity=topic),
+                "corpus synthesis",
+                topic,
+            ),
+            (
+                find_artifact(topic_dir, "paper_synthesis", identity=topic),
+                "paper synthesis",
+                topic,
+            ),
+            (find_artifact(topic_dir, "report", identity=topic), "report", topic),
+            (find_artifact(topic_dir, "brief", identity=topic), "brief", topic),
         ]
         sites_dir = config.sites_dir(topic)
         if sites_dir.exists():
             for site_dir in sites_dir.iterdir():
                 if site_dir.is_dir():
                     candidates.append(
-                        (site_dir / "synthesis.md", "site synthesis", f"{topic} / {site_dir.name}")
+                        (
+                            find_artifact(
+                                site_dir,
+                                "site_synthesis",
+                                identity=f"{topic}_{site_dir.name}",
+                            ),
+                            "site synthesis",
+                            f"{topic} / {site_dir.name}",
+                        )
                     )
                     candidates.append(
-                        (site_dir / "site_update.md", "site update", f"{topic} / {site_dir.name}")
+                        (
+                            find_artifact(
+                                site_dir,
+                                "site_update",
+                                identity=f"{topic}_{site_dir.name}",
+                            ),
+                            "site update",
+                            f"{topic} / {site_dir.name}",
+                        )
                     )
         for path_obj, kind, label in candidates:
             if not path_obj.exists():
@@ -335,13 +364,21 @@ def collect_corpus_health_warnings(
 
     for topic in topics:
         topic_dir = config.topic_dir(topic)
-        for name in (
-            "topic_synthesis.md",
-            "paper_synthesis.md",
-            "corpus_synthesis.md",
-            "report.md",
+        for label, path_obj in (
+            (
+                "topic synthesis",
+                find_artifact(topic_dir, "topic_synthesis", identity=topic),
+            ),
+            (
+                "paper synthesis",
+                find_artifact(topic_dir, "paper_synthesis", identity=topic),
+            ),
+            (
+                "corpus synthesis",
+                find_artifact(topic_dir, "corpus_synthesis", identity=topic),
+            ),
+            ("report", find_artifact(topic_dir, "report", identity=topic)),
         ):
-            path_obj = topic_dir / name
             if not path_obj.exists():
                 continue
             try:
@@ -349,7 +386,7 @@ def collect_corpus_health_warnings(
             except OSError:
                 continue
             if mtime < stale_cutoff:
-                warnings.append(f"{topic} {name} is stale ({(datetime.now() - mtime).days}d old)")
+                warnings.append(f"{topic} {label} is stale ({(datetime.now() - mtime).days}d old)")
                 if len(warnings) >= limit:
                     return warnings
 
@@ -370,7 +407,7 @@ def collect_corpus_health_warnings(
                 title = str(metadata.get("title") or video_dir.name)
                 dur = int(metadata.get("duration") or 0)
 
-                transcript_path = video_dir / "transcript.txt"
+                transcript_path = find_artifact(video_dir, "transcript", extension="txt")
                 if transcript_path.exists():
                     try:
                         transcript_len = len(transcript_path.read_text(encoding="utf-8").strip())
@@ -384,7 +421,7 @@ def collect_corpus_health_warnings(
                         if len(warnings) >= limit:
                             return warnings
 
-                insights_path = video_dir / "insights.md"
+                insights_path = find_artifact(video_dir, "insights")
                 if insights_path.exists():
                     try:
                         insight_len = len(
@@ -430,7 +467,7 @@ def collect_corpus_health_warnings(
                         except (OSError, json.JSONDecodeError):
                             metadata = {}
                     title = str(metadata.get("title") or page_dir.name)
-                    insights_path = page_dir / "insights.md"
+                    insights_path = find_artifact(page_dir, "insights")
                     if insights_path.exists():
                         try:
                             insight_len = len(
@@ -459,7 +496,7 @@ def collect_corpus_health_warnings(
                     except (OSError, json.JSONDecodeError):
                         metadata = {}
                 title = str(metadata.get("title") or paper_dir.name)
-                insights_path = paper_dir / "insights.md"
+                insights_path = find_artifact(paper_dir, "insights")
                 if insights_path.exists():
                     try:
                         insight_len = len(
@@ -560,7 +597,7 @@ def collect_topic_changes(
             if not videos_dir.exists():
                 continue
             for video_dir in videos_dir.iterdir():
-                insight_path = video_dir / "insights.md"
+                insight_path = find_artifact(video_dir, "insights")
                 if not video_dir.is_dir() or not insight_path.exists():
                     continue
                 try:
@@ -579,7 +616,7 @@ def collect_topic_changes(
                 pages_dir = site_dir / "pages"
                 if pages_dir.exists():
                     for page_dir in pages_dir.iterdir():
-                        content_path = page_dir / "content.md"
+                        content_path = find_artifact(page_dir, "content")
                         if not page_dir.is_dir() or not content_path.exists():
                             continue
                         try:
@@ -589,7 +626,11 @@ def collect_topic_changes(
                         if mtime > baseline:
                             new_pages += 1
                             last_change = max(last_change, mtime)
-                site_synth = site_dir / "synthesis.md"
+                site_synth = find_artifact(
+                    site_dir,
+                    "site_synthesis",
+                    identity=f"{topic}_{site_dir.name}",
+                )
                 if site_synth.exists():
                     try:
                         mtime = datetime.fromtimestamp(site_synth.stat().st_mtime)
@@ -600,12 +641,11 @@ def collect_topic_changes(
                         last_change = max(last_change, mtime)
 
         topic_dir = config.topic_dir(topic)
-        for label, filename in (
-            ("synthesis", "topic_synthesis.md"),
-            ("brief", "brief.md"),
-            ("report", "report.md"),
+        for label, path_obj in (
+            ("synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
+            ("brief", find_artifact(topic_dir, "brief", identity=topic)),
+            ("report", find_artifact(topic_dir, "report", identity=topic)),
         ):
-            path_obj = topic_dir / filename
             if not path_obj.exists():
                 continue
             try:
@@ -690,7 +730,7 @@ def dashboard_snapshot(config: DistillConfig) -> dict:
             if not vdir.exists():
                 continue
             for d in vdir.iterdir():
-                if not d.is_dir() or not (d / "insights.md").exists():
+                if not d.is_dir() or not artifact_exists(d, "insights"):
                     continue
                 total_videos += 1
                 meta_path = d / "metadata.json"

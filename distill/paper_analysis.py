@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
 from distill.config import DistillConfig
 from distill.costs import CostTracker
 from distill.paper_ingest import (
@@ -23,7 +24,7 @@ def analyze_paper(
     Fetches the arXiv PDF and includes the extracted text in the document passed
     to the LLM. Falls back to abstract-only if PDF fetch/extract fails. The
     returned paper_document is the exact content the LLM saw, suitable for
-    writing to paper.md so artifacts match what was analyzed.
+    writing to the paper artifact so outputs match what was analyzed.
     """
     client = _get_client(config)
     model = config.xai_model_for("site")
@@ -60,7 +61,7 @@ def synthesize_papers(
     for paper_dir in sorted(papers_dir.iterdir()):
         if not paper_dir.is_dir():
             continue
-        insights_file = paper_dir / "insights.md"
+        insights_file = find_artifact(paper_dir, "insights")
         if insights_file.exists():
             paper_summaries[paper_dir.name] = insights_file.read_text(encoding="utf-8")
 
@@ -76,6 +77,19 @@ def synthesize_papers(
         tracker=tracker,
         call_type="paper_synthesis",
     )
-    output = config.topic_dir(topic) / "paper_synthesis.md"
-    output.write_text(synthesis, encoding="utf-8")
+    write_markdown_artifact(
+        config.topic_dir(topic),
+        "paper_synthesis",
+        synthesis,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="paper-synthesis",
+            title=f"Paper synthesis: {topic}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "paper"),
+            confidence="corpus-consensus",
+            extra={"legacy_filename": "paper_synthesis.md"},
+        ),
+    )
     return synthesis

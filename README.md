@@ -9,7 +9,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-> Turn YouTube, websites, and arXiv papers into a structured, reusable corpus of insights, syntheses, and reports — all plain markdown on your disk.
+> Turn YouTube, websites, and arXiv papers into a durable, AI-ready research corpus — all plain Markdown on your disk, with stable filenames, YAML metadata, and source receipts.
 
 ```bash
 pip install distillr
@@ -29,16 +29,22 @@ Topic: tkg | Selected papers: 20
 
   6m 47s  ~$1.01 (391,278 in / 38,117 out)
 
-  paper.md     90.4 KB
-  insights.md   8.1 KB
+  time_is_not_a_label_260411544_Paper.md     90.4 KB
+  time_is_not_a_label_260411544_Insights.md   8.1 KB
   ...
-  paper_synthesis.md  11.8 KB
-  corpus_synthesis.md 10.5 KB
+  tkg_Paper_Synthesis.md  11.8 KB
+  tkg_Corpus_Synthesis.md 10.5 KB
 ```
+
+## Why not just ask Deep Research?
+
+ChatGPT, Gemini Deep Research, and Perplexity are excellent oracles: ask a question, get an answer. Distill is an engine. It automates the tedious ingestion layer, keeps the raw transcripts and paper text next to the analysis, and turns each run into a permanent local corpus that future tools can reuse.
+
+That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base. You can verify the receipts, refresh the corpus over time, query it through MCP from Claude Desktop / Cursor / other agents, and open the same Markdown folder in Obsidian, Logseq, VS Code, Notion import, or plain filesystem search.
 
 ## What you get
 
-One local `library/` directory of plain markdown. No database, no cloud lock-in, no proprietary format. Open it in any text editor, Obsidian, VS Code, or feed it into another tool.
+One local `library/` directory of plain Markdown. No database, no cloud lock-in, no proprietary format. Files use globally descriptive names plus YAML frontmatter so knowledge-base tools, Dataview-style plugins, and AI coding assistants can understand them without guessing from generic `insights.md` tabs.
 
 Three source types, same pipeline shape (capture → analyze → synthesize → report):
 
@@ -90,30 +96,53 @@ The full command reference lives in [`docs/usage.md`](docs/usage.md).
 library/
   └── topics/<topic>/
        ├── channels/<creator>/videos/<video>/
-       │     ├── transcript.txt
-       │     └── insights.md
+       │     ├── <video-slug>_Transcript.txt
+       │     └── <video-slug>_Insights.md
        ├── sites/<hostname>/pages/<page>/
-       │     ├── content.md
-       │     └── insights.md
+       │     ├── <page-slug>_Content.md
+       │     └── <page-slug>_Insights.md
        ├── papers/<paper>/
-       │     ├── paper.md
-       │     └── insights.md
-       ├── topic_synthesis.md      # cross-source
-       └── corpus_synthesis.md     # mixed-source view
+       │     ├── <paper-slug>_Paper.md
+       │     └── <paper-slug>_Insights.md
+       ├── <topic>_Topic_Synthesis.md      # cross-source
+       └── <topic>_Corpus_Synthesis.md     # mixed-source view
 ```
 
-You build a topic library over time. Ingest once, refresh on a cadence, generate a report or briefing when you need one.
+You build a topic library over time. Ingest once, refresh on a cadence, generate a report or briefing when you need one. Older `insights.md`-style libraries are still readable, but new Markdown writes use the stable knowledge-base naming scheme.
 
 See [`docs/outputs.md`](docs/outputs.md) for what every artifact contains.
 
 ## Sample output
 
-A per-paper `insights.md` (excerpt):
+A cross-paper `<topic>_Paper_Synthesis.md` (excerpt):
+
+```markdown
+## Strongest Research Signals
+
+- Append-only temporal representations improve long-horizon extrapolation:
+  RoMem (arXiv:2604.11544), EST (arXiv:2602.12389v3), and CID-TKG converge on
+  persistent or dual-view entity state over destructive overwriting, with
+  consistent MRR/Hits@K gains on ICEWS and GDELT.
+
+- Semantic gating scales better than manual relation tagging: RoMem's Semantic
+  Speed Gate and EST's energy-barrier gate both learn relational volatility
+  from text embeddings rather than schema tags…
+```
+
+<details>
+<summary>Per-paper <code>&lt;paper-slug&gt;_Insights.md</code> excerpt (click to expand)</summary>
 
 ```markdown
 ---
-paper_title: "Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge Graphs"
-paper_id: 2604.11544v1
+title: "Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge Graphs"
+type: "insights"
+topic: "tkg"
+source: "arxiv"
+source_id: "2604.11544v1"
+url: "https://arxiv.org/abs/2604.11544v1"
+authors: ["Alice Example", "Bob Example"]
+tags: ["distill/tkg", "source/arxiv", "cs.AI"]
+confidence: "single-paper"
 analyzed_by: grok-4.20-0309-reasoning
 source_mode: full_pdf
 ---
@@ -138,20 +167,7 @@ source_mode: full_pdf
   highly ambiguous relations is not quantified.
 ```
 
-A cross-paper `paper_synthesis.md` (excerpt):
-
-```markdown
-## Strongest Research Signals
-
-- Append-only temporal representations improve long-horizon extrapolation:
-  RoMem (arXiv:2604.11544), EST (arXiv:2602.12389v3), and CID-TKG converge on
-  persistent or dual-view entity state over destructive overwriting, with
-  consistent MRR/Hits@K gains on ICEWS and GDELT.
-
-- Semantic gating scales better than manual relation tagging: RoMem's Semantic
-  Speed Gate and EST's energy-barrier gate both learn relational volatility
-  from text embeddings rather than schema tags…
-```
+</details>
 
 For **multi-topic** literature reviews, stakeholder briefings, or agent grounding, `distill research-brief` (Gemini Deep Research, web-augmented) and `distill synthesize` (Grok 4.20 single-call, corpus-only) take a user-written context file that shapes the output. See [`docs/usage.md#research-briefings-and-deep-synthesis`](docs/usage.md#research-briefings-and-deep-synthesis).
 

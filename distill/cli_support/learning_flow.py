@@ -9,6 +9,7 @@ from typing import Any
 import typer
 
 import distill.cli_shared as cli_shared
+from distill.artifacts import find_artifact
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.config import DistillConfig
 from distill.costs import CostTracker
@@ -266,7 +267,11 @@ def process_learning_selection(
         console.print(f"\nSynthesizing {channel_name}...")
         try:
             synthesize_channel(topic_name, channel_name, config, tracker=tracker)
-            synth_file = config.channel_dir(topic_name, channel_name) / "synthesis.md"
+            synth_file = find_artifact(
+                config.channel_dir(topic_name, channel_name),
+                "synthesis",
+                identity=f"{topic_name}_{channel_name}",
+            )
             cli_shared.record_output_or_issue(
                 summary,
                 synth_file,
@@ -289,7 +294,11 @@ def process_learning_selection(
         console.print(f"\nSynthesizing topic '{topic_name}'...")
         try:
             synthesize_topic(topic_name, config, tracker=tracker)
-            topic_synth = config.topic_dir(topic_name) / "topic_synthesis.md"
+            topic_synth = find_artifact(
+                config.topic_dir(topic_name),
+                "topic_synthesis",
+                identity=topic_name,
+            )
             cli_shared.record_output_or_issue(
                 summary,
                 topic_synth,
@@ -310,7 +319,13 @@ def process_learning_selection(
     try:
         corpus_synth = synthesize_corpus(topic_name, config, tracker=tracker)
         if corpus_synth:
-            summary.add_output(config.topic_dir(topic_name) / "corpus_synthesis.md")
+            summary.add_output(
+                find_artifact(
+                    config.topic_dir(topic_name),
+                    "corpus_synthesis",
+                    identity=topic_name,
+                )
+            )
     except Exception as e:
         cli_shared.record_exception_issue(
             summary,

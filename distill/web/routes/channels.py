@@ -4,6 +4,7 @@ import json
 
 from fastapi import APIRouter, Request
 
+from distill.artifacts import artifact_exists, find_artifact
 from distill.config import DistillConfig
 from distill.library import Library
 
@@ -26,8 +27,8 @@ def _collect_videos(config: DistillConfig, topic: str, channel: str) -> list[dic
         except (OSError, json.JSONDecodeError):
             continue
         meta["_slug"] = vid_dir.name
-        meta["_has_insights"] = (vid_dir / "insights.md").exists()
-        meta["_has_transcript"] = (vid_dir / "transcript.txt").exists()
+        meta["_has_insights"] = artifact_exists(vid_dir, "insights")
+        meta["_has_transcript"] = artifact_exists(vid_dir, "transcript", extension="txt")
         vid_list.append(meta)
     vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
     return vid_list
@@ -44,7 +45,7 @@ async def channel_detail(request: Request, topic: str, channel: str):
     channel_dir = config.channel_dir(topic, channel)
 
     synthesis = ""
-    synth_path = channel_dir / "synthesis.md"
+    synth_path = find_artifact(channel_dir, "synthesis", identity=f"{topic}_{channel}")
     if synth_path.exists():
         synthesis = synth_path.read_text(encoding="utf-8")
 

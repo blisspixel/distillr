@@ -5,6 +5,8 @@ import json
 
 from fastapi import APIRouter, Request
 
+from distill.artifacts import find_artifact
+
 router = APIRouter()
 
 
@@ -21,12 +23,12 @@ async def video_detail(request: Request, topic: str, channel: str, slug: str):
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
     insights = ""
-    insights_path = vid_dir / "insights.md"
+    insights_path = find_artifact(vid_dir, "insights")
     if insights_path.exists():
         insights = insights_path.read_text(encoding="utf-8")
 
     transcript = ""
-    transcript_path = vid_dir / "transcript.txt"
+    transcript_path = find_artifact(vid_dir, "transcript", extension="txt")
     if transcript_path.exists():
         transcript = transcript_path.read_text(encoding="utf-8")
 
