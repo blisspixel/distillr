@@ -6252,7 +6252,9 @@ def paper(
     summary.add_output(find_artifact(paper_dir, "insights"))
     synthesis = synthesize_papers(topic, config, tracker=tracker)
     if synthesis:
-        summary.add_output(find_artifact(config.topic_dir(topic), "paper_synthesis", identity=topic))
+        summary.add_output(
+            find_artifact(config.topic_dir(topic), "paper_synthesis", identity=topic)
+        )
     corpus_synth = synthesize_corpus(topic, config, tracker=tracker)
     if corpus_synth:
         summary.add_output(
