@@ -154,12 +154,12 @@ distill topic-watch run azure-ai --ignore-budget   # explicit override
 
 Each topic-watch run leaves:
 
-- `library/topics/<topic>/watch_update.md` — per-watch delta summary
-- `library/topics/<topic>/topic_diff.md` — reusable topic-level change report
+- `library/topics/<topic>/<topic>_Watch_Update.md` — per-watch delta summary
+- `library/topics/<topic>/<topic>_Topic_Diff.md` — reusable topic-level change report
 - `library/topics/<topic>/change_history.jsonl` — timestamped change counts
-- `library/topics/<topic>/topic_trends.md` — momentum over recent diff windows
-- `library/latest_changes.md` — library-level rollup
-- `library/watch_alerts.md` — digest of notable changes (also exposed via MCP at `distill://watch-alerts`)
+- `library/topics/<topic>/<topic>_Topic_Trends.md` — momentum over recent diff windows
+- `library/library_Latest_Changes.md` — library-level rollup
+- `library/library_Watch_Alerts.md` — digest of notable changes (also exposed via MCP at `distill://watch-alerts`)
 
 ## Websites
 
@@ -232,10 +232,10 @@ For a **goal-driven** corpus across papers *and* videos, use `distill discover` 
 Paper outputs land under:
 
 - `library/topics/<topic>/papers/<paper-slug>/metadata.json`
-- `library/topics/<topic>/papers/<paper-slug>/paper.md` (abstract + extracted full text)
-- `library/topics/<topic>/papers/<paper-slug>/insights.md` (structured analysis)
-- `library/topics/<topic>/paper_synthesis.md` (cross-paper synthesis)
-- `library/topics/<topic>/corpus_synthesis.md` (mixed-source view)
+- `library/topics/<topic>/papers/<paper-slug>/<paper-slug>_Paper.md` (abstract + extracted full text)
+- `library/topics/<topic>/papers/<paper-slug>/<paper-slug>_Insights.md` (structured analysis)
+- `library/topics/<topic>/<topic>_Paper_Synthesis.md` (cross-paper synthesis)
+- `library/topics/<topic>/<topic>_Corpus_Synthesis.md` (mixed-source view)
 
 ## Reports
 

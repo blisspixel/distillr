@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from distill.artifacts import find_artifact, strip_frontmatter
 from distill.briefing import generate_topic_brief
 from distill.config import DistillConfig
 from distill.costs import CostTracker
@@ -46,8 +47,9 @@ def test_generate_topic_brief_writes_brief_and_tracks_usage(tmp_path, monkeypatc
 
     result = generate_topic_brief("fabric", config, tracker=tracker)
 
-    assert result == topic_dir / "brief.md"
-    assert result.read_text(encoding="utf-8") == "# Brief"
+    assert result == find_artifact(topic_dir, "brief", identity="fabric")
+    assert result.name == "fabric_Brief.md"
+    assert strip_frontmatter(result.read_text(encoding="utf-8")) == "# Brief"
     assert len(tracker.entries) == 1
     assert tracker.total_input_tokens == 120
     assert tracker.total_output_tokens == 80
@@ -76,4 +78,4 @@ def test_generate_topic_brief_returns_none_when_llm_returns_empty(tmp_path, monk
     result = generate_topic_brief("fabric", config)
 
     assert result is None
-    assert not (topic_dir / "brief.md").exists()
+    assert not find_artifact(topic_dir, "brief", identity="fabric").exists()

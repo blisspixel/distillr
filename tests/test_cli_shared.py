@@ -403,7 +403,12 @@ class TestProcessVideo:
         result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
         assert result is True
         assert summary.passed == 1
-        assert (vid_dir / "insights.md").exists()
+        from distill.artifacts import find_artifact
+
+        insights = find_artifact(vid_dir, "insights")
+        assert insights.name == "test_video_title_test123_Insights.md"
+        assert insights.exists()
+        assert 'type: "insights"' in insights.read_text(encoding="utf-8")
 
     def test_short_video_uses_short_analysis(self, config, monkeypatch):
         from distill.cli_shared import process_video

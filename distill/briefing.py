@@ -7,6 +7,7 @@ from pathlib import Path
 from openai import OpenAI
 
 from distill.analysis import XAI_BASE_URL
+from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
 from distill.config import DistillConfig
 from distill.costs import CostTracker, TokenUsage
 from distill.prompts import topic_brief_prompt
@@ -20,7 +21,7 @@ def generate_topic_brief(
     topic_dir = config.topic_dir(topic)
     topic_dir.mkdir(parents=True, exist_ok=True)
 
-    synth_file = topic_dir / "topic_synthesis.md"
+    synth_file = find_artifact(topic_dir, "topic_synthesis", identity=topic)
     topic_synthesis = synth_file.read_text(encoding="utf-8") if synth_file.exists() else ""
 
     insight_parts = []
@@ -31,7 +32,7 @@ def generate_topic_brief(
             if not videos_dir.exists():
                 continue
             for video_dir in sorted(videos_dir.iterdir(), reverse=True):
-                insight_file = video_dir / "insights.md"
+                insight_file = find_artifact(video_dir, "insights")
                 if insight_file.exists():
                     insight_parts.append(
                         f"## {channel_dir.name} / {video_dir.name}\n"
@@ -69,6 +70,18 @@ def generate_topic_brief(
     if not content:
         return None
 
-    output_path = topic_dir / "brief.md"
-    output_path.write_text(content, encoding="utf-8")
-    return output_path
+    return write_markdown_artifact(
+        topic_dir,
+        "brief",
+        content,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="brief",
+            title=f"Topic brief: {topic}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "brief"),
+            confidence="interpretation",
+            extra={"legacy_filename": "brief.md"},
+        ),
+    )

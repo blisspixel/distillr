@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
 from distill.costs import CostTracker
 from distill.synthesis import _call_with_retry, synthesize_channel, synthesize_topic
@@ -74,7 +75,9 @@ def test_synthesize_channel_saves_output(tmp_path, monkeypatch):
     result = synthesize_channel("ai", "Creator", config)
 
     assert result == "channel synthesis"
-    assert (channel_dir / "synthesis.md").read_text(encoding="utf-8") == "channel synthesis"
+    output = find_artifact(channel_dir, "synthesis", identity="ai_Creator")
+    assert output.name == "ai_Creator_Synthesis.md"
+    assert strip_frontmatter(output.read_text(encoding="utf-8")) == "channel synthesis"
 
 
 def test_synthesize_topic_skips_with_single_channel(tmp_path):
@@ -102,9 +105,9 @@ def test_synthesize_topic_saves_output(tmp_path, monkeypatch):
     result = synthesize_topic("ai", config)
 
     assert result == "topic synthesis"
-    assert (config.topic_dir("ai") / "topic_synthesis.md").read_text(
-        encoding="utf-8"
-    ) == "topic synthesis"
+    output = find_artifact(config.topic_dir("ai"), "topic_synthesis", identity="ai")
+    assert output.name == "ai_Topic_Synthesis.md"
+    assert strip_frontmatter(output.read_text(encoding="utf-8")) == "topic synthesis"
 
 
 def test_call_with_retry_raises_after_final_failure(monkeypatch):

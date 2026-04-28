@@ -1,3 +1,4 @@
+from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
 from distill.costs import CostTracker
 from distill.paper_analysis import analyze_paper, synthesize_papers
@@ -52,6 +53,7 @@ def test_synthesize_papers_writes_output(tmp_path, monkeypatch):
     result = synthesize_papers("papers", config)
 
     assert result == "paper synthesis"
-    assert (config.topic_dir("papers") / "paper_synthesis.md").read_text(
-        encoding="utf-8"
-    ) == "paper synthesis"
+    output = find_artifact(config.topic_dir("papers"), "paper_synthesis", identity="papers")
+    assert output.name == "papers_Paper_Synthesis.md"
+    assert strip_frontmatter(output.read_text(encoding="utf-8")) == "paper synthesis"
+    assert 'type: "paper-synthesis"' in output.read_text(encoding="utf-8")

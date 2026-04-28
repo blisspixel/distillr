@@ -24,6 +24,7 @@ from pathlib import Path
 from google import genai
 from rich.console import Console
 
+from distill.artifacts import find_artifact
 from distill.config import DistillConfig
 from distill.file_search import delete_store
 
@@ -36,8 +37,8 @@ MAX_DOC_CHARS = 500_000
 def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[str, str]]:
     """Collect (label, content) pairs across the given topics.
 
-    Pulls paper_synthesis.md, topic_synthesis.md, corpus_synthesis.md, plus
-    bundled per-paper / per-video / per-page insights where present.
+    Pulls paper, topic, and corpus synthesis artifacts, plus bundled per-paper /
+    per-video / per-page insights where present.
     """
     files: list[tuple[str, str]] = []
 
@@ -47,12 +48,12 @@ def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[s
             console.print(f"[yellow]Topic '{topic}' not found, skipping[/yellow]")
             continue
 
-        for synth_name, label_stem in [
-            ("paper_synthesis.md", "paper-synthesis"),
-            ("topic_synthesis.md", "topic-synthesis"),
-            ("corpus_synthesis.md", "corpus-synthesis"),
+        for artifact_type, label_stem in [
+            ("paper_synthesis", "paper-synthesis"),
+            ("topic_synthesis", "topic-synthesis"),
+            ("corpus_synthesis", "corpus-synthesis"),
         ]:
-            synth = topic_dir / synth_name
+            synth = find_artifact(topic_dir, artifact_type, identity=topic)
             if synth.exists():
                 files.append(
                     (
@@ -104,7 +105,7 @@ def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[s
 def _bundle_insights(
     source_dir: Path, label_stem: str, topic: str, kind: str
 ) -> list[tuple[str, str]]:
-    """Bundle per-item insights.md files under source_dir into MAX_DOC_CHARS chunks."""
+    """Bundle per-item insight artifacts under source_dir into MAX_DOC_CHARS chunks."""
     bundles: list[tuple[str, str]] = []
     parts: list[str] = []
     chars = 0
@@ -113,7 +114,7 @@ def _bundle_insights(
     for item_dir in sorted(source_dir.iterdir()):
         if not item_dir.is_dir():
             continue
-        insights_file = item_dir / "insights.md"
+        insights_file = find_artifact(item_dir, "insights")
         if not insights_file.exists():
             continue
         metadata_file = item_dir / "metadata.json"

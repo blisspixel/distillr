@@ -8,6 +8,14 @@ from pathlib import Path
 
 import typer
 
+from distill.artifacts import (
+    artifact_path,
+    base_frontmatter,
+    find_artifact,
+    strip_frontmatter,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.cli_shared import format_date as _format_date
 from distill.config import DistillConfig
 from distill.dashboard_data import format_run_timestamp as _format_run_timestamp
@@ -27,15 +35,15 @@ def _topic_change_history_path(config: DistillConfig, topic: str) -> Path:
 
 
 def _topic_diff_output_path(config: DistillConfig, topic: str) -> Path:
-    return config.topic_dir(topic) / "topic_diff.md"
+    return artifact_path(config.topic_dir(topic), "topic_diff", identity=topic)
 
 
 def _topic_trends_output_path(config: DistillConfig, topic: str) -> Path:
-    return config.topic_dir(topic) / "topic_trends.md"
+    return artifact_path(config.topic_dir(topic), "topic_trends", identity=topic)
 
 
 def _watch_alerts_output_path(config: DistillConfig) -> Path:
-    return config.library_dir / "watch_alerts.md"
+    return artifact_path(config.library_dir, "watch_alerts", identity="library")
 
 
 def _relative_library_path(config: DistillConfig, path_obj: Path) -> str:
@@ -71,7 +79,7 @@ def _collect_topic_change_details(
         if not videos_dir.exists():
             continue
         for video_dir in videos_dir.iterdir():
-            insight_path = video_dir / "insights.md"
+            insight_path = find_artifact(video_dir, "insights")
             if not video_dir.is_dir() or not insight_path.exists():
                 continue
             try:
@@ -92,7 +100,11 @@ def _collect_topic_change_details(
             )
             mark_change(changed_at)
 
-        synth_path = config.channel_dir(topic, ch.name) / "synthesis.md"
+        synth_path = find_artifact(
+            config.channel_dir(topic, ch.name),
+            "synthesis",
+            identity=f"{topic}_{ch.name}",
+        )
         if synth_path.exists():
             try:
                 changed_at = datetime.fromtimestamp(synth_path.stat().st_mtime)
@@ -116,7 +128,7 @@ def _collect_topic_change_details(
             pages_dir = site_dir / "pages"
             if pages_dir.exists():
                 for page_dir in pages_dir.iterdir():
-                    content_path = page_dir / "content.md"
+                    content_path = find_artifact(page_dir, "content")
                     if not page_dir.is_dir() or not content_path.exists():
                         continue
                     try:
@@ -137,7 +149,11 @@ def _collect_topic_change_details(
                     )
                     mark_change(changed_at)
 
-            site_synth = site_dir / "synthesis.md"
+            site_synth = find_artifact(
+                site_dir,
+                "site_synthesis",
+                identity=f"{topic}_{site_dir.name}",
+            )
             if site_synth.exists():
                 try:
                     changed_at = datetime.fromtimestamp(site_synth.stat().st_mtime)
@@ -156,7 +172,7 @@ def _collect_topic_change_details(
     papers_dir = config.papers_dir(topic)
     if papers_dir.exists():
         for paper_dir in papers_dir.iterdir():
-            insights_path = paper_dir / "insights.md"
+            insights_path = find_artifact(paper_dir, "insights")
             if not paper_dir.is_dir() or not insights_path.exists():
                 continue
             try:
@@ -177,15 +193,14 @@ def _collect_topic_change_details(
             mark_change(changed_at)
 
     topic_dir = config.topic_dir(topic)
-    for label, filename in (
-        ("topic synthesis", "topic_synthesis.md"),
-        ("paper synthesis", "paper_synthesis.md"),
-        ("corpus synthesis", "corpus_synthesis.md"),
-        ("brief", "brief.md"),
-        ("report", "report.md"),
-        ("watch update", "watch_update.md"),
+    for label, path_obj in (
+        ("topic synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
+        ("paper synthesis", find_artifact(topic_dir, "paper_synthesis", identity=topic)),
+        ("corpus synthesis", find_artifact(topic_dir, "corpus_synthesis", identity=topic)),
+        ("brief", find_artifact(topic_dir, "brief", identity=topic)),
+        ("report", find_artifact(topic_dir, "report", identity=topic)),
+        ("watch update", find_artifact(topic_dir, "watch_update", identity=topic)),
     ):
-        path_obj = topic_dir / filename
         if not path_obj.exists():
             continue
         try:
@@ -468,8 +483,6 @@ def _write_watch_alert_digest(
     generated_at: datetime,
     alert_lines: list[str],
 ) -> Path:
-    output_path = _watch_alerts_output_path(config)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# Topic Watch Alerts",
         "",
@@ -484,8 +497,20 @@ def _write_watch_alert_digest(
     else:
         lines.append("- No notable watch alerts in this run.")
     lines.append("")
-    output_path.write_text("\n".join(lines), encoding="utf-8")
-    return output_path
+    return write_markdown_artifact(
+        config.library_dir,
+        "watch_alerts",
+        "\n".join(lines),
+        identity="library",
+        frontmatter=base_frontmatter(
+            artifact_type="watch_alerts",
+            title="Topic Watch Alerts",
+            source="distill",
+            tags=tags_for("", "watch"),
+            confidence="operational",
+            extra={"alerts": len(alert_lines), "legacy_filename": "watch_alerts.md"},
+        ),
+    )
 
 
 def _render_topic_trends_markdown(
@@ -595,46 +620,78 @@ def _write_topic_change_briefing(
 
     topic_dir = config.topic_dir(topic)
     topic_dir.mkdir(parents=True, exist_ok=True)
-    briefing_path = topic_dir / "watch_update.md"
-    briefing_path.write_text(
-        _render_topic_diff_markdown(
-            config,
-            title=f"# Topic Watch Update: {watch_name}",
+    briefing_content = _render_topic_diff_markdown(
+        config,
+        title=f"# Topic Watch Update: {watch_name}",
+        topic=topic,
+        summary=summary,
+        baseline=baseline,
+        effective_baseline=effective_baseline,
+        generated_at=generated_at,
+        watch_name=watch_name,
+        query=query,
+        cadence=cadence,
+        new_videos=new_videos,
+        new_pages=new_pages,
+        new_papers=new_papers,
+        refreshed_outputs=refreshed_outputs,
+    )
+    briefing_path = write_markdown_artifact(
+        topic_dir,
+        "watch_update",
+        briefing_content,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="watch_update",
+            title=f"Topic Watch Update: {watch_name}",
             topic=topic,
-            summary=summary,
-            baseline=baseline,
-            effective_baseline=effective_baseline,
-            generated_at=generated_at,
-            watch_name=watch_name,
-            query=query,
-            cadence=cadence,
-            new_videos=new_videos,
-            new_pages=new_pages,
-            new_papers=new_papers,
-            refreshed_outputs=refreshed_outputs,
+            source="distill",
+            tags=tags_for(topic, "watch"),
+            confidence="operational",
+            extra={
+                "watch_name": watch_name,
+                "query": query,
+                "cadence": cadence,
+                "legacy_filename": "watch_update.md",
+            },
         ),
-        encoding="utf-8",
     )
 
-    diff_path = _topic_diff_output_path(config, topic)
-    diff_path.write_text(
-        _render_topic_diff_markdown(
-            config,
-            title=f"# Topic Diff: {topic}",
+    diff_content = _render_topic_diff_markdown(
+        config,
+        title=f"# Topic Diff: {topic}",
+        topic=topic,
+        summary=summary,
+        baseline=baseline,
+        effective_baseline=effective_baseline,
+        generated_at=generated_at,
+        watch_name=watch_name,
+        query=query,
+        cadence=cadence,
+        new_videos=new_videos,
+        new_pages=new_pages,
+        new_papers=new_papers,
+        refreshed_outputs=refreshed_outputs,
+    )
+    diff_path = write_markdown_artifact(
+        topic_dir,
+        "topic_diff",
+        diff_content,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="topic_diff",
+            title=f"Topic Diff: {topic}",
             topic=topic,
-            summary=summary,
-            baseline=baseline,
-            effective_baseline=effective_baseline,
-            generated_at=generated_at,
-            watch_name=watch_name,
-            query=query,
-            cadence=cadence,
-            new_videos=new_videos,
-            new_pages=new_pages,
-            new_papers=new_papers,
-            refreshed_outputs=refreshed_outputs,
+            source="distill",
+            tags=tags_for(topic, "diff"),
+            confidence="operational",
+            extra={
+                "watch_name": watch_name or "",
+                "query": query or "",
+                "cadence": cadence or "",
+                "legacy_filename": "topic_diff.md",
+            },
         ),
-        encoding="utf-8",
     )
 
     history_path = _append_topic_change_history(
@@ -652,8 +709,8 @@ def _write_topic_change_briefing(
         refreshed_outputs=refreshed_outputs,
     )
 
-    latest_path = config.library_dir / "latest_changes.md"
-    existing = latest_path.read_text(encoding="utf-8") if latest_path.exists() else ""
+    latest_path = artifact_path(config.library_dir, "latest_changes", identity="library")
+    existing = strip_frontmatter(latest_path.read_text(encoding="utf-8")) if latest_path.exists() else ""
     entry = (
         f"## {watch_name}\n"
         f"- Topic: `{topic}`\n"
@@ -663,7 +720,20 @@ def _write_topic_change_briefing(
         f"- History: `{history_path}`\n"
         f"- File: `{briefing_path}`\n\n"
     )
-    latest_path.write_text(entry + existing, encoding="utf-8")
+    latest_path = write_markdown_artifact(
+        config.library_dir,
+        "latest_changes",
+        entry + existing,
+        identity="library",
+        frontmatter=base_frontmatter(
+            artifact_type="latest_changes",
+            title="Latest Changes",
+            source="distill",
+            tags=tags_for("", "watch"),
+            confidence="operational",
+            extra={"legacy_filename": "latest_changes.md"},
+        ),
+    )
     return briefing_path
 
 

@@ -1,3 +1,4 @@
+from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
 from distill.corpus_analysis import synthesize_corpus
 
@@ -22,4 +23,6 @@ def test_synthesize_corpus_writes_output(tmp_path, monkeypatch):
     result = synthesize_corpus("mixed", config)
 
     assert result == "corpus synthesis"
-    assert (topic_dir / "corpus_synthesis.md").read_text(encoding="utf-8") == "corpus synthesis"
+    output = find_artifact(topic_dir, "corpus_synthesis", identity="mixed")
+    assert output.name == "mixed_Corpus_Synthesis.md"
+    assert strip_frontmatter(output.read_text(encoding="utf-8")) == "corpus synthesis"

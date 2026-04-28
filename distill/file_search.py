@@ -11,6 +11,7 @@ from typing import Any
 from google import genai
 from rich.console import Console
 
+from distill.artifacts import find_artifact
 from distill.config import DistillConfig
 
 console = Console()
@@ -191,7 +192,11 @@ def _gather_files(
         ctx_file = config.channel_dir(t, ch) / "channel_context.md"
         if ctx_file.exists():
             meta_parts.append(f"# Channel Context: {ch}\n\n{ctx_file.read_text(encoding='utf-8')}")
-        synth_file = config.channel_dir(t, ch) / "synthesis.md"
+        synth_file = find_artifact(
+            config.channel_dir(t, ch),
+            "synthesis",
+            identity=f"{t}_{ch}",
+        )
         if synth_file.exists():
             meta_parts.append(
                 f"# Channel Synthesis: {ch}\n\n{synth_file.read_text(encoding='utf-8')}"
@@ -209,7 +214,7 @@ def _gather_files(
         for vid_dir in sorted(videos_dir.iterdir()):
             if not vid_dir.is_dir():
                 continue
-            insights_file = vid_dir / "insights.md"
+            insights_file = find_artifact(vid_dir, "insights")
             if not insights_file.exists():
                 continue
             meta_file = vid_dir / "metadata.json"
@@ -260,7 +265,11 @@ def _gather_files(
         for site_dir in sorted(sites_dir.iterdir()):
             if not site_dir.is_dir():
                 continue
-            synth_file = site_dir / "synthesis.md"
+            synth_file = find_artifact(
+                site_dir,
+                "site_synthesis",
+                identity=f"{site_topic}_{site_dir.name}",
+            )
             if synth_file.exists():
                 files.append(
                     (
@@ -277,7 +286,7 @@ def _gather_files(
             for page_dir in sorted(pages_dir.iterdir()):
                 if not page_dir.is_dir():
                     continue
-                insights_file = page_dir / "insights.md"
+                insights_file = find_artifact(page_dir, "insights")
                 metadata_file = page_dir / "metadata.json"
                 if not insights_file.exists():
                     continue
@@ -336,7 +345,7 @@ def _gather_files(
         for paper_dir in sorted(papers_dir.iterdir()):
             if not paper_dir.is_dir():
                 continue
-            insights_file = paper_dir / "insights.md"
+            insights_file = find_artifact(paper_dir, "insights")
             metadata_file = paper_dir / "metadata.json"
             if not insights_file.exists():
                 continue
@@ -385,7 +394,7 @@ def _gather_files(
             else []
         )
         for t in topics_to_check:
-            topic_synth = config.topic_dir(t) / "topic_synthesis.md"
+            topic_synth = find_artifact(config.topic_dir(t), "topic_synthesis", identity=t)
             if topic_synth.exists():
                 files.append(
                     (
@@ -393,7 +402,7 @@ def _gather_files(
                         f"# Topic Synthesis: {t}\n\n{topic_synth.read_text(encoding='utf-8')}",
                     )
                 )
-            paper_synth = config.topic_dir(t) / "paper_synthesis.md"
+            paper_synth = find_artifact(config.topic_dir(t), "paper_synthesis", identity=t)
             if paper_synth.exists():
                 files.append(
                     (
@@ -401,7 +410,7 @@ def _gather_files(
                         f"# Paper Synthesis: {t}\n\n{paper_synth.read_text(encoding='utf-8')}",
                     )
                 )
-            corpus_synth = config.topic_dir(t) / "corpus_synthesis.md"
+            corpus_synth = find_artifact(config.topic_dir(t), "corpus_synthesis", identity=t)
             if corpus_synth.exists():
                 files.append(
                     (

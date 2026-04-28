@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import cli
+from distill.artifacts import artifact_path, find_artifact
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.site_scraper import SitePage
@@ -1215,7 +1216,7 @@ class TestDoctorCleanupAndMigrate:
             cli.get_config = original
 
         assert result.exit_code == 0
-        assert "topic_synthesis.md is stale" in result.output
+        assert "topic synthesis is stale" in result.output
         assert "section topic/agents is stale" in result.output
         assert "transcript looks thin" in result.output
         assert "insights look thin" in result.output
@@ -1419,7 +1420,7 @@ class TestWatchCommands:
 
         assert result.exit_code == 0
         papers_dir = mock_config.papers_dir("papers")
-        written = list(papers_dir.glob("*/paper.md"))
+        written = list(papers_dir.glob("*/*_Paper.md"))
         assert written
 
     def test_papers_command_searches_and_writes_synthesis(self, mock_config, monkeypatch):
@@ -2120,11 +2121,11 @@ class TestSiteCommands:
                 (config.site_dir("web", "example.com") / "site.json").read_text(encoding="utf-8")
             )
             page_dir = config.site_page_dir("web", "example.com", "Example Page", "example-com")
-            assert (page_dir / "content.md").exists()
+            assert find_artifact(page_dir, "content").exists()
             assert (page_dir / "metadata.json").exists()
             assert (page_dir / "attachments.json").exists()
             assert site_manifest["sections"][0]["section"] == "root"
-            assert not (page_dir / "insights.md").exists()
+            assert not find_artifact(page_dir, "insights").exists()
         finally:
             cli.get_config = original
 
@@ -2184,7 +2185,7 @@ class TestSiteCommands:
             )
 
             assert result.exit_code == 0
-            update_path = site_dir / "site_update.md"
+            update_path = artifact_path(site_dir, "site_update", identity="web_example.com")
             assert update_path.exists()
             assert "topic/agents changed" in update_path.read_text(encoding="utf-8")
         finally:
@@ -2252,7 +2253,9 @@ class TestSiteCommands:
             assert result.exit_code == 0
             page_dir = config.site_page_dir("web", "example.com", "Example Page", "example-com")
             assert (page_dir / "attachments.json").exists()
-            assert "Attachment Extracts" in (page_dir / "content.md").read_text(encoding="utf-8")
+            assert "Attachment Extracts" in find_artifact(page_dir, "content").read_text(
+                encoding="utf-8"
+            )
         finally:
             cli.get_config = original
 
@@ -2550,7 +2553,7 @@ def test_cli_topic_change_helpers_cover_rendering_and_history(mock_config_with_l
     assert history_path.exists()
     assert history[0]["topic"] == "ai"
     assert briefing_path.exists()
-    assert (topic_dir / "topic_diff.md").exists()
+    assert cli._topic_diff_output_path(mock_config_with_library, "ai").exists()
 
 
 def test_cli_trend_and_alert_helpers(mock_config):

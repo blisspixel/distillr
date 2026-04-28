@@ -15,10 +15,10 @@ How Distill works under the hood. Read this if you're contributing, debugging, o
  └──────────────────┘       └──────────────────┘     └────────────────┘     └──────────────────────┘─┘  │ corpus synth.  │   │                                 │
          │                          │                       │                          │                 └────────────────┘   │ distill synthesize              │
          │                          ▼                       ▼                          ▼                                      │  Grok 4.20 single large-context │
-         │                  library/topics/<topic>/…  transcript.txt /                                                         └─────────────────────────────────┘
-         │                  (all artifacts as         content.md / paper.md                                                                    │
-         │                   plain markdown)          + metadata.json +                                                                        ▼
-         └─ (also feeds ingestion                     insights.md                                                                    output/report-*.md
+         │                  library/topics/<topic>/…  <slug>_Transcript.txt /                                              └─────────────────────────────────┘
+         │                  (all artifacts as         <slug>_Content.md / <slug>_Paper.md                                                   │
+         │                   frontmatter markdown)    + metadata.json +                                                                        ▼
+         └─ (also feeds ingestion                     <slug>_Insights.md                                                            output/report-*.md
             directly via the same                                                                                                    output/briefing-*.md
             paper + video pipelines)                                                                                                 output/synthesis-*.md
                                                                                                                                      output/*.docx
