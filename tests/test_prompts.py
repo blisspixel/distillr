@@ -190,6 +190,7 @@ class TestAdditionalPromptBuilders:
     def test_paper_and_discovery_prompt_builders_include_json_contracts(self):
         assert '"queries"' in paper_query_expansion_prompt("temporal knowledge graph")
         assert '"paper_queries"' in discover_query_generation_prompt("learn agent memory")
+        assert '"kind": "paper" | "video" | "site"' in discover_rerank_prompt("goal", [])
 
     def test_discover_rerank_and_paper_rerank_prompt_truncate_content(self):
         discover_prompt = discover_rerank_prompt(

@@ -166,7 +166,7 @@ def test_display_summary_preview_logs_cost_even_when_empty(tmp_path):
         preview=True,
     )
 
-    log_path = tmp_path / "cost_log.jsonl"
+    log_path = tmp_path / ".distill" / "cost_log.jsonl"
     assert log_path.exists()
     entry = json.loads(log_path.read_text(encoding="utf-8").strip())
     assert entry["command"] == "discover_preview"
@@ -188,7 +188,9 @@ def test_log_preview_cost_writes_suffixed_command(tmp_path):
 
     log_preview_cost(tracker, tmp_path, "latest", metadata={"topic": "ctc"})
 
-    entry = json.loads((tmp_path / "cost_log.jsonl").read_text(encoding="utf-8").strip())
+    entry = json.loads(
+        (tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8").strip()
+    )
     assert entry["command"] == "latest_preview"
     assert entry["metadata"] == {"topic": "ctc"}
 
@@ -196,7 +198,7 @@ def test_log_preview_cost_writes_suffixed_command(tmp_path):
 def test_log_preview_cost_skips_when_tracker_empty(tmp_path):
     """No spend means nothing to log — silent no-op, no zero-row noise in the log."""
     log_preview_cost(CostTracker(), tmp_path, "latest")
-    assert not (tmp_path / "cost_log.jsonl").exists()
+    assert not (tmp_path / ".distill" / "cost_log.jsonl").exists()
 
 
 def test_log_preview_cost_skips_when_log_dir_none():

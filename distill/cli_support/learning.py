@@ -5,17 +5,16 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 
-from openai import OpenAI
 from rich import box
 from rich.table import Table
 
-from distill.analysis import XAI_BASE_URL
 from distill.browser_search import search_youtube_results
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import format_date as _format_date
-from distill.config import DistillConfig
+from distill.config import DistillConfig, router_config_from_distill
 from distill.costs import CostTracker, TokenUsage
 from distill.discovery import enrich_videos, search_videos
+from distill.llm import call as llm_call
 from distill.prompts import paper_query_expansion_prompt, search_query_expansion_prompt
 from distill.ranking import RankedPaper, rerank_videos
 
@@ -102,25 +101,19 @@ def _llm_expand_learning_queries(
     tracker: CostTracker | None = None,
     skeptical: bool = False,
 ) -> list[str]:
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
+    rc = router_config_from_distill(config)
     prompt = search_query_expansion_prompt(query, skeptical=skeptical)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=512,
-        timeout=90,
-    )
-    if tracker and response.usage:
+    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=512, call_type="search_expand")
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="search_expand",
             )
         )
-    content = response.choices[0].message.content if response.choices else ""
+    content = response.text
     if not content:
         return []
     text = content.strip()
@@ -175,25 +168,19 @@ def _llm_expand_paper_queries(
     *,
     tracker: CostTracker | None = None,
 ) -> list[str]:
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
+    rc = router_config_from_distill(config)
     prompt = paper_query_expansion_prompt(query)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=512,
-        timeout=90,
-    )
-    if tracker and response.usage:
+    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=512, call_type="paper_expand")
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="paper_expand",
             )
         )
-    content = response.choices[0].message.content if response.choices else ""
+    content = response.text
     if not content:
         return []
     text = content.strip()

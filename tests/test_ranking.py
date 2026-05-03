@@ -70,24 +70,15 @@ def test_rerank_videos_uses_llm_response_when_available(tmp_path, monkeypatch):
         VideoInfo("v2", "Two", _recent(4), 1200, "https://youtube.com/watch?v=v2", "CreatorB"),
     ]
 
-    class FakeCompletions:
-        def create(self, **kwargs):
-            return SimpleNamespace(
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(
-                            content='{"ranked_videos": [{"video_id": "v2", "relevance_score": 0.9, "depth_score": 0.8, "practicality_score": 0.8, "freshness_score": 0.7, "credibility_score": 0.6, "final_score": 0.82, "rationale": "best match"}]}'
-                        )
-                    )
-                ],
-                usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50),
-            )
+    from distill.llm.router import LLM_Response
 
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            self.chat = SimpleNamespace(completions=FakeCompletions())
-
-    monkeypatch.setattr("distill.ranking.OpenAI", FakeClient)
+    monkeypatch.setattr(
+        "distill.ranking.llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='{"ranked_videos": [{"video_id": "v2", "relevance_score": 0.9, "depth_score": 0.8, "practicality_score": 0.8, "freshness_score": 0.7, "credibility_score": 0.6, "final_score": 0.82, "rationale": "best match"}]}',
+            input_tokens=100, output_tokens=50, model="grok-4.3",
+        ),
+    )
 
     ranked = rerank_videos("query", videos, config, top_n=1, use_llm=True)
 
@@ -258,26 +249,14 @@ def test_llm_rerank_ignores_unknown_ids_and_tracks_usage(tmp_path, monkeypatch):
         VideoInfo("v1", "One", _recent(3), 1200, "https://youtube.com/watch?v=v1", "CreatorA")
     ]
 
-    class FakeCompletions:
-        def create(self, **kwargs):
-            return SimpleNamespace(
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(
-                            content='[{"video_id": "missing"}, {"video_id": "v1", "final_score": 0.8}]'
-                        )
-                    )
-                ],
-                usage=SimpleNamespace(prompt_tokens=12, completion_tokens=5),
-            )
+    from distill.llm.router import LLM_Response
 
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            self.chat = SimpleNamespace(completions=FakeCompletions())
-
-    monkeypatch.setattr("distill.ranking.OpenAI", FakeClient)
     monkeypatch.setattr(
-        "distill.ranking.search_rerank_prompt", lambda q, v, skeptical=False: "prompt"
+        "distill.ranking.llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='[{"video_id": "missing"}, {"video_id": "v1", "final_score": 0.8}]',
+            input_tokens=12, output_tokens=5, model="grok-4.3",
+        ),
     )
 
     ranked = _llm_rerank("query", videos, config, tracker)
@@ -383,24 +362,15 @@ def test_rerank_papers_uses_llm_response_when_available(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     papers = [_paper("p1", "One"), _paper("p2", "Two")]
 
-    class FakeCompletions:
-        def create(self, **kwargs):
-            return SimpleNamespace(
-                choices=[
-                    SimpleNamespace(
-                        message=SimpleNamespace(
-                            content='{"ranked_papers": [{"paper_id": "p2", "relevance_score": 0.9, "depth_score": 0.8, "novelty_score": 0.7, "credibility_score": 0.8, "final_score": 0.85, "rationale": "best fit"}]}'
-                        )
-                    )
-                ],
-                usage=SimpleNamespace(prompt_tokens=80, completion_tokens=40),
-            )
+    from distill.llm.router import LLM_Response
 
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            self.chat = SimpleNamespace(completions=FakeCompletions())
-
-    monkeypatch.setattr("distill.ranking.OpenAI", FakeClient)
+    monkeypatch.setattr(
+        "distill.ranking.llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='{"ranked_papers": [{"paper_id": "p2", "relevance_score": 0.9, "depth_score": 0.8, "novelty_score": 0.7, "credibility_score": 0.8, "final_score": 0.85, "rationale": "best fit"}]}',
+            input_tokens=80, output_tokens=40, model="grok-4.3",
+        ),
+    )
 
     ranked = rerank_papers("query", papers, config, top_n=1, use_llm=True)
 
