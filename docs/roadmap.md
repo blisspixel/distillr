@@ -16,7 +16,7 @@ Current UX priorities:
 
 - Make the website workflow feel first-class instead of command-by-command
 - Keep the YouTube "stay current" path fast and obvious
-- Goal-aware discovery as the front door when the user has a research goal rather than a keyword query (`distill discover` shipped; next: websites in the source pool, watch integration for goal files)
+- Goal-aware discovery as the front door when the user has a research goal rather than a keyword query (`distill discover` now spans papers, videos, and curated website seeds; next: trusted-site discovery for official docs and watch integration for goal files)
 - Improve handoff and notification paths so Distill works as a daily-driver research system, not just a batch CLI
 - Move the corpus toward an Obsidian-native "living wiki" shape (see section 10)
 
@@ -54,6 +54,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place
 - [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
+- [ ] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem
 - [ ] **Per-prompt token telemetry.** Log prompt-input length, output length, and elapsed time *per call* (not just per run) to `library/cost_log.jsonl` — needed to make context-engineering improvements (chunked paper analysis, report-pipeline compaction) measurable. Surface a "biggest prompts" view in `distill costs` so prompt budget regressions are visible.
 
 ### 3. Productize the core workflow
@@ -63,6 +64,7 @@ be moved to `CHANGELOG.md` on next release).
 - [x] Checked-in seed-file example for site batches (`configs/example_seeds.json`; user-local `configs/*_seeds.json` are git-ignored)
 - [x] Multi-topic, context-shaped briefings and syntheses (`distill research-brief` + `distill synthesize`) with a TEMPLATE context file so user context files stay local
 - [ ] Make source-set inputs feel first-class instead of relying on one-off command choreography
+- [ ] First-class research profiles for "prefer these channels + these trusted domains + this goal file" workflows so recurring analyst use cases (for example Microsoft-only research) do not require rebuilding the same command and seed setup by hand
 - [ ] Clarify corpus outputs and how to inspect or export them for downstream use
 - [~] Export / handoff presets for downstream agent roles and RAG pipelines (for example zipped MD/JSON bundles with clean metadata, confidence tags, and structured fields that consuming agents can act on without parsing prose)
 
@@ -75,15 +77,18 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Research history — track how findings evolve over time, diff between runs
 - [ ] Multi-pass escalation on demand so catch-up can stay cheap by default and selectively deepen only the highest-signal items
 - [ ] Persist creator voice / bias cards so synthesis can account for recurring framing, reliability, and drift over time
+- [ ] Retry / backoff / resume-friendly subtitle handling so transcript-rate-limit failures (`HTTP 429`, extractor churn) degrade gracefully during long mixed-source runs instead of leaving the user to infer what happened from sparse output
 
 ### 5. Finish website productization
 
 - [x] Generic website distillation — single URL or curated URL list input, browser-first crawl, per-page insights, site/topic synthesis, Deep Research report assembly
 - [x] Model policy by workload — keep cheap bulk-video defaults while using premium Grok models for website/page distillation where higher fidelity matters
 - [ ] Website UX polish — checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
+- [ ] Trusted-site discovery for docs-heavy research workflows — given allowlisted domains (for example `learn.microsoft.com`, `microsoft.com`), enumerate candidate pages from TOCs, landing pages, sitemaps, and shallow section crawls before the LLM rerank so users do not have to hand-curate every page seed
 - [ ] Better crawl boundary controls — keep site batches close to the intended section or branch by default
 - [~] Attachment ingestion — inventory embedded PDFs/videos and optionally pull PDF text or supported embedded-video transcripts into website runs
 - [ ] Mixed exact-page and shallow-crawl workflows that are easier to understand and safer by default
+- [ ] Better website candidate identity in preview/approval flows — show page-level titles, URLs, section labels, and freshness hints instead of collapsing multiple seeds under one collection label
 - [~] Section-aware freshness so website refreshes focus on changed branches instead of re-crawling everything
 
 ### 6. Papers as a first-class source type
@@ -111,7 +116,8 @@ be moved to `CHANGELOG.md` on next release).
 
 - [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; deeper cross-source reasoning and dedup are still pending.
 - [x] **Goal-aware cross-source discovery** — `distill discover "<goal>"` (or `--goal-file`) generates paper + video queries from a natural-language goal, fans out, and runs a unified goal-aware rerank *across source types* before ingestion. Closes the front-door gap between "I have a keyword" and "I have a research goal."
-- [ ] Extend discover to include website seeds alongside papers + videos.
+- [x] Extend discover to include curated website seeds alongside papers + videos so official docs and hand-picked web sources can compete in the same goal-aware rerank. General web search is still intentionally out of scope for discover; website input stays seed-driven.
+- [ ] Trusted-domain website discovery inside `discover` — let the app expand "prefer Microsoft docs / vendor docs / official learn pages" into real page candidates from allowlisted domains, then rerank those page candidates with videos/papers in the same pool
 - [ ] `distill watch` integration for goal files — re-run discover against a saved goal on a cadence so goal-driven topics refresh the same way keyword topics do.
 - [ ] Multi-topic channels — same channel filed under multiple topics with shared transcripts
 - [x] MCP-powered research-gap discovery so external agents can ask Distill what is missing and trigger follow-on ingestion
@@ -197,12 +203,15 @@ for the principles these items derive from.
 ### 12. Discovery loop hardening (preview → approve → ingest)
 
 These items came out of real research-session friction during a multi-topic
-ingest run on closed timelike curves: previewing the candidate pool, sizing the
-real run, approving spend, and watching costs accumulate across iterative
-preview cycles. The pieces shipped in 0.2.0 (preview cost-log differentiation,
-`--papers-only` / `--videos-only`, `--top-by-date` for `latest`) closed the
-near-term gaps; the items below are the deeper design questions that surfaced
-in the same session and deserve their own write-ups before implementation.
+ingest run on closed timelike curves and a later Microsoft Agent365 mixed-source
+run: previewing the candidate pool, sizing the real run, approving spend,
+watching costs accumulate across iterative preview cycles, seeing too little
+live progress during long ingests, and noticing that site candidates and final
+ingest selections were not always legible enough. The pieces shipped in 0.2.0
+(preview cost-log differentiation, `--papers-only` / `--videos-only`,
+`--top-by-date` for `latest`) closed the near-term gaps; the items below are the
+deeper design questions that surfaced in those sessions and deserve their own
+write-ups before implementation.
 
 - [ ] **Rerank determinism: preview → ingest commit-by-ID.** Previewing the
   goal-ranked shortlist and then running the real ingest can produce a different
@@ -245,6 +254,25 @@ in the same session and deserve their own write-ups before implementation.
   7 including OK") and per-option spend → typed approval → ingest. Depends on
   the rerank-determinism work above (commit-by-ID) and the real cost estimator;
   builds on `ROADMAP.md` item 6.
+- [ ] **Page-level candidate identity for website-heavy discover runs.** In the
+  Agent365 session, multiple official Microsoft pages previewed under the same
+  collection label, which made it harder to decide what would actually be
+  ingested. Preview rows for sites should show the real page title (or a
+  synthesized title from URL + section), the hostname, freshness when known,
+  and enough URL/section context that "approve this" is a meaningful action.
+- [ ] **Trusted-site discovery for official-doc workflows.** The current
+  `--site-seeds` support works, but it still makes the user curate every page
+  manually. Add a constrained discovery mode where the user supplies trusted
+  domains (for example `learn.microsoft.com`, `microsoft.com`) and Distill
+  enumerates real candidate pages from TOCs, landing pages, sitemaps, and
+  shallow section crawls before the goal-aware rerank. Keep this allowlist- and
+  evidence-driven; this is not a license for arbitrary web search.
+- [ ] **Long-run visibility and failure surfacing.** The Agent365 mixed-source
+  run kept working but emitted very little live output after planning, forcing
+  filesystem inspection to confirm progress. Long `discover` / `report` runs
+  should show current phase, current item, completed/failed counts by source
+  type, and explicit reasons when a source stalls or skips (for example
+  transcript rate limiting, empty crawl, reuse of unchanged site insights).
 - [ ] **Synthesis register styles, with PhD-level as the new default.** Today
   `distill synthesize` is a single-call Grok 4.20 corpus-only pass with a
   prompt calibrated for an executive-briefing register. The pattern that

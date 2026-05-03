@@ -53,7 +53,7 @@ def _relative_library_path(config: DistillConfig, path_obj: Path) -> str:
         return str(path_obj.resolve())
 
 
-def _collect_topic_change_details(
+def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
     config: DistillConfig,
     lib: Library,
     topic: str,

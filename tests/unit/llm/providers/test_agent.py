@@ -56,7 +56,7 @@ def test_task_file_structure(prompt: str, workload_tag: str) -> None:
         provider = AgentProvider(ops_dir=str(ops_dir))
 
         with pytest.raises(PendingTaskError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 provider.call("agent", prompt, call_type=workload_tag)
             )
 
@@ -70,13 +70,13 @@ def test_task_file_structure(prompt: str, workload_tag: str) -> None:
         )
 
         # All required fields present
-        assert "task_id" in task_data and task_data["task_id"]
+        assert task_data.get("task_id")
         assert task_data["workload_tag"] == workload_tag
         assert task_data["prompt"] == prompt
-        assert "expected_output_format" in task_data and task_data["expected_output_format"]
-        assert "result_path" in task_data and task_data["result_path"]
-        assert "_instruction" in task_data and task_data["_instruction"]
-        assert "prompt_hash" in task_data and task_data["prompt_hash"]
+        assert task_data.get("expected_output_format")
+        assert task_data.get("result_path")
+        assert task_data.get("_instruction")
+        assert task_data.get("prompt_hash")
 
         # prompt_hash matches expected value
         expected_hash = AgentProvider._prompt_hash(prompt, workload_tag)
@@ -106,7 +106,7 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
 
         # First call: write the task file
         with pytest.raises(PendingTaskError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 provider.call("agent", prompt, call_type=workload_tag)
             )
 
@@ -122,7 +122,7 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
         result_path.write_text(result_text, encoding="utf-8")
 
         # Second call: should find the result and return it
-        response = asyncio.get_event_loop().run_until_complete(
+        response = asyncio.run(
             provider.call("agent", prompt, call_type=workload_tag)
         )
 
@@ -147,7 +147,7 @@ class TestAgentProviderLifecycle:
         provider = AgentProvider(ops_dir=str(ops_dir))
 
         with pytest.raises(PendingTaskError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 provider.call("agent", "test prompt", call_type="analysis")
             )
 
@@ -162,7 +162,7 @@ class TestAgentProviderLifecycle:
         provider = AgentProvider(ops_dir=str(ops_dir))
 
         with pytest.raises(PendingTaskError) as exc_info:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 provider.call("agent", "test prompt", call_type="analysis")
             )
 
@@ -177,7 +177,7 @@ class TestAgentProviderLifecycle:
 
         # Write the task file
         with pytest.raises(PendingTaskError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 provider.call("agent", "test prompt", call_type="synthesis")
             )
 
@@ -195,7 +195,7 @@ class TestAgentProviderLifecycle:
         task_name = task_files[0].name
 
         # Second call: reads result and moves task
-        response = asyncio.get_event_loop().run_until_complete(
+        response = asyncio.run(
             provider.call("agent", "test prompt", call_type="synthesis")
         )
 

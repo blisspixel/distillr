@@ -18,7 +18,6 @@ from hypothesis import strategies as st
 from distill.llm.providers.grok import GrokProvider
 from distill.llm.router import LLM_Response
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -79,9 +78,9 @@ def test_retry_count(retries: int) -> None:
 
     mock_client.chat.completions.create = counting_create
 
-    with patch("distill.llm.providers.grok.time.sleep"):
-        with pytest.raises(RuntimeError, match="transient"):
-            asyncio.get_event_loop().run_until_complete(
+    with patch("distill.llm.providers.grok.time.sleep"), \
+         pytest.raises(RuntimeError, match="transient"):
+            asyncio.run(
                 provider.call("grok-4.3", "test prompt", retries=retries)
             )
 
@@ -105,7 +104,7 @@ class TestGrokProviderSuccess:
             text="response text", prompt_tokens=100, completion_tokens=50
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             provider.call("grok-4.3", "hello")
         )
 
@@ -122,7 +121,7 @@ class TestGrokProviderSuccess:
             empty_choices=True
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             provider.call("grok-4.3", "hello")
         )
 
@@ -144,7 +143,7 @@ class TestGrokProviderRetry:
         ]
 
         with patch("distill.llm.providers.grok.time.sleep") as mock_sleep:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 provider.call("grok-4.3", "hello", retries=2)
             )
 
@@ -158,9 +157,9 @@ class TestGrokProviderRetry:
         provider, mock_client = _build_provider()
         mock_client.chat.completions.create.side_effect = RuntimeError("permanent")
 
-        with patch("distill.llm.providers.grok.time.sleep"):
-            with pytest.raises(RuntimeError, match="permanent"):
-                asyncio.get_event_loop().run_until_complete(
+        with patch("distill.llm.providers.grok.time.sleep"), \
+             pytest.raises(RuntimeError, match="permanent"):
+                asyncio.run(
                     provider.call("grok-4.3", "hello", retries=2)
                 )
 

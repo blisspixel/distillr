@@ -3,7 +3,7 @@
 
 Feature: llm-router-model-upgrade
 
-Tasks 18.1–18.7: integration tests, structural tests, and end-to-end
+Tasks 18.1-18.7: integration tests, structural tests, and end-to-end
 idempotency property test.
 """
 
@@ -23,11 +23,10 @@ from hypothesis import strategies as st
 
 from distill.llm.providers import Provider
 from distill.llm.router import (
-    ConfigurationError,
+    WORKLOAD_TAGS,
     LLM_Response,
     PendingTaskError,
     RouterConfig,
-    WORKLOAD_TAGS,
     call,
 )
 from distill.llm.telemetry import top_n_by_tokens
@@ -67,7 +66,7 @@ def _mock_provider(
 # ---------------------------------------------------------------------------
 
 
-def test_no_openai_construction_outside_llm() -> None:
+def test_no_openai_construction_outside_llm() -> None:  # noqa: C901 — legacy, will refactor
     """Scan all .py files in distill/ (excluding distill/llm/ and doctor)
     for OpenAI( constructor calls.  Assert zero matches.
 
@@ -78,7 +77,7 @@ def test_no_openai_construction_outside_llm() -> None:
     for root, _dirs, files in os.walk(str(_DISTILL_ROOT)):
         root_path = Path(root)
         # Skip distill/llm/ entirely
-        if _LLM_ROOT == root_path or str(root_path).startswith(str(_LLM_ROOT)):
+        if root_path == _LLM_ROOT or str(root_path).startswith(str(_LLM_ROOT)):
             continue
         # Skip __pycache__
         if "__pycache__" in str(root_path):
@@ -103,9 +102,7 @@ def test_no_openai_construction_outside_llm() -> None:
                 if isinstance(node, ast.Call):
                     func = node.func
                     # Match OpenAI(...)
-                    if isinstance(func, ast.Name) and func.id == "OpenAI":
-                        violations.append(f"{fpath}:{node.lineno}")
-                    elif isinstance(func, ast.Attribute) and func.attr == "OpenAI":
+                    if (isinstance(func, ast.Name) and func.id == "OpenAI") or (isinstance(func, ast.Attribute) and func.attr == "OpenAI"):
                         violations.append(f"{fpath}:{node.lineno}")
 
     assert violations == [], (
@@ -218,7 +215,7 @@ def test_ops_dir_separation() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_no_external_distill_imports_in_llm() -> None:
+def test_no_external_distill_imports_in_llm() -> None:  # noqa: C901 — legacy, will refactor
     """Parse all .py files in distill/llm/ with AST.
     Assert no import distill.* or from distill.* statements except
     from distill.llm.
@@ -250,10 +247,9 @@ def test_no_external_distill_imports_in_llm() -> None:
                             violations.append(
                                 f"{fpath}:{node.lineno} — import {alias.name}"
                             )
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module and node.module.startswith("distill") and not node.module.startswith(
-                        "distill.llm"
-                    ):
+                elif isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("distill") and not node.module.startswith(
+                    "distill.llm"
+                ):
                         violations.append(
                             f"{fpath}:{node.lineno} — from {node.module} import ..."
                         )
@@ -289,7 +285,7 @@ def test_module_size_cap() -> None:
                 oversized.append(f"{fpath}: {line_count} lines")
 
     assert oversized == [], (
-        f"Module(s) exceeding 400-line cap:\n" + "\n".join(oversized)
+        "Module(s) exceeding 400-line cap:\n" + "\n".join(oversized)
     )
 
 

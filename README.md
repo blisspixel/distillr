@@ -72,9 +72,10 @@ GEMINI_API_KEY=AIza...          # Gemini Deep Research (reports + briefings)
 Then try any of:
 
 ```bash
-# Goal-aware cross-source discovery (papers + videos, reranked against a goal)
+# Goal-aware cross-source discovery (papers + videos + curated sites, reranked against a goal)
 distill discover "help an AI become a great music composer" --topic music --preview
 distill discover --goal-file private/my-goal.md --topic research --yes
+distill discover --goal-file private/agent365-goal.md --topic agent365 --site-seeds private/agent365_sites.json --site-limit 10 --preview
 
 # Get smart on a YouTube topic, fast
 distill latest "Microsoft Fabric best practices" --limit 10 --report

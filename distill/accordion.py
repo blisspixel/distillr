@@ -380,7 +380,7 @@ def _write_sections(
 # ─── Phase 4: QA ────────────────────────────────────────────────────
 
 
-def _run_qa_phase(
+def _run_qa_phase(  # noqa: C901 — legacy, will refactor
     topic: str,
     config: DistillConfig,
     dossier: str,
@@ -703,7 +703,7 @@ def _load_syntheses(
     return "\n\n".join(parts) if parts else ""
 
 
-def _load_tagged_insights(
+def _load_tagged_insights(  # noqa: C901 — legacy, will refactor
     topic: str,
     config: DistillConfig,
     scope: str,

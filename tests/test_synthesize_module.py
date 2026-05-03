@@ -36,16 +36,16 @@ def test_run_synthesis_handles_empty_corpus(tmp_path):
 
 def test_run_synthesis_handles_empty_response(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
-    with patch("distill.synthesize.gather_topic_files", return_value=[("doc", "body")]):
-        with patch("distill.synthesize.llm_call", _fake_llm_call("")):
+    with patch("distill.synthesize.gather_topic_files", return_value=[("doc", "body")]), \
+         patch("distill.synthesize.llm_call", _fake_llm_call("")):
             assert run_synthesis(["ai"], "ctx", "demo", config) is None
 
 
 def test_run_synthesis_success(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     tracker = CostTracker()
-    with patch("distill.synthesize.gather_topic_files", return_value=[("doc", "body")]):
-        with patch("distill.synthesize.llm_call", _fake_llm_call("final synthesis")):
+    with patch("distill.synthesize.gather_topic_files", return_value=[("doc", "body")]), \
+         patch("distill.synthesize.llm_call", _fake_llm_call("final synthesis")):
             result = run_synthesis(["ai"], "ctx", "demo", config, tracker=tracker)
 
     assert result is not None

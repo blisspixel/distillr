@@ -14,7 +14,6 @@ import pytest
 
 from distill.llm.router import LLM_Response
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -68,7 +67,7 @@ class TestGeminiProviderSuccess:
             candidates_token_count=50,
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             provider.call("gemini-3.1-pro", "hello")  # type: ignore[union-attr]
         )
 
@@ -85,7 +84,7 @@ class TestGeminiProviderSuccess:
             text="no usage", has_usage=False
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             provider.call("gemini-3.1-flash", "hello")  # type: ignore[union-attr]
         )
 
@@ -101,7 +100,7 @@ class TestGeminiProviderSuccess:
             text="partial", usage_metadata=usage
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             provider.call("gemini-3.1-flash", "hello")  # type: ignore[union-attr]
         )
 
@@ -121,7 +120,7 @@ class TestGeminiProviderRetry:
         ]
 
         with patch("distill.llm.providers.gemini.time.sleep") as mock_sleep:
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 provider.call("gemini-3.1-pro", "hello", retries=2)  # type: ignore[union-attr]
             )
 
@@ -133,9 +132,9 @@ class TestGeminiProviderRetry:
         provider, mock_client = _build_provider()
         mock_client.models.generate_content.side_effect = RuntimeError("permanent")
 
-        with patch("distill.llm.providers.gemini.time.sleep"):
-            with pytest.raises(RuntimeError, match="permanent"):
-                asyncio.get_event_loop().run_until_complete(
+        with patch("distill.llm.providers.gemini.time.sleep"), \
+             pytest.raises(RuntimeError, match="permanent"):
+                asyncio.run(
                     provider.call("gemini-3.1-pro", "hello", retries=2)  # type: ignore[union-attr]
                 )
 

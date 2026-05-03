@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
-from distill.llm.router import LLM_Response
 from distill.corpus_analysis import synthesize_corpus
+from distill.llm.router import LLM_Response
 
 
 def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
