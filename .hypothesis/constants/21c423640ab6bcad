@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\text\parfmt.py
+# hypothesis_version: 6.148.2
+
+['w:adjustRightInd', 'w:after', 'w:autoSpaceDE', 'w:autoSpaceDN', 'w:before', 'w:bidi', 'w:cnfStyle', 'w:contextualSpacing', 'w:divId', 'w:firstLine', 'w:framePr', 'w:hanging', 'w:ind', 'w:jc', 'w:keepLines', 'w:keepNext', 'w:kinsoku', 'w:leader', 'w:left', 'w:line', 'w:lineRule', 'w:mirrorIndents', 'w:numPr', 'w:outlineLvl', 'w:overflowPunct', 'w:pBdr', 'w:pPrChange', 'w:pStyle', 'w:pageBreakBefore', 'w:pos', 'w:rPr', 'w:right', 'w:sectPr', 'w:shd', 'w:snapToGrid', 'w:spacing', 'w:suppressOverlap', 'w:tab', 'w:tabs', 'w:textAlignment', 'w:textDirection', 'w:textboxTightWrap', 'w:topLinePunct', 'w:val', 'w:widowControl', 'w:wordWrap']

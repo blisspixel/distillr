@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\xmlchemy.py
+# hypothesis_version: 6.148.2
+
+['%s_lst', ':', "<%s '<%s>' at 0x%0x>", '_T', '_add_%s', '_insert_%s', '_new_%s', '_remove_%s', 'add_%s', 'get_or_add_%s', 'get_or_change_to_%s', 'unicode']

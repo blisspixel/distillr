@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\containers\containers.py
+# hypothesis_version: 6.148.2
+
+['*/*', '/containers', '16g', '1g', '4g', '64g', 'Accept', 'AsyncContainers', 'Containers', 'after', 'asc', 'desc', 'expires_after', 'file_ids', 'limit', 'memory_limit', 'name', 'network_policy', 'order', 'skills']

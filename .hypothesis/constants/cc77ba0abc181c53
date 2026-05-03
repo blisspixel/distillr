@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\response_input_message_item.py
+# hypothesis_version: 6.148.2
+
+['completed', 'developer', 'in_progress', 'incomplete', 'message', 'system', 'user']

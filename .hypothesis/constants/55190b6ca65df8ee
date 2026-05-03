@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\id3\_tags.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', b'ID3', 128, 2048, '\x00', '%02d%02d', '%04d', '%s', '%s: too small', '-%s-%s', ':', '<unknown>', '>3s3s', '>3sBBB4s', '>4s4sH', '>4sLH', '>L', 'APIC', 'ASPI', 'CHAP', 'CTOC', 'EQU2', 'EQUA', 'IPLS', 'JPG', 'PNG', 'RVA2', 'RVAD', 'SEEK', 'SIGN', 'T%s:%s:00', 'TALB', 'TCON', 'TDAT', 'TDEN', 'TDOR', 'TDRC', 'TDRL', 'TDTG', 'TIME', 'TIPL', 'TIT2', 'TMCL', 'TMOO', 'TORY', 'TPE1', 'TPOS', 'TPRO', 'TRCK', 'TRDA', 'TSIZ', 'TSOA', 'TSOP', 'TSOT', 'TSST', 'TYER', 'ascii', 'image/jpeg', 'image/png', 'mutagen.id3', 'name', 'replace']

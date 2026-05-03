@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\extensions\codehilite.py
+# hypothesis_version: 6.148.2
+
+[' class="{}"', '"', '&', '&amp;', '&gt;', '&lt;', '&quot;', '<', '>', 'code', 'codehilite', 'css_class', 'cssclass', 'default', 'full', 'guess_lang', 'hilite', 'hl_lines', 'html', 'lang', 'lang_prefix', 'language-', 'linenos', 'linenums', 'noclasses', 'p', 'path', 'pre', 'pygments_formatter', 'pygments_style', 'shebang', 'text', 'use_pygments', 'wrapcode', '{}{}']

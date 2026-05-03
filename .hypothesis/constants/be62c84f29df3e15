@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\cryptography\hazmat\primitives\ciphers\algorithms.py
+# hypothesis_version: 6.148.2
+
+[128, 192, 256, 512, 'AES', 'ARC4', 'ChaCha20', 'SM4', 'TripleDES', 'camellia', 'nonce']

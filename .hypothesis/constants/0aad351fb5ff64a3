@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\requests\errors.py
+# hypothesis_version: 6.148.2
+
+['CookieConflict', 'CurlError', 'RequestsError', 'SessionClosed']

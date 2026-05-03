@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\simpletypes.py
+# hypothesis_version: 6.148.2
+
+[2.0, -9223372036854775808, -27273042329600, -2147483648, 1970, 12700, 36000, 152400, 360000, 914400, 2147483647, 4294967295, 27273042316900, 9223372036854775807, 18446744073709551615, '%02X%02X%02X', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%SZ', '0', '1', 'Z', 'all', 'auto', 'autofit', 'baseline', 'cm', 'column', 'continue', 'dxa', 'false', 'fixed', 'i', 'in', 'left', 'm', 'mm', 'n', 'nil', 'none', 'off', 'on', 'p', 'page', 'pc', 'pct', 'pi', 'pt', 'restart', 'right', 'subscript', 'superscript', 'textWrapping', 'true']

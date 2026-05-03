@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\requests\headers.py
+# hypothesis_version: 6.148.2
+
+[b':', b'[secure]', ',', ', ', ':', 'Headers', 'None', '[secure]', 'ascii', 'authorization', 'iso-8859-1', 'latin-1', 'proxy-authorization', 'utf-8']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\requests\__init__.py
+# hypothesis_version: 6.148.2
+
+['AsyncSession', 'AsyncWebSocket', 'BrowserType', 'BrowserTypeLiteral', 'CookieTypes', 'Cookies', 'CurlWsFlag', 'DELETE', 'ExtraFingerprints', 'GET', 'HEAD', 'HeaderTypes', 'Headers', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ProxySpec', 'QUERY', 'Request', 'RequestsError', 'Response', 'Session', 'TRACE', 'WebSocket', 'WebSocketClosed', 'WebSocketError', 'WebSocketTimeout', 'WsCloseCode', 'delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'request']

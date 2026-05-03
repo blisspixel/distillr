@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\requests_toolbelt\utils\user_agent.py
+# hypothesis_version: 6.148.2
+
+['%s.%s.%s', '%s/%s', 'CPython', 'IronPython', 'Jython', 'PyPy', 'Unknown', 'final']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\llm\router.py
+# hypothesis_version: 6.148.2
+
+[300, 8192, 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'XAI_API_KEY', 'accordion', 'agent', 'analysis', 'anthropic', 'anthropic_api_key', 'brief', 'error', 'gemini', 'gemini_api_key', 'grok-4.3', 'maintenance', 'ollama', 'openai', 'openai_api_key', 'qa', 'report', 'rerank', 'site', 'success', 'synthesis', 'xai', 'xai_api_key']

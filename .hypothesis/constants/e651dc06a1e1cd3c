@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\styles.py
+# hypothesis_version: 6.148.2
+
+['Caption', 'Heading1', 'Heading2', 'Heading3', 'Heading4', 'Heading5', 'Heading6', 'Heading7', 'Heading8', 'Heading9', 'caption', 'heading 1', 'heading 2', 'heading 3', 'heading 4', 'heading 5', 'heading 6', 'heading 7', 'heading 8', 'heading 9', 'w:aliases', 'w:autoRedefine', 'w:basedOn', 'w:count', 'w:customStyle', 'w:defLockedState', 'w:defQFormat', 'w:defSemiHidden', 'w:defUIPriority', 'w:defUnhideWhenUsed', 'w:default', 'w:docDefaults', 'w:hidden', 'w:latentStyles', 'w:link', 'w:locked', 'w:lsdException', 'w:name', 'w:next', 'w:pPr', 'w:personal', 'w:personalCompose', 'w:personalReply', 'w:qFormat', 'w:rPr', 'w:rsid', 'w:semiHidden', 'w:style', 'w:styleId', 'w:tblPr', 'w:tblStylePr', 'w:tcPr', 'w:trPr', 'w:type', 'w:uiPriority', 'w:unhideWhenUsed']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\section.py
+# hypothesis_version: 6.148.2
+
+['./w:p | ./w:tbl', 'CT_P | CT_Tbl', 'r:id', 'w:bidi', 'w:bottom', 'w:cols', 'w:docGrid', 'w:endnotePr', 'w:footer', 'w:footerReference', 'w:footnotePr', 'w:formProt', 'w:gutter', 'w:h', 'w:header', 'w:headerReference', 'w:left', 'w:lnNumType', 'w:noEndnote', 'w:orient', 'w:p', 'w:paperSrc', 'w:pgBorders', 'w:pgMar', 'w:pgNumType', 'w:pgSz', 'w:printerSettings', 'w:right', 'w:rtlGutter', 'w:sectPrChange', 'w:tbl', 'w:textDirection', 'w:titlePg', 'w:top', 'w:type', 'w:vAlign', 'w:val', 'w:w']

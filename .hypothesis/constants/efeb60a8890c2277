@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\common\normalize_url.py
+# hypothesis_version: 6.148.2
+
+['%', 'http:', 'https:', 'mailto:']

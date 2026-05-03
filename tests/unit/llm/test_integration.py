@@ -102,7 +102,9 @@ def test_no_openai_construction_outside_llm() -> None:  # noqa: C901 — legacy,
                 if isinstance(node, ast.Call):
                     func = node.func
                     # Match OpenAI(...)
-                    if (isinstance(func, ast.Name) and func.id == "OpenAI") or (isinstance(func, ast.Attribute) and func.attr == "OpenAI"):
+                    if (isinstance(func, ast.Name) and func.id == "OpenAI") or (
+                        isinstance(func, ast.Attribute) and func.attr == "OpenAI"
+                    ):
                         violations.append(f"{fpath}:{node.lineno}")
 
     assert violations == [], (
@@ -201,9 +203,7 @@ def test_ops_dir_separation() -> None:
 
         # Nothing should be written to library root (only .distill/ subdir)
         root_files = [
-            f
-            for f in library_dir.iterdir()
-            if f.is_file() and not f.name.startswith(".")
+            f for f in library_dir.iterdir() if f.is_file() and not f.name.startswith(".")
         ]
         assert root_files == [], (
             f"Library root should have no operational files, found: {root_files}"
@@ -244,15 +244,14 @@ def test_no_external_distill_imports_in_llm() -> None:  # noqa: C901 — legacy,
                         if alias.name.startswith("distill") and not alias.name.startswith(
                             "distill.llm"
                         ):
-                            violations.append(
-                                f"{fpath}:{node.lineno} — import {alias.name}"
-                            )
-                elif isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("distill") and not node.module.startswith(
-                    "distill.llm"
+                            violations.append(f"{fpath}:{node.lineno} — import {alias.name}")
+                elif (
+                    isinstance(node, ast.ImportFrom)
+                    and node.module
+                    and node.module.startswith("distill")
+                    and not node.module.startswith("distill.llm")
                 ):
-                        violations.append(
-                            f"{fpath}:{node.lineno} — from {node.module} import ..."
-                        )
+                    violations.append(f"{fpath}:{node.lineno} — from {node.module} import ...")
 
     assert violations == [], (
         f"Found {len(violations)} external distill.* import(s) in distill/llm/:\n"
@@ -284,9 +283,7 @@ def test_module_size_cap() -> None:
             if line_count > 400:
                 oversized.append(f"{fpath}: {line_count} lines")
 
-    assert oversized == [], (
-        "Module(s) exceeding 400-line cap:\n" + "\n".join(oversized)
-    )
+    assert oversized == [], "Module(s) exceeding 400-line cap:\n" + "\n".join(oversized)
 
 
 # ---------------------------------------------------------------------------
@@ -323,9 +320,7 @@ def test_provider_protocol_compliance() -> None:
             providers.append(("GeminiProvider", GeminiProvider(api_key="dummy-key")))
 
         for name, provider in providers:
-            assert isinstance(provider, Provider), (
-                f"{name} does not satisfy the Provider protocol"
-            )
+            assert isinstance(provider, Provider), f"{name} does not satisfy the Provider protocol"
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +413,9 @@ def test_end_to_end_idempotency_standard_provider(
 @given(
     prompt=st.text(min_size=1, max_size=200).filter(lambda s: s.strip()),
     result_text=st.text(
-        min_size=1, max_size=500, alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\r")
+        min_size=1,
+        max_size=500,
+        alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\r"),
     ).filter(lambda s: s.strip()),
 )
 def test_end_to_end_idempotency_agent_mode(

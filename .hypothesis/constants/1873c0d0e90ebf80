@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\vector_store.py
+# hypothesis_version: 6.148.2
+
+['ExpiresAfter', 'FileCounts', 'VectorStore', 'completed', 'expired', 'in_progress', 'last_active_at', 'vector_store']

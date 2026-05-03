@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\click\shell_completion.py
+# hypothesis_version: 6.148.2
+
+['-', '--', '--norc', '-c', '4', ':', '=', 'COMP_CWORD', 'COMP_WORDS', 'ShellCompleteType', '\\:', '\\W*', '^(\\d+)\\.(\\d+)\\.\\d+', '_', '_info', 'bash', 'complete', 'complete_func', 'complete_var', 'fish', 'help', 'plain', 'prog_name', 'resilient_parsing', 'source', 'type', 'type[ShellComplete]', 'value', 'zsh']

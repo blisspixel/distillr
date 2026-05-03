@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\decorator.py
+# hypothesis_version: 6.148.2
+
+[', ', 'AnyCallable', 'AnyCallableT', 'Config', 'ConfigType', 'alias_generator', 'args', 'extra', 'fields', 'kwargs', 's', 'v__args', 'v__duplicate_kwargs', 'v__kwargs', 'v__positional_only', 'validate_arguments']

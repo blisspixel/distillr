@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\starlette\templating.py
+# hypothesis_version: 6.148.2
+
+[200, 'autoescape', 'background', 'context', 'extensions', 'headers', 'http.response.debug', 'info', 'loader', 'media_type', 'name', 'pass_context', 'request', 'status_code', 'template', 'type', 'url_for']

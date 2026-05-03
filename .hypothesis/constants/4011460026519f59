@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\jsc\_builtin\quickjs.py
+# hypothesis_version: 6.148.2
+
+[850, 2025, '--script', '.js', 'quickjs', 'quickjs-ng', 'utf-8', 'w']

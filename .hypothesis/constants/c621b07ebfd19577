@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\requests_toolbelt\auth\_digest_auth_compat.py
+# hypothesis_version: 6.148.2
+
+[133120, 'chal', 'init', 'last_nonce', 'nonce_count', 'num_401_calls', 'pos']

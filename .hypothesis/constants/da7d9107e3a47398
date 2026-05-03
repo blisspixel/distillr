@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\types\image_content_param.py
+# hypothesis_version: 6.148.2
+
+['ImageContentParam', 'base64', 'high', 'image', 'low', 'medium']

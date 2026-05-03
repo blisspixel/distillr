@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpcore\_synchronization.py
+# hypothesis_version: 6.148.2
+
+['asyncio', 'inf', 'trio']

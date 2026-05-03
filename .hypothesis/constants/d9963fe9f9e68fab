@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\file_purpose.py
+# hypothesis_version: 6.148.2
+
+['FilePurpose', 'assistants', 'batch', 'evals', 'fine-tune', 'user_data', 'vision']

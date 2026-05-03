@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\flac.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', b'ID3', b'TAG', b'fLaC', -128, 127, 128, 88200, 4294967295, 68719476735, '.flac', "<%s '%s' (%d bytes)>", '<%s (%d bytes)>', '<%s seekpoints=%r>', '>128sQB258xB', '>2I', '>4I', '>5I', '>I', '>QB12sB13xB', '>QB3x', '>QQH', 'FLAC', 'Open', 'UTF-8', 'application/x-flac', 'audio/flac', 'audio/x-flac', 'close', 'delete', 'flush', 'name', 'read', 'replace', 'seek', 'tell', 'truncate', 'write']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\video_size.py
+# hypothesis_version: 6.148.2
+
+['1024x1792', '1280x720', '1792x1024', '720x1280', 'VideoSize']

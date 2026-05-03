@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\fine_tuning\__init__.py
+# hypothesis_version: 6.148.2
+
+['Alpha', 'AlphaWithRawResponse', 'AsyncAlpha', 'AsyncCheckpoints', 'AsyncFineTuning', 'AsyncJobs', 'Checkpoints', 'FineTuning', 'Jobs', 'JobsWithRawResponse']

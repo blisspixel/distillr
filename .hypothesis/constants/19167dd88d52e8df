@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\id3\__init__.py
+# hypothesis_version: 6.148.2
+
+['Frames', 'ID3', 'ID3FileType', 'Open', 'delete']

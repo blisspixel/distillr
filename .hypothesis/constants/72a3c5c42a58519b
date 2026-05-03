@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_ssl.py
+# hypothesis_version: 6.148.2
+
+[16384, 'BROKEN', 'CLOSED', 'OK', 'T', 'TLSv1.3', 'T_Stream', '_State', 'cipher', 'compression', 'context', 'get_channel_binding', 'getpeercert', 'pending', 'server_hostname', 'server_side', 'session', 'session_reused', 'shared_ciphers', 'strerror', 'version']

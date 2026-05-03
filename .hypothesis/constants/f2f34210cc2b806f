@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\_utils\_logs.py
+# hypothesis_version: 6.148.2
+
+['%Y-%m-%d %H:%M:%S', '<redacted>', 'OPENAI_LOG', 'api-key', 'authorization', 'debug', 'headers', 'httpx', 'info', 'openai']

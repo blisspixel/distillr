@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\evals\runs\output_item_retrieve_response.py
+# hypothesis_version: 6.148.2
+
+['Result', 'Sample', 'SampleInput', 'SampleOutput', 'SampleUsage', 'eval.run.output_item']

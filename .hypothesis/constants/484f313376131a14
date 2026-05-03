@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\easy_input_message_param.py
+# hypothesis_version: 6.148.2
+
+['assistant', 'commentary', 'developer', 'final_answer', 'message', 'system', 'user']

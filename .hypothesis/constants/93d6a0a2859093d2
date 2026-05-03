@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\session_create_response.py
+# hypothesis_version: 6.148.2
+
+['ClientSecret', 'Tool', 'Tracing', 'TurnDetection', 'alloy', 'ash', 'audio', 'auto', 'ballad', 'coral', 'echo', 'function', 'inf', 'sage', 'shimmer', 'text', 'verse']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\typer\_completion_classes.py
+# hypothesis_version: 6.148.2
+
+['"', '""', '$', "'", "''", ':', 'COMP_CWORD', 'COMP_WORDS', '\\$', '\\\\:', '\\`', '\\s', '_TYPER_COMPLETE_ARGS', '_files', '`', 'autocomplete_var', 'complete_func', 'get-args', 'is-args', 'prog_name', 'rich']

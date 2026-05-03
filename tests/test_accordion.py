@@ -328,7 +328,9 @@ class TestWriteSections:
     def test_writes_all_sections(self, mock_call, mock_sleep, config):
         mock_call.return_value = LLM_Response(
             text="Section content with enough words to count.",
-            input_tokens=10, output_tokens=20, model="grok-4.3",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
         )
 
         result = _write_sections(
@@ -347,7 +349,9 @@ class TestWriteSections:
     def test_filters_sections(self, mock_call, mock_sleep, config):
         mock_call.return_value = LLM_Response(
             text="Filtered section content.",
-            input_tokens=10, output_tokens=20, model="grok-4.3",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
         )
 
         result = _write_sections(
@@ -367,7 +371,10 @@ class TestWriteSections:
     @patch("distill.accordion.llm_call")
     def test_stops_after_3_consecutive_failures(self, mock_call, mock_sleep, config):
         mock_call.return_value = LLM_Response(
-            text="", input_tokens=0, output_tokens=0, model="grok-4.3",
+            text="",
+            input_tokens=0,
+            output_tokens=0,
+            model="grok-4.3",
         )
 
         result = _write_sections(
@@ -385,7 +392,9 @@ class TestWriteSections:
     def test_uses_active_sections_override(self, mock_call, mock_sleep, config):
         mock_call.return_value = LLM_Response(
             text="Override content.",
-            input_tokens=10, output_tokens=20, model="grok-4.3",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
         )
         active_sections = [REPORT_SECTIONS[0], REPORT_SECTIONS[1]]
 
@@ -512,11 +521,15 @@ class TestQaPhase:
         mock_call.side_effect = [
             LLM_Response(
                 text="### Executive Briefing\n**Score**: FAIL\nFix this.\n### Strategic Synthesis\n**Score**: PASS",
-                input_tokens=10, output_tokens=20, model="grok-4.3",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
             ),
             LLM_Response(
                 text="rewritten content [cite: 1]",
-                input_tokens=10, output_tokens=20, model="grok-4.3",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
             ),
         ]
 
@@ -555,7 +568,9 @@ class TestQaPhase:
         ]
         mock_call.return_value = LLM_Response(
             text="### Executive Briefing\n**Score**: PASS\nLooks good.",
-            input_tokens=10, output_tokens=20, model="grok-4.3",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
         )
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
@@ -576,7 +591,9 @@ class TestQaPhase:
         mock_call.side_effect = [
             LLM_Response(
                 text="### Executive Briefing\n**Score**: FAIL",
-                input_tokens=10, output_tokens=20, model="grok-4.3",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
             ),
             Exception("boom"),
         ]
@@ -598,7 +615,9 @@ class TestQaPhase:
         ]
         mock_call.return_value = LLM_Response(
             text="### Unknown Section\n**Score**: FAIL\nNeeds work.",
-            input_tokens=10, output_tokens=20, model="grok-4.3",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
         )
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)

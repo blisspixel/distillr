@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\response_function_shell_tool_call.py
+# hypothesis_version: 6.148.2
+
+['Action', 'Environment', 'completed', 'in_progress', 'incomplete', 'shell_call', 'type']

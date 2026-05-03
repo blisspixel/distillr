@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\browser_search.py
+# hypothesis_version: 6.148.2
+
+[365, 1500, 3600, 30000, '%Y%m%d', ':', 'Accept-Language', 'Mozilla/5.0', 'Unknown', 'User-Agent', '[^0-9]', 'browseEndpoint', 'browseId', 'canonicalBaseUrl', 'day', 'descriptionSnippet', 'domcontentloaded', 'en-US,en;q=0.9', 'hour', 'ignore', 'lengthText', 'longBylineText', 'minute', 'month', 'navigationEndpoint', 'ownerText', 'publishedTimeText', 'published_at', 'runs', 'simpleText', 'streamed', 'text', 'title', 'utf-8', 'videoId', 'videoRenderer', 'viewCountText', 'week']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\socks.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', 254, 255, '!B', '!BBB', '!BBBB', '!BBH', '!BBHI', '!H', 'Connection refused', 'Host unreachable', 'Network unreachable', 'Proxy', 'TTL expired', 'host', 'password', 'port', 'remote_dns', 'type', 'unknown error', 'username']

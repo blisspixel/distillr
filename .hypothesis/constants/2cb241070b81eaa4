@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\chatkit\chatkit_thread.py
+# hypothesis_version: 6.148.2
+
+['ChatKitThread', 'Status', 'StatusActive', 'StatusClosed', 'StatusLocked', 'active', 'chatkit.thread', 'closed', 'locked', 'type']

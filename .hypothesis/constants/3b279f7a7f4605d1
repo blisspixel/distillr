@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\lib\_old_api.py
+# hypothesis_version: 6.148.2
+
+['Audio', 'ChatCompletion', 'Completion', 'Customer', 'Deployment', 'Edit', 'Embedding', 'Engine', 'ErrorObject', 'File', 'FineTune', 'FineTuningJob', 'Image', 'Model', 'Moderation']

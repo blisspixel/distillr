@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\parser_core.py
+# hypothesis_version: 6.148.2
+
+['block', 'inline', 'linkify', 'normalize', 'replacements', 'smartquotes', 'text_join']

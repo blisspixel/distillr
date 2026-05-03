@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mcp\shared\tool_name_validation.py
+# hypothesis_version: 6.148.2
+
+[128, ',', '-', '.', '[A-Za-z0-9._-]']

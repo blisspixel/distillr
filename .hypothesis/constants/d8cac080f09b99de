@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\evals\create_eval_completions_run_data_source.py
+# hypothesis_version: 6.148.2
+
+['InputMessages', 'SamplingParams', 'Source', 'SourceFileContent', 'SourceFileID', 'assistant', 'completions', 'developer', 'file_content', 'file_id', 'input_image', 'item_reference', 'message', 'output_text', 'stored_completions', 'system', 'template', 'type', 'user']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\prompts_accordion.py
+# hypothesis_version: 6.148.2
+
+[150, 500, '\n\n---\n\n', '...', 'Executive Briefing', 'Strategic Synthesis', 'actionable', 'analytical', 'channel', 'closing', 'content', 'corrections_nuances', 'creator_accuracy', 'creator_consensus', 'customer_playbook', 'dossier_focus', 'enterprise_adoption', 'enterprise_reality', 'executive_briefing', 'forward_signals', 'gaps_blindspots', 'gaps_coverage', 'id', 'instructions', 'market_data', 'middle', 'multi_channel_only', 'opening', 'position', 'predictions_timeline', 'pricing_economics', 'reference', 'strategic_synthesis', 'title', 'topic', 'validated_landscape', 'vendor_battleground', 'voice']

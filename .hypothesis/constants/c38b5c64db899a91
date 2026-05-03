@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\arrow\formatter.py
+# hypothesis_version: 6.148.2
+
+['+', '-', ':', 'A', 'D', 'DD', 'DDD', 'DDDD', 'Do', 'H', 'HH', 'M', 'MM', 'MMM', 'MMMM', 'S', 'SS', 'SSS', 'SSSS', 'SSSSS', 'SSSSSS', 'W', 'X', 'YY', 'YYYY', 'Z', 'ZZ', 'ZZZ', '[', ']', 'a', 'd', 'ddd', 'dddd', 'h', 'hh', 'm', 'mm', 's', 'ss', 'x']

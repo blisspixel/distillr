@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_generated_io_windows.py
+# hypothesis_version: 6.148.2
+
+['current_iocp', 'notify_closing', 'readinto_overlapped', 'register_with_iocp', 'wait_overlapped', 'wait_readable', 'wait_writable', 'win32', 'write_overlapped']

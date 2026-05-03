@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\jsc\_builtin\node.py
+# hypothesis_version: 6.148.2
+
+[900, '-', '--permission', '--v8-flags=--jitless', '^\\[stdin\\]:', '^var jsc', 'false', 'jitless', 'node']

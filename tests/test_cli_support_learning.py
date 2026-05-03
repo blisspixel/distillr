@@ -65,7 +65,9 @@ def test_llm_expand_learning_queries_parses_fenced_json_and_records_usage(config
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
             text='```json\n{"queries":["alpha","beta"]}\n```',
-            input_tokens=13, output_tokens=9, model="grok-4.3",
+            input_tokens=13,
+            output_tokens=9,
+            model="grok-4.3",
         ),
     )
     tracker = CostTracker()
@@ -101,7 +103,9 @@ def test_llm_expand_paper_queries_parses_response_and_records_usage(config, monk
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
             text='{"queries":["paper-a","paper-b"]}',
-            input_tokens=13, output_tokens=9, model="grok-4.3",
+            input_tokens=13,
+            output_tokens=9,
+            model="grok-4.3",
         ),
     )
     tracker = CostTracker()

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\conversation_item_input_audio_transcription_completed_event.py
+# hypothesis_version: 6.148.2
+
+['Logprob', 'Usage', 'duration', 'tokens']

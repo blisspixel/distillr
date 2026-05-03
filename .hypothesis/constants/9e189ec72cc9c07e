@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\utils\jslib\devalue.py
+# hypothesis_version: 6.148.2
+
+[-0.0, 'ArrayBuffer', 'B', 'BigInt', 'BigInt64Array', 'BigUint64Array', 'Date', 'Float32Array', 'Float64Array', 'H', 'I', 'Int16Array', 'Int32Array', 'Int8Array', 'L', 'Map', 'Object', 'RegExp', 'Set', 'T', 'Uint16Array', 'Uint32Array', 'Uint8Array', 'Uint8ClampedArray', 'b', 'd', 'f', 'h', 'i', 'l', 'null']

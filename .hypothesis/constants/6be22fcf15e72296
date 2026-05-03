@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_concat_tb.py
+# hypothesis_version: 6.148.2
+
+['PyObject_HEAD', '__getattr__', '__getattribute__', 'tb_frame', 'tb_lasti', 'tb_lineno', 'tb_next']

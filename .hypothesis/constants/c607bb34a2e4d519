@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\h11\_state.py
+# hypothesis_version: 6.148.2
+
+['CLIENT', 'CLOSED', 'DONE', 'ERROR', 'IDLE', 'MUST_CLOSE', 'SEND_BODY', 'SEND_RESPONSE', 'SERVER', 'SWITCHED_PROTOCOL']

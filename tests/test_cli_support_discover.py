@@ -1,6 +1,5 @@
 """Tests for distill.cli_support.discover."""
 
-
 from distill.cli_support import discover
 from distill.costs import CostTracker
 from distill.discovery import VideoInfo
@@ -15,7 +14,9 @@ def test_discover_generate_queries_parses_fenced_json_and_records_usage(config, 
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
             text='```json\n{"paper_queries":["alpha","alpha","beta"],"video_queries":["walkthrough","walkthrough"]}\n```',
-            input_tokens=11, output_tokens=7, model="grok-4.3",
+            input_tokens=11,
+            output_tokens=7,
+            model="grok-4.3",
         ),
     )
     tracker = CostTracker()
@@ -39,7 +40,10 @@ def test_discover_generate_queries_returns_empty_for_blank_response(config, monk
         discover,
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
-            text="   ", input_tokens=0, output_tokens=0, model="grok-4.3",
+            text="   ",
+            input_tokens=0,
+            output_tokens=0,
+            model="grok-4.3",
         ),
     )
 
@@ -89,7 +93,9 @@ def test_discover_generate_queries_drops_disabled_side_after_llm(config, monkeyp
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
             text='{"paper_queries":["should-be-dropped"],"video_queries":["walkthrough"]}',
-            input_tokens=0, output_tokens=0, model="grok-4.3",
+            input_tokens=0,
+            output_tokens=0,
+            model="grok-4.3",
         ),
     )
 
@@ -168,7 +174,9 @@ def test_discover_rerank_maps_ranked_items_and_sorts_by_score(config, monkeypatc
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
             text='```json\n{"ranked_items":[{"kind":"video","identifier":"v1","final_score":0.75,"goal_fit":0.7,"depth_score":0.8,"complementarity_score":0.6,"rationale":"practical walkthrough"},{"kind":"paper","identifier":"p1","final_score":0.9,"goal_fit":0.95,"depth_score":0.85,"complementarity_score":0.7,"rationale":"best conceptual fit"},{"kind":"site","identifier":"https://learn.microsoft.com/en-us/microsoft-365/agents/overview","final_score":0.55,"goal_fit":0.8,"depth_score":0.5,"complementarity_score":0.7,"rationale":"official reference material"}]}\n```',
-            input_tokens=11, output_tokens=7, model="grok-4.3",
+            input_tokens=11,
+            output_tokens=7,
+            model="grok-4.3",
         ),
     )
 
@@ -188,7 +196,9 @@ def test_discover_rerank_returns_empty_for_non_list_payload(config, monkeypatch)
         "llm_call",
         lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
             text='{"ranked_items": {"bad": true}}',
-            input_tokens=0, output_tokens=0, model="grok-4.3",
+            input_tokens=0,
+            output_tokens=0,
+            model="grok-4.3",
         ),
     )
 

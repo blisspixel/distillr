@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\starlette\middleware\authentication.py
+# hypothesis_version: 6.148.2
+
+[400, 1000, 'auth', 'code', 'http', 'type', 'user', 'websocket', 'websocket.close']

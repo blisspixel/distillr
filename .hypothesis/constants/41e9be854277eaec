@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\web\routes\watchlist.py
+# hypothesis_version: 6.148.2
+
+['/watchlist', 'channel_watches', 'entry', 'projected_cost', 'request', 'stale', 'topic_watches', 'watchlist.html']

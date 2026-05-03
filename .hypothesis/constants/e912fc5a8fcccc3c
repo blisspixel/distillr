@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\aiohttp\client_exceptions.py
+# hypothesis_version: 6.148.2
+
+['ClientConnectorError', 'ClientError', 'ClientHttpProxyError', 'ClientOSError', 'ClientPayloadError', 'ClientResponseError', 'ClientSSLError', 'ContentTypeError', 'Fingerprint', 'InvalidURL', 'RedirectClientError', 'Server disconnected', 'ServerTimeoutError', 'SocketTimeoutError', 'WSMessageTypeError', 'default', 'str | None']
