@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -146,7 +145,7 @@ def test_unwritable_path_logs_warning(tmp_path: Path, caplog: Any) -> None:
 def test_malformed_jsonl_lines_are_skipped(tmp_path: Path) -> None:
     """Malformed JSONL lines are skipped without error."""
     ops_dir = str(tmp_path / "ops")
-    os.makedirs(ops_dir, exist_ok=True)
+    Path(ops_dir).mkdir(parents=True, exist_ok=True)
     jsonl_path = Path(ops_dir) / "telemetry.jsonl"
 
     good_record = {

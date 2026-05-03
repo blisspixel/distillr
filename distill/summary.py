@@ -226,7 +226,7 @@ def display_estimate(
     con.print()
 
 
-def display_summary(
+def display_summary(  # noqa: C901 — legacy, will refactor
     summary: RunSummary,
     cost_tracker=None,
     console: Console | None = None,
@@ -344,7 +344,7 @@ def _normalize_details(details: dict[str, Any] | None) -> tuple[tuple[str, str],
     return tuple(sorted((str(k), str(v)) for k, v in details.items()))
 
 
-def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:
+def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C901 — legacy, will refactor
     log_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).isoformat()

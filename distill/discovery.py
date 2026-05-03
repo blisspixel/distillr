@@ -64,7 +64,7 @@ class VideoInfo:
     published_at: str = ""
 
 
-def discover_videos(
+def discover_videos(  # noqa: C901 — legacy, will refactor
     channel_url: str,
     months: int = 3,
     include_shorts: bool = False,

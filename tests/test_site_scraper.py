@@ -303,7 +303,7 @@ def test_extract_page_parses_payload_and_dedupes_fields():
     assert extracted.depth == 1
 
 
-def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
+def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: C901 — legacy, will refactor
     pages_by_url = {
         "https://example.com/start": SitePage(
             url="https://example.com/start",

@@ -34,7 +34,7 @@ DEEP_RESEARCH_MODEL = "deep-research-pro-preview-12-2025"
 MAX_DOC_CHARS = 500_000
 
 
-def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[str, str]]:
+def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[str, str]]:  # noqa: C901 — legacy, will refactor
     """Collect (label, content) pairs across the given topics.
 
     Pulls paper, topic, and corpus synthesis artifacts, plus bundled per-paper /

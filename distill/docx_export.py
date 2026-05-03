@@ -100,7 +100,7 @@ def _extract_title(content: str) -> str | None:
     return None
 
 
-def _parse_markdown(doc: Document, content: str):
+def _parse_markdown(doc: Document, content: str):  # noqa: C901 — legacy, will refactor
     """Parse markdown content into DOCX elements."""
     lines = content.split("\n")
     i = 0

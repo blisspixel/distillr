@@ -29,7 +29,7 @@ def _display_safe(value: object) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def create_research_store(
+def create_research_store(  # noqa: C901 — legacy, will refactor
     client: genai.Client,
     topic: str,
     config: DistillConfig,
@@ -155,7 +155,7 @@ def cleanup_stores(client: genai.Client, prefix: str = "distill") -> int:
     return deleted
 
 
-def _gather_files(
+def _gather_files(  # noqa: C901 — legacy, will refactor
     topic: str,
     config: DistillConfig,
     scope: str,

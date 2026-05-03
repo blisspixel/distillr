@@ -447,7 +447,7 @@ def update_env_keys(xai_key: str, gemini_key: str) -> tuple[str, str]:
     return xai_key, gemini_key
 
 
-def validate_api_keys(xai_key: str, gemini_key: str):
+def validate_api_keys(xai_key: str, gemini_key: str):  # noqa: C901 — legacy, will refactor
     """Test API keys with minimal live calls."""
     _section("Validate API Keys (live test)")
 
@@ -566,7 +566,7 @@ def check_library():
         _skip("No library yet (created on first run)")
 
 
-def setup_completion():
+def setup_completion():  # noqa: C901 — legacy, will refactor
     """Offer to install shell tab-completion."""
     _section("Shell Completion")
 

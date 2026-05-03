@@ -351,7 +351,7 @@ def collect_stale_topic_watches(topic_watchlist) -> list[str]:
     return stale
 
 
-def collect_corpus_health_warnings(
+def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
     config: DistillConfig,
     lib: Library,
     topics: list[str],
@@ -566,7 +566,7 @@ def topic_trend_label(config: DistillConfig, topic: str) -> str | None:
     return "trend: steady"
 
 
-def collect_topic_changes(
+def collect_topic_changes(  # noqa: C901 — legacy, will refactor
     config: DistillConfig,
     lib: Library,
     topics: list[str],

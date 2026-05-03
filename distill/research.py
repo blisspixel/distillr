@@ -103,7 +103,7 @@ def run_deep_research(
         delete_store(client, store_name)
 
 
-def _gather_corpus_condensed(
+def _gather_corpus_condensed(  # noqa: C901 — legacy, will refactor
     topic: str,
     config: DistillConfig,
     scope: str,

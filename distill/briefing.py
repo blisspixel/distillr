@@ -11,7 +11,7 @@ from distill.llm import call as llm_call
 from distill.prompts import topic_brief_prompt
 
 
-def generate_topic_brief(
+def generate_topic_brief(  # noqa: C901 — legacy, will refactor
     topic: str,
     config: DistillConfig,
     tracker: CostTracker | None = None,

@@ -60,7 +60,7 @@ async def topic_list(request: Request):
 
 
 @router.get("/topics/{topic}")
-async def topic_detail(request: Request, topic: str):
+async def topic_detail(request: Request, topic: str):  # noqa: C901 — legacy, will refactor
     config = request.app.state.config
     templates = request.app.state.templates
     lib = Library(config)

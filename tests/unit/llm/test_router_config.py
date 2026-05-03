@@ -9,7 +9,7 @@ from __future__ import annotations
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from distill.llm.router import RouterConfig, WORKLOAD_TAGS
+from distill.llm.router import WORKLOAD_TAGS, RouterConfig
 
 # Strategy: pick a workload tag that has corresponding model/provider fields
 _workload_tags = st.sampled_from(sorted(WORKLOAD_TAGS))

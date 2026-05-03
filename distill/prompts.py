@@ -760,8 +760,9 @@ Return ONLY valid JSON in this shape:
 def discover_rerank_prompt(goal: str, candidates: list) -> str:
     """Prompt for goal-aware cross-source rerank of mixed papers and videos.
 
-    candidates is a list of dicts with keys: kind ("paper"|"video"), identifier,
-    title, subtitle (authors or channel), date, description (abstract or desc).
+    candidates is a list of dicts with keys: kind ("paper"|"video"|"site"),
+    identifier, title, subtitle (authors, channel, or site), date, description
+    (abstract, description, or seed hint).
     """
     items = []
     for c in candidates:
@@ -784,13 +785,14 @@ CONTENT: {desc or "[none]"}
 
 GOAL: {goal}
 
-You are given a mixed pool of arXiv papers and YouTube videos. Pick and rank the items that together best serve the GOAL as a corpus. Optimize for:
+You are given a mixed pool of arXiv papers, YouTube videos, and optionally curated website pages. Pick and rank the items that together best serve the GOAL as a corpus. Optimize for:
 
 - goal_fit: how directly this item advances understanding of the goal
 - depth: substantive content (experiments, frameworks, concrete methods) over surveys of surveys or hot takes
 - complementarity: does this add an angle the other top picks do not — prefer a diverse shortlist over five items that say the same thing
 
 Penalize clickbait framings, unrelated subfields that happen to share a keyword, and items whose content is too shallow for the goal.
+For website pages, reward official documentation, architecture explainers, implementation guidance, and concrete reference material when they directly support the goal.
 
 Score every item 0.0-1.0 on goal_fit, depth_score, complementarity_score, and final_score.
 
@@ -799,7 +801,7 @@ Return ONLY valid JSON in this shape:
   "ranked_items": [
     {{
       "identifier": "...",
-      "kind": "paper" | "video",
+      "kind": "paper" | "video" | "site",
       "goal_fit": 0.0,
       "depth_score": 0.0,
       "complementarity_score": 0.0,

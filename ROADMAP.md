@@ -10,6 +10,8 @@ Distill is a source-to-intelligence platform covering three source types:
 - **Websites** — vendor sites, research hubs, curated URL sets
 - **arXiv papers** — phrase-matched search, full-PDF extraction, cross-paper synthesis
 
+`distill discover` is the goal-aware front door across papers, videos, and curated website seed files. The next refinement for docs-heavy research is app-native trusted-site discovery on allowlisted domains, so workflows like "prefer Microsoft docs + Microsoft channels" do not require hand-curated page seeds.
+
 Everything produces plain markdown in a local `library/` directory. An MCP server exposes the corpus to AI assistants and agent systems.
 
 ## What shipped in 0.1.0
@@ -168,6 +170,7 @@ The preview → approve → ingest workflow becomes the default front door, and 
 - Rerank determinism: cached previewed shortlists (commit-by-ID) so the real ingest replays the exact set the user approved.
 - Real cost estimator that reads candidate metadata before the run (arXiv abstract length + page count; yt-dlp duration; site content-length) and calibrates against historical `cost_log.jsonl`.
 - `--rigor strict|balanced|loose` knob across discover/papers/latest. Audit and document the prompt divergence between commands.
+- Trusted-site discovery and clearer source identity in preview: enumerate real page candidates from allowlisted docs domains (TOCs, sitemaps, landing pages) and show page-level titles/URL context instead of only collection labels.
 - Synthesis register styles, with PhD-level (graduate cross-document analysis, per-claim source attribution) as the new default. `--style exec | pop | landscape | disagreements-only`.
 
 Why this version: most of these need 0.3's telemetry to estimate cost honestly and 0.5's MCP surface to expose the same flow to agents. Shipping earlier means re-doing it later.
@@ -180,6 +183,7 @@ The "leave it running" version. Hands-off operation for a daily-driver research 
 - Semantic dedup across videos, pages, and papers (artifact-preserving — source-origin attribution stays in the synthesis layer).
 - Stale-detection and auto-reanalysis triggers when prompts or models change materially.
 - Cost anomaly detection and budget guardrails per topic and workflow.
+- Live per-item progress plus resume-friendly failure handling for long mixed-source runs, so transcript-rate limits or slow site ingestion are visible without manual filesystem inspection.
 
 Why this version: these features compound the value of everything above. They don't make sense to land before the corpus is structurally stable, which 0.8 secures.
 

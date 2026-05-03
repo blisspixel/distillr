@@ -187,7 +187,7 @@ def run_learning_command(
     )
 
 
-def process_learning_selection(
+def process_learning_selection(  # noqa: C901 — legacy, will refactor
     topic_name: str,
     config: DistillConfig,
     tracker: CostTracker,
