@@ -1,9 +1,21 @@
+"""Tests for distill.corpus_analysis."""
+
+from unittest.mock import patch
+
 from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
+from distill.llm.router import LLM_Response
 from distill.corpus_analysis import synthesize_corpus
 
 
-def test_synthesize_corpus_writes_output(tmp_path, monkeypatch):
+def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
+    def _call(config, workload_tag, prompt, **kwargs):
+        return LLM_Response(text=text, input_tokens=10, output_tokens=20, model=model)
+
+    return _call
+
+
+def test_synthesize_corpus_writes_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic_dir = config.topic_dir("mixed")
     topic_dir.mkdir(parents=True, exist_ok=True)
@@ -14,13 +26,8 @@ def test_synthesize_corpus_writes_output(tmp_path, monkeypatch):
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "synthesis.md").write_text("# Site", encoding="utf-8")
 
-    monkeypatch.setattr("distill.corpus_analysis._get_client", lambda config: object())
-    monkeypatch.setattr(
-        "distill.corpus_analysis._call_grok",
-        lambda client, prompt, model, tracker=None, call_type="": "corpus synthesis",
-    )
-
-    result = synthesize_corpus("mixed", config)
+    with patch("distill.corpus_analysis.llm_call", _fake_llm_call("corpus synthesis")):
+        result = synthesize_corpus("mixed", config)
 
     assert result == "corpus synthesis"
     output = find_artifact(topic_dir, "corpus_synthesis", identity="mixed")

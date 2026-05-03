@@ -58,17 +58,15 @@ def test_expand_learning_queries_merges_llm_and_heuristics(config, monkeypatch):
 
 
 def test_llm_expand_learning_queries_parses_fenced_json_and_records_usage(config, monkeypatch):
-    captured = {}
-
-    class FakeCompletions:
-        def create(self, **kwargs):
-            captured.update(kwargs)
-            return _fake_openai_response('```json\n{"queries":["alpha","beta"]}\n```')
+    from distill.llm.router import LLM_Response
 
     monkeypatch.setattr(
         learning,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='```json\n{"queries":["alpha","beta"]}\n```',
+            input_tokens=13, output_tokens=9, model="grok-4.3",
+        ),
     )
     tracker = CostTracker()
 
@@ -80,7 +78,6 @@ def test_llm_expand_learning_queries_parses_fenced_json_and_records_usage(config
     )
 
     assert queries == ["alpha", "beta"]
-    assert captured["model"] == config.xai_model_for("rerank")
     assert tracker.entries[0].call_type == "search_expand"
 
 
@@ -97,14 +94,15 @@ def test_expand_paper_queries_falls_back_when_llm_errors(config, monkeypatch):
 
 
 def test_llm_expand_paper_queries_parses_response_and_records_usage(config, monkeypatch):
-    class FakeCompletions:
-        def create(self, **kwargs):
-            return _fake_openai_response('{"queries":["paper-a","paper-b"]}')
+    from distill.llm.router import LLM_Response
 
     monkeypatch.setattr(
         learning,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='{"queries":["paper-a","paper-b"]}',
+            input_tokens=13, output_tokens=9, model="grok-4.3",
+        ),
     )
     tracker = CostTracker()
 

@@ -1,14 +1,13 @@
-"""Deep corpus synthesis via Grok 4.20 (single large-context call).
+"""Deep corpus synthesis via a single large-context LLM call.
 
 Where `distill research-brief` uses Gemini Deep Research (web-augmented,
 consulting-style compression) and `distill report` runs the 4-phase strategic
-report pipeline, `distill synthesize` runs a single Grok 4.20-reasoning call
+report pipeline, `distill synthesize` runs a single large-context LLM call
 over the entire gathered corpus — no web augmentation, no compression bias,
 full control over depth and structure.
 
 Best for academic/technical corpus synthesis where the corpus IS the ground
-truth and web context would add noise. Grok 4.20's 2M-token context swallows
-hundreds of insight bundles in one call, and a context file sets direction.
+truth and web context would add noise.
 """
 
 from __future__ import annotations
@@ -17,10 +16,10 @@ from pathlib import Path
 
 from rich.console import Console
 
-from distill.config import DistillConfig
-from distill.costs import CostTracker
+from distill.config import DistillConfig, router_config_from_distill
+from distill.costs import CostTracker, TokenUsage
+from distill.llm import call as llm_call
 from distill.research_brief import gather_topic_files
-from distill.site_analysis import _call_grok, _get_client
 
 console = Console()
 
@@ -61,7 +60,7 @@ def run_synthesis(
     max_tokens: int = 32768,
     tracker: CostTracker | None = None,
 ) -> Path | None:
-    """Run a single-call Grok synthesis across the given topics."""
+    """Run a single-call LLM synthesis across the given topics."""
     if not config.xai_api_key:
         console.print("[red]XAI_API_KEY not set in .env[/red]")
         return None
@@ -78,21 +77,31 @@ def run_synthesis(
     prompt = compose_synthesis_prompt(context, files)
     console.print(f"  [dim]Prompt size: {len(prompt):,} chars (~{len(prompt) // 4:,} tokens)[/dim]")
 
-    model = config.xai_premium_model
+    rc = router_config_from_distill(config)
+    _, model = rc.resolve("synthesis")
     console.print(f"\n[cyan]Calling {model}...[/cyan]")
     console.print(f"  [dim]max_completion_tokens={max_tokens}. Expect 2-8 minutes.[/dim]\n")
 
-    client = _get_client(config)
-    result = _call_grok(
-        client,
-        prompt,
-        model=model,
-        tracker=tracker,
-        call_type="synthesis",
+    response = llm_call(
+        rc,
+        workload_tag="synthesis",
+        prompt=prompt,
         max_tokens=max_tokens,
+        call_type="synthesis",
     )
+    result = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="synthesis",
+            )
+        )
+
     if not result:
-        console.print("[red]No output received from Grok[/red]")
+        console.print("[red]No output received from LLM[/red]")
         return None
 
     output_path = Path("output") / f"synthesis-{name}.md"

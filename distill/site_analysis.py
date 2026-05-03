@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import time
-
-from openai import OpenAI
 from rich.console import Console
 
-from distill.analysis import XAI_BASE_URL
 from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
-from distill.config import DistillConfig
+from distill.config import DistillConfig, router_config_from_distill
 from distill.costs import CostTracker, TokenUsage
+from distill.llm import call as llm_call
 from distill.prompts import (
     site_page_insight_prompt,
     site_synthesis_prompt,
@@ -21,60 +18,12 @@ from distill.site_scraper import SitePage, build_page_document
 console = Console()
 
 
-def _get_client(config: DistillConfig) -> OpenAI:
-    return OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-
-
-def _call_grok(
-    client: OpenAI,
-    prompt: str,
-    model: str,
-    retries: int = 2,
-    max_tokens: int = 8192,
-    tracker: CostTracker | None = None,
-    call_type: str = "",
-) -> str:
-    last_error = None
-    for attempt in range(retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=max_tokens,
-                timeout=300,
-            )
-            if not response.choices:
-                return ""
-            if tracker and response.usage:
-                tracker.record(
-                    TokenUsage(
-                        prompt_tokens=response.usage.prompt_tokens or 0,
-                        completion_tokens=response.usage.completion_tokens or 0,
-                        model=model,
-                        call_type=call_type,
-                    )
-                )
-            return response.choices[0].message.content or ""
-        except Exception as exc:
-            last_error = exc
-            if attempt < retries:
-                wait = 2**attempt * 5
-                console.print(
-                    f"  [yellow]API error (attempt {attempt + 1}/{retries + 1}): {exc}. Retrying in {wait}s...[/yellow]"
-                )
-                time.sleep(wait)
-            else:
-                raise
-    raise last_error
-
-
 def analyze_site_page(
     page: SitePage,
     config: DistillConfig,
     tracker: CostTracker | None = None,
 ) -> str:
-    client = _get_client(config)
-    model = config.xai_model_for("site")
+    rc = router_config_from_distill(config)
     prompt = site_page_insight_prompt(
         page.title,
         page.url,
@@ -82,7 +31,17 @@ def analyze_site_page(
         page.page_type,
         build_page_document(page),
     )
-    result = _call_grok(client, prompt, model=model, tracker=tracker, call_type="site_page")
+    response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="site_page")
+    result = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="site_page",
+            )
+        )
     safe_title = page.title.replace('"', '\\"')
     return (
         f"---\n"
@@ -90,7 +49,7 @@ def analyze_site_page(
         f"site: {page.site_name}\n"
         f"page_type: {page.page_type}\n"
         f"url: {page.url}\n"
-        f"analyzed_by: {model}\n"
+        f"analyzed_by: {response.model}\n"
         "---\n\n"
         f"{result}\n"
     )
@@ -118,15 +77,23 @@ def synthesize_site(
     if not parts:
         return ""
 
-    client = _get_client(config)
-    model = config.xai_model_for("site")
-    synthesis = _call_grok(
-        client,
-        site_synthesis_prompt(site_name, "".join(parts)),
-        model=model,
-        tracker=tracker,
+    rc = router_config_from_distill(config)
+    response = llm_call(
+        rc,
+        workload_tag="site",
+        prompt=site_synthesis_prompt(site_name, "".join(parts)),
         call_type="site_synthesis",
     )
+    synthesis = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="site_synthesis",
+            )
+        )
     site_dir = config.site_dir(topic, site_name)
     write_markdown_artifact(
         site_dir,
@@ -170,15 +137,23 @@ def synthesize_site_topic(
     if not site_summaries:
         return ""
 
-    client = _get_client(config)
-    model = config.xai_model_for("site")
-    synthesis = _call_grok(
-        client,
-        site_topic_synthesis_prompt(topic, site_summaries),
-        model=model,
-        tracker=tracker,
+    rc = router_config_from_distill(config)
+    response = llm_call(
+        rc,
+        workload_tag="site",
+        prompt=site_topic_synthesis_prompt(topic, site_summaries),
         call_type="site_topic_synthesis",
     )
+    synthesis = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="site_topic_synthesis",
+            )
+        )
     write_markdown_artifact(
         config.topic_dir(topic),
         "topic_synthesis",

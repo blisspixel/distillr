@@ -1,8 +1,12 @@
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings
+
+if TYPE_CHECKING:
+    from distill.llm.router import RouterConfig
 
 _WINDOWS_RESERVED_CHARS = r'[<>:"/\\|?*]'
 
@@ -33,8 +37,8 @@ class DistillConfig(BaseSettings):
     scribe_path: str = ""
     distill_output_dir: Path = _default_library_dir()
     distill_default_months: int = 1
-    xai_fast_model: str = "grok-4-1-fast-reasoning"
-    xai_premium_model: str = "grok-4.20-0309-reasoning"
+    xai_fast_model: str = "grok-4.3"
+    xai_premium_model: str = "grok-4.3"
     xai_analysis_model: str = ""
     xai_rerank_model: str = ""
     xai_synthesis_model: str = ""
@@ -134,3 +138,68 @@ def site_name_from_url(url: str) -> str:
     host = urlparse(url).netloc.lower()
     host = host.removeprefix("www.")
     return sanitize_path_component(host or "site")
+
+
+def router_config_from_distill(config: DistillConfig) -> "RouterConfig":
+    """Convert a DistillConfig to a RouterConfig for the LLM router.
+
+    This is the migration bridge — the ONLY place outside distill/llm/ that
+    imports from it.  It reads new env vars (DISTILL_PROVIDER,
+    DISTILL_{WORKLOAD}_PROVIDER, ANTHROPIC_API_KEY) and maps legacy
+    DistillConfig fields to the RouterConfig dataclass.
+    """
+    import os
+
+    from distill.llm.router import RouterConfig
+
+    # Global provider (new env var, defaults to "xai")
+    provider = os.environ.get("DISTILL_PROVIDER", "xai")
+
+    # Per-workload provider overrides
+    analysis_provider = os.environ.get("DISTILL_ANALYSIS_PROVIDER", "")
+    rerank_provider = os.environ.get("DISTILL_RERANK_PROVIDER", "")
+    synthesis_provider = os.environ.get("DISTILL_SYNTHESIS_PROVIDER", "")
+    site_provider = os.environ.get("DISTILL_SITE_PROVIDER", "")
+    accordion_provider = os.environ.get("DISTILL_ACCORDION_PROVIDER", "")
+    brief_provider = os.environ.get("DISTILL_BRIEF_PROVIDER", "")
+    report_provider = os.environ.get("DISTILL_REPORT_PROVIDER", "")
+    qa_provider = os.environ.get("DISTILL_QA_PROVIDER", "")
+    maintenance_provider = os.environ.get("DISTILL_MAINTENANCE_PROVIDER", "")
+
+    # Anthropic API key (new env var)
+    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
+    # Ops directory: library/.distill/
+    ops_dir = str(config.library_dir / ".distill")
+
+    return RouterConfig(
+        # API keys
+        xai_api_key=config.xai_api_key,
+        gemini_api_key=config.gemini_api_key,
+        anthropic_api_key=anthropic_api_key,
+        openai_api_key=config.openai_api_key,
+        # Global provider
+        provider=provider,
+        # Tier defaults (from DistillConfig, now defaulting to grok-4.3)
+        fast_model=config.xai_fast_model,
+        premium_model=config.xai_premium_model,
+        # Per-workload model overrides (from legacy DistillConfig fields)
+        analysis_model=config.xai_analysis_model,
+        rerank_model=config.xai_rerank_model,
+        synthesis_model=config.xai_synthesis_model,
+        site_model=config.xai_site_model,
+        accordion_model=config.accordion_section_model,
+        brief_model=config.xai_synthesis_model,
+        # Per-workload provider overrides (new env vars)
+        analysis_provider=analysis_provider,
+        rerank_provider=rerank_provider,
+        synthesis_provider=synthesis_provider,
+        site_provider=site_provider,
+        accordion_provider=accordion_provider,
+        brief_provider=brief_provider,
+        report_provider=report_provider,
+        qa_provider=qa_provider,
+        maintenance_provider=maintenance_provider,
+        # Ops directory
+        ops_dir=ops_dir,
+    )
