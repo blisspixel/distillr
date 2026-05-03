@@ -14,7 +14,7 @@ class TestDistillConfig:
         assert config.xai_api_key == ""
         assert config.gemini_api_key == ""
         assert config.distill_default_months == 1
-        assert config.xai_model_for("analysis") == "grok-4-1-fast-reasoning"
+        assert config.xai_model_for("analysis") == "grok-4.3"
         assert config.xai_model_for("site") == "grok-4.20-0309-reasoning"
 
     def test_custom_config(self, tmp_path):

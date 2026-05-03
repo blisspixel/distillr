@@ -1,12 +1,12 @@
-from types import SimpleNamespace
+"""Tests for distill.site_analysis."""
 
-import pytest
+from unittest.mock import patch
 
 from distill.artifacts import find_artifact, strip_frontmatter
 from distill.config import DistillConfig
 from distill.costs import CostTracker
+from distill.llm.router import LLM_Response
 from distill.site_analysis import (
-    _call_grok,
     analyze_site_page,
     synthesize_site,
     synthesize_site_topic,
@@ -14,27 +14,11 @@ from distill.site_analysis import (
 from distill.site_scraper import SitePage
 
 
-class FakeCompletions:
-    def __init__(self, responses):
-        self._responses = list(responses)
+def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
+    def _call(config, workload_tag, prompt, **kwargs):
+        return LLM_Response(text=text, input_tokens=10, output_tokens=20, model=model)
 
-    def create(self, **kwargs):
-        item = self._responses.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
-class FakeClient:
-    def __init__(self, responses):
-        self.chat = SimpleNamespace(completions=FakeCompletions(responses))
-
-
-def _response(content: str, prompt_tokens: int = 10, completion_tokens: int = 20):
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
-        usage=SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens),
-    )
+    return _call
 
 
 def _page() -> SitePage:
@@ -50,76 +34,29 @@ def _page() -> SitePage:
     )
 
 
-def test_call_grok_tracks_usage():
-    tracker = CostTracker()
-    client = FakeClient([_response("analysis")])
-
-    result = _call_grok(
-        client,
-        "prompt",
-        model="grok-4.20",
-        tracker=tracker,
-        call_type="site_page",
-    )
-
-    assert result == "analysis"
-    assert len(tracker.entries) == 1
-    assert tracker.entries[0].model == "grok-4.20"
-
-
-def test_call_grok_retries_then_succeeds(monkeypatch):
-    waits = []
-    monkeypatch.setattr("distill.site_analysis.time.sleep", lambda seconds: waits.append(seconds))
-    client = FakeClient([Exception("rate limit"), _response("recovered")])
-
-    result = _call_grok(client, "prompt", model="grok-4.20", retries=1)
-
-    assert result == "recovered"
-    assert waits == [5]
-
-
-def test_call_grok_raises_after_final_failure(monkeypatch):
-    monkeypatch.setattr("distill.site_analysis.time.sleep", lambda seconds: None)
-    client = FakeClient([Exception("boom"), Exception("boom")])
-
-    with pytest.raises(Exception, match="boom"):
-        _call_grok(client, "prompt", model="grok-4.20", retries=1)
-
-
-def test_analyze_site_page_builds_frontmatter(tmp_path, monkeypatch):
+def test_analyze_site_page_builds_frontmatter(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     tracker = CostTracker()
-    monkeypatch.setattr("distill.site_analysis._get_client", lambda config: object())
-    monkeypatch.setattr(
-        "distill.site_analysis._call_grok",
-        lambda client, prompt, model, tracker=None, call_type="", max_tokens=8192, retries=2: (
-            "site body"
-        ),
-    )
 
-    result = analyze_site_page(_page(), config, tracker=tracker)
+    with patch("distill.site_analysis.llm_call", _fake_llm_call("site body")):
+        result = analyze_site_page(_page(), config, tracker=tracker)
 
     assert 'page_title: "Agent \\"Overview\\""' in result
     assert "site: example.com" in result
-    assert "analyzed_by: grok-4.20" in result
+    assert "analyzed_by: grok-4.3" in result
     assert result.rstrip().endswith("site body")
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].call_type == "site_page"
 
 
-def test_synthesize_site_writes_output(tmp_path, monkeypatch):
+def test_synthesize_site_writes_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     page_dir = config.site_page_dir("web", "example.com", "Agent Overview", "page1")
     page_dir.mkdir(parents=True, exist_ok=True)
     (page_dir / "insights.md").write_text("# Insight", encoding="utf-8")
 
-    monkeypatch.setattr("distill.site_analysis._get_client", lambda config: object())
-    monkeypatch.setattr(
-        "distill.site_analysis._call_grok",
-        lambda client, prompt, model, tracker=None, call_type="", max_tokens=8192, retries=2: (
-            "site synthesis"
-        ),
-    )
-
-    result = synthesize_site("web", "example.com", config)
+    with patch("distill.site_analysis.llm_call", _fake_llm_call("site synthesis")):
+        result = synthesize_site("web", "example.com", config)
 
     assert result == "site synthesis"
     output = find_artifact(
@@ -137,21 +74,14 @@ def test_synthesize_site_returns_empty_without_pages(tmp_path):
     assert synthesize_site("web", "example.com", config) == ""
 
 
-def test_synthesize_site_topic_writes_output(tmp_path, monkeypatch):
+def test_synthesize_site_topic_writes_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     site_dir = config.site_dir("web", "example.com")
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "synthesis.md").write_text("# Site synthesis", encoding="utf-8")
 
-    monkeypatch.setattr("distill.site_analysis._get_client", lambda config: object())
-    monkeypatch.setattr(
-        "distill.site_analysis._call_grok",
-        lambda client, prompt, model, tracker=None, call_type="", max_tokens=8192, retries=2: (
-            "topic synthesis"
-        ),
-    )
-
-    result = synthesize_site_topic("web", config)
+    with patch("distill.site_analysis.llm_call", _fake_llm_call("topic synthesis")):
+        result = synthesize_site_topic("web", config)
 
     assert result == "topic synthesis"
     output = find_artifact(config.topic_dir("web"), "topic_synthesis", identity="web")

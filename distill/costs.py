@@ -1,29 +1,18 @@
-"""Cost tracking for API calls."""
+"""Cost tracking for API calls.
+
+Run-level cost aggregation (CostTracker, TokenUsage, save_run_log,
+estimate_run_cost).  Per-model pricing is delegated to the unified cost
+registry in ``distill.llm.cost`` — this module no longer owns pricing data.
+"""
 
 import json
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-# Pricing per 1M tokens (as of April 20, 2026, from xAI and Gemini docs).
-# xAI cached-input rates ($0.05 fast, $0.20 premium) are not yet tracked;
-# estimates here assume all input tokens are uncached.
-PRICING = {
-    "grok-4-1-fast-reasoning": {"input": 0.20, "output": 0.50},
-    "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
-    "grok-4.20": {"input": 2.00, "output": 6.00},
-    "gemini-deep-research": {"per_query": 2.50},
-}
-
-
-def _pricing_for_model(model: str) -> dict[str, float]:
-    if model in PRICING:
-        return PRICING[model]
-    if model.startswith("grok-4.20"):
-        return PRICING["grok-4.20"]
-    if model.startswith("grok-4-1-fast"):
-        return PRICING["grok-4-1-fast-reasoning"]
-    return PRICING["grok-4-1-fast-reasoning"]
+from distill.llm.cost import PRICING as LLM_PRICING  # noqa: F401 — re-exported for compat
+from distill.llm.cost import get_pricing
 
 
 @dataclass
@@ -64,16 +53,16 @@ class CostTracker:
         """Estimated xAI cost based on token usage and the actual model used."""
         total = 0.0
         for entry in self.entries:
-            rates = _pricing_for_model(entry.model)
-            total += entry.prompt_tokens * rates["input"] / 1_000_000
-            total += entry.completion_tokens * rates["output"] / 1_000_000
+            rates = get_pricing(entry.model)
+            total += entry.prompt_tokens * rates.get("input", 0.0) / 1_000_000
+            total += entry.completion_tokens * rates.get("output", 0.0) / 1_000_000
         return total
 
     @property
     def total_gemini_cost(self) -> float:
         """Estimated Gemini Deep Research cost."""
-        rate = PRICING.get("gemini-deep-research", {"per_query": 2.50})
-        return self.gemini_queries * rate["per_query"]
+        rate = get_pricing("gemini-deep-research")
+        return self.gemini_queries * rate.get("per_query", 2.50)
 
     @property
     def total_cost(self) -> float:
@@ -123,12 +112,25 @@ def save_run_log(
 ):
     """Append a run cost entry to the cost log for estimate calibration.
 
+    The log is written to ``<log_dir>/.distill/cost_log.jsonl`` (the ops_dir).
+    If a ``cost_log.jsonl`` exists at the old location (``<log_dir>/cost_log.jsonl``),
+    it is migrated into ``.distill/`` on first run.
+
     When ``preview=True``, the recorded ``command`` field is suffixed with
     ``_preview`` so iterative preview spend is visible separately from ingest
     spend in ``cost_log.jsonl``.
     """
-    log_file = log_dir / "cost_log.jsonl"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    ops_dir = log_dir / ".distill"
+    ops_dir.mkdir(parents=True, exist_ok=True)
+
+    # Migration helper: move legacy root-level cost_log.jsonl into .distill/
+    old_log = log_dir / "cost_log.jsonl"
+    new_log = ops_dir / "cost_log.jsonl"
+    if old_log.exists() and not new_log.exists():
+        shutil.move(str(old_log), str(new_log))
+        print("Migrated cost_log.jsonl to .distill/ for cleaner library layout")  # noqa: T201
+
+    log_file = new_log
 
     recorded_command = f"{command}_preview" if preview else command
     entry = {

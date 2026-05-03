@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
-from distill.config import DistillConfig
-from distill.costs import CostTracker
+from distill.config import DistillConfig, router_config_from_distill
+from distill.costs import CostTracker, TokenUsage
+from distill.llm import call as llm_call
 from distill.prompts import corpus_synthesis_prompt
-from distill.site_analysis import _call_grok, _get_client
 
 
 def synthesize_corpus(
@@ -43,15 +43,23 @@ def synthesize_corpus(
     if not source_sections:
         return ""
 
-    client = _get_client(config)
-    model = config.xai_model_for("site")
-    synthesis = _call_grok(
-        client,
-        corpus_synthesis_prompt(topic, source_sections),
-        model=model,
-        tracker=tracker,
+    rc = router_config_from_distill(config)
+    response = llm_call(
+        rc,
+        workload_tag="site",
+        prompt=corpus_synthesis_prompt(topic, source_sections),
         call_type="corpus_synthesis",
     )
+    synthesis = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="corpus_synthesis",
+            )
+        )
     write_markdown_artifact(
         topic_dir,
         "corpus_synthesis",

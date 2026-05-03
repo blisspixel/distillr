@@ -83,9 +83,8 @@ jobs:
         run: pip-audit --skip-editable --ignore-vuln CVE-2026-3219
 
   types:
-    name: Type check (pyright, advisory)
+    name: Type check (pyright)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -100,8 +99,12 @@ jobs:
           pip install -e .
           pip install pyright
 
-      - name: Pyright
-        run: pyright distill/
+      - name: "Pyright: distill/llm/ (blocking)"
+        run: pyright distill/llm/
+
+      - name: "Pyright: legacy code (advisory)"
+        continue-on-error: true
+        run: pyright distill/ --ignoreexternal
 
   build:
     name: Build distribution

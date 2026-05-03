@@ -7,13 +7,12 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
-from openai import OpenAI
 from rich.console import Console
 
-from distill.analysis import XAI_BASE_URL
-from distill.config import DistillConfig
+from distill.config import DistillConfig, router_config_from_distill
 from distill.costs import CostTracker, TokenUsage
 from distill.discovery import VideoInfo
+from distill.llm import call as llm_call
 from distill.paper_ingest import PaperRecord
 from distill.prompts import paper_rerank_prompt, search_rerank_prompt
 
@@ -78,25 +77,19 @@ def _llm_rerank(
     skeptical: bool = False,
 ) -> list[RankedVideo]:
     prompt = search_rerank_prompt(query, videos, skeptical=skeptical)
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=4096,
-        timeout=180,
-    )
-    if tracker and response.usage:
+    rc = router_config_from_distill(config)
+    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="search_rerank")
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="search_rerank",
             )
         )
 
-    content = response.choices[0].message.content if response.choices else ""
+    content = response.text
     parsed = _parse_rerank_response(content)
     if not parsed:
         return []
@@ -504,25 +497,19 @@ def _llm_rerank_papers(
     tracker: CostTracker | None = None,
 ) -> list[RankedPaper]:
     prompt = paper_rerank_prompt(query, papers)
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=4096,
-        timeout=180,
-    )
-    if tracker and response.usage:
+    rc = router_config_from_distill(config)
+    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="paper_rerank")
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="paper_rerank",
             )
         )
 
-    content = response.choices[0].message.content if response.choices else ""
+    content = response.text
     parsed = _parse_paper_rerank_response(content or "")
     if not parsed:
         return []

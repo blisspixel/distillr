@@ -5,19 +5,20 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
-from openai import OpenAI
 from rich import box
 from rich.table import Table
 
-from distill.analysis import XAI_BASE_URL
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import format_date as _format_date
-from distill.config import DistillConfig
+from distill.config import DistillConfig, router_config_from_distill
 from distill.costs import CostTracker, TokenUsage
 from distill.discovery import VideoInfo
+from distill.llm import call as llm_call
 from distill.paper_ingest import PaperRecord
 from distill.prompts import discover_query_generation_prompt, discover_rerank_prompt
+from distill.site_scraper import SiteSeed
 
 
 @dataclass
@@ -34,6 +35,24 @@ class RankedDiscoverItem:
     rationale: str
     paper: PaperRecord | None = None
     video: VideoInfo | None = None
+    site_seed: SiteSeed | None = None
+
+
+def _site_candidate_title(seed: SiteSeed) -> str:
+    label = seed.label.strip()
+    if label:
+        return label
+    parsed = urlparse(seed.url)
+    host = parsed.netloc.removeprefix("www.") or seed.resolved_site_name()
+    path = (parsed.path or "/").rstrip("/") or "/"
+    return f"{host}{path}"
+
+
+def _site_candidate_description(seed: SiteSeed) -> str:
+    label = seed.label.strip()
+    if label:
+        return f"{label} | URL: {seed.url}"
+    return f"Curated website seed | URL: {seed.url}"
 
 
 def discover_generate_queries(
@@ -50,28 +69,21 @@ def discover_generate_queries(
     # should have validated, but be defensive).
     if paper_count <= 0 and video_count <= 0:
         return [], []
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
+    rc = router_config_from_distill(config)
     prompt = discover_query_generation_prompt(
         goal, paper_count=paper_count, video_count=video_count
     )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=768,
-        timeout=120,
-    )
-    if tracker and response.usage:
+    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=768, call_type="discover_plan")
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="discover_plan",
             )
         )
-    content = response.choices[0].message.content if response.choices else ""
-    text = (content or "").strip()
+    text = (response.text or "").strip()
     if text.startswith("```"):
         lines = text.splitlines()
         if lines and lines[0].startswith("```"):
@@ -126,12 +138,14 @@ def discover_rerank(
     goal: str,
     papers: list[PaperRecord],
     videos: list[VideoInfo],
+    sites: list[SiteSeed],
     config: DistillConfig,
     tracker: CostTracker | None,
 ) -> list[RankedDiscoverItem]:
     candidates: list[dict[str, Any]] = []
     paper_by_id = {p.paper_id: p for p in papers}
     video_by_id = {v.video_id: v for v in videos}
+    site_by_id = {seed.url: seed for seed in sites}
     for p in papers:
         candidates.append(
             {
@@ -154,29 +168,33 @@ def discover_rerank(
                 "description": getattr(v, "description", "") or "",
             }
         )
+    for seed in sites:
+        candidates.append(
+            {
+                "kind": "site",
+                "identifier": seed.url,
+                "title": _site_candidate_title(seed),
+                "subtitle": seed.resolved_site_name() or "website",
+                "date": "",
+                "description": _site_candidate_description(seed),
+            }
+        )
     if not candidates:
         return []
 
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("rerank")
+    rc = router_config_from_distill(config)
     prompt = discover_rerank_prompt(goal, candidates)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=8192,
-        timeout=240,
-    )
-    if tracker and response.usage:
+    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=8192, call_type="discover_rerank")
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="discover_rerank",
             )
         )
-    content = response.choices[0].message.content if response.choices else ""
-    text = (content or "").strip()
+    text = (response.text or "").strip()
     if text.startswith("```"):
         lines = text.splitlines()
         if lines and lines[0].startswith("```"):
@@ -231,6 +249,25 @@ def discover_rerank(
                     complementarity_score=float(entry.get("complementarity_score", 0.0)),
                     rationale=str(entry.get("rationale", "")).strip(),
                     video=video,
+                )
+            )
+        elif kind == "site":
+            seed = site_by_id.get(identifier)
+            if not seed:
+                continue
+            ranked.append(
+                RankedDiscoverItem(
+                    kind="site",
+                    identifier=identifier,
+                    title=_site_candidate_title(seed),
+                    subtitle=seed.resolved_site_name() or "website",
+                    date="-",
+                    final_score=float(entry.get("final_score", 0.0)),
+                    goal_fit=float(entry.get("goal_fit", 0.0)),
+                    depth_score=float(entry.get("depth_score", 0.0)),
+                    complementarity_score=float(entry.get("complementarity_score", 0.0)),
+                    rationale=str(entry.get("rationale", "")).strip(),
+                    site_seed=seed,
                 )
             )
     return sorted(ranked, key=lambda x: x.final_score, reverse=True)

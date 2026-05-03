@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 from distill.accordion import (
     _assemble_report,
-    _call_grok_section,
     _clean_section_output,
     _count_sources,
     _extract_section_feedback,
@@ -22,6 +21,7 @@ from distill.accordion import (
     run_accordion_research,
 )
 from distill.artifacts import artifact_path, strip_frontmatter
+from distill.llm.router import LLM_Response
 from distill.prompts_accordion import (
     REPORT_SECTIONS,
     dossier_prompt,
@@ -322,71 +322,14 @@ class TestTaggedMaterials:
         assert "Channel Synthesis" in tagged["creator_consensus"]
 
 
-class TestCallGrokSection:
-    @patch("distill.accordion.OpenAI")
-    def test_successful_call(self, mock_openai_cls):
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Section content here"
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
-
-        result = _call_grok_section(mock_client, "test prompt", "Test Section")
-        assert result == "Section content here"
-
-    @patch("distill.accordion.OpenAI")
-    def test_empty_choices(self, mock_openai_cls):
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = []
-        mock_client.chat.completions.create.return_value = mock_response
-
-        result = _call_grok_section(mock_client, "test prompt", "Test Section")
-        assert result == ""
-
-    @patch("distill.accordion.time.sleep")
-    @patch("distill.accordion.OpenAI")
-    def test_retries_on_failure(self, mock_openai_cls, mock_sleep):
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.side_effect = [
-            Exception("rate limit"),
-            MagicMock(choices=[MagicMock(message=MagicMock(content="recovered"))]),
-        ]
-
-        result = _call_grok_section(mock_client, "prompt", "Section", retries=1)
-        assert result == "recovered"
-
-    @patch("distill.accordion.time.sleep")
-    def test_returns_empty_after_all_retries_fail(self, mock_sleep):
-        mock_client = MagicMock()
-        mock_client.chat.completions.create.side_effect = Exception("boom")
-
-        result = _call_grok_section(mock_client, "prompt", "Section", retries=1)
-
-        assert result == ""
-        mock_sleep.assert_called_once()
-
-    def test_records_token_usage(self):
-        mock_client = MagicMock()
-        mock_tracker = MagicMock()
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content="Tracked content"))]
-        mock_response.usage.prompt_tokens = 12
-        mock_response.usage.completion_tokens = 34
-        mock_client.chat.completions.create.return_value = mock_response
-
-        result = _call_grok_section(mock_client, "prompt", "Tracked Section", tracker=mock_tracker)
-
-        assert result == "Tracked content"
-        mock_tracker.record.assert_called_once()
-
-
 class TestWriteSections:
     @patch("distill.accordion.time.sleep")
-    @patch("distill.accordion._call_grok_section")
+    @patch("distill.accordion.llm_call")
     def test_writes_all_sections(self, mock_call, mock_sleep, config):
-        mock_call.return_value = "Section content with enough words to count."
+        mock_call.return_value = LLM_Response(
+            text="Section content with enough words to count.",
+            input_tokens=10, output_tokens=20, model="grok-4.3",
+        )
 
         result = _write_sections(
             topic="ai",
@@ -400,9 +343,12 @@ class TestWriteSections:
         assert all(s["word_count"] > 0 for s in result)
 
     @patch("distill.accordion.time.sleep")
-    @patch("distill.accordion._call_grok_section")
+    @patch("distill.accordion.llm_call")
     def test_filters_sections(self, mock_call, mock_sleep, config):
-        mock_call.return_value = "Filtered section content."
+        mock_call.return_value = LLM_Response(
+            text="Filtered section content.",
+            input_tokens=10, output_tokens=20, model="grok-4.3",
+        )
 
         result = _write_sections(
             topic="ai",
@@ -418,9 +364,11 @@ class TestWriteSections:
         assert result[1]["id"] == "strategic_synthesis"
 
     @patch("distill.accordion.time.sleep")
-    @patch("distill.accordion._call_grok_section")
+    @patch("distill.accordion.llm_call")
     def test_stops_after_3_consecutive_failures(self, mock_call, mock_sleep, config):
-        mock_call.return_value = ""  # empty = failure
+        mock_call.return_value = LLM_Response(
+            text="", input_tokens=0, output_tokens=0, model="grok-4.3",
+        )
 
         result = _write_sections(
             topic="ai",
@@ -433,9 +381,12 @@ class TestWriteSections:
         assert len(result) == 0
 
     @patch("distill.accordion.time.sleep")
-    @patch("distill.accordion._call_grok_section")
+    @patch("distill.accordion.llm_call")
     def test_uses_active_sections_override(self, mock_call, mock_sleep, config):
-        mock_call.return_value = "Override content."
+        mock_call.return_value = LLM_Response(
+            text="Override content.",
+            input_tokens=10, output_tokens=20, model="grok-4.3",
+        )
         active_sections = [REPORT_SECTIONS[0], REPORT_SECTIONS[1]]
 
         result = _write_sections(
@@ -542,7 +493,7 @@ class TestTaggedHelpers:
 
 
 class TestQaPhase:
-    @patch("distill.accordion._call_grok_section")
+    @patch("distill.accordion.llm_call")
     def test_run_qa_phase_rewrites_failed_section(self, mock_call, config):
         written_sections = [
             {
@@ -559,8 +510,14 @@ class TestQaPhase:
             },
         ]
         mock_call.side_effect = [
-            "### Executive Briefing\n**Score**: FAIL\nFix this.\n### Strategic Synthesis\n**Score**: PASS",
-            "rewritten content [cite: 1]",
+            LLM_Response(
+                text="### Executive Briefing\n**Score**: FAIL\nFix this.\n### Strategic Synthesis\n**Score**: PASS",
+                input_tokens=10, output_tokens=20, model="grok-4.3",
+            ),
+            LLM_Response(
+                text="rewritten content [cite: 1]",
+                input_tokens=10, output_tokens=20, model="grok-4.3",
+            ),
         ]
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
@@ -569,7 +526,7 @@ class TestQaPhase:
         assert updated[0]["content"] == "rewritten content"
         assert updated[1]["content"] == "keep content"
 
-    @patch("distill.accordion._call_grok_section", return_value="")
+    @patch("distill.accordion.llm_call")
     def test_run_qa_phase_skips_when_review_fails(self, mock_call, config):
         written_sections = [
             {
@@ -579,16 +536,14 @@ class TestQaPhase:
                 "word_count": 2,
             },
         ]
+        mock_call.side_effect = Exception("boom")
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
 
         assert rewrote == 0
         assert updated == written_sections
 
-    @patch(
-        "distill.accordion._call_grok_section",
-        return_value="### Executive Briefing\n**Score**: PASS\nLooks good.",
-    )
+    @patch("distill.accordion.llm_call")
     def test_run_qa_phase_with_no_failures(self, mock_call, config):
         written_sections = [
             {
@@ -598,13 +553,17 @@ class TestQaPhase:
                 "word_count": 2,
             },
         ]
+        mock_call.return_value = LLM_Response(
+            text="### Executive Briefing\n**Score**: PASS\nLooks good.",
+            input_tokens=10, output_tokens=20, model="grok-4.3",
+        )
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
 
         assert rewrote == 0
         assert updated == written_sections
 
-    @patch("distill.accordion._call_grok_section")
+    @patch("distill.accordion.llm_call")
     def test_run_qa_phase_keeps_original_when_rewrite_fails(self, mock_call, config):
         written_sections = [
             {
@@ -614,17 +573,20 @@ class TestQaPhase:
                 "word_count": 2,
             },
         ]
-        mock_call.side_effect = ["### Executive Briefing\n**Score**: FAIL", ""]
+        mock_call.side_effect = [
+            LLM_Response(
+                text="### Executive Briefing\n**Score**: FAIL",
+                input_tokens=10, output_tokens=20, model="grok-4.3",
+            ),
+            Exception("boom"),
+        ]
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
 
         assert rewrote == 0
         assert updated[0]["content"] == "old content"
 
-    @patch(
-        "distill.accordion._call_grok_section",
-        return_value="### Unknown Section\n**Score**: FAIL\nNeeds work.",
-    )
+    @patch("distill.accordion.llm_call")
     def test_run_qa_phase_ignores_unknown_section_ids(self, mock_call, config):
         written_sections = [
             {
@@ -634,6 +596,10 @@ class TestQaPhase:
                 "word_count": 2,
             },
         ]
+        mock_call.return_value = LLM_Response(
+            text="### Unknown Section\n**Score**: FAIL\nNeeds work.",
+            input_tokens=10, output_tokens=20, model="grok-4.3",
+        )
 
         updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
 

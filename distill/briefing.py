@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openai import OpenAI
-
-from distill.analysis import XAI_BASE_URL
 from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
-from distill.config import DistillConfig
+from distill.config import DistillConfig, router_config_from_distill
 from distill.costs import CostTracker, TokenUsage
+from distill.llm import call as llm_call
 from distill.prompts import topic_brief_prompt
 
 
@@ -46,27 +44,21 @@ def generate_topic_brief(
     if not topic_synthesis and not insight_parts:
         return None
 
+    rc = router_config_from_distill(config)
     prompt = topic_brief_prompt(topic, topic_synthesis, "\n\n---\n\n".join(insight_parts))
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("brief")
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=4096,
-        timeout=180,
-    )
+    response = llm_call(rc, workload_tag="brief", prompt=prompt, max_tokens=4096, call_type="topic_brief")
 
-    if tracker and response.usage:
+    if tracker:
         tracker.record(
             TokenUsage(
-                prompt_tokens=response.usage.prompt_tokens or 0,
-                completion_tokens=response.usage.completion_tokens or 0,
-                model=model,
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
                 call_type="topic_brief",
             )
         )
 
-    content = response.choices[0].message.content if response.choices else ""
+    content = response.text
     if not content:
         return None
 

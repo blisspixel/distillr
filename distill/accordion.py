@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 from google import genai
-from openai import OpenAI
 from rich.console import Console
 
 from distill.artifacts import (
@@ -17,9 +16,10 @@ from distill.artifacts import (
     tags_for,
     write_markdown_artifact,
 )
-from distill.config import DistillConfig
+from distill.config import DistillConfig, router_config_from_distill
 from distill.costs import CostTracker, TokenUsage
 from distill.file_search import create_research_store, delete_store
+from distill.llm import call as llm_call
 from distill.prompts_accordion import (
     REPORT_SECTIONS,
     dossier_prompt,
@@ -32,7 +32,6 @@ from distill.research import _get_report_path
 
 console = Console()
 
-XAI_BASE_URL = "https://api.x.ai/v1"
 DEEP_RESEARCH_MODEL = "deep-research-pro-preview-12-2025"
 MAX_CORPUS_CHARS = 350_000
 
@@ -286,8 +285,7 @@ def _write_sections(
     active_sections: list[dict] | None = None,
 ) -> list[dict]:
     """Write each report section sequentially with context continuity."""
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("accordion")
+    rc = router_config_from_distill(config)
     written = []
     section_list = active_sections or REPORT_SECTIONS
     total = len(section_list)
@@ -321,10 +319,29 @@ def _write_sections(
         voice = section_def.get("voice", "analytical")
         temp = 0.3 if voice == "reference" else 0.5 if voice == "analytical" else 0.6
 
-        # Call Grok
-        content = _call_grok_section(
-            client, prompt, section_title, model=model, tracker=tracker, temperature=temp
-        )
+        # Call via router
+        try:
+            response = llm_call(
+                rc,
+                workload_tag="accordion",
+                prompt=prompt,
+                max_tokens=16384,
+                temperature=temp,
+                call_type=f"section:{section_title[:30]}",
+            )
+            content = response.text
+            if tracker:
+                tracker.record(
+                    TokenUsage(
+                        prompt_tokens=response.input_tokens,
+                        completion_tokens=response.output_tokens,
+                        model=response.model,
+                        call_type=f"section:{section_title[:30]}",
+                    )
+                )
+        except Exception as e:
+            console.print(f"  [red]Failed after retries: {e}[/red]")
+            content = ""
 
         if not content:
             console.print(f"  [red]Failed to write {section_title}[/red]")
@@ -354,55 +371,6 @@ def _write_sections(
     return written
 
 
-def _call_grok_section(
-    client: OpenAI,
-    prompt: str,
-    section_name: str,
-    model: str = "grok-4-1-fast-reasoning",
-    retries: int = 2,
-    tracker: CostTracker | None = None,
-    temperature: float = 0.4,
-) -> str:
-    """Call Grok for a single section with retry logic."""
-    last_error = None
-    for attempt in range(retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=16384,
-                temperature=temperature,
-                timeout=300,
-            )
-            if not response.choices:
-                console.print(f"  [yellow]Warning: no choices returned for {section_name}[/yellow]")
-                return ""
-
-            if tracker and response.usage:
-                tracker.record(
-                    TokenUsage(
-                        prompt_tokens=response.usage.prompt_tokens or 0,
-                        completion_tokens=response.usage.completion_tokens or 0,
-                        model=model,
-                        call_type=f"section:{section_name[:30]}",
-                    )
-                )
-
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            last_error = e
-            if attempt < retries:
-                wait = 2**attempt * 5
-                console.print(
-                    f"  [yellow]API error (attempt {attempt + 1}): {e}. Retrying in {wait}s...[/yellow]"
-                )
-                time.sleep(wait)
-            else:
-                console.print(f"  [red]Failed after {retries + 1} attempts: {last_error}[/red]")
-                return ""
-    return ""
-
-
 # ─── Phase 3: Assembly ───────────────────────────────────────────────
 
 
@@ -421,14 +389,31 @@ def _run_qa_phase(
     tracker: CostTracker | None = None,
 ) -> tuple[list[dict], int]:
     """Run QA review and fix failed sections. Returns (sections, rewrite_count)."""
-    client = OpenAI(api_key=config.xai_api_key, base_url=XAI_BASE_URL)
-    model = config.xai_model_for("accordion")
+    rc = router_config_from_distill(config)
 
     # Run QA review
     prompt = qa_prompt(topic, dossier, report)
-    qa_result = _call_grok_section(
-        client, prompt, "QA Review", model=model, retries=1, tracker=tracker
-    )
+    try:
+        qa_response = llm_call(
+            rc,
+            workload_tag="accordion",
+            prompt=prompt,
+            max_tokens=16384,
+            retries=1,
+            call_type="qa_review",
+        )
+        qa_result = qa_response.text
+        if tracker:
+            tracker.record(
+                TokenUsage(
+                    prompt_tokens=qa_response.input_tokens,
+                    completion_tokens=qa_response.output_tokens,
+                    model=qa_response.model,
+                    call_type="qa_review",
+                )
+            )
+    except Exception:
+        qa_result = ""
 
     if not qa_result:
         console.print("  [yellow]QA review failed -- skipping[/yellow]")
@@ -474,19 +459,32 @@ def _run_qa_phase(
 
         console.print(f"\n  Rewriting: [bold]{title}[/bold]")
 
-        rewrite = _call_grok_section(
-            client,
-            fix_prompt(
-                section=section_def,
-                topic=topic,
-                research=dossier,
-                qa_feedback=feedback,
-                original_content=section["content"],
-            ),
-            f"Fix:{title[:25]}",
-            model=model,
-            tracker=tracker,
-        )
+        try:
+            fix_response = llm_call(
+                rc,
+                workload_tag="accordion",
+                prompt=fix_prompt(
+                    section=section_def,
+                    topic=topic,
+                    research=dossier,
+                    qa_feedback=feedback,
+                    original_content=section["content"],
+                ),
+                max_tokens=16384,
+                call_type=f"fix:{title[:25]}",
+            )
+            rewrite = fix_response.text
+            if tracker:
+                tracker.record(
+                    TokenUsage(
+                        prompt_tokens=fix_response.input_tokens,
+                        completion_tokens=fix_response.output_tokens,
+                        model=fix_response.model,
+                        call_type=f"fix:{title[:25]}",
+                    )
+                )
+        except Exception:
+            rewrite = ""
 
         if rewrite:
             rewrite = _clean_section_output(rewrite)

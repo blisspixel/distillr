@@ -1636,8 +1636,8 @@ class TestWatchCommands:
 
         rerank_calls: list = []
 
-        def fake_rerank(goal, papers, videos, config, tracker):
-            rerank_calls.append((goal, len(papers), len(videos)))
+        def fake_rerank(goal, papers, videos, sites, config, tracker):
+            rerank_calls.append((goal, len(papers), len(videos), len(sites)))
             return [
                 cli._RankedDiscoverItem(
                     kind="paper",
@@ -1699,6 +1699,7 @@ class TestWatchCommands:
         assert result.exit_code == 0
         assert len(rerank_calls) == 1
         assert rerank_calls[0][0] == "help an AI compose music on a computer"
+        assert rerank_calls[0][3] == 0
         assert "Goal-Ranked Corpus Plan" in result.stdout
         assert "paper" in result.stdout  # type column
         assert "video" in result.stdout
@@ -1734,7 +1735,7 @@ class TestWatchCommands:
         monkeypatch.setattr(
             cli,
             "_discover_rerank",
-            lambda goal, papers, videos, config, tracker: [
+            lambda goal, papers, videos, sites, config, tracker: [
                 cli._RankedDiscoverItem(
                     kind="paper",
                     identifier="2604.99999v1",
@@ -1771,6 +1772,177 @@ class TestWatchCommands:
         assert len(generate_calls) == 1
         assert generate_calls[0].startswith("Help an AI become a great composer")
         assert "Goal loaded from" in result.stdout
+
+    def test_discover_preview_can_rank_curated_site_seeds(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        seeds_path = tmp_path / "agent365_sites.json"
+        seeds_path.write_text(
+            json.dumps(
+                {
+                    "collections": [
+                        {
+                            "label": "Official Agent365 docs",
+                            "seeds": [
+                                "https://learn.microsoft.com/en-us/microsoft-365/agents/overview"
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rerank_calls: list = []
+
+        def fake_rerank(goal, papers, videos, sites, config, tracker):
+            rerank_calls.append((len(papers), len(videos), len(sites)))
+            return [
+                cli._RankedDiscoverItem(
+                    kind="site",
+                    identifier=sites[0].url,
+                    title="Official Agent365 docs",
+                    subtitle="learn.microsoft.com",
+                    date="-",
+                    final_score=0.91,
+                    goal_fit=0.95,
+                    depth_score=0.82,
+                    complementarity_score=0.78,
+                    rationale="official implementation guidance",
+                    site_seed=sites[0],
+                )
+            ]
+
+        monkeypatch.setattr(cli, "_discover_rerank", fake_rerank)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "discover",
+                "learn Microsoft Agent365 architecture and best practices",
+                "--topic",
+                "agent365",
+                "--paper-limit",
+                "0",
+                "--video-limit",
+                "0",
+                "--site-seeds",
+                str(seeds_path),
+                "--site-limit",
+                "1",
+                "--preview",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert rerank_calls == [(0, 0, 1)]
+        assert "Goal-Ranked Corpus Plan" in result.stdout
+        assert "site" in result.stdout
+        assert "0.91" in result.stdout
+
+    def test_discover_ingests_selected_site_seeds_safely(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        seeds_path = tmp_path / "agent365_sites.json"
+        seeds_path.write_text(
+            json.dumps(
+                {
+                    "collections": [
+                        {
+                            "label": "Official Agent365 docs",
+                            "seeds": [
+                                "https://learn.microsoft.com/en-us/microsoft-365/agents/overview"
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        def fake_rerank(goal, papers, videos, sites, config, tracker):
+            return [
+                cli._RankedDiscoverItem(
+                    kind="site",
+                    identifier=sites[0].url,
+                    title="Official Agent365 docs",
+                    subtitle="learn.microsoft.com",
+                    date="-",
+                    final_score=0.91,
+                    goal_fit=0.95,
+                    depth_score=0.82,
+                    complementarity_score=0.78,
+                    rationale="official implementation guidance",
+                    site_seed=sites[0],
+                )
+            ]
+
+        process_calls: list[dict[str, object]] = []
+
+        def fake_process_site_seed(
+            seed, config, tracker, summary, scrape_only=False, ingest_attachments=False
+        ):
+            process_calls.append(
+                {
+                    "topic": seed.topic,
+                    "url": seed.url,
+                    "max_depth": seed.max_depth,
+                    "max_pages": seed.max_pages,
+                    "ingest_attachments": ingest_attachments,
+                }
+            )
+            page_dir = config.site_page_dir(seed.topic, "learn.microsoft.com", "Official Agent365 docs")
+            page_dir.mkdir(parents=True, exist_ok=True)
+            content_path = page_dir / "content.md"
+            content_path.write_text("# Site content", encoding="utf-8")
+            summary.add_output(content_path)
+            return "learn.microsoft.com", 1
+
+        synth_calls: list[str] = []
+
+        def fake_synthesize_site_topic(topic, config, tracker=None):
+            synth_calls.append(topic)
+            path = config.topic_dir(topic) / "topic_synthesis.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Topic synthesis", encoding="utf-8")
+            return "topic synthesis"
+
+        monkeypatch.setattr(cli, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(cli, "_process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(cli, "synthesize_site_topic", fake_synthesize_site_topic)
+        monkeypatch.setattr(cli, "synthesize_corpus", lambda topic, config, tracker=None: None)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "discover",
+                "learn Microsoft Agent365 architecture and best practices",
+                "--topic",
+                "agent365",
+                "--paper-limit",
+                "0",
+                "--video-limit",
+                "0",
+                "--site-seeds",
+                str(seeds_path),
+                "--site-limit",
+                "1",
+                "--ingest-attachments",
+                "--yes",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert process_calls == [
+            {
+                "topic": "agent365",
+                "url": "https://learn.microsoft.com/en-us/microsoft-365/agents/overview",
+                "max_depth": 0,
+                "max_pages": 1,
+                "ingest_attachments": True,
+            }
+        ]
+        assert synth_calls == ["agent365"]
 
     def test_corpus_command_writes_output(self, mock_config, monkeypatch):
         topic_dir = mock_config.topic_dir("mixed")
