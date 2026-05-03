@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\requests\cookies.py
-# hypothesis_version: 6.148.2
-
-['#', ', ', '.', '.local', '/', ':\\d+$', 'Cookies', 'FALSE', 'Host', 'HttpOnly', 'TRUE', '\\.\\d+$', '__Host-', '__Secure-', 'comment', 'comment_url', 'discard', 'domain', 'domain_initial_dot', 'domain_specified', 'expires', 'name', 'path', 'path_specified', 'port', 'port_specified', 'rest', 'rfc2109', 'secure', 'value', 'version']

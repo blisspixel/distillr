@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\extensions\attr_list.py
-# hypothesis_version: 6.148.2
-
-['"', '#', "'", '.', '=', '[ ]+{}[ ]*$', '[^ =}]+', '[^ =}]+=".*?"', "[^ =}]+='.*?'", '[^ =}]+=[^ =}]+', '\\n[ ]*{}[ ]*$', '^{}', '_', 'attr_list', 'class', 'dt', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'id', 'li', 'ol', 'td', 'th', 'ul', '{} {}', '}']

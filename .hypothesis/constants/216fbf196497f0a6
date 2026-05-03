@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\exceptions.py
-# hypothesis_version: 6.148.2
-
-['.legacy.exceptions', 'AbortHandshake', 'ConcurrencyError', 'ConnectionClosed', 'ConnectionClosedOK', 'DuplicateParameter', 'InvalidHandshake', 'InvalidHeader', 'InvalidHeaderFormat', 'InvalidHeaderValue', 'InvalidMessage', 'InvalidOrigin', 'InvalidParameterName', 'InvalidProxy', 'InvalidProxyMessage', 'InvalidProxyStatus', 'InvalidState', 'InvalidStatus', 'InvalidStatusCode', 'InvalidURI', 'InvalidUpgrade', 'NegotiationError', 'Origin', 'PayloadTooBig', 'ProtocolError', 'ProxyError', 'RedirectHandshake', 'SecurityError', 'WebSocketException', 'frame ']

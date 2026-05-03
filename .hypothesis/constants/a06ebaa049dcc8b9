@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\evals\run_retrieve_response.py
-# hypothesis_version: 6.148.2
-
-['DataSource', 'DataSourceResponses', 'PerModelUsage', 'ResultCounts', 'RunRetrieveResponse', 'assistant', 'developer', 'eval.run', 'file_content', 'file_id', 'input_image', 'item_reference', 'message', 'model_name', 'output_text', 'responses', 'system', 'template', 'type', 'user']

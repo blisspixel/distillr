@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\response_content_part_done_event.py
-# hypothesis_version: 6.148.2
-
-['Part', 'audio', 'text']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\files.py
-# hypothesis_version: 6.148.2
-
-['X-Goog-Upload-URL', '_query', '_url', 'alt', 'config', 'delete', 'file', 'files', 'files/', 'files/{file}', 'get', 'google_genai.files', 'http_options', 'media', 'name', 'nextPageToken', 'next_page_token', 'pageSize', 'pageToken', 'page_size', 'page_token', 'post', 'sdkHttpResponse', 'sdk_http_response', 'upload/v1beta/files', 'x-goog-upload-url']

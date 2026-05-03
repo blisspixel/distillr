@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\uri.py
-# hypothesis_version: 6.148.2
-
-[443, '/', ":/?#[]@!$&'()*+,;=", '?', 'WebSocketURI', 'ascii', 'http', 'http://', 'https', 'idna', 'parse_uri', 'path is meaningless', 'query is meaningless', 'socks', 'socks4', 'socks4a', 'socks5', 'socks5h', 'socks5h://', 'ws', 'wss']

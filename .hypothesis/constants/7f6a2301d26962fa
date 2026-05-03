@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\pot\utils.py
-# hypothesis_version: 6.148.2
-
-['ContentBindingType', 'MWEB', 'TVHTML5', 'TVHTML5_SIMPLY', 'WEB', 'WEBPO_CLIENTS', 'WEB_CREATOR', 'WEB_EMBEDDED_PLAYER', 'WEB_REMIX', '[A-Za-z0-9_-]{11}', 'client', 'clientName', 'datasync_id', 'video_id', 'visitor_data', 'visitor_id']

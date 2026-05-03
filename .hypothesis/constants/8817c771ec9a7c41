@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\openload.py
-# hypothesis_version: 6.148.2
-
-[1000, 10000, '"', '([0-9.]+)', '--ssl-protocol=any', '-v', '/', ';\nphantom.exit();', 'Executing JS', 'HttpOnly', 'User-Agent', '\\', '\\"', '\\\\', 'cookies', 'discard', 'domain', 'expire_time', 'expires', 'expiry', 'html', 'httpOnly', 'http_headers', 'httponly', 'jscode', 'name', 'path', 'phantom.exit();', 'phantomjs', 'port', 'rb', 'rest', 'saveAndExit();', 'script', 'secure', 'timeout', 'ua', 'url', 'utf-8', 'value', 'w', 'wb']

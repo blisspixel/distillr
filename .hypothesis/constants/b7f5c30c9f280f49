@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\text\run.py
-# hypothesis_version: 6.148.2
-
-['-', 'CommentReference', 'preserve', 'textWrapping', 'w:br', 'w:clear', 'w:commentRangeEnd', 'w:commentRangeStart', 'w:commentReference', 'w:cr', 'w:drawing', 'w:id', 'w:r', 'w:rPr', 'w:t', 'w:tab', 'w:type', 'xml:space']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\error_wrappers.py
-# hypothesis_version: 6.148.2
-
-[' -> ', '.', 'BaseConfig', 'Error', 'ErrorDict', 'ErrorWrapper', 'Loc', 'ModelOrDc', 'ReprArgs', 'ValidationError', '_error_cache', '_loc', 'assertion_error', 'code', 'ctx', 'errors', 'exc', 'loc', 'model', 'msg', 'msg_template', 'raw_errors', 'type', 'type=', 'type_error', 'value_error']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\typer\_completion_shared.py
-# hypothesis_version: 6.148.2
-
-['$profile', '-', '-Command', '-NoProfile', '-Scope', '.bash_completions', '.bashrc', '.zshrc', 'CurrentUser', 'Set-ExecutionPolicy', 'Unrestricted', '[^a-zA-Z0-9_]', '_', '_{}_COMPLETE', 'a', 'autocomplete_var', 'bash', 'complete_func', 'cp850', 'echo', 'fish', 'powershell', 'prog_name', 'pwsh', 'utf8', 'windows-1252', 'zsh', 'zstyle']

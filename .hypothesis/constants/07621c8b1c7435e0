@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\chat\chat_completion_content_part_image.py
-# hypothesis_version: 6.148.2
-
-['ImageURL', 'auto', 'high', 'image_url', 'low']

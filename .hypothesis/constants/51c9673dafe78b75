@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\computer_action_param.py
-# hypothesis_version: 6.148.2
-
-['Click', 'ComputerActionParam', 'DoubleClick', 'Drag', 'DragPath', 'Keypress', 'Move', 'Screenshot', 'Scroll', 'Type', 'Wait', 'back', 'click', 'double_click', 'drag', 'forward', 'keypress', 'left', 'move', 'right', 'screenshot', 'scroll', 'type', 'wait', 'wheel']

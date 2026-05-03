@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\cachetools\__init__.py
-# hypothesis_version: 6.148.2
-
-['%s is empty', '5.5.0', 'Cache', 'CacheInfo', 'FIFOCache', 'LFUCache', 'LRUCache', 'MRUCache', 'RRCache', 'TLRUCache', 'TTLCache', 'cached', 'cachedmethod', 'currsize', 'expires', 'hits', 'key', 'maxsize', 'misses', 'next', 'prev', 'removed', 'value too large']

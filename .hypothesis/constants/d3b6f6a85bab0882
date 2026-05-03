@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\langsmith\run_helpers.py
-# hypothesis_version: 6.148.2
-
-[1000, '<source unavailable>', 'OTEL_ENABLED', 'P', 'R', 'T', '_CLIENT', '_METADATA', '_PARENT_RUN_TREE', '_PROJECT_NAME', '_TAGS', '_TRACING_ENABLED', '__aiter__', '__call__', '__iter__', '__wrapped__', '_end_on_exit', '_on_success', '_token_event_logged', 'args', 'callbacks', 'chain', 'client', 'cls', 'config', 'context', 'default', 'embedding', 'enabled', 'extra', 'extra_outer', 'ignore', 'invocation_params_fn', 'json', 'kwargs', 'llm', 'local', 'ls_method', 'metadata', 'model_dump', 'name', 'new_run', 'new_token', 'on_end', 'output', 'parent', 'parent_run', 'parser', 'process_chunk', 'process_inputs', 'process_outputs', 'project_name', 'prompt', 'reduce_fn', 'reference_example_id', 'replicas', 'retriever', 'run_extra', 'run_id', 'run_tree', 'run_type', 'self', 'tags', 'time', 'token', 'tool', 'trace', 'traceable', 'usage_metadata']

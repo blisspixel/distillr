@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\dataclasses.py
-# hypothesis_version: 6.148.2
-
-['BaseModel', 'CallableGenerator', 'Dataclass', 'DataclassProxy', 'DataclassT', 'NoArgAnyCallable', '_T', '__annotations__', '__dataclass__', '__get_validators__', '__init__', '__post_init__', '__pydantic_model__', '__setattr__', '__validate__', 'after_validation', 'before_validation', 'dataclass', 'is_builtin_dataclass', 'set_validation']

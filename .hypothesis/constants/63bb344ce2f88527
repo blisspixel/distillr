@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\opc\constants.py
-# hypothesis_version: 6.148.2
-
-['External', 'Internal', 'application/xml', 'image/bmp', 'image/gif', 'image/jpeg', 'image/png', 'image/tiff', 'image/vnd.ms-photo', 'image/x-emf', 'image/x-wmf']

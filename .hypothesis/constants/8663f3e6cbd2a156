@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\postprocessor\common.py
-# hypothesis_version: 6.148.2
-
-[404, '_copy_infodict', '_default_template', '_percent', '_postprocessor_hooks', 'acodec', 'audio', 'charset', 'deprecation_warning', 'extractor', 'extractor_retries', 'ffmpeg', 'finished', 'images', 'info', 'info_dict', 'none', 'postprocess', 'postprocess-title', 'postprocessor', 'postprocessor_args', 'progress', 'progress_template', 'run', 'simulate', 'skip_download', 'started', 'status', 'utf-8', 'vcodec', 'video']

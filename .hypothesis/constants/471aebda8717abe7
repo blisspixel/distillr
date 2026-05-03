@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\_streaming.py
-# hypothesis_version: 6.148.2
-
-[b'\n\n', b'\r\n\r\n', b'\r\r', '\x00', ':', '[DONE]', '_T', 'data', 'error', 'event', 'id', 'message', 'retry', 'thread.', 'tuple[type, ...]', 'utf-8']

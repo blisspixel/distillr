@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\ogg.py
-# hypothesis_version: 6.148.2
-
-[b'\x00', b'OggS', b'\xff', 255, 256, 2048, 4096, 4294967295, '%s=%r', '<4sBBqIIi', '<4sBBqIIiB', 'application/ogg', 'application/x-ogg', 'complete', 'continued', 'first', 'last', 'offset', 'position', 'sequence', 'serial', 'version']

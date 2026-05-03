@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cython\Shadow.py
-# hypothesis_version: 6.148.2
-
-['%s[%s]', ', ', '3.1.3', ':', '::1', 'Cannot cast from %s', 'CythonTypeObject', 'Py_UCS4', 'Py_UNICODE', 'Py_hash_t', 'Py_ssize_t', 'Py_tss_t', '__', '__dict__', 'bint', 'cast_from', 'char', 'complex', 'const_', 'cython.%s', 'cython.cimports', 'cython.cimports.', 'cython.cimports.libc', 'cython.dataclasses', 'cython.parallel', 'dataclasses', 'double', 'double complex', 'doublecomplex', 'dtype', 'float', 'float complex', 'floatcomplex', 'gs', 'int', 'long', 'long double', 'long double complex', 'long long', 'longdouble', 'longdoublecomplex', 'longlong', 'p_void', 'parallel', 'prange', 'ptrdiff_t', 's', 'short', 'signed ', 'size_t', 'ssize_t', 'threadid', 'typecheck', 'u', 'unicode', 'unsigned ', 'void']

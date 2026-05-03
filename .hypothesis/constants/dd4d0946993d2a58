@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\threads\run_status.py
-# hypothesis_version: 6.148.2
-
-['RunStatus', 'cancelled', 'cancelling', 'completed', 'expired', 'failed', 'in_progress', 'incomplete', 'queued', 'requires_action']

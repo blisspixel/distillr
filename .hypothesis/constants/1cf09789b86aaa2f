@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\cli_shared.py
-# hypothesis_version: 6.148.2
-
-[180, '%Y%m%d', '%b %d, %Y', '%b %d, %Y %I:%M %p', '---', '/@', '?', 'Empty transcript', 'No transcript', 'T', 'Unknown', 'analysis_mode', 'analyzing', 'ascii', 'auto', 'channel', 'channel_context.md', 'channel_name', 'content_length', 'dots', 'duration', 'duration_seconds', 'error', 'fallback', 'full', 'insights', 'insights.md', 'legacy_filename', 'legacy_windows', 'metadata.json', 'no_warnings', 'output', 'plain-text', 'quick insight', 'quiet', 'render', 'replace', 'report', 'report-docx', 'research', 'rgb(100,149,237)', 'scan', 'scanning', 'scope', 'short', 'single-source', 'standalone', 'title', 'transcript', 'txt', 'untitled', 'upload_date', 'uploader', 'url', 'utf-8', 'video_id', 'warning', 'youtube']

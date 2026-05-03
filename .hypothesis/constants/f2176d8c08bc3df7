@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\live.py
-# hypothesis_version: 6.148.2
-
-['AUDIO', 'Authorization', 'BidiGenerateContent', 'activity_end', 'activity_start', 'audio', 'audio_stream_end', 'auth_tokens/', 'client_content', 'config', 'content', 'data', 'functionResponses', 'function_responses', 'generationConfig', 'google_genai.live', 'id', 'json', 'media', 'media_chunks', 'model', 'name', 'parts', 'publishers/', 'realtime_input', 'response', 'responseModalities', 'setup', 'system_instruction', 'text', 'tool_response', 'tools', 'turn_complete', 'turns', 'utf-8', 'v1alpha', 'video']

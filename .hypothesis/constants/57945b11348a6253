@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\env_settings.py
-# hypothesis_version: 6.148.2
-
-['BaseSettings', 'env', 'env_file', 'env_file_encoding', 'env_names', 'env_nested_delimiter', 'env_prefix_len', 'init_kwargs', 'secrets_dir', 'utf8']

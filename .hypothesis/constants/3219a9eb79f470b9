@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\aiohttp\typedefs.py
-# hypothesis_version: 6.148.2
-
-['BaseCookie[str]', 'Morsel[Any]', 'Request', 'StreamResponse', 'os.PathLike[str]']

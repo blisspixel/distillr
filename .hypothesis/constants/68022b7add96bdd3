@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\beta\threads\runs\runs.py
-# hypothesis_version: 6.148.2
-
-[1000, 'AsyncRuns', 'OpenAI-Beta', 'Runs', 'additional_messages', 'after', 'asc', 'assistant_id', 'assistants=v2', 'before', 'cancelled', 'completed', 'desc', 'expired', 'failed', 'false', 'include', 'incomplete', 'instructions', 'limit', 'max_prompt_tokens', 'metadata', 'model', 'openai-poll-after-ms', 'order', 'parallel_tool_calls', 'reasoning_effort', 'requires_action', 'response_format', 'stream', 'temperature', 'thread_id', 'tool_choice', 'tool_outputs', 'tools', 'top_p', 'true', 'truncation_strategy', 'use `stream` instead']

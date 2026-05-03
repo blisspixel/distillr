@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\preflight.py
-# hypothesis_version: 6.148.2
-
-[300, 500, 3600, '+', '-', '--upgrade', '-m', '.', '.preflight.json', 'DISTILL_NO_PREFLIGHT', 'checked_at', 'install', 'pip', 'pip exited non-zero', 'seconds', 'unknown', 'utf-8', 'version', 'warned_age_days', 'yt-dlp']

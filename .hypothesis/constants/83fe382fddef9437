@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pypdf\generic\_base.py
-# hypothesis_version: 6.148.2
-
-[b' ', b'#', b'#()<>[]{}/%', b'(', b')', b'.', b'/', b'<', b'>', b'R', b'[^+-.0-9]', b'\\%03o', b'\\s+|[\\(\\)<>\\[\\]{}/%]', b'fals', b'false', b'null', b'true', 0.0, '.', '/', '0', '0.0', '5.0.0', 'BooleanObject', 'ByteStringObject', 'Code Not Found', 'False', 'FloatObject', 'IndirectObject', 'Mathieu Fenniak', 'Name read error', 'NameObject', 'NullObject', 'NumberObject', 'PdfObject', 'PreventGC', 'TextStringObject', 'True', '[^a-zA-Z0-9_-]', '\\ ', '_', 'c', 'charmap', 'forced', 'gbk', 'hashlib._Hash', 'latin1', 'mypy', 'pdfdocencoding', 'prefix', 'surfix', 'utf-16', 'utf-16be', 'utf-16le', 'utf-8', 'utf8', '~', 'þÿ', 'ÿþ']

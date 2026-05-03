@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\audio\speech_create_params.py
-# hypothesis_version: 6.148.2
-
-['SpeechCreateParams', 'aac', 'alloy', 'ash', 'audio', 'ballad', 'cedar', 'coral', 'echo', 'flac', 'marin', 'mp3', 'opus', 'pcm', 'sage', 'shimmer', 'sse', 'verse', 'wav']

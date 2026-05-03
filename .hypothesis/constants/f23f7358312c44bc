@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\aiohttp\_cookie_helpers.py
-# hypothesis_version: 6.148.2
-
-['"', '$', ';', '=', 'Morsel[str]', 'coded_value', 'comment', 'domain', 'expires', 'httponly', 'key', 'max-age', 'parse_cookie_header', 'partitioned', 'path', 'samesite', 'secure', 'val', 'value', 'version']

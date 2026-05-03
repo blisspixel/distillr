@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pypdf\_doc_common.py
-# hypothesis_version: 6.148.2
-
-[b'\x00\x00\x00\x00\x00\x00\x00\x00', '.', '/%is_open%', '/A', '/AP', '/AcroForm', '/Annots', '/Btn', '/C', '/Ch', '/Count', '/D', '/Dest', '/F', '/FT', '/Fields', '/First', '/GoTo', '/Kids', '/N', '/Next', '/Off', '/OpenAction', '/P', '/Page', '/PageMode', '/Pages', '/Parent', '/Sig', '/Subtype', '/T', '/TM', '/Title', '/Tx', '/Type', '/V', '/Widget', '/XFA', '/_States_', '5.0.0', '>q', 'ArrayObject', 'Button', 'Choice', 'Field is not valid', 'OpenAction', 'Signature', 'Text', '_add_object', 'accessability', 'annotations', 'assemble', 'copy', 'decode_permissions', 'forms', 'hint for mypy', 'indirect_reference', 'modify', 'mypy', 'print', 'print_high_quality', 'str']

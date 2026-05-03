@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\vector_stores\vector_stores.py
-# hypothesis_version: 6.148.2
-
-['/vector_stores', 'AsyncVectorStores', 'OpenAI-Beta', 'VectorStores', 'after', 'asc', 'assistants=v2', 'before', 'chunking_strategy', 'desc', 'description', 'expires_after', 'file_ids', 'filters', 'limit', 'max_num_results', 'metadata', 'name', 'order', 'post', 'query', 'ranking_options', 'rewrite_query']

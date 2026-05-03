@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\__init__.py
-# hypothesis_version: 6.148.2
-
-['+', 'FileDownloader', 'WSfrag', 'bunnycdn', 'dash', 'dashG', 'dash_frag_urls', 'default', 'external_downloader', 'f4m', 'fc2_live', 'ftp', 'ftps', 'hls_prefer_native', 'http', 'http_dash_segments', 'https', 'impersonate', 'is_live', 'ism', 'm3u8', 'm3u8F', 'm3u8_frag_urls', 'm3u8_native', 'mhtml', 'mms', 'native', 'niconico_live', 'protocol', 'rtmp', 'rtmpF', 'rtmp_ffmpeg', 'rtmpe', 'rtsp', 'section_end', 'section_start', 'soopvod', 'to_stdout', 'websocket_frag', 'youtube_live_chat']

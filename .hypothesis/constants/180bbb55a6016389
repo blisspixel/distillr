@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\audio\transcriptions.py
-# hypothesis_version: 6.148.2
-
-['AsyncTranscriptions', 'Content-Type', 'Transcriptions', 'chunking_strategy', 'diarized_json', 'file', 'include', 'json', 'known_speaker_names', 'language', 'model', 'multipart/form-data', 'prompt', 'response_format', 'segment', 'srt', 'stream', 'temperature', 'text', 'verbose_json', 'vtt', 'word']

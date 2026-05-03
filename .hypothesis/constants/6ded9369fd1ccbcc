@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\opc\oxml.py
-# hypothesis_version: 6.148.2
-
-[':', '<Types xmlns="%s"/>', 'ContentType', 'Default', 'Extension', 'Id', 'Override', 'PartName', 'Relationship', 'Relationships', 'Target', 'TargetMode', 'Type', 'Types', 'UTF-8', 'ct', 'ct:Default', 'ct:Override', 'pr', 'pr:Relationship', 'r', 'unicode', '{%s}%s']

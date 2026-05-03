@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\chat\completions\messages.py
-# hypothesis_version: 6.148.2
-
-['AsyncMessages', 'Messages', 'after', 'asc', 'desc', 'limit', 'order']

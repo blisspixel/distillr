@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_extra_utils.py
-# hypothesis_version: 6.148.2
-
-['.jsonl', 'Content-Type', 'application/json', 'b', 'bigquery_uri', 'bq://', 'error', 'gcs_uri', 'google_genai.models', 'gs://', 'maximum_remote_calls', 'mode', 'result', 'resumable', 'start', 'tools']

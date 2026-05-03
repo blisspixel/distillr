@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\email_validator\__init__.py
-# hypothesis_version: 6.148.2
-
-['EmailNotValidError', 'EmailSyntaxError', 'ValidatedEmail', '__version__', 'arpa', 'caching_resolver', 'invalid', 'local', 'localhost', 'onion', 'test', 'validate_email']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\evals\runs\output_items.py
-# hypothesis_version: 6.148.2
-
-['AsyncOutputItems', 'OutputItems', 'after', 'asc', 'desc', 'fail', 'limit', 'order', 'pass', 'status']

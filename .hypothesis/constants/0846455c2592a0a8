@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\audio\transcription_text_done_event.py
-# hypothesis_version: 6.148.2
-
-['Logprob', 'Usage', 'tokens', 'transcript.text.done']

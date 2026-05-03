@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpx_sse\_decoders.py
-# hypothesis_version: 6.148.2
-
-['\x00', ':', 'data', 'event', 'id', 'retry']

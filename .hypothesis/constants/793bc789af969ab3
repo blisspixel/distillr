@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pycparser\c_ast.py
-# hypothesis_version: 6.148.2
-
-['\n]', ' <', '(', ')', ',', ',\n ', ', ', ': ', '=', '>: ', '[', '__len__', '__weakref__', 'align', 'alignment', 'args', 'bitsize', 'block_items', 'body', 'cond', 'coord', 'decl', 'declname', 'decls', 'dim', 'dim_quals', 'enumerators', 'expr', 'exprs', 'ext', 'field', 'funcspec', 'iffalse', 'iftrue', 'init', 'left', 'lvalue', 'message', 'name', 'names', 'next', 'op', 'param_decls', 'params', 'quals', 'right', 'rvalue', 'stmt', 'stmts', 'storage', 'string', 'subscript', 'to_type', 'type', 'value', 'values', 'visit_']

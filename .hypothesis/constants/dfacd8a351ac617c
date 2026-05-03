@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\lib\_parsing\_completions.py
-# hypothesis_version: 6.148.2
-
-['ResponseFormatT', 'choices', 'content_filter', 'custom', 'function', 'json_schema', 'length', 'message', 'name', 'openai.lib.parsing', 'parsed', 'parsed_arguments', 'schema', 'strict', 'tool_calls', 'type']

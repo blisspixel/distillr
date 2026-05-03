@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\asyncio\client.py
-# hypothesis_version: 6.148.2
-
-[200, 300, 301, 302, 303, 307, 308, 500, 502, 503, 504, '10', 'ClientConnection', 'Host', 'Location', 'Proxy-Authorization', 'User-Agent', 'connect', 'deflate', 'host', 'http', 'https', 'local_addr', 'port', 'proxy_', 'server_hostname', 'sock', 'socks', 'socks4', 'socks4a', 'socks5', 'socks5h', 'ssl', 'unix', 'unix_connect', 'unsupported proxy', 'websockets.client', 'ws://localhost/', 'wss://localhost/']

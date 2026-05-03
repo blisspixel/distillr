@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\__init__.py
-# hypothesis_version: 6.148.2
-
-['AsyncCurl', 'AsyncSession', 'AsyncWebSocket', 'BrowserType', 'BrowserTypeLiteral', 'CookieTypes', 'Cookies', 'Curl', 'CurlECode', 'CurlError', 'CurlHttpVersion', 'CurlInfo', 'CurlMOpt', 'CurlMime', 'CurlOpt', 'CurlSslVersion', 'CurlWsFlag', 'ExtraFingerprints', 'HeaderTypes', 'Headers', 'ProxySpec', 'Request', 'Response', 'Session', 'WebSocket', 'WebSocketClosed', 'WebSocketError', 'WebSocketTimeout', 'WsCloseCode', 'config_warnings', 'delete', 'exceptions', 'ffi', 'get', 'head', 'is_pro', 'lib', 'options', 'patch', 'post', 'put', 'request']

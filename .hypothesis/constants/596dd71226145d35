@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpx\_types.py
-# hypothesis_version: 6.148.2
-
-['AsyncByteStream', 'Auth', 'Cookies', 'Headers', 'Proxy', 'QueryParams', 'Request', 'SyncByteStream', 'Timeout', 'URL']

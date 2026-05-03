@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\paper_ingest.py
-# hypothesis_version: 6.148.2
-
-[3.5, 100000, ' AND ', ' OR ', '"', '## Abstract', '## Full Paper Text', '(', ', ', '.pdf', '/', '0', 'Unknown', '\\s+', 'abs_url', 'abstract', 'all:', 'alternate', 'arxiv', 'atom', 'atom:author', 'atom:category', 'atom:entry', 'atom:id', 'atom:link', 'atom:name', 'atom:published', 'atom:summary', 'atom:title', 'atom:updated', 'authors', 'categories', 'date', 'descending', 'href', 'id_list', 'max_results', 'paper_id', 'pdf', 'pdf_url', 'published_at', 'rel', 'relevance', 'replace', 'search_query', 'sortBy', 'sortOrder', 'source', 'start', 'submittedDate', 'term', 'title', 'updated_at', 'utf-8']

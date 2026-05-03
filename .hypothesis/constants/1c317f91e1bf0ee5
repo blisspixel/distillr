@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpcore\_sync\socks_proxy.py
-# hypothesis_version: 6.148.2
-
-[b'\x00', b'\x01', b'\x02', b'\x03', b'\x04', b'\x05', b'\x06', b'\x07', b'\x08', b'https', b'\xff', 4096, 'CONNECTING', 'CONNECTION FAILED', 'Connection refused', 'GSSAPI', 'Host unreachable', 'Network unreachable', 'Succeeded', 'TTL expired', 'UNKNOWN', 'UNKOWN', 'USERNAME/PASSWORD', 'ascii', 'auth', 'connect', 'connect_tcp', 'h2', 'host', 'http/1.1', 'httpcore.socks', 'port', 'proxy_auth', 'proxy_url', 'server_hostname', 'sni_hostname', 'ssl_context', 'ssl_object', 'start_tls', 'stream', 'timeout']

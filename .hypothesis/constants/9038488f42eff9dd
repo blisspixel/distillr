@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\coverage\control.py
-# hypothesis_version: 6.148.2
-
-[' (disabled)', ', ', '-none-', ':data:', 'COVERAGE_DEBUG_CALLS', 'CTracer', 'Coverage._init', 'MISSING', '_is_gil_enabled', 'argv', 'atexit', 'build', 'command_line', 'config', 'config_contents', 'config_file', 'configs_attempted', 'configs_read', 'core', 'coverage', 'coverage_module', 'coverage_version', 'cwd', 'data_file', 'def_encoding', 'dynamic-conflict', 'end', 'environment', 'exclude', 'executable', 'fs_encoding', 'get_data', 'gil_enabled', 'implementation', 'multiprocessing', 'no-data-collected', 'none', 'path', 'pathmap', 'pid', 'platform', 'plugins.configurers', 'plugins.file_tracers', 'process', 'pybehave', 'python', 'sigterm', 'sys', 'sys: ', 'test_function', 'trace', 'unavailable']

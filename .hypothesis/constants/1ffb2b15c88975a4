@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\respx\patterns.py
-# hypothesis_version: 6.148.2
-
-[443, '*', '*.', '/', ':', 'Pattern', '[', '__', 'all', 'ascii', 'contains', 'content', 'cookie', 'cookies', 'data', 'eq', 'files', 'headers', 'host', 'http', 'https', 'in', 'json', 'key', 'method', 'name', 'params', 'path', 'port', 'regex', 'scheme', 'startswith', 'url', 'utf-8']

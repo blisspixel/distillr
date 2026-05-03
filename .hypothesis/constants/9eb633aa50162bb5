@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\arrow\__init__.py
-# hypothesis_version: 6.148.2
-
-['Arrow', 'ArrowFactory', 'FORMAT_ATOM', 'FORMAT_COOKIE', 'FORMAT_RFC1036', 'FORMAT_RFC1123', 'FORMAT_RFC2822', 'FORMAT_RFC3339', 'FORMAT_RFC822', 'FORMAT_RFC850', 'FORMAT_RSS', 'FORMAT_W3C', 'ParserError', '__version__', 'get', 'now', 'utcnow']

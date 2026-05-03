@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpx\_api.py
-# hypothesis_version: 6.148.2
-
-['DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'request', 'stream']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\webcolors\__init__.py
-# hypothesis_version: 6.148.2
-
-['24.8.0', 'CSS2', 'CSS21', 'CSS3', 'HTML4', 'HTML5SimpleColor', 'IntTuple', 'IntegerRGB', 'PercentRGB', 'PercentTuple', 'hex_to_name', 'hex_to_rgb', 'hex_to_rgb_percent', 'name_to_hex', 'name_to_rgb', 'name_to_rgb_percent', 'names', 'normalize_hex', 'rgb_percent_to_hex', 'rgb_percent_to_name', 'rgb_percent_to_rgb', 'rgb_to_hex', 'rgb_to_name', 'rgb_to_rgb_percent']

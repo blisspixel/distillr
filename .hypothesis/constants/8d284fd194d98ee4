@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\_client.py
-# hypothesis_version: 6.148.2
-
-[400, 401, 403, 404, 409, 422, 429, 500, 'AsyncClient', 'Client', 'GEMINI_API_KEY', 'ProxiesTypes', 'RequestOptions', 'Timeout', 'Transport', 'X-Stainless-Async', 'comma', 'false', 'v1beta', 'x-goog-api-key']
