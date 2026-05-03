@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\auth\jwt.py
+# hypothesis_version: 6.148.2
+
+[b'.', 3600, 'ES256', 'JWT', 'RS256', 'alg', 'aud', 'client_email', 'exp', 'iat', 'iss', 'issuer', 'kid', 'sub', 'subject', 'typ', 'utf-8']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mcp\server\transport_security.py
+# hypothesis_version: 6.148.2
+
+[400, 403, 421, ':', ':*', 'Invalid Host header', 'application/json', 'content-type', 'host', 'origin']

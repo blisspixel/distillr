@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\evals\run_list_params.py
+# hypothesis_version: 6.148.2
+
+['RunListParams', 'asc', 'canceled', 'completed', 'desc', 'failed', 'in_progress', 'queued']

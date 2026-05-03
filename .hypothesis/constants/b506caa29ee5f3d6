@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\pot\_builtin\webpo_cachespec.py
+# hypothesis_version: 6.148.2
+
+[21600, 'bind_to_visitor_id', 'cb', 'cbt', 'client', 'ip', 'px', 'remoteHost', 'sa', 't', 'true', 'webpo']

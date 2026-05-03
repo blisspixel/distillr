@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\core.py
+# hypothesis_version: 6.148.2
+
+['!', '"', '", "', '#', '(', ')', '*', '+', '-', '.', '/', '145', ':', '<%s />', '<%s>', '</%s>', '>', 'MARKDOWN', 'Markdown', '[', '\\', ']', '_', '`', 'div', 'encoding', 'extension_configs', 'extensions', 'html', 'input', 'markdown', 'markdownFromFile', 'output', 'output_format', 'r', 'reset', 'tab_length', 'utf-8', 'w', 'xhtml', 'xmlcharrefreplace', '{', '}', '\ufeff']

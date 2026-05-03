@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\types\content_delta.py
+# hypothesis_version: 6.148.2
+
+['ContentDelta', 'Delta', 'DeltaAudioDelta', 'DeltaDocumentDelta', 'DeltaImageDelta', 'DeltaTextDelta', 'DeltaVideoDelta', 'audio', 'code_execution_call', 'content.delta', 'document', 'file_search_result', 'function_call', 'function_result', 'google_search_call', 'google_search_result', 'high', 'image', 'low', 'mcp_server_tool_call', 'medium', 'text', 'thought_signature', 'thought_summary', 'type', 'url_context_call', 'url_context_result', 'video']

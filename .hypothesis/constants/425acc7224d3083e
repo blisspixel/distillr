@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\f4m.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', b'\x00\x00\x00\x00', b'\x00\x00\x00\x00\x00\x00\x00', b'\x00\x00\x00\t', b'\x05', b'\x12', b'FLV\x01', b'abst', b'afrt', b'asrt', b'mdat', 5.0, 404, 410, 4294967295, '!B', '!I', '!Q', '&', ';', 'Missed %d fragments', 'No media found', 'Seg%d-Frag%d', 'Unsupported DRM', 'base URL', 'baseURL', 'bitrate', 'bootstrapInfo', 'dest_stream', 'drmAdditionalHeader', 'duration', 'filename', 'first', 'fragment_index', 'fragments', 'id', 'ignore', 'live', 'media', 'metadata', 'pv-2.0', 'segment_run', 'segments', 'tbr', 'test', 'total_frags', 'ts', 'url', 'utf-8']

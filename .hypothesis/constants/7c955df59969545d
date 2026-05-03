@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\chat\chat_completion_role.py
+# hypothesis_version: 6.148.2
+
+['ChatCompletionRole', 'assistant', 'developer', 'function', 'system', 'tool', 'user']

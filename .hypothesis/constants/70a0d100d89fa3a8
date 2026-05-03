@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\niconico.py
+# hypothesis_version: 6.148.2
+
+['Origin', 'accessRightMethod', 'body', 'chasePlay', 'code', 'commentable', 'data', 'disconnect', 'downloader_options', 'error', 'high', 'hls', 'id', 'latency', 'm3u8', 'max_quality', 'ping', 'protocol', 'quality', 'reconnect', 'room', 'single_cookie', 'startWatching', 'stream', 'type', 'verbose', 'webSocket', 'ws', 'ws_url', '{"type":"keepSeat"}', '{"type":"pong"}']

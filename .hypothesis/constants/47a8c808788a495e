@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\postprocessor\modify_chapters.py
+# hypothesis_version: 6.148.2
+
+[', ', 'Concat spec = {}', 'Manually removed', '__real_download', '_categories', '_was_cut', 'categories', 'category', 'category_names', 'chapters', 'cut_idx', 'duration', 'end_time', 'ext', 'filepath', 'inpoint', 'manually_removed', 'name', 'outpoint', 'remove', 'requested_subtitles', 'start_time', 'temp', 'title', 'uncut']

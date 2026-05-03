@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\oauth2\service_account.py
+# hypothesis_version: 6.148.2
+
+[3600, '0x0', 'aud', 'client_email', 'credential_source', 'credential_type', 'encoded_locations', 'exp', 'googleapis.com', 'iat', 'iss', 'locations', 'principal', 'project_id', 'scope', 'sub', 'target_audience', 'token_uri', 'trust_boundary', 'universe_domain']

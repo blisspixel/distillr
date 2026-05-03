@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\opentelemetry\sdk\trace\sampling.py
+# hypothesis_version: 6.148.2
+
+[0.0, 1.0, 'AlwaysOffSampler', 'AlwaysOnSampler', 'Attributes', 'Context', 'Decision', 'Link', 'SamplingResult', 'TraceState', 'always_off', 'always_on', 'traceidratio']

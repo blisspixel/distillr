@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\python_multipart\__init__.py
+# hypothesis_version: 6.148.2
+
+['0.0.18', 'Andrew Dunham', 'Apache', 'BaseParser', 'FormParser', 'MultipartParser', 'OctetStreamParser', 'QuerystringParser', 'create_form_parser', 'parse_form']

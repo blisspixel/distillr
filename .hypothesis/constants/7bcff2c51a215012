@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\playwright\_impl\_dialog.py
+# hypothesis_version: 6.148.2
+
+['Page', 'accept', 'defaultValue', 'dismiss', 'message', 'page', 'type']

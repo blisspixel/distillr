@@ -73,7 +73,9 @@ def discover_generate_queries(
     prompt = discover_query_generation_prompt(
         goal, paper_count=paper_count, video_count=video_count
     )
-    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=768, call_type="discover_plan")
+    response = llm_call(
+        rc, workload_tag="rerank", prompt=prompt, max_tokens=768, call_type="discover_plan"
+    )
     if tracker:
         tracker.record(
             TokenUsage(
@@ -184,7 +186,9 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
 
     rc = router_config_from_distill(config)
     prompt = discover_rerank_prompt(goal, candidates)
-    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=8192, call_type="discover_rerank")
+    response = llm_call(
+        rc, workload_tag="rerank", prompt=prompt, max_tokens=8192, call_type="discover_rerank"
+    )
     if tracker:
         tracker.record(
             TokenUsage(

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mcp\shared\session.py
+# hypothesis_version: 6.148.2
+
+['2.0', 'Connection closed', 'ReceiveNotificationT', 'ReceiveRequestT', 'ReceiveResultT', 'Request cancelled', 'ResponseRouter', 'SendNotificationT', 'SendRequestT', 'SendResultT', '_meta', 'json', 'params', 'progressToken']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\rich\rule.py
+# hypothesis_version: 6.148.2
+
+['-', 'Hello, World', '__main__', 'center', 'ellipsis', 'foo', 'left', 'right', 'rule.line', 'rule.text', '─']

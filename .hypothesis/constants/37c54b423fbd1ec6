@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\cryptography\hazmat\primitives\asymmetric\rsa.py
+# hypothesis_version: 6.148.2
+
+[500, 1024, 65537, "Values can't be <= 1", "d, e can't be <= 1", "n, d, e don't match"]

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\rules_block\paragraph.py
+# hypothesis_version: 6.148.2
+
+['inline', 'p', 'paragraph', 'paragraph_close', 'paragraph_open']

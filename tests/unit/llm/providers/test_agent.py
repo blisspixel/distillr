@@ -56,18 +56,14 @@ def test_task_file_structure(prompt: str, workload_tag: str) -> None:
         provider = AgentProvider(ops_dir=str(ops_dir))
 
         with pytest.raises(PendingTaskError):
-            asyncio.run(
-                provider.call("agent", prompt, call_type=workload_tag)
-            )
+            asyncio.run(provider.call("agent", prompt, call_type=workload_tag))
 
         # Find the written task file
         pending_dir = ops_dir / "tasks" / "pending"
         task_files = list(pending_dir.glob(f"{workload_tag}_*.json"))
         assert len(task_files) == 1, f"Expected 1 task file, found {len(task_files)}"
 
-        task_data: dict[str, object] = json.loads(
-            task_files[0].read_text(encoding="utf-8")
-        )
+        task_data: dict[str, object] = json.loads(task_files[0].read_text(encoding="utf-8"))
 
         # All required fields present
         assert task_data.get("task_id")
@@ -106,25 +102,19 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
 
         # First call: write the task file
         with pytest.raises(PendingTaskError):
-            asyncio.run(
-                provider.call("agent", prompt, call_type=workload_tag)
-            )
+            asyncio.run(provider.call("agent", prompt, call_type=workload_tag))
 
         # Find the task file and write the result
         pending_dir = ops_dir / "tasks" / "pending"
         task_files = list(pending_dir.glob(f"{workload_tag}_*.json"))
         assert len(task_files) == 1
 
-        task_data: dict[str, object] = json.loads(
-            task_files[0].read_text(encoding="utf-8")
-        )
+        task_data: dict[str, object] = json.loads(task_files[0].read_text(encoding="utf-8"))
         result_path = Path(str(task_data["result_path"]))
         result_path.write_text(result_text, encoding="utf-8")
 
         # Second call: should find the result and return it
-        response = asyncio.run(
-            provider.call("agent", prompt, call_type=workload_tag)
-        )
+        response = asyncio.run(provider.call("agent", prompt, call_type=workload_tag))
 
         assert isinstance(response, LLM_Response)
         assert response.text == result_text
@@ -147,9 +137,7 @@ class TestAgentProviderLifecycle:
         provider = AgentProvider(ops_dir=str(ops_dir))
 
         with pytest.raises(PendingTaskError):
-            asyncio.run(
-                provider.call("agent", "test prompt", call_type="analysis")
-            )
+            asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
 
         pending_dir = ops_dir / "tasks" / "pending"
         assert pending_dir.exists()
@@ -162,9 +150,7 @@ class TestAgentProviderLifecycle:
         provider = AgentProvider(ops_dir=str(ops_dir))
 
         with pytest.raises(PendingTaskError) as exc_info:
-            asyncio.run(
-                provider.call("agent", "test prompt", call_type="analysis")
-            )
+            asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
 
         assert exc_info.value.task_path
         assert "analysis_" in exc_info.value.task_path
@@ -177,27 +163,21 @@ class TestAgentProviderLifecycle:
 
         # Write the task file
         with pytest.raises(PendingTaskError):
-            asyncio.run(
-                provider.call("agent", "test prompt", call_type="synthesis")
-            )
+            asyncio.run(provider.call("agent", "test prompt", call_type="synthesis"))
 
         # Find task file and write result
         pending_dir = ops_dir / "tasks" / "pending"
         task_files = list(pending_dir.glob("synthesis_*.json"))
         assert len(task_files) == 1
 
-        task_data: dict[str, object] = json.loads(
-            task_files[0].read_text(encoding="utf-8")
-        )
+        task_data: dict[str, object] = json.loads(task_files[0].read_text(encoding="utf-8"))
         result_path = Path(str(task_data["result_path"]))
         result_path.write_text("completed result", encoding="utf-8")
 
         task_name = task_files[0].name
 
         # Second call: reads result and moves task
-        response = asyncio.run(
-            provider.call("agent", "test prompt", call_type="synthesis")
-        )
+        response = asyncio.run(provider.call("agent", "test prompt", call_type="synthesis"))
 
         assert response.text == "completed result"
 

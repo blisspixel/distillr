@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\response_output_text_param.py
+# hypothesis_version: 6.148.2
+
+['Annotation', 'AnnotationFilePath', 'Logprob', 'LogprobTopLogprob', 'file_citation', 'file_path', 'output_text', 'url_citation']

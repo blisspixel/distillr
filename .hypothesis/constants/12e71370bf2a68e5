@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_io_windows.py
+# hypothesis_version: 6.148.2
+
+[b'\x00\x00', 500, 1000, 4294967295, 'AFD_POLL_INFO', 'AFD_POLL_INFO *', 'DWORD *', 'HANDLE', 'HANDLE *', 'LPCVOID', 'LPCWSTR', 'LPOVERLAPPED', 'LPVOID', 'OVERLAPPED_ENTRY[]', 'PULONG', 'SOCKET', 'T', '_Overlapped', 'fileno', 'read_task', 'uintptr_t', 'utf-16le', 'win32', 'windows', 'write_task']

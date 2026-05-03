@@ -46,7 +46,9 @@ def generate_topic_brief(  # noqa: C901 — legacy, will refactor
 
     rc = router_config_from_distill(config)
     prompt = topic_brief_prompt(topic, topic_synthesis, "\n\n---\n\n".join(insight_parts))
-    response = llm_call(rc, workload_tag="brief", prompt=prompt, max_tokens=4096, call_type="topic_brief")
+    response = llm_call(
+        rc, workload_tag="brief", prompt=prompt, max_tokens=4096, call_type="topic_brief"
+    )
 
     if tracker:
         tracker.record(

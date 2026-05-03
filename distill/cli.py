@@ -6513,9 +6513,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         f"| Days: {days}[/dim]\n"
     )
     if site_seeds is not None:
-        console.print(
-            f"[dim]Curated site seeds: {len(sites)} loaded from {site_seeds}[/dim]"
-        )
+        console.print(f"[dim]Curated site seeds: {len(sites)} loaded from {site_seeds}[/dim]")
         console.print()
 
     # When the user has restricted to a single source via --papers-only / --videos-only,

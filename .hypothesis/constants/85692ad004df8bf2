@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\aiohttp\http_exceptions.py
+# hypothesis_version: 6.148.2
+
+[400, 'Bad Request', 'HttpProcessingError', 'Unknown', 'backslashreplace']

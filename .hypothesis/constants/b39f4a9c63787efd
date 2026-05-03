@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\networking\_requests.py
+# hypothesis_version: 6.148.2
+
+[100, 200, 300, 308, 143874, '.', 'Connection', '_PERCENT_RE', '_real_status_code', '_socks_options', 'addr', 'br', 'cookiejar', 'deflate', 'gzip', 'http', 'http://', 'https', 'https://', 'keep-alive', 'keep_header_casing', 'legacy_ssl', 'port', 'proxy_ssl_context', 'requests', 'socks', 'socks4', 'socks4a', 'socks5', 'socks5h', 'source_address', 'ssl_context', 'timeout', 'urllib3']

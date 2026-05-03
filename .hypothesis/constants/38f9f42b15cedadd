@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\graders\label_model_grader_param.py
+# hypothesis_version: 6.148.2
+
+['Input', 'InputContent', 'assistant', 'developer', 'input_image', 'label_model', 'message', 'output_text', 'system', 'user']

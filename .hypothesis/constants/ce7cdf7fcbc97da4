@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_io_common.py
+# hypothesis_version: 6.148.2
+
+['read_task', 'write_task']

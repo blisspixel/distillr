@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\faker\providers\profile\__init__.py
+# hypothesis_version: 6.148.2
+
+['+', '-', 'A', 'AB', 'B', 'F', 'M', 'O', 'address', 'birthdate', 'blood_group', 'company', 'current_location', 'job', 'mail', 'name', 'residence', 'sex', 'ssn', 'username', 'website']

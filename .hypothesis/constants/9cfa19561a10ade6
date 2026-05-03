@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\coverage\data.py
+# hypothesis_version: 6.148.2
+
+['-journal', '.*', 'No data to combine', 'No usable data files', 'dataio', 'rb', 'sha3_256']

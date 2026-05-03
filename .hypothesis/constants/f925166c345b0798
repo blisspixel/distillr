@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yarl\__init__.py
+# hypothesis_version: 6.148.2
+
+['1.22.0', 'Query', 'QueryVariable', 'SimpleQuery', 'URL', 'cache_clear', 'cache_configure', 'cache_info']

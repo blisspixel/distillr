@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\tornado\concurrent.py
+# hypothesis_version: 6.148.2
+
+['Future[_T]', '_T', 'exc_info', 'executor', 'futures.Future[_T]']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_highlevel_socket.py
+# hypothesis_version: 6.148.2
+
+[65536, 'ECONNABORTED', 'ECONNRESET', 'EHOSTDOWN', 'EHOSTUNREACH', 'ENETDOWN', 'ENETUNREACH', 'ENONET', 'ENOPROTOOPT', 'ENOSR', 'EOPNOTSUPP', 'EPERM', 'EPROTO', 'EPROTONOSUPPORT', 'ESOCKTNOSUPPORT', 'ETIMEDOUT', 'TCP_NOTSENT_LOWAT']

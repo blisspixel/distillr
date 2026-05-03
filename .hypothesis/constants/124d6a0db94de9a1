@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\shared_params\response_format_json_schema.py
+# hypothesis_version: 6.148.2
+
+['JSONSchema', 'json_schema']

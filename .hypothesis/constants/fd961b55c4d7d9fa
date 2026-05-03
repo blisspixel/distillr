@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\cryptography\hazmat\decrepit\ciphers\algorithms.py
+# hypothesis_version: 6.148.2
+
+[128, 129, 160, 192, 256, 449, '3DES', 'Blowfish', 'CAST5', 'IDEA', 'RC2', 'RC4', 'SEED']

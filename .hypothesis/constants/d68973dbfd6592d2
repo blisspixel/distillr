@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\config.py
+# hypothesis_version: 6.148.2
+
+['-', '-{2,}', '. ', '.env', "[''`]", '[<>:"/\\\\|?*]', '[^a-z0-9]+', '\\s+', 'accordion', 'analysis', 'brief', 'channels', 'env_file', 'env_file_encoding', 'extra', 'ignore', 'library', 'pages', 'papers', 'rerank', 'site', 'sites', 'synthesis', 'topics', 'untitled', 'utf-8', 'videos', 'www.']

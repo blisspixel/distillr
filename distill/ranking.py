@@ -78,7 +78,9 @@ def _llm_rerank(
 ) -> list[RankedVideo]:
     prompt = search_rerank_prompt(query, videos, skeptical=skeptical)
     rc = router_config_from_distill(config)
-    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="search_rerank")
+    response = llm_call(
+        rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="search_rerank"
+    )
     if tracker:
         tracker.record(
             TokenUsage(
@@ -498,7 +500,9 @@ def _llm_rerank_papers(
 ) -> list[RankedPaper]:
     prompt = paper_rerank_prompt(query, papers)
     rc = router_config_from_distill(config)
-    response = llm_call(rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="paper_rerank")
+    response = llm_call(
+        rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="paper_rerank"
+    )
     if tracker:
         tracker.record(
             TokenUsage(

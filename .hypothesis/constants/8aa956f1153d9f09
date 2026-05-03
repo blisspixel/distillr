@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\numbering.py
+# hypothesis_version: 6.148.2
+
+['./w:num/@w:numId', 'w:abstractNumId', 'w:ilvl', 'w:ins', 'w:lvl', 'w:lvlOverride', 'w:num', 'w:numId', 'w:numIdMacAtCleanup', 'w:numberingChange', 'w:startOverride']

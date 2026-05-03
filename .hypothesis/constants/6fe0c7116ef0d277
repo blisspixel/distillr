@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\common\html_re.py
+# hypothesis_version: 6.148.2
+
+['"[^"]*"', "'[^']*'", '(?:', '(?:\\s*=\\s*', '(?:\\s+', ')', ')?)', '*\\s*\\/?>', '<![A-Za-z][^>]*>', '<[?][\\s\\S]*?[?]>', '[^"\'=<>`\\x00-\\x20]+', '^(?:', '|']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\aac.py
+# hypothesis_version: 6.148.2
+
+[b'ADIF', b'ID3', b'\xff', 0.0, 8.0, 100, 512, 1024, 7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000, '.aac', '.adif', '.adts', 'AAC', 'ADIF', 'ADTS', 'Open', 'audio/x-aac', "doesn't support tags", 'no frame parsed yet', 'sync not found']

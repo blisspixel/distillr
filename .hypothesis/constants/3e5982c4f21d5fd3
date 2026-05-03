@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\zstandard\__init__.py
+# hypothesis_version: 6.148.2
+
+['0.23.0', 'CPython', 'Invalid mode: {!r}', 'PathLike', 'PyPy', 'a', 'ab', 'b', 'cext', 'cffi', 'cffi_fallback', 'default', 'r', 'rb', 'read', 'rust', 't', 'w', 'wb', 'write', 'x', 'xb']

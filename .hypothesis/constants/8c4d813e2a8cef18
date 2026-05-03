@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\_internal\_schema_generation_shared.py
+# hypothesis_version: 6.148.2
+
+['$ref', 'definition-ref', 'definitions', 'ref', 'schema', 'schema_ref', 'to-def', 'type', 'unpack']

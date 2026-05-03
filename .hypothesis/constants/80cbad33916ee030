@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\videos.py
+# hypothesis_version: 6.148.2
+
+[1000, '/videos', 'Accept', 'AsyncVideos', 'Content-Type', 'Videos', 'after', 'application/binary', 'asc', 'completed', 'desc', 'failed', 'in_progress', 'input_reference', 'limit', 'model', 'multipart/form-data', 'openai-poll-after-ms', 'order', 'prompt', 'queued', 'seconds', 'size', 'spritesheet', 'thumbnail', 'true', 'variant', 'video']

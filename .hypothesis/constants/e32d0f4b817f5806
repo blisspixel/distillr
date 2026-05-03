@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\uploads\parts.py
+# hypothesis_version: 6.148.2
+
+['AsyncParts', 'Content-Type', 'Parts', 'data', 'multipart/form-data']

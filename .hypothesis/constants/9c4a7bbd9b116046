@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_thread_cache.py
+# hypothesis_version: 6.148.2
+
+['RetT', 'ascii', 'darwin', 'libc.so', 'pthread', 'pthread_setname_np', 'replace']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\chat\chat_completion_audio_param.py
+# hypothesis_version: 6.148.2
+
+['aac', 'alloy', 'ash', 'ballad', 'cedar', 'coral', 'echo', 'flac', 'marin', 'mp3', 'opus', 'pcm16', 'sage', 'shimmer', 'verse', 'wav']

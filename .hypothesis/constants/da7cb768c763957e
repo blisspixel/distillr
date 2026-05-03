@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\opentelemetry\metrics\_internal\instrument.py
+# hypothesis_version: 6.148.2
+
+[10000, 'Instrument', 'InstrumentT', '[\\x00-\\x7F]{0,63}', 'description', 'metrics.Meter', 'name', 'unit']

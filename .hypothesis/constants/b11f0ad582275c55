@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\jsc\_builtin\bun.py
+# hypothesis_version: 6.148.2
+
+[800, '-', '--bun', '--install=fallback', '--no-addons', '--no-install', '--prefer-offline', '0', 'BUN_JSC_useJIT', 'HTTPS_PROXY', 'HTTP_PROXY', 'JSC_useJIT', 'all', 'bun', 'ejs:npm', 'false', 'http', 'https', 'jitless', 'nocheckcertificate', 'remote_components', 'run', 'yt.solver.bun.lib.js']

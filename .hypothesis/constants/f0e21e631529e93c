@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\batch_create_params.py
+# hypothesis_version: 6.148.2
+
+['/v1/chat/completions', '/v1/completions', '/v1/embeddings', '/v1/images/edits', '/v1/moderations', '/v1/responses', '24h', 'BatchCreateParams', 'OutputExpiresAfter', 'created_at']

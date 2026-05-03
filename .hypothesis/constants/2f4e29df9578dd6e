@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\audio\speech.py
+# hypothesis_version: 6.148.2
+
+['/audio/speech', 'Accept', 'AsyncSpeech', 'Speech', 'aac', 'alloy', 'ash', 'audio', 'ballad', 'cedar', 'coral', 'echo', 'flac', 'input', 'instructions', 'marin', 'model', 'mp3', 'opus', 'pcm', 'response_format', 'sage', 'shimmer', 'speed', 'sse', 'stream_format', 'verse', 'voice', 'wav']

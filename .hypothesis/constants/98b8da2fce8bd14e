@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\uvicorn\supervisors\multiprocess.py
+# hypothesis_version: 6.148.2
+
+[b'ping', b'pong', 0.5, 'color_message', 'cyan', 'nt', 'uvicorn.error']

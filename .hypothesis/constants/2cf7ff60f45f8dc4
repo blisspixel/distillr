@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\uploads\uploads.py
+# hypothesis_version: 6.148.2
+
+[1024, '/uploads', 'AsyncUploads', 'Uploads', 'bytes', 'expires_after', 'filename', 'md5', 'mime_type', 'part_ids', 'purpose', 'rb']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\vector_stores\vector_store_file_batch.py
+# hypothesis_version: 6.148.2
+
+['FileCounts', 'VectorStoreFileBatch', 'cancelled', 'completed', 'failed', 'in_progress']

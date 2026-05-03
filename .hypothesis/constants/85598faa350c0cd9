@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\utils\_jsruntime.py
+# hypothesis_version: 6.148.2
+
+[2023, '--help', '--version', '.BAT', '.CMD', '.COM', '.EXE', 'EXE', 'PATH', 'PATHEXT', 'QuickJS-ng', '^(\\S+)', '^deno (\\S+)', '^v(\\S+)', 'bun', 'deno', 'frozen', 'node', 'nt', 'qjs', 'quickjs', 'quickjs-ng', 'scripts', 'unknown']

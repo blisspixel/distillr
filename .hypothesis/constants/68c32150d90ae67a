@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\resources\interactions.py
+# hypothesis_version: 6.148.2
+
+['InteractionsResource', 'agent', 'agent_config', 'audio', 'background', 'generation_config', 'image', 'input', 'interactions', 'last_event_id', 'model', 'response_format', 'response_mime_type', 'response_modalities', 'store', 'stream', 'system_instruction', 'text', 'tools']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\anyio\_core\_testing.py
+# hypothesis_version: 6.148.2
+
+['_name', 'coro', 'id', 'list[TaskInfo]', 'name', 'parent_id']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\email_validator\exceptions_types.py
+# hypothesis_version: 6.148.2
+
+[')', ',', 'ValidatedEmail(', 'ascii_domain', 'ascii_email', 'ascii_local_part', 'display_name', 'domain', 'domain_address', 'domain_i18n', 'email', 'email_ascii', 'local', 'local_part', 'mx', 'mx-fallback', 'mx_fallback_type', 'normalized', 'original_email', 'smtputf8']

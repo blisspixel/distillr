@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\chatkit\chatkit_thread_user_message_item.py
+# hypothesis_version: 6.148.2
+
+['Content', 'ContentInputText', 'ContentQuotedText', 'InferenceOptions', 'chatkit.thread_item', 'chatkit.user_message', 'input_text', 'quoted_text', 'type']

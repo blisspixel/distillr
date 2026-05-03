@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\langsmith\env\_git.py
+# hypothesis_version: 6.148.2
+
+['--abbrev-ref', '--always', '--dirty', '--exact-match', '--format=%ae', '--format=%an', '--format=%ct', '--porcelain', '--show-toplevel', '--tags', '-1', '/', 'HEAD', 'T', 'author_email', 'author_name', 'branch', 'commit', 'commit_time', 'describe', 'dirty', 'get-url', 'git', 'log', 'origin', 'remote', 'remote_url', 'repo_name', 'rev-parse', 'status', 'tags', 'utf-8']

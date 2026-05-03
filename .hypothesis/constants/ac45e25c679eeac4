@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\llm\cost.py
+# hypothesis_version: 6.148.2
+
+[0.0, 0.2, 0.25, 0.4, 0.5, 0.8, 1.25, 1.5, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 12.0, 15.0, 1000000, 'claude-haiku-4', 'claude-sonnet-4', 'gemini-3.1-flash', 'gemini-3.1-pro', 'gemini-deep-research', 'gpt-4.1', 'gpt-4.1-mini', 'grok-4.20', 'grok-4.3', 'input', 'output', 'per_query']

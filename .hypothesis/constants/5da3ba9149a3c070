@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\typer\colors.py
+# hypothesis_version: 6.148.2
+
+['black', 'blue', 'bright_black', 'bright_blue', 'bright_cyan', 'bright_green', 'bright_magenta', 'bright_red', 'bright_white', 'bright_yellow', 'cyan', 'green', 'magenta', 'red', 'reset', 'white', 'yellow']

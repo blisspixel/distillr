@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cryptodome\Hash\BLAKE2s.py
+# hypothesis_version: 6.148.2
+
+[160, 256, '%02x', 'MAC check failed', 'Unknown parameters: ', 'data', 'digest_bits', 'digest_bytes', 'key', 'update_after_digest']
