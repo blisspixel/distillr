@@ -6,8 +6,6 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from distill.config import DistillConfig, router_config_from_distill
 
 

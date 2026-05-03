@@ -240,7 +240,7 @@ def record_exception_issue(
         )
 
 
-def process_video(
+def process_video(  # noqa: C901 — legacy, will refactor
     topic: str,
     channel_name: str,
     video,

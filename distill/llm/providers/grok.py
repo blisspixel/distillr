@@ -54,14 +54,18 @@ class GrokProvider:
 
                 response = self._client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
 
-                if not response.choices:
+                choices = response.choices  # type: ignore[reportUnknownMemberType]
+                if not choices:
                     return LLM_Response(text="", input_tokens=0, output_tokens=0, model=model)
 
-                usage = response.usage
+                usage = response.usage  # type: ignore[reportUnknownMemberType]
+                text: str = str(choices[0].message.content or "")  # type: ignore[reportUnknownMemberType]
+                in_tok: int = int(usage.prompt_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
+                out_tok: int = int(usage.completion_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
                 return LLM_Response(
-                    text=response.choices[0].message.content or "",
-                    input_tokens=usage.prompt_tokens if usage else 0,
-                    output_tokens=usage.completion_tokens if usage else 0,
+                    text=text,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
                     model=model,
                 )
             except Exception as exc:

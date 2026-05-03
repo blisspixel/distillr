@@ -17,10 +17,10 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from distill.llm.router import (
+    WORKLOAD_TAGS,
     ConfigurationError,
     LLM_Response,
     RouterConfig,
-    WORKLOAD_TAGS,
     _provider_cache,
     call,
 )

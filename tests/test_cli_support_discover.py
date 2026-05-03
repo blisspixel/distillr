@@ -1,6 +1,5 @@
 """Tests for distill.cli_support.discover."""
 
-from types import SimpleNamespace
 
 from distill.cli_support import discover
 from distill.costs import CostTracker

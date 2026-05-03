@@ -21,7 +21,7 @@ Full command reference. For the short version, see the README.
 
 ## Goal-aware discovery (cross-source)
 
-When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, runs them, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
+When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, lets you optionally add curated website seed files, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
 
 ```bash
 # Inline goal
@@ -30,20 +30,26 @@ distill discover "2026 enterprise search architectures" --topic enterprise-searc
 
 # Goal file — reusable across refreshes
 distill discover --goal-file private/ai-composer-goal.md --topic music --yes
+
+# Goal file + curated sites (official docs / vendor pages / labs)
+distill discover --goal-file private/agent365-goal.md --topic agent365 \
+  --site-seeds private/agent365_sites.json --site-limit 10 --preview
 ```
 
 Flags:
 
 - `--topic / -t` — topic folder to file outputs under (defaults to a slug of the goal)
 - `--paper-limit` / `--video-limit` — max per-source ingestion targets (default 10 each)
+- `--site-seeds` / `--site-limit` — optional curated website seed file plus max site seeds to ingest after rerank (default 10 when supplied)
 - `--papers-only` / `--videos-only` — mutually exclusive, skip the other source type entirely (also short-circuits the LLM query-generation call for the disabled side, so you don't pay for queries the run will throw away). Useful when one source type has thin coverage of the topic.
 - `--days / -d` — YouTube recency window (default 365)
 - `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
+- `--ingest-attachments` — for selected site seeds, pull PDF text and supported embedded-video transcripts into the page corpus
 - `--preview` — show the ranked plan without ingesting (~$0.05). Preview-only spend lands in `cost_log.jsonl` as `discover_preview` so iterative preview cycles are visible separately from ingest spend.
 - `--yes / -y` — skip the interactive confirmation prompt
 - `--goal-file` — load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
 
-Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers and videos are ranked in the same pool — a paper that directly advances the goal outranks a shallow video on the same topic, and vice versa. After ingestion runs the usual per-channel + per-topic + cross-source syntheses so the corpus is immediately ready to read.
+Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, and curated site seeds are ranked in the same pool — a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are seed-driven: `discover` does not web-search for pages, it reranks the exact URLs you provide in `--site-seeds` and ingests the selected ones in exact-page mode.
 
 Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
 

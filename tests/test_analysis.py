@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
-
 from distill.analysis import (
     analyze_scan,
     analyze_short,

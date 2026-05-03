@@ -134,7 +134,7 @@ def discover_fetch_videos(
     return filter_recent_candidates(enriched, effective_days, hours=None)
 
 
-def discover_rerank(
+def discover_rerank(  # noqa: C901 — legacy, will refactor
     goal: str,
     papers: list[PaperRecord],
     videos: list[VideoInfo],
