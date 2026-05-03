@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\conversation_item_with_reference_param.py
-# hypothesis_version: 6.148.2
-
-['Content', 'assistant', 'completed', 'function_call', 'function_call_output', 'in_progress', 'incomplete', 'input_audio', 'input_text', 'item_reference', 'message', 'realtime.item', 'system', 'text', 'user']

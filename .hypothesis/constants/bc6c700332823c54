@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\dash.py
-# hypothesis_version: 6.148.2
-
-['+', '-', 'dash_frag_urls', 'dashsegments', 'filename', 'filepath', 'frag_index', 'fragment_base_url', 'fragment_count', 'fragment_index', 'fragments', 'index', 'is_from_start', 'is_live', 'live', 'path', 'protocol', 'requested_formats', 'start', 'test', 'total_frags', 'url']

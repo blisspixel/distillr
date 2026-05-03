@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\shellingham\_core.py
-# hypothesis_version: 6.148.2
-
-['ash', 'bash', 'cmd', 'csh', 'dash', 'elvish', 'fish', 'ksh', 'nu', 'powershell', 'pwsh', 'sh', 'tcsh', 'xonsh', 'zsh']

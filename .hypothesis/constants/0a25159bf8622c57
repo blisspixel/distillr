@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\__init__.py
-# hypothesis_version: 6.148.2
-
-['APIConnectionError', 'APIError', 'APIStatusError', 'APITimeoutError', 'AsyncClient', 'AsyncStream', 'AuthenticationError', 'BadRequestError', 'BaseModel', 'Client', 'ConflictError', 'DEFAULT_MAX_RETRIES', 'DEFAULT_TIMEOUT', 'DefaultAioHttpClient', 'DefaultHttpxClient', 'InternalServerError', 'NOT_GIVEN', 'NoneType', 'NotFoundError', 'NotGiven', 'Omit', 'ProxiesTypes', 'RateLimitError', 'RequestOptions', 'Stream', 'Timeout', 'Transport', '__', '__title__', '__version__', 'file_from_path', 'not_given', 'omit', 'types']

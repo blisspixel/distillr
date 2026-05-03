@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\serializers.py
-# hypothesis_version: 6.148.2
-
-[' %s', ' />', ' xmlns="%s"', ' {}="{}"', '"', '&', '&#10;', '&amp;', '&gt;', '&lt;', '&quot;', '<', '<!--%s-->', '</', '<?%s?>', '>', 'html', 'script', 'style', 'to_html_string', 'to_xhtml_string', 'xhtml', '{', '}']

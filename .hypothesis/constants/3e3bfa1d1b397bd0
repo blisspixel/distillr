@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\jsc\provider.py
-# hypothesis_version: 6.148.2
-
-['JCP', 'JsChallengeProvider', 'JsChallengeRequest', 'JsChallengeResponse', 'JsChallengeType', 'NChallengeInput', 'NChallengeOutput', 'Preference', 'SigChallengeInput', 'SigChallengeOutput', 'n', 'register_preference', 'register_provider', 'sig']

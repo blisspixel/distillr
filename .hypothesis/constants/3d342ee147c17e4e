@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\postprocessors.py
-# hypothesis_version: 6.148.2
-
-['!', '%', '&', '([0-9]+)', '<p>{}</p>', '?', '@', '^\\<\\/?([^ >]+)', 'amp_substitute', 'raw_html', '{}(\\d+){}']

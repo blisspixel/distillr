@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpcore\_backends\sync.py
-# hypothesis_version: 6.148.2
-
-[16384, 'client_addr', 'is_readable', 'server_addr', 'socket', 'ssl_object', 'win32']

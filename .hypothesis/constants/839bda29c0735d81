@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\dataclasses.py
-# hypothesis_version: 6.148.2
-
-['_T', '__firstlineno__', '__pydantic_config__', '__setstate__', 'dataclass', 'dataclass-on-model', 'kw_only', 'rebuild_dataclass', 'slots']

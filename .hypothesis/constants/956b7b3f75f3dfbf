@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\requests\session.py
-# hypothesis_version: 6.148.2
-
-[b'\t', b' ', b'HTTP/', 0.001, 200, 256, 400, 512, '/', 'CURL_CA_BUNDLE', 'DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'QUERY', 'R', 'REQUESTS_CA_BUNDLE', 'TRACE', 'all', 'curl', 'domain', 'eventlet', 'gevent', 'gzip, deflate, br', 'latin-1', 'path', 'secure', 'set-cookie', 'utf-8']

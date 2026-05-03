@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\socksio\__init__.py
-# hypothesis_version: 6.148.2
-
-['1.0.0', 'ProtocolError', 'SOCKS4ARequest', 'SOCKS4Command', 'SOCKS4Connection', 'SOCKS4Reply', 'SOCKS4ReplyCode', 'SOCKS4Request', 'SOCKS5AType', 'SOCKS5AuthMethod', 'SOCKS5AuthReply', 'SOCKS5Command', 'SOCKS5CommandRequest', 'SOCKS5Connection', 'SOCKS5Reply', 'SOCKS5ReplyCode', 'SOCKSError']

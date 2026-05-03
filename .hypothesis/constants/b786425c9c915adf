@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\faker\providers\python\__init__.py
-# hypothesis_version: 6.148.2
-
-[100, 9999, '+', '-', '0', '0.', '1', 'TEnum', '__name__', 'date_time', 'decimal', 'dict', 'email', 'float', 'int', 'iterable', 'list', 'set', 'str', 'struct', 'tuple', 'uri']

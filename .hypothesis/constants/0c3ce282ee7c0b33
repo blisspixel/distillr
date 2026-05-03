@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\langsmith\utils.py
-# hypothesis_version: 6.148.2
-
-[100, '"', "'", ', ', '-', '--version', '.yaml', '.yml', '/', '/api', '/api/v1', '0.0.0.0', '1', '127.0.0.1', ':', '::', 'API_KEY', 'ENDPOINT', 'LANGCHAIN', 'LANGSMITH', 'LangSmithRetry', 'Message', 'Message is empty.', 'P', 'PROJECT', 'SESSION', 'Set-Cookie', 'T', 'TEST_CACHE', 'TEST_TRACKING', 'TRACING', 'TRACING_V2', '__call__', '__class__', '__deepcopy__', '__name__', 'additional_kwargs', 'authorization', 'beta.', 'body', 'compose', 'content', 'data', 'default', 'dev.', 'docker', 'docker-compose', 'enabled', 'eu.', 'false', 'generations', 'http://localhost', 'id', 'json', 'kwargs', 'langsmith/', 'latest', 'lc', 'local', 'message', 'messages', 'method', 'new_episodes', 'path', 'prompt', 'prompts', 'text', 'true', 'type', 'uri', 'yaml']

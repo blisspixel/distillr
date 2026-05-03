@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\rich\containers.py
-# hypothesis_version: 6.148.2
-
-['Console', 'ConsoleOptions', 'JustifyMethod', 'Lines', 'Measurement', 'OverflowMethod', 'RenderResult', 'RenderableType', 'T', 'Text', 'center', 'fold', 'full', 'left', 'right']

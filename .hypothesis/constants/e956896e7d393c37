@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\response_apply_patch_tool_call.py
-# hypothesis_version: 6.148.2
-
-['Operation', 'OperationCreateFile', 'OperationDeleteFile', 'OperationUpdateFile', 'apply_patch_call', 'completed', 'create_file', 'delete_file', 'in_progress', 'type', 'update_file']

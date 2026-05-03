@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\beta\realtime\transcription_sessions.py
-# hypothesis_version: 6.148.2
-
-['OpenAI-Beta', 'assistants=v2', 'audio', 'client_secret', 'g711_alaw', 'g711_ulaw', 'include', 'input_audio_format', 'modalities', 'pcm16', 'text', 'turn_detection']

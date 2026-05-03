@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pypdf\filters.py
-# hypothesis_version: 6.148.2
-
-[b'\x00', b'\n', b'0', b'>', b'II', b"unrecognized option '--embedded'", 128, 256, 257, 258, 259, 262, 273, 278, 279, 1728, 75000000, '-', '--embedded', '--format', '--output', '--version', '.jp2', '.jpg', '.png', '.tif', '.tiff', '/ColorSpace', '/Colors', '/Crypt', '/JBIG2Globals', '/Name', '/Predictor', '/Type', '0.15', '1', '6.0.0', '<2shlh', 'C', 'CCITParameters', 'CCITTParameters', 'CMYK', 'JPEG', 'JPEG2000', 'L', 'LC_ALL', 'Mathieu Fenniak', 'P', 'PNG', 'RGB', 'RGBA', 'TIFF', 'globals.jbig2', 'h', 'hhll', 'image.jbig2', 'jbig2dec', 'mypy', 'png', 'utf-8']

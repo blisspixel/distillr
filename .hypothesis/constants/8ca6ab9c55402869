@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_replay_api_client.py
-# hypothesis_version: 6.148.2
-
-[b'...', 100, 200, '(.)([A-Z][a-z]+)', '([a-z0-9])([A-Z])', ')', '.json', '/', ':\n    ', 'DEBUG (test', 'Date', 'POST', 'PYTEST_CURRENT_TEST', 'ReplayApiClient', 'Server-Timing', '\\1_\\2', 'api', 'api mode request: %s', 'api mode result: %s', 'authorization', 'auto', 'body', 'bytes', 'division by zero', 'file_path', 'get', 'gl-python/', 'headers', 'json', 'locations/', 'projects/', 'r', 'record', 'replay', 'sdk_http_response', 'user-agent', 'utf-8', 'w', 'x-goog-api-client', 'x-goog-api-key', 'x-goog-user-project', '{LANGUAGE_LABEL}/', '{MLDEV_URL_PREFIX}', '{REDACTED}', '{VERSION_NUMBER}', '{VERTEX_URL_PREFIX}/', '{}']

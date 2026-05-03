@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\arrow\arrow.py
-# hypothesis_version: 6.148.2
-
-[1.0, 30.5, 365, '(', '()', '(]', ')', ', ', '-', '.*', 'Arrow', 'T', '[', '[)', '[]', '\\d+', ']', '_', 'auto', 'day', 'day(s)', 'days', 'en_us', 'fold', 'hour', 'hour(s)', 'hours', 'localize', 'microsecond', 'microsecond(s)', 'microseconds', 'minute', 'minute(s)', 'minutes', 'month', 'month(s)', 'months', 'now', 'quarter', 'quarter(s)', 'quarters', 's', 'second', 'second(s)', 'seconds', 'tzinfo', 'week', 'week(s)', 'weekday', 'weeks', 'year', 'year(s)', 'years', 'zone']

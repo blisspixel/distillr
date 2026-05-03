@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\session_create_params.py
-# hypothesis_version: 6.148.2
-
-['ClientSecret', 'SessionCreateParams', 'Tool', 'Tracing', 'TurnDetection', 'alloy', 'ash', 'audio', 'auto', 'ballad', 'coral', 'created_at', 'echo', 'far_field', 'function', 'g711_alaw', 'g711_ulaw', 'gpt-realtime', 'high', 'inf', 'low', 'medium', 'near_field', 'pcm16', 'sage', 'semantic_vad', 'server_vad', 'shimmer', 'text', 'verse']

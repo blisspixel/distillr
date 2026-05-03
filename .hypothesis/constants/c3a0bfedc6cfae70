@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\requests_toolbelt\_compat.py
-# hypothesis_version: 6.148.2
-
-[131840, '%s(%s)', ', ', ':', 'HTTPHeaderDict', 'basestring', 'connection', 'fields', 'filepost', 'keys', 'poolmanager', 'queue', 'timeout', 'urlencode', 'urljoin']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\_vorbis.py
-# hypothesis_version: 6.148.2
-
-[b'\x01', b'=', '%s=%s', '=', 'Mutagen ', 'ascii', 'ignore', 'invalid tag name %r', 'read', 'replace', 'unknown%d', 'utf-8', '}']

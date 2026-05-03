@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\playwright\_impl\_console_message.py
-# hypothesis_version: 6.148.2
-
-['Page', 'Worker', 'args', 'assert', 'clear', 'count', 'debug', 'dir', 'dirxml', 'endGroup', 'error', 'info', 'location', 'log', 'page', 'profile', 'profileEnd', 'startGroup', 'startGroupCollapsed', 'table', 'text', 'time', 'timeEnd', 'trace', 'type', 'warning', 'worker']

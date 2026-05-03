@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\opentelemetry\environment_variables\__init__.py
-# hypothesis_version: 6.148.2
-
-['OTEL_LOGS_EXPORTER', 'OTEL_PROPAGATORS', 'OTEL_PYTHON_CONTEXT', 'OTEL_TRACES_EXPORTER']

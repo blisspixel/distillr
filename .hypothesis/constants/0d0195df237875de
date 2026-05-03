@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\rfc3986_validator.py
-# hypothesis_version: 6.148.2
-
-['0.1.1', 'Invalid rule', 'URI', 'URI_reference', '^{uri_re}$', 'validate_rfc3986']

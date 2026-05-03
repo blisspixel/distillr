@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\llm\providers\agent.py
-# hypothesis_version: 6.148.2
-
-[300, 8192, '_instruction', 'agent', 'completed', 'markdown', 'max_tokens', 'pending', 'prompt', 'prompt_hash', 'result_path', 'task_id', 'task_path', 'tasks', 'unknown', 'utf-8', 'workload_tag']

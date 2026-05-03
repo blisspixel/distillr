@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\coverage\inorout.py
-# hypothesis_version: 6.148.2
-
-[' and ', '-none-', '<', '_', '__file__', '__init__.py', '__main__', '__name__', '__path__', '__spec__', 'already-imported', 'cover_match', 'coverage', 'coverage_paths', 'include', 'include-ignored', 'include_match', 'is in the stdlib', 'memory:', 'module-not-imported', 'module-not-measured', 'module-not-python', 'omit', 'omit_match', 'platlib', 'purelib', 'pylib', 'pylib_match', 'pypy', 'pypy_posix', 'scripts', 'source', 'source_in_third', 'source_match', 'source_pkgs', 'source_pkgs_match', 'stdlib_paths', 'sys.path:', 'tests', 'third', 'third_match', 'third_party_paths', 'trace', 'utf-8']

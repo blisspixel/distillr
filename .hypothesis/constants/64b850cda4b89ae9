@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpcore\_backends\trio.py
-# hypothesis_version: 6.148.2
-
-['client_addr', 'inf', 'is_readable', 'server_addr', 'socket', 'ssl_object']

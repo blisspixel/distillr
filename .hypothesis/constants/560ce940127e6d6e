@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\coverage\templite.py
-# hypothesis_version: 6.148.2
-
-[', ', '-', '.', "Don't understand end", "Don't understand for", "Don't understand if", "Don't understand tag", 'Mismatched end tag', 'Not a valid name', 'Too many ends', 'Unmatched action tag', '\\s*\\n\\s*', 'append_result(%s)', 'c_%s', 'end', 'extend_result([%s])', 'for', 'if', 'if %s:', 'in', 'joined', 'render_function', 'result = []', 'to_str = str', 'to_str(%s)', '{', '{#', '{{', '|']

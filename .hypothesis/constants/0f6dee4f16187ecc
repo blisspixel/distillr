@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\minicurses.py
-# hypothesis_version: 6.148.2
-
-['\x1b[0m', '\x1b[A', '\x1b[K', '0', '1', '2', '3', '4', '5', '6', '7', 'BLACK', 'BLUE', 'BOLD', 'CYAN', 'DOWN', 'ERASE_LINE', 'GREEN', 'LIGHT', 'NORMAL', 'ON', 'PURPLE', 'RED', 'RESET', 'UNDERLINED', 'UP', 'WHITE', 'YELLOW']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\uvicorn\middleware\message_logger.py
-# hypothesis_version: 6.148.2
-
-['%s [%d] Completed', '%s [%d] Receive %s', '%s [%d] Send %s', '%s:%d - ASGI', '<...>', '<{length} bytes>', '<{length} chars>', 'ASGI', 'ASGI3Application', 'ASGIReceiveCallable', 'ASGIReceiveEvent', 'ASGISendCallable', 'ASGISendEvent', 'WWWScope', 'body', 'bytes', 'client', 'headers', 'text', 'uvicorn.asgi']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_mock_clock.py
-# hypothesis_version: 6.148.2
-
-[0.0, 999999999, 'rate must be >= 0']

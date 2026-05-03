@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\lib\streaming\chat\_completions.py
-# hypothesis_version: 6.148.2
-
-['chat.completion', 'choices', 'chunk', 'content.delta', 'content.done', 'content_filter', 'delta', 'dict[object, object]', 'function', 'length', 'list[object]', 'message', 'object', 'parsed', 'parsed_arguments', 'refusal.delta', 'refusal.done', 'strict', 'system_fingerprint', 'tool_calls', 'utf-8']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\containers\files\files.py
-# hypothesis_version: 6.148.2
-
-['*/*', 'Accept', 'AsyncFiles', 'Content-Type', 'Files', 'after', 'asc', 'desc', 'file', 'file_id', 'limit', 'multipart/form-data', 'order']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\rules_core\replacements.py
-# hypothesis_version: 6.148.2
-
-['([?!]){4,}', '([?!])…', '(^|\\s)--(?=\\s|$)', ',', ',{2,}', '\\((c|tm|r)\\)', '\\+-', '\\.{2,}', '\\1..', '\\1\\1\\1', '\\1–', '\\1—', 'auto', 'c', 'inline', 'link_close', 'link_open', 'r', 'text', 'tm', '©', '®', '±', '…', '™']

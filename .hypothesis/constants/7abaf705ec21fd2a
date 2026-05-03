@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\htmlparser.py
-# hypothesis_version: 6.148.2
-
-['"', '&#{};', '&{};', "'", '/>', '<!', '<!--{}-->', '<![{}{}', '<!{}>', '</{}>', '<?', '<?{}?>', '>', 'CDATA[', '\\?>', ']>', ']]>', '^([ ]*\\n){2}', 'convert_charrefs', 'hr', 'html.parser', 'htmlparser']

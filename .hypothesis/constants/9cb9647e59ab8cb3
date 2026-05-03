@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\typing.py
-# hypothesis_version: 6.148.2
-
-['AbstractSetIntStr', 'AnnotatedMeta', 'AnyCallable', 'AnyClassMethod', 'CallableGenerator', 'ClassVar', 'ClassVar[', 'DictAny', 'DictIntStrAny', 'DictStrAny', 'Final', 'IntStr', 'ListStr', 'Literal', 'MappingIntStrAny', 'ModelField', 'NoArgAnyCallable', 'NoneType', 'ReprArgs', 'SetStr', 'StrPath', 'TupleGenerator', 'WithArgsTypes', '_AnnotatedAlias', '_T', '__args__', '__origin__', '__supertype__', '__total__', '_fields', '_name', '_nparams', 'all_literal_values', 'display_as_type', 'get_all_type_hints', 'get_args', 'get_origin', 'get_sub_types', 'is_callable_type', 'is_classvar', 'is_finalvar', 'is_literal_type', 'is_namedtuple', 'is_new_type', 'is_none_type', 'is_typeddict', 'is_typeddict_special', 'is_union', 'new_type_supertype', 'resolve_annotations', 'test_type', 'typing.', 'typing_base']

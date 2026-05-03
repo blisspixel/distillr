@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\__init__.py
-# hypothesis_version: 6.148.2
-
-['AsyncAudio', 'AsyncBatches', 'AsyncBeta', 'AsyncChat', 'AsyncCompletions', 'AsyncContainers', 'AsyncEmbeddings', 'AsyncEvals', 'AsyncFiles', 'AsyncFineTuning', 'AsyncImages', 'AsyncModels', 'AsyncModerations', 'AsyncSkills', 'AsyncUploads', 'AsyncVectorStores', 'AsyncVideos', 'Audio', 'AudioWithRawResponse', 'Batches', 'Beta', 'BetaWithRawResponse', 'Chat', 'ChatWithRawResponse', 'Completions', 'Containers', 'Embeddings', 'Evals', 'EvalsWithRawResponse', 'Files', 'FilesWithRawResponse', 'FineTuning', 'Images', 'Models', 'Moderations', 'Skills', 'Uploads', 'VectorStores', 'Videos']

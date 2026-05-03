@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\auth\metrics.py
-# hypothesis_version: 6.148.2
-
-['auth-request-type/at', 'auth-request-type/it', 'cred-type/imp', 'cred-type/jwt', 'cred-type/mds', 'cred-type/sa', 'cred-type/u', 'gl-python/{} auth/{}', 'google-byoid-sdk', 'x-goog-api-client', '{} {}', '{} {} {}', '{} {}/{}']

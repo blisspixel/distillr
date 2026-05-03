@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\beta\threads\threads.py
-# hypothesis_version: 6.148.2
-
-['/threads', '/threads/runs', 'AsyncThreads', 'OpenAI-Beta', 'Threads', 'assistant_id', 'assistants=v2', 'false', 'instructions', 'max_prompt_tokens', 'messages', 'metadata', 'model', 'parallel_tool_calls', 'response_format', 'stream', 'temperature', 'thread', 'tool_choice', 'tool_resources', 'tools', 'top_p', 'true', 'truncation_strategy']

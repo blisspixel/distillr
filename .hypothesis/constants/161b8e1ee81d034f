@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\rich\filesize.py
-# hypothesis_version: 6.148.2
-
-[1000, '1 byte', 'EB', 'GB', 'MB', 'PB', 'TB', 'YB', 'ZB', 'decimal', 'kB']

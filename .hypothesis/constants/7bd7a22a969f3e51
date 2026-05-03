@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_operations_converters.py
-# hypothesis_version: 6.148.2
-
-['_self', '_url', 'bytesBase64Encoded', 'config', 'documentName', 'document_name', 'done', 'encodedVideo', 'encoding', 'error', 'gcsUri', 'generatedSamples', 'generated_videos', 'metadata', 'mimeType', 'mime_type', 'name', 'operationName', 'operation_name', 'parent', 'resourceName', 'resource_name', 'response', 'result', 'sdkHttpResponse', 'sdk_http_response', 'uri', 'video', 'video_bytes', 'videos']

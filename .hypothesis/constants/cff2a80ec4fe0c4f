@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\youtube_live_chat.py
-# hypothesis_version: 6.148.2
-
-[b'\n', 1000, 5000, 'INNERTUBE_API_KEY', 'INNERTUBE_CONTEXT', 'actions', 'addChatItemAction', 'application/json', 'bannerRenderer', 'clickTracking', 'clickTrackingParams', 'client', 'content-type', 'contents', 'context', 'continuation', 'continuationContents', 'continuations', 'conversationBar', 'currentPlayerState', 'filename', 'fragment_retries', 'header', 'http_headers', 'isLive', 'item', 'live', 'liveChatContinuation', 'liveChatRenderer', 'playerOffsetMs', 'protocol', 'renderer', 'replace', 'replayChatItemAction', 'showItemEndpoint', 'skip_download', 'subMenuItems', 'test', 'timeoutMs', 'timestampUsec', 'total_frags', 'trackingParams', 'url', 'utf-8', 'videoOffsetTimeMsec', 'video_id', 'viewSelector', 'visitorData', 'youtube_live_chat']

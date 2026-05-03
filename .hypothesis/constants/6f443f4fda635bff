@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\email_validator\syntax.py
-# hypothesis_version: 6.148.2
-
-[126, 65535, '"', '(?!xn)..--', '(["\\\\])', ', ', '-', '-.', '.', '.-', '..', ':', '<', '>', '@', 'C', 'IPv6:', 'L', 'M', 'N', 'NFC', 'P', 'S', 'Z', 'Zs', '\\', '\\\\\\1', '^[0-9\\.]+$', 'after normalization', 'ascii', 'ascii_domain', 'ascii_local_part', 'domain', 'domain_address', 'dot-atom', 'hyphen', 'local_part', 'period', 'quoted', 's', 'smtputf8', 'test', 'utf8']

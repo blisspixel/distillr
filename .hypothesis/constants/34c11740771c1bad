@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\extensions\tables.py
-# hypothesis_version: 6.148.2
-
-['(?<!\\\\)(?:\\\\\\\\)*\\|$', ':', 'align', 'center', 'left', 'right', 'style', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'use_align_attribute', '|', '|:- ']

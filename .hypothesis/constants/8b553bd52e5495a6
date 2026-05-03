@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pypdf\generic\_viewerpref.py
-# hypothesis_version: 6.148.2
-
-['/', '/CenterWindow', '/Direction', '/DisplayDocTitle', '/Duplex', '/DuplexFlipLongEdge', '/DuplexFlipShortEdge', '/Enforce', '/FitWindow', '/HideMenubar', '/HideToolbar', '/HideWindowUI', '/L2R', '/NumCopies', '/PickTrayByPDFSize', '/PrintArea', '/PrintClip', '/PrintPageRange', '/PrintScaling', '/R2L', '/Simplex', '/UseNone', '/UseOC', '/UseOutlines', '/UseThumbs', '/ViewArea', '/ViewClip', 'ViewerPreferences']

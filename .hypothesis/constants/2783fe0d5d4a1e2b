@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\documents.py
-# hypothesis_version: 6.148.2
-
-['_query', '_url', 'config', 'delete', 'documents', 'force', 'get', 'name', 'nextPageToken', 'next_page_token', 'pageSize', 'pageToken', 'page_size', 'page_token', 'parent', 'sdkHttpResponse', 'sdk_http_response', '{name}', '{parent}/documents']

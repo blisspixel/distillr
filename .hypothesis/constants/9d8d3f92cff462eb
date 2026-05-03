@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\hls.py
-# hypothesis_version: 6.148.2
-
-['#', '#ANVATO-SEGMENT-INFO', '#EXT-X-BYTERANGE', '#EXT-X-DISCONTINUITY', '#EXT-X-FAXS-CM:', '#EXT-X-KEY', '#EXT-X-MAP', '#UPLYNK-SEGMENT', ',ad', ',segment', '-', '0x', '@', 'AES-128', 'BYTERANGE', 'Generic', 'IV', 'KEY', 'METHOD', 'NONE', 'URI', 'ad_frags', 'byte_range', 'decrypt_info', 'end', 'ext', 'extra_state', 'extractor_key', 'filename', 'format_index', 'frag_index', 'fragment_index', 'fragments', 'has_drm', 'hls_aes', 'hlsnative', 'id', 'ignore', 'install ffmpeg and ', 'is_live', 'iv', 'key', 'm3u8_frag_urls', 'media_sequence', 'pycryptodomex is not', 'start', 'test', 'total_frags', 'trim_file_name', 'type=ad', 'type=master', 'uri', 'url', 'utf-8', 'vtt', 'wb', 'webvtt_dedup_window', 'webvtt_local', 'webvtt_mpegts', 'webvtt_mpegts_adjust', 'webvtt_mpegts_last', 'write_pages', '|']
