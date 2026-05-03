@@ -41,6 +41,9 @@ Desktop.ini
 # Claude Code / AI tooling project data
 .claude/
 
+# Kiro configuration and spec files
+.kiro/
+
 # Environment / secrets (never commit real keys)
 .env
 .env.local

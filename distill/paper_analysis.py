@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from distill.artifacts import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
-from distill.config import DistillConfig
-from distill.costs import CostTracker
+from distill.config import DistillConfig, router_config_from_distill
+from distill.costs import CostTracker, TokenUsage
+from distill.llm import call as llm_call
 from distill.paper_ingest import (
     PaperRecord,
     build_paper_document,
     fetch_paper_pdf_text,
 )
 from distill.prompts import paper_insight_prompt, paper_topic_synthesis_prompt
-from distill.site_analysis import _call_grok, _get_client
 
 
 def analyze_paper(
@@ -26,12 +26,21 @@ def analyze_paper(
     returned paper_document is the exact content the LLM saw, suitable for
     writing to the paper artifact so outputs match what was analyzed.
     """
-    client = _get_client(config)
-    model = config.xai_model_for("site")
+    rc = router_config_from_distill(config)
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
     prompt = paper_insight_prompt(paper.title, paper.paper_id, document)
-    result = _call_grok(client, prompt, model=model, tracker=tracker, call_type="paper")
+    response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="paper")
+    result = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="paper",
+            )
+        )
     safe_title = paper.title.replace('"', '\\"')
     source_mode = "full_pdf" if pdf_text else "abstract_only"
     insights = (
@@ -40,7 +49,7 @@ def analyze_paper(
         f"paper_id: {paper.paper_id}\n"
         f"source: {paper.source}\n"
         f"url: {paper.abs_url}\n"
-        f"analyzed_by: {model}\n"
+        f"analyzed_by: {response.model}\n"
         f"source_mode: {source_mode}\n"
         "---\n\n"
         f"{result}\n"
@@ -68,15 +77,23 @@ def synthesize_papers(
     if not paper_summaries:
         return ""
 
-    client = _get_client(config)
-    model = config.xai_model_for("site")
-    synthesis = _call_grok(
-        client,
-        paper_topic_synthesis_prompt(topic, paper_summaries),
-        model=model,
-        tracker=tracker,
+    rc = router_config_from_distill(config)
+    response = llm_call(
+        rc,
+        workload_tag="site",
+        prompt=paper_topic_synthesis_prompt(topic, paper_summaries),
         call_type="paper_synthesis",
     )
+    synthesis = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="paper_synthesis",
+            )
+        )
     write_markdown_artifact(
         config.topic_dir(topic),
         "paper_synthesis",

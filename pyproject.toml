@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "distillr"
-version = "0.3.0"
+version = "0.3.1"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = { text = "MIT" }
@@ -51,6 +51,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "hypothesis>=6.0",
     "ruff>=0.6.0",
     "bandit[toml]>=1.7",
     "pip-audit>=2.7",
@@ -64,7 +65,7 @@ distill = "distill.cli:main"
 distill-mcp = "distill.mcp_server:main"
 
 [tool.setuptools]
-packages = ["distill", "distill.web", "distill.web.routes"]
+packages = ["distill", "distill.llm", "distill.llm.providers", "distill.web", "distill.web.routes"]
 
 [tool.setuptools.package-data]
 "distill.web" = ["templates/**/*.html", "static/**/*"]
@@ -93,7 +94,7 @@ target-version = "py310"
 #   A        — flake8-builtins (avoid shadowing)
 select = [
     "E", "W", "F", "I", "UP", "B", "SIM", "RUF",
-    "C4", "PTH", "RET", "T20", "A",
+    "C4", "PTH", "RET", "T20", "A", "C901",
 ]
 ignore = [
     "E501",    # Line length handled by ruff format
@@ -101,6 +102,9 @@ ignore = [
     "RET505",  # Unnecessary else after return — subjective readability preference
     "SIM108",  # Use ternary — often hurts readability
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 # Tests often shadow builtins and print debug output; that's fine.

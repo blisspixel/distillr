@@ -1,36 +1,22 @@
+"""Tests for distill.cli_support.discover."""
+
 from types import SimpleNamespace
 
 from distill.cli_support import discover
 from distill.costs import CostTracker
 from distill.discovery import VideoInfo
+from distill.llm.router import LLM_Response
 from distill.paper_ingest import PaperRecord
-
-
-def _fake_openai_response(content: str, *, prompt_tokens: int = 11, completion_tokens: int = 7):
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
-        usage=SimpleNamespace(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-        ),
-    )
+from distill.site_scraper import SiteSeed
 
 
 def test_discover_generate_queries_parses_fenced_json_and_records_usage(config, monkeypatch):
-    captured = {}
-
-    class FakeCompletions:
-        def create(self, **kwargs):
-            captured.update(kwargs)
-            return _fake_openai_response(
-                '```json\n{"paper_queries":["alpha","alpha","beta"],"video_queries":["walkthrough","walkthrough"]}\n```'
-            )
-
     monkeypatch.setattr(
         discover,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(
-            chat=SimpleNamespace(completions=FakeCompletions()),
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='```json\n{"paper_queries":["alpha","alpha","beta"],"video_queries":["walkthrough","walkthrough"]}\n```',
+            input_tokens=11, output_tokens=7, model="grok-4.3",
         ),
     )
     tracker = CostTracker()
@@ -46,18 +32,15 @@ def test_discover_generate_queries_parses_fenced_json_and_records_usage(config, 
 
     assert paper_queries == ["alpha", "beta"]
     assert video_queries == ["walkthrough"]
-    assert captured["model"] == config.xai_model_for("rerank")
     assert tracker.entries[0].call_type == "discover_plan"
 
 
 def test_discover_generate_queries_returns_empty_for_blank_response(config, monkeypatch):
     monkeypatch.setattr(
         discover,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(
-            chat=SimpleNamespace(
-                completions=SimpleNamespace(create=lambda **_: _fake_openai_response("   "))
-            )
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text="   ", input_tokens=0, output_tokens=0, model="grok-4.3",
         ),
     )
 
@@ -79,11 +62,11 @@ def test_discover_generate_queries_short_circuits_when_both_counts_zero(config, 
     don't accidentally pay for query generation that nothing will use."""
     called = []
 
-    def fake_openai(**_kwargs):
+    def fake_llm_call(*args, **kwargs):
         called.append(True)
-        return SimpleNamespace()
+        return LLM_Response(text="", input_tokens=0, output_tokens=0, model="grok-4.3")
 
-    monkeypatch.setattr(discover, "OpenAI", fake_openai)
+    monkeypatch.setattr(discover, "llm_call", fake_llm_call)
 
     paper_queries, video_queries = discover.discover_generate_queries(
         "goal",
@@ -96,7 +79,7 @@ def test_discover_generate_queries_short_circuits_when_both_counts_zero(config, 
 
     assert paper_queries == []
     assert video_queries == []
-    assert called == []  # never hit the OpenAI client
+    assert called == []  # never hit the LLM
 
 
 def test_discover_generate_queries_drops_disabled_side_after_llm(config, monkeypatch):
@@ -104,15 +87,10 @@ def test_discover_generate_queries_drops_disabled_side_after_llm(config, monkeyp
     paper_count=0 (or vice versa), the disabled side is forced to []."""
     monkeypatch.setattr(
         discover,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(
-            chat=SimpleNamespace(
-                completions=SimpleNamespace(
-                    create=lambda **_: _fake_openai_response(
-                        '{"paper_queries":["should-be-dropped"],"video_queries":["walkthrough"]}'
-                    )
-                )
-            )
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='{"paper_queries":["should-be-dropped"],"video_queries":["walkthrough"]}',
+            input_tokens=0, output_tokens=0, model="grok-4.3",
         ),
     )
 
@@ -178,45 +156,43 @@ def test_discover_rerank_maps_ranked_items_and_sorts_by_score(config, monkeypatc
         "Creator",
         description="Detailed build walkthrough",
     )
+    site = SiteSeed(
+        url="https://learn.microsoft.com/en-us/microsoft-365/agents/overview",
+        topic="agent365",
+        site_name="learn.microsoft.com",
+        label="Official Agent365 overview",
+    )
     tracker = CostTracker()
-    captured = {}
-
-    class FakeCompletions:
-        def create(self, **kwargs):
-            captured.update(kwargs)
-            return _fake_openai_response(
-                '```json\n{"ranked_items":[{"kind":"video","identifier":"v1","final_score":0.75,"goal_fit":0.7,"depth_score":0.8,"complementarity_score":0.6,"rationale":"practical walkthrough"},{"kind":"paper","identifier":"p1","final_score":0.9,"goal_fit":0.95,"depth_score":0.85,"complementarity_score":0.7,"rationale":"best conceptual fit"}]}\n```'
-            )
 
     monkeypatch.setattr(
         discover,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='```json\n{"ranked_items":[{"kind":"video","identifier":"v1","final_score":0.75,"goal_fit":0.7,"depth_score":0.8,"complementarity_score":0.6,"rationale":"practical walkthrough"},{"kind":"paper","identifier":"p1","final_score":0.9,"goal_fit":0.95,"depth_score":0.85,"complementarity_score":0.7,"rationale":"best conceptual fit"},{"kind":"site","identifier":"https://learn.microsoft.com/en-us/microsoft-365/agents/overview","final_score":0.55,"goal_fit":0.8,"depth_score":0.5,"complementarity_score":0.7,"rationale":"official reference material"}]}\n```',
+            input_tokens=11, output_tokens=7, model="grok-4.3",
+        ),
     )
 
-    ranked = discover.discover_rerank("goal", [paper], [video], config, tracker)
+    ranked = discover.discover_rerank("goal", [paper], [video], [site], config, tracker)
 
-    assert [item.kind for item in ranked] == ["paper", "video"]
+    assert [item.kind for item in ranked] == ["paper", "video", "site"]
     assert ranked[0].paper is paper
     assert ranked[1].video is video
+    assert ranked[2].site_seed is site
     assert ranked[1].date
-    assert captured["model"] == config.xai_model_for("rerank")
     assert tracker.entries[0].call_type == "discover_rerank"
 
 
 def test_discover_rerank_returns_empty_for_non_list_payload(config, monkeypatch):
     monkeypatch.setattr(
         discover,
-        "OpenAI",
-        lambda **kwargs: SimpleNamespace(
-            chat=SimpleNamespace(
-                completions=SimpleNamespace(
-                    create=lambda **_: _fake_openai_response('{"ranked_items": {"bad": true}}')
-                )
-            )
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='{"ranked_items": {"bad": true}}',
+            input_tokens=0, output_tokens=0, model="grok-4.3",
         ),
     )
 
-    ranked = discover.discover_rerank("goal", [], [], config, None)
+    ranked = discover.discover_rerank("goal", [], [], [], config, None)
 
     assert ranked == []
