@@ -101,6 +101,38 @@ Probably out of scope (please open an issue to discuss before building):
 - If you're changing prompts or model routing, note the behavior change in `CHANGELOG.md` (so users running refresh flows know why outputs may shift).
 - Avoid introducing a new top-level dependency without a clear reason. distill tries to stay pip-installable with a small dependency graph.
 
+## Pre-push checklist (release quality)
+
+Before pushing to main or tagging a release, run the full gate locally. CI catches these, but catching them locally avoids embarrassing red badges on the repo.
+
+```bash
+# 1. Tests — including property-based tests (hypothesis)
+pytest -q --cov=distill --cov-fail-under=80
+
+# 2. Lint — both check and format
+ruff check .
+ruff format --check .
+
+# 3. Security
+bandit -r distill/ -c pyproject.toml --severity-level medium
+
+# 4. Type check — blocking on distill/llm/, advisory elsewhere
+pyright distill/llm/
+
+# 5. Verify nothing unwanted is staged
+git diff --cached --stat
+git status
+```
+
+Common mistakes that have burned us:
+
+- **Missing dev dependencies in CI.** CI must install via `pip install -e ".[dev]"`, not `pip install pytest pytest-cov`. If you add a dev dependency to `pyproject.toml`, it needs to be in the `[dev]` extras — that's what CI installs.
+- **`asyncio.get_event_loop()` on Linux.** Python 3.10+ on Linux has no default event loop in the main thread. Use `asyncio.run()` in tests, not `asyncio.get_event_loop().run_until_complete()`. It works on Windows locally but fails on CI.
+- **Forgetting `ruff format` after `ruff check --fix`.** Auto-fixes can leave formatting inconsistent. Always run both.
+- **Committing cache directories.** `.hypothesis/`, `__pycache__/`, `.ruff_cache/` must be in `.gitignore`. If you add a new tool that generates a cache dir, add it to `.gitignore` before running it.
+- **PyPI version reuse.** PyPI will never accept a re-upload of the same version number. If a tagged release has already been published, you must bump the version — even for a one-line fix. There is no workaround.
+- **Tag before verifying CI.** Don't tag a release until CI is green on the commit you're tagging. Force-pushing tags to fix failures creates noise and can trigger duplicate PyPI uploads.
+
 ## Questions or proposals
 
 Open a GitHub issue before doing significant work on something new. A short description of what you want to build and why is enough — I'd rather talk through shape early than ask you to rework a finished PR.
