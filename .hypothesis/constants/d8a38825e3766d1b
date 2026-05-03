@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\fine_tuning\jobs\jobs.py
+# hypothesis_version: 6.148.2
+
+['/fine_tuning/jobs', 'AsyncJobs', 'Jobs', 'after', 'babbage-002', 'davinci-002', 'gpt-3.5-turbo', 'gpt-4o-mini', 'hyperparameters', 'integrations', 'limit', 'metadata', 'method', 'model', 'seed', 'suffix', 'training_file', 'validation_file']

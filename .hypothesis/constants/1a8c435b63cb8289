@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\datetime_parse.py
+# hypothesis_version: 6.148.2
+
+[20000000000.0, 3e+20, 1000, 1970, 86400, '+', '-', '0', 'Z', 'date', 'datetime', 'microsecond', 'microseconds', 'seconds', 'sign', 'time', 'tzinfo']

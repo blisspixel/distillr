@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\http11.py
+# hypothesis_version: 6.148.2
+
+[b'\r\n', b' ', b' \t', b':', b';', b'GET', b'HTTP/1.1', b"[-!#$%&\\'*+.^_`|~0-9a-zA-Z]+", b'[\\x09\\x20-\\x7e\\x80-\\xff]*', 100, 200, 204, 304, 600, '128', '1_048_576', '8192', 'Content-Length', 'Request', 'Response', 'SERVER', 'Transfer-Encoding', 'USER_AGENT', 'WEBSOCKETS_SERVER', 'ascii', 'backslashreplace', 'chunk without CRLF', 'chunked', 'line too long', 'line without CRLF', 'surrogateescape', '{}.{}']

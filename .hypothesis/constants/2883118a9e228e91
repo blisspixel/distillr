@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\execnet\gateway.py
+# hypothesis_version: 6.148.2
+
+[' exception: %r', ', ', '--> io.close_write', '<RInfo %r>', '<lambda>', '_cache_rinfo', 'channel', 'no', 'not-receiving', 'receive-live', 'uninitialized']

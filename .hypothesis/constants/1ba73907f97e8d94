@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\transcripts.py
+# hypothesis_version: 6.148.2
+
+[600, '*.txt', '-->', '--no-docx', '--no-joke', '--no-meme', '--no-notes', '-m', '.vtt', '<[^>]+>', 'Kind:', 'Language:', 'NOTE', 'WEBVTT', '^\\d+$', 'en', 'no_warnings', 'output', 'outtmpl', 'python', 'quiet', 'scribe', 'skip_download', 'subtitlesformat', 'subtitleslangs', 'url', 'utf-8', 'vtt', 'writeautomaticsub', 'writesubtitles']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\responses\web_search_tool.py
+# hypothesis_version: 6.148.2
+
+['Filters', 'UserLocation', 'WebSearchTool', 'approximate', 'high', 'low', 'medium', 'web_search']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\web\routes\topics.py
+# hypothesis_version: 6.148.2
+
+['/topics', '/topics/{topic}', 'brief', 'channel_count', 'channels', 'content', 'has_brief', 'has_report', 'has_synthesis', 'insights', 'metadata.json', 'name', 'page_count', 'pages', 'paper', 'paper_count', 'papers', 'report', 'request', 'site_count', 'sites', 'slug', 'synthesis', 'title', 'topic', 'topic_detail.html', 'topic_list.html', 'topic_synthesis', 'topics', 'utf-8', 'video_count', 'videos']

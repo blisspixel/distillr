@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\typer\completion.py
+# hypothesis_version: 6.148.2
+
+['-', '--install-completion', '--show-completion', '_', '_{}_COMPLETE', 'complete', 'green', 'source']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\chat\completions\completions.py
+# hypothesis_version: 6.148.2
+
+['/chat/completions', '24h', 'AsyncCompletions', 'Completions', 'after', 'asc', 'audio', 'auto', 'default', 'desc', 'flex', 'frequency_penalty', 'function_call', 'functions', 'high', 'in-memory', 'limit', 'logit_bias', 'logprobs', 'low', 'max_tokens', 'medium', 'messages', 'metadata', 'modalities', 'model', 'n', 'order', 'parallel_tool_calls', 'prediction', 'presence_penalty', 'priority', 'prompt_cache_key', 'reasoning_effort', 'response_format', 'safety_identifier', 'scale', 'seed', 'service_tier', 'stop', 'store', 'stream', 'stream_options', 'temperature', 'text', 'tool_choice', 'tools', 'top_logprobs', 'top_p', 'user', 'verbosity', 'web_search_options']

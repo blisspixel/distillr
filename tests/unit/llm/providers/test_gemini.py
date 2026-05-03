@@ -132,10 +132,12 @@ class TestGeminiProviderRetry:
         provider, mock_client = _build_provider()
         mock_client.models.generate_content.side_effect = RuntimeError("permanent")
 
-        with patch("distill.llm.providers.gemini.time.sleep"), \
-             pytest.raises(RuntimeError, match="permanent"):
-                asyncio.run(
-                    provider.call("gemini-3.1-pro", "hello", retries=2)  # type: ignore[union-attr]
-                )
+        with (
+            patch("distill.llm.providers.gemini.time.sleep"),
+            pytest.raises(RuntimeError, match="permanent"),
+        ):
+            asyncio.run(
+                provider.call("gemini-3.1-pro", "hello", retries=2)  # type: ignore[union-attr]
+            )
 
         assert mock_client.models.generate_content.call_count == 3

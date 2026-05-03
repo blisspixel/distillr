@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cryptodome\Signature\__init__.py
+# hypothesis_version: 6.148.2
+
+['DSS', 'PKCS1_PSS', 'PKCS1_v1_5', 'eddsa', 'pkcs1_15', 'pss']

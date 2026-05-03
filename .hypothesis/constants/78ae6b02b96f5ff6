@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\inlinepatterns.py
+# hypothesis_version: 6.148.2
+
+[100, 110, 120, 125, 130, 140, 150, 160, 170, 180, 190, '  \\n', '"', '#%d;', '%s#%d;', "'", '(', '(?<!\\!)', '(\\*)([^\\*]+)\\1', '(\\*{2})(.+?)\\1', ')', ',', '[', '\\', '\\!\\[', '\\%s', '\\*', '\\[', '\\\\', '\\\\(.)', '\\s', '\\s+', '\\s?\\[([^\\]]*)\\]', ']', '^(.*?)%s(.*)$', '_', 'a', 'alt', 'autolink', 'automail', 'backtick', 'br', 'code', 'double', 'double2', 'em', 'em,strong', 'em_strong', 'em_strong2', 'entity', 'escape', 'href', 'html', 'image_link', 'image_reference', 'img', 'inline', 'linebreak', 'link', 'mailto:', 'not_strong', 'reference', 'short_image_ref', 'short_reference', 'single', 'src', 'strong', 'strong,em', 'title', 'unescape', '{}{};', '{}{}{}']

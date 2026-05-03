@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pypdf\_crypt_providers\__init__.py
+# hypothesis_version: 6.148.2
+
+['3.0', 'CryptAES', 'CryptBase', 'CryptIdentity', 'CryptRC4', 'aes_cbc_decrypt', 'aes_cbc_encrypt', 'aes_ecb_decrypt', 'aes_ecb_encrypt', 'crypt_provider', 'rc4_decrypt', 'rc4_encrypt']

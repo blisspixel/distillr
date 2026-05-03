@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\images.py
+# hypothesis_version: 6.148.2
+
+['/images/edits', '/images/generations', '/images/variations', '1024x1024', '1024x1536', '1024x1792', '1536x1024', '1792x1024', '256x256', '512x512', '<array>', 'AsyncImages', 'Content-Type', 'Images', 'auto', 'b64_json', 'background', 'hd', 'high', 'image', 'input_fidelity', 'jpeg', 'low', 'mask', 'medium', 'model', 'moderation', 'multipart/form-data', 'n', 'natural', 'opaque', 'output_compression', 'output_format', 'partial_images', 'png', 'prompt', 'quality', 'response_format', 'size', 'standard', 'stream', 'style', 'transparent', 'url', 'user', 'vivid', 'webp']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\eval_create_params.py
+# hypothesis_version: 6.148.2
+
+['DataSourceConfig', 'DataSourceConfigLogs', 'EvalCreateParams', 'TestingCriterion', 'assistant', 'custom', 'developer', 'input_image', 'label_model', 'logs', 'message', 'output_text', 'stored_completions', 'system', 'user']

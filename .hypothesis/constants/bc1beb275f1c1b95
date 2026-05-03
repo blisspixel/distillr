@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\fine_tuning\checkpoints\permissions.py
+# hypothesis_version: 6.148.2
+
+['AsyncPermissions', 'Permissions', 'after', 'ascending', 'descending', 'limit', 'order', 'post', 'project_id', 'project_ids']

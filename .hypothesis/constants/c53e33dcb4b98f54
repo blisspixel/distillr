@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\types\interaction.py
+# hypothesis_version: 6.148.2
+
+['AgentConfig', 'Input', 'InputContentList', 'Interaction', 'Output', 'cancelled', 'completed', 'failed', 'in_progress', 'interaction', 'requires_action', 'type']

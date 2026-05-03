@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\compat\urllib\request.py
+# hypothesis_version: 6.148.2
+
+['ftp', 'http', 'https', 'nt', 'urllib.request']

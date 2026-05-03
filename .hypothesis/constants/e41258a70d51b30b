@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\id3\_specs.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', b'\x00\x00', b'\x10', 2.0, 512.0, -32768, 256, 512, 32767, 32768, 65535, '%02d', '%04d', '%s has to be bytes', '%s has to be str', '-', '.', ':', ':::::', '>', '>H', '>Hh', '>I', '>bI', '>h', 'B', 'H', 'Invalid Encoding: %r', 'Invalid frame ID', 'T', 'X', '[-T:/.]|\\s+', '_', 'ascii', 'child_element_id', 'decoding error', 'default', 'entry_count', 'flags', 'latin1', 'not a str', 'not ascii', 'not enough data', 'not in range', 'out of range', 'sep', 'truncated', 'utf-8', 'utf16', 'utf8', 'utf_16_be', 'x']

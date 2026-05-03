@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\tomli\_parser.py
+# hypothesis_version: 6.148.2
+
+[127, 55295, 57344, 1114111, '\x08', '\x1b', '"', '"""', '"\'', '#', "'", "'''", '+inf', '+nan', ',', '-inf', '-nan', '.', '=', 'Invalid hex value', 'Invalid statement', 'Invalid value', 'Unclosed array', 'Unterminated string', '[', '\\', '\\\t', '\\\n', '\\ ', '\\"', '\\U', '\\\\', '\\b', '\\e', '\\f', '\\n', '\\r', '\\t', '\\u', '\\x', ']', ']]', 'end of document', 'f', 'false', 'flags', 'inf', 'nan', 'nested', 'recursive_flags', 't', 'true', '{', '}']

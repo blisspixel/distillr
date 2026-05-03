@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\asyncio\connection.py
+# hypothesis_version: 6.148.2
+
+[0.0, 1000, '!I', 'Connection', 'peername', 'send_binary', 'send_text', 'skipped broadcast', 'sockname', 'websocket']

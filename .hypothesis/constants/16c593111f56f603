@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\parser_inline.py
+# hypothesis_version: 6.148.2
+
+['autolink', 'backticks', 'balance_pairs', 'emphasis', 'entity', 'escape', 'fragments_join', 'html_inline', 'image', 'link', 'linkify', 'maxNesting', 'newline', 'strikethrough', 'text']

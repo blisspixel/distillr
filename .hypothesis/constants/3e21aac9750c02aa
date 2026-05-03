@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\OneDrive\distillr\distill\web\routes\dashboard.py
+# hypothesis_version: 6.148.2
+
+['/', 'dashboard.html', 'dev', 'distill', 'request', 'version']

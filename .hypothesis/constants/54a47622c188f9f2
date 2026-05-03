@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pypdf\__init__.py
+# hypothesis_version: 6.148.2
+
+['DocumentInformation', 'ImageType', 'ObjectDeletionFlag', 'PageObject', 'PageRange', 'PaperSize', 'PasswordType', 'PdfReader', 'PdfWriter', 'Transformation', '__version__', '_debug_versions', 'mult', 'none']

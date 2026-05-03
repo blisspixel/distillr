@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\_util.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', 256, '\x00', ' | ', '%d', '%r not a filename', '%s%s%s', '%s%s%s_from', '%s%s_max', '%s%s_min', '%s.%s', '%sint%s%s', '%sint%s%s_from', '%sint%s_max', '%sint%s_min', '<', '<%s.%s: %d>', '<%s: %d>', '>', 'FileThing', '[', '_', '__eq__', '__fspath__', '__hash__', '__lt__', '__repr__', '__str__', 'area outside of file', 'ascii', 'b', 'be', 'char', 'dictionary is empty', 'filename', 'fileobj', 'h', 'i', 'int', 'iso8859-1', 'le', 'longlong', 'mutagen', 'name', 'not enough data', 'not null terminated', 'q', 'rb', 'rb+', 'read', 'short', 'strict', 'to_%s%s%s', 'to_%sint%s%s', 'u', 'utf-16', 'utf-16-be', 'utf-16-le', 'utf-32', 'utf-32-be', 'utf-32-le', 'utf-8', 'wb', 'wb+', 'write']

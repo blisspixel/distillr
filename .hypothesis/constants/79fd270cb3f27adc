@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpx\_transports\default.py
+# hypothesis_version: 6.148.2
+
+['A', 'AsyncHTTPTransport', 'HTTPTransport', 'T', 'aclose', 'close', 'http', 'https', 'socks5', 'socks5h']

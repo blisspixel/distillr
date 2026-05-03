@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_windows_cffi.py
+# hypothesis_version: 6.148.2
+
+[128, 256, 258, 512, 735, 995, 997, 1024, 1168, 2048, 4096, 10038, 73764, 1048576, 1073741824, 1207959580, 1207959581, 1207959586, 2147483648, 4294967295, 'HANDLE', 'Handle', 'HandleArray', 'No error set?', '\\bFAR\\b', '\\bPASCAL\\b', '__stdcall', 'kernel32.dll', 'ntdll.dll', 'ws2_32.dll']

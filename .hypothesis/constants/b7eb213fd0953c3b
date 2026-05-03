@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\beta\realtime\sessions.py
+# hypothesis_version: 6.148.2
+
+['/realtime/sessions', 'AsyncSessions', 'OpenAI-Beta', 'Sessions', 'alloy', 'ash', 'assistants=v2', 'audio', 'ballad', 'client_secret', 'coral', 'echo', 'g711_alaw', 'g711_ulaw', 'gpt-realtime', 'inf', 'input_audio_format', 'instructions', 'modalities', 'model', 'output_audio_format', 'pcm16', 'sage', 'shimmer', 'speed', 'temperature', 'text', 'tool_choice', 'tools', 'tracing', 'turn_detection', 'verse', 'voice']

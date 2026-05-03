@@ -34,9 +34,7 @@ def _make_mock_response(
         return SimpleNamespace(choices=[], usage=None)
     message = SimpleNamespace(content=text)
     choice = SimpleNamespace(message=message)
-    usage = SimpleNamespace(
-        prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
-    )
+    usage = SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
     return SimpleNamespace(choices=[choice], usage=usage)
 
 
@@ -78,15 +76,13 @@ def test_retry_count(retries: int) -> None:
 
     mock_client.chat.completions.create = counting_create
 
-    with patch("distill.llm.providers.grok.time.sleep"), \
-         pytest.raises(RuntimeError, match="transient"):
-            asyncio.run(
-                provider.call("grok-4.3", "test prompt", retries=retries)
-            )
+    with (
+        patch("distill.llm.providers.grok.time.sleep"),
+        pytest.raises(RuntimeError, match="transient"),
+    ):
+        asyncio.run(provider.call("grok-4.3", "test prompt", retries=retries))
 
-    assert call_count == retries + 1, (
-        f"Expected {retries + 1} attempts, got {call_count}"
-    )
+    assert call_count == retries + 1, f"Expected {retries + 1} attempts, got {call_count}"
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +100,7 @@ class TestGrokProviderSuccess:
             text="response text", prompt_tokens=100, completion_tokens=50
         )
 
-        result = asyncio.run(
-            provider.call("grok-4.3", "hello")
-        )
+        result = asyncio.run(provider.call("grok-4.3", "hello"))
 
         assert isinstance(result, LLM_Response)
         assert result.text == "response text"
@@ -117,13 +111,9 @@ class TestGrokProviderSuccess:
     def test_empty_choices_returns_empty_response(self) -> None:
         """Empty choices in API response returns LLM_Response with empty text."""
         provider, mock_client = _build_provider()
-        mock_client.chat.completions.create.return_value = _make_mock_response(
-            empty_choices=True
-        )
+        mock_client.chat.completions.create.return_value = _make_mock_response(empty_choices=True)
 
-        result = asyncio.run(
-            provider.call("grok-4.3", "hello")
-        )
+        result = asyncio.run(provider.call("grok-4.3", "hello"))
 
         assert result.text == ""
         assert result.input_tokens == 0
@@ -143,9 +133,7 @@ class TestGrokProviderRetry:
         ]
 
         with patch("distill.llm.providers.grok.time.sleep") as mock_sleep:
-            result = asyncio.run(
-                provider.call("grok-4.3", "hello", retries=2)
-            )
+            result = asyncio.run(provider.call("grok-4.3", "hello", retries=2))
 
         assert result.text == "ok"
         assert result.input_tokens == 5
@@ -157,10 +145,10 @@ class TestGrokProviderRetry:
         provider, mock_client = _build_provider()
         mock_client.chat.completions.create.side_effect = RuntimeError("permanent")
 
-        with patch("distill.llm.providers.grok.time.sleep"), \
-             pytest.raises(RuntimeError, match="permanent"):
-                asyncio.run(
-                    provider.call("grok-4.3", "hello", retries=2)
-                )
+        with (
+            patch("distill.llm.providers.grok.time.sleep"),
+            pytest.raises(RuntimeError, match="permanent"),
+        ):
+            asyncio.run(provider.call("grok-4.3", "hello", retries=2))
 
         assert mock_client.chat.completions.create.call_count == 3

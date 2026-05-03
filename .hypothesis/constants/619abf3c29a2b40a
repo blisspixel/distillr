@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\aiohttp\formdata.py
+# hypothesis_version: 6.148.2
+
+['FormData', 'filename', 'form-data', 'name', 'unknown', 'utf-8']

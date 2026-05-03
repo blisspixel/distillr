@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\pot\provider.py
+# hypothesis_version: 6.148.2
+
+['!', '.', ';', '?', 'PTP', 'PoTokenContext', 'PoTokenProvider', 'PoTokenProviderError', 'PoTokenRequest', 'PoTokenResponse', 'Preference', 'Requesting webpage', 'all', 'client', 'clientName', 'cookiejar', 'gvs', 'http', 'https', 'player', 'register_preference', 'register_provider', 'socks4', 'socks4a', 'socks5', 'socks5h', 'subs']

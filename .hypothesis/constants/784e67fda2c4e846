@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\_exceptions.py
+# hypothesis_version: 6.148.2
+
+[400, 401, 403, 404, 409, 422, 429, 'AuthenticationError', 'BadRequestError', 'ConflictError', 'Connection error.', 'InternalServerError', 'NotFoundError', 'RateLimitError', 'Request timed out.']

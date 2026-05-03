@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\http.py
+# hypothesis_version: 6.148.2
+
+[0.95, 100, 416, 500, 600, 1024, '-', 'Accept-Encoding', 'Content-Length', 'Content-Range', 'Content-encoding', 'Content-length', 'Range', 'ab', 'buffersize', 'continuedl', 'ctx_id', 'downloaded_bytes', 'downloader_options', 'downloading', 'elapsed', 'eta', 'filename', 'filetime', 'finished', 'http_chunk_size', 'http_headers', 'identity', 'impersonate', 'last-modified', 'max_filesize', 'min_filesize', 'noresizebuffer', 'request_data', 'retries', 'speed', 'status', 'test', 'throttledratelimit', 'tmpfilename', 'total_bytes', 'updatetime', 'url', 'wb']

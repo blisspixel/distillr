@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\threads\refusal_delta_block.py
+# hypothesis_version: 6.148.2
+
+['RefusalDeltaBlock', 'refusal']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\audio\translations.py
+# hypothesis_version: 6.148.2
+
+['/audio/translations', 'AsyncTranslations', 'Content-Type', 'Translations', 'diarized_json', 'file', 'json', 'model', 'multipart/form-data', 'prompt', 'response_format', 'srt', 'temperature', 'text', 'verbose_json', 'vtt']

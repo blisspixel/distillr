@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\headers.py
+# hypothesis_version: 6.148.2
+
+[443, '"', '([\\x22\\x5c])', ',', ', ', ':', ';', '; ', '=', 'Authorization', 'Basic ', 'Connection', 'T', 'UTF-8', 'Upgrade', '[A-Za-z0-9-._~+/]+=*', '[\\t ]*', '\\1', '\\\\\\1', 'basic', 'build_extension', 'build_host', 'build_subprotocol', 'expected comma', 'expected protocol', 'expected token', 'expected token68', 'parse_connection', 'parse_extension', 'parse_subprotocol', 'parse_upgrade', 'trailing data']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cryptodome\Random\__init__.py
+# hypothesis_version: 6.148.2
+
+['get_random_bytes', 'new']

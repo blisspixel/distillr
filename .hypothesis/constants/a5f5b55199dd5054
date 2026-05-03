@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\annotated_types.py
+# hypothesis_version: 6.148.2
+
+['BaseModel', 'NamedTuple', 'TypedDict', '__annotations__', '__required_keys__', 'typing']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\sync\client.py
+# hypothesis_version: 6.148.2
+
+[200, 300, 4096, 65536, 'B', 'ClientConnection', 'F', 'Host', 'Proxy-Authorization', 'T', 'User-Agent', 'connect', 'deflate', 'http', 'https', 'path', 'socks', 'socks4', 'socks4a', 'socks5', 'socks5h', 'source_address', 'ssl', 'ssl_context', 'timeout', 'unix', 'unix_connect', 'unsupported proxy', 'ws://localhost/', 'wss://localhost/']

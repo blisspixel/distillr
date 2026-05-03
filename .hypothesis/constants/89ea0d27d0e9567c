@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\fastapi\params.py
+# hypothesis_version: 6.148.2
+
+[', use_cache=False', '__name__', 'alias_priority', 'annotation', 'application/json', 'cookie', 'deprecated', 'examples', 'header', 'json_schema_extra', 'multipart/form-data', 'path', 'pattern', 'query', 'regex', 'serialization_alias', 'strict', 'validation_alias']

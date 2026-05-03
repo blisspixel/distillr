@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\outcome\_impl.py
+# hypothesis_version: 6.148.2
+
+['ArgsT', 'Error', 'Maybe', 'Outcome', 'ResultT', 'Value', 'ValueT', '_unwrapped', 'acapture', 'capture']

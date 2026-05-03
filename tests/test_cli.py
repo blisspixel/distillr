@@ -1773,9 +1773,7 @@ class TestWatchCommands:
         assert generate_calls[0].startswith("Help an AI become a great composer")
         assert "Goal loaded from" in result.stdout
 
-    def test_discover_preview_can_rank_curated_site_seeds(
-        self, mock_config, monkeypatch, tmp_path
-    ):
+    def test_discover_preview_can_rank_curated_site_seeds(self, mock_config, monkeypatch, tmp_path):
         seeds_path = tmp_path / "agent365_sites.json"
         seeds_path.write_text(
             json.dumps(
@@ -1840,9 +1838,7 @@ class TestWatchCommands:
         assert "site" in result.stdout
         assert "0.91" in result.stdout
 
-    def test_discover_ingests_selected_site_seeds_safely(
-        self, mock_config, monkeypatch, tmp_path
-    ):
+    def test_discover_ingests_selected_site_seeds_safely(self, mock_config, monkeypatch, tmp_path):
         seeds_path = tmp_path / "agent365_sites.json"
         seeds_path.write_text(
             json.dumps(
@@ -1891,7 +1887,9 @@ class TestWatchCommands:
                     "ingest_attachments": ingest_attachments,
                 }
             )
-            page_dir = config.site_page_dir(seed.topic, "learn.microsoft.com", "Official Agent365 docs")
+            page_dir = config.site_page_dir(
+                seed.topic, "learn.microsoft.com", "Official Agent365 docs"
+            )
             page_dir.mkdir(parents=True, exist_ok=True)
             content_path = page_dir / "content.md"
             content_path.write_text("# Site content", encoding="utf-8")

@@ -34,9 +34,7 @@ _PER_TOKEN_MODELS: list[str] = [m for m, r in PRICING.items() if "input" in r an
     input_tokens=st.integers(min_value=0, max_value=50_000_000),
     output_tokens=st.integers(min_value=0, max_value=50_000_000),
 )
-def test_cost_computation_correctness(
-    model: str, input_tokens: int, output_tokens: int
-) -> None:
+def test_cost_computation_correctness(model: str, input_tokens: int, output_tokens: int) -> None:
     """Feature: llm-router-model-upgrade, Property 4: Cost computation correctness
 
     For each model in PRICING with input/output rates, generate non-negative
@@ -46,9 +44,7 @@ def test_cost_computation_correctness(
     **Validates: Requirements 5.1**
     """
     rates = PRICING[model]
-    expected = (
-        input_tokens * rates["input"] + output_tokens * rates["output"]
-    ) / 1_000_000
+    expected = (input_tokens * rates["input"] + output_tokens * rates["output"]) / 1_000_000
     assert compute_cost(model, input_tokens, output_tokens) == expected
 
 

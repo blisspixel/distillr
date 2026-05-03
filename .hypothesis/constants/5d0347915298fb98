@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\file_search_stores.py
+# hypothesis_version: 6.148.2
+
+['X-Goog-Upload-URL', '_query', '_url', 'chunkingConfig', 'chunking_config', 'config', 'customMetadata', 'custom_metadata', 'delete', 'displayName', 'display_name', 'documentName', 'document_name', 'done', 'error', 'fileName', 'fileSearchStores', 'file_name', 'file_search_stores', 'force', 'get', 'http_options', 'metadata', 'mimeType', 'mime_type', 'name', 'nextPageToken', 'next_page_token', 'pageSize', 'pageToken', 'page_size', 'page_token', 'parent', 'post', 'response', 'sdkHttpResponse', 'sdk_http_response', 'x-goog-upload-url', '{name}']

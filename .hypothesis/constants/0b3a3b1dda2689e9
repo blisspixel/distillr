@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\chatkit\chatkit_thread_item_list.py
+# hypothesis_version: 6.148.2
+
+['Data', 'DataChatKitTask', 'DataChatKitTaskGroup', 'chatkit.task', 'chatkit.task_group', 'chatkit.thread_item', 'completed', 'custom', 'in_progress', 'list', 'thought', 'type']

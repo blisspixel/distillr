@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\networking\_urllib.py
+# hypothesis_version: 6.148.2
+
+[100, 300, 301, 302, 303, 307, 308, 400, ',', 'Content-Length', 'Content-Type', 'Content-encoding', 'Cookie', 'HEAD', 'Location', 'PUT', 'Ytdl-socks-proxy', '_create_connection', 'addr', 'br', 'cookiejar', 'data', 'deflate', 'file', 'fp', 'ftp', 'gzip', 'http', 'https', 'iso-8859-1', 'legacy_ssl', 'port', 'reason', 'redirect error', 'socks4', 'socks4a', 'socks5', 'socks5h', 'status', 'timeout', 'urllib']

@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cryptodome\Cipher\_mode_eax.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', 160, '%02x', 'B', 'EaxMode', 'MAC check failed', 'Missing parameter: ', 'decrypt', 'digest', 'encrypt', 'key', 'mac_len', 'nonce', 'update', 'verify']

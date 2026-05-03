@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_dtls.py
+# hypothesis_version: 6.148.2
+
+[b'\x00\x00', 1.0, 60.0, 253, 254, 255, 576, 1280, 1500, 65527, 65535, '!B2sQH', '!B3sH3s3s', '!Q', 'PosArgsT', '_T', 'bad ClientHello', 'big', 'inf', 'not a ClientHello', 'sha256', 'short cookie', 'short record']

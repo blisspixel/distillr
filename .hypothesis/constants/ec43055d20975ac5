@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\coverage\sysmon.py
+# hypothesis_version: 6.148.2
+
+['/tmp/foo.out', '@', 'COVERAGE_SYSMON_LOG', 'DISABLE', 'DISABLE_TYPE', 'a', 'branch_trails', 'branches', 'code', 'coverage.py', 'line', 'line_arcs', 'line_lines', 'monitoring', 'returns', 'start_tracing', 'starts', 'sys.monitoring', 'utf-8']

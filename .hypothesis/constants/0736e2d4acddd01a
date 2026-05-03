@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yaml\error.py
+# hypothesis_version: 6.148.2
+
+['\x00\r\n\x85\u2028\u2029', ' ... ', ':\n', 'Mark', 'MarkedYAMLError', 'YAMLError', '^']

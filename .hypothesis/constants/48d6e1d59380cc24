@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\container_create_response.py
+# hypothesis_version: 6.148.2
+
+['16g', '1g', '4g', '64g', 'ExpiresAfter', 'NetworkPolicy', 'allowlist', 'disabled', 'last_active_at']

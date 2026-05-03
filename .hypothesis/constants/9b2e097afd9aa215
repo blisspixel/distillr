@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\transcription_session_update_param.py
+# hypothesis_version: 6.148.2
+
+['Session', 'SessionClientSecret', 'SessionTurnDetection', 'audio', 'auto', 'created_at', 'far_field', 'g711_alaw', 'g711_ulaw', 'gpt-4o-transcribe', 'high', 'low', 'medium', 'near_field', 'pcm16', 'semantic_vad', 'server_vad', 'text', 'whisper-1']

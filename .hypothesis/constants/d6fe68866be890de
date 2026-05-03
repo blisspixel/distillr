@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\_interactions\_streaming.py
+# hypothesis_version: 6.148.2
+
+[b'\n\n', b'\r\n\r\n', b'\r\r', '\x00', ':', '[DONE]', '_T', 'data', 'event', 'id', 'retry', 'tuple[type, ...]', 'utf-8']

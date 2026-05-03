@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\oauth2\_client.py
+# hypothesis_version: 6.148.2
+
+['Authorization', 'Bearer {}', 'Content-Type', 'POST', 'access_token', 'application/json', 'assertion', 'audience', 'client_id', 'client_secret', 'decode', 'error', 'error_description', 'exp', 'expires_in', 'grant_type', 'id_token', 'includeEmail', 'internal_failure', 'rapt', 'refresh_token', 'scope', 'server_error', 'token', 'true', 'useEmailAzp', 'utf-8', '{}: {}']

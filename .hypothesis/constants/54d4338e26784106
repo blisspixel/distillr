@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\email_validator\rfc_constants.py
+# hypothesis_version: 6.148.2
+
+[253, 254, '(?:\\.', ')*\\Z', '[', '[.', '[A-Za-z]\\Z', '[a-zA-Z0-9\\-\\.', ']', ']+(?:\\.[', ']+)*\\Z', 'abuse', 'ftp', 'hostmaster', 'info', 'marketing', 'news', 'noc', 'postmaster', 'sales', 'security', 'support', 'usenet', 'uucp', 'webmaster', 'www', '\x80-\U0010ffff']

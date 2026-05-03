@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\threads\message_content_delta.py
+# hypothesis_version: 6.148.2
+
+['MessageContentDelta', 'type']

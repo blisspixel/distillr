@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\types\beta\realtime\transcription_session.py
+# hypothesis_version: 6.148.2
+
+['ClientSecret', 'TranscriptionSession', 'TurnDetection', 'audio', 'gpt-4o-transcribe', 'text', 'whisper-1']

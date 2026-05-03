@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cryptodome\Hash\CMAC.py
+# hypothesis_version: 6.148.2
+
+[b'\x00', b'\x80', 128, 135, 160, '%02x', 'MAC check failed']

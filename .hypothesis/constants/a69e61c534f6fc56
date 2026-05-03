@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\requests_toolbelt\multipart\encoder.py
+# hypothesis_version: 6.148.2
+
+[b'\r\n', b'--\r\n', '--{}', '__len__', 'content-length', 'fileno', 'getvalue', 'items', 'len', 'read', 'utf-8']

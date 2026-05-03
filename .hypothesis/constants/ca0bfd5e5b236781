@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_core\_run.py
+# hypothesis_version: 6.148.2
+
+[0.0, 0.5, 1000, 2929, 10000, 200000, ', cancelled', '0.24.1', '<init>', 'Callable[..., Any]', 'FATAL INTERNAL ERROR', 'FnT', 'Outcome[Any]', 'PosArgT', 'RetT', 'StatusT', 'StatusT_co', 'StatusT_contra', 'TASK_STATUS_IGNORED', '__notes__', 'active', 'after_io_wait', 'after_run', 'after_task_step', 'ag_frame', 'ago', 'before_io_wait', 'before_run', 'before_task_step', 'cr_frame', 'deadline', 'epoll', 'exited', 'from now', 'gi_frame', 'kqueue', 'linux', 'parent', 'runner', 'scope', 'shield', 'task_exited', 'task_scheduled', 'task_spawned', 'trio', 'unbound', 'unsupported platform', 'win32']

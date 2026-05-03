@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mcp\server\fastmcp\utilities\logging.py
+# hypothesis_version: 6.148.2
+
+['%(message)s', 'CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']

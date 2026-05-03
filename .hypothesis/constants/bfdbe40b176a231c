@@ -1,0 +1,4 @@
+# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown_it\presets\commonmark.py
+# hypothesis_version: 6.148.2
+
+['autolink', 'backticks', 'balance_pairs', 'block', 'blockquote', 'breaks', 'code', 'components', 'core', 'emphasis', 'entity', 'escape', 'fence', 'fragments_join', 'heading', 'highlight', 'hr', 'html', 'html_block', 'html_inline', 'image', 'inline', 'langPrefix', 'language-', 'lheading', 'link', 'linkify', 'list', 'maxNesting', 'newline', 'normalize', 'options', 'paragraph', 'quotes', 'reference', 'rules', 'rules2', 'text', 'text_join', 'typographer', 'xhtmlOut', '“”‘’']
