@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\config.py
-# hypothesis_version: 6.148.2
-
-['BaseConfig', 'Config', 'ConfigDict', 'ConfigType', 'Extra', 'ModelField', 'SchemaExtraCallable', '__', 'after_validation', 'alias', 'alias_priority', 'allow', 'before_validation', 'deep', 'forbid', 'get_config', 'ignore', 'inherit_config', 'json_encoders', 'none', 'prepare_config', 'shallow']

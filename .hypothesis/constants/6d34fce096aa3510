@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\email_validator\validate_email.py
-# hypothesis_version: 6.148.2
-
-['"', '@', 'NFC', '[', ']', 'ascii', 'ascii_domain', 'ascii_local_part', 'domain', 'domain_address', 'local_part', 'mx', 'mx_fallback_type', 'smtputf8']

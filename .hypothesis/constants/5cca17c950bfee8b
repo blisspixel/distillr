@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\main.py
-# hypothesis_version: 6.148.2
-
-['AbstractSetIntStr', 'AnyClassMethod', 'BaseModel', 'CallableGenerator', 'Config', 'DictAny', 'DictStrAny', 'MappingIntStrAny', 'Model', 'ModelOrDc', 'ReprArgs', 'SetStr', 'Signature', 'TupleGenerator', 'ValidatorListDict', '_T', '__', '__annotations__', '__class_vars__', '__config__', '__custom_root_type__', '__dict__', '__exclude_fields__', '__fields__', '__fields_set__', '__hash__', '__include_fields__', '__json_encoder__', '__module__', '__orig_bases__', '__qualname__', '__schema_cache__', '__set_name__', '__signature__', '__slots__', '__validators__', 'create_model', 'deep', 'default', 'none', 'pydantic.main', 'required', 'shallow', 'use_enum_values', 'utf8', 'validate_model']

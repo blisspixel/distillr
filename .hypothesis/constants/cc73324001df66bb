@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\requests\utils.py
-# hypothesis_version: 6.148.2
-
-[1000, 65281, "!#$%&'()*+,/:;=?@[]~", "!#$&'()*+,/:;=?@[]~|", '%', ',', '-', '-21', '0', '0123456789-._~', ':', ';', 'ALL', 'Content-Type', 'DELETE', 'Expect', 'GET', 'HEAD', 'Host', 'HttpVersionLiteral', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'QUERY', 'TRACE', 'all', 'application/json', 'https', 'https://', 'not_set', 'set_curl_options', 'socks', 'v1', 'v2', 'v2_prior_knowledge', 'v2tls', 'v3', 'v3only', '|']

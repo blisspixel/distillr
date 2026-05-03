@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\mhtml.py
-# hypothesis_version: 6.148.2
-
-[b'\r\n', b'--%b\r\n', b'--%b--\r\n\r\n', b'=%02X', b'Content-ID: <%b>\r\n', b'Content-length: %u\r\n', b'Content-location: %b\r\n', b'Content-type: %b\r\n', b'X.yt-dlp.Duration: %f\r\n', '-', '</figure>', '<figure>', '=?utf-8?Q?', '?=', '\\s+', 'dest_stream', 'duration', 'extra_state', 'filename', 'format_id', 'fragment_base_url', 'fragment_index', 'fragments', 'header_written', 'mime_boundary', 'path', 'test', 'title', 'total_frags', 'url', 'us-ascii', 'webpage_url']

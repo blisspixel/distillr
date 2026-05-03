@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\watchfiles\main.py
-# hypothesis_version: 6.148.2
-
-[300, 1000, 1600, 5000, '%d change%s detected', 'AbstractEvent', 'AnyEvent', 'Change', 'FileChange', 'WATCHFILES_DEBUG', 'awatch', 'disable', 'disabled', 'false', 'linux', 'microsoft-standard', 's', 'signal', 'stop', 'timeout', 'watch', 'watchfiles.main', 'win32']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\watchfiles\filters.py
-# hypothesis_version: 6.148.2
-
-[', ', '.git', '.hg', '.hypothesis', '.idea', '.mypy_cache', '.py', '.pyd', '.pytest_cache', '.pyx', '.svn', '.tox', '.venv', 'BaseFilter', 'Change', 'DefaultFilter', 'PythonFilter', '\\.___jb_...___$', '\\.py[cod]$', '\\.sw.$', '^\\.DS_Store$', '^\\.\\#', '^flycheck_', '__pycache__', '_ignore_dirs', '_ignore_paths', 'node_modules', 'watchfiles.watcher', '~$']

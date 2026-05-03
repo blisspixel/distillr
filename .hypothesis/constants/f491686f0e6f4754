@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\opentelemetry\semconv\_incubating\attributes\otel_attributes.py
-# hypothesis_version: 6.148.2
-
-['DROP', 'ERROR', 'OK', 'RECORD_AND_SAMPLE', 'RECORD_ONLY', 'local', 'none', 'otel.component.name', 'otel.component.type', 'otel.event.name', 'otel.library.name', 'otel.library.version', 'otel.scope.name', 'otel.scope.version', 'otel.status_code', 'remote', 'simple_log_processor']

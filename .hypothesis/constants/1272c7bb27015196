@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\rich\text.py
-# hypothesis_version: 6.148.2
-
-['Console', 'ConsoleOptions', 'JustifyMethod', 'Lorem', 'OverflowMethod', 'Segment', 'Span', 'Style', 'Text', '\\s+$', '^( *)(.*)$', '__main__', '_length', '_spans', '_text', 'blue', 'bold', 'center', 'default', 'dim green', 'ellipsis', 'end', 'fold', 'full', 'green', 'ignore', 'ipsum', 'italic', 'justify', "justify='center'", "justify='full'", "justify='left'", "justify='right'", 'left', 'magenta', 'no_wrap', 'overflow', 'red', 'right', 'style', 'tab_size', '|', '…', '│']

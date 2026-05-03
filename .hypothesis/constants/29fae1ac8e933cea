@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\beta\chatkit\threads.py
-# hypothesis_version: 6.148.2
-
-['/chatkit/threads', 'AsyncThreads', 'OpenAI-Beta', 'Threads', 'after', 'asc', 'before', 'chatkit_beta=v1', 'desc', 'limit', 'order', 'user']

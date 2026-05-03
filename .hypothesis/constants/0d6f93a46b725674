@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\shape.py
-# hypothesis_version: 6.148.2
-
-['Picture %d', 'a', 'a:blip', 'a:custGeom', 'a:effectDag', 'a:effectLst', 'a:ext', 'a:extLst', 'a:graphic', 'a:graphicData', 'a:ln', 'a:off', 'a:prstGeom', 'a:scene3d', 'a:sp3d', 'a:srcRect', 'a:stretch', 'a:tile', 'a:xfrm', 'cx', 'cy', 'id', 'name', 'pic', 'pic:blipFill', 'pic:cNvPr', 'pic:nvPicPr', 'pic:pic', 'pic:spPr', 'r', 'r:embed', 'r:link', 'uri', 'wp', 'wp:docPr', 'wp:extent', 'x', 'y']

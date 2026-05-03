@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\opentelemetry\sdk\trace\__init__.py
-# hypothesis_version: 6.148.2
-
-[1000.0, 128, 30000, 1000000, 'ReadableSpan', 'Span', 'TracerProvider', 'attributes', 'builtins', 'context', 'description', 'end_time', 'events', 'exception', 'ignore', 'kind', 'links', 'name', 'parent_id', 'register_at_fork', 'resource', 'span_id', 'start_time', 'status', 'status_code', 'timestamp', 'trace_api.Tracer', 'trace_id', 'trace_state', 'true']

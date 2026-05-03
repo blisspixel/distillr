@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\markdown\blockprocessors.py
-# hypothesis_version: 6.148.2
-
-[100, '\n%s', '%s\n', '(\\d+)', '1', '<', '=', '>', 'MARKDOWN', '^(([ ]{%s})+)', 'blockquote', 'code', 'detabbed', 'empty', 'h%d', 'hashheader', 'header', 'hr', 'indent', 'level', 'li', 'list', 'looselist', 'ol', 'olist', 'p', 'paragraph', 'pre', 'quote', 'reference', 'setextheader', 'start', 'ul', 'ulist', '{}\n{}', '{}\n{}\n', '{}{}']

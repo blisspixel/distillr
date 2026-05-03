@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\summary.py
-# hypothesis_version: 6.148.2
-
-[0.0, 0.0004, 0.001, 0.003, 0.006, 0.05, 2.5, 1024, ' + ', '# Distill Run Log', '## Failed Videos', '## Outputs', '## Run Issues', '0 videos', '```', '```text', 'a', 'command', 'context', 'details', 'elapsed_seconds', 'entries', 'error', 'exception_type', 'failed', 'failed_videos', 'full_videos', 'gemini_queries', 'issues', 'latest_run.json', 'latest_run_errors.md', 'message', 'metadata', 'outputs', 'passed', 'results', 'rgb(100,149,237)', 'run_log.jsonl', 'severity', 'shorts', 'stage', 'timestamp', 'traceback', 'utf-8']

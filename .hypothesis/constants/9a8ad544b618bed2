@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\typer\_typing.py
-# hypothesis_version: 6.148.2
-
-['Annotated', 'Literal', 'NoneType', 'all_literal_values', 'get_args', 'get_origin', 'get_type_hints', 'is_callable_type', 'is_literal_type', 'is_none_type', 'is_union']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\utils\traversal.py
-# hypothesis_version: 6.148.2
-
-['()', './', '/', '@', '[\\w:.-]+', 'data', 'ext', 'id', 'quality', 'text()', 'und', 'url']

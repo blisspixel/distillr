@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\cryptography\x509\extensions.py
-# hypothesis_version: 6.148.2
-
-['*', '<OCSPNoCheck()>', '<PrecertPoison()>', 'ExtensionType', 'ExtensionTypeVar', '_admissions', '_descriptions', '_distribution_points', '_extensions', '_features', '_general_names', '_policies', '_usages', 'aACompromise', 'affiliationChanged', 'cACompromise', 'certificateHold', 'cessationOfOperation', 'keyCompromise', 'nonce must be bytes', 'privilegeWithdrawn', 'removeFromCRL', 'superseded', 'text must be a str', 'unspecified', 'url must be a str']

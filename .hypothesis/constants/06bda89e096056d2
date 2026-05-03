@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\webvtt.py
-# hypothesis_version: 6.148.2
-
-[100, 1000, 60000, 3600000, ' --> ', '%02u:%02u:%02u.%03u', '(?:\\r\\n|[\\r\\n])+', '(?:\\r\\n|[\\r\\n]|$)', ',MPEGTS:', 'LOCAL:', 'MPEGTS:([0-9]+)', 'WEBVTT', 'X-TIMESTAMP-MAP=', '[ \\t]*', '[ \\t]*,[ \\t]*', '[ \\t]+-->[ \\t]+', '\\Z', 'end', 'id', 'settings', 'start', 'text']

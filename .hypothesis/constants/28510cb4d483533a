@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpx\_content.py
-# hypothesis_version: 6.148.2
-
-[65536, ',', ':', 'ByteStream', 'Content-Length', 'Content-Type', 'Transfer-Encoding', 'application/json', 'aread', 'chunked', 'read', 'utf-8']

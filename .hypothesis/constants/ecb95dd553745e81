@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\async_timeout\__init__.py
-# hypothesis_version: 6.148.2
-
-['5.0.1', 'ENTER', 'EXIT', 'INIT', 'TIMEOUT', 'Timeout', '_deadline', '_loop', '_state', '_task', '_timeout_handler', '_val', 'asyncio.Task[object]', 'timeout', 'timeout_at']

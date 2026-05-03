@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\genai\pagers.py
-# hypothesis_version: 6.148.2
-
-['T', 'batch_jobs', 'cached_contents', 'documents', 'file_search_stores', 'files', 'models', 'next_page_token', 'page_size', 'page_token', 'sdk_http_response', 'tuning_jobs']

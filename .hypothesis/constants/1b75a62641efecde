@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\google\auth\transport\_mtls_helper.py
-# hypothesis_version: 6.148.2
-
-[b'ENCRYPTED', '%s is not found.', '--with_passphrase', 'cert_configs', 'cert_path', 'key_path', 'rb', 'workload']

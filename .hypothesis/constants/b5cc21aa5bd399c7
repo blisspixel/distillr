@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\playwright\_impl\_input.py
-# hypothesis_version: 6.148.2
-
-['Double click', 'keyboardDown', 'keyboardInsertText', 'keyboardPress', 'keyboardType', 'keyboardUp', 'mouseClick', 'mouseDown', 'mouseMove', 'mouseUp', 'mouseWheel', 'self', 'touchscreenTap']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\rtmp.py
-# hypothesis_version: 6.148.2
-
-[b'\n', b'\r', 5.0, 100, 1024, '--app', '--conn', '--flashVer', '--help', '--live', '--pageUrl', '--playpath', '--protocol', '--realtime', '--resume', '--skip', '--stop', '--swfVfy', '--tcUrl', '--verbose', '-h', '-o', '-r', '1', '[rtmpdump] ', 'app', 'ascii', 'continuedl', 'downloaded_bytes', 'downloading', 'elapsed', 'eta', 'filename', 'finished', 'flash_version', 'is_live', 'no_resume', 'page_url', 'play_path', 'player_url', 'replace', 'rtmp_conn', 'rtmp_live', 'rtmp_protocol', 'rtmp_real_time', 'rtmpdump', 'speed', 'status', 'tc_url', 'test', 'tmpfilename', 'total_bytes', 'total_bytes_estimate', 'url', 'verbose']

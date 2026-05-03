@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\trio\_socket.py
-# hypothesis_version: 6.148.2
-
-[128, '255.255.255.255', '<broadcast>', 'AF_UNIX', 'P', 'SOCK_CLOEXEC', 'SOCK_NONBLOCK', 'T', '__', '__name__', 'ascii', 'fromshare', 'hostname_resolver', 'linux', 'recvmsg', 'recvmsg_into', 'sendmsg', 'share', 'socket.socket', 'socket_factory', 'trio.socket.socket', 'win32']

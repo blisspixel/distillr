@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\h11\_util.py
-# hypothesis_version: 6.148.2
-
-[400, 'LocalProtocolError', 'ProtocolError', 'RemoteProtocolError', 'Sentinel', '_T_Sentinel', 'ascii', 'bytesify', 'malformed data', 'validate']

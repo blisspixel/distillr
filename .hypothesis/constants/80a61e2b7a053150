@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\websockets\client.py
-# hypothesis_version: 6.148.2
-
-[101, ', ', '.legacy.client', '1.618', '13', '3.1', '5', '90.0', '< %s: %s', '< HTTP/1.1 %d %s', '< [body] (%d bytes)', '> %s: %s', '> GET %s HTTP/1.1', 'Authorization', 'ClientProtocol', 'Connection', 'Host', 'Origin', 'Sec-WebSocket-Accept', 'Sec-WebSocket-Key', 'Upgrade', 'connect', 'multiple values', 'unix_connect', 'upgrade', 'websocket']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\Cryptodome\Util\_raw_api.py
-# hypothesis_version: 6.148.2
-
-[256, ', ', '.', "Cannot load '%s': %s", "Not found '%s'", 'RTLD_DEEPBIND', 'Win', '__pypy__', 'buf', 'cffi', 'const uint8_t*', 'ctypes', 'format', 'internal', 'itemsize', 'len', 'ndim', 'nt', 'obj', 'readonly', 'shape', 'smalltable', 'strides', 'suboffsets', 'uint8_t[1]', 'uint8_t[]', 'void *[1]']

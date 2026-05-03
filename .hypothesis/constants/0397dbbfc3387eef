@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\openai\resources\skills\versions\versions.py
-# hypothesis_version: 6.148.2
-
-['<array>', 'AsyncVersions', 'Content-Type', 'Versions', 'after', 'asc', 'default', 'desc', 'files', 'limit', 'multipart/form-data', 'order']

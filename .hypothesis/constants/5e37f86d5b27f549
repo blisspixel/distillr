@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\httpcore\_async\connection_pool.py
-# hypothesis_version: 6.148.2
-
-[b'http', b'socks5', b'socks5h', 'aclose', 'http', 'https', 'pool', 'timeout', 'ws', 'wss']

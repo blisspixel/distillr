@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\downloader\rtsp.py
-# hypothesis_version: 6.148.2
-
-['--stream-dump=', '--vo=null', '-dumpfile', '-dumpstream', '-h', '-really-quiet', '-vc', '-vo', 'downloaded_bytes', 'dummy', 'filename', 'finished', 'mplayer', 'mpv', 'null', 'status', 'total_bytes', 'url']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\mp4\_as_entry.py
-# hypothesis_version: 6.148.2
-
-[b'ac-3', b'alac', b'dac3', b'esds', b'mp4a', 112, 127, 128, 160, 192, 224, 256, 320, 384, 448, 512, 576, 640, 695, 1000, 1352, 7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000, '+PS', '+SBR', '.%X', '.%d', 'AAC LC', 'AAC LTP', 'AAC MAIN', 'AAC SSR', 'AAC scalable', 'ALS', 'CELP', 'DST', 'ER AAC ELD', 'ER AAC LC', 'ER AAC LD', 'ER AAC LTP', 'ER AAC scalable', 'ER BSAC', 'ER CELP', 'ER HILN', 'ER HVXC', 'ER Parametric', 'ER Twin VQ', 'General MIDI', 'HVXC', 'LD MPEG Surround', 'Layer-1', 'Layer-2', 'Layer-3', 'MPEG Surround', 'Main synthetic', 'PS', 'SAOC', 'SBR', 'SLS', 'SLS non-core', 'SMR Main', 'SMR Simple', 'SSC', 'TTSI', 'TwinVQ', 'USAC', 'Wavetable synthesis', 'extensionFlag3 set', 'latin-1', 'pce_channels', 'too short %r atom', 'truncated %s atom']

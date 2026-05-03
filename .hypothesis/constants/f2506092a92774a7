@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\requests_toolbelt\auth\http_proxy_digest.py
-# hypothesis_version: 6.148.2
-
-[407, 'Proxy-Authorization', '_thread_local', 'digest ', 'false', 'proxy-authenticate', 'response', 'stale', 'true']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\aiohttp\http.py
-# hypothesis_version: 6.148.2
-
-['HeadersParser', 'HttpParser', 'HttpProcessingError', 'HttpRequestParser', 'HttpResponseParser', 'HttpVersion', 'HttpVersion10', 'HttpVersion11', 'RESPONSES', 'RawRequestMessage', 'RawResponseMessage', 'SERVER_SOFTWARE', 'StreamWriter', 'WSCloseCode', 'WSMessage', 'WSMsgType', 'WS_CLOSED_MESSAGE', 'WS_CLOSING_MESSAGE', 'WS_KEY', 'WebSocketError', 'WebSocketReader', 'WebSocketWriter', 'ws_ext_gen', 'ws_ext_parse']

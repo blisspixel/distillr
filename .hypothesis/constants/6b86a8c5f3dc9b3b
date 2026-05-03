@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\langsmith\_internal\_background_thread.py
-# hypothesis_version: 6.148.2
-
-[0.05, 0.25, 0.5, 100, 20971520, 'Hybrid mode cleanup', 'OTEL-only cleanup', 'OTEL_ENABLED', 'OTEL_ONLY', '_manual_cleanup', 'attributes', 'getrefcount', 'item', 'langsmith.client', 'otel_context', 'otel_exporter', 'priority', 'resource', 'size_limit', 'size_limit_bytes']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\_notifications.py
-# hypothesis_version: 6.148.2
-
-['/post/(.+)', ':ytnotif', ':ytnotifications', '_type', 'actions', 'approximate_date', 'browseEndpoint', 'browseId', 'canonicalBaseUrl', 'channel', 'channel_id', 'contextualMenu', 'continuationEndpoint', 'continuationItems', 'ctoken', 'ie_key', 'items', 'menuRenderer', 'navigationEndpoint', 'notificationRenderer', 'notifications', 'only_matching', 'openPopupAction', 'popup', 'post id', 'runs', 'sections', 'sentTimeText', 'shortMessage', 'text', 'thumbnails', 'timestamp', 'title', 'uploader', 'url', 'video title', 'videoId', 'videoThumbnail', 'video_id', 'watchEndpoint', 'web', 'youtube:notif', '\xad']

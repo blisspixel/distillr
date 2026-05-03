@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\networking\_websockets.py
-# hypothesis_version: 6.148.2
-
-['.', 'addr', 'cookie', 'cookiejar', 'keep_header_casing', 'legacy_ssl', 'port', 'socks4', 'socks4a', 'socks5', 'socks5h', 'source_address', 'timeout', 'websockets', 'websockets.client', 'websockets.server', 'ws', 'wss']

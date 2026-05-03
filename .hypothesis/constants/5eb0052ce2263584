@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\socksio\socks4.py
-# hypothesis_version: 6.148.2
-
-[b'\x00', b'\x00\x00\x00\xff', b'\x01', b'\x02', b'\x04', b'Z', b'[', b'\\', b']', 'Malformed reply', 'SOCKS4ARequest', 'SOCKS4Reply', 'SOCKS4Request', 'big']

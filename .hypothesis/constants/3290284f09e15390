@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\extractor\youtube\jsc\_builtin\ejs.py
-# hypothesis_version: 6.148.2
-
-['builtin', 'bun_npm', 'cache', 'challenge-solver', 'challenges', 'code', 'core', 'data', 'deno_npm', 'dev', 'ejs:github', 'error', 'extractor_args', 'false', 'lib', 'minified', 'output_preprocessed', 'player', 'preprocessed', 'preprocessed_player', 'python package', 'remote_components', 'repo', 'requests', 'responses', 'script_version', 'true', 'type', 'unknown', 'unminified', 'variant', 'version', 'web', 'youtube-ejs', 'yt-dlp/ejs', 'yt.solver.bun.lib.js', 'yt.solver.core.js', 'yt.solver.lib.js', 'yt.solver.lib.min.js']

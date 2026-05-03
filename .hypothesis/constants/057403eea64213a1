@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\curl_cffi\aio.py
-# hypothesis_version: 6.148.2
-
-[0.1, 1000, 'AsyncCurl', 'NOT DONE', 'ProactorEventLoop', 'int *', 'long*', 'perform', 'win32']

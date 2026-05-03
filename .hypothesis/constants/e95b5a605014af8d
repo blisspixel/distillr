@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pydantic\v1\tools.py
-# hypothesis_version: 6.148.2
-
-[2048, 'DictStrAny', 'T', 'parse_file_as', 'parse_obj_as', 'parse_raw_as', 'schema_json_of', 'schema_of', 'utf8']

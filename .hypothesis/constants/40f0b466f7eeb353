@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\anyio\_core\_tempfile.py
-# hypothesis_version: 6.148.2
-
-['b', 'buffering', 'delete', 'delete_on_close', 'dir', 'encoding', 'errors', 'mode', 'newline', 'prefix', 'suffix', 'w+b']

@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\yt_dlp\postprocessor\embedthumbnail.py
-# hypothesis_version: 6.148.2
-
-['--artwork', '-attach', '-c', '-hide_banner', '-id3v2_version', '-map', '-metadata:s:v', '-o', '-v', '-write_id3v1', '0:0', '1', '1:0', '3', 'AtomicParsley', 'No changes', 'ascii', 'atomicparsley', 'attached_pic', 'compat_opts', 'copy', 'covr', 'disposition', 'ext', 'ffmpeg', 'filepath', 'flac', 'h', 'height', 'jpeg', 'jpg', 'libatomicparsley.so', 'm4a', 'm4v', 'mimetype', 'mka', 'mkv', 'mov', 'mp3', 'mp4', 'mutagen', 'ogg', 'opus', 'png', 'rb', 'tags', 'temp', 'thumbnails', 'title=Album cover', 'w', 'width']

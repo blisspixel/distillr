@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\docx\oxml\text\font.py
-# hypothesis_version: 6.148.2
-
-['_remove_%s', 'get_or_add_%s', 'w', 'w:ascii', 'w:b', 'w:bCs', 'w:bdr', 'w:caps', 'w:color', 'w:cs', 'w:dstrike', 'w:eastAsianLayout', 'w:effect', 'w:em', 'w:emboss', 'w:fitText', 'w:hAnsi', 'w:highlight', 'w:i', 'w:iCs', 'w:imprint', 'w:kern', 'w:lang', 'w:noProof', 'w:oMath', 'w:outline', 'w:position', 'w:rFonts', 'w:rStyle', 'w:rtl', 'w:shadow', 'w:shd', 'w:smallCaps', 'w:snapToGrid', 'w:spacing', 'w:specVanish', 'w:strike', 'w:sz', 'w:szCs', 'w:themeColor', 'w:u', 'w:val', 'w:vanish', 'w:vertAlign', 'w:w', 'w:webHidden']

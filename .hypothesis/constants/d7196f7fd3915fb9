@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\llm\providers\grok.py
-# hypothesis_version: 6.148.2
-
-[300, 8192, 'content', 'https://api.x.ai/v1', 'messages', 'model', 'role', 'temperature', 'timeout', 'user']

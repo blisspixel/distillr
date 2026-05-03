@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\OneDrive\distillr\distill\costs.py
-# hypothesis_version: 6.148.2
-
-[0.0, 0.0004, 0.006, 0.01, 0.05, 2.5, 1000000, '.distill', 'CostTracker', 'a', 'actual_cost', 'by_call_type', 'by_model', 'calls', 'command', 'cost_log.jsonl', 'elapsed_seconds', 'estimated_cost', 'estimated_grok_cost', 'estimated_total_cost', 'full_videos', 'gemini-deep-research', 'gemini_queries', 'grok_calls', 'input', 'input_tokens', 'metadata', 'output', 'output_tokens', 'per_query', 'shorts', 'timestamp', 'total_input_tokens', 'total_output_tokens', 'unknown', 'utf-8']

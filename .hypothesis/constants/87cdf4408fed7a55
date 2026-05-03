@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\langsmith\pytest_plugin.py
-# hypothesis_version: 6.148.2
-
-['\nFinishing up...', '--', '--capture=no', '--langsmith-output', '--s', '-qq', '-s', '...', '...::', '.py::', '7.', '::', 'Collecting tests...', 'Duration', 'Feedback', 'Inputs', 'LangSmith', 'Outputs', 'Passed: --', 'Ref outputs', 'Running tests...', 'Status', 'Test', '_request', 'cyan', 'duration', 'end_time', 'failed', 'feedback', 'green', 'inputs', 'langsmith', 'left', 'markers', 'outputs', 'passed', 'queued', 'red', 'reference_outputs', 'request', 'rich', 'running', 'skipped', 'start_time', 'status', 'store_true', 'unserializable', 'warnings-plugin', 'white', 'yellow']

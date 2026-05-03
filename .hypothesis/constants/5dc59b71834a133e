@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\pytest_timeout.py
-# hypothesis_version: 6.148.2
-
-['%s %s', '+', '--session-timeout', '--timeout', '--timeout-method', '--timeout_method', '.', '<unknown>', 'Captured log', 'Captured stderr', 'Captured stdout', 'PYTEST_TIMEOUT', 'SECONDS', 'SIGALRM', 'Settings', 'Stack of %s (%s)', 'Timeout', '_capturelog', 'bdb', 'bool', 'cancel_timeout', 'capturelog_handler', 'capturemanager', 'config file', 'func_only', 'is_debugging', 'marker', 'markers', 'method', 'monitoring', 'pydevd', 'session timeout: %ss', 'session_timeout', 'signal', 'store', 'store_true', 'thread', 'timeout', 'timeout_func_only', 'timeout_method', '~']

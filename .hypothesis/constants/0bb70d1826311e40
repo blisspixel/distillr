@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\execnet\gateway_bootstrap.py
-# hypothesis_version: 6.148.2
-
-[b'1', 255, 'except NameError:', 'import socket', 'import sys', 'remoteaddress', 'sys.stdout.flush()', 'try: execmodel', 'utf-8']

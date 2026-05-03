@@ -1,4 +1,0 @@
-# file: C:\Users\nicks\AppData\Roaming\Python\Python310\site-packages\mutagen\id3\_id3v1.py
-# hypothesis_version: 6.148.2
-
-[b'\x00', b'\x00\x00\x00\x00', b'APETAGEX', b'TAG', b'\xff', -128, 124, 128, 255, '3s30s30s30s%ds29sBB', 'COMM', 'ID3v1 Comment', 'TALB', 'TCON', 'TDRC', 'TIT2', 'TPE1', 'TRCK', 'TYER', 'album', 'artist', 'ascii', 'comment', 'eng', 'genre', 'latin1', 'replace', 'title', 'track', 'year']
