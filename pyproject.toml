@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "distillr"
-version = "0.3.2"
+version = "0.4.0"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = { text = "MIT" }
@@ -58,14 +58,34 @@ dev = [
     "pre-commit>=3.5",
     "build>=1.0",
     "twine>=5.0",
+    "import-linter>=2.0",
 ]
 
 [project.scripts]
 distill = "distill.cli:main"
-distill-mcp = "distill.mcp_server:main"
+distill-mcp = "distill.mcp.server:main"
 
 [tool.setuptools]
-packages = ["distill", "distill.llm", "distill.llm.providers", "distill.web", "distill.web.routes"]
+packages = [
+    "distill",
+    "distill.commands",
+    "distill.ingestors",
+    "distill.ingestors.youtube",
+    "distill.ingestors.sites",
+    "distill.ingestors.papers",
+    "distill.library",
+    "distill.llm",
+    "distill.llm.providers",
+    "distill.mcp",
+    "distill.mcp.tools",
+    "distill.pipeline",
+    "distill.pipeline.analysis",
+    "distill.pipeline.synthesis",
+    "distill.pipeline.report",
+    "distill.prompts",
+    "distill.web",
+    "distill.web.routes",
+]
 
 [tool.setuptools.package-data]
 "distill.web" = ["templates/**/*.html", "static/**/*"]
@@ -170,3 +190,40 @@ reportIndexIssue = "warning"
 reportPossiblyUnboundVariable = "warning"
 pythonVersion = "3.10"
 pythonPlatform = "All"
+
+[tool.importlinter]
+root_packages = ["distill"]
+
+[[tool.importlinter.contracts]]
+name = "Foundational layers have no upward imports"
+type = "forbidden"
+source_modules = [
+    "distill.library",
+    "distill.prompts",
+]
+forbidden_modules = [
+    "distill.commands",
+    "distill.ingestors",
+    "distill.pipeline",
+    "distill.mcp",
+    "distill.web",
+]
+
+[[tool.importlinter.contracts]]
+name = "Ingestors do not import from commands, pipeline, or mcp"
+type = "forbidden"
+source_modules = ["distill.ingestors"]
+forbidden_modules = [
+    "distill.commands",
+    "distill.pipeline",
+    "distill.mcp",
+]
+
+[[tool.importlinter.contracts]]
+name = "Pipeline does not import from commands or mcp"
+type = "forbidden"
+source_modules = ["distill.pipeline"]
+forbidden_modules = [
+    "distill.commands",
+    "distill.mcp",
+]

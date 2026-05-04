@@ -1,0 +1,179 @@
+"""MCP tools — watch: catch_up, watch_add, watch_remove."""
+
+from __future__ import annotations
+
+import contextlib
+import json
+
+from distill.library.state import ChannelState
+from distill.mcp import server as _server
+from distill.pipeline.costs import CostTracker, save_run_log
+
+__all__: list[str] = []
+
+
+@_server.mcp.tool()
+def catch_up(  # noqa: C901 — legacy, will refactor
+    channel: str | None = None,
+    topic: str | None = None,
+    days: int | None = None,
+) -> str:
+    """Refresh watched channels with lightweight scan analysis.
+
+    Discovers new videos, transcribes, and runs fast scan analysis.
+    Returns a summary of what was found and processed.
+
+    Args:
+        channel: Specific channel name to refresh (default: all watched)
+        topic: Only refresh channels in this topic
+        days: Override lookback days (default: per-channel setting)
+    """
+    from distill.cli_shared import ensure_channel_context, process_video
+    from distill.ingestors.youtube.discovery import discover_videos
+    from distill.pipeline.summary import ETATracker, RunSummary
+    from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+
+    config = _server._config()
+    if not config.xai_api_key:
+        return "Error: XAI_API_KEY not configured. Run: python scripts/setup.py"
+
+    lib = _server._lib(config)
+    watchlist = lib.get_watchlist()
+    if not watchlist:
+        return "Watch list is empty. Use watch_add to start tracking channels."
+
+    if channel:
+        watchlist = [e for e in watchlist if e.name.lower() == channel.lower()]
+        if not watchlist:
+            return f"'{channel}' not on watch list."
+    if topic:
+        watchlist = [e for e in watchlist if e.topic.lower() == topic.lower()]
+        if not watchlist:
+            return f"No watched channels in topic '{topic}'."
+
+    tracker = CostTracker()
+    summary = RunSummary(command="catch-up")
+    results = []
+    topics_touched: set[str] = set()
+
+    for entry in watchlist:
+        ch_days = days if days is not None else entry.days
+        try:
+            videos = discover_videos(entry.url, days=ch_days, include_shorts=True, quiet=True)
+        except Exception as exc:
+            results.append({"channel": entry.name, "status": "error", "error": str(exc)})
+            continue
+
+        state = ChannelState(config.channel_dir(entry.topic, entry.name) / "state.json")
+        new_vids = [v for v in videos if not state.is_processed(v.video_id)]
+
+        if not new_vids:
+            results.append(
+                {
+                    "channel": entry.name,
+                    "status": "up_to_date",
+                    "checked": len(videos),
+                    "days": ch_days,
+                }
+            )
+            continue
+
+        # Process new videos
+        ensure_channel_context(entry.topic, entry.name, new_vids, config, tracker)
+        eta = ETATracker(total=len(new_vids))
+        processed = []
+        for vid in new_vids:
+            success = process_video(
+                entry.topic,
+                entry.name,
+                vid,
+                config,
+                tracker,
+                summary,
+                state=state,
+                analysis_mode="scan",
+                custom_instructions=entry.instructions,
+                eta=eta,
+            )
+            processed.append({"title": vid.title, "success": success})
+
+        with contextlib.suppress(Exception):
+            synthesize_channel(entry.topic, entry.name, config, tracker=tracker)
+        topics_touched.add(entry.topic)
+
+        results.append(
+            {
+                "channel": entry.name,
+                "status": "processed",
+                "new_videos": len(new_vids),
+                "videos": processed,
+            }
+        )
+
+    for t in topics_touched:
+        with contextlib.suppress(Exception):
+            synthesize_topic(t, config, tracker=tracker)
+
+    save_run_log(config.library_dir, summary.command, tracker)
+    return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)
+
+
+@_server.mcp.tool()
+def watch_add(
+    url: str,
+    topic: str = "watch",
+    days: int = 14,
+    instructions: str = "",
+) -> str:
+    """Add a YouTube channel to your watch list for regular catch-up.
+
+    Args:
+        url: YouTube channel URL
+        topic: Topic to file under
+        days: How far back catch-up looks (e.g., 2 for daily deals, 14 for weekly)
+        instructions: Custom analysis instructions (e.g., "Extract top deals with prices")
+    """
+    from distill.ingestors.youtube.discovery import discover_videos, resolve_channel_name
+
+    config = _server._config()
+    lib = _server._lib(config)
+    name = resolve_channel_name(url)
+
+    # Auto-generate instructions if none provided
+    if not instructions and config.xai_api_key:
+        try:
+            vids = discover_videos(url, months=1, quiet=True)
+            if vids:
+                from distill.pipeline.analysis.video import generate_watch_instructions
+
+                auto = generate_watch_instructions(name, [v.title for v in vids[:15]], config)
+                if auto and auto.strip():
+                    instructions = auto.strip()
+        except Exception:
+            pass
+
+    if lib.add_to_watchlist(url, name, topic=topic, instructions=instructions, days=days):
+        return json.dumps(
+            {
+                "status": "added",
+                "name": name,
+                "topic": topic,
+                "days": days,
+                "instructions": instructions or "(auto-generated)" if instructions else "(none)",
+            },
+            indent=2,
+        )
+    return json.dumps({"status": "already_watching", "name": name})
+
+
+@_server.mcp.tool()
+def watch_remove(name: str) -> str:
+    """Remove a channel from your watch list.
+
+    Args:
+        name: Channel name to remove
+    """
+    lib = _server._lib()
+    if lib.remove_from_watchlist(name):
+        return json.dumps({"status": "removed", "name": name})
+    return json.dumps({"status": "not_found", "name": name})

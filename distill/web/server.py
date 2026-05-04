@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from distill.cli_shared import duration_str, format_date, strip_frontmatter
 from distill.config import DistillConfig
-from distill.dashboard_data import format_run_timestamp
+from distill.pipeline.dashboard_data import format_run_timestamp
 
 WEB_DIR = Path(__file__).parent
 

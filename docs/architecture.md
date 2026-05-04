@@ -194,49 +194,125 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 
 These aren't theoretical concerns — they're concrete token-budget and quality wins, with the research literature giving us the patterns to apply.
 
-## Package layout
+## Package layout (0.4.0)
 
 ```
-distill/                           # Python package
-├── cli.py                         # CLI entry point (Typer, 35+ commands + dashboard)
-├── cli_shared.py                  # Shared processing logic
-├── mcp_server.py                  # MCP server
-├── dashboard_data.py              # Shared dashboard data functions
-├── banner.py                      # ASCII banner
-├── config.py                      # Settings (Pydantic) — API keys, model pins
-├── library.py                     # Topics, channels, site corpora, watch list
-├── discovery.py                   # Channel listing, yt-dlp fallback search
-├── browser_search.py              # Playwright YouTube search retrieval
-├── ranking.py                     # Topic-video + paper reranking (RankedVideo, RankedPaper)
-├── briefing.py                    # Lightweight single-topic brief
-├── research_brief.py              # Multi-topic Deep Research briefing
-├── synthesize.py                  # Multi-topic Grok single-call synthesis
-├── site_scraper.py                # Browser-first website capture
-├── site_analysis.py               # Per-page insights + site synthesis
-├── site_attachments.py            # PDF/embedded-video attachment ingestion
-├── paper_ingest.py                # arXiv search (per-word policy) + multi-query fan-out + full-PDF extraction
-├── paper_analysis.py              # Per-paper insights + paper synthesis
-├── transcripts.py                 # YouTube captions → scribe fallback
-├── analysis.py                    # 2-pass full video + 1-pass Shorts
-├── synthesis.py                   # Per-channel / per-topic synthesis
-├── research.py                    # Gemini Deep Research (legacy + shared)
-├── accordion.py                   # 4-phase report orchestrator
-├── file_search.py                 # Gemini File Search store management
-├── net.py                         # Shared URL-scheme-validating urlopen
-├── costs.py                       # Token/cost tracking
-├── summary.py                     # Post-run summary display
-├── prompts.py                     # Core prompt templates
-├── prompts_accordion.py           # Report prompt templates
-├── state.py                       # Processed-video tracking
-├── docx_export.py                 # Markdown → DOCX
+distill/                           # Python package — layered subpackage architecture
+├── cli.py                         # ≤150-line Typer wiring module (entry point)
+├── _cli_impl.py                   # Business logic (migrated from the original cli.py)
+├── _bootstrap.py                  # UTF-8 stdio side-effect import
+├── _logging.py                    # Structured logging (configure_logging, --debug)
+├── config.py                      # Settings (Pydantic) — SecretStr API keys, model pins
+│
+├── commands/                      # One Typer command group per file
+│   ├── _helpers.py                # Cross-command UI helpers (from cli_shared.py)
+│   ├── costs.py                   # distill costs
+│   ├── dashboard.py               # distill dashboard, distill status
+│   ├── discover.py                # distill discover, learn, explore, search, monitor, ramp-up
+│   ├── doctor.py                  # distill doctor, health, cleanup, migrate
+│   ├── latest.py                  # distill latest, run, catch-up, reanalyze, channel, video
+│   ├── library.py                 # distill add, remove, library, videos, show, open, etc.
+│   ├── papers.py                  # distill paper, papers, corpus
+│   ├── report.py                  # distill report, brief, export
+│   ├── research_brief.py          # distill research-brief
+│   ├── serve.py                   # distill serve
+│   ├── site.py                    # distill site, site-batch
+│   ├── synthesize.py              # distill synthesize, resynthesize
+│   ├── topics.py                  # distill topic create/preview/update/brief/report/show/export
+│   └── watch.py                   # distill watch *, topic-watch *
+│
+├── ingestors/                     # Capture layer — one source per subpackage
+│   ├── youtube/
+│   │   ├── discovery.py           # VideoInfo, discover_videos, search_videos
+│   │   ├── transcripts.py         # get_transcript, _vtt_to_text
+│   │   └── browser_search.py      # search_youtube_results (Playwright)
+│   ├── sites/
+│   │   ├── scraper.py             # SitePage, SiteSeed, crawl_site
+│   │   └── attachments.py         # PDF/video attachment ingestion
+│   ├── papers/
+│   │   └── arxiv.py               # PaperRecord, search_arxiv_papers, PDF extraction
+│   └── net.py                     # URL safety helpers (safe_urlopen)
+│
+├── pipeline/                      # Orchestration layer
+│   ├── analysis/
+│   │   ├── video.py               # 2-pass full video + 1-pass Shorts
+│   │   ├── site.py                # Per-page insights + site synthesis
+│   │   └── paper.py               # Per-paper insights + paper synthesis
+│   ├── synthesis/
+│   │   ├── topic.py               # Per-channel / per-topic synthesis
+│   │   └── corpus.py              # Cross-source corpus synthesis
+│   ├── report/
+│   │   ├── deep_research.py       # Gemini Deep Research
+│   │   ├── accordion.py           # 4-phase report orchestrator
+│   │   ├── brief.py               # Multi-topic Deep Research briefing
+│   │   ├── briefing.py            # Lightweight single-topic brief
+│   │   ├── synthesize.py          # Multi-topic Grok single-call synthesis
+│   │   └── file_search.py         # Gemini File Search store management
+│   ├── costs.py                   # Token/cost tracking (CostTracker)
+│   ├── dashboard_data.py          # Shared dashboard data functions
+│   ├── discovery.py               # Goal-aware cross-source discovery
+│   ├── ranking.py                 # Video + paper reranking
+│   └── summary.py                 # Post-run summary display
+│
+├── prompts/                       # All prompt templates centralized
+│   ├── analysis.py                # pass1, pass2, shorts, scan, channel context
+│   ├── synthesis.py               # channel, topic, corpus, site, paper synthesis
+│   ├── report.py                  # deep research, accordion, brief prompts
+│   ├── discover.py                # query expansion, rerank, discover prompts
+│   └── shared.py                  # anti-hallucination, provenance rules
+│
+├── library/                       # Filesystem corpus layer (foundational)
+│   ├── paths.py                   # Artifact path resolution + frontmatter
+│   ├── state.py                   # Library + ChannelState management
+│   └── export.py                  # Markdown → DOCX
+│
+├── llm/                           # LLM router (foundational, no changes in 0.4)
+│   ├── router.py                  # Workload-to-provider dispatch
+│   ├── cost.py                    # Unified cost registry
+│   ├── telemetry.py               # Per-prompt telemetry
+│   └── providers/                 # xAI, Gemini, Anthropic, OpenAI, Ollama, Agent
+│
+├── mcp/                           # MCP server
+│   ├── server.py                  # Transport, registration, lifecycle
+│   ├── resources.py               # All resource handlers
+│   ├── prompts.py                 # MCP-protocol prompt definitions
+│   └── tools/                     # One file per tool group
+│       ├── discover.py            # learn_topic, search_videos
+│       ├── topics.py              # process_video_url
+│       ├── watch.py               # catch_up, watch_add, watch_remove
+│       ├── reports.py             # generate_report, resynthesize_topic
+│       └── gaps.py                # research_gaps
+│
 └── web/                           # Local dashboard (FastAPI + Jinja2 + HTMX)
     ├── server.py
-    ├── routes/                    # dashboard, topics, channels, videos, costs, watchlist
-    ├── templates/                 # Jinja2 HTML
-    └── static/                    # CSS + vendored HTMX
+    ├── routes/
+    ├── templates/
+    └── static/
+
+tests/                             # Mirrored test layout
+├── conftest.py
+├── test_config.py
+├── unit/
+│   ├── commands/                  # CLI command tests
+│   ├── ingestors/youtube/         # YouTube ingestor tests
+│   ├── ingestors/sites/           # Site ingestor tests
+│   ├── ingestors/papers/          # Paper ingestor tests
+│   ├── pipeline/analysis/         # Analysis pipeline tests
+│   ├── pipeline/synthesis/        # Synthesis pipeline tests
+│   ├── pipeline/report/           # Report pipeline tests
+│   ├── library/                   # Library layer tests
+│   ├── prompts/                   # Prompt tests
+│   ├── mcp/                       # MCP server tests
+│   └── llm/                       # LLM router tests
+└── integration/                   # Full-pipeline tests (gated behind -m integration)
 
 library/                           # Per-user data (git-ignored)
 ├── library.json                   # Master index
+├── .distill/                      # Ops data (telemetry, cost logs, distill.log)
 ├── cost_log.jsonl                 # Run cost history
 └── topics/<topic>/…               # Per-topic artifacts
 ```
+
+### Dependency direction
+
+Foundational layers (`library/`, `llm/`, `prompts/`) have zero imports from other `distill.*` subpackages. `ingestors/` imports only from foundational layers. `pipeline/` imports from ingestors and foundational layers. `commands/` and `mcp/` sit on top. Enforced by `import-linter` in CI.

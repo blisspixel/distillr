@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request
 
-from distill.dashboard_data import (
+from distill.pipeline.dashboard_data import (
     load_all_cost_runs,
     source_cost_rollups,
     sum_recent_cost,

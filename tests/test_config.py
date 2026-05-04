@@ -11,8 +11,8 @@ class TestDistillConfig:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("SCRIBE_PATH", raising=False)
         config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
-        assert config.xai_api_key == ""
-        assert config.gemini_api_key == ""
+        assert config.xai_api_key.get_secret_value() == ""
+        assert config.gemini_api_key.get_secret_value() == ""
         assert config.distill_default_months == 1
         assert config.xai_model_for("analysis") == "grok-4.3"
         assert config.xai_model_for("site") == "grok-4.20-0309-reasoning"
@@ -24,7 +24,7 @@ class TestDistillConfig:
             distill_output_dir=tmp_path / "mylib",
             distill_default_months=6,
         )
-        assert config.xai_api_key == "xai-test"
+        assert config.xai_api_key.get_secret_value() == "xai-test"
         assert config.distill_default_months == 6
 
     def test_xai_model_overrides(self, tmp_path):
