@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from typer.testing import CliRunner
 
-from distill import cli
+from distill import _cli_impl, cli
 from distill.config import DistillConfig
 from distill.library import Library, TopicWatchEntry
 from distill.library.paths import artifact_path
@@ -78,6 +78,7 @@ def test_topic_watch_cli_add_and_list(tmp_path):
     )
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     try:
         result = runner.invoke(
             cli.app,
@@ -105,6 +106,7 @@ def test_topic_watch_cli_add_and_list(tmp_path):
         assert "balanced mix" in listed.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_run_invokes_learning(tmp_path, monkeypatch):
@@ -128,12 +130,13 @@ def test_topic_watch_run_invokes_learning(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     calls = []
 
     def fake_run_learning_command(query, **kwargs):
         calls.append((query, kwargs))
 
-    monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+    monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
     try:
         result = runner.invoke(cli.app, ["topic-watch", "run", "microsoft-news"])
@@ -148,6 +151,7 @@ def test_topic_watch_run_invokes_learning(tmp_path, monkeypatch):
         assert kwargs["rerank"] is True
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
@@ -182,7 +186,8 @@ def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
-    monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+    _cli_impl.get_config = lambda: config
+    monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
     try:
         result = runner.invoke(cli.app, ["topic-watch", "run", "microsoft-news"])
@@ -223,6 +228,7 @@ def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
         assert "+1 video" in alerts_text
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):
@@ -247,12 +253,13 @@ def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     calls = []
 
     def fake_run_learning_command(query, **kwargs):
         calls.append((query, kwargs))
 
-    monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+    monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
     try:
         result = runner.invoke(cli.app, ["topic-watch", "run", "microsoft-news"])
@@ -262,6 +269,7 @@ def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):
         assert not calls
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeypatch):
@@ -285,8 +293,9 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
 
     original = cli.get_config
     cli.get_config = lambda: config
-    monkeypatch.setattr(cli, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli.console, "clear", lambda: None)
+    _cli_impl.get_config = lambda: config
+    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -300,6 +309,7 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
         assert "Recommended Next Actions" in result.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
@@ -338,8 +348,9 @@ def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
-    monkeypatch.setattr(cli, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli.console, "clear", lambda: None)
+    _cli_impl.get_config = lambda: config
+    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -351,6 +362,7 @@ def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
         assert "trend: rising" in result.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
@@ -378,8 +390,9 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
-    monkeypatch.setattr(cli, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli.console, "clear", lambda: None)
+    _cli_impl.get_config = lambda: config
+    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -390,6 +403,7 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
         assert "youtube" in result.output or "website" in result.output or "report" in result.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
@@ -412,8 +426,9 @@ def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
-    monkeypatch.setattr(cli, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli.console, "clear", lambda: None)
+    _cli_impl.get_config = lambda: config
+    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -422,6 +437,7 @@ def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
         assert "transcript looks thin" in result.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, monkeypatch):
@@ -454,6 +470,7 @@ def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, m
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
 
     try:
         result = runner.invoke(cli.app, ["diff", "ai"])
@@ -471,6 +488,7 @@ def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, m
         assert "ai-daily" in history_path.read_text(encoding="utf-8")
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_run_uses_popularity_ranking_mode(tmp_path, monkeypatch):
@@ -490,12 +508,13 @@ def test_topic_watch_run_uses_popularity_ranking_mode(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     calls = []
 
     def fake_run_learning_command(query, **kwargs):
         calls.append((query, kwargs))
 
-    monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+    monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
     try:
         result = runner.invoke(cli.app, ["topic-watch", "run", "ai-pop"])
@@ -507,6 +526,7 @@ def test_topic_watch_run_uses_popularity_ranking_mode(tmp_path, monkeypatch):
         assert "popularity-biased" in result.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
@@ -526,6 +546,7 @@ def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     calls = []
 
     from distill.pipeline.costs import CostTracker as _CostTracker
@@ -536,7 +557,7 @@ def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
         # log preview cost — return a real shape, not None.
         return config, _CostTracker(), []
 
-    monkeypatch.setattr(cli, "_preview_learning_selection", fake_preview_learning_selection)
+    monkeypatch.setattr(_cli_impl, "_preview_learning_selection", fake_preview_learning_selection)
 
     try:
         result = runner.invoke(cli.app, ["topic-watch", "run", "ai-fresh", "--preview"])
@@ -547,6 +568,7 @@ def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
         assert kwargs["rerank"] is False
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_ranking_command_updates_mode(tmp_path):
@@ -560,6 +582,7 @@ def test_topic_watch_ranking_command_updates_mode(tmp_path):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     try:
         result = runner.invoke(cli.app, ["topic-watch", "ranking", "msft", "popularity"])
         assert result.exit_code == 0
@@ -567,6 +590,7 @@ def test_topic_watch_ranking_command_updates_mode(tmp_path):
         assert Library(config).get_topic_watch_entry("msft").ranking_mode == "popularity"
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_trends_command_handles_empty_history(tmp_path):
@@ -579,6 +603,7 @@ def test_trends_command_handles_empty_history(tmp_path):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     try:
         result = runner.invoke(cli.app, ["trends", "ai"])
         assert result.exit_code == 0
@@ -589,6 +614,7 @@ def test_trends_command_handles_empty_history(tmp_path):
         assert trends_path.exists()
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_trends_command_summarizes_recent_windows(tmp_path):
@@ -613,6 +639,7 @@ def test_trends_command_summarizes_recent_windows(tmp_path):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     try:
         result = runner.invoke(cli.app, ["trends", "ai", "--limit", "3"])
         assert result.exit_code == 0
@@ -629,6 +656,7 @@ def test_trends_command_summarizes_recent_windows(tmp_path):
         assert "ai_Topic_Diff.md" in trends_text
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_list_shows_trend_label_when_history_exists(tmp_path):
@@ -653,12 +681,14 @@ def test_topic_watch_list_shows_trend_label_when_history_exists(tmp_path):
 
     original = cli.get_config
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     try:
         listed = runner.invoke(cli.app, ["topic-watch"])
         assert listed.exit_code == 0
         assert "trend: rising" in listed.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
 
 
 def test_topic_watch_run_prints_alert_digest_for_notable_change(tmp_path, monkeypatch):
@@ -685,7 +715,8 @@ def test_topic_watch_run_prints_alert_digest_for_notable_change(tmp_path, monkey
 
     original = cli.get_config
     cli.get_config = lambda: config
-    monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+    _cli_impl.get_config = lambda: config
+    monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
     try:
         result = runner.invoke(cli.app, ["topic-watch", "run", "ai-daily"])
@@ -695,3 +726,4 @@ def test_topic_watch_run_prints_alert_digest_for_notable_change(tmp_path, monkey
         assert "+3 videos" in result.output or "+3 video" in result.output
     finally:
         cli.get_config = original
+        _cli_impl.get_config = original
