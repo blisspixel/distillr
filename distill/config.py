@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
 if TYPE_CHECKING:
@@ -31,9 +32,9 @@ def sanitize_path_component(value: str) -> str:
 class DistillConfig(BaseSettings):
     """Distill configuration loaded from .env."""
 
-    xai_api_key: str = ""
-    gemini_api_key: str = ""
-    openai_api_key: str = ""
+    xai_api_key: SecretStr = SecretStr("")
+    gemini_api_key: SecretStr = SecretStr("")
+    openai_api_key: SecretStr = SecretStr("")
     scribe_path: str = ""
     distill_output_dir: Path = _default_library_dir()
     distill_default_months: int = 1
@@ -174,10 +175,10 @@ def router_config_from_distill(config: DistillConfig) -> "RouterConfig":
 
     return RouterConfig(
         # API keys
-        xai_api_key=config.xai_api_key,
-        gemini_api_key=config.gemini_api_key,
+        xai_api_key=config.xai_api_key.get_secret_value(),
+        gemini_api_key=config.gemini_api_key.get_secret_value(),
         anthropic_api_key=anthropic_api_key,
-        openai_api_key=config.openai_api_key,
+        openai_api_key=config.openai_api_key.get_secret_value(),
         # Global provider
         provider=provider,
         # Tier defaults (from DistillConfig, now defaulting to grok-4.3)

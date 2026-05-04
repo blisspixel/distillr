@@ -8,7 +8,10 @@ from pathlib import Path
 
 import typer
 
-from distill.artifacts import (
+from distill.cli_shared import format_date as _format_date
+from distill.config import DistillConfig
+from distill.library import Library
+from distill.library.paths import (
     artifact_path,
     base_frontmatter,
     find_artifact,
@@ -16,11 +19,8 @@ from distill.artifacts import (
     tags_for,
     write_markdown_artifact,
 )
-from distill.cli_shared import format_date as _format_date
-from distill.config import DistillConfig
-from distill.dashboard_data import format_run_timestamp as _format_run_timestamp
-from distill.dashboard_data import parse_run_datetime as _parse_run_datetime
-from distill.library import Library
+from distill.pipeline.dashboard_data import format_run_timestamp as _format_run_timestamp
+from distill.pipeline.dashboard_data import parse_run_datetime as _parse_run_datetime
 
 
 def _read_json_file(path_obj: Path) -> dict:

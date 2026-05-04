@@ -119,7 +119,10 @@ bandit -r distill/ -c pyproject.toml --severity-level medium
 # 4. Type check — blocking on distill/llm/, advisory elsewhere
 pyright distill/llm/
 
-# 5. Verify nothing unwanted is staged
+# 5. Dependency direction enforcement
+lint-imports
+
+# 6. Verify nothing unwanted is staged
 git diff --cached --stat
 git status
 ```
