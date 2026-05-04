@@ -9,7 +9,8 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
-from distill import cli
+from distill import _cli_impl, cli
+from distill.commands._helpers import duration_str, format_date
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
@@ -33,14 +34,23 @@ def mock_config(tmp_path):
         distill_output_dir=tmp_path / "library",
     )
     original = cli.get_config
+    original_impl = _cli_impl.get_config
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
+    original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
+    _cli_impl.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
+    if original_expand_impl is not None:
+        _cli_impl._llm_expand_learning_queries = lambda *args, **kwargs: []
     yield config
     cli.get_config = original
+    _cli_impl.get_config = original_impl
+    _cli_impl.get_config = original_impl
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
+    if original_expand_impl is not None:
+        _cli_impl._llm_expand_learning_queries = original_expand_impl
 
 
 @pytest.fixture
@@ -92,13 +102,14 @@ class TestTopLevelExperience:
         assert "Microsoft AI news" in result.output
 
     def test_no_args_empty_library_shows_launcher(self, mock_config, monkeypatch):
-        monkeypatch.setattr(cli, "show_banner", lambda console: None)
+        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)
 
         result = runner.invoke(cli.app, [])
 
         assert result.exit_code == 0
-        assert "Distill Home" in result.output
+        assert "Distill Start" in result.output
         # Panel title may not render in narrow test console; check for content instead
         assert "distill video" in result.output
         assert "Recent Spend" not in result.output
@@ -106,7 +117,8 @@ class TestTopLevelExperience:
     def test_no_args_with_library_shows_operational_dashboard(
         self, mock_config_with_library, monkeypatch
     ):
-        monkeypatch.setattr(cli, "show_banner", lambda console: None)
+        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)
 
         result = runner.invoke(cli.app, [])
@@ -131,8 +143,8 @@ class TestVideoCommand:
             "https://www.youtube.com/@TestChannel",
         )
 
-        monkeypatch.setattr(cli, "get_video_info", lambda url: info)
-        monkeypatch.setattr(cli, "display_summary", lambda *args, **kwargs: None)
+        monkeypatch.setattr(_cli_impl, "get_video_info", lambda url: info)
+        monkeypatch.setattr(_cli_impl, "display_summary", lambda *args, **kwargs: None)
 
         def fake_process(topic, channel_name, video, config, tracker, summary):
             vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
@@ -144,7 +156,7 @@ class TestVideoCommand:
             )
             return True
 
-        monkeypatch.setattr(cli, "_process_video", fake_process)
+        monkeypatch.setattr(_cli_impl, "_process_video", fake_process)
 
         result = runner.invoke(cli.app, ["video", info.url])
 
@@ -167,8 +179,8 @@ class TestVideoCommand:
             "https://www.youtube.com/@TestChannel",
         )
 
-        monkeypatch.setattr(cli, "get_video_info", lambda url: info)
-        monkeypatch.setattr(cli, "display_summary", lambda *args, **kwargs: None)
+        monkeypatch.setattr(_cli_impl, "get_video_info", lambda url: info)
+        monkeypatch.setattr(_cli_impl, "display_summary", lambda *args, **kwargs: None)
 
         def fake_process(topic, channel_name, video, config, tracker, summary):
             vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
@@ -180,7 +192,7 @@ class TestVideoCommand:
             )
             return True
 
-        monkeypatch.setattr(cli, "_process_video", fake_process)
+        monkeypatch.setattr(_cli_impl, "_process_video", fake_process)
 
         result = runner.invoke(cli.app, ["video", info.url, "--show"])
 
@@ -203,13 +215,13 @@ class TestLibraryCommand:
 
 class TestAddCommand:
     def test_add_channel(self, mock_config, monkeypatch):
-        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "NewChannel")
+        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "NewChannel")
         result = runner.invoke(cli.app, ["add", "ai", "https://www.youtube.com/@NewChannel"])
         assert result.exit_code == 0
         assert "Added" in result.output or "NewChannel" in result.output
 
     def test_add_duplicate(self, mock_config_with_library, monkeypatch):
-        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "TestCh")
+        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "TestCh")
         result = runner.invoke(cli.app, ["add", "ai", "https://www.youtube.com/@TestCh"])
         assert result.exit_code == 0
         assert "already exists" in result.output
@@ -282,7 +294,7 @@ class TestRunCommand:
         from distill.ingestors.youtube.discovery import VideoInfo
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "discover_videos",
             lambda url, months, include_shorts=False: [
                 VideoInfo("v1", "Video 1", _recent(2), 600, "https://youtube.com/watch?v=v1"),
@@ -318,12 +330,15 @@ class TestResearchCommand:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["report", "ai"])
             assert result.exit_code == 1
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
 
 class TestStatusCommand:
@@ -342,48 +357,48 @@ class TestFormatHelpers:
     """Test the CLI helper functions directly."""
 
     def test_format_date_yyyymmdd(self):
-        result = cli._format_date("20250115")
+        result = format_date("20250115")
         assert "Jan" in result
         assert "2025" in result
 
     def test_format_date_iso(self):
-        result = cli._format_date("2025-01-15T10:30:00")
+        result = format_date("2025-01-15T10:30:00")
         assert "Jan" in result
         assert "2025" in result
 
     def test_format_date_empty(self):
-        assert cli._format_date("") == "Unknown"
+        assert format_date("") == "Unknown"
 
     def test_format_date_none(self):
-        assert cli._format_date(None) == "Unknown"
+        assert format_date(None) == "Unknown"
 
     def test_format_date_invalid(self):
-        result = cli._format_date("not-a-date")
+        result = format_date("not-a-date")
         assert result == "not-a-date"
 
     def test_duration_seconds(self):
-        assert cli._duration_str(30) == "30s"
+        assert duration_str(30) == "30s"
 
     def test_duration_minutes(self):
-        assert cli._duration_str(120) == "2m"
+        assert duration_str(120) == "2m"
 
     def test_duration_hours(self):
-        assert cli._duration_str(3720) == "1h 2m"
+        assert duration_str(3720) == "1h 2m"
 
     def test_duration_none(self):
-        assert cli._duration_str(None) == "?"
+        assert duration_str(None) == "?"
 
     def test_duration_negative(self):
-        assert cli._duration_str(-5) == "?"
+        assert duration_str(-5) == "?"
 
     def test_duration_string_input(self):
-        assert cli._duration_str("not a number") == "?"
+        assert duration_str("not a number") == "?"
 
     def test_duration_zero(self):
-        assert cli._duration_str(0) == "0s"
+        assert duration_str(0) == "0s"
 
     def test_duration_float(self):
-        result = cli._duration_str(90.5)
+        result = duration_str(90.5)
         assert result == "1m"
 
 
@@ -437,40 +452,47 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+            _cli_impl,
+            "search_youtube_results",
+            lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
             ),
         )
-        monkeypatch.setattr(cli, "get_transcript", fake_transcript)
+        monkeypatch.setattr(_cli_impl, "get_transcript", fake_transcript)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_video",
             lambda title, upload_date, channel_name, transcript, config, tracker=None: (
                 f"# {title}\n\nInsight"
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_short",
             lambda title, upload_date, channel_name, transcript, config, tracker=None: (
                 f"# {title}\n\nShort"
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
         )
-        monkeypatch.setattr(cli, "synthesize_channel", fake_synthesize_channel)
-        monkeypatch.setattr(cli, "synthesize_topic", fake_synthesize_topic)
+        monkeypatch.setattr(_cli_impl, "synthesize_channel", fake_synthesize_channel)
+        monkeypatch.setattr(_cli_impl, "synthesize_topic", fake_synthesize_topic)
+        monkeypatch.setattr(
+            _cli_impl,
+            "synthesize_corpus",
+            lambda topic, config, tracker=None: None,
+        )
         # Prevent real LLM calls for query expansion
-        monkeypatch.setattr(cli, "_llm_expand_learning_queries", lambda *a, **kw: [])
+        monkeypatch.setattr(_cli_impl, "_llm_expand_learning_queries", lambda *a, **kw: [])
         monkeypatch.setattr(
             "distill.cli_support.learning._llm_expand_learning_queries", lambda *a, **kw: []
         )
@@ -513,11 +535,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+            _cli_impl,
+            "search_youtube_results",
+            lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -550,36 +574,38 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+            _cli_impl,
+            "search_youtube_results",
+            lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
             ),
         )
-        monkeypatch.setattr(cli, "get_transcript", fake_transcript)
+        monkeypatch.setattr(_cli_impl, "get_transcript", fake_transcript)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_video",
             lambda title, upload_date, channel_name, transcript, config, tracker=None: "# Insight",
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: "# Context",
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "synthesize_channel",
             lambda topic, channel_name, config, tracker=None: (
                 config.channel_dir(topic, channel_name) / "synthesis.md"
             ).write_text("# Synth", encoding="utf-8"),
         )
         # Prevent real LLM calls for query expansion
-        monkeypatch.setattr(cli, "_llm_expand_learning_queries", lambda *a, **kw: [])
+        monkeypatch.setattr(_cli_impl, "_llm_expand_learning_queries", lambda *a, **kw: [])
         monkeypatch.setattr(
             "distill.cli_support.learning._llm_expand_learning_queries", lambda *a, **kw: []
         )
@@ -621,11 +647,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+            _cli_impl,
+            "search_youtube_results",
+            lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -670,7 +698,7 @@ class TestLearnCommand:
             )
             return [], [SimpleNamespace(video=video, final_score=0.91, rationale="best fit")]
 
-        monkeypatch.setattr(cli, "_select_learning_videos", fake_select)
+        monkeypatch.setattr(_cli_impl, "_select_learning_videos", fake_select)
 
         result = runner.invoke(cli.app, ["explore", "Kubernetes"])
 
@@ -720,41 +748,48 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            cli, "search_youtube_results", lambda query, days=None, limit=None, hours=None: videos
+            _cli_impl,
+            "search_youtube_results",
+            lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
             ),
         )
-        monkeypatch.setattr(cli, "get_transcript", fake_transcript)
+        monkeypatch.setattr(_cli_impl, "get_transcript", fake_transcript)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_video",
             lambda title, upload_date, channel_name, transcript, config, tracker=None: (
                 f"# {title}\n\nInsight"
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_short",
             lambda title, upload_date, channel_name, transcript, config, tracker=None: (
                 f"# {title}\n\nShort"
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
         )
-        monkeypatch.setattr(cli, "synthesize_channel", fake_synthesize_channel)
-        monkeypatch.setattr(cli, "synthesize_topic", fake_synthesize_topic)
-        monkeypatch.setattr(cli, "generate_topic_brief", fake_generate_topic_brief)
+        monkeypatch.setattr(_cli_impl, "synthesize_channel", fake_synthesize_channel)
+        monkeypatch.setattr(_cli_impl, "synthesize_topic", fake_synthesize_topic)
+        monkeypatch.setattr(_cli_impl, "generate_topic_brief", fake_generate_topic_brief)
+        monkeypatch.setattr(
+            _cli_impl,
+            "synthesize_corpus",
+            lambda topic, config, tracker=None: None,
+        )
         # Prevent real LLM calls for query expansion
-        monkeypatch.setattr(cli, "_llm_expand_learning_queries", lambda *a, **kw: [])
+        monkeypatch.setattr(_cli_impl, "_llm_expand_learning_queries", lambda *a, **kw: [])
         monkeypatch.setattr(
             "distill.cli_support.learning._llm_expand_learning_queries", lambda *a, **kw: []
         )
@@ -780,16 +815,16 @@ class TestLearnHelpers:
         from distill.ingestors.youtube.discovery import VideoInfo
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: [
                 VideoInfo("v1", "New", "", 900, "https://youtube.com/watch?v=v1", "CreatorOne"),
                 VideoInfo("v2", "Old", "", 900, "https://youtube.com/watch?v=v2", "CreatorTwo"),
             ],
         )
-        monkeypatch.setattr(cli, "search_videos", lambda *args, **kwargs: [])
+        monkeypatch.setattr(_cli_impl, "search_videos", lambda *args, **kwargs: [])
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "enrich_videos",
             lambda vids, max_videos=None: [
                 VideoInfo(
@@ -815,7 +850,7 @@ class TestLearnHelpers:
         from types import SimpleNamespace
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: [
                 SimpleNamespace(video=v, final_score=0.9, rationale="best fit") for v in vids
@@ -846,7 +881,7 @@ class TestTopicCommands:
         def fake_discover(**kwargs):
             captured.update(kwargs)
 
-        monkeypatch.setattr(cli, "discover", fake_discover)
+        monkeypatch.setattr(_cli_impl, "discover", fake_discover)
 
         result = runner.invoke(
             cli.app,
@@ -882,7 +917,7 @@ class TestTopicCommands:
             captured["query"] = query
             captured["kwargs"] = kwargs
 
-        monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+        monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
         result = runner.invoke(
             cli.app,
@@ -906,7 +941,7 @@ class TestTopicCommands:
         assert captured["kwargs"]["header"] == "Topic Create"
 
     def test_topic_preview_does_not_save_profile(self, mock_config, monkeypatch):
-        monkeypatch.setattr(cli, "discover", lambda **kwargs: None)
+        monkeypatch.setattr(_cli_impl, "discover", lambda **kwargs: None)
 
         result = runner.invoke(
             cli.app,
@@ -931,7 +966,7 @@ class TestTopicCommands:
             encoding="utf-8",
         )
         captured = {}
-        monkeypatch.setattr(cli, "discover", lambda **kwargs: captured.update(kwargs))
+        monkeypatch.setattr(_cli_impl, "discover", lambda **kwargs: captured.update(kwargs))
 
         result = runner.invoke(
             cli.app,
@@ -987,7 +1022,7 @@ class TestTopicCommands:
         def fake_monitor(**kwargs):
             captured.update(kwargs)
 
-        monkeypatch.setattr(cli, "monitor", fake_monitor)
+        monkeypatch.setattr(_cli_impl, "monitor", fake_monitor)
 
         result = runner.invoke(cli.app, ["topic", "watch", "fabric", "--preview"])
 
@@ -1061,7 +1096,7 @@ class TestExportOpenCostsAndStatus:
             captured["title"] = title
             docx_path.write_text("docx", encoding="utf-8")
 
-        monkeypatch.setattr(cli, "markdown_to_docx", fake_markdown_to_docx)
+        monkeypatch.setattr(_cli_impl, "markdown_to_docx", fake_markdown_to_docx)
 
         result = runner.invoke(cli.app, ["export", "ai"])
 
@@ -1116,7 +1151,7 @@ class TestExportOpenCostsAndStatus:
         output_dir = mock_config.library_dir.parent / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr(
-            cli.os,
+            _cli_impl.os,
             "startfile",
             lambda target: opened.append(str(target)),
             raising=False,
@@ -1172,11 +1207,14 @@ class TestDoctorCleanupAndMigrate:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["doctor"])
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
         assert result.exit_code == 0
         assert "NOT SET" in result.output
@@ -1224,11 +1262,14 @@ class TestDoctorCleanupAndMigrate:
         )
 
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["health", "ai"])
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
         assert result.exit_code == 0
         assert "topic synthesis is stale" in result.output
@@ -1239,11 +1280,14 @@ class TestDoctorCleanupAndMigrate:
     def test_cleanup_requires_gemini_key(self, tmp_path):
         config = DistillConfig(gemini_api_key="", distill_output_dir=tmp_path / "library")
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["cleanup"])
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
         assert result.exit_code == 1
         assert "GEMINI_API_KEY required" in result.output
@@ -1279,8 +1323,8 @@ class TestWatchCommands:
         assert "WatchMe" in result.output
 
     def test_watch_add(self, mock_config, monkeypatch):
-        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "NewWatch")
-        monkeypatch.setattr(cli, "discover_videos", lambda url, months=1, quiet=True: [])
+        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "NewWatch")
+        monkeypatch.setattr(_cli_impl, "discover_videos", lambda url, months=1, quiet=True: [])
         result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@NewWatch"])
         assert result.exit_code == 0
         assert "Watching" in result.output or "NewWatch" in result.output
@@ -1290,7 +1334,7 @@ class TestWatchCommands:
 
         lib = Library(mock_config)
         lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe")
-        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "WatchMe")
+        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "WatchMe")
         result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@WatchMe"])
         assert result.exit_code == 0
         assert "already" in result.output
@@ -1362,7 +1406,7 @@ class TestWatchCommands:
             captured["seed_only"] = seed_only
             captured["report"] = report
 
-        monkeypatch.setattr(cli, "site_batch_cmd", fake_site_batch_cmd)
+        monkeypatch.setattr(_cli_impl, "site_batch_cmd", fake_site_batch_cmd)
 
         result = runner.invoke(
             cli.app,
@@ -1381,7 +1425,7 @@ class TestWatchCommands:
             captured["query"] = query
             captured["kwargs"] = kwargs
 
-        monkeypatch.setattr(cli, "_run_learning_command", fake_run_learning_command)
+        monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
 
         result = runner.invoke(
             cli.app,
@@ -1399,7 +1443,7 @@ class TestWatchCommands:
             captured["topic"] = topic
             captured["limit"] = limit
 
-        monkeypatch.setattr(cli, "papers", fake_papers)
+        monkeypatch.setattr(_cli_impl, "papers", fake_papers)
 
         result = runner.invoke(
             cli.app, ["ramp-up", "agent memory systems", "--source", "paper", "--topic", "papers"]
@@ -1412,7 +1456,7 @@ class TestWatchCommands:
         from distill.ingestors.papers.arxiv import PaperRecord
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "fetch_arxiv_paper",
             lambda target: PaperRecord(
                 paper_id="2602.12670v1",
@@ -1423,12 +1467,12 @@ class TestWatchCommands:
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_paper",
             lambda paper, config, tracker=None: ("# Insight", "# Paper doc"),
         )
         monkeypatch.setattr(
-            cli, "synthesize_papers", lambda topic, config, tracker=None: "paper synthesis"
+            _cli_impl, "synthesize_papers", lambda topic, config, tracker=None: "paper synthesis"
         )
 
         result = runner.invoke(cli.app, ["paper", "2602.12670", "--topic", "papers"])
@@ -1442,7 +1486,7 @@ class TestWatchCommands:
         from distill.ingestors.papers.arxiv import PaperRecord
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "search_arxiv_papers",
             lambda query, limit=10, **kwargs: [
                 PaperRecord(
@@ -1455,12 +1499,12 @@ class TestWatchCommands:
             ],
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "analyze_paper",
             lambda paper, config, tracker=None: ("# Insight", "# Paper doc"),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "synthesize_papers",
             lambda topic, config, tracker=None: (
                 (mock_config.topic_dir(topic) / "paper_synthesis.md").write_text(
@@ -1470,7 +1514,7 @@ class TestWatchCommands:
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "synthesize_corpus",
             lambda topic, config, tracker=None: (
                 (mock_config.topic_dir(topic) / "corpus_synthesis.md").write_text(
@@ -1526,9 +1570,9 @@ class TestWatchCommands:
                 ),
             ]
 
-        monkeypatch.setattr(cli, "search_arxiv_papers", fake_search)
+        monkeypatch.setattr(_cli_impl, "search_arxiv_papers", fake_search)
         monkeypatch.setattr(
-            cli, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
+            _cli_impl, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
         )
 
         result = runner.invoke(
@@ -1571,13 +1615,13 @@ class TestWatchCommands:
                 )
             ]
 
-        monkeypatch.setattr(cli, "search_arxiv_multi", fake_multi)
+        monkeypatch.setattr(_cli_impl, "search_arxiv_multi", fake_multi)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "_llm_expand_paper_queries",
             lambda query, config, tracker=None: ["q1 variant", "q2 variant"],
         )
-        monkeypatch.setattr(cli, "analyze_paper", lambda *a, **k: ("", ""))
+        monkeypatch.setattr(_cli_impl, "analyze_paper", lambda *a, **k: ("", ""))
 
         result = runner.invoke(
             cli.app,
@@ -1631,7 +1675,7 @@ class TestWatchCommands:
         ]
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "_discover_generate_queries",
             lambda goal, config, tracker, *, paper_count, video_count: (
                 ["transformer music"],
@@ -1639,12 +1683,12 @@ class TestWatchCommands:
             ),
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "search_arxiv_multi",
             lambda queries, limit_per_query=10, sort="relevance": papers_fixture,
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "_discover_fetch_videos",
             lambda queries, effective_days, candidate_cap, shorts: videos_fixture,
         )
@@ -1682,16 +1726,16 @@ class TestWatchCommands:
                 ),
             ]
 
-        monkeypatch.setattr(cli, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
 
         # Must not execute ingestion under --preview
         analyze_calls: list = []
         monkeypatch.setattr(
-            cli, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
+            _cli_impl, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
         )
         process_calls: list = []
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "_process_learning_selection",
             lambda *a, **k: process_calls.append(a),
         )
@@ -1739,16 +1783,16 @@ class TestWatchCommands:
             generate_calls.append(goal)
             return (["transformer music"], [])
 
-        monkeypatch.setattr(cli, "_discover_generate_queries", fake_generate)
+        monkeypatch.setattr(_cli_impl, "_discover_generate_queries", fake_generate)
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "search_arxiv_multi",
             lambda queries, limit_per_query=10, sort="relevance": [
                 PaperRecord(paper_id="2604.99999v1", title="X", abstract="y")
             ],
         )
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "_discover_rerank",
             lambda goal, papers, videos, sites, config, tracker: [
                 cli._RankedDiscoverItem(
@@ -1826,7 +1870,7 @@ class TestWatchCommands:
                 )
             ]
 
-        monkeypatch.setattr(cli, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
 
         result = runner.invoke(
             cli.app,
@@ -1920,10 +1964,12 @@ class TestWatchCommands:
             path.write_text("# Topic synthesis", encoding="utf-8")
             return "topic synthesis"
 
-        monkeypatch.setattr(cli, "_discover_rerank", fake_rerank)
-        monkeypatch.setattr(cli, "_process_site_seed", fake_process_site_seed)
-        monkeypatch.setattr(cli, "synthesize_site_topic", fake_synthesize_site_topic)
-        monkeypatch.setattr(cli, "synthesize_corpus", lambda topic, config, tracker=None: None)
+        monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_cli_impl, "_process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(_cli_impl, "synthesize_site_topic", fake_synthesize_site_topic)
+        monkeypatch.setattr(
+            _cli_impl, "synthesize_corpus", lambda topic, config, tracker=None: None
+        )
 
         result = runner.invoke(
             cli.app,
@@ -1963,7 +2009,7 @@ class TestWatchCommands:
         (topic_dir / "topic_synthesis.md").write_text("# Topic", encoding="utf-8")
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "synthesize_corpus",
             lambda topic, config, tracker=None: (
                 (mock_config.topic_dir(topic) / "corpus_synthesis.md").write_text(
@@ -1993,7 +2039,7 @@ class TestCatchUpCommand:
         lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe", topic="deals", days=7)
 
         monkeypatch.setattr(
-            cli,
+            _cli_impl,
             "discover_videos",
             lambda url, days=7, include_shorts=True, quiet=True: [
                 VideoInfo(
@@ -2255,7 +2301,7 @@ class TestCatchUpHints:
 
 class TestAddCommandHints:
     def test_add_shows_next_step(self, mock_config, monkeypatch):
-        monkeypatch.setattr(cli, "resolve_channel_name", lambda url: "NewCh")
+        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "NewCh")
         result = runner.invoke(cli.app, ["add", "ai", "https://youtube.com/@NewCh"])
         assert result.exit_code == 0
         assert "distill run ai" in result.output
@@ -2269,11 +2315,13 @@ class TestSiteCommands:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
 
         try:
             monkeypatch.setattr(
-                cli,
+                _cli_impl,
                 "crawl_site",
                 lambda seed: [
                     SitePage(
@@ -2289,7 +2337,7 @@ class TestSiteCommands:
             )
             called = []
             monkeypatch.setattr(
-                cli,
+                _cli_impl,
                 "analyze_site_page",
                 lambda *args, **kwargs: called.append("analyze") or "should not run",
             )
@@ -2313,6 +2361,7 @@ class TestSiteCommands:
             assert not find_artifact(page_dir, "insights").exists()
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
     def test_site_writes_section_update_when_manifest_changes(self, tmp_path, monkeypatch):
         config = DistillConfig(
@@ -2321,7 +2370,9 @@ class TestSiteCommands:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
 
         try:
             site_dir = config.site_dir("web", "example.com")
@@ -2342,7 +2393,7 @@ class TestSiteCommands:
                 encoding="utf-8",
             )
             monkeypatch.setattr(
-                cli,
+                _cli_impl,
                 "crawl_site",
                 lambda seed: [
                     SitePage(
@@ -2375,6 +2426,7 @@ class TestSiteCommands:
             assert "topic/agents changed" in update_path.read_text(encoding="utf-8")
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
     def test_site_ingest_attachments_writes_attachment_artifacts(self, tmp_path, monkeypatch):
         config = DistillConfig(
@@ -2383,11 +2435,13 @@ class TestSiteCommands:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
 
         try:
             monkeypatch.setattr(
-                cli,
+                _cli_impl,
                 "crawl_site",
                 lambda seed: [
                     SitePage(
@@ -2402,12 +2456,12 @@ class TestSiteCommands:
                 ],
             )
             monkeypatch.setattr(
-                cli,
+                _cli_impl,
                 "ingest_page_attachments",
                 lambda page, page_dir, config: (
                     [
                         __import__(
-                            "distill.site_attachments", fromlist=["AttachmentRecord"]
+                            "distill.ingestors.sites.attachments", fromlist=["AttachmentRecord"]
                         ).AttachmentRecord(
                             url="https://example.com/guide.pdf",
                             kind="pdf",
@@ -2421,7 +2475,17 @@ class TestSiteCommands:
                     "### PDF Attachment: https://example.com/guide.pdf\nPDF body",
                 ),
             )
-            monkeypatch.setattr(cli, "analyze_site_page", lambda *args, **kwargs: "# Insight")
+            monkeypatch.setattr(_cli_impl, "analyze_site_page", lambda *args, **kwargs: "# Insight")
+            monkeypatch.setattr(
+                _cli_impl,
+                "synthesize_site",
+                lambda topic, site_name, config, tracker=None: "# Synthesis",
+            )
+            monkeypatch.setattr(
+                _cli_impl,
+                "synthesize_site_topic",
+                lambda topic, config, tracker=None: "# Topic synthesis",
+            )
 
             result = runner.invoke(
                 cli.app,
@@ -2443,6 +2507,7 @@ class TestSiteCommands:
             )
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
     def test_site_reuses_existing_insights_when_page_is_unchanged(self, tmp_path, monkeypatch):
         config = DistillConfig(
@@ -2451,7 +2516,9 @@ class TestSiteCommands:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
 
         try:
             page = SitePage(
@@ -2464,19 +2531,29 @@ class TestSiteCommands:
             )
             page_dir = config.site_page_dir("web", "example.com", "Agent Page", page.page_id)
             page_dir.mkdir(parents=True, exist_ok=True)
-            prior_doc = cli.build_page_document(page)
+            prior_doc = _cli_impl.build_page_document(page)
             (page_dir / "metadata.json").write_text(
-                json.dumps({"content_hash": cli._content_hash(prior_doc)}),
+                json.dumps({"content_hash": _cli_impl._content_hash(prior_doc)}),
                 encoding="utf-8",
             )
             (page_dir / "insights.md").write_text("# Existing insight", encoding="utf-8")
 
-            monkeypatch.setattr(cli, "crawl_site", lambda seed: [page])
+            monkeypatch.setattr(_cli_impl, "crawl_site", lambda seed: [page])
             called = []
             monkeypatch.setattr(
-                cli,
+                _cli_impl,
                 "analyze_site_page",
                 lambda *args, **kwargs: called.append("analyze") or "# New insight",
+            )
+            monkeypatch.setattr(
+                _cli_impl,
+                "synthesize_site",
+                lambda topic, site_name, config, tracker=None: "# Synthesis",
+            )
+            monkeypatch.setattr(
+                _cli_impl,
+                "synthesize_site_topic",
+                lambda topic, config, tracker=None: "# Topic synthesis",
             )
 
             result = runner.invoke(
@@ -2494,6 +2571,7 @@ class TestSiteCommands:
             assert manifest["analyzed_pages"] == 0
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
     def test_site_scrape_only_rejects_report(self, tmp_path):
         config = DistillConfig(
@@ -2502,7 +2580,9 @@ class TestSiteCommands:
             distill_output_dir=tmp_path / "library",
         )
         original = cli.get_config
+        original_impl = _cli_impl.get_config
         cli.get_config = lambda: config
+        _cli_impl.get_config = lambda: config
 
         try:
             result = runner.invoke(
@@ -2513,6 +2593,7 @@ class TestSiteCommands:
             assert "--report cannot be used with --scrape-only" in result.output
         finally:
             cli.get_config = original
+            _cli_impl.get_config = original_impl
 
     def test_latest_preview_uses_stay_current_defaults(self, mock_config, monkeypatch):
         captured = {}
@@ -2521,7 +2602,7 @@ class TestSiteCommands:
             captured.update(query=query, **kwargs)
             return mock_config, cli.CostTracker(), []
 
-        monkeypatch.setattr(cli, "_preview_learning_selection", fake_preview)
+        monkeypatch.setattr(_cli_impl, "_preview_learning_selection", fake_preview)
 
         result = runner.invoke(cli.app, ["latest", "Claude Code leak", "--preview"])
 
@@ -2540,7 +2621,7 @@ class TestSiteCommands:
             captured.update(query=query, **kwargs)
             return mock_config, cli.CostTracker(), []
 
-        monkeypatch.setattr(cli, "_preview_learning_selection", fake_preview)
+        monkeypatch.setattr(_cli_impl, "_preview_learning_selection", fake_preview)
 
         result = runner.invoke(cli.app, ["search", "Claude Code leak", "--hours", "20"])
 
@@ -2632,12 +2713,12 @@ def test_select_learning_videos_falls_back_and_filters_shorts(mock_config, monke
         view_count=2000,
     )
 
-    monkeypatch.setattr(cli, "_expand_learning_queries", lambda *args, **kwargs: ["query"])
-    monkeypatch.setattr(cli, "search_youtube_results", lambda *args, **kwargs: [])
-    monkeypatch.setattr(cli, "search_videos", lambda *args, **kwargs: [short, full])
-    monkeypatch.setattr(cli, "enrich_videos", lambda vids, max_videos=None: vids)
+    monkeypatch.setattr(_cli_impl, "_expand_learning_queries", lambda *args, **kwargs: ["query"])
+    monkeypatch.setattr(_cli_impl, "search_youtube_results", lambda *args, **kwargs: [])
+    monkeypatch.setattr(_cli_impl, "search_videos", lambda *args, **kwargs: [short, full])
+    monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
     monkeypatch.setattr(
-        cli,
+        _cli_impl,
         "rerank_videos",
         lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: [
             SimpleNamespace(video=v, final_score=0.9, rationale="fit") for v in vids
