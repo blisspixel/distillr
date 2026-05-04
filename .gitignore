@@ -51,7 +51,7 @@ Desktop.ini
 .env.*.local
 
 # Distill runtime data (per-user, sometimes large)
-library/
+/library/
 output/
 tmp/
 
