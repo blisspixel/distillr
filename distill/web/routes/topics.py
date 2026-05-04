@@ -5,9 +5,9 @@ import json
 
 from fastapi import APIRouter, Request
 
-from distill.artifacts import artifact_exists, find_artifact
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.paths import artifact_exists, find_artifact
 
 router = APIRouter()
 

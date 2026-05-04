@@ -41,7 +41,7 @@ def library_with_channels(config):
 def populated_channel(config):
     """Create a config with a channel that has videos, transcripts, and insights."""
     from distill.library import Library
-    from distill.state import ChannelState
+    from distill.library.state import ChannelState
 
     lib = Library(config)
     lib.add_channel("ai", "https://www.youtube.com/@TestChannel", "TestChannel")

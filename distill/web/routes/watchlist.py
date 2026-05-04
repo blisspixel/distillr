@@ -2,11 +2,11 @@
 
 from fastapi import APIRouter, Request
 
-from distill.dashboard_data import (
+from distill.library import Library
+from distill.pipeline.dashboard_data import (
     collect_stale_topic_watches,
     estimate_topic_watch_cost,
 )
-from distill.library import Library
 
 router = APIRouter()
 

@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request
 
-from distill.dashboard_data import dashboard_snapshot
+from distill.pipeline.dashboard_data import dashboard_snapshot
 
 router = APIRouter()
 

@@ -14,6 +14,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.4.0 — 2026-07-14
+
+Package restructure: flat `distill/` → layered subpackage architecture.
+
+### Added
+
+- **Layered subpackage architecture.** The flat `distill/` package is now organized into focused subpackages: `commands/` (one Typer command group per file), `ingestors/` (YouTube, sites, papers), `pipeline/` (analysis, synthesis, report orchestration), `library/` (filesystem corpus layer), `prompts/` (all prompt templates), and `mcp/` (MCP server split by concern).
+- **Structured logging.** `configure_logging()` with `--debug` CLI flag. Console handler emits WARNING+ by default, DEBUG with `--debug`. File handler always writes DEBUG to `library/.distill/distill.log`.
+- **SecretStr for API keys.** `xai_api_key`, `gemini_api_key`, and `openai_api_key` in `DistillConfig` now use Pydantic `SecretStr` — keys are masked as `'**********'` in logs, repr, and debug output.
+- **import-linter dependency direction enforcement.** Three contracts in `pyproject.toml` enforce that foundational layers (`library/`, `prompts/`) never import from higher layers, ingestors don't import from commands/pipeline/mcp, and pipeline doesn't import from commands/mcp. Run `lint-imports` to verify.
+- **Mirrored test layout.** Test directory structure under `tests/unit/` mirrors the source layout (`tests/unit/commands/`, `tests/unit/ingestors/youtube/`, `tests/unit/pipeline/analysis/`, etc.). Integration tests live in `tests/integration/`.
+
+### Changed
+
+- **`cli.py` reduced to ≤65 lines.** All business logic lives in `_cli_impl.py`; command groups are thin Typer wrappers in `distill/commands/`.
+- **`mcp_server.py` split into `mcp/` subpackage.** Transport in `server.py`, tools in `tools/`, resources in `resources.py`, prompts in `prompts.py`.
+- **`prompts.py` split into domain-specific files.** `prompts/analysis.py`, `prompts/synthesis.py`, `prompts/report.py`, `prompts/discover.py`, `prompts/shared.py`.
+- **Backward-compatible shims removed.** Old flat-file import paths (`distill.artifacts`, `distill.discovery`, `distill.analysis`, etc.) are no longer available. Use the canonical subpackage paths.
+- **`router_config_from_distill()` updated** to call `.get_secret_value()` on SecretStr fields.
+- **Pre-push checklist** now includes `lint-imports` step.
+
 ## 0.3.1 — 2026-05-03
 
 LLM router abstraction and model upgrade.

@@ -8,15 +8,15 @@ from datetime import datetime, timedelta
 from rich import box
 from rich.table import Table
 
-from distill.browser_search import search_youtube_results
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import format_date as _format_date
 from distill.config import DistillConfig, router_config_from_distill
-from distill.costs import CostTracker, TokenUsage
-from distill.discovery import enrich_videos, search_videos
+from distill.ingestors.youtube.browser_search import search_youtube_results
+from distill.ingestors.youtube.discovery import enrich_videos, search_videos
 from distill.llm import call as llm_call
-from distill.prompts import paper_query_expansion_prompt, search_query_expansion_prompt
-from distill.ranking import RankedPaper, rerank_videos
+from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.ranking import RankedPaper, rerank_videos
+from distill.prompts.discover import paper_query_expansion_prompt, search_query_expansion_prompt
 
 
 def _expand_learning_queries(
