@@ -90,23 +90,29 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 
 | Model | Input | Output | Context | Used for |
 |---|---|---|---|---|
-| `grok-4-1-fast-reasoning` | $0.20/1M | $0.50/1M | 2M | Bulk video analysis, reranking, synthesis, briefs, report section writing |
-| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Website/page distillation, paper analysis, `distill synthesize` |
+| `grok-4.3` | $1.25/1M | $2.50/1M | 1M | Default for all workloads (analysis, reranking, synthesis, briefs, papers, sites, report section writing) |
+| `grok-4-1-fast-reasoning` | $0.20/1M | $0.50/1M | 2M | Legacy fast tier (still supported via env override) |
+| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Legacy premium tier (still supported via env override) |
 | `deep-research-pro-preview-12-2025` | pay-as-you-go | ~$2–5/query | N/A | Report Phase 1, `distill research-brief` |
 
-xAI also publishes cached-input rates ($0.05 and $0.20 respectively), which distill does not yet track — current estimates assume all input tokens are uncached.
+Since 0.3.1, both fast and premium tiers default to `grok-4.3`. The older models remain available via `.env` overrides for users who prefer them.
 
 ## Overriding models
 
 All model defaults are overridable via `.env`:
 
 ```bash
-XAI_FAST_MODEL=grok-4-1-fast-reasoning
-XAI_PREMIUM_MODEL=grok-4.20-0309-reasoning
+XAI_FAST_MODEL=grok-4.3
+XAI_PREMIUM_MODEL=grok-4.3
 XAI_ANALYSIS_MODEL=
-XAI_SITE_MODEL=grok-4.20-0309-reasoning
+XAI_SITE_MODEL=
 XAI_SYNTHESIS_MODEL=
-ACCORDION_SECTION_MODEL=grok-4-1-fast-reasoning
+ACCORDION_SECTION_MODEL=
+
+# Multi-provider support (added in 0.3.1)
+DISTILL_PROVIDER=xai                    # xai | gemini | anthropic | openai | agent
+DISTILL_ANALYSIS_PROVIDER=              # per-workload provider override
+DISTILL_SYNTHESIS_PROVIDER=
 ```
 
-Leave the narrow overrides blank to use the broader `XAI_FAST_MODEL` / `XAI_PREMIUM_MODEL` defaults.
+Leave the narrow overrides blank to use the broader `XAI_FAST_MODEL` / `XAI_PREMIUM_MODEL` defaults. Both default to `grok-4.3` since 0.3.1.

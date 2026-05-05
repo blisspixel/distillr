@@ -57,7 +57,7 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 ### Milestones at a glance
 
-- **0.3 Internal foundations** — split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging.
+- **0.3 Internal foundations** — shipped (0.3.0–0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture.
 - **0.4 Long-input fidelity** — chunked paper analysis, report-pipeline compaction, lost-in-the-middle regression tests.
 - **0.5 MCP-first surface** — JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands.
 - **0.6 Local-control parity** — Ollama / LM Studio in the router, Docker, paid-vs-local cost split.
@@ -65,7 +65,7 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 - **0.8 Concept playbook** — ACE-style concept/entity notes with delta merges and contradiction surfacing.
 - **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, stale-detection, budget guardrails.
-- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, ≥80% test coverage, Pyright strict, blocking lint/security CI, performance baseline, presentation pass.
+- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, performance baseline, presentation pass.
 
 Detail for each milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
 

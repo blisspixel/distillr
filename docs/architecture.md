@@ -127,8 +127,8 @@ xAI model choice is separated by workload, overridable via `.env`:
 
 | Workload | Default | Why |
 |---|---|---|
-| Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4-1-fast-reasoning` ($0.20/$0.50 per 1M) | High volume, cost-sensitive |
-| Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.20-0309-reasoning` ($2.00/$6.00 per 1M) | Higher fidelity on messy content |
+| Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4.3` ($1.25/$2.50 per 1M) | High volume, good quality at low cost |
+| Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.3` ($1.25/$2.50 per 1M) | Same model handles both tiers since 0.3.1 |
 
 Gemini Deep Research (`deep-research-pro-preview-12-2025`) handles report Phase 1 and `distill research-brief`.
 
