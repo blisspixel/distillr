@@ -1,7 +1,14 @@
-"""arXiv-first paper discovery and ingestion helpers."""
+"""arXiv-first paper discovery and ingestion helpers.
+
+NOTE: arXiv enforces a rate limit of ~1 request per 3 seconds. Exceeding this
+results in HTTP 429 responses. The networking layer handles generic retries, but
+arXiv-specific callers add longer waits (30s) on 429 since arXiv's cooldown is
+more aggressive than typical APIs.
+"""
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 import urllib.parse
@@ -15,7 +22,9 @@ import requests
 from defusedxml.ElementTree import fromstring as xml_fromstring
 from pypdf import PdfReader
 
-from distill.ingestors.net import safe_urlopen
+from distill.ingestors.net import NetworkError, safe_urlopen
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "ARXIV_API",
@@ -76,6 +85,9 @@ def search_arxiv_papers(query: str, limit: int = 10, *, sort: str = "date") -> l
 
     sort: "date" (newest first, arXiv default behavior) or "relevance"
     (arXiv's own relevance ranking via sortBy=relevance).
+
+    Includes a single arXiv-specific retry with a 30s wait on HTTP 429, since
+    arXiv's rate-limit cooldown is longer than the generic backoff handles.
     """
     sort_by = "relevance" if sort == "relevance" else "submittedDate"
     params = {
@@ -86,7 +98,14 @@ def search_arxiv_papers(query: str, limit: int = 10, *, sort: str = "date") -> l
         "sortOrder": "descending",
     }
     url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
-    return _parse_arxiv_feed(_fetch_text(url))
+    try:
+        return _parse_arxiv_feed(_fetch_text(url))
+    except NetworkError as exc:
+        if exc.status_code == 429:
+            logger.warning("arXiv rate-limited. Waiting 30s before retry...")
+            time.sleep(30)
+            return _parse_arxiv_feed(_fetch_text(url))
+        raise
 
 
 def search_arxiv_multi(
@@ -214,8 +233,16 @@ def fetch_paper_pdf_text(pdf_url: str) -> str:
 
 
 def _fetch_text(url: str) -> str:
-    with safe_urlopen(url) as response:
-        return response.read().decode("utf-8", errors="replace")
+    try:
+        with safe_urlopen(url) as response:
+            return response.read().decode("utf-8", errors="replace")
+    except NetworkError as exc:
+        raise NetworkError(
+            f"arXiv request failed ({exc}). arXiv enforces a 3-second rate limit; "
+            f"if you're seeing 429 errors, space requests further apart.",
+            url=exc.url,
+            status_code=exc.status_code,
+        ) from exc
 
 
 def _parse_arxiv_feed(payload: str) -> list[PaperRecord]:

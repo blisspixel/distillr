@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from rich.console import Console
 
-from distill.ingestors.net import safe_urlopen
+from distill.ingestors.net import NetworkError, safe_urlopen
 from distill.ingestors.youtube.discovery import VideoInfo
 
 console = Console()
@@ -129,7 +129,10 @@ def _fetch_search_html(search_url: str) -> str:
     html = _fetch_with_playwright(search_url)
     if html:
         return html
-    return _fetch_with_urllib(search_url)
+    try:
+        return _fetch_with_urllib(search_url)
+    except NetworkError:
+        return ""
 
 
 def _fetch_with_playwright(search_url: str) -> str:
