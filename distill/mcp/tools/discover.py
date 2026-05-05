@@ -1,9 +1,11 @@
-"""MCP tools — discovery: learn_topic, search_videos."""
+"""MCP tools — discovery: learn_topic, search_videos, discover."""
 
 from __future__ import annotations
 
 import contextlib
 import json
+
+from mcp.server.fastmcp import Context
 
 from distill.library.state import ChannelState
 from distill.mcp import server as _server
@@ -19,16 +21,13 @@ def learn_topic(
     days: int = 60,
     limit: int = 5,
 ) -> str:
-    """Find and process the best recent YouTube videos for a topic.
-
-    Searches, ranks, transcribes, analyzes, and synthesizes.
-    Creates insights per video and a topic synthesis.
+    """Find, process, and synthesize the best YouTube videos for a topic.
 
     Args:
-        query: Topic or question to learn about
-        topic: Topic name to file under (default: derived from query)
-        days: Recency window in days
-        limit: How many videos to process
+        query: Topic or question to research
+        topic: Topic name to file under
+        days: Lookback window in days
+        limit: Max videos to process
     """
     from distill.cli_shared import ensure_channel_context, process_video, topic_from_query
     from distill.ingestors.youtube.browser_search import search_youtube_results
@@ -119,15 +118,12 @@ def learn_topic(
 
 @_server.mcp.tool()
 def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
-    """Preview the best recent YouTube videos for a topic (no processing).
-
-    Searches YouTube, enriches metadata, and ranks by relevance.
-    Returns a ranked list with scores and rationale.
+    """Search YouTube for a topic; return ranked videos without processing.
 
     Args:
         query: Topic or question to search for
-        days: Recency window in days
-        limit: How many results to return
+        days: Lookback window in days
+        limit: Max results to return
     """
     from distill.ingestors.youtube.browser_search import search_youtube_results
     from distill.ingestors.youtube.discovery import enrich_videos
@@ -178,3 +174,101 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
         )
 
     return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)
+
+
+@_server.mcp.tool()
+async def discover(  # noqa: C901
+    goal: str,
+    topic: str | None = None,
+    limit: int = 5,
+    papers_only: bool = False,
+    videos_only: bool = False,
+    ctx: Context = None,
+) -> str:
+    """Goal-aware cross-source discovery: papers + videos, ranked.
+
+    Args:
+        goal: Research goal or question
+        topic: Topic to file under (derived from goal)
+        limit: Max sources to process
+        papers_only: Only search papers
+        videos_only: Only search videos
+    """
+    from distill.cli_shared import topic_from_query
+
+    config = _server._config()
+    if not config.xai_api_key:
+        return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
+
+    topic_name = topic or topic_from_query(goal)
+    tracker = CostTracker()
+    results: dict = {"topic": topic_name, "videos": [], "papers": []}
+
+    # Stage 1: Search videos (unless papers_only)
+    if not papers_only:
+        if ctx:
+            await ctx.report_progress(progress=0, total=3)
+        try:
+            from distill.ingestors.youtube.browser_search import search_youtube_results
+            from distill.ingestors.youtube.discovery import enrich_videos
+            from distill.ingestors.youtube.discovery import search_videos as yt_search
+            from distill.pipeline.ranking import rerank_videos
+
+            candidates = search_youtube_results(goal, days=60, limit=max(limit * 2, 12))
+            if not candidates:
+                candidates = yt_search(goal, days=60, limit=max(limit * 2, 12))
+
+            if candidates:
+                seen: set[str] = set()
+                deduped = [
+                    v for v in candidates if v.video_id not in seen and not seen.add(v.video_id)
+                ]
+                enriched = enrich_videos(deduped, max_videos=min(len(deduped), 12))
+                ranked = rerank_videos(
+                    goal,
+                    enriched,
+                    config,
+                    tracker=tracker,
+                    top_n=max(limit * 2, 10),
+                    use_llm=bool(config.xai_api_key),
+                )
+                for item in ranked[:limit]:
+                    v = item.video
+                    results["videos"].append(
+                        {
+                            "title": v.title,
+                            "channel": v.channel_name or "unknown",
+                            "url": v.url,
+                            "score": round(item.final_score, 2),
+                        }
+                    )
+        except Exception as e:
+            results["video_error"] = str(e)
+
+    # Stage 2: Search papers (unless videos_only)
+    if not videos_only:
+        if ctx:
+            await ctx.report_progress(progress=1, total=3)
+        try:
+            from distill.ingestors.papers.arxiv import search_arxiv
+
+            found = search_arxiv(goal, max_results=limit)
+            for paper in found[:limit]:
+                results["papers"].append(
+                    {
+                        "title": paper.title,
+                        "authors": [a.name for a in paper.authors[:3]] if paper.authors else [],
+                        "url": paper.entry_id if hasattr(paper, "entry_id") else "",
+                    }
+                )
+        except Exception as e:
+            results["paper_error"] = str(e)
+
+    # Stage 3: Done
+    if ctx:
+        await ctx.report_progress(progress=3, total=3)
+
+    save_run_log(config.library_dir, "discover", tracker)
+    results["status"] = "complete"
+    results["cost"] = _server._cost_summary(tracker)
+    return json.dumps(results, indent=2)
