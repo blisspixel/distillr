@@ -6386,10 +6386,19 @@ def papers(  # noqa: C901 — legacy, will refactor
     # Pull 2x limit per query so reranking has meaningful candidate pool, but
     # cap per-query to keep arXiv requests polite.
     per_query_cap = max(limit, 10)
-    if len(queries) > 1:
-        candidates = search_arxiv_multi(queries, limit_per_query=per_query_cap, sort=sort)
-    else:
-        candidates = search_arxiv_papers(queries[0], limit=per_query_cap, sort=sort)
+    try:
+        if len(queries) > 1:
+            candidates = search_arxiv_multi(queries, limit_per_query=per_query_cap, sort=sort)
+        else:
+            candidates = search_arxiv_papers(queries[0], limit=per_query_cap, sort=sort)
+    except Exception as exc:
+        console.print(
+            f"[red]arXiv search failed: {exc}[/red]\n"
+            "[dim]arXiv rate-limits aggressively. If you're seeing 429 errors, wait a few minutes and try again.[/dim]"
+        )
+        summary.add_issue("paper-search", f"arXiv request failed: {exc}", context=query)
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        raise typer.Exit(1) from exc
 
     if not candidates:
         summary.add_issue("paper-search", "No papers found for query", context=query)
