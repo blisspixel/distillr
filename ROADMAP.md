@@ -48,19 +48,18 @@ See [`docs/CHANGELOG.md#020--2026-04-27`](docs/CHANGELOG.md) for the complete en
 
 ## Path to 1.0
 
-The goal of 1.0 is a stable, MCP-first research tool that an external agent can drive without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar — each one unblocks the next. Three themes run through every version:
+The goal of 1.0 is a stable, MCP-first research tool that an external agent can drive without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar — each one unblocks the next. Four themes run through every version:
 
 - **MCP-first.** Every workflow has a clean tool surface for agents, not just a CLI for humans. CLI commands are thin wrappers over the same library calls the MCP server uses.
-- **Effective-context-aware.** The 2025–2026 context-engineering literature (lost-in-the-middle, ACE-style playbooks, just-in-time retrieval) is treated as plumbing, not a marketing surface.
+- **Effective-context-aware.** Cloud models in 2026 have 1M+ context windows — a 100K paper fits whole. Chunking is not a universal concern; it is a local-model concern. The system should be adaptive: send content whole when the provider's window allows it, chunk intelligently when it does not (local models with 8K-32K windows). The 2025-2026 context-engineering literature (lost-in-the-middle, ACE-style playbooks, just-in-time retrieval) informs the design, but the implementation targets where it actually matters.
 - **Local-first all the way down.** "Local Markdown corpus" is meaningless if every analysis call goes to a paid cloud API. Closing that gap is a 1.0 requirement.
 - **Built to last.** Module-size caps, dependency-direction enforcement, ruff/Pyright/coverage gates, and structured logging are established as conventions in 0.3 and apply to every later milestone — so 1.0 lands at the quality bar without a backfill scramble.
 
 ### Milestones at a glance
 
-- **0.3 Internal foundations** — shipped (0.3.0–0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture.
-- **0.4 Long-input fidelity** — chunked paper analysis, report-pipeline compaction, lost-in-the-middle regression tests.
-- **0.5 MCP-first surface** — JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands.
-- **0.6 Local-control parity** — Ollama / LM Studio in the router, Docker, paid-vs-local cost split.
+- **0.3 Internal foundations — SHIPPED** (0.3.0-0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture, SecretStr, import-linter, quality conventions.
+- **0.5 MCP-first surface** (next build) — JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions.
+- **0.6 Local-control + adaptive context** — Ollama / LM Studio in the router, context-aware adaptive processing, Docker, paid-vs-local cost split.
 - **0.7 Living wiki** — Obsidian-native frontmatter and wiki-style cross-links; `distill open --vault`.
 - **0.8 Concept playbook** — ACE-style concept/entity notes with delta merges and contradiction surfacing.
 - **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
@@ -69,72 +68,70 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 Detail for each milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
 
-### 0.3.0 — Internal foundations
+### 0.3 — Internal foundations (SHIPPED)
 
-The 6.5K-line `cli.py` and the flat package layout are the chief brakes on every other improvement. This milestone is mostly invisible to users; it pays the structural debt before it accumulates more, *and* it sets the conventions every later milestone is held to. The point is not just to split `cli.py` once — it's to put up the rules that prevent another one from forming.
+Delivered across 0.3.0 through 0.4.0. Everything listed below is done and in production.
 
-**Restructure.**
+The 6.5K-line `cli.py` and the flat package layout were the chief brakes on every other improvement. This milestone paid the structural debt and set the conventions every later milestone is held to.
 
-- Split `distill/` into the [target package layout](#target-package-layout-10) (full tree below). 0.3 stands up the top-level subpackages: `commands/`, `ingestors/`, `llm/`, `pipeline/`, `prompts/`, `library/`, `mcp/`, plus `web/` (already a subpackage). Later milestones add `notify/` (0.5) and `concepts/` (0.8) within the same shape; no later milestone changes the top-level layout.
-- The current `cli.py` (6.5K lines) becomes a ~100-line Typer app that wires command groups together with no business logic. `cli_support/` is the seed of `commands/`; `cli_shared.py` becomes `commands/_helpers.py`.
-- The current `mcp_server.py` (1.1K lines) splits into `mcp/server.py` + `mcp/tools/` + `mcp/resources.py` + `mcp/prompts.py`, with one tool group per file mirroring the CLI command surface.
-- The current `prompts.py` (880 lines) splits into `prompts/analysis.py`, `prompts/synthesis.py`, `prompts/report.py`, `prompts/discover.py`, `prompts/shared.py` (anti-hallucination + provenance rules).
-- Extract the LLM-call surface into a `distill/llm/` router that takes a workload tag (`analysis`, `rerank`, `synthesis`, `report`, `qa`) and returns the configured provider+model. Today's hard-coded Grok/Gemini routing becomes the default policy in this layer.
-- Tests mirror source layout: `tests/unit/{commands,ingestors,llm,pipeline,library,mcp}/` plus `tests/integration/` for full-pipeline tests with mock LLMs.
+**Restructure (done).**
 
-**Conventions (so we don't grow another `cli.py`).**
+- Split `distill/` into the [target package layout](#target-package-layout-10): `commands/`, `ingestors/`, `llm/`, `pipeline/`, `prompts/`, `library/`, `mcp/`, `web/`.
+- `cli.py` is now a ~150-line Typer wiring module with no business logic. `_cli_impl.py` holds the migrated business logic.
+- `mcp/` split into `mcp/server.py` + `mcp/tools/` + `mcp/resources.py` + `mcp/prompts.py`, with one tool group per file mirroring the CLI command surface.
+- `prompts/` split into `prompts/analysis.py`, `prompts/synthesis.py`, `prompts/report.py`, `prompts/discover.py`, `prompts/shared.py`.
+- LLM router (`distill/llm/`) dispatches by workload tag (`analysis`, `rerank`, `synthesis`, `report`, `qa`) to configured provider+model. Provider stubs for xAI, Gemini, Anthropic, OpenAI, Ollama, and Agent mode.
+- Tests mirror source layout: `tests/unit/{commands,ingestors,llm,pipeline,library,mcp}/` plus `tests/integration/`.
 
-- **Module size cap.** No module over 500 lines without an inline justification comment. CI-checked.
-- **Function complexity cap.** Ruff `C901` cyclomatic complexity enforced on new subpackages.
-- **One responsibility per module.** One Typer command group per file in `commands/`; one source per file in `ingestors/`; one phase per file in `pipeline/`.
-- **Public surface explicit.** `__all__` declared in modules with importable callers; leading underscore for internals.
-- **Dependency direction enforced** via `import-linter`: `commands → pipeline → ingestors / llm`, never reverse. `llm/` has no internal `distill.*` imports.
-- **Ruff zero-warning** on new subpackages from day one. `# noqa` requires an inline justification.
-- **Pyright** moves from warnings to a CI gate on the new subpackages first; the old surface follows as it gets touched.
-- **Coverage ratchet.** New subpackages ship with ≥80% test coverage from day one. CI prevents regressions on every PR (pytest-cov fail-under per package). Later milestones extend the floor across the rest of the surface so 1.0 doesn't need a backfill scramble.
+**Conventions (done, CI-enforced).**
 
-**Config and observability.**
+- Module size cap (500 lines without justification). Ruff `C901` complexity. One responsibility per module.
+- `__all__` on public modules; leading underscore for internals.
+- Dependency direction enforced via `import-linter`: `commands -> pipeline -> ingestors / llm`, never reverse. `llm/` has no internal `distill.*` imports.
+- Ruff zero-warning. Pyright gating on new subpackages. Coverage ratchet (>=80% on new subpackages).
 
-- Tighten config: `SecretStr` for API keys, narrower types, no global `console`/`config` mutation.
-- Per-prompt token telemetry (input length, output length, elapsed) logged to `cost_log.jsonl` per call, not per run. Surface a "biggest prompts" view in `distill costs`. Required to make every later context-engineering claim measurable.
-- Structured logging with proper levels, file output, and a `--debug` flag. Rich-print stays for human-facing surfaces only.
-- Pull forward the knowledge-base file contract from 0.7: new Markdown artifacts use globally descriptive filenames (`<slug>_Insights.md`, `<topic>_Corpus_Synthesis.md`) and standardized YAML frontmatter. Older generic paths remain readable as compatibility inputs, but new writes stop creating ambiguous Markdown basenames.
+**Config and observability (done).**
 
-**Conventions documented.**
+- `SecretStr` for API keys, narrower types, no global mutation.
+- Per-prompt token telemetry logged to `cost_log.jsonl` per call. "Biggest prompts" view in `distill costs`.
+- Structured logging with `--debug`. Rich-print for human-facing surfaces only.
+- Knowledge-base file contract: globally descriptive filenames, standardized YAML frontmatter.
+- `docs/CONTRIBUTING.md` captures all conventions.
 
-- `docs/CONTRIBUTING.md` captures all of the above so contributors know the bar before they open a PR. The 1.0 quality bar is a tightening of these conventions, not a different set of rules.
+### 0.5.0 — MCP-first surface (next build)
 
-Why this version: every later milestone gets cleaner if the LLM router, command surface, and telemetry are in place — and the conventions set here make sure no later milestone re-creates the `cli.py` problem. Ship it before it becomes a bigger refactor.
+The agent-facing surface stops being a side door and becomes the primary product surface. This is the biggest user-facing value delivery remaining before 1.0.
 
-### 0.4.0 — Long-input fidelity
-
-The user-visible quality bar moves up here. Today's "stuff the whole PDF into one prompt" pattern is the largest known fidelity gap.
-
-- Section-aware chunker for papers (PDF headings; page+window fallback). Per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"). Small-window analysis loop assembles `<paper-slug>_Insights.md` from focused passes.
-- Lift the 100K-char paper cap once chunking is in place.
-- Compaction in the 4-phase report pipeline — high-recall-then-precision summaries replace full-prior-section context between phases.
-- Effective-context regression tests in CI: a "lost-in-the-middle" smoke test on representative long inputs that asserts known mid-document evidence shows up in the output.
-
-Why this version: chunking + compaction together change what the tool can do well. The 0.3 telemetry makes the wins visible; without it, this is a leap of faith.
-
-### 0.5.0 — MCP-first surface
-
-The agent-facing surface stops being a side door and becomes a primary product surface.
-
-- Just-in-time MCP context. New: `find_insights(topic, query)` returns ranked `(path, one_line_preview, score)` tuples; `read_insight(path, section?)` for drill-down. Existing whole-file tools stay for explicit "give me the file" calls but stop being the default response shape.
-- Every CLI command exposes structured output (`--json`) and respects `NO_COLOR`. Stable, documented exit codes.
-- MCP tool surface mirrors the CLI command surface: every long-running command has a matching tool with progress events and a clean done/cancel/error contract. Tool schemas are introspectable.
-- Research-gap discovery as an MCP tool that an external agent can call without scraping the dashboard.
+- **JIT context retrieval.** `find_insights(topic, query)` returns ranked `(path, preview, score)` tuples; `read_insight(path, section?)` for drill-down. This is the 96% token savings pattern — agents get paths and previews instead of full file payloads. Existing whole-file tools stay for explicit "give me the file" calls but stop being the default response shape.
+- **Structured CLI output.** Every CLI command exposes `--json` and respects `NO_COLOR`. Stable, documented exit codes.
+- **MCP tool surface mirrors CLI.** Every long-running command has a matching tool with progress events and a clean done/cancel/error contract. Tool schemas are introspectable.
+- **Research-gap discovery as an MCP tool** that an external agent can call without scraping the dashboard.
+- **Token-efficient tool descriptions.** The research shows 10+ MCP servers lose 30-50% of context window to tool definitions alone. Distill's tool descriptions must be lean — short, precise, no redundant parameter documentation. This is a design constraint, not an afterthought.
 - Native watch-alert notification channels (the `library/watch_alerts.md` stream is in; outbound email/Slack/webhook is not).
 
 Why this version: this is the "MCP-first 2026 app" version. It defines how agents drive distillr from here on, so it should land before the corpus shape changes underneath it.
 
-### 0.6.0 — Local-control parity
+### 0.6.0 — Local-control + adaptive context
 
-Closes the gap between the "local Markdown corpus" promise and the "every analysis call hits a paid cloud API" reality.
+Closes the gap between the "local Markdown corpus" promise and the "every analysis call hits a paid cloud API" reality. Also resolves the long-input fidelity question — but adaptively, not universally.
 
-- Ollama / LM Studio as first-class providers in the LLM router from 0.3. Per-workload model selection via config and `--model` overrides on individual commands.
+**Local providers.**
+
+- Ollama / LM Studio as first-class providers in the LLM router (the stubs are already in place from 0.3.1). Per-workload model selection via config and `--model` overrides on individual commands.
 - Cost log distinguishes paid-API spend from local-inference time; `distill costs` shows both axes so users can size local vs. cloud trade-offs.
+
+**Context-aware adaptive processing.**
+
+The router knows each provider's context window. The processing strategy adapts:
+
+- For cloud models (Grok 4.3 at 1M, Gemini 3.1 Pro at 1M): no chunking. A 100K-char paper fits whole. Send it, analyze it in one pass. Chunking a document for a model with a 1M-token window is pointless overhead.
+- For local models (8K-32K context windows): adaptive chunking with section-aware splitting. Per-category rerank ("which chunks matter for Methods vs Limits vs Open Questions?"). Small-window analysis loop assembles insights from focused passes.
+- The decision is automatic based on provider metadata — users do not configure this. If the content fits the window, it goes whole. If it does not, the system chunks intelligently.
+
+**Report pipeline compaction.** High-recall-then-precision summaries replace full-prior-section context between report phases. This benefits all providers but matters most for local models where the 4-phase pipeline would otherwise exceed the window.
+
+**Operational.**
+
 - Dockerfile + docker-compose with Playwright deps included. `distill doctor` knows it's running in a container and skips host-only checks.
 - Documented quality/throughput trade-offs per workload — which steps degrade gracefully on smaller local models, which need cloud-grade reasoning.
 
@@ -264,8 +261,8 @@ distill/
 │   │   ├── paper.py
 │   │   ├── video.py
 │   │   ├── site.py
-│   │   ├── chunking.py      # 0.4 — section-aware
-│   │   └── rerank.py        # 0.4 — per-category chunk rerank
+│   │   ├── chunking.py      # 0.6 — adaptive section-aware (local models only)
+│   │   └── rerank.py        # 0.6 — per-category chunk rerank (local models only)
 │   ├── synthesis/
 │   │   ├── topic.py
 │   │   ├── corpus.py
@@ -275,7 +272,7 @@ distill/
 │   │   ├── phase2_facts.py
 │   │   ├── phase3_writing.py
 │   │   ├── phase4_qa.py
-│   │   └── compaction.py    # 0.4 — between-phase summaries
+│   │   └── compaction.py    # 0.6 — between-phase summaries
 │   ├── discovery.py         # goal-aware cross-source fanout + rerank
 │   └── ranking.py           # generic LLM rerank
 │
