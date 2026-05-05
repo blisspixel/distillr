@@ -14,6 +14,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.5.0 — 2026-07-21
+
+MCP-first surface: the MCP server becomes the primary product surface.
+
+### Added
+
+- **JIT context retrieval.** New `find_insights` and `read_insight` MCP tools enable agents to search the corpus by topic/query and receive ranked path/preview/score tuples, then drill down to specific sections — saving ~96% of tokens vs. full file payloads.
+- **Search engine** (`distill/pipeline/search.py`). Term-frequency scoring with heading boost (2×) and type boost (1.5× for synthesis/corpus). Preview generation ≤120 chars. Section extraction by heading name.
+- **Structured CLI output.** Global `--json` flag on all commands produces a `JsonEnvelope` (status/data/error) on stdout with diagnostics on stderr. No ANSI codes in JSON mode.
+- **Stable exit codes.** 0=success, 1=runtime, 2=usage, 3=config, 4=network, 5=not-found. Documented in `docs/usage.md`.
+- **6 new MCP tools.** `papers` (arXiv search + ingest), `discover` (goal-aware cross-source), `site_batch` (URL list scraping), `synthesize` (topic synthesis), `costs` (LLM spend history), `doctor` (environment health check).
+- **Progress events.** Long-running MCP tools (`papers`, `discover`, `site_batch`, `synthesize`) emit MCP SDK progress notifications per-item.
+- **Token-efficient descriptions.** All tool descriptions ≤100 chars, all parameter descriptions ≤50 chars. Semantic accuracy preserved.
+- **`distill alerts` command.** Displays the watch-alert digest in Rich (default) or JSON (`--json`).
+- **Property-based tests.** 12 Hypothesis properties covering search ordering, preview format, JSON round-trip, description limits, schema validity, and progress events.
+
+### Changed
+
+- **Tool descriptions rewritten.** All 9 existing tools + 8 new tools now have compressed descriptions within the character limits.
+- **MCP server imports.** New tool modules (`find`, `papers`, `sites`, `synthesis`, `costs`, `doctor`) registered in `server.py`.
+
+### Backward Compatibility
+
+- All 9 existing tool input schemas preserved (no type/required/default changes).
+- All 12 resource URIs respond unchanged.
+- All 4 prompts retain their argument signatures.
+- CLI output without `--json` is identical to 0.4.0 behavior.
+
 ## 0.4.0 — 2026-07-14
 
 Package restructure: flat `distill/` → layered subpackage architecture.

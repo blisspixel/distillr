@@ -568,9 +568,15 @@ app.add_typer(topic_app, name="topic")
 def _default(
     ctx: typer.Context,
     debug: bool = typer.Option(False, "--debug", help="Enable DEBUG-level logging to console"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON to stdout"),
 ):
     """Distill - YouTube channels to strategic intelligence."""
     from distill._logging import configure_logging
+
+    ctx.ensure_object(dict)
+    ctx.obj["json"] = json_output
+    # Always reset console.quiet based on current invocation
+    console.quiet = json_output
 
     try:
         ops_dir = get_config().library_dir / ".distill"
@@ -4363,6 +4369,40 @@ def status(  # noqa: C901 — legacy, will refactor
             console.print("  [dim]all up to date[/dim]")
 
     console.print()
+
+
+@app.command(rich_help_panel="Maintain")
+def alerts(
+    ctx: typer.Context,
+) -> None:
+    """Show the current watch-alert digest."""
+    from distill.commands._json import JsonEnvelope
+    from distill.library.paths import find_artifact
+
+    config = get_config()
+    alert_path = find_artifact(config.library_dir, "watch_alerts", identity="library")
+
+    json_mode = ctx.obj.get("json", False) if ctx.obj else False
+
+    if alert_path.exists():
+        content = alert_path.read_text(encoding="utf-8")
+        if json_mode:
+            envelope = JsonEnvelope.success({"alerts": content})
+            import sys
+
+            sys.stdout.write(envelope.to_json() + "\n")
+        else:
+            from rich.markdown import Markdown
+
+            console.print(Markdown(content))
+    else:
+        if json_mode:
+            envelope = JsonEnvelope.success({"alerts": None, "message": "No watch alerts found."})
+            import sys
+
+            sys.stdout.write(envelope.to_json() + "\n")
+        else:
+            console.print("[dim]No watch alerts found.[/dim]")
 
 
 @app.command(rich_help_panel="Maintain")

@@ -11,11 +11,7 @@ __all__: list[str] = []
 
 @_server.mcp.tool()
 def research_gaps(topic: str) -> str:
-    """Assess what a topic corpus appears to be missing and suggest next actions.
-
-    Uses local corpus heuristics to highlight thin coverage, missing artifacts,
-    stale recency, and incomplete processing so an external agent can decide
-    whether to trigger more ingestion, resynthesis, or reporting.
+    """Assess corpus gaps and suggest next research actions for a topic.
 
     Args:
         topic: Topic name to inspect

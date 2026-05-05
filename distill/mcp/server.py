@@ -301,9 +301,15 @@ def _topic_gap_summary(config: DistillConfig, topic: str) -> dict:  # noqa: C901
 # The submodules import ``mcp`` from this module and decorate their handlers.
 import distill.mcp.prompts as _prompts  # noqa: E402, F401, I001
 import distill.mcp.resources as _resources  # noqa: E402, F401
+import distill.mcp.tools.costs as _tools_costs  # noqa: E402, F401
 import distill.mcp.tools.discover as _tools_discover  # noqa: E402, F401
+import distill.mcp.tools.doctor as _tools_doctor  # noqa: E402, F401
+import distill.mcp.tools.find as _tools_find  # noqa: E402, F401
 import distill.mcp.tools.gaps as _tools_gaps  # noqa: E402, F401
+import distill.mcp.tools.papers as _tools_papers  # noqa: E402, F401
 import distill.mcp.tools.reports as _tools_reports  # noqa: E402, F401
+import distill.mcp.tools.sites as _tools_sites  # noqa: E402, F401
+import distill.mcp.tools.synthesis as _tools_synthesis  # noqa: E402, F401
 import distill.mcp.tools.topics as _tools_topics  # noqa: E402, F401
 import distill.mcp.tools.watch as _tools_watch  # noqa: E402, F401
 
