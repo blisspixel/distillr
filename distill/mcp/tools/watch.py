@@ -18,15 +18,12 @@ def catch_up(  # noqa: C901 — legacy, will refactor
     topic: str | None = None,
     days: int | None = None,
 ) -> str:
-    """Refresh watched channels with lightweight scan analysis.
-
-    Discovers new videos, transcribes, and runs fast scan analysis.
-    Returns a summary of what was found and processed.
+    """Refresh watched channels; scan, transcribe, and analyze new videos.
 
     Args:
-        channel: Specific channel name to refresh (default: all watched)
-        topic: Only refresh channels in this topic
-        days: Override lookback days (default: per-channel setting)
+        channel: Single channel to refresh
+        topic: Filter to this topic
+        days: Override lookback window in days
     """
     from distill.cli_shared import ensure_channel_context, process_video
     from distill.ingestors.youtube.discovery import discover_videos
@@ -125,13 +122,13 @@ def watch_add(
     days: int = 14,
     instructions: str = "",
 ) -> str:
-    """Add a YouTube channel to your watch list for regular catch-up.
+    """Add a YouTube channel to the watch list.
 
     Args:
         url: YouTube channel URL
         topic: Topic to file under
-        days: How far back catch-up looks (e.g., 2 for daily deals, 14 for weekly)
-        instructions: Custom analysis instructions (e.g., "Extract top deals with prices")
+        days: Lookback window for catch-up
+        instructions: Custom analysis instructions
     """
     from distill.ingestors.youtube.discovery import discover_videos, resolve_channel_name
 
@@ -168,7 +165,7 @@ def watch_add(
 
 @_server.mcp.tool()
 def watch_remove(name: str) -> str:
-    """Remove a channel from your watch list.
+    """Remove a channel from the watch list.
 
     Args:
         name: Channel name to remove

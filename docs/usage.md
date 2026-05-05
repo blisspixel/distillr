@@ -372,3 +372,31 @@ To opt out (CI, scripted automation):
 ```bash
 export DISTILL_NO_PREFLIGHT=1
 ```
+
+## Exit Codes
+
+All CLI commands return stable exit codes for scripting and CI integration:
+
+| Code | Name | Meaning |
+|------|------|---------|
+| 0 | SUCCESS | Command completed successfully |
+| 1 | RUNTIME_ERROR | Unexpected error during execution |
+| 2 | USAGE_ERROR | Invalid arguments or flags |
+| 3 | CONFIG_ERROR | Missing API key or invalid configuration |
+| 4 | NETWORK_ERROR | API timeout, DNS failure, HTTP error |
+| 5 | NOT_FOUND | Requested topic, channel, or resource doesn't exist |
+
+## JSON Output
+
+Pass `--json` to any command for machine-readable output:
+
+```bash
+distill --json alerts                # JSON alert digest
+distill --json doctor                # JSON health check
+```
+
+When `--json` is active:
+- stdout contains a single JSON object with `status`, `data`, and optionally `error` fields
+- stderr receives any diagnostic or progress messages
+- Rich formatting, progress bars, and color are suppressed
+- The `NO_COLOR` environment variable is also respected

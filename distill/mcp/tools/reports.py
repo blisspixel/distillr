@@ -12,13 +12,11 @@ __all__: list[str] = []
 
 @_server.mcp.tool()
 def generate_report(topic: str, channel: str | None = None) -> str:
-    """Generate a deep strategic intelligence report using Gemini Deep Research.
-
-    This is a long-running operation. Returns the report markdown.
+    """Generate a deep research report for a topic (long-running).
 
     Args:
         topic: Topic to report on
-        channel: Specific channel (default: entire topic)
+        channel: Specific channel scope
     """
     config = _server._config()
     if not config.gemini_api_key:
@@ -64,7 +62,7 @@ def resynthesize_topic(topic: str, channel: str | None = None) -> str:
 
     Args:
         topic: Topic to resynthesize
-        channel: Specific channel (default: all channels + topic)
+        channel: Single channel scope
     """
     from distill.pipeline.synthesis.corpus import synthesize_corpus
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
