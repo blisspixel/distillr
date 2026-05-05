@@ -186,13 +186,12 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 
 **Confidence labels and source tagging keep provenance in-band.** `[Confirmed]` / `[Reported]` / `[Estimated]` / `[Speculated]` / `[Analysis]` aren't decorative — they're how downstream prompts (synthesis, report, briefing) avoid laundering uncertainty across handoffs. This is the "Provenance" criterion from Vishnyakova's production-grade context-engineering rubric.
 
-**Where distillr is still naïve about context.** Three known gaps that the roadmap ([`../ROADMAP.md`](../ROADMAP.md)) explicitly addresses:
+**Where distillr is still naive about context.** Two known gaps that the roadmap ([`../ROADMAP.md`](../ROADMAP.md)) explicitly addresses:
 
-1. *Paper analysis* dumps a 100K-char PDF into a single Grok prompt — vulnerable to lost-in-the-middle on long methods/results sections. Fix: chunk-and-rerank by section.
-2. *MCP tool returns* hand the consuming agent full markdown files — Anthropic's published example shows ~98% token savings from switching to filtered/path-based returns instead. Fix: paths-not-payloads with a drill-down second tool call.
-3. *4-phase report pipeline* carries full prior-section context forward to enforce no-repeat. Fix: high-recall-then-precision compaction; opaque continuation items where the API supports them.
+1. *MCP tool returns* hand the consuming agent full markdown files — Anthropic's published example shows ~98% token savings from switching to filtered/path-based returns instead. Fix (0.5): paths-not-payloads with a drill-down second tool call.
+2. *4-phase report pipeline* carries full prior-section context forward to enforce no-repeat. Fix (0.6): high-recall-then-precision compaction; opaque continuation items where the API supports them.
 
-These aren't theoretical concerns — they're concrete token-budget and quality wins, with the research literature giving us the patterns to apply.
+A note on paper analysis: the previous roadmap flagged "100K-char PDF in a single prompt" as a fidelity risk. In 2026, cloud models (Grok 4.3 at 1M tokens, Gemini 3.1 Pro at 1M tokens) handle this comfortably — a 100K-char paper is roughly 25K tokens, well within the effective attention range of these models. The lost-in-the-middle concern applies primarily to local models with 8K-32K context windows. The fix (0.6) is adaptive: the router knows each provider's context window and only chunks when the content exceeds it. Cloud users get single-pass analysis with no overhead; local-model users get section-aware chunking with per-category rerank.
 
 ## Package layout (0.4.0)
 
