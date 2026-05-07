@@ -1,43 +1,28 @@
 # pyright: strict
-"""LLM Router — workload-to-provider dispatch, data models, and configuration.
-
-This module defines the core data types (LLM_Response, RouterConfig), custom
-exceptions, the workload tag registry, and the ``call()`` dispatch function
-for the distill/llm/ package.
-"""
+"""LLM Router — workload-to-provider dispatch, data models, and configuration."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from distill.llm.metadata import LOCAL_PROVIDERS
 
-# ---------------------------------------------------------------------------
-# Data models
-# ---------------------------------------------------------------------------
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class LLM_Response:
-    """Uniform response from any LLM provider.
-
-    frozen=True makes instances immutable and hashable.  The type is
-    intentionally minimal — it carries only what every consumer needs.
-    """
+    """Uniform response from any LLM provider (immutable, hashable)."""
 
     text: str
     input_tokens: int
     output_tokens: int
     model: str
-
-
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
 
 
 class LLMRouterError(Exception):
@@ -56,30 +41,21 @@ class PendingTaskError(LLMRouterError):
         self.task_path = task_path
 
 
-# ---------------------------------------------------------------------------
-# Workload tag registry
-# ---------------------------------------------------------------------------
+RETIREMENT_DATE = "May 15, 2026"
+RETIRED_MODELS: dict[str, str] = {
+    "grok-4-1-fast-reasoning": "grok-4.3",
+    "grok-4-1-fast-non-reasoning": "grok-4.20-non-reasoning",
+    "grok-4-fast-reasoning": "grok-4.3",
+    "grok-4-fast-non-reasoning": "grok-4.20-non-reasoning",
+    "grok-4-0709": "grok-4.3",
+    "grok-code-fast-1": "grok-4.3",
+    "grok-3": "grok-4.3",
+    "grok-imagine-image-pro": "grok-imagine-image",
+}
 
 WORKLOAD_TAGS: frozenset[str] = frozenset(
-    {
-        "analysis",
-        "rerank",
-        "synthesis",
-        "site",
-        "accordion",
-        "brief",
-        "report",
-        "qa",
-        # Reserved for 0.7-0.8 wiki-maintenance workloads.
-        # Must never be premium-tier by default.
-        "maintenance",
-    }
+    {"analysis", "rerank", "synthesis", "site", "accordion", "brief", "report", "qa", "maintenance"}
 )
-
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -89,7 +65,6 @@ class RouterConfig:
     Resolution precedence for *model*:
         1. Per-workload model override  (e.g. ``analysis_model``)
         2. Tier default (``premium_model`` for premium workloads, ``fast_model`` otherwise)
-
     Resolution precedence for *provider*:
         1. Per-workload provider override  (e.g. ``analysis_provider``)
         2. Global ``provider``
@@ -139,8 +114,9 @@ class RouterConfig:
     def resolve(self, workload_tag: str) -> tuple[str, str]:
         """Resolve ``(provider_name, model_id)`` for a workload tag.
 
-        Returns the provider and model that should be used for the given
-        workload, following the precedence hierarchy documented on the class.
+        Follows the precedence hierarchy documented on the class.
+        If the resolved model is retired, logs a deprecation warning and
+        substitutes the replacement model.
         """
         # --- provider ---
         per_workload_provider: str = getattr(self, f"{workload_tag}_provider", "")
@@ -154,6 +130,18 @@ class RouterConfig:
             model_id = self.premium_model
         else:
             model_id = self.fast_model
+
+        # --- retired model fallback ---
+        if model_id in RETIRED_MODELS:
+            replacement = RETIRED_MODELS[model_id]
+            logger.warning(
+                "Model '%s' is retired (effective %s). "
+                "Falling back to '%s'. Update your config to silence this warning.",
+                model_id,
+                RETIREMENT_DATE,
+                replacement,
+            )
+            model_id = replacement
 
         return provider_name, model_id
 
@@ -177,6 +165,7 @@ class RouterConfig:
             "openai": ("openai_api_key", "OPENAI_API_KEY"),
             "agent": (None, None),  # No key needed
             "ollama": (None, None),  # Local — no key needed
+            "lmstudio": (None, None),  # Local — no key needed
         }
 
         if provider_name not in key_map:
@@ -192,10 +181,7 @@ class RouterConfig:
             )
 
 
-# ---------------------------------------------------------------------------
-# Provider registry (cached)
-# ---------------------------------------------------------------------------
-
+# --- Provider registry (cached) ---
 _provider_cache: dict[str, Any] = {}
 
 
@@ -232,19 +218,31 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
         from distill.llm.providers.ollama import OllamaProvider
 
         provider = OllamaProvider()
+    elif provider_name == "lmstudio":
+        from distill.llm.providers.lmstudio import LMStudioProvider
+
+        provider = LMStudioProvider()
     else:
-        raise ConfigurationError(
-            f"Unknown provider '{provider_name}'. "
-            f"Valid providers: xai, gemini, agent, anthropic, openai, ollama"
-        )
+        valid = "xai, gemini, agent, anthropic, openai, ollama, lmstudio"
+        raise ConfigurationError(f"Unknown provider '{provider_name}'. Valid providers: {valid}")
 
     _provider_cache[provider_name] = provider
     return provider
 
 
-# ---------------------------------------------------------------------------
-# Router dispatch
-# ---------------------------------------------------------------------------
+_VALID_REASONING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high"})
+
+
+def _resolve_reasoning_effort(config: RouterConfig, workload_tag: str) -> str | None:
+    """Resolve reasoning effort for a workload."""
+    env_key = f"DISTILL_{workload_tag.upper()}_REASONING_EFFORT"
+    env_val = os.environ.get(env_key, "").strip().lower()
+    if env_val in _VALID_REASONING_EFFORTS:
+        return env_val
+    # Default based on tier
+    if workload_tag in config.PREMIUM_WORKLOADS:
+        return "high"
+    return "medium"
 
 
 def call(
@@ -262,9 +260,7 @@ def call(
 ) -> LLM_Response:
     """Dispatch an LLM call through the configured provider.
 
-    This is the single entry point for all LLM interactions in distillr.
-    The *run_id* (UUID per top-level CLI command or MCP invocation) is passed
-    through to telemetry so "biggest prompts" can be scoped per research run.
+    Single entry point for all LLM interactions in distillr.
     """
     # Validate configuration eagerly
     config.validate(workload_tag)
@@ -280,6 +276,14 @@ def call(
 
     # Get provider instance
     provider = _get_provider(provider_name, config)
+
+    # Resolve reasoning effort for xAI models
+    reasoning_effort: str | None = None
+    if provider_name == "xai" and model_id.startswith("grok-4.3"):
+        reasoning_effort = _resolve_reasoning_effort(config, workload_tag)
+
+    # Determine provider type for telemetry
+    provider_type = "local" if provider_name in LOCAL_PROVIDERS else "cloud"
 
     # Execute with telemetry
     effective_ops_dir = ops_dir or config.ops_dir
@@ -298,6 +302,7 @@ def call(
             retries=retries,
             temperature=temperature,
             call_type=call_type,
+            reasoning_effort=reasoning_effort,
         )
         try:
             response = asyncio.run(coro)
@@ -324,11 +329,19 @@ def call(
             error_type=error_type,
             call_type=call_type,
             run_id=run_id,
+            provider_type=provider_type,
+            provider_name=provider_name,
+            tokens_per_second=0.0,
         )
         raise
 
     # Emit telemetry for the success case
     elapsed = time.monotonic() - start_time
+    # Compute tokens_per_second for local providers
+    tokens_per_second = 0.0
+    if provider_type == "local" and elapsed > 0:
+        tokens_per_second = response.output_tokens / elapsed
+
     _emit_telemetry(
         ops_dir=effective_ops_dir,
         model=response.model,
@@ -340,6 +353,9 @@ def call(
         error_type=error_type,
         call_type=call_type,
         run_id=run_id,
+        provider_type=provider_type,
+        provider_name=provider_name,
+        tokens_per_second=round(tokens_per_second, 2),
     )
 
     return response
@@ -357,6 +373,9 @@ def _emit_telemetry(
     error_type: str,
     call_type: str,
     run_id: str,
+    provider_type: str,
+    provider_name: str,
+    tokens_per_second: float,
 ) -> None:
     """Write a telemetry record if ops_dir is configured."""
     if not ops_dir:
@@ -373,5 +392,8 @@ def _emit_telemetry(
         error_type=error_type,
         call_type=call_type,
         run_id=run_id,
+        provider_type=provider_type,
+        provider_name=provider_name,
+        tokens_per_second=tokens_per_second,
     )
     write_record(ops_dir, record)

@@ -31,6 +31,10 @@ class Telemetry_Record:
     error_type: str = ""
     run_id: str = ""  # UUID per top-level CLI command or MCP invocation
     timestamp: str = ""  # ISO 8601, set at write time
+    # New fields (0.6) — default empty for backward compat
+    provider_type: str = ""  # "local" or "cloud"
+    provider_name: str = ""  # "ollama", "lmstudio", "xai", etc.
+    tokens_per_second: float = 0.0  # output_tokens / elapsed_seconds for local
 
 
 def write_record(ops_dir: str, record: Telemetry_Record) -> None:

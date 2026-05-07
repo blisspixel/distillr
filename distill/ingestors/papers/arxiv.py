@@ -113,22 +113,33 @@ def search_arxiv_multi(
 ) -> list[PaperRecord]:
     """Run multiple arXiv searches, dedupe by paper_id, preserve first-seen order.
 
-    Requests are spaced to respect arXiv's rate limit (3s minimum; we use 3.5s).
-    A 429 or transient error from any single query is swallowed so the batch can
-    continue; failures are silent here -- callers can inspect the returned list
-    size to decide whether to warn. Use this when an upstream caller has already
-    expanded a user query into variants; do not call this in a tight loop.
+    Requests are spaced to respect arXiv's rate limit. If a 429 is encountered,
+    the spacing increases adaptively. A transient error from any single query is
+    swallowed so the batch can continue; callers can inspect the returned list
+    size to decide whether to warn.
     """
     if not queries:
         return []
     seen: set[str] = set()
     combined: list[PaperRecord] = []
+    spacing = _ARXIV_REQUEST_SPACING_SECONDS
+    consecutive_failures = 0
+
     for idx, q in enumerate(queries):
         if idx:
-            time.sleep(_ARXIV_REQUEST_SPACING_SECONDS)
+            time.sleep(spacing)
         try:
             records = search_arxiv_papers(q, limit=limit_per_query, sort=sort)
+            consecutive_failures = 0  # Reset on success
         except Exception:
+            consecutive_failures += 1
+            # Adaptive backoff: if we're getting rate-limited, wait longer
+            if consecutive_failures >= 2:
+                spacing = min(spacing * 2, 60.0)  # Double spacing, cap at 60s
+                logger.warning(
+                    "arXiv rate-limited. Waiting %.0fs before retry...",
+                    spacing,
+                )
             continue
         for record in records:
             if record.paper_id in seen:

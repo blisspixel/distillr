@@ -43,9 +43,9 @@ class DistillConfig(BaseSettings):
     xai_analysis_model: str = ""
     xai_rerank_model: str = ""
     xai_synthesis_model: str = ""
-    xai_site_model: str = "grok-4.20-0309-reasoning"
+    xai_site_model: str = "grok-4.3"
     accordion_section_delay: int = 3
-    accordion_section_model: str = "grok-4-1-fast-reasoning"
+    accordion_section_model: str = "grok-4.3"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
@@ -141,13 +141,18 @@ def site_name_from_url(url: str) -> str:
     return sanitize_path_component(host or "site")
 
 
-def router_config_from_distill(config: DistillConfig) -> "RouterConfig":
+def router_config_from_distill(
+    config: DistillConfig, *, model_override: str = ""
+) -> "RouterConfig":
     """Convert a DistillConfig to a RouterConfig for the LLM router.
 
     This is the migration bridge — the ONLY place outside distill/llm/ that
     imports from it.  It reads new env vars (DISTILL_PROVIDER,
     DISTILL_{WORKLOAD}_PROVIDER, ANTHROPIC_API_KEY) and maps legacy
     DistillConfig fields to the RouterConfig dataclass.
+
+    If *model_override* is provided, it overrides fast_model and premium_model,
+    effectively forcing all workloads to use that model.
     """
     import os
 
@@ -173,7 +178,7 @@ def router_config_from_distill(config: DistillConfig) -> "RouterConfig":
     # Ops directory: library/.distill/
     ops_dir = str(config.library_dir / ".distill")
 
-    return RouterConfig(
+    rc = RouterConfig(
         # API keys
         xai_api_key=config.xai_api_key.get_secret_value(),
         gemini_api_key=config.gemini_api_key.get_secret_value(),
@@ -204,3 +209,36 @@ def router_config_from_distill(config: DistillConfig) -> "RouterConfig":
         # Ops directory
         ops_dir=ops_dir,
     )
+
+    if model_override:
+        rc = apply_model_override(rc, model_override)
+    elif os.environ.get("DISTILL_MODEL"):
+        rc = apply_model_override(rc, os.environ["DISTILL_MODEL"])
+
+    return rc
+
+
+def apply_model_override(config: "RouterConfig", model: str) -> "RouterConfig":
+    """Apply a CLI --model override to a RouterConfig.
+
+    Sets the fast_model and premium_model to the given model string AND
+    clears all per-workload model overrides, so every workload resolves
+    to the override model. Returns a new RouterConfig with the override applied.
+    """
+    if not model:
+        return config
+
+    from dataclasses import asdict
+
+    from distill.llm.router import RouterConfig
+
+    data = asdict(config)
+    data["fast_model"] = model
+    data["premium_model"] = model
+    # Clear per-workload model overrides so tier defaults (the override) win
+    for key in list(data.keys()):
+        if key.endswith("_model") and key not in ("fast_model", "premium_model"):
+            data[key] = ""
+    # Remove the PREMIUM_WORKLOADS tuple since it's a class-level default
+    data.pop("PREMIUM_WORKLOADS", None)
+    return RouterConfig(**data)

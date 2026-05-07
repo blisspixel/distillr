@@ -19,7 +19,10 @@ def costs(days: int = 30, limit: int = 20) -> str:
         limit: Max entries to return
     """
     config = _server._config()
-    log_file = config.library_dir / "cost_log.jsonl"
+    # Check new location first, fall back to old
+    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    legacy_log = config.library_dir / "cost_log.jsonl"
+    log_file = ops_log if ops_log.exists() else legacy_log
 
     if not log_file.exists():
         return json.dumps(

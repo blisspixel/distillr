@@ -64,7 +64,9 @@ def safe_urlopen(
         except urllib.error.HTTPError as exc:
             last_error = exc
             if (exc.code == 429 or exc.code >= 500) and attempt < retries:
-                wait = backoff_base * (2**attempt)
+                # 429s need longer backoff than 5xx — rate limits are time-windowed
+                base = backoff_base * 3 if exc.code == 429 else backoff_base
+                wait = base * (2**attempt)
                 logger.warning(
                     "HTTP %d from %s (attempt %d/%d). Retrying in %.0fs...",
                     exc.code,

@@ -69,6 +69,14 @@ XAI_API_KEY=xai-...             # Grok models
 GEMINI_API_KEY=AIza...          # Gemini Deep Research (reports + briefings)
 ```
 
+Or run locally with Ollama (no API keys needed for ingestion):
+
+```bash
+ollama pull qwen3.5:27b         # download recommended model for 24GB GPU
+echo "DISTILL_PROVIDER=ollama" >> .env
+distill doctor                  # verify local setup
+```
+
 Then try any of:
 
 ```bash
@@ -204,12 +212,13 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`docs/outputs.md`](docs/outputs.md) — what every artifact contains
 - [`docs/cost.md`](docs/cost.md) — cost model, examples, guardrails
 - [`docs/mcp.md`](docs/mcp.md) — MCP tools, resources, prompts
+- [`docs/migration-grok-4.3.md`](docs/migration-grok-4.3.md) — Grok 4.3 migration guide (model retirement May 15, 2026)
 - [`docs/briefing-contexts/TEMPLATE.md`](docs/briefing-contexts/TEMPLATE.md) — starting point for `--context-file` prompts
 - [`private/README.md`](private/README.md) — where personal/client-specific files go (git-ignored)
 
 ## Roadmap and changelog
 
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped in `0.1.0`
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
 ## Contributing
