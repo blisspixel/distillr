@@ -1,0 +1,30 @@
+services:
+  distillr:
+    build: .
+    volumes:
+      - ./library:/app/library
+      - ./.env:/app/.env:ro
+    ports:
+      - "8765:8765"
+    environment:
+      - DISTILL_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  ollama_data:

@@ -800,7 +800,11 @@ def dashboard_snapshot(config: DistillConfig) -> dict:
     site_count, page_count = count_site_corpus(config, topics)
     paper_count = count_paper_corpus(config, topics)
     report_count, brief_count, synthesis_count = count_topic_outputs(config, topics)
-    all_cost_entries = load_all_cost_runs(config.library_dir / "cost_log.jsonl")
+    # Check new location first, fall back to old
+    _ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    _legacy_log = config.library_dir / "cost_log.jsonl"
+    _cost_log = _ops_log if _ops_log.exists() else _legacy_log
+    all_cost_entries = load_all_cost_runs(_cost_log)
     recent_runs = all_cost_entries[-6:]
     recent_spend = sum_recent_cost(recent_runs)
     latest_run = load_latest_run_payload(config.library_dir)

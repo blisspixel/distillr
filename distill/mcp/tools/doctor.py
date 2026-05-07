@@ -64,6 +64,32 @@ def doctor() -> str:
     except ImportError:
         checks.append({"check": "playwright", "status": "missing"})
 
+    # Retired models
+    from distill.llm.router import RETIRED_MODELS, RETIREMENT_DATE
+
+    model_fields = [
+        "xai_fast_model",
+        "xai_premium_model",
+        "xai_analysis_model",
+        "xai_rerank_model",
+        "xai_synthesis_model",
+        "xai_site_model",
+        "accordion_section_model",
+    ]
+    for field in model_fields:
+        value = getattr(config, field, "")
+        if value and value in RETIRED_MODELS:
+            checks.append(
+                {
+                    "check": "retired_model",
+                    "status": "warning",
+                    "field": field,
+                    "model": value,
+                    "retirement_date": RETIREMENT_DATE,
+                    "replacement": RETIRED_MODELS[value],
+                }
+            )
+
     all_ok = all(c["status"] in ("ok", "optional") for c in checks)
     return json.dumps(
         {

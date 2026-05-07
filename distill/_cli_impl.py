@@ -569,14 +569,23 @@ def _default(
     ctx: typer.Context,
     debug: bool = typer.Option(False, "--debug", help="Enable DEBUG-level logging to console"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON to stdout"),
+    model: str = typer.Option("", "--model", "-m", help="Override model for all workloads"),
 ):
     """Distill - YouTube channels to strategic intelligence."""
     from distill._logging import configure_logging
 
     ctx.ensure_object(dict)
     ctx.obj["json"] = json_output
+    ctx.obj["model"] = model
     # Always reset console.quiet based on current invocation
     console.quiet = json_output
+
+    # Set model override as env var so pipeline functions pick it up
+    # without needing ctx passed through every layer
+    if model:
+        import os
+
+        os.environ["DISTILL_MODEL"] = model
 
     try:
         ops_dir = get_config().library_dir / ".distill"
@@ -593,6 +602,13 @@ def _default(
 def get_config() -> DistillConfig:
     load_dotenv()
     return DistillConfig()
+
+
+def get_model_override(ctx: typer.Context | None = None) -> str:
+    """Get the --model override from the CLI context, if set."""
+    if ctx and ctx.obj:
+        return ctx.obj.get("model", "")
+    return ""
 
 
 def _preflight() -> None:
@@ -1451,7 +1467,11 @@ def _show_dashboard():  # noqa: C901 — legacy, will refactor
     site_count, page_count = _count_site_corpus(config, topics)
     paper_count = _count_paper_corpus(config, topics)
     report_count, brief_count, synthesis_count = _count_topic_outputs(config, topics)
-    all_cost_entries = _load_all_cost_runs(config.library_dir / "cost_log.jsonl")
+    # Check new location first, fall back to old
+    _ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    _legacy_log = config.library_dir / "cost_log.jsonl"
+    _cost_log = _ops_log if _ops_log.exists() else _legacy_log
+    all_cost_entries = _load_all_cost_runs(_cost_log)
     recent_runs = all_cost_entries[-6:]
     recent_spend = _sum_recent_cost(recent_runs)
     latest_run = _load_latest_run_payload(config.library_dir)
@@ -4153,20 +4173,35 @@ def serve(
 
 @app.command(rich_help_panel="Maintain")
 def costs(  # noqa: C901 — legacy, will refactor
+    ctx: typer.Context,
     last: int = typer.Option(10, "--last", "-n", help="Number of recent runs to show"),
 ):
     """Show cost history from past runs.
 
     Displays actual vs estimated costs, token usage breakdown, and per-run timing.
     """
+    import json as _json
+
+    from distill.commands._json import JsonEnvelope
+
     config = get_config()
-    log_file = config.library_dir / "cost_log.jsonl"
+    # Check new location first, fall back to old
+    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    legacy_log = config.library_dir / "cost_log.jsonl"
+    log_file = ops_log if ops_log.exists() else legacy_log
+    json_mode = ctx.obj.get("json", False) if ctx.obj else False
 
     if not log_file.exists():
-        console.print("[dim]No cost history yet. Costs are logged after each run.[/dim]")
-        return
+        if json_mode:
+            envelope = JsonEnvelope.success(
+                {"runs": [], "total_cost": 0, "message": "No cost history yet."}
+            )
+            import sys
 
-    import json as _json
+            sys.stdout.write(envelope.to_json() + "\n")
+        else:
+            console.print("[dim]No cost history yet. Costs are logged after each run.[/dim]")
+        return
 
     entries = []
     for line in log_file.read_text(encoding="utf-8").strip().split("\n"):
@@ -4177,28 +4212,70 @@ def costs(  # noqa: C901 — legacy, will refactor
                 continue
 
     if not entries:
-        console.print("[dim]No cost entries found.[/dim]")
+        if json_mode:
+            envelope = JsonEnvelope.success(
+                {"runs": [], "total_cost": 0, "message": "No cost entries found."}
+            )
+            import sys
+
+            sys.stdout.write(envelope.to_json() + "\n")
+        else:
+            console.print("[dim]No cost entries found.[/dim]")
         return
 
     recent = entries[-last:]
+    total_cost = sum(e.get("actual_cost", 0) for e in recent)
+
+    if json_mode:
+        # Compute local/cloud split from telemetry
+        local_cloud = _compute_local_cloud_stats(config)
+        envelope = JsonEnvelope.success(
+            {
+                "runs": recent,
+                "total_cost": round(total_cost, 4),
+                "runs_shown": len(recent),
+                "cloud_spend_usd": round(total_cost, 4),
+                "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
+                "local_tokens_total": local_cloud.get("local_total_tokens", 0),
+                "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+            }
+        )
+        import sys
+
+        sys.stdout.write(envelope.to_json() + "\n")
+        return
 
     table = Table(title="Cost History", box=box.ROUNDED, show_header=True)
     table.add_column("Date", style="dim")
     table.add_column("Command")
-    table.add_column("Videos", justify="right")
-    table.add_column("Shorts", justify="right")
-    table.add_column("Actual", justify="right", style="green")
+    table.add_column("Topic", style="cyan")
+    table.add_column("Sources", justify="right")
+    table.add_column("Cost", justify="right", style="green")
     table.add_column("Tokens (in/out)", justify="right", style="dim")
     table.add_column("Time", justify="right")
 
-    total_cost = 0.0
     for e in recent:
         ts = e.get("timestamp", "")[:10]
         cmd = e.get("command", "?")
-        fv = str(e.get("full_videos", 0))
-        sh = str(e.get("shorts", 0))
+        # Topic from metadata
+        metadata = e.get("metadata", {}) or {}
+        topic = metadata.get("topic", "—")
+        # Sources: combine video/paper/page counts
+        source_parts: list[str] = []
+        fv = e.get("full_videos", 0)
+        if fv:
+            source_parts.append(f"{fv}v")
+        papers = metadata.get("papers", 0)
+        if papers:
+            source_parts.append(f"{papers}p")
+        elif cmd == "papers":
+            source_parts.append("papers")
+        pages = metadata.get("pages", 0)
+        if pages:
+            source_parts.append(f"{pages}pg")
+        sources_str = " ".join(source_parts) if source_parts else "—"
+        # Cost
         actual = e.get("actual_cost", 0)
-        total_cost += actual
         cost_str = f"${actual:.4f}" if actual < 0.01 else f"${actual:.2f}"
         tokens = f"{e.get('total_input_tokens', 0):,} / {e.get('total_output_tokens', 0):,}"
         elapsed = e.get("elapsed_seconds", 0)
@@ -4206,21 +4283,140 @@ def costs(  # noqa: C901 — legacy, will refactor
             time_str = f"{int(elapsed // 60)}m {int(elapsed % 60)}s"
         else:
             time_str = f"{elapsed:.0f}s"
-        table.add_row(ts, cmd, fv, sh, cost_str, tokens, time_str)
+        table.add_row(ts, cmd, topic, sources_str, cost_str, tokens, time_str)
 
     console.print(table)
     console.print(f"\n[bold]Total across {len(recent)} runs: ${total_cost:.4f}[/bold]")
 
-    # Per-call-type breakdown from most recent run
-    if recent:
-        latest = recent[-1]
-        by_type = latest.get("by_call_type", {})
+    # Local vs Cloud split from telemetry
+    _costs_local_cloud_section(config)
+
+    # Per-call-type breakdown for each run
+    for e in recent:
+        by_type = e.get("by_call_type", {})
         if by_type:
             console.print("\n[dim]Latest run breakdown:[/dim]")
+            run_ts = e.get("timestamp", "")[:16]
+            run_cmd = e.get("command", "?")
+            breakdown_table = Table(
+                title=f"Breakdown: {run_cmd} ({run_ts})",
+                box=box.SIMPLE,
+                show_header=True,
+            )
+            breakdown_table.add_column("Call Type", style="dim")
+            breakdown_table.add_column("Calls", justify="right")
+            breakdown_table.add_column("Input Tokens", justify="right")
+            breakdown_table.add_column("Output Tokens", justify="right")
             for ct, data in sorted(by_type.items()):
-                console.print(
-                    f"  [dim]{ct}: {data['calls']} calls, {data['input_tokens']:,} in / {data['output_tokens']:,} out[/dim]"
+                breakdown_table.add_row(
+                    ct,
+                    str(data["calls"]),
+                    f"{data['input_tokens']:,}",
+                    f"{data['output_tokens']:,}",
                 )
+            console.print(breakdown_table)
+
+
+def _compute_local_cloud_stats(config: DistillConfig) -> dict:
+    """Compute local/cloud inference stats from telemetry.jsonl for JSON output."""
+    ops_dir = str(config.library_dir / ".distill")
+    telemetry_path = Path(ops_dir) / "telemetry.jsonl"
+    if not telemetry_path.exists():
+        return {}
+
+    local_total_seconds = 0.0
+    local_total_tokens = 0
+    local_records_count = 0
+    total_tps_sum = 0.0
+
+    try:
+        import json as _json
+
+        for line in telemetry_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = _json.loads(line)
+                if data.get("provider_type") == "local":
+                    local_records_count += 1
+                    local_total_seconds += float(data.get("elapsed_seconds", 0))
+                    local_total_tokens += int(data.get("output_tokens", 0)) + int(
+                        data.get("input_tokens", 0)
+                    )
+                    tps = float(data.get("tokens_per_second", 0))
+                    if tps > 0:
+                        total_tps_sum += tps
+            except (ValueError, TypeError, _json.JSONDecodeError):
+                continue
+    except OSError:
+        return {}
+
+    avg_tps = round(total_tps_sum / local_records_count, 1) if local_records_count > 0 else 0
+    return {
+        "local_total_seconds": round(local_total_seconds, 1),
+        "local_total_tokens": local_total_tokens,
+        "avg_tokens_per_second": avg_tps,
+    }
+
+
+def _costs_local_cloud_section(config: DistillConfig) -> None:  # noqa: C901
+    """Display local vs cloud inference split from telemetry.jsonl."""
+    ops_dir = str(config.library_dir / ".distill")
+    telemetry_path = Path(ops_dir) / "telemetry.jsonl"
+    if not telemetry_path.exists():
+        return
+
+    # Parse all telemetry records
+    local_total_seconds = 0.0
+    local_total_tokens = 0
+    local_records_count = 0
+    cloud_records_count = 0
+    total_tps_sum = 0.0
+
+    try:
+        import json as _json
+
+        for line in telemetry_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = _json.loads(line)
+                provider_type = data.get("provider_type", "cloud")
+                if provider_type == "local":
+                    local_records_count += 1
+                    elapsed = float(data.get("elapsed_seconds", 0))
+                    local_total_seconds += elapsed
+                    out_tokens = int(data.get("output_tokens", 0))
+                    in_tokens = int(data.get("input_tokens", 0))
+                    local_total_tokens += out_tokens + in_tokens
+                    tps = float(data.get("tokens_per_second", 0))
+                    if tps > 0:
+                        total_tps_sum += tps
+                else:
+                    cloud_records_count += 1
+            except (ValueError, TypeError, _json.JSONDecodeError):
+                continue
+    except OSError:
+        return
+
+    if local_records_count == 0 and cloud_records_count == 0:
+        return
+
+    console.print()
+    console.print("[bold]Inference Split[/bold]")
+
+    if cloud_records_count > 0:
+        console.print(f"  Cloud calls:       {cloud_records_count:,}")
+
+    if local_records_count > 0:
+        avg_tps = total_tps_sum / local_records_count if local_records_count > 0 else 0
+        console.print(f"  Local calls:       {local_records_count:,}")
+        console.print(f"  Local time:        {local_total_seconds:.1f}s")
+        console.print(f"  Local tokens:      {local_total_tokens:,}")
+        if avg_tps > 0:
+            console.print(f"  Avg tokens/sec:    {avg_tps:.1f}")
 
 
 # ─── Status & Doctor ──────────────────────────────────────────────────
@@ -4405,8 +4601,38 @@ def alerts(
             console.print("[dim]No watch alerts found.[/dim]")
 
 
+def check_retired_models(config: DistillConfig) -> list[str]:
+    """Check all model config fields against the retired-model registry.
+
+    Returns a list of warning strings for any configured model that is retired.
+    Each warning includes the field name, model name, retirement date, and replacement.
+    """
+    from distill.llm.router import RETIRED_MODELS, RETIREMENT_DATE
+
+    model_fields = [
+        "xai_fast_model",
+        "xai_premium_model",
+        "xai_analysis_model",
+        "xai_rerank_model",
+        "xai_synthesis_model",
+        "xai_site_model",
+        "accordion_section_model",
+    ]
+    warnings: list[str] = []
+    for field in model_fields:
+        value = getattr(config, field, "")
+        if value and value in RETIRED_MODELS:
+            replacement = RETIRED_MODELS[value]
+            warnings.append(
+                f"{field} uses retired model '{value}' "
+                f"(retiring {RETIREMENT_DATE}); replace with '{replacement}'"
+            )
+    return warnings
+
+
 @app.command(rich_help_panel="Maintain")
 def doctor(  # noqa: C901 — legacy, will refactor
+    ctx: typer.Context,
     update: bool = typer.Option(
         False,
         "--update",
@@ -4414,8 +4640,82 @@ def doctor(  # noqa: C901 — legacy, will refactor
     ),
 ):
     """Check API keys, tools, and library health."""
+    from distill.commands._json import JsonEnvelope
+
+    json_mode = ctx.obj.get("json", False) if ctx.obj else False
+
     _ACCENT = "rgb(100,149,237)"
     config = get_config()
+
+    if json_mode:
+        # JSON mode: collect health data and return structured output
+        checks: dict[str, str] = {}
+        warnings_list: list[str] = []
+
+        # API keys
+        checks["xai_api_key"] = "set" if config.xai_api_key else "missing"
+        checks["gemini_api_key"] = "set" if config.gemini_api_key else "not_set"
+        checks["openai_api_key"] = "set" if config.openai_api_key else "not_set"
+
+        # yt-dlp
+        try:
+            import importlib.metadata
+
+            importlib.metadata.version("yt-dlp")  # raises if not installed
+            checks["yt_dlp"] = importlib.metadata.version("yt-dlp")
+        except Exception:
+            checks["yt_dlp"] = "not_found"
+
+        # Library stats
+        lib = Library(config)
+        topics = lib.get_topics()
+        total_ch = sum(len(lib.get_channels(t)) for t in topics)
+        checks["topics"] = str(len(topics))
+        checks["channels"] = str(total_ch)
+
+        # Retired models
+        retired_warnings = check_retired_models(config)
+        warnings_list.extend(retired_warnings)
+
+        # Local inference
+        from distill.doctor.hardware import detect_hardware
+        from distill.doctor.recommendations import recommend_models as _recommend
+
+        profile = detect_hardware()
+        ollama_status, ollama_models = _check_ollama_status()
+        lmstudio_status = _check_lmstudio_status()
+        recommendations = _recommend(profile)
+
+        local_inference = {
+            "gpu_type": profile.gpu_type,
+            "gpu_name": profile.gpu_name,
+            "vram_gb": profile.vram_gb,
+            "system_ram_gb": profile.system_ram_gb,
+            "is_container": profile.is_container,
+            "ollama_status": ollama_status,
+            "ollama_models": ollama_models,
+            "lmstudio_status": lmstudio_status,
+            "recommended_models": [
+                {
+                    "model_name": r.model_name,
+                    "context_window": r.context_window,
+                    "reason": r.reason,
+                }
+                for r in recommendations
+            ],
+        }
+
+        envelope = JsonEnvelope.success(
+            {
+                "checks": checks,
+                "warnings": warnings_list,
+                "local_inference": local_inference,
+            }
+        )
+        import sys
+
+        sys.stdout.write(envelope.to_json() + "\n")
+        return
 
     update_succeeded = False
     if update:
@@ -4601,7 +4901,129 @@ def doctor(  # noqa: C901 — legacy, will refactor
     )
     console.print(f"  Library:    [dim]{config.library_dir}[/dim]")
     console.print(f"  Version:    [dim]v{_get_version()}[/dim]")
+
+    # Retired models
+    retired_warnings = check_retired_models(config)
+    if retired_warnings:
+        console.print()
+        console.print("  [bold]Retired Models[/bold]")
+        console.print(f"  [dim]{'-' * 50}[/dim]")
+        for warning in retired_warnings:
+            console.print(f"  [yellow]⚠[/yellow]  {warning}")
+
+    # Local Inference
+    _doctor_local_inference_section(config, _ACCENT)
+
     console.print()
+
+
+def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:  # noqa: C901
+    """Display the Local Inference section in distill doctor output."""
+    from distill.doctor.hardware import detect_hardware
+    from distill.doctor.recommendations import recommend_models
+
+    console.print()
+    console.print("  [bold]Local Inference[/bold]")
+    console.print(f"  [dim]{'-' * 50}[/dim]")
+
+    # Hardware detection
+    profile = detect_hardware()
+    if profile.gpu_type == "nvidia":
+        console.print(
+            f"  GPU:        [green]{profile.gpu_name}[/green]  "
+            f"[dim]({profile.vram_gb:.0f} GB VRAM)[/dim]"
+        )
+    elif profile.gpu_type == "apple_silicon":
+        console.print(
+            f"  GPU:        [green]{profile.gpu_name}[/green]  "
+            f"[dim]({profile.vram_gb:.0f} GB unified)[/dim]"
+        )
+    else:
+        console.print("  GPU:        [dim]none detected[/dim]")
+
+    console.print(f"  RAM:        [dim]{profile.system_ram_gb:.0f} GB[/dim]")
+    if profile.is_container:
+        console.print("  Container:  [yellow]yes[/yellow]")
+
+    # Ollama server status
+    ollama_status, ollama_models = _check_ollama_status()
+    if ollama_status == "running":
+        console.print(
+            f"  Ollama:     [green]running[/green]  [dim]({len(ollama_models)} model(s))[/dim]"
+        )
+        if ollama_models:
+            for m in ollama_models[:5]:
+                console.print(f"              [dim]• {m}[/dim]")
+            if len(ollama_models) > 5:
+                console.print(f"              [dim]  ... and {len(ollama_models) - 5} more[/dim]")
+    else:
+        console.print("  Ollama:     [dim]not running[/dim]")
+
+    # LM Studio server status
+    lmstudio_status = _check_lmstudio_status()
+    if lmstudio_status == "running":
+        console.print("  LM Studio:  [green]running[/green]")
+    else:
+        console.print("  LM Studio:  [dim]not running[/dim]")
+
+    # Model recommendations
+    recommendations = recommend_models(profile)
+    if recommendations:
+        console.print()
+        console.print("  [bold]Recommended Models[/bold]")
+        console.print(f"  [dim]{'-' * 50}[/dim]")
+        ollama_model_names = {m.split(":")[0] if ":" in m else m for m in ollama_models}
+        for rec in recommendations:
+            rec_base = rec.model_name.split(":")[0] if ":" in rec.model_name else rec.model_name
+            if rec_base in ollama_model_names or rec.model_name in ollama_models:
+                status_icon = "[green]✓[/green]"
+            else:
+                status_icon = "[yellow]↓[/yellow]"
+            console.print(
+                f"  {status_icon} {rec.model_name}  "
+                f"[dim]ctx={rec.context_window:,} — {rec.reason}[/dim]"
+            )
+            if rec_base not in ollama_model_names and rec.model_name not in ollama_models:
+                console.print(f"     [dim]ollama pull {rec.model_name}[/dim]")
+
+
+def _check_ollama_status() -> tuple[str, list[str]]:
+    """Check if Ollama server is running and list available models.
+
+    Returns (status, model_names) where status is "running" or "unavailable".
+    """
+    import asyncio
+
+    try:
+        from distill.llm.providers.ollama import OllamaProvider
+
+        provider = OllamaProvider()
+        try:
+            models_data = asyncio.run(provider.list_models())
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+            models_data = loop.run_until_complete(provider.list_models())
+        model_names = [m.get("name", "") for m in models_data if m.get("name")]
+        return ("running", model_names)
+    except (ConnectionError, Exception):
+        return ("unavailable", [])
+
+
+def _check_lmstudio_status() -> str:
+    """Check if LM Studio server is running. Returns 'running' or 'unavailable'."""
+    import httpx
+
+    try:
+        import os
+
+        url = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+        with httpx.Client(timeout=3) as client:
+            resp = client.get(f"{url}/models")
+            if resp.status_code == 200:
+                return "running"
+    except Exception:
+        pass
+    return "unavailable"
 
 
 @app.command(rich_help_panel="Maintain")
@@ -5068,7 +5490,11 @@ def topic_watch_run(  # noqa: C901 — legacy, will refactor
             console.print(f"  [red]No watched topics in topic '{topic}'[/red]")
             return
 
-    all_cost_entries = _load_all_cost_runs(config.library_dir / "cost_log.jsonl")
+    # Check new location first, fall back to old
+    _ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    _legacy_log = config.library_dir / "cost_log.jsonl"
+    _cost_log = _ops_log if _ops_log.exists() else _legacy_log
+    all_cost_entries = _load_all_cost_runs(_cost_log)
     generated_alerts: list[str] = []
     alert_generated_at = datetime.now()
 

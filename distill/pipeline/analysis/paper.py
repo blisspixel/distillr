@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from distill.config import DistillConfig, router_config_from_distill
 from distill.ingestors.papers.arxiv import (
     PaperRecord,
@@ -10,8 +12,11 @@ from distill.ingestors.papers.arxiv import (
 )
 from distill.library.paths import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
 from distill.llm import call as llm_call
+from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.synthesis import paper_insight_prompt, paper_topic_synthesis_prompt
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "analyze_paper",
@@ -35,6 +40,34 @@ def analyze_paper(
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
     prompt = paper_insight_prompt(paper.title, paper.paper_id, document)
+
+    # Check if content needs chunking based on context window
+    content_tokens = estimate_tokens(document)
+    # Default context window for cloud providers; adaptive chunking will be
+    # fully wired in Phase 4 with provider metadata resolution.
+    context_window = 1_000_000  # Conservative default for cloud
+    threshold = int(context_window * 0.80)
+    if content_tokens >= threshold:
+        chunks = chunk_content(document, context_window)
+        logger.debug(
+            "Chunking decision: content_tokens=%d, window=%d, threshold=%d, "
+            "decision=CHUNK, num_chunks=%d",
+            content_tokens,
+            context_window,
+            threshold,
+            len(chunks),
+        )
+        # For now, process first chunk only (multi-pass assembly comes in Phase 4)
+        document = chunks[0].text
+        prompt = paper_insight_prompt(paper.title, paper.paper_id, document)
+    else:
+        logger.debug(
+            "Chunking decision: content_tokens=%d, window=%d, threshold=%d, decision=PASSTHROUGH",
+            content_tokens,
+            context_window,
+            threshold,
+        )
+
     response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="paper")
     result = response.text
     if tracker:

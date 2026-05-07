@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import jsonschema
+
 # ── Property 9: Tool descriptions respect character limits ──
 # Feature: mcp-first-surface, Property 9: Tool descriptions respect character limits
 # **Validates: Requirements 6.1, 6.2**
@@ -58,27 +60,47 @@ def test_param_descriptions_within_50_chars():
 # **Validates: Requirements 11.3**
 
 
-def test_tool_schemas_are_valid_json_schema():
+def test_tool_schemas_are_valid_json_schema_draft7():
     """Property 11: Tool schemas are valid JSON Schema Draft 7."""
     tools = _get_all_tools()
     assert len(tools) > 0, "No tools registered"
 
     for name, tool in tools.items():
         schema = tool.parameters
-        # Basic JSON Schema structure checks
         assert isinstance(schema, dict), f"{name}: schema is not a dict"
-        assert "properties" in schema or schema.get("type") == "object", (
-            f"{name}: schema missing 'properties'"
-        )
+
         # Verify it's valid JSON (serializable)
-        json.dumps(schema)
+        serialized = json.dumps(schema)
+        parsed = json.loads(serialized)
+
+        # Validate the schema itself is a valid JSON Schema Draft 7
+        # by checking it can be used as a schema (meta-validation)
+        try:
+            jsonschema.Draft7Validator.check_schema(parsed)
+        except jsonschema.SchemaError as e:
+            raise AssertionError(
+                f"{name}: schema is not valid JSON Schema Draft 7: {e.message}"
+            ) from None
+
+
+def test_tool_schemas_have_required_structure():
+    """Tool schemas have proper object type and properties."""
+    tools = _get_all_tools()
+    assert len(tools) > 0, "No tools registered"
+
+    for name, tool in tools.items():
+        schema = tool.parameters
+        assert isinstance(schema, dict), f"{name}: schema is not a dict"
+        # All tool schemas should be object type with properties
+        assert schema.get("type") == "object", f"{name}: schema type is not 'object'"
+        assert "properties" in schema, f"{name}: schema missing 'properties'"
 
 
 # ── Backward compatibility snapshot tests ──
 
 
 def test_existing_tools_still_registered():
-    """Verify all 8 existing tools are still registered."""
+    """Verify all existing tools are still registered."""
     tools = _get_all_tools()
     expected = {
         "learn_topic",
@@ -138,3 +160,84 @@ def test_existing_tool_schemas_unchanged():
     assert "topic" in wa_params
     assert "days" in wa_params
     assert "instructions" in wa_params
+
+    # process_video_url should accept url, topic
+    pv_params = tools["process_video_url"].parameters.get("properties", {})
+    assert "url" in pv_params
+    assert "topic" in pv_params
+
+    # watch_remove should accept name
+    wr_params = tools["watch_remove"].parameters.get("properties", {})
+    assert "name" in wr_params
+
+    # generate_report should accept topic, channel
+    gr_params = tools["generate_report"].parameters.get("properties", {})
+    assert "topic" in gr_params
+    assert "channel" in gr_params
+
+    # resynthesize_topic should accept topic, channel
+    rt_params = tools["resynthesize_topic"].parameters.get("properties", {})
+    assert "topic" in rt_params
+    assert "channel" in rt_params
+
+    # research_gaps should accept topic
+    rg_params = tools["research_gaps"].parameters.get("properties", {})
+    assert "topic" in rg_params
+
+    # search_videos should accept query, days, limit
+    sv_params = tools["search_videos"].parameters.get("properties", {})
+    assert "query" in sv_params
+    assert "days" in sv_params
+    assert "limit" in sv_params
+
+
+def _has_type(prop_schema: dict, expected_type: str) -> bool:
+    """Check if a property schema includes the expected type (handles anyOf for optionals)."""
+    if prop_schema.get("type") == expected_type:
+        return True
+    # Handle anyOf (e.g., int | None becomes anyOf: [{type: integer}, {type: null}])
+    any_of = prop_schema.get("anyOf", [])
+    return any(item.get("type") == expected_type for item in any_of)
+
+
+def test_existing_tool_parameter_types_unchanged():
+    """Backward compatibility: parameter types haven't changed."""
+    tools = _get_all_tools()
+
+    # learn_topic parameter types
+    lt_props = tools["learn_topic"].parameters.get("properties", {})
+    assert _has_type(lt_props["query"], "string")
+    assert _has_type(lt_props["days"], "integer")
+    assert _has_type(lt_props["limit"], "integer")
+
+    # catch_up parameter types (days is int | None)
+    cu_props = tools["catch_up"].parameters.get("properties", {})
+    assert _has_type(cu_props["days"], "integer")
+
+    # watch_add parameter types
+    wa_props = tools["watch_add"].parameters.get("properties", {})
+    assert _has_type(wa_props["url"], "string")
+    assert _has_type(wa_props["topic"], "string")
+    assert _has_type(wa_props["days"], "integer")
+    assert _has_type(wa_props["instructions"], "string")
+
+
+def test_existing_tool_required_fields_unchanged():
+    """Backward compatibility: required fields haven't changed."""
+    tools = _get_all_tools()
+
+    # learn_topic requires query
+    lt_required = tools["learn_topic"].parameters.get("required", [])
+    assert "query" in lt_required
+
+    # watch_add requires url
+    wa_required = tools["watch_add"].parameters.get("required", [])
+    assert "url" in wa_required
+
+    # process_video_url requires url
+    pv_required = tools["process_video_url"].parameters.get("required", [])
+    assert "url" in pv_required
+
+    # research_gaps requires topic
+    rg_required = tools["research_gaps"].parameters.get("required", [])
+    assert "topic" in rg_required

@@ -30,7 +30,7 @@ _workload_tag = st.text(
     max_size=20,
 )
 _result_text = st.text(
-    alphabet=st.characters(blacklist_characters="\r"),
+    alphabet=st.characters(blacklist_characters="\r", blacklist_categories=("Cs",)),
     min_size=1,
     max_size=500,
 )

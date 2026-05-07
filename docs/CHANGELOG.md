@@ -14,9 +14,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
-## 0.5.0 — 2026-07-21
+## 0.6.0 — 2026-05-06
 
-MCP-first surface: the MCP server becomes the primary product surface.
+Local inference with adaptive context. When ingestion is basically free (local models), you use it more — more sources, more frequent refreshes, richer corpus. Quality bar is the same as cloud.
+
+### Added
+
+- **Ollama provider.** Full implementation using httpx for the Ollama HTTP API. Retry with exponential backoff, connection error handling with descriptive messages, context window detection via `/api/show`, model listing via `/api/tags`.
+- **LM Studio provider.** OpenAI-compatible client pointed at `localhost:1234/v1`. Supports `LMSTUDIO_BASE_URL` env var override.
+- **Provider metadata.** `ProviderMetadata` dataclass with context window, provider type (local/cloud), and provider name. Automatic resolution for both local (queried from API) and cloud (lookup table) providers.
+- **Adaptive chunking.** Section-aware content splitting when content exceeds the provider's context window. Preserves heading context in each chunk. Passthrough when content fits. Automatic based on provider metadata — users don't configure this.
+- **Per-category reranking.** Keyword-based scoring of chunks by relevance to each insight category (Key Findings, Methods, Limits, Open Questions). Top-k selection within context window. Skips categories where all chunks score below threshold.
+- **Multi-pass analysis.** Focused per-category passes over chunked content, merged into a unified insight matching the same structure as single-pass cloud analysis. Deduplication of overlapping insights.
+- **Report compaction.** High-recall summaries (25% of original) between report pipeline phases, preserving all named entities and quantitative claims. Precision second pass (10%) when first pass still exceeds window. Applied universally (cloud and local).
+- **Hardware detection.** `distill doctor` detects NVIDIA GPUs (via nvidia-smi), Apple Silicon (via sysctl), system RAM, and container environments.
+- **Model recommendations.** Hardware-tier-based model suggestions (4090 → qwen3.5:27b, M1 16GB → qwen3.5:14b). Configurable via JSON file. Includes pull commands for missing models.
+- **Quality gate (stub).** `EvalResult` dataclass and `run_eval_suite()` interface ready for Phase 9 baselines.
+- **Cost display — local/cloud split.** `distill costs` shows cloud spend (USD) and local inference time (seconds, tokens/second) separately.
+- **`--model` CLI override.** Global `-m`/`--model` flag forces all workloads to a specific model for the invocation.
+- **Docker support.** `Dockerfile` with Playwright deps and `docker-compose.yml` with Ollama GPU passthrough, library volume mount, and MCP server port exposure.
+- **Telemetry extension.** `provider_type`, `provider_name`, and `tokens_per_second` fields in telemetry records. Backward compatible with existing JSONL.
+
+### Changed
+
+- Router imports `LOCAL_PROVIDERS` from metadata module for provider type classification.
+- `_emit_telemetry()` accepts and passes provider metadata fields.
+- Paper analysis pipeline checks provider metadata and invokes chunker when content exceeds context window.
+
+### Quality
+
+- 1069 tests passing (unit + integration).
+- 13 property-based tests for local inference: response parsing, model passthrough, retry count, provider classification, chunk size invariant, content preservation, chunking decision, heading context, compaction length, entity preservation, telemetry round-trip, token estimation, router resolution.
+- `ruff check`, `ruff format`, and `lint-imports` all pass cleanly.
+
+## 0.5.0 — 2026-05-06
+
+MCP-first surface + Grok 4.3 migration. The MCP server becomes the primary product surface, and all model references are updated ahead of the May 15 xAI retirement deadline.
+
+### Added
+
+- **JIT context retrieval.** New `find_insights(topic, query)` MCP tool returns ranked `(path, preview, score)` tuples — agents get paths and one-line previews instead of full file payloads (~96% token savings). `read_insight(path, section?)` drills down into specific artifacts or sections.
+- **Structured CLI output.** Global `--json` flag on every command produces machine-readable `JsonEnvelope` output to stdout. Diagnostics go to stderr. `NO_COLOR` is respected.
+- **Stable exit codes.** Documented exit codes (0–5) for success, runtime error, usage error, config error, network error, and not-found. Available in `docs/usage.md`.
+- **New MCP tools.** `papers`, `discover`, `site_batch`, `synthesize`, `costs`, `doctor` mirror their CLI counterparts with progress events and structured results.
+- **Progress events.** Long-running MCP tools emit progress notifications (per-paper, per-page, per-stage) so clients can display status and detect stalls.
+- **Token-efficient tool descriptions.** All tool descriptions ≤100 chars, all parameter descriptions ≤50 chars. Reduces context window consumption when agents load multiple MCP servers.
+- **`distill alerts` command.** CLI command to display watch-alert digest (Rich or JSON). MCP resource `distill://watch-alerts` returns clear message when no alerts exist.
+- **Grok 4.3 as default model.** All workloads now default to `grok-4.3` (1M context window, $1.25/$2.50 per 1M tokens).
+- **Reasoning effort configuration.** Per-workload `DISTILL_{WORKLOAD}_REASONING_EFFORT` env vars (low/medium/high). Premium workloads default to "high", fast-tier to "medium".
+- **Retired model fallback.** If a retired model is configured, the router logs a deprecation warning and automatically substitutes the recommended replacement.
+- **`distill doctor` retired-model check.** Warns when configured models are on the retirement list with specific replacement guidance.
+- **Migration guide.** `docs/migration-grok-4.3.md` documents all 8 retired models, their replacements, and reasoning effort configuration.
+
+### Changed
+
+- Default `accordion_section_model` changed from `grok-4-1-fast-reasoning` to `grok-4.3`.
+- Default `xai_site_model` changed from `grok-4.20-0309-reasoning` to `grok-4.3`.
+- Cost table expanded with pricing for `grok-4.20-non-reasoning`, `grok-imagine-image`, and all 8 retired models (retained for historical cost computation).
+- `RETIRED_MODELS` mapping and `RETIREMENT_DATE` constant added to `distill/llm/router.py`.
+
+### Quality
+
+- 960 tests passing (unit + integration).
+- Property-based tests (Hypothesis) for: search ordering, limit bounds, preview format, section extraction, JSON round-trip, tool descriptions, schema validity, retired model fallback, reasoning effort override, cost table completeness, doctor output.
+- `ruff check`, `ruff format`, and `lint-imports` all pass cleanly.
 
 ### Added
 

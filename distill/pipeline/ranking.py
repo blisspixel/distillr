@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 from dataclasses import dataclass
 from datetime import datetime
@@ -131,15 +130,11 @@ def _llm_rerank(
 def _parse_rerank_response(content: str) -> list[dict]:
     if not content:
         return []
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    data = json.loads(text)
+    from distill.llm.json_extract import extract_json
+
+    data = extract_json(content)
+    if data is None:
+        return []
     if isinstance(data, dict):
         data = data.get("ranked_videos", [])
     return data if isinstance(data, list) else []
@@ -551,15 +546,11 @@ def _llm_rerank_papers(
 def _parse_paper_rerank_response(content: str) -> list[dict]:
     if not content:
         return []
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    data = json.loads(text)
+    from distill.llm.json_extract import extract_json
+
+    data = extract_json(content)
+    if data is None:
+        return []
     if isinstance(data, dict):
         data = data.get("ranked_papers", [])
     return data if isinstance(data, list) else []

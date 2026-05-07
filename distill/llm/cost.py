@@ -17,11 +17,21 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 PRICING: dict[str, dict[str, float]] = {
-    # xAI Grok models
+    # xAI Grok — current models
     "grok-4.3": {"input": 1.25, "output": 2.50},
-    "grok-4-1-fast-reasoning": {"input": 0.20, "output": 0.50},
+    "grok-4.20-non-reasoning": {"input": 2.00, "output": 6.00},
     "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
     "grok-4.20": {"input": 2.00, "output": 6.00},
+    "grok-imagine-image": {"per_query": 0.50},
+    # xAI Grok — retired models (retained for historical cost computation)
+    "grok-4-1-fast-reasoning": {"input": 0.20, "output": 0.50},
+    "grok-4-1-fast-non-reasoning": {"input": 0.10, "output": 0.25},
+    "grok-4-fast-reasoning": {"input": 0.50, "output": 1.50},
+    "grok-4-fast-non-reasoning": {"input": 0.25, "output": 0.75},
+    "grok-4-0709": {"input": 0.50, "output": 1.50},
+    "grok-code-fast-1": {"input": 0.20, "output": 0.50},
+    "grok-3": {"input": 3.00, "output": 9.00},
+    "grok-imagine-image-pro": {"per_query": 1.00},
     # Google Gemini models
     "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
     "gemini-3.1-flash": {"input": 0.25, "output": 1.50},

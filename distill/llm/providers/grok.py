@@ -35,6 +35,7 @@ class GrokProvider:
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
+        reasoning_effort: str | None = None,
     ) -> LLM_Response:
         """Send a prompt to xAI Grok and return an LLM_Response.
 
@@ -51,6 +52,8 @@ class GrokProvider:
                 }
                 if temperature is not None:
                     kwargs["temperature"] = temperature
+                if reasoning_effort is not None and model.startswith("grok-4.3"):
+                    kwargs["reasoning_effort"] = reasoning_effort
 
                 response = self._client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
 
