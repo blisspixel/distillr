@@ -17,7 +17,11 @@ async def costs_page(request: Request):
     config = request.app.state.config
     templates = request.app.state.templates
 
-    all_entries = load_all_cost_runs(config.library_dir / "cost_log.jsonl")
+    # Check new location first, fall back to old
+    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    legacy_log = config.library_dir / "cost_log.jsonl"
+    cost_log = ops_log if ops_log.exists() else legacy_log
+    all_entries = load_all_cost_runs(cost_log)
     total_spend = sum_recent_cost(all_entries)
     recent_entries = all_entries[-20:]
     topic_rollups = topic_cost_rollups(all_entries, days=30, limit=10)

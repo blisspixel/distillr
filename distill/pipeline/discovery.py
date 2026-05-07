@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -24,6 +24,7 @@ from distill.prompts.discover import discover_query_generation_prompt, discover_
 SHORTS_THRESHOLD = 180
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 
 def _format_date(date_str: str) -> str:
@@ -125,7 +126,12 @@ def discover_generate_queries(
         text = "\n".join(lines).strip()
     if not text:
         return [], []
-    data = json.loads(text)
+    from distill.llm.json_extract import extract_json
+
+    data = extract_json(text)
+    if data is None:
+        logger.warning("Failed to parse discover query generation response as JSON")
+        return [], []
     paper_qs = data.get("paper_queries", []) if isinstance(data, dict) else []
     video_qs = data.get("video_queries", []) if isinstance(data, dict) else []
     paper_qs = dedupe_query_strings([q for q in paper_qs if isinstance(q, str)])
@@ -238,7 +244,12 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
         text = "\n".join(lines).strip()
     if not text:
         return []
-    data = json.loads(text)
+    from distill.llm.json_extract import extract_json
+
+    data = extract_json(text)
+    if data is None:
+        logger.warning("Failed to parse discover rerank response as JSON")
+        return []
     items = data.get("ranked_items", []) if isinstance(data, dict) else data
     if not isinstance(items, list):
         return []

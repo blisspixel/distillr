@@ -1,0 +1,125 @@
+# Grok 4.3 Migration Guide
+
+xAI is retiring several models from the API effective **May 15, 2026 at 12:00pm PT**. After that date, requests to retired models will fail. This guide covers what you need to change.
+
+## Retired Models
+
+| Retired Model | Replacement | Use Case |
+|---|---|---|
+| `grok-4-1-fast-reasoning` | `grok-4.3` | Reasoning workloads |
+| `grok-4-1-fast-non-reasoning` | `grok-4.20-non-reasoning` | Non-reasoning workloads |
+| `grok-4-fast-reasoning` | `grok-4.3` | Reasoning workloads |
+| `grok-4-fast-non-reasoning` | `grok-4.20-non-reasoning` | Non-reasoning workloads |
+| `grok-4-0709` | `grok-4.3` | Reasoning workloads |
+| `grok-code-fast-1` | `grok-4.3` | Code generation |
+| `grok-3` | `grok-4.3` | General reasoning |
+| `grok-imagine-image-pro` | `grok-imagine-image` | Image generation |
+
+## What distillr does automatically
+
+Starting in **0.5.0**, distillr handles the transition gracefully:
+
+1. **Default model policy updated.** All default model references now point to `grok-4.3`. No action needed if you use defaults.
+2. **Automatic fallback.** If your `.env` still references a retired model, distillr logs a deprecation warning and automatically substitutes the recommended replacement. Your runs will not break.
+3. **`distill doctor` warns you.** Running `distill doctor` will flag any retired models in your configuration with the retirement date and recommended replacement.
+
+## What you need to do
+
+### If you use default settings (most users)
+
+Nothing. The defaults are already updated to `grok-4.3`.
+
+### If you have explicit model overrides in `.env`
+
+Check your `.env` for any of these variables:
+
+```bash
+XAI_FAST_MODEL=...
+XAI_PREMIUM_MODEL=...
+XAI_ANALYSIS_MODEL=...
+XAI_RERANK_MODEL=...
+XAI_SYNTHESIS_MODEL=...
+XAI_SITE_MODEL=...
+ACCORDION_SECTION_MODEL=...
+```
+
+If any of them reference a retired model, update them:
+
+```bash
+# Before (will stop working May 15, 2026)
+XAI_FAST_MODEL=grok-4-1-fast-reasoning
+ACCORDION_SECTION_MODEL=grok-4-1-fast-reasoning
+
+# After
+XAI_FAST_MODEL=grok-4.3
+ACCORDION_SECTION_MODEL=grok-4.3
+```
+
+### Verify with `distill doctor`
+
+```bash
+distill doctor
+```
+
+If you have retired models configured, you'll see:
+
+```
+⚠  xai_fast_model uses retired model 'grok-4-1-fast-reasoning'
+   (retiring May 15, 2026); replace with 'grok-4.3'
+```
+
+## Grok 4.3 Highlights
+
+- **1 million token context window** — a 100K-char paper fits whole, no chunking needed
+- **Priced at $1.25 / 1M input and $2.50 / 1M output** — cheaper than the models it replaces for most workloads
+- **3 reasoning effort levels** — low, medium, high (configurable per workload)
+
+## Reasoning Effort Configuration
+
+Grok 4.3 supports three reasoning effort levels that trade off latency/cost against reasoning depth. distillr lets you configure this per workload via environment variables:
+
+```bash
+# Pattern: DISTILL_{WORKLOAD}_REASONING_EFFORT=low|medium|high
+
+# Examples
+DISTILL_ANALYSIS_REASONING_EFFORT=medium    # default for fast-tier
+DISTILL_RERANK_REASONING_EFFORT=low         # speed up reranking
+DISTILL_SITE_REASONING_EFFORT=high          # default for premium-tier
+DISTILL_REPORT_REASONING_EFFORT=high        # default for premium-tier
+DISTILL_SYNTHESIS_REASONING_EFFORT=medium   # default for fast-tier
+```
+
+### Defaults by tier
+
+| Tier | Workloads | Default Effort |
+|------|-----------|----------------|
+| Premium | `site`, `report` | `high` |
+| Fast | `analysis`, `rerank`, `synthesis`, `brief`, `accordion`, `maintenance` | `medium` |
+
+Invalid values are silently ignored and the tier default applies.
+
+## Pricing Comparison
+
+| Model | Input (per 1M tokens) | Output (per 1M tokens) |
+|-------|----------------------|------------------------|
+| `grok-4.3` | $1.25 | $2.50 |
+| `grok-4.20-non-reasoning` | $2.00 | $6.00 |
+| `grok-4-1-fast-reasoning` (retired) | $0.20 | $0.50 |
+| `grok-4-fast-reasoning` (retired) | $0.50 | $1.50 |
+| `grok-3` (retired) | $3.00 | $9.00 |
+
+Note: `grok-4.3` is more expensive than the fast-reasoning models it replaces, but significantly cheaper than `grok-3` and offers a 1M token context window. The quality improvement justifies the cost increase for distillr's analysis workloads.
+
+## Cost Impact
+
+For a typical 20-paper research run:
+- **Before** (grok-4-1-fast-reasoning at $0.20/$0.50): ~$0.15–$0.30
+- **After** (grok-4.3 at $1.25/$2.50): ~$0.80–$1.50
+
+The increase is modest in absolute terms and buys significantly better analysis quality plus the full 1M context window (no more 100K char truncation needed for cloud models).
+
+## Timeline
+
+- **Now**: Update your `.env` if you have explicit model overrides
+- **May 15, 2026 12:00pm PT**: Retired models stop accepting requests
+- **After May 15**: If you haven't updated, distillr's automatic fallback keeps things working (with a warning)

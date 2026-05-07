@@ -110,3 +110,47 @@ def test_provider_resolution(
         assert provider_name == global_provider, (
             f"Global provider '{global_provider}' should win, got '{provider_name}'"
         )
+
+
+# ---------------------------------------------------------------------------
+# Property test — P13: RouterConfig resolution with local providers
+# ---------------------------------------------------------------------------
+
+# Strategy: local provider names
+_local_provider = st.sampled_from(["ollama", "lmstudio"])
+
+
+@settings(max_examples=100)
+@given(
+    workload_tag=_workload_tags,
+    model=_model_str,
+    provider=_local_provider,
+)
+def test_router_config_resolution_with_local_providers(
+    workload_tag: str,
+    model: str,
+    provider: str,
+) -> None:
+    """Feature: local-inference, Property 13: RouterConfig resolution with local providers
+
+    For any workload tag in WORKLOAD_TAGS and any non-empty model string set as
+    the per-workload model override, RouterConfig.resolve(workload_tag) shall
+    return that exact model string as the second element of the tuple, regardless
+    of whether the provider is local or cloud.
+
+    **Validates: Requirements 3.1**
+    """
+    kwargs: dict[str, object] = {
+        "provider": provider,
+        f"{workload_tag}_model": model,
+    }
+
+    config = RouterConfig(**kwargs)  # type: ignore[arg-type]
+    resolved_provider, resolved_model = config.resolve(workload_tag)
+
+    assert resolved_provider == provider, (
+        f"Expected provider '{provider}', got '{resolved_provider}'"
+    )
+    assert resolved_model == model, (
+        f"Expected model '{model}' to pass through unchanged, got '{resolved_model}'"
+    )

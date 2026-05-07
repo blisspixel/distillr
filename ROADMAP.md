@@ -14,6 +14,8 @@ Distill is a source-to-intelligence platform covering three source types:
 
 Everything produces plain markdown in a local `library/` directory. An MCP server exposes the corpus to AI assistants and agent systems.
 
+Distillr is designed to be the **persistent structured memory layer** for AI agent workflows. It's the corpus that [Deepr](https://github.com/blisspixel/deepr) experts query for grounded intelligence, that coding agents consult via MCP for domain context, and that humans browse in Obsidian for navigable knowledge. The ingestion pipeline is the input mechanism; the real product is the always-current, always-queryable corpus.
+
 ## What shipped in 0.1.0
 
 Initial public release as `distillr` on PyPI (2026-04-20). Core capabilities:
@@ -52,15 +54,15 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 - **MCP-first.** Every workflow has a clean tool surface for agents, not just a CLI for humans. CLI commands are thin wrappers over the same library calls the MCP server uses.
 - **Effective-context-aware.** Cloud models in 2026 have 1M+ context windows — a 100K paper fits whole. Chunking is not a universal concern; it is a local-model concern. The system should be adaptive: send content whole when the provider's window allows it, chunk intelligently when it does not (local models with 8K-32K windows). The 2025-2026 context-engineering literature (lost-in-the-middle, ACE-style playbooks, just-in-time retrieval) informs the design, but the implementation targets where it actually matters.
-- **Local-first all the way down.** "Local Markdown corpus" is meaningless if every analysis call goes to a paid cloud API. Closing that gap is a 1.0 requirement.
+- **Local-first all the way down.** "Local Markdown corpus" is meaningless if every analysis call goes to a paid cloud API. When ingestion is basically free, you use it more — more sources, more frequent refreshes, richer corpus. Local doesn't mean lower quality; it means the economics don't punish thoroughness. If a workload can't meet the quality bar locally, it stays on cloud. Tested on RTX 4090 (Windows) and M1 Mac; should work on any Ollama/LM Studio compatible hardware.
 - **Built to last.** Module-size caps, dependency-direction enforcement, ruff/Pyright/coverage gates, and structured logging are established as conventions in 0.3 and apply to every later milestone — so 1.0 lands at the quality bar without a backfill scramble.
 
 ### Milestones at a glance
 
 - **0.3 Internal foundations — SHIPPED** (0.3.0-0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture, SecretStr, import-linter, quality conventions.
-- **0.5 MCP-first surface** (next build) — JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions.
-- **0.6 Local-control + adaptive context** — Ollama / LM Studio in the router, context-aware adaptive processing, Docker, paid-vs-local cost split.
-- **0.7 Living wiki** — Obsidian-native frontmatter and wiki-style cross-links; `distill open --vault`.
+- **0.5 MCP-first surface — SHIPPED** (0.5.0). JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions, Grok 4.3 migration.
+- **0.6 Local-control + adaptive context — SHIPPED** (0.6.0). Ollama / LM Studio providers, adaptive chunking, multi-pass analysis, report compaction, hardware detection, `--model` override, Docker.
+- **0.7 Living wiki** (next build) — Obsidian-native frontmatter and wiki-style cross-links; `distill open --vault`.
 - **0.8 Concept playbook** — ACE-style concept/entity notes with delta merges and contradiction surfacing.
 - **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, stale-detection, budget guardrails.
@@ -98,7 +100,7 @@ The 6.5K-line `cli.py` and the flat package layout were the chief brakes on ever
 - Knowledge-base file contract: globally descriptive filenames, standardized YAML frontmatter.
 - `docs/CONTRIBUTING.md` captures all conventions.
 
-### 0.5.0 — MCP-first surface (next build)
+### 0.5.0 — MCP-first surface (SHIPPED)
 
 The agent-facing surface stops being a side door and becomes the primary product surface. This is the biggest user-facing value delivery remaining before 1.0.
 
@@ -113,29 +115,54 @@ Why this version: this is the "MCP-first 2026 app" version. It defines how agent
 
 ### 0.6.0 — Local-control + adaptive context
 
-Closes the gap between the "local Markdown corpus" promise and the "every analysis call hits a paid cloud API" reality. Also resolves the long-input fidelity question — but adaptively, not universally.
+Local inference removes the cost barrier from staying current. When ingestion is basically free, you can afford to refresh topics more often, ingest more sources, and keep the corpus comprehensive — not because you're running 24/7, but because there's no reason *not* to run another pass when new papers drop or a channel posts. The corpus grows richer over time because the economics don't punish thoroughness.
+
+The quality bar is the same as cloud. Local doesn't mean slop. A local insight that's thin or wrong pollutes the corpus and degrades everything downstream — synthesis, expert queries, reports. The system does more passes to compensate for smaller context windows, not fewer. If a local model can't produce output at the quality bar, that workload stays on cloud.
 
 **Local providers.**
 
 - Ollama / LM Studio as first-class providers in the LLM router (the stubs are already in place from 0.3.1). Per-workload model selection via config and `--model` overrides on individual commands.
-- Cost log distinguishes paid-API spend from local-inference time; `distill costs` shows both axes so users can size local vs. cloud trade-offs.
+- Cost log distinguishes paid-API spend from local-inference time; `distill costs` shows both axes so users can see what they're saving.
+- Recommended models documented per workload (analysis, rerank, synthesis) with quality benchmarks against the cloud baseline. Only models that meet the bar get recommended.
+
+**Model selection strategy.**
+
+The router doesn't hardcode models — it takes whatever Ollama/LM Studio serves. But we document and test against specific models per hardware tier:
+
+| Hardware | Primary Model | Context | Why |
+|----------|--------------|---------|-----|
+| RTX 4090 (24GB) | Qwen3.5-27B (Q4_K_M) | 128K | Best reasoning quality in the 24GB class; outperforms GPT-5 medium on agentic benchmarks. Dense architecture = predictable VRAM. |
+| RTX 4090 (24GB) | Llama 4 Scout (Q4) | 128K+ | MoE (17B active / 109B total); fits 24GB at Q4. 10M native context. Good for long papers. |
+| M1/M2 Mac (16GB) | Qwen3.5-14B or Gemma 4 12B | 32K–64K | Fits in unified memory with room for OS. Chunking pipeline handles the shorter context. |
+| M-series Mac (32GB+) | Qwen3.5-27B or Gemma 4 27B | 128K | Full-size models in unified memory. |
+| RTX 5090 / multi-GPU (32GB+) | Qwen3-32B or Llama 4 Scout (higher quant) | 128K+ | More VRAM = higher quantization = better quality. |
+
+The design is **hardware-adaptive, not model-locked**:
+- `distill doctor` detects available VRAM/RAM and suggests the best model for the hardware
+- Users can override with `--model` or env vars per workload
+- New models slot in without code changes — just update the recommendation docs
+- Quality gate: if a model's output on the eval suite drops below 80% of cloud baseline, it's flagged as "not recommended" for that workload
 
 **Context-aware adaptive processing.**
 
 The router knows each provider's context window. The processing strategy adapts:
 
-- For cloud models (Grok 4.3 at 1M, Gemini 3.1 Pro at 1M): no chunking. A 100K-char paper fits whole. Send it, analyze it in one pass. Chunking a document for a model with a 1M-token window is pointless overhead.
-- For local models (8K-32K context windows): adaptive chunking with section-aware splitting. Per-category rerank ("which chunks matter for Methods vs Limits vs Open Questions?"). Small-window analysis loop assembles insights from focused passes.
+- For cloud models (Grok 4.3 at 1M, Gemini 3.1 Pro at 1M): no chunking. A 100K-char paper fits whole. Send it, analyze it in one pass.
+- For local models (32K–128K context windows on current hardware): adaptive chunking with section-aware splitting. Per-category rerank ("which chunks matter for Methods vs Limits vs Open Questions?"). Small-window analysis loop assembles insights from focused passes. The output quality must match cloud — the system does more passes to get there, not fewer.
 - The decision is automatic based on provider metadata — users do not configure this. If the content fits the window, it goes whole. If it does not, the system chunks intelligently.
+
+**Quality equivalence, not degradation.** The local pipeline produces the same structured insights (same YAML frontmatter, same section headings, same depth) as the cloud pipeline. Property tests validate output equivalence. If a workload can't meet the bar locally, the router flags it and the user can choose to send it to cloud or skip it.
 
 **Report pipeline compaction.** High-recall-then-precision summaries replace full-prior-section context between report phases. This benefits all providers but matters most for local models where the 4-phase pipeline would otherwise exceed the window.
 
 **Operational.**
 
 - Dockerfile + docker-compose with Playwright deps included. `distill doctor` knows it's running in a container and skips host-only checks.
-- Documented quality/throughput trade-offs per workload — which steps degrade gracefully on smaller local models, which need cloud-grade reasoning.
+- `distill doctor` reports local model availability, VRAM, and estimated throughput.
+- Tested on: RTX 4090 (24GB VRAM, Windows), M1 Mac (16GB unified). Should work on any Ollama/LM Studio compatible hardware but these are the validated targets.
+- Future hardware (RTX 5090 32GB, M-series with 64GB+, multi-GPU rigs, network GPU clusters) gets better quality automatically — more VRAM means higher quantization or larger models, which the router selects based on detected resources. No code changes needed; the model recommendation table just grows.
 
-Why this version: the audience that wants distillr the most is the audience that won't run it if it requires API keys. Shipping this before the wiki/concept layers means deeper corpus features land in a tool that can run fully on-device.
+Why this version: when ingestion is free, you use it more. More sources ingested, more frequent refreshes, richer corpus. That's what makes the living wiki (0.7) and concept layer (0.8) practical — they need a comprehensive, current corpus to compound against. Local inference is the enabler, not the feature.
 
 ### 0.7.0 — Living wiki
 
@@ -374,7 +401,7 @@ A roadmap is also an opinion about what *not* to build. These are deliberate exc
 - **No plugin / extension system before 1.0.** Premature abstraction. The right plugin boundaries become obvious only after the internal architecture from 0.3–0.5 has carried real workloads. Revisit post-1.0.
 - **No real-time collaboration or sync service.** Markdown + git is the answer. distillr won't compete with Obsidian Sync, Logseq Sync, or Syncthing.
 - **No anti-bot / paywall / login-walled scraping.** Playwright handles legitimate access; defeating hostile defenses is whack-a-mole that pulls focus from the analysis pipeline and creates legal/ethical surface area.
-- **No "cheap mode" that compromises fidelity.** The product premise is "expensive but right" for the analyst-in-a-loop workload. Cost reduction happens through chunking, compaction, local models, and JIT context — not through cheaper prompts that produce worse outputs.
+- **No "cheap mode" that compromises fidelity.** The product premise is "as good as we can possibly make it" regardless of whether inference runs locally or in the cloud. Local models exist to make the corpus *always current* at zero marginal cost, not to produce worse outputs faster. Cost reduction happens through local inference, compaction, and JIT context — never through cheaper prompts that produce worse outputs. A local insight must be good enough that synthesis and expert queries can trust it without qualification.
 
 These exclusions are load-bearing, not permanent. They get revisited if the constraint that drives them changes.
 

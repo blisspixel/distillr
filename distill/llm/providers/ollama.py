@@ -1,16 +1,67 @@
 # pyright: strict
-"""Ollama provider stub — planned for 0.6.
+"""Ollama provider — local inference via the Ollama HTTP API.
 
-Satisfies the Provider protocol but raises NotImplementedError on call.
+Communicates with a local Ollama server at http://localhost:11434.
+Override with OLLAMA_BASE_URL environment variable.
 """
 
 from __future__ import annotations
 
+import logging
+import os
+import time
+from typing import Any
+
+import httpx
+
 from distill.llm.router import LLM_Response
+
+logger = logging.getLogger(__name__)
+
+OLLAMA_DEFAULT_URL = "http://localhost:11434"
+
+# Models that support thinking mode (reasoning trace)
+_THINKING_MODEL_PREFIXES: tuple[str, ...] = (
+    "qwen3",
+    "deepseek-r1",
+    "deepseek-v3",
+    "gpt-oss",
+    "gemma4",
+)
+
+
+def _is_thinking_model(model: str) -> bool:
+    """Check if a model supports thinking mode."""
+    model_lower = model.lower()
+    return any(model_lower.startswith(prefix) for prefix in _THINKING_MODEL_PREFIXES)
+
+
+def _wants_json_output(prompt: str) -> bool:
+    """Detect if a prompt explicitly requests JSON output.
+
+    Looks for common patterns in distillr prompts that indicate
+    structured JSON is expected. When detected, we set format="json"
+    in the Ollama request to constrain output.
+    """
+    lower = prompt.lower()
+    return (
+        "return only valid json" in lower
+        or "return only json" in lower
+        or "respond with json" in lower
+        or '"ranked_videos"' in lower
+        or '"ranked_papers"' in lower
+        or '"ranked_items"' in lower
+        or '"paper_queries"' in lower
+        or '"queries"' in lower
+    )
 
 
 class OllamaProvider:
-    """Stub Ollama provider — raises NotImplementedError."""
+    """Ollama local inference provider."""
+
+    def __init__(self, base_url: str = "") -> None:
+        self._base_url = base_url or os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_URL)
+        self._context_window_cache: dict[str, int] = {}
 
     async def call(
         self,
@@ -18,12 +69,158 @@ class OllamaProvider:
         prompt: str,
         *,
         max_tokens: int = 8192,
-        timeout: int = 300,
+        timeout: int = 600,
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
+        reasoning_effort: str | None = None,  # Ignored for local models
     ) -> LLM_Response:
-        """Raise NotImplementedError with version hint."""
-        raise NotImplementedError(
-            "Ollama provider available in 0.6. Set DISTILL_PROVIDER=xai to use Grok."
-        )
+        """Send a prompt to Ollama and return an LLM_Response.
+
+        Uses POST /api/chat with thinking enabled. Thinking-capable models
+        (Qwen3, DeepSeek R1) produce a reasoning trace that drives quality.
+        The final answer (message.content) is returned as the response text.
+        Retries on transient errors with exponential backoff (base 2s, factor 2).
+        """
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                payload: dict[str, Any] = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "options": {"num_predict": max_tokens},
+                }
+                # For JSON-structured prompts: use format="json" without thinking
+                # (thinking conflicts with JSON format constraint in most models)
+                # For analysis prompts: use thinking for deep reasoning
+                wants_json = _wants_json_output(prompt)
+                if wants_json:
+                    payload["format"] = "json"
+                    payload["think"] = False  # Explicitly disable thinking for JSON
+                elif _is_thinking_model(model):
+                    payload["think"] = True
+                if temperature is not None:
+                    payload["options"]["temperature"] = temperature
+
+                async with httpx.AsyncClient(
+                    timeout=httpx.Timeout(timeout, connect=10.0)
+                ) as client:
+                    response = await client.post(
+                        f"{self._base_url}/api/chat",
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+
+                # /api/chat returns message.content (final answer) and
+                # message.thinking (reasoning trace)
+                message = data.get("message", {})
+                content = message.get("content", "")
+                thinking = message.get("thinking", "")
+
+                # Use the final answer; fall back to thinking if content is empty
+                text = content if content else thinking
+
+                # Token counts from top-level response fields
+                input_tokens = data.get("prompt_eval_count", 0) or 0
+                output_tokens = data.get("eval_count", 0) or 0
+
+                return LLM_Response(
+                    text=text,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    model=model,
+                )
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                raise ConnectionError(
+                    f"Cannot reach Ollama at {self._base_url}. "
+                    f"Run `ollama serve` to start the server."
+                ) from exc
+            except (httpx.HTTPStatusError, httpx.TimeoutException) as exc:
+                last_error = exc
+                if attempt < retries:
+                    wait = 2**attempt * 2
+                    logger.warning(
+                        "Ollama error (attempt %d/%d): %s. Retrying in %ds...",
+                        attempt + 1,
+                        retries + 1,
+                        exc,
+                        wait,
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
+
+        assert last_error is not None  # nosec B101
+        raise last_error
+
+    async def get_context_window(self, model: str) -> int:
+        """Query Ollama /api/show for the model's context window. Cached per model."""
+        if model in self._context_window_cache:
+            return self._context_window_cache[model]
+
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.post(
+                    f"{self._base_url}/api/show",
+                    json={"name": model},
+                )
+                response.raise_for_status()
+                data = response.json()
+
+            ctx = self._parse_context_window(data)
+
+            # Default fallback
+            if not ctx:
+                ctx = 4096
+                logger.warning(
+                    "Could not determine context window for '%s'; defaulting to %d",
+                    model,
+                    ctx,
+                )
+
+            self._context_window_cache[model] = ctx
+            return ctx
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            raise ConnectionError(
+                f"Cannot reach Ollama at {self._base_url}. Run `ollama serve` to start the server."
+            ) from exc
+
+    @staticmethod
+    def _parse_context_window(data: dict[str, Any]) -> int:
+        """Extract context window from Ollama /api/show response data."""
+        model_info = data.get("model_info", {})
+
+        # Try model_info first (more reliable)
+        for key, value in model_info.items():
+            if "context_length" in key.lower():
+                return int(value)
+
+        # Fallback: parse from parameters string
+        params = data.get("parameters", "")
+        if "num_ctx" in params:
+            for line in params.split("\n"):
+                if "num_ctx" in line:
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        import contextlib
+
+                        with contextlib.suppress(ValueError):
+                            return int(parts[-1])
+                    break
+
+        return 0
+
+    async def list_models(self) -> list[dict[str, Any]]:
+        """Query Ollama /api/tags for locally available models."""
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{self._base_url}/api/tags")
+                response.raise_for_status()
+                data = response.json()
+            return data.get("models", [])
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            raise ConnectionError(
+                f"Cannot reach Ollama at {self._base_url}. Run `ollama serve` to start the server."
+            ) from exc

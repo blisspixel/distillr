@@ -202,7 +202,10 @@ def get_video_insights(topic: str, channel: str, index: str) -> str:
 def get_costs() -> str:
     """Show recent cost history from past runs."""
     config = _server._config()
-    log_file = config.library_dir / "cost_log.jsonl"
+    # Check new location first, fall back to old
+    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    legacy_log = config.library_dir / "cost_log.jsonl"
+    log_file = ops_log if ops_log.exists() else legacy_log
     if not log_file.exists():
         return json.dumps({"costs": [], "message": "No cost history yet."})
 
