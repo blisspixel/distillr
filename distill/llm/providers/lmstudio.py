@@ -47,7 +47,7 @@ class LMStudioProvider:
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:
-                kwargs: dict = {
+                kwargs: dict[str, object] = {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": max_tokens,
@@ -56,16 +56,16 @@ class LMStudioProvider:
                 if temperature is not None:
                     kwargs["temperature"] = temperature
 
-                response = self._client.chat.completions.create(**kwargs)
+                response = self._client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
 
-                choices = response.choices
+                choices = response.choices  # type: ignore[reportUnknownMemberType]
                 if not choices:
                     return LLM_Response(text="", input_tokens=0, output_tokens=0, model=model)
 
-                usage = response.usage
-                text = str(choices[0].message.content or "")
-                in_tok = int(usage.prompt_tokens) if usage else 0
-                out_tok = int(usage.completion_tokens) if usage else 0
+                usage = response.usage  # type: ignore[reportUnknownMemberType]
+                text: str = str(choices[0].message.content or "")  # type: ignore[reportUnknownMemberType]
+                in_tok: int = int(usage.prompt_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
+                out_tok: int = int(usage.completion_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
 
                 return LLM_Response(
                     text=text,
