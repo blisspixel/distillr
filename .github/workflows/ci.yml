@@ -67,6 +67,7 @@ jobs:
 
       - name: Install package and scanners
         run: |
+          pip install --upgrade "pip>=26.1"
           pip install -e .
           pip install "bandit[toml]>=1.7" "pip-audit>=2.7"
 
@@ -75,11 +76,8 @@ jobs:
 
       - name: pip-audit (installed dependencies)
         # Skip the editable distillr install itself (it is not on PyPI under
-        # this name yet); audit its dependencies. Drop --strict so the
-        # "skipped editable" notice does not fail the job.
-        # CVE-2026-3219 affects pip itself and has no fix version published
-        # yet; ignore until upstream ships a patched release.
-        run: pip-audit --skip-editable --ignore-vuln CVE-2026-3219
+        # this name yet); audit its dependencies.
+        run: pip-audit --skip-editable
 
   types:
     name: Type check (pyright)
