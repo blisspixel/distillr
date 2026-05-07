@@ -16,13 +16,14 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["extract_json"]
 
 
-def extract_json(text: str) -> dict | list | None:
+def extract_json(text: str) -> dict[str, Any] | list[Any] | None:
     """Extract a JSON object or array from LLM response text.
 
     Tries multiple strategies in order:
@@ -64,12 +65,14 @@ def extract_json(text: str) -> dict | list | None:
     return None
 
 
-def _try_parse(text: str) -> dict | list | None:
+def _try_parse(text: str) -> dict[str, Any] | list[Any] | None:
     """Try to parse text as JSON. Returns None on failure."""
     try:
-        result = json.loads(text)
-        if isinstance(result, (dict, list)):
-            return result
+        result: Any = json.loads(text)
+        if isinstance(result, dict):
+            return result  # type: ignore[reportUnknownVariableType]
+        if isinstance(result, list):
+            return result  # type: ignore[reportUnknownVariableType]
     except (json.JSONDecodeError, ValueError):
         pass
     return None
@@ -96,7 +99,7 @@ def _strip_code_blocks(text: str) -> str:
     return text
 
 
-def _find_json_start(text: str) -> dict | list | None:
+def _find_json_start(text: str) -> dict[str, Any] | list[Any] | None:
     """Find the first { or [ in text and try to parse from there."""
     # Find first { or [
     brace_idx = text.find("{")
