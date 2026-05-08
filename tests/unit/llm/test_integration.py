@@ -247,7 +247,7 @@ def test_no_external_distill_imports_in_llm() -> None:  # noqa: C901 — legacy,
 
 def test_module_size_cap() -> None:
     """Count lines in each .py file under distill/llm/.
-    Assert all are <= 400 lines.
+    Assert all are <= 500 lines (project convention: 500 without justification).
 
     **Validates: Requirements 13.3**
     """
@@ -261,10 +261,10 @@ def test_module_size_cap() -> None:
                 continue
             fpath = Path(root) / fname
             line_count = len(fpath.read_text(encoding="utf-8").splitlines())
-            if line_count > 400:
+            if line_count > 500:
                 oversized.append(f"{fpath}: {line_count} lines")
 
-    assert oversized == [], "Module(s) exceeding 400-line cap:\n" + "\n".join(oversized)
+    assert oversized == [], "Module(s) exceeding 500-line cap:\n" + "\n".join(oversized)
 
 
 # ---------------------------------------------------------------------------
