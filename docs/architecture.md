@@ -191,9 +191,9 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 1. *MCP tool returns* hand the consuming agent full markdown files — Anthropic's published example shows ~98% token savings from switching to filtered/path-based returns instead. Fix (0.5): paths-not-payloads with a drill-down second tool call.
 2. *4-phase report pipeline* carries full prior-section context forward to enforce no-repeat. Fix (0.6): high-recall-then-precision compaction; opaque continuation items where the API supports them.
 
-## Known technical debt (addressed in 0.7)
+## Known technical debt (resolved in 0.7)
 
-The following items are confirmed present in the codebase and scheduled for the 0.7 release. They are documented here so contributors and auditors know they are tracked, not overlooked.
+The following items were present in the codebase prior to 0.7 and have been resolved in the 0.7.0/0.7.1 releases.
 
 - **`_cli_impl.py` is oversized (~1,200+ lines).** The 0.3 restructure moved wiring to `cli.py` and created the `commands/` subpackage, but business logic (private `_discover_*`, `_llm_expand_*` helpers) stayed in `_cli_impl.py` as a migration holding area. 0.7 decomposes it into per-command modules.
 - **Artifact provenance is incomplete.** YAML frontmatter records `analyzed_by` (model name) and cost, but not exact model version, temperature, seed, or prompt identifier. 0.7 adds full provenance fields.

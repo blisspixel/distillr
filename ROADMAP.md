@@ -94,8 +94,8 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 - **0.3 Internal foundations — SHIPPED** (0.3.0-0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture, SecretStr, import-linter, quality conventions.
 - **0.5 MCP-first surface — SHIPPED** (0.5.0). JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions, Grok 4.3 migration.
 - **0.6 Local-control + adaptive context — SHIPPED** (0.6.0). Ollama / LM Studio providers, adaptive chunking, multi-pass analysis, report compaction, hardware detection, `--model` override, Docker.
-- **0.7 Living wiki** (next build) — Obsidian-native wiki-links, artifact provenance in frontmatter, CLI decomposition (finish `_cli_impl.py` → `commands/`), path/slug centralization, legacy bridge removal, report-phase retry hardening.
-- **0.8 Concept playbook** — ACE-style concept/entity notes with delta merges and contradiction surfacing.
+- **0.7 Living wiki — SHIPPED** (0.7.0-0.7.1). Obsidian-native wiki-links, artifact provenance in frontmatter, CLI decomposition (finish `_cli_impl.py` to `commands/`), path/slug centralization, legacy bridge removal, report-phase retry hardening.
+- **0.8 Concept playbook** (next build) — ACE-style concept/entity notes with delta merges and contradiction surfacing.
 - **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, stale-detection, budget guardrails.
 - **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, performance baseline, presentation pass.
