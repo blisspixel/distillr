@@ -97,9 +97,7 @@ class TestProvenanceFieldsCompleteness:
 
     @given(provenance=provenance_fields_st)
     @settings(max_examples=100)
-    def test_provenance_round_trip_via_frontmatter(
-        self, provenance: ProvenanceFields
-    ) -> None:
+    def test_provenance_round_trip_via_frontmatter(self, provenance: ProvenanceFields) -> None:
         """Writing provenance to frontmatter and extracting yields all four fields."""
         # Build frontmatter dict with provenance
         prov_dict = provenance_frontmatter(provenance)
@@ -124,9 +122,7 @@ class TestProvenanceFieldsCompleteness:
 
     @given(provenance=provenance_fields_st)
     @settings(max_examples=100)
-    def test_provenance_in_base_frontmatter(
-        self, provenance: ProvenanceFields
-    ) -> None:
+    def test_provenance_in_base_frontmatter(self, provenance: ProvenanceFields) -> None:
         """base_frontmatter with provenance includes all four provenance fields."""
         fm = base_frontmatter(
             artifact_type="insights",
@@ -182,7 +178,7 @@ class TestFrontmatterFieldPreservation:
         # All existing keys that were set via extra should still be present
         # with their original values (the merge is additive: existing keys
         # are never overwritten)
-        for key, value in existing.items():
+        for key, _value in existing.items():
             # Keys that overlap with base_frontmatter's own keys (title, type, etc.)
             # are only set if the base value is empty. For non-overlapping keys,
             # they should always be present.
@@ -236,23 +232,24 @@ class TestFrontmatterRoundTrip:
             if value is None or value == "" or value == [] or value == {}:
                 continue
             assert key in extracted, (
-                f"Key {key!r} missing after round-trip. "
-                f"Dumped:\n{dumped}\nExtracted: {extracted}"
+                f"Key {key!r} missing after round-trip. Dumped:\n{dumped}\nExtracted: {extracted}"
             )
 
-    @given(fm=st.dictionaries(
-        keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
-        values=st.text(
-            alphabet=st.characters(
-                whitelist_categories=("L", "N", "P", "S", "Z"),
-                blacklist_characters='\\"\n\r\t:',
+    @given(
+        fm=st.dictionaries(
+            keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
+            values=st.text(
+                alphabet=st.characters(
+                    whitelist_categories=("L", "N", "P", "S", "Z"),
+                    blacklist_characters='\\"\n\r\t:',
+                ),
+                min_size=1,
+                max_size=50,
             ),
             min_size=1,
-            max_size=50,
-        ),
-        min_size=1,
-        max_size=10,
-    ))
+            max_size=10,
+        )
+    )
     @settings(max_examples=100)
     def test_string_values_round_trip_exactly(self, fm: dict[str, str]) -> None:
         """String values survive round-trip exactly (after JSON quote stripping)."""
@@ -268,12 +265,14 @@ class TestFrontmatterRoundTrip:
                 f"Value mismatch for {key!r}: expected {value!r}, got {extracted[key]!r}"
             )
 
-    @given(fm=st.dictionaries(
-        keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
-        values=st.integers(min_value=-1000, max_value=1000),
-        min_size=1,
-        max_size=10,
-    ))
+    @given(
+        fm=st.dictionaries(
+            keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
+            values=st.integers(min_value=-1000, max_value=1000),
+            min_size=1,
+            max_size=10,
+        )
+    )
     @settings(max_examples=100)
     def test_integer_values_round_trip(self, fm: dict[str, int]) -> None:
         """Integer values survive round-trip (as string representations)."""
@@ -288,12 +287,14 @@ class TestFrontmatterRoundTrip:
                 f"Value mismatch for {key!r}: expected {str(value)!r}, got {extracted[key]!r}"
             )
 
-    @given(fm=st.dictionaries(
-        keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
-        values=st.floats(min_value=0.0, max_value=2.0, allow_nan=False, allow_infinity=False),
-        min_size=1,
-        max_size=10,
-    ))
+    @given(
+        fm=st.dictionaries(
+            keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
+            values=st.floats(min_value=0.0, max_value=2.0, allow_nan=False, allow_infinity=False),
+            min_size=1,
+            max_size=10,
+        )
+    )
     @settings(max_examples=100)
     def test_float_values_round_trip(self, fm: dict[str, float]) -> None:
         """Float values survive round-trip (comparing as floats)."""
@@ -307,12 +308,14 @@ class TestFrontmatterRoundTrip:
                 f"Value mismatch for {key!r}: expected {value!r}, got {extracted[key]!r}"
             )
 
-    @given(fm=st.dictionaries(
-        keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
-        values=st.booleans(),
-        min_size=1,
-        max_size=10,
-    ))
+    @given(
+        fm=st.dictionaries(
+            keys=st.from_regex(r"[a-z][a-z0-9_]{0,20}", fullmatch=True),
+            values=st.booleans(),
+            min_size=1,
+            max_size=10,
+        )
+    )
     @settings(max_examples=100)
     def test_boolean_values_round_trip(self, fm: dict[str, bool]) -> None:
         """Boolean values survive round-trip (YAML true/false)."""

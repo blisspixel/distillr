@@ -236,8 +236,6 @@ class TestRetryOnRetryCallback:
             return isinstance(exc, PermissionError)
 
         with pytest.raises(PermissionError):
-            retry_with_backoff(
-                fn, max_retries=3, is_permanent=is_permanent, on_retry=on_retry
-            )
+            retry_with_backoff(fn, max_retries=3, is_permanent=is_permanent, on_retry=on_retry)
 
         assert len(retry_calls) == 0

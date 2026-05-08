@@ -6,14 +6,11 @@ Tests: dry-run, apply, conflict detection, summary report accuracy.
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from distill.library.migration import (
-    MigrationAction,
-    MigrationResult,
     _compute_modern_name,
     apply_migration,
     scan_legacy_artifacts,
@@ -33,7 +30,15 @@ def _create_legacy_corpus(library_dir: Path) -> dict[str, Path]:
     paths: dict[str, Path] = {}
 
     # Topic with legacy insights
-    topic_dir = library_dir / "topics" / "ai-agents" / "channels" / "AI-News" / "videos" / "gpt5-launch_abc12345"
+    topic_dir = (
+        library_dir
+        / "topics"
+        / "ai-agents"
+        / "channels"
+        / "AI-News"
+        / "videos"
+        / "gpt5-launch_abc12345"
+    )
     topic_dir.mkdir(parents=True)
     insights = topic_dir / "insights.md"
     insights.write_text("# GPT-5 Launch Insights\n\nSee [[insights|related]].\n", encoding="utf-8")
@@ -43,7 +48,9 @@ def _create_legacy_corpus(library_dir: Path) -> dict[str, Path]:
     synth_dir = library_dir / "topics" / "ai-agents"
     synth_dir.mkdir(parents=True, exist_ok=True)
     synthesis = synth_dir / "synthesis.md"
-    synthesis.write_text("# AI Agents Synthesis\n\nReferences [[insights|GPT-5]].\n", encoding="utf-8")
+    synthesis.write_text(
+        "# AI Agents Synthesis\n\nReferences [[insights|GPT-5]].\n", encoding="utf-8"
+    )
     paths["synthesis"] = synthesis
 
     # Topic with legacy transcript
@@ -89,10 +96,7 @@ class TestScanLegacyArtifacts:
         paths = _create_legacy_corpus(library_dir)
 
         # Record original content
-        original_content = {
-            name: path.read_text(encoding="utf-8")
-            for name, path in paths.items()
-        }
+        original_content = {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
 
         # Scan
         actions = scan_legacy_artifacts(library_dir)
@@ -142,7 +146,9 @@ class TestApplyMigration:
         assert result.files_renamed == 1
         assert not legacy_file.exists()
         assert (artifact_dir / "my-topic_Insights.md").exists()
-        assert (artifact_dir / "my-topic_Insights.md").read_text(encoding="utf-8") == "# Insights content\n"
+        assert (artifact_dir / "my-topic_Insights.md").read_text(
+            encoding="utf-8"
+        ) == "# Insights content\n"
 
     def test_apply_updates_wiki_links(self, library_dir: Path) -> None:
         """Apply updates wiki-links in other files that reference renamed stems."""
@@ -153,9 +159,7 @@ class TestApplyMigration:
 
         # Another file referencing the old stem
         referencing_file = library_dir / "topics" / "other.md"
-        referencing_file.write_text(
-            "See [[insights|My Insights]] for details.\n", encoding="utf-8"
-        )
+        referencing_file.write_text("See [[insights|My Insights]] for details.\n", encoding="utf-8")
 
         actions = scan_legacy_artifacts(library_dir)
         result = apply_migration(actions, library_dir=library_dir)

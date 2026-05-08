@@ -11,7 +11,6 @@ from pathlib import Path
 
 from distill.library.wikilinks import WikiLink, emit_wiki_link, parse_wiki_links
 
-
 # ---------------------------------------------------------------------------
 # WikiLink.from_source edge cases
 # ---------------------------------------------------------------------------

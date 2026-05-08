@@ -110,7 +110,7 @@ def parse_wiki_links(content: str) -> list[WikiLink]:
         last_underscore = slug_portion.rfind("_")
         if last_underscore > 0:
             slug = slug_portion[:last_underscore]
-            suffix = slug_portion[last_underscore + 1:]
+            suffix = slug_portion[last_underscore + 1 :]
         else:
             slug = slug_portion
             suffix = ""

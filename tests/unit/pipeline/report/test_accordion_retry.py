@@ -14,9 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from distill.llm.call import LLMCall
 from distill.llm.router import LLM_Response
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -166,11 +164,11 @@ def test_success_after_failure_prevents_circuit_break(
     from distill.pipeline.report.accordion import _write_sections
 
     call_sequence = {
-        "Introduction": "fail",      # fails all retries -> consecutive=1
-        "Analysis": "succeed",       # succeeds -> consecutive=0
-        "Conclusion": "fail",        # fails all retries -> consecutive=1
-        "Appendix": "fail",          # fails all retries -> consecutive=2
-        "Extra": "fail",             # fails all retries -> consecutive=3 -> STOP
+        "Introduction": "fail",  # fails all retries -> consecutive=1
+        "Analysis": "succeed",  # succeeds -> consecutive=0
+        "Conclusion": "fail",  # fails all retries -> consecutive=1
+        "Appendix": "fail",  # fails all retries -> consecutive=2
+        "Extra": "fail",  # fails all retries -> consecutive=3 -> STOP
     }
 
     def side_effect(*args, **kwargs):
