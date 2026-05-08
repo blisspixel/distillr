@@ -56,7 +56,7 @@ class WikiLink:
         from distill.library.paths import ARTIFACT_SUFFIXES, slugify_title
 
         slug = slugify_title(title, source_id)
-        suffix = ARTIFACT_SUFFIXES.get(artifact_type, artifact_type.title())
+        suffix = ARTIFACT_SUFFIXES.get(artifact_type, artifact_type.replace("-", "_").title())
         # Remove brackets that would break [[...]] syntax, then strip whitespace
         clean_title = title.replace("[", "").replace("]", "").strip()
         return cls(slug=slug, suffix=suffix, display_title=clean_title)
@@ -78,6 +78,13 @@ def emit_wiki_link(
     link = WikiLink.from_source(title, source_id, artifact_type)
 
     if corpus_dir is not None:
+        if not corpus_dir.is_dir():
+            logger.warning(
+                "corpus_dir is not a directory: %s (title=%r)",
+                corpus_dir,
+                title,
+            )
+            return link.render()
         target_pattern = f"{link.slug}_{link.suffix}*"
         matches = list(corpus_dir.rglob(target_pattern))
         if not matches:
