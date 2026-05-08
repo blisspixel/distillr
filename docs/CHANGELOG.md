@@ -9,10 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Obsidian-native output: wiki-style cross-linking and `distill open --vault` hint. See ROADMAP section 10 (Tier 1).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
+
+## 0.7.0 — 2026-05-07
+
+Living Wiki. The corpus shifts from a directory of artifacts to a navigable knowledge base interoperable with Obsidian, Logseq, and Dendron. Also ships critical code-health prerequisites that prevent compounding debt in later milestones.
+
+### Wiki-link discipline and Obsidian interop
+
+- **Wiki-style cross-linking.** Synthesis, brief, report, and research-brief outputs now emit `[[slug_Insights|Title]]` references instead of plain-text citations. Obsidian's backlink panel and graph view work out of the box.
+- **Stable slug discipline.** `slugify_title` is deterministic, filesystem-safe on all platforms (including Windows reserved names like NUL/CON), and handles collision disambiguation via `.source_meta.json`.
+- **`distill doctor --links`.** Scans the corpus for broken wiki-links. Supports `--json` for structured output and `--fix` to replace broken links with plain-text citations.
+- **`distill open --vault`.** Opens the library directory in your default editor or Obsidian. Respects `DISTILL_VAULT_EDITOR` env var. Supports `--path` for subdirectories.
+- **Backfill / migration tooling.** `distill doctor --migrate-links` scans for legacy-named artifacts (`insights.md`, `synthesis.md`, etc.) and proposes renames to the modern `<slug>_Insights.md` convention. Dry-run by default; `--apply` executes.
+
+### Artifact provenance in frontmatter
+
+- Every generated artifact now records `model`, `model_version`, `temperature`, and `prompt_id` in YAML frontmatter. This is the foundation for reproducibility — outputs can be compared across model versions and prompt iterations.
+- All pipeline stages (video analysis, paper analysis, site analysis, synthesis, brief, report, research-brief) write provenance fields.
+
+### CLI decomposition
+
+- `_cli_impl.py` reduced from ~6,800 lines to 22 lines (re-export shim). All business logic moved to `distill/commands/_logic.py`.
+- `cli_support/` absorbed into `commands/` package (`_learning.py`, `_learning_flow.py`, `_topic_changes.py`).
+- CLI interface unchanged: all command names, flags, arguments, and help text preserved.
+
+### Path and slug centralization
+
+- `slugify_title`, `sanitize_path_component`, and `site_name_from_url` moved from `config.py` to `distill/library/paths.py` (architecturally correct foundational layer).
+- Old imports from `distill.config` emit `DeprecationWarning` and delegate.
+
+### Legacy router bridge removal
+
+- Deleted `router_config_from_distill` and `apply_model_override` from `config.py`.
+- `RouterConfig` is now a Pydantic `BaseSettings` subclass reading env vars directly (API keys from canonical names, routing from `DISTILL_` prefix).
+- `config.py` has zero imports from `distill.llm`.
+
+### Report-phase retry hardening
+
+- The 3-failure circuit breaker in the report accordion now uses exponential backoff with jitter (base 2s, up to 50% jitter).
+- `LLMCall` dataclass (`distill/llm/call.py`) captures full request/response metadata for debugging.
+- `distill/llm/retry.py` provides reusable `retry_with_backoff` and `compute_delay` functions.
+- Failed and retry-success attempts are logged with structured `LLMCall` records.
+
+### Quality
+
+- 12 correctness properties validated via Hypothesis property-based testing (slug determinism, filesystem safety, collision disambiguation, wiki-link format, frontmatter round-trip, provenance completeness, retry delay bounds, RouterConfig env mapping, link integrity, migration correctness).
+- 1,275 tests passing. New modules at 84–100% coverage.
+- Import-linter: 3 contracts kept, 0 broken.
+- Ruff zero-warning. Pyright zero-error on `distill/llm/`.
 
 ## 0.6.0 — 2026-05-06
 
