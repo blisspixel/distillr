@@ -124,21 +124,23 @@ class RouterConfig(BaseSettings):
             "anthropic_api_key": "ANTHROPIC_API_KEY",
             "openai_api_key": "OPENAI_API_KEY",
         }
-        dotenv_vals: dict[str, str] | None = None
+        dotenv_vals: dict[str, str | None] = {}
         for field_name, env_name in key_env_map.items():
             if field_name not in data:  # Only populate if not explicitly provided
                 env_val = os.environ.get(env_name, "")
                 if not env_val:
-                    if dotenv_vals is None:
+                    if not dotenv_vals:
                         try:
                             from dotenv import dotenv_values as _dv
-                            dotenv_vals = _dv(".env") or {}
+
+                            loaded: dict[str, str | None] = _dv(".env") or {}
+                            dotenv_vals = loaded
                         except ImportError:
                             dotenv_vals = {}
-                    env_val = dotenv_vals.get(env_name, "") or ""
+                    env_val = dotenv_vals.get(env_name) or ""
                 if env_val:
                     data[field_name] = env_val
-        return data
+        return data  # type: ignore[return-value]  # Pydantic model_validator(mode="before") returns Any
 
     def resolve(self, workload_tag: str) -> tuple[str, str]:
         """Resolve ``(provider_name, model_id)`` for a workload tag."""
@@ -169,7 +171,7 @@ class RouterConfig(BaseSettings):
 
         return provider_name, model_id
 
-    def validate(self, workload_tag: str = "") -> None:
+    def validate_config(self, workload_tag: str = "") -> None:
         """Validate configuration eagerly.  Raise ``ConfigurationError`` early."""
         if workload_tag:
             provider_name, _ = self.resolve(workload_tag)
@@ -202,9 +204,17 @@ class RouterConfig(BaseSettings):
         """Return a new RouterConfig with the model override applied."""
         if not override:
             return self
-        overrides: dict[str, Any] = {"fast_model": override, "premium_model": override, "model": override}
+        overrides: dict[str, Any] = {
+            "fast_model": override,
+            "premium_model": override,
+            "model": override,
+        }
         for field_name in type(self).model_fields:
-            if field_name.endswith("_model") and field_name not in ("fast_model", "premium_model", "model"):
+            if field_name.endswith("_model") and field_name not in (
+                "fast_model",
+                "premium_model",
+                "model",
+            ):
                 overrides[field_name] = ""
         return self.model_copy(update=overrides)
 
@@ -220,24 +230,31 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
     provider: Any
     if provider_name == "xai":
         from distill.llm.providers.grok import GrokProvider
+
         provider = GrokProvider(config.xai_api_key)
     elif provider_name == "gemini":
         from distill.llm.providers.gemini import GeminiProvider
+
         provider = GeminiProvider(config.gemini_api_key)
     elif provider_name == "agent":
         from distill.llm.providers.agent import AgentProvider
+
         provider = AgentProvider(config.ops_dir)
     elif provider_name == "anthropic":
         from distill.llm.providers.anthropic import AnthropicProvider
+
         provider = AnthropicProvider()
     elif provider_name == "openai":
         from distill.llm.providers.openai_prov import OpenAIProvider
+
         provider = OpenAIProvider()
     elif provider_name == "ollama":
         from distill.llm.providers.ollama import OllamaProvider
+
         provider = OllamaProvider()
     elif provider_name == "lmstudio":
         from distill.llm.providers.lmstudio import LMStudioProvider
+
         provider = LMStudioProvider()
     else:
         valid = "xai, gemini, agent, anthropic, openai, ollama, lmstudio"
@@ -276,7 +293,7 @@ def call(
     run_id: str = "",
 ) -> LLM_Response:
     """Dispatch an LLM call through the configured provider."""
-    config.validate(workload_tag)
+    config.validate_config(workload_tag)
 
     if workload_tag not in WORKLOAD_TAGS:
         logger.warning(
