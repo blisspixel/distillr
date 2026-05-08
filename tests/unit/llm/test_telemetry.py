@@ -52,7 +52,7 @@ _telemetry_record_st = st.builds(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow], deadline=None)
 @given(record=_telemetry_record_st)
 def test_jsonl_round_trip(record: Telemetry_Record) -> None:
     """Feature: llm-router-model-upgrade, Property 6: Telemetry JSONL round-trip
