@@ -5,9 +5,9 @@ Commands: distill report, distill brief, distill export
 
 import typer
 
-from distill._cli_impl import brief_cmd as _brief_cmd_fn
-from distill._cli_impl import export as _export_fn
-from distill._cli_impl import report as _report_fn
+from distill.commands._logic import brief_cmd as _brief_cmd_fn
+from distill.commands._logic import export as _export_fn
+from distill.commands._logic import report as _report_fn
 
 __all__ = ["app"]
 

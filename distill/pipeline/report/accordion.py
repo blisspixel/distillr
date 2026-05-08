@@ -1,6 +1,8 @@
 """Accordion method -- Deep Research dossier + section-by-section Grok writing."""
 
+import hashlib
 import json
+import logging
 import time
 from datetime import datetime
 from pathlib import Path
@@ -8,8 +10,9 @@ from pathlib import Path
 from google import genai
 from rich.console import Console
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.library.paths import (
+    ProvenanceFields,
     artifact_exists,
     artifact_path,
     base_frontmatter,
@@ -17,7 +20,11 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
+from distill.llm.call import LLMCall
+from distill.llm.retry import retry_with_backoff
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report.deep_research import _get_report_path
 from distill.pipeline.report.file_search import create_research_store, delete_store
@@ -29,6 +36,8 @@ from distill.prompts.report import (
     qa_prompt,
     section_prompt,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "run_accordion_research",
@@ -80,6 +89,12 @@ def run_accordion_research(
             tags=tags_for(topic, "research") if scope != "all" else tags_for("", "research"),
             confidence="interpretation",
             extra={"legacy_filename": "research.md"},
+            provenance=ProvenanceFields(
+                model=DEEP_RESEARCH_MODEL,
+                model_version=DEEP_RESEARCH_MODEL,
+                temperature=0.0,
+                prompt_id="report.dossier.v1",
+            ),
         ),
     )
     console.print(f"[dim]Research saved: {research_path}[/dim]")
@@ -156,6 +171,7 @@ def run_accordion_research(
     # Save
     output_path = _get_report_path(topic, config, scope, channel_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    section_model = config.xai_model_for("accordion")
     write_markdown_artifact(
         output_path.parent,
         "report",
@@ -169,6 +185,12 @@ def run_accordion_research(
             tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
             confidence="interpretation",
             extra={"legacy_filename": "report.md"},
+            provenance=ProvenanceFields(
+                model=section_model,
+                model_version=section_model,
+                temperature=0.5,
+                prompt_id="report.accordion.v1",
+            ),
         ),
     )
 
@@ -274,7 +296,7 @@ def _run_dossier_phase(
 # ─── Phase 2: Section Writing ────────────────────────────────────────
 
 
-def _write_sections(
+def _write_sections(  # noqa: C901 — retry integration adds necessary branching
     topic: str,
     config: DistillConfig,
     dossier: str,
@@ -286,7 +308,7 @@ def _write_sections(
     active_sections: list[dict] | None = None,
 ) -> list[dict]:
     """Write each report section sequentially with context continuity."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     written = []
     section_list = active_sections or REPORT_SECTIONS
     total = len(section_list)
@@ -316,26 +338,120 @@ def _write_sections(
         voice = section_def.get("voice", "analytical")
         temp = 0.3 if voice == "reference" else 0.5 if voice == "analytical" else 0.6
 
-        try:
+        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+        model_name = config.xai_model_for("accordion")
+        content = ""
+
+        def _make_llm_call(
+            _prompt: str = prompt,
+            _temp: float = temp,
+            _section_title: str = section_title,
+        ) -> str:
+            """Execute the LLM call for this section."""
             response = llm_call(
                 rc,
                 workload_tag="accordion",
-                prompt=prompt,
+                prompt=_prompt,
                 max_tokens=16384,
-                temperature=temp,
-                call_type=f"section:{section_title[:30]}",
+                temperature=_temp,
+                call_type=f"section:{_section_title[:30]}",
             )
-            content = response.text
             if tracker:
                 tracker.record(
                     TokenUsage(
                         prompt_tokens=response.input_tokens,
                         completion_tokens=response.output_tokens,
                         model=response.model,
-                        call_type=f"section:{section_title[:30]}",
+                        call_type=f"section:{_section_title[:30]}",
                     )
                 )
+            return response.text
+
+        start_time = time.monotonic()
+        attempt_count = 1
+        last_error: Exception | None = None
+
+        def _on_retry(
+            attempt: int,
+            delay: float,
+            error: Exception,
+            _model_name: str = model_name,
+            _prompt_hash: str = prompt_hash,
+            _prompt: str = prompt,
+            _temp: float = temp,
+            _start_time: float = start_time,
+            _section_title: str = section_title,
+        ) -> None:
+            nonlocal attempt_count, last_error
+            attempt_count = attempt + 2  # attempt is 0-based, next call is attempt+2
+            last_error = error
+            # Log LLMCall for the failed attempt
+            failed_call = LLMCall(
+                model=_model_name,
+                prompt_hash=_prompt_hash,
+                prompt_text=_prompt[:4096] if len(_prompt) <= 4096 else "",
+                temperature=_temp,
+                max_tokens=16384,
+                latency_ms=int((time.monotonic() - _start_time) * 1000),
+                error_message=str(error),
+                attempt=attempt + 1,
+            )
+            logger.warning(
+                "LLM call failed for section %r (attempt %d), retrying in %.1fs: %s",
+                _section_title,
+                attempt + 1,
+                delay,
+                error,
+                extra={"llm_call": failed_call.to_dict()},
+            )
+
+        try:
+            content = retry_with_backoff(
+                _make_llm_call,
+                max_retries=3,
+                base_delay=2.0,
+                jitter_fraction=0.5,
+                on_retry=_on_retry,
+            )
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+
+            # Log successful LLMCall (with attempt number for retry-success visibility)
+            if attempt_count > 1:
+                success_call = LLMCall(
+                    model=model_name,
+                    prompt_hash=prompt_hash,
+                    prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
+                    temperature=temp,
+                    max_tokens=16384,
+                    response_text=content[:2048] if content else "",
+                    latency_ms=latency_ms,
+                    attempt=attempt_count,
+                )
+                logger.info(
+                    "LLM call succeeded for section %r after %d attempts",
+                    section_title,
+                    attempt_count,
+                    extra={"llm_call": success_call.to_dict()},
+                )
         except Exception as e:
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+            # Log final failure LLMCall
+            final_call = LLMCall(
+                model=model_name,
+                prompt_hash=prompt_hash,
+                prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
+                temperature=temp,
+                max_tokens=16384,
+                latency_ms=latency_ms,
+                error_message=str(e),
+                attempt=attempt_count,
+            )
+            logger.error(
+                "LLM call exhausted retries for section %r: %s",
+                section_title,
+                e,
+                extra={"llm_call": final_call.to_dict()},
+            )
             console.print(f"  [red]Failed after retries: {e}[/red]")
             content = ""
 
@@ -381,7 +497,7 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
     tracker: CostTracker | None = None,
 ) -> tuple[list[dict], int]:
     """Run QA review and fix failed sections. Returns (sections, rewrite_count)."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
 
     prompt = qa_prompt(topic, dossier, report)
     try:
@@ -656,11 +772,17 @@ def _load_syntheses(
             identity=f"{t}_{ch}",
         )
         if synth_file.exists():
-            parts.append(f"### {ch} Channel Synthesis\n{synth_file.read_text(encoding='utf-8')}")
+            link = emit_wiki_link(f"Channel synthesis: {ch}", f"{t}_{ch}", "synthesis")
+            parts.append(
+                f"### {ch} Channel Synthesis\nSource: {link}\n{synth_file.read_text(encoding='utf-8')}"
+            )
 
     topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
     if topic_synth.exists():
-        parts.append(f"### Topic Synthesis: {topic}\n{topic_synth.read_text(encoding='utf-8')}")
+        link = emit_wiki_link(f"Topic synthesis: {topic}", topic, "topic_synthesis")
+        parts.append(
+            f"### Topic Synthesis: {topic}\nSource: {link}\n{topic_synth.read_text(encoding='utf-8')}"
+        )
 
     return "\n\n".join(parts) if parts else ""
 
@@ -717,11 +839,14 @@ def _load_tagged_insights(  # noqa: C901 — legacy, will refactor
             if any(kw in content_lower for kw in keywords_lower):
                 meta_file = vid_dir / "metadata.json"
                 title = vid_dir.name
+                source_id = vid_dir.name
                 if meta_file.exists():
                     meta = json.loads(meta_file.read_text(encoding="utf-8"))
                     title = meta.get("title", vid_dir.name)
+                    source_id = meta.get("video_id", vid_dir.name)
 
-                entry = f"**{title}** ({ch}):\n{content}\n"
+                link = emit_wiki_link(title, source_id, "insights")
+                entry = f"**{title}** ({ch}) {link}:\n{content}\n"
                 if total_chars + len(entry) > max_chars:
                     break
                 matching.append(entry)

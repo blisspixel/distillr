@@ -7,14 +7,14 @@ Commands: distill topic create, distill topic preview, distill topic update,
 
 import typer
 
-from distill._cli_impl import topic_brief as _topic_brief_fn
-from distill._cli_impl import topic_create as _topic_create_fn
-from distill._cli_impl import topic_export as _topic_export_fn
-from distill._cli_impl import topic_preview as _topic_preview_fn
-from distill._cli_impl import topic_report as _topic_report_fn
-from distill._cli_impl import topic_show as _topic_show_fn
-from distill._cli_impl import topic_update as _topic_update_fn
-from distill._cli_impl import topic_watch as _topic_watch_fn
+from distill.commands._logic import topic_brief as _topic_brief_fn
+from distill.commands._logic import topic_create as _topic_create_fn
+from distill.commands._logic import topic_export as _topic_export_fn
+from distill.commands._logic import topic_preview as _topic_preview_fn
+from distill.commands._logic import topic_report as _topic_report_fn
+from distill.commands._logic import topic_show as _topic_show_fn
+from distill.commands._logic import topic_update as _topic_update_fn
+from distill.commands._logic import topic_watch as _topic_watch_fn
 
 __all__ = ["app"]
 

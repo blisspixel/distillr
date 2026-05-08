@@ -1,5 +1,5 @@
 # pyright: strict
-"""LLM Router — workload-to-provider dispatch, data models, and configuration."""
+"""LLM Router — workload-to-provider dispatch and configuration."""
 
 from __future__ import annotations
 
@@ -9,6 +9,9 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Any
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings
 
 from distill.llm.metadata import LOCAL_PROVIDERS
 
@@ -58,28 +61,25 @@ WORKLOAD_TAGS: frozenset[str] = frozenset(
 )
 
 
-@dataclass
-class RouterConfig:
-    """LLM routing configuration.  Injected by the caller — no distill.* imports.
+class RouterConfig(BaseSettings):
+    """LLM routing configuration.  Reads directly from environment variables.
 
-    Resolution precedence for *model*:
-        1. Per-workload model override  (e.g. ``analysis_model``)
-        2. Tier default (``premium_model`` for premium workloads, ``fast_model`` otherwise)
-    Resolution precedence for *provider*:
-        1. Per-workload provider override  (e.g. ``analysis_provider``)
-        2. Global ``provider``
+    Model precedence: per-workload override > tier default > global default.
+    Provider precedence: per-workload override > global provider.
+    Env mapping: API keys use own names (XAI_API_KEY); routing uses DISTILL_ prefix.
     """
 
-    # API keys
+    model_config = {"env_prefix": "DISTILL_", "env_file": ".env", "extra": "ignore"}
+
+    # API keys (populated from non-prefixed env vars via validator)
     xai_api_key: str = ""
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 
-    # Global provider (default: xai)
+    # Global provider
     provider: str = "xai"
-
-    # Tier defaults (both default to grok-4.3)
+    # Tier defaults
     fast_model: str = "grok-4.3"
     premium_model: str = "grok-4.3"
 
@@ -107,31 +107,55 @@ class RouterConfig:
 
     # Ops directory for telemetry and task files
     ops_dir: str = ""
+    # Model override (CLI --model or DISTILL_MODEL env var)
+    model: str = ""
 
-    # Workload → tier mapping
     PREMIUM_WORKLOADS: tuple[str, ...] = ("site", "report")
 
-    def resolve(self, workload_tag: str) -> tuple[str, str]:
-        """Resolve ``(provider_name, model_id)`` for a workload tag.
+    @model_validator(mode="before")
+    @classmethod
+    def _populate_api_keys_from_env(cls, data: Any) -> Any:
+        """Read API keys from their canonical (non-prefixed) env var names."""
+        if not isinstance(data, dict):
+            return data
+        key_env_map = {
+            "xai_api_key": "XAI_API_KEY",
+            "gemini_api_key": "GEMINI_API_KEY",
+            "anthropic_api_key": "ANTHROPIC_API_KEY",
+            "openai_api_key": "OPENAI_API_KEY",
+        }
+        dotenv_vals: dict[str, str] | None = None
+        for field_name, env_name in key_env_map.items():
+            if field_name not in data:  # Only populate if not explicitly provided
+                env_val = os.environ.get(env_name, "")
+                if not env_val:
+                    if dotenv_vals is None:
+                        try:
+                            from dotenv import dotenv_values as _dv
+                            dotenv_vals = _dv(".env") or {}
+                        except ImportError:
+                            dotenv_vals = {}
+                    env_val = dotenv_vals.get(env_name, "") or ""
+                if env_val:
+                    data[field_name] = env_val
+        return data
 
-        Follows the precedence hierarchy documented on the class.
-        If the resolved model is retired, logs a deprecation warning and
-        substitutes the replacement model.
-        """
-        # --- provider ---
+    def resolve(self, workload_tag: str) -> tuple[str, str]:
+        """Resolve ``(provider_name, model_id)`` for a workload tag."""
         per_workload_provider: str = getattr(self, f"{workload_tag}_provider", "")
         provider_name: str = per_workload_provider or self.provider
 
-        # --- model ---
-        per_workload_model: str = getattr(self, f"{workload_tag}_model", "")
-        if per_workload_model:
-            model_id = per_workload_model
-        elif workload_tag in self.PREMIUM_WORKLOADS:
-            model_id = self.premium_model
+        if self.model:
+            model_id = self.model
         else:
-            model_id = self.fast_model
+            per_workload_model: str = getattr(self, f"{workload_tag}_model", "")
+            if per_workload_model:
+                model_id = per_workload_model
+            elif workload_tag in self.PREMIUM_WORKLOADS:
+                model_id = self.premium_model
+            else:
+                model_id = self.fast_model
 
-        # --- retired model fallback ---
         if model_id in RETIRED_MODELS:
             replacement = RETIRED_MODELS[model_id]
             logger.warning(
@@ -146,13 +170,7 @@ class RouterConfig:
         return provider_name, model_id
 
     def validate(self, workload_tag: str = "") -> None:
-        """Validate configuration eagerly.  Raise ``ConfigurationError`` early.
-
-        Call once at router entry to prevent "mysterious 401 halfway through a
-        20-paper run" class of bugs.  If *workload_tag* is provided, validates
-        the specific provider for that workload.  Otherwise validates the
-        global provider.
-        """
+        """Validate configuration eagerly.  Raise ``ConfigurationError`` early."""
         if workload_tag:
             provider_name, _ = self.resolve(workload_tag)
         else:
@@ -163,9 +181,9 @@ class RouterConfig:
             "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
             "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
             "openai": ("openai_api_key", "OPENAI_API_KEY"),
-            "agent": (None, None),  # No key needed
-            "ollama": (None, None),  # Local — no key needed
-            "lmstudio": (None, None),  # Local — no key needed
+            "agent": (None, None),
+            "ollama": (None, None),
+            "lmstudio": (None, None),
         }
 
         if provider_name not in key_map:
@@ -180,47 +198,46 @@ class RouterConfig:
                 f"Add it to your .env file."
             )
 
+    def with_model_override(self, override: str) -> RouterConfig:
+        """Return a new RouterConfig with the model override applied."""
+        if not override:
+            return self
+        overrides: dict[str, Any] = {"fast_model": override, "premium_model": override, "model": override}
+        for field_name in type(self).model_fields:
+            if field_name.endswith("_model") and field_name not in ("fast_model", "premium_model", "model"):
+                overrides[field_name] = ""
+        return self.model_copy(update=overrides)
 
-# --- Provider registry (cached) ---
+
 _provider_cache: dict[str, Any] = {}
 
 
 def _get_provider(provider_name: str, config: RouterConfig) -> Any:
-    """Map *provider_name* to a Provider instance, caching per name.
-
-    Raises ``ConfigurationError`` for unknown provider names.
-    """
+    """Map *provider_name* to a Provider instance, caching per name."""
     if provider_name in _provider_cache:
         return _provider_cache[provider_name]
 
     provider: Any
     if provider_name == "xai":
         from distill.llm.providers.grok import GrokProvider
-
         provider = GrokProvider(config.xai_api_key)
     elif provider_name == "gemini":
         from distill.llm.providers.gemini import GeminiProvider
-
         provider = GeminiProvider(config.gemini_api_key)
     elif provider_name == "agent":
         from distill.llm.providers.agent import AgentProvider
-
         provider = AgentProvider(config.ops_dir)
     elif provider_name == "anthropic":
         from distill.llm.providers.anthropic import AnthropicProvider
-
         provider = AnthropicProvider()
     elif provider_name == "openai":
         from distill.llm.providers.openai_prov import OpenAIProvider
-
         provider = OpenAIProvider()
     elif provider_name == "ollama":
         from distill.llm.providers.ollama import OllamaProvider
-
         provider = OllamaProvider()
     elif provider_name == "lmstudio":
         from distill.llm.providers.lmstudio import LMStudioProvider
-
         provider = LMStudioProvider()
     else:
         valid = "xai, gemini, agent, anthropic, openai, ollama, lmstudio"
@@ -258,11 +275,7 @@ def call(
     ops_dir: str = "",
     run_id: str = "",
 ) -> LLM_Response:
-    """Dispatch an LLM call through the configured provider.
-
-    Single entry point for all LLM interactions in distillr.
-    """
-    # Validate configuration eagerly
+    """Dispatch an LLM call through the configured provider."""
     config.validate(workload_tag)
 
     if workload_tag not in WORKLOAD_TAGS:
@@ -271,21 +284,14 @@ def call(
             workload_tag,
         )
 
-    # Resolve provider and model
     provider_name, model_id = config.resolve(workload_tag)
-
-    # Get provider instance
     provider = _get_provider(provider_name, config)
 
-    # Resolve reasoning effort for xAI models
     reasoning_effort: str | None = None
     if provider_name == "xai" and model_id.startswith("grok-4.3"):
         reasoning_effort = _resolve_reasoning_effort(config, workload_tag)
 
-    # Determine provider type for telemetry
     provider_type = "local" if provider_name in LOCAL_PROVIDERS else "cloud"
-
-    # Execute with telemetry
     effective_ops_dir = ops_dir or config.ops_dir
     start_time = time.monotonic()
     outcome = "success"
@@ -293,7 +299,6 @@ def call(
     response: LLM_Response | None = None
 
     try:
-        # Call the async provider from sync context
         coro = provider.call(
             model_id,
             prompt,
@@ -307,7 +312,6 @@ def call(
         try:
             response = asyncio.run(coro)
         except RuntimeError as rt_err:
-            # Only fall back if the error is about an already-running loop
             if "cannot be called from a running event loop" in str(rt_err):
                 loop = asyncio.get_event_loop()
                 response = loop.run_until_complete(coro)
@@ -316,7 +320,6 @@ def call(
     except Exception as exc:
         outcome = "error"
         error_type = type(exc).__name__
-        # Emit telemetry for the error case
         elapsed = time.monotonic() - start_time
         _emit_telemetry(
             ops_dir=effective_ops_dir,
@@ -335,9 +338,7 @@ def call(
         )
         raise
 
-    # Emit telemetry for the success case
     elapsed = time.monotonic() - start_time
-    # Compute tokens_per_second for local providers
     tokens_per_second = 0.0
     if provider_type == "local" and elapsed > 0:
         tokens_per_second = response.output_tokens / elapsed

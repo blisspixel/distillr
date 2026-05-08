@@ -6,12 +6,12 @@ Commands: distill discover, distill learn, distill explore, distill search,
 
 import typer
 
-from distill._cli_impl import discover as _discover_fn
-from distill._cli_impl import explore_cmd as _explore_cmd_fn
-from distill._cli_impl import learn_cmd as _learn_cmd_fn
-from distill._cli_impl import monitor as _monitor_fn
-from distill._cli_impl import ramp_up as _ramp_up_fn
-from distill._cli_impl import search_cmd as _search_cmd_fn
+from distill.commands._logic import discover as _discover_fn
+from distill.commands._logic import explore_cmd as _explore_cmd_fn
+from distill.commands._logic import learn_cmd as _learn_cmd_fn
+from distill.commands._logic import monitor as _monitor_fn
+from distill.commands._logic import ramp_up as _ramp_up_fn
+from distill.commands._logic import search_cmd as _search_cmd_fn
 
 __all__ = ["app"]
 

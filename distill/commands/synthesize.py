@@ -5,8 +5,8 @@ Commands: distill synthesize, distill resynthesize
 
 import typer
 
-from distill._cli_impl import resynthesize as _resynthesize_fn
-from distill._cli_impl import synthesize_cmd as _synthesize_cmd_fn
+from distill.commands._logic import resynthesize as _resynthesize_fn
+from distill.commands._logic import synthesize_cmd as _synthesize_cmd_fn
 
 __all__ = ["app"]
 

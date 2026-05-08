@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from distill.config import site_name_from_url, slugify_title
+from distill.library.paths import site_name_from_url, slugify_title
 
 __all__ = [
     "SiteBatch",

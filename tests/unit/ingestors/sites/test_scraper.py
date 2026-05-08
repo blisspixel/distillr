@@ -2,7 +2,7 @@ import json
 import sys
 from types import SimpleNamespace
 
-from distill.config import site_name_from_url
+from distill.library.paths import site_name_from_url
 from distill.ingestors.sites.scraper import (
     SitePage,
     SiteSeed,

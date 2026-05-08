@@ -1,13 +1,12 @@
-"""Unit tests for --model CLI override and apply_model_override."""
+"""Unit tests for --model CLI override and RouterConfig.with_model_override."""
 
 from __future__ import annotations
 
-from distill.config import apply_model_override
 from distill.llm.router import RouterConfig
 
 
-class TestApplyModelOverride:
-    """Tests for the apply_model_override helper."""
+class TestWithModelOverride:
+    """Tests for the RouterConfig.with_model_override method."""
 
     def test_override_sets_fast_and_premium(self) -> None:
         config = RouterConfig(
@@ -15,7 +14,7 @@ class TestApplyModelOverride:
             fast_model="grok-4.3",
             premium_model="grok-4.3",
         )
-        result = apply_model_override(config, "qwen3.5:27b")
+        result = config.with_model_override("qwen3.5:27b")
         assert result.fast_model == "qwen3.5:27b"
         assert result.premium_model == "qwen3.5:27b"
 
@@ -25,7 +24,7 @@ class TestApplyModelOverride:
             fast_model="grok-4.3",
             premium_model="grok-4.3",
         )
-        result = apply_model_override(config, "")
+        result = config.with_model_override("")
         assert result.fast_model == "grok-4.3"
         assert result.premium_model == "grok-4.3"
 
@@ -37,7 +36,7 @@ class TestApplyModelOverride:
             premium_model="grok-4.3",
             ops_dir="/tmp/ops",
         )
-        result = apply_model_override(config, "custom-model:7b")
+        result = config.with_model_override("custom-model:7b")
         assert result.xai_api_key == "test-key"
         assert result.provider == "ollama"
         assert result.ops_dir == "/tmp/ops"
@@ -50,7 +49,7 @@ class TestApplyModelOverride:
             fast_model="grok-4.3",
             premium_model="grok-4.3",
         )
-        result = apply_model_override(config, "qwen3.5:14b")
+        result = config.with_model_override("qwen3.5:14b")
         _, model = result.resolve("analysis")
         assert model == "qwen3.5:14b"
 
@@ -60,6 +59,6 @@ class TestApplyModelOverride:
             fast_model="grok-4.3",
             premium_model="grok-4.3",
         )
-        result = apply_model_override(config, "qwen3.5:14b")
+        result = config.with_model_override("qwen3.5:14b")
         _, model = result.resolve("report")  # premium workload
         assert model == "qwen3.5:14b"

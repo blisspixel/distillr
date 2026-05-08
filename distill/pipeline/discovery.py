@@ -12,11 +12,12 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.discover import discover_query_generation_prompt, discover_rerank_prompt
 
@@ -100,7 +101,7 @@ def discover_generate_queries(
     # should have validated, but be defensive).
     if paper_count <= 0 and video_count <= 0:
         return [], []
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     prompt = discover_query_generation_prompt(
         goal, paper_count=paper_count, video_count=video_count
     )
@@ -220,7 +221,7 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
     if not candidates:
         return []
 
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     prompt = discover_rerank_prompt(goal, candidates)
     response = llm_call(
         rc, workload_tag="rerank", prompt=prompt, max_tokens=8192, call_type="discover_rerank"

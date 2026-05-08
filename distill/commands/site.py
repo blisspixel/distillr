@@ -5,8 +5,8 @@ Commands: distill site, distill site-batch
 
 import typer
 
-from distill._cli_impl import site_batch_cmd as _site_batch_cmd_fn
-from distill._cli_impl import site_cmd as _site_cmd_fn
+from distill.commands._logic import site_batch_cmd as _site_batch_cmd_fn
+from distill.commands._logic import site_cmd as _site_cmd_fn
 
 __all__ = ["app"]
 

@@ -8,10 +8,11 @@ from datetime import datetime
 
 from rich.console import Console
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.discover import paper_rerank_prompt, search_rerank_prompt
 
@@ -84,7 +85,7 @@ def _llm_rerank(
     skeptical: bool = False,
 ) -> list[RankedVideo]:
     prompt = search_rerank_prompt(query, videos, skeptical=skeptical)
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     response = llm_call(
         rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="search_rerank"
     )
@@ -502,7 +503,7 @@ def _llm_rerank_papers(
     tracker: CostTracker | None = None,
 ) -> list[RankedPaper]:
     prompt = paper_rerank_prompt(query, papers)
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     response = llm_call(
         rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="paper_rerank"
     )

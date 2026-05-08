@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from distill.config import DistillConfig, sanitize_path_component, slugify_title
+from distill.config import DistillConfig
+from distill.library.paths import sanitize_path_component, slugify_title
 
 
 class TestDistillConfig:
