@@ -2,7 +2,6 @@ import json
 import sys
 from types import SimpleNamespace
 
-from distill.library.paths import site_name_from_url
 from distill.ingestors.sites.scraper import (
     SitePage,
     SiteSeed,
@@ -20,6 +19,7 @@ from distill.ingestors.sites.scraper import (
     page_id_from_url,
     site_section_key,
 )
+from distill.library.paths import site_name_from_url
 
 
 def test_site_name_from_url_strips_www():

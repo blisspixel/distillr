@@ -39,8 +39,8 @@ def synthesize_corpus(
     paper_synth = find_artifact(topic_dir, "paper_synthesis", identity=topic)
     if paper_synth.exists():
         link = emit_wiki_link(f"Paper synthesis: {topic}", topic, "paper_synthesis")
-        source_sections["Paper Synthesis"] = (
-            f"Source: {link}\n" + paper_synth.read_text(encoding="utf-8")
+        source_sections["Paper Synthesis"] = f"Source: {link}\n" + paper_synth.read_text(
+            encoding="utf-8"
         )
 
     sites_dir = config.sites_dir(topic)

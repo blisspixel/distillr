@@ -4118,14 +4118,10 @@ def open_cmd(  # noqa: C901 — legacy, will refactor
         if path:
             target = library_dir / path
             if not target.exists():
-                console.print(
-                    f"[red]Error: subdirectory not found: {target}[/red]"
-                )
+                console.print(f"[red]Error: subdirectory not found: {target}[/red]")
                 # List available subdirectories
                 available = [
-                    d.relative_to(library_dir)
-                    for d in library_dir.iterdir()
-                    if d.is_dir()
+                    d.relative_to(library_dir) for d in library_dir.iterdir() if d.is_dir()
                 ]
                 if available:
                     console.print("\n  Available subdirectories:")
@@ -4761,9 +4757,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
                         f"  [red]✗[/red] {bl.source_file}:{bl.line_number} → {bl.link_text}"
                     )
                 if len(result.broken_links) > 20:
-                    console.print(
-                        f"  [dim]... and {len(result.broken_links) - 20} more[/dim]"
-                    )
+                    console.print(f"  [dim]... and {len(result.broken_links) - 20} more[/dim]")
 
         if fix:
             if not result.broken_links:
@@ -4798,15 +4792,10 @@ def doctor(  # noqa: C901 — legacy, will refactor
             # Dry-run: print proposed changes
             console.print("\n  [bold]Migration Plan (dry-run):[/bold]")
             for action in actions:
-                console.print(
-                    f"  RENAME: {action.source_path.relative_to(library_dir)}"
-                )
-                console.print(
-                    f"       → {action.target_path.relative_to(library_dir)}"
-                )
+                console.print(f"  RENAME: {action.source_path.relative_to(library_dir)}")
+                console.print(f"       → {action.target_path.relative_to(library_dir)}")
             console.print(
-                f"\n  Summary: {len(actions)} rename(s) proposed. "
-                f"Use --apply to execute."
+                f"\n  Summary: {len(actions)} rename(s) proposed. Use --apply to execute."
             )
         else:
             # Execute migration

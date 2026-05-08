@@ -146,8 +146,8 @@ def synthesize_topic(
                 f"{topic}_{channel_dir.name}",
                 "synthesis",
             )
-            channel_syntheses[channel_dir.name] = (
-                f"Source: {link}\n" + synth_file.read_text(encoding="utf-8")
+            channel_syntheses[channel_dir.name] = f"Source: {link}\n" + synth_file.read_text(
+                encoding="utf-8"
             )
 
     if len(channel_syntheses) < 2:
