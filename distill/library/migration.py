@@ -83,6 +83,9 @@ def scan_legacy_artifacts(library_dir: Path) -> list[MigrationAction]:
             continue
         if file_path.name not in legacy_filenames:
             continue
+        # Skip hidden directories (.git, .hypothesis, .distill, etc.)
+        if any(part.startswith(".") for part in file_path.relative_to(library_dir).parts[:-1]):
+            continue
         # Skip files at the library root (they need a parent slug)
         if file_path.parent == library_dir:
             continue
