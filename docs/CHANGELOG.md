@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.7.1 - 2026-05-08
+
+Patch release with hardening fixes found during QA.
+
+- Fix: Windows reserved device names (NUL, CON, PRN, etc.) in slugs now prefixed with underscore to avoid filesystem errors.
+- Fix: Wiki-link display titles now strip pipe, bracket, and newline characters that would break Obsidian syntax or markdown rendering.
+- Fix: `scan_legacy_artifacts` skips hidden directories (.git, .hypothesis, etc.).
+- Fix: `distill doctor --links --json` uses the standard JsonEnvelope wrapper for consistency with other commands.
+- Fix: Global `--json` flag is respected in `doctor --links` mode.
+- Fix: Path comparison in migration uses `Path.is_relative_to()` instead of string prefix matching.
+- Fix: `emit_wiki_link` validates that `corpus_dir` is a directory before globbing.
+- Fix: Artifact type fallback in WikiLink handles hyphens correctly (e.g., `custom-type` becomes `Custom_Type`).
+
 ## 0.7.0 — 2026-05-07
 
 Living Wiki. The corpus shifts from a directory of artifacts to a navigable knowledge base interoperable with Obsidian, Logseq, and Dendron. Also ships critical code-health prerequisites that prevent compounding debt in later milestones.
