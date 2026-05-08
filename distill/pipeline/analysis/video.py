@@ -2,8 +2,9 @@
 
 from rich.console import Console
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.analysis import (
     auto_watch_instructions_prompt,
@@ -35,7 +36,7 @@ def analyze_video(
     custom_instructions: str = "",
 ) -> str:
     """Run 2-pass analysis on a video transcript. Returns insights markdown."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
 
     prompt1 = pass1_extraction_prompt(
         title, upload_date, channel_name, transcript, custom_instructions
@@ -72,6 +73,10 @@ video_title: \"{safe_title}\"
 channel: {channel_name}
 upload_date: {upload_date}
 analyzed_by: {model}
+model: {model}
+model_version: {model}
+temperature: 0.0
+prompt_id: "analysis.pass2.v1"
 ---
 
 {pass2}
@@ -87,7 +92,7 @@ def analyze_short(
     tracker: CostTracker | None = None,
 ) -> str:
     """Single-pass analysis for YouTube Shorts. Returns insights markdown."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
 
     prompt = shorts_insight_prompt(title, upload_date, channel_name, transcript)
     response = llm_call(
@@ -111,6 +116,10 @@ channel: {channel_name}
 upload_date: {upload_date}
 analyzed_by: {response.model}
 content_type: short
+model: {response.model}
+model_version: {response.model}
+temperature: 0.0
+prompt_id: "analysis.short.v1"
 ---
 
 {result}
@@ -127,7 +136,7 @@ def analyze_scan(
     custom_instructions: str = "",
 ) -> str:
     """Single-pass scan analysis for any video. Lightweight triage."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
 
     prompt = scan_insight_prompt(title, upload_date, channel_name, transcript, custom_instructions)
     response = llm_call(
@@ -151,6 +160,10 @@ channel: {channel_name}
 upload_date: {upload_date}
 analyzed_by: {response.model}
 analysis_mode: scan
+model: {response.model}
+model_version: {response.model}
+temperature: 0.0
+prompt_id: "analysis.scan.v1"
 ---
 
 {result}
@@ -164,7 +177,7 @@ def generate_channel_context(
     tracker: CostTracker | None = None,
 ) -> str:
     """Generate a channel profile/context document."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     prompt = channel_context_prompt(channel_name, video_titles)
     response = llm_call(rc, workload_tag="analysis", prompt=prompt, call_type="channel_context")
     if tracker:
@@ -186,7 +199,7 @@ def generate_watch_instructions(
     tracker: CostTracker | None = None,
 ) -> str:
     """Auto-generate smart default analysis instructions for a channel."""
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     prompt = auto_watch_instructions_prompt(channel_name, video_titles)
     response = llm_call(
         rc, workload_tag="analysis", prompt=prompt, max_tokens=256, call_type="watch_instructions"

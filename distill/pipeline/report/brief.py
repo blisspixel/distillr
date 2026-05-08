@@ -26,6 +26,7 @@ from rich.console import Console
 
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
+from distill.library.wikilinks import emit_wiki_link
 from distill.pipeline.report.file_search import delete_store
 
 __all__ = [
@@ -61,10 +62,16 @@ def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[s
         ]:
             synth = find_artifact(topic_dir, artifact_type, identity=topic)
             if synth.exists():
+                link = emit_wiki_link(
+                    f"{label_stem.replace('-', ' ').title()}: {topic}",
+                    topic,
+                    artifact_type,
+                )
                 files.append(
                     (
                         f"{label_stem}-{topic}",
-                        f"# {label_stem.replace('-', ' ').title()}: {topic}\n\n"
+                        f"# {label_stem.replace('-', ' ').title()}: {topic}\n"
+                        f"Source: {link}\n\n"
                         + synth.read_text(encoding="utf-8"),
                     )
                 )
@@ -126,15 +133,19 @@ def _bundle_insights(
         metadata_file = item_dir / "metadata.json"
         title = item_dir.name
         url = ""
+        source_id = item_dir.name
         if metadata_file.exists():
             try:
                 meta = json.loads(metadata_file.read_text(encoding="utf-8"))
                 title = meta.get("title", title)
                 url = meta.get("abs_url") or meta.get("url", "")
+                source_id = meta.get("video_id") or meta.get("paper_id") or source_id
             except (json.JSONDecodeError, OSError):
                 pass
-        entry = f"\n\n---\n\n## [{kind}] {title}\nURL: {url}\n\n" + insights_file.read_text(
-            encoding="utf-8"
+        link = emit_wiki_link(title, source_id, "insights")
+        entry = (
+            f"\n\n---\n\n## [{kind}] {title}\nURL: {url}\nSource: {link}\n\n"
+            + insights_file.read_text(encoding="utf-8")
         )
         if chars + len(entry) > MAX_DOC_CHARS and parts:
             bundles.append(

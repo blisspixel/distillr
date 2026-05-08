@@ -19,6 +19,7 @@ Public API:
     LLMRouterError      — base exception for the LLM router package
 """
 
+from distill.llm.call import LLMCall
 from distill.llm.providers import Provider
 from distill.llm.router import (
     ConfigurationError,
@@ -31,6 +32,7 @@ from distill.llm.router import (
 
 __all__ = [
     "ConfigurationError",
+    "LLMCall",
     "LLMRouterError",
     "LLM_Response",
     "PendingTaskError",

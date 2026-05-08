@@ -1,12 +1,25 @@
 """Synthesis -- per-channel and per-topic knowledge bases."""
 
+import json
+import logging
+
 from rich.console import Console
 
-from distill.config import DistillConfig, router_config_from_distill
-from distill.library.paths import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
+from distill.config import DistillConfig
+from distill.library.paths import (
+    ProvenanceFields,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
+from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.synthesis import channel_synthesis_prompt, topic_synthesis_prompt
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "synthesize_channel",
@@ -35,7 +48,7 @@ def synthesize_channel(
 
     all_insights = ""
     insight_files = [
-        path
+        (video_dir, path)
         for video_dir in sorted(videos_dir.iterdir())
         if video_dir.is_dir()
         for path in [find_artifact(video_dir, "insights")]
@@ -46,13 +59,25 @@ def synthesize_channel(
         console.print(f"  [yellow]No insights found for {channel_name}[/yellow]")
         return ""
 
-    for f in insight_files:
-        all_insights += f"\n\n---\n{f.read_text(encoding='utf-8')}"
+    for video_dir, f in insight_files:
+        # Build wiki-link reference for this source artifact
+        meta_file = video_dir / "metadata.json"
+        title = video_dir.name
+        source_id = video_dir.name
+        if meta_file.exists():
+            try:
+                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                title = meta.get("title", title)
+                source_id = meta.get("video_id", source_id)
+            except (json.JSONDecodeError, OSError):
+                pass
+        link = emit_wiki_link(title, source_id, "insights")
+        all_insights += f"\n\n---\nSource: {link}\n{f.read_text(encoding='utf-8')}"
 
     console.print(f"  [cyan]Synthesizing {len(insight_files)} videos for {channel_name}...[/cyan]")
 
     try:
-        rc = router_config_from_distill(config)
+        rc = RouterConfig()
         prompt = channel_synthesis_prompt(channel_name, channel_context, all_insights)
         response = llm_call(
             rc, workload_tag="synthesis", prompt=prompt, call_type="channel_synthesis"
@@ -84,6 +109,12 @@ def synthesize_channel(
             tags=tags_for(topic, "youtube"),
             confidence="corpus-consensus",
             extra={"channel": channel_name, "legacy_filename": "synthesis.md"},
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id="synthesis.channel.v1",
+            ),
         ),
     )
     console.print(f"  [green]Saved {output_file}[/green]")
@@ -109,7 +140,15 @@ def synthesize_topic(
             continue
         synth_file = find_artifact(channel_dir, "synthesis", identity=f"{topic}_{channel_dir.name}")
         if synth_file.exists():
-            channel_syntheses[channel_dir.name] = synth_file.read_text(encoding="utf-8")
+            # Emit wiki-link for the channel synthesis artifact
+            link = emit_wiki_link(
+                f"Channel synthesis: {channel_dir.name}",
+                f"{topic}_{channel_dir.name}",
+                "synthesis",
+            )
+            channel_syntheses[channel_dir.name] = (
+                f"Source: {link}\n" + synth_file.read_text(encoding="utf-8")
+            )
 
     if len(channel_syntheses) < 2:
         console.print(
@@ -122,7 +161,7 @@ def synthesize_topic(
     )
 
     try:
-        rc = router_config_from_distill(config)
+        rc = RouterConfig()
         prompt = topic_synthesis_prompt(topic, channel_syntheses)
         response = llm_call(
             rc, workload_tag="synthesis", prompt=prompt, call_type="topic_synthesis"
@@ -154,6 +193,12 @@ def synthesize_topic(
             tags=tags_for(topic, "youtube"),
             confidence="corpus-consensus",
             extra={"legacy_filename": "topic_synthesis.md"},
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id="synthesis.topic.v1",
+            ),
         ),
     )
     console.print(f"  [green]Saved {output_file}[/green]")

@@ -5,21 +5,21 @@ Commands: distill watch *, distill topic-watch *
 
 import typer
 
-from distill._cli_impl import topic_watch_add as _topic_watch_add_fn
-from distill._cli_impl import topic_watch_budget as _topic_watch_budget_fn
-from distill._cli_impl import topic_watch_cadence as _topic_watch_cadence_fn
-from distill._cli_impl import topic_watch_days as _topic_watch_days_fn
-from distill._cli_impl import topic_watch_default as _topic_watch_default_fn
-from distill._cli_impl import topic_watch_pause as _topic_watch_pause_fn
-from distill._cli_impl import topic_watch_ranking as _topic_watch_ranking_fn
-from distill._cli_impl import topic_watch_remove as _topic_watch_remove_fn
-from distill._cli_impl import topic_watch_resume as _topic_watch_resume_fn
-from distill._cli_impl import topic_watch_run as _topic_watch_run_fn
-from distill._cli_impl import watch_add as _watch_add_fn
-from distill._cli_impl import watch_days as _watch_days_fn
-from distill._cli_impl import watch_default as _watch_default_fn
-from distill._cli_impl import watch_instructions as _watch_instructions_fn
-from distill._cli_impl import watch_remove as _watch_remove_fn
+from distill.commands._logic import topic_watch_add as _topic_watch_add_fn
+from distill.commands._logic import topic_watch_budget as _topic_watch_budget_fn
+from distill.commands._logic import topic_watch_cadence as _topic_watch_cadence_fn
+from distill.commands._logic import topic_watch_days as _topic_watch_days_fn
+from distill.commands._logic import topic_watch_default as _topic_watch_default_fn
+from distill.commands._logic import topic_watch_pause as _topic_watch_pause_fn
+from distill.commands._logic import topic_watch_ranking as _topic_watch_ranking_fn
+from distill.commands._logic import topic_watch_remove as _topic_watch_remove_fn
+from distill.commands._logic import topic_watch_resume as _topic_watch_resume_fn
+from distill.commands._logic import topic_watch_run as _topic_watch_run_fn
+from distill.commands._logic import watch_add as _watch_add_fn
+from distill.commands._logic import watch_days as _watch_days_fn
+from distill.commands._logic import watch_default as _watch_default_fn
+from distill.commands._logic import watch_instructions as _watch_instructions_fn
+from distill.commands._logic import watch_remove as _watch_remove_fn
 
 __all__ = ["topic_watch_app", "watch_app"]
 

@@ -16,6 +16,38 @@ Everything produces plain markdown in a local `library/` directory. An MCP serve
 
 Distillr is designed to be the **persistent structured memory layer** for AI agent workflows. It's the corpus that [Deepr](https://github.com/blisspixel/deepr) experts query for grounded intelligence, that coding agents consult via MCP for domain context, and that humans browse in Obsidian for navigable knowledge. The ingestion pipeline is the input mechanism; the real product is the always-current, always-queryable corpus.
 
+## Competitive landscape (May 2026)
+
+The space exploded after Karpathy's "LLM Wiki" gist (April 2026). Hundreds of local-first Markdown knowledge-base / AI second-brain / agent-memory projects now exist. Most follow the same core loop: raw sources → LLM extract/synthesize → persistent interlinked Markdown vault → optional MCP or RAG layer. Distillr is not alone, but it occupies a specific axis that most competitors do not.
+
+**Closest tools and where they differ:**
+
+| Tool | Stars | Approach | Key difference from distillr |
+|------|-------|----------|------------------------------|
+| SwarmVault | ~400 | Full LLM Wiki + hybrid RAG (SQLite FTS + embeddings) + desktop app | Adds DB/RAG (breaks pure-Markdown), broader ingestion, GUI-first |
+| obsidian-wiki (Ar9av) | ~1,000 | Skill-based framework — symlinks skills into Claude Code/Cursor/etc. | "Install skills into your agent" model, less automated discovery |
+| Lacuna-wiki | ~24 | Pure MCP-first — single tool, DuckDB index, agent-driven maintenance | Minimalist MCP surface, uses DuckDB, no standalone CLI pipeline |
+| personal-knowledge-base | ~9 | Clip URLs + Claude Code as librarian, D3.js graph viz | Manual feeding only, no goal-aware discovery or cross-source synthesis |
+
+Plus the ecosystem around Obsidian Web Clipper + Defuddle (now does YT transcripts natively) + Claude Code / local LLMs for wiki compilation, and a dozen MCP servers for Markdown vaults.
+
+**Where distillr stands out:**
+
+1. **Goal-aware multi-source discovery.** Most tools assume you feed them URLs or files. Distillr searches YT + arXiv + web, reranks for relevance/complementarity against a research goal, then ingests. This is rare and genuinely useful.
+2. **Structured per-item insights + cross-source synthesis.** Not just entity pages or summaries — explicit `_Insights.md` with claims/limitations, plus dedicated `Topic_Synthesis` and `Corpus_Synthesis` files mixing all sources. Most competitors stop at entity extraction + wikilinks.
+3. **Strict no-database, pure-Markdown discipline.** Stable slugs, source receipts, YAML provenance, cost tracking, git-friendly. Many others sneak in SQLite or vector stores.
+4. **CLI-first + MCP for power users.** Researchers who want reusable corpora that agents can drive without GUI lock-in.
+
+**Strategic implications for the roadmap:**
+
+- Wiki-links + provenance + stable slugs are now table-stakes (every competitor has some form). 0.7 must ship these clean.
+- Discovery + structured synthesis remain the clearest differentiators. Protect and deepen them (0.9).
+- The "ease of agent integration" gap (Ar9av's setup.sh, Lacuna's single-tool MCP) is real but is a 1.0 polish concern, not a 0.7 concern.
+- The traction gap vs. GUI-heavy tools is about marketing/onboarding, not missing features. 1.0's presentation pass addresses this.
+- Pure-Markdown / no-DB is a defensible niche for serious researchers. Don't compromise it.
+
+**Why not "just make it an MCP skill"?** Distillr already *is* an MCP server (8 tools, 12 resources, 4 prompts since 0.5). But a thin MCP wrapper or agent skill would be useless for what distillr actually does — long-running batch ingestion, persistent corpus maintenance, and compounding knowledge across sessions are exactly what interactive agents (Claude Code, Cursor, Windsurf) are terrible at. The architecture is separation of concerns: distillr is the dedicated memory layer; agents query it via MCP when they need grounded knowledge. It's "and," not "or."
+
 ## What shipped in 0.1.0
 
 Initial public release as `distillr` on PyPI (2026-04-20). Core capabilities:
@@ -62,7 +94,7 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 - **0.3 Internal foundations — SHIPPED** (0.3.0-0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture, SecretStr, import-linter, quality conventions.
 - **0.5 MCP-first surface — SHIPPED** (0.5.0). JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions, Grok 4.3 migration.
 - **0.6 Local-control + adaptive context — SHIPPED** (0.6.0). Ollama / LM Studio providers, adaptive chunking, multi-pass analysis, report compaction, hardware detection, `--model` override, Docker.
-- **0.7 Living wiki** (next build) — Obsidian-native frontmatter and wiki-style cross-links; `distill open --vault`.
+- **0.7 Living wiki** (next build) — Obsidian-native wiki-links, artifact provenance in frontmatter, CLI decomposition (finish `_cli_impl.py` → `commands/`), path/slug centralization, legacy bridge removal, report-phase retry hardening.
 - **0.8 Concept playbook** — ACE-style concept/entity notes with delta merges and contradiction surfacing.
 - **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, stale-detection, budget guardrails.
@@ -168,12 +200,24 @@ Why this version: when ingestion is free, you use it more. More sources ingested
 
 The corpus shifts from "directory of artifacts" to "navigable knowledge base," using ecosystem tools (Obsidian, Logseq, Dendron) for visualization rather than building a graph view in distillr.
 
+**Wiki-link discipline and Obsidian interop.**
+
 - Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs (`[[<paper-slug>_Insights|Title]]` instead of plain citations).
 - Backfill / migration tooling for older `insights.md`-style libraries into the 0.3 knowledge-base naming contract.
 - Stable link discipline. `distill doctor --links` for backlink integrity.
 - `distill open --vault` opens the user's default markdown editor pointed at `library/`.
 
-Why this version: pure prompt + frontmatter + tooling work, no model changes. Lands before the concept layer because concept notes need stable link discipline to be worth building on.
+**Artifact provenance in frontmatter.** Every generated artifact records the exact model version, temperature, and prompt identifier used to produce it. This is the foundation for reproducibility — without it, research outputs cannot be trusted or compared across runs. Fields added to YAML frontmatter: `model`, `model_version`, `temperature`, `prompt_id`. Cost tracking (already present) stays alongside.
+
+**CLI decomposition (finish the 0.3 intent).** `_cli_impl.py` (~1,200+ lines of private `_discover_*`, `_llm_expand_*`, and command helpers) is decomposed into the `commands/` subpackage. Each major command group gets its own module with a dedicated Typer app. `_cli_impl.py` is reduced to shared utilities only (target: <200 lines). This unblocks testability and makes the module-size cap enforceable without exceptions.
+
+**Path/slug centralization.** Slugify and path-sanitization logic (currently in `config.py`) moves to `library/paths.py` where it belongs architecturally. Ingestors import from `library/paths` instead of `config`. This completes the separation of concerns between configuration and corpus management.
+
+**Legacy migration bridge removal.** The `router_config_from_distill` bridge code in `config.py` (env parsing inside functions, import-side effects) is deleted. The Grok 4.3 migration (model retirement May 15, 2026) is the forcing function — once the old model is gone, the bridge serves no purpose.
+
+**Report-phase retry hardening.** The 3-failure circuit breaker in the report pipeline gains exponential backoff with jitter. An `LLMCall` dataclass captures full request/response metadata for debugging transient failures.
+
+Why this version: pure prompt + frontmatter + tooling + code-health work, no new model integrations. Lands before the concept layer because concept notes need stable link discipline, provenance, and clean path resolution to be worth building on. The CLI decomposition and bridge removal are included here because they're prerequisites for the 0.8 concept-extraction pass (which adds new commands and pipeline stages that would further bloat `_cli_impl.py` if it isn't decomposed first). Competitively, wiki-links + provenance + stable slugs are now table-stakes in this space (every post-Karpathy tool has some form) — shipping 0.7 clean is the minimum to stay credible alongside SwarmVault, obsidian-wiki, and Lacuna.
 
 ### 0.8.0 — Concept playbook
 
@@ -237,7 +281,7 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 - All public APIs documented (concise docstrings on the public surface; longer where the rationale isn't obvious from naming).
 - `docs/CONTRIBUTING.md` covers the full quality posture above so contributors know the bar before they open a PR.
 
-Why this version: 1.0 is a stability *and* quality claim. It's the version external systems can build on without expecting churn, and the version a new contributor can land a clean PR in without a long onboarding tail.
+Why this version: 1.0 is a stability *and* quality claim. It's the version external systems can build on without expecting churn, and the version a new contributor can land a clean PR in without a long onboarding tail. Competitively, this is the version that closes the traction gap — the biggest risk is getting out-marketed on ease-of-agent-integration by GUI-heavy tools (SwarmVault, obsidian-wiki). The presentation pass, onboarding docs, and stable contracts are what convert "technically superior" into "actually adopted."
 
 ## Target package layout (1.0)
 
@@ -391,15 +435,16 @@ Once 0.3 lands, the canonical version of this layout — with rationale per subp
 
 ## Intentionally not in scope
 
-A roadmap is also an opinion about what *not* to build. These are deliberate exclusions, not gaps.
+A roadmap is also an opinion about what *not* to build. These are deliberate exclusions, not gaps. Several are informed by the competitive landscape (see above) — competitors that make different choices validate that these are real trade-offs, not oversights.
 
-- **No graph-view UI inside distill.** Obsidian / Logseq / Dendron already do this well; reimplementing duplicates effort without adding value. The Obsidian-native milestone (0.7) is the answer.
+- **No graph-view UI inside distill.** Obsidian / Logseq / Dendron already do this well; reimplementing duplicates effort without adding value. The Obsidian-native milestone (0.7) is the answer. (SwarmVault builds its own graph view; we get it free from the ecosystem.)
 - **No proprietary editor, mobile app, or cloud-hosted SaaS.** The whole point is plain-text Markdown with no lock-in. A hosted version would create exactly the dependency the project exists to avoid.
-- **No general-purpose RAG / vector-store framework.** distillr is opinionated about the corpus shape and the analysis pipeline. Embeddings are an implementation detail (used selectively for dedup, possibly inside `find_insights`), not a primary surface. Users who want a generic RAG toolkit have LangChain and LlamaIndex.
+- **No general-purpose RAG / vector-store / SQLite index.** distillr is opinionated about the corpus shape and the analysis pipeline. Embeddings are an implementation detail (used selectively for dedup, possibly inside `find_insights`), not a primary surface. Users who want a generic RAG toolkit have LangChain and LlamaIndex. (SwarmVault and Lacuna-wiki add SQLite/DuckDB; we deliberately avoid this — pure-Markdown + git-friendly is the defensible niche for serious researchers.)
 - **No multi-user / auth / collaboration layer.** Single-user local tool. Shared corpora are a `git` problem, not a distillr problem.
 - **No additional cloud LLM providers by default.** Each provider is calibration debt — prompts that work well on one model regress on another. Users can wire OpenAI / Anthropic / Mistral / etc. through the 0.3 router, but distillr won't ship default model policies for them. Local providers are the exception because they carry the local-first promise.
 - **No plugin / extension system before 1.0.** Premature abstraction. The right plugin boundaries become obvious only after the internal architecture from 0.3–0.5 has carried real workloads. Revisit post-1.0.
 - **No real-time collaboration or sync service.** Markdown + git is the answer. distillr won't compete with Obsidian Sync, Logseq Sync, or Syncthing.
+- **No "install skills into your agent" model.** obsidian-wiki (Ar9av) takes the approach of symlinking skill files into Claude Code / Cursor / etc. Distillr's architecture is separation of concerns: distillr is the dedicated memory layer, agents query it via MCP. A thin skill wrapper would be useless for long-running batch ingestion and persistent corpus maintenance — exactly what interactive agents are terrible at.
 - **No anti-bot / paywall / login-walled scraping.** Playwright handles legitimate access; defeating hostile defenses is whack-a-mole that pulls focus from the analysis pipeline and creates legal/ethical surface area.
 - **No "cheap mode" that compromises fidelity.** The product premise is "as good as we can possibly make it" regardless of whether inference runs locally or in the cloud. Local models exist to make the corpus *always current* at zero marginal cost, not to produce worse outputs faster. Cost reduction happens through local inference, compaction, and JIT context — never through cheaper prompts that produce worse outputs. A local insight must be good enough that synthesis and expert queries can trust it without qualification.
 

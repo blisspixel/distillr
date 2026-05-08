@@ -5,9 +5,9 @@ Commands: distill paper, distill papers, distill corpus
 
 import typer
 
-from distill._cli_impl import corpus as _corpus_fn
-from distill._cli_impl import paper as _paper_fn
-from distill._cli_impl import papers as _papers_fn
+from distill.commands._logic import corpus as _corpus_fn
+from distill.commands._logic import paper as _paper_fn
+from distill.commands._logic import papers as _papers_fn
 
 __all__ = ["app"]
 

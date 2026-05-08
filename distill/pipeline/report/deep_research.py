@@ -9,6 +9,7 @@ from rich.console import Console
 
 from distill.config import DistillConfig
 from distill.library.paths import (
+    ProvenanceFields,
     artifact_path,
     base_frontmatter,
     find_artifact,
@@ -362,5 +363,11 @@ def _write_report_artifact(
             tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
             confidence="interpretation",
             extra=extra,
+            provenance=ProvenanceFields(
+                model=DEEP_RESEARCH_MODEL,
+                model_version=DEEP_RESEARCH_MODEL,
+                temperature=0.0,
+                prompt_id="report.deep_research.v1",
+            ),
         ),
     )

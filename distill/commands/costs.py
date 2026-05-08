@@ -5,7 +5,7 @@ Commands: distill costs
 
 import typer
 
-from distill._cli_impl import costs as _costs_fn
+from distill.commands._logic import costs as _costs_fn
 
 __all__ = ["app"]
 
