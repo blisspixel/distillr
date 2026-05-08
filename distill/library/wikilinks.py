@@ -57,8 +57,16 @@ class WikiLink:
 
         slug = slugify_title(title, source_id)
         suffix = ARTIFACT_SUFFIXES.get(artifact_type, artifact_type.replace("-", "_").title())
-        # Remove brackets that would break [[...]] syntax, then strip whitespace
-        clean_title = title.replace("[", "").replace("]", "").strip()
+        # Remove characters that would break [[slug|display]] syntax or markdown,
+        # then strip whitespace
+        clean_title = (
+            title.replace("[", "")
+            .replace("]", "")
+            .replace("|", "")
+            .replace("\n", " ")
+            .replace("\r", "")
+            .strip()
+        )
         return cls(slug=slug, suffix=suffix, display_title=clean_title)
 
 

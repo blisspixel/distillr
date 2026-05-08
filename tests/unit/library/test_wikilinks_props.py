@@ -66,7 +66,14 @@ class TestWikiLinkEmissionFormat:
 
         expected_slug = slugify_title(title, source_id)
         expected_suffix = ARTIFACT_SUFFIXES[artifact_type]
-        clean_title = title.replace("[", "").replace("]", "").strip()
+        clean_title = (
+            title.replace("[", "")
+            .replace("]", "")
+            .replace("|", "")
+            .replace("\n", " ")
+            .replace("\r", "")
+            .strip()
+        )
         expected = f"[[{expected_slug}_{expected_suffix}|{clean_title}]]"
 
         assert rendered == expected
@@ -86,9 +93,16 @@ class TestWikiLinkEmissionFormat:
     def test_display_portion_equals_cleaned_title(
         self, title: str, source_id: str, artifact_type: str
     ) -> None:
-        """The display_title field equals the title with brackets removed and whitespace stripped."""
+        """The display_title field equals the title with unsafe chars removed and whitespace stripped."""
         link = WikiLink.from_source(title, source_id, artifact_type)
-        expected = title.replace("[", "").replace("]", "").strip()
+        expected = (
+            title.replace("[", "")
+            .replace("]", "")
+            .replace("|", "")
+            .replace("\n", " ")
+            .replace("\r", "")
+            .strip()
+        )
         assert link.display_title == expected
 
 
