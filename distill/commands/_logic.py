@@ -4740,11 +4740,11 @@ def doctor(  # noqa: C901 — legacy, will refactor
 
         result = check_links(library_dir)
 
-        if json_output:
-            import json as _json
+        if json_output or json_mode:
             import sys
 
-            sys.stdout.write(_json.dumps(result.to_dict(), indent=2) + "\n")
+            envelope = JsonEnvelope.success(result.to_dict())
+            sys.stdout.write(envelope.to_json() + "\n")
         else:
             console.print("\n  [bold]Link Integrity Check[/bold]")
             console.print(f"  Files scanned: {result.files_scanned}")
@@ -4761,15 +4761,12 @@ def doctor(  # noqa: C901 — legacy, will refactor
 
         if fix:
             if not result.broken_links:
-                if not json_output:
+                if not (json_output or json_mode):
                     console.print("  [green]Nothing to fix.[/green]")
             else:
                 fixed_count = fix_broken_links(library_dir, result.broken_links)
-                if not json_output:
+                if not (json_output or json_mode):
                     console.print(f"\n  [green]Fixed {fixed_count} broken link(s).[/green]")
-        elif fix and not links:
-            console.print("[red]Error: --fix requires --links[/red]")
-            raise typer.Exit(1)
 
         return
 

@@ -182,8 +182,8 @@ def _find_library_root(actions: list[MigrationAction]) -> Path | None:
     # Fallback: go up from first action until we find a reasonable root
     candidate = paths[0].parent
     while candidate.parent != candidate:
-        # Check if most actions are under this directory
-        if all(str(a).startswith(str(candidate)) for a in paths):
+        # Check if all actions are under this directory
+        if all(p.is_relative_to(candidate) for p in paths):
             return candidate
         candidate = candidate.parent
     return paths[0].parent
