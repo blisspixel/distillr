@@ -5,9 +5,13 @@ Feature: living-wiki-0-7
 
 from __future__ import annotations
 
-from hypothesis import given, settings
+import tempfile
+from pathlib import Path
+
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
+from distill.library.links import check_links, fix_broken_links
 from distill.library.paths import ARTIFACT_SUFFIXES, slugify_title
 from distill.library.wikilinks import WikiLink
 
@@ -92,15 +96,6 @@ class TestWikiLinkEmissionFormat:
 # Property 5: Link integrity detection
 # Feature: living-wiki-0-7, Property 5: Link integrity detection
 # ---------------------------------------------------------------------------
-
-import tempfile
-from pathlib import Path
-
-from hypothesis import assume, HealthCheck
-
-from distill.library.links import BrokenLink, check_links, fix_broken_links
-from distill.library.paths import slugify_title
-
 
 # Strategy for generating valid slugs (filesystem-safe identifiers)
 valid_slugs = st.text(
@@ -412,6 +407,6 @@ class TestBrokenLinkFix:
             assert len(remaining_links) == 0
 
             # Each line should now just be the display title (stripped)
-            fixed_lines = [l for l in fixed_content.splitlines() if l.strip()]
+            fixed_lines = [line for line in fixed_content.splitlines() if line.strip()]
             for line in fixed_lines:
                 assert line == display_title.strip()

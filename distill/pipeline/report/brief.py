@@ -71,8 +71,7 @@ def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[s
                     (
                         f"{label_stem}-{topic}",
                         f"# {label_stem.replace('-', ' ').title()}: {topic}\n"
-                        f"Source: {link}\n\n"
-                        + synth.read_text(encoding="utf-8"),
+                        f"Source: {link}\n\n" + synth.read_text(encoding="utf-8"),
                     )
                 )
 

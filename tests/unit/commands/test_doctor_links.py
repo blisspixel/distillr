@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from distill.library.links import BrokenLink, LinkCheckResult, check_links, fix_broken_links
+from distill.library.links import check_links, fix_broken_links
 
 
 @pytest.fixture
@@ -64,9 +63,7 @@ class TestCheckLinks:
         # Create target
         (lib / "my-article_Insights.md").write_text("# Insights\n", encoding="utf-8")
         # Create file with valid link
-        (lib / "index.md").write_text(
-            "See [[my-article_Insights|My Article]].\n", encoding="utf-8"
-        )
+        (lib / "index.md").write_text("See [[my-article_Insights|My Article]].\n", encoding="utf-8")
 
         result = check_links(lib)
         assert result.is_healthy
