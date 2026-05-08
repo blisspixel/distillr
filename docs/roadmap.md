@@ -161,10 +161,10 @@ as compounding debt.
 
 *Tier 1 — Obsidian-native output (low-effort, immediate ecosystem lift)*
 
-- [ ] Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs: when an artifact cites a paper/video/page, emit `[[<slug>_Insights|Paper Title]]` instead of a plain citation. Prompt-level change; file paths are already known at generation time.
+- [x] Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs: when an artifact cites a paper/video/page, emit `[[<slug>_Insights|Paper Title]]` instead of a plain citation. Prompt-level change; file paths are already known at generation time.
 - [x] Standardized YAML frontmatter across generated Markdown artifacts: `type`, `topic`, `source`, `date`, `authors`, `tags`, `confidence`. Concept/entity-specific tags such as `#technique/tkg` and contested/corpus-consensus labels continue in Tier 2.
-- [ ] `distill open --vault` (or equivalent hint in `distill dashboard`): launch the user's default markdown editor pointed at `library/`, so the free graph view and backlinks come with zero install steps.
-- [ ] Stable slug/link discipline: enforce one canonical URL per artifact so renames don't break backlinks. Link-check pass available via `distill doctor --links`.
+- [x] `distill open --vault` (or equivalent hint in `distill dashboard`): launch the user's default markdown editor pointed at `library/`, so the free graph view and backlinks come with zero install steps.
+- [x] Stable slug/link discipline: enforce one canonical URL per artifact so renames don't break backlinks. Link-check pass available via `distill doctor --links`.
 
 *Tier 2 — LLM-maintained concept layer (Karpathy + ACE)*
 
