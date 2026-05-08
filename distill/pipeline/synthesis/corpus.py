@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
-from distill.config import DistillConfig, router_config_from_distill
-from distill.library.paths import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
+from distill.config import DistillConfig
+from distill.library.paths import (
+    ProvenanceFields,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
+from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.synthesis import corpus_synthesis_prompt
 
@@ -23,13 +31,17 @@ def synthesize_corpus(
     topic_dir = config.topic_dir(topic)
     topic_synth = find_artifact(topic_dir, "topic_synthesis", identity=topic)
     if topic_synth.exists():
-        source_sections["YouTube / Website Topic Synthesis"] = topic_synth.read_text(
-            encoding="utf-8"
+        link = emit_wiki_link(f"Topic synthesis: {topic}", topic, "topic_synthesis")
+        source_sections["YouTube / Website Topic Synthesis"] = (
+            f"Source: {link}\n" + topic_synth.read_text(encoding="utf-8")
         )
 
     paper_synth = find_artifact(topic_dir, "paper_synthesis", identity=topic)
     if paper_synth.exists():
-        source_sections["Paper Synthesis"] = paper_synth.read_text(encoding="utf-8")
+        link = emit_wiki_link(f"Paper synthesis: {topic}", topic, "paper_synthesis")
+        source_sections["Paper Synthesis"] = (
+            f"Source: {link}\n" + paper_synth.read_text(encoding="utf-8")
+        )
 
     sites_dir = config.sites_dir(topic)
     if sites_dir.exists():
@@ -42,12 +54,19 @@ def synthesize_corpus(
                 identity=f"{topic}_{site_dir.name}",
             )
             if synth_file.exists():
-                source_sections[f"Site: {site_dir.name}"] = synth_file.read_text(encoding="utf-8")
+                link = emit_wiki_link(
+                    f"Site synthesis: {site_dir.name}",
+                    f"{topic}_{site_dir.name}",
+                    "site_synthesis",
+                )
+                source_sections[f"Site: {site_dir.name}"] = (
+                    f"Source: {link}\n" + synth_file.read_text(encoding="utf-8")
+                )
 
     if not source_sections:
         return ""
 
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     response = llm_call(
         rc,
         workload_tag="site",
@@ -77,6 +96,12 @@ def synthesize_corpus(
             tags=tags_for(topic, "mixed"),
             confidence="corpus-consensus",
             extra={"legacy_filename": "corpus_synthesis.md"},
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id="synthesis.corpus.v1",
+            ),
         ),
     )
     return synthesis

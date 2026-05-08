@@ -16,8 +16,9 @@ from pathlib import Path
 
 from rich.console import Console
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report.brief import gather_topic_files
 
@@ -82,7 +83,7 @@ def run_synthesis(
     prompt = compose_synthesis_prompt(context, files)
     console.print(f"  [dim]Prompt size: {len(prompt):,} chars (~{len(prompt) // 4:,} tokens)[/dim]")
 
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     _, model = rc.resolve("synthesis")
     console.print(f"\n[cyan]Calling {model}...[/cyan]")
     console.print(f"  [dim]max_completion_tokens={max_tokens}. Expect 2-8 minutes.[/dim]\n")

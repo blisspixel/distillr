@@ -4,10 +4,17 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage, build_page_document
-from distill.library.paths import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
+from distill.library.paths import (
+    ProvenanceFields,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.synthesis import (
     site_page_insight_prompt,
@@ -29,7 +36,7 @@ def analyze_site_page(
     config: DistillConfig,
     tracker: CostTracker | None = None,
 ) -> str:
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     prompt = site_page_insight_prompt(
         page.title,
         page.url,
@@ -56,6 +63,10 @@ def analyze_site_page(
         f"page_type: {page.page_type}\n"
         f"url: {page.url}\n"
         f"analyzed_by: {response.model}\n"
+        f"model: {response.model}\n"
+        f"model_version: {response.model}\n"
+        f"temperature: 0.0\n"
+        f'prompt_id: "analysis.site_page.v1"\n'
         "---\n\n"
         f"{result}\n"
     )
@@ -83,7 +94,7 @@ def synthesize_site(
     if not parts:
         return ""
 
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     response = llm_call(
         rc,
         workload_tag="site",
@@ -114,6 +125,12 @@ def synthesize_site(
             tags=tags_for(topic, "website"),
             confidence="corpus-consensus",
             extra={"site": site_name, "legacy_filename": "synthesis.md"},
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id="synthesis.site.v1",
+            ),
         ),
     )
     return synthesis
@@ -143,7 +160,7 @@ def synthesize_site_topic(
     if not site_summaries:
         return ""
 
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     response = llm_call(
         rc,
         workload_tag="site",
@@ -173,6 +190,12 @@ def synthesize_site_topic(
             tags=tags_for(topic, "website"),
             confidence="corpus-consensus",
             extra={"legacy_filename": "topic_synthesis.md"},
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id="synthesis.site_topic.v1",
+            ),
         ),
     )
     return synthesis

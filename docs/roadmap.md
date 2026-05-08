@@ -34,6 +34,15 @@ structured intelligence without duplicating ingestion work. The priorities below
 build toward that: tighter outputs, cleaner handoffs, and interoperability with
 orchestration layers.
 
+**Competitive context (May 2026).** The "local-first LLM Wiki" space exploded
+post-Karpathy (April 2026). SwarmVault (~400★, desktop app + RAG), obsidian-wiki
+(~1,000★, skill-based agent integration), and Lacuna-wiki (MCP-first, DuckDB) are
+the closest tools. Distillr's differentiators are goal-aware multi-source discovery,
+structured per-item insights + cross-source synthesis, and strict no-database
+pure-Markdown discipline. The biggest risk is getting out-marketed on ease-of-agent-
+integration; the biggest opportunity is doubling down on researcher rigor that
+GUI/RAG-heavy tools can't match. See [`../ROADMAP.md#competitive-landscape-may-2026`](../ROADMAP.md#competitive-landscape-may-2026) for the full analysis.
+
 Legend: `[ ]` not started, `[~]` partial / in progress, `[x]` shipped (item will
 be moved to `CHANGELOG.md` on next release).
 
@@ -140,6 +149,15 @@ as a *living wiki* rather than a filing cabinet:
 
 The goal is for the corpus to be interoperable, compounding, and self-maintaining,
 without locking users into any particular viewer or requiring bespoke tooling.
+
+**Code-health prerequisites bundled into 0.7.** The wiki milestone also carries
+confirmed technical debt that must be resolved before 0.8 adds new commands and
+pipeline stages: `_cli_impl.py` decomposition into `commands/`, path/slug logic
+centralization to `library/paths.py`, legacy `router_config_from_distill` bridge
+deletion, artifact provenance fields in frontmatter, and report-phase retry
+hardening (backoff + jitter + `LLMCall` dataclass). These are not new scope — they
+are prerequisites that the concept-extraction pass (0.8) would otherwise inherit
+as compounding debt.
 
 *Tier 1 — Obsidian-native output (low-effort, immediate ecosystem lift)*
 

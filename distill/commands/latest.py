@@ -6,12 +6,12 @@ Commands: distill latest, distill run, distill catch-up, distill reanalyze,
 
 import typer
 
-from distill._cli_impl import catch_up as _catch_up_fn
-from distill._cli_impl import channel_cmd as _channel_cmd_fn
-from distill._cli_impl import latest_cmd as _latest_cmd_fn
-from distill._cli_impl import reanalyze as _reanalyze_fn
-from distill._cli_impl import run as _run_fn
-from distill._cli_impl import video as _video_fn
+from distill.commands._logic import catch_up as _catch_up_fn
+from distill.commands._logic import channel_cmd as _channel_cmd_fn
+from distill.commands._logic import latest_cmd as _latest_cmd_fn
+from distill.commands._logic import reanalyze as _reanalyze_fn
+from distill.commands._logic import run as _run_fn
+from distill.commands._logic import video as _video_fn
 
 __all__ = ["app"]
 

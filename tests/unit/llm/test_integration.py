@@ -119,55 +119,36 @@ def test_no_openai_construction_outside_llm() -> None:  # noqa: C901 — legacy,
 
 
 def test_backward_compatible_env_configuration() -> None:
-    """Create a DistillConfig with only legacy env vars, build RouterConfig,
-    verify all workloads resolve correctly.
+    """Create a RouterConfig from environment variables, verify all workloads resolve correctly.
 
     **Validates: Requirements 8.1, 8.2, 8.3, 8.4**
     """
-    from distill.config import DistillConfig, router_config_from_distill
+    from distill.llm.router import RouterConfig
 
-    with tempfile.TemporaryDirectory() as tmp:
-        env_patch = {
-            "XAI_API_KEY": "test-xai-key",
-            "GEMINI_API_KEY": "test-gemini-key",
-            # Legacy model overrides
-            "XAI_FAST_MODEL": "grok-4.3",
-            "XAI_PREMIUM_MODEL": "grok-4.3",
-            "XAI_SITE_MODEL": "grok-4.20-0309-reasoning",
-            # No new DISTILL_PROVIDER or per-workload provider vars
-        }
+    env_patch = {
+        "XAI_API_KEY": "test-xai-key",
+        "GEMINI_API_KEY": "test-gemini-key",
+        "DISTILL_FAST_MODEL": "grok-4.3",
+        "DISTILL_PREMIUM_MODEL": "grok-4.3",
+        "DISTILL_SITE_MODEL": "grok-4.20-0309-reasoning",
+    }
 
-        with patch.dict(os.environ, env_patch, clear=False):
-            # Remove any DISTILL_PROVIDER that might be set
-            env_clean = {
-                k: v
-                for k, v in os.environ.items()
-                if not k.startswith("DISTILL_") or k in env_patch
-            }
-            with patch.dict(os.environ, env_clean, clear=True):
-                config = DistillConfig(
-                    xai_api_key="test-xai-key",
-                    gemini_api_key="test-gemini-key",
-                    xai_fast_model="grok-4.3",
-                    xai_premium_model="grok-4.3",
-                    xai_site_model="grok-4.20-0309-reasoning",
-                    distill_output_dir=Path(tmp),
-                )
-                rc = router_config_from_distill(config)
+    with patch.dict(os.environ, env_patch, clear=True):
+        rc = RouterConfig()
 
-        # All workloads should resolve without error
-        for tag in WORKLOAD_TAGS:
-            provider_name, model_id = rc.resolve(tag)
-            assert provider_name == "xai", f"Workload {tag} should use xai provider"
-            assert model_id, f"Workload {tag} should have a model"
+    # All workloads should resolve without error
+    for tag in WORKLOAD_TAGS:
+        provider_name, model_id = rc.resolve(tag)
+        assert provider_name == "xai", f"Workload {tag} should use xai provider"
+        assert model_id, f"Workload {tag} should have a model"
 
-        # Site workload should use the premium/override model
-        _, site_model = rc.resolve("site")
-        assert site_model == "grok-4.20-0309-reasoning"
+    # Site workload should use the per-workload override model
+    _, site_model = rc.resolve("site")
+    assert site_model == "grok-4.20-0309-reasoning"
 
-        # Analysis should use fast model
-        _, analysis_model = rc.resolve("analysis")
-        assert analysis_model == "grok-4.3"
+    # Analysis should use fast model
+    _, analysis_model = rc.resolve("analysis")
+    assert analysis_model == "grok-4.3"
 
 
 # ---------------------------------------------------------------------------

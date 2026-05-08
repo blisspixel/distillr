@@ -12,9 +12,10 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from pypdf import PdfReader
 
-from distill.config import DistillConfig, slugify_title
+from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import get_transcript
+from distill.library.paths import slugify_title
 
 __all__ = [
     "AttachmentRecord",

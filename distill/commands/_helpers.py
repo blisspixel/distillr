@@ -30,10 +30,11 @@ from distill.pipeline.analysis.video import (
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
+    slugify_title,
     tags_for,
     write_markdown_artifact,
 )
-from distill.config import DistillConfig, slugify_title
+from distill.config import DistillConfig
 from distill.pipeline.costs import CostTracker
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult

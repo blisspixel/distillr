@@ -1,15 +1,8 @@
-import re
+import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
-
-if TYPE_CHECKING:
-    from distill.llm.router import RouterConfig
-
-_WINDOWS_RESERVED_CHARS = r'[<>:"/\\|?*]'
 
 
 def _default_library_dir() -> Path:
@@ -20,13 +13,17 @@ def _default_library_dir() -> Path:
 def sanitize_path_component(value: str) -> str:
     """Make a human-readable filesystem-safe path segment.
 
-    This is primarily needed for Windows-invalid names like
-    'AI News & Strategy Daily | Nate B Jones'.
+    .. deprecated::
+        Import from ``distill.library.paths`` instead.
     """
-    cleaned = re.sub(_WINDOWS_RESERVED_CHARS, "-", value)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(". ")
-    cleaned = re.sub(r"-{2,}", "-", cleaned)
-    return cleaned or "untitled"
+    warnings.warn(
+        "Import sanitize_path_component from distill.library.paths instead of distill.config",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from distill.library.paths import sanitize_path_component as _fn
+
+    return _fn(value)
 
 
 class DistillConfig(BaseSettings):
@@ -63,7 +60,9 @@ class DistillConfig(BaseSettings):
         return self.topics_dir() / topic
 
     def channel_dir(self, topic: str, channel_name: str) -> Path:
-        return self.topic_dir(topic) / "channels" / sanitize_path_component(channel_name)
+        from distill.library.paths import sanitize_path_component as _sanitize
+
+        return self.topic_dir(topic) / "channels" / _sanitize(channel_name)
 
     def videos_dir(self, topic: str, channel_name: str) -> Path:
         return self.channel_dir(topic, channel_name) / "videos"
@@ -73,27 +72,35 @@ class DistillConfig(BaseSettings):
 
     def video_dir_slug(self, topic: str, channel_name: str, title: str, video_id: str) -> Path:
         """Return video directory using a human-readable slugified title."""
-        slug = slugify_title(title, video_id)
+        from distill.library.paths import slugify_title as _slugify
+
+        slug = _slugify(title, video_id)
         return self.videos_dir(topic, channel_name) / slug
 
     def sites_dir(self, topic: str) -> Path:
         return self.topic_dir(topic) / "sites"
 
     def site_dir(self, topic: str, site_name: str) -> Path:
-        return self.sites_dir(topic) / sanitize_path_component(site_name)
+        from distill.library.paths import sanitize_path_component as _sanitize
+
+        return self.sites_dir(topic) / _sanitize(site_name)
 
     def site_pages_dir(self, topic: str, site_name: str) -> Path:
         return self.site_dir(topic, site_name) / "pages"
 
     def site_page_dir(self, topic: str, site_name: str, title: str, page_id: str = "") -> Path:
-        slug = slugify_title(title, page_id, max_len=70)
+        from distill.library.paths import slugify_title as _slugify
+
+        slug = _slugify(title, page_id, max_len=70)
         return self.site_pages_dir(topic, site_name) / slug
 
     def papers_dir(self, topic: str) -> Path:
         return self.topic_dir(topic) / "papers"
 
     def paper_dir(self, topic: str, title: str, paper_id: str = "") -> Path:
-        slug = slugify_title(title, paper_id, max_len=70)
+        from distill.library.paths import slugify_title as _slugify
+
+        slug = _slugify(title, paper_id, max_len=70)
         return self.papers_dir(topic) / slug
 
     def xai_model_for(self, workload: str) -> str:
@@ -121,124 +128,32 @@ class DistillConfig(BaseSettings):
 
 
 def slugify_title(title: str, video_id: str = "", max_len: int = 60) -> str:
-    """Convert a title or label to a clean directory name."""
-    slug = title.lower()
-    slug = re.sub(r"[''`]", "", slug)
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    slug = slug.strip("-")
-    slug = re.sub(r"-{2,}", "-", slug)
-    if len(slug) > max_len:
-        slug = slug[:max_len].rstrip("-")
-    if video_id:
-        slug = f"{slug}_{video_id[:8]}"
-    return slug or "untitled"
+    """Convert a title or label to a clean directory name.
+
+    .. deprecated::
+        Import from ``distill.library.paths`` instead.
+    """
+    warnings.warn(
+        "Import slugify_title from distill.library.paths instead of distill.config",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from distill.library.paths import slugify_title as _fn
+
+    return _fn(title, video_id, max_len=max_len)
 
 
 def site_name_from_url(url: str) -> str:
-    """Derive a readable site identifier from a URL host."""
-    host = urlparse(url).netloc.lower()
-    host = host.removeprefix("www.")
-    return sanitize_path_component(host or "site")
+    """Derive a readable site identifier from a URL host.
 
-
-def router_config_from_distill(
-    config: DistillConfig, *, model_override: str = ""
-) -> "RouterConfig":
-    """Convert a DistillConfig to a RouterConfig for the LLM router.
-
-    This is the migration bridge — the ONLY place outside distill/llm/ that
-    imports from it.  It reads new env vars (DISTILL_PROVIDER,
-    DISTILL_{WORKLOAD}_PROVIDER, ANTHROPIC_API_KEY) and maps legacy
-    DistillConfig fields to the RouterConfig dataclass.
-
-    If *model_override* is provided, it overrides fast_model and premium_model,
-    effectively forcing all workloads to use that model.
+    .. deprecated::
+        Import from ``distill.library.paths`` instead.
     """
-    import os
-
-    from distill.llm.router import RouterConfig
-
-    # Global provider (new env var, defaults to "xai")
-    provider = os.environ.get("DISTILL_PROVIDER", "xai")
-
-    # Per-workload provider overrides
-    analysis_provider = os.environ.get("DISTILL_ANALYSIS_PROVIDER", "")
-    rerank_provider = os.environ.get("DISTILL_RERANK_PROVIDER", "")
-    synthesis_provider = os.environ.get("DISTILL_SYNTHESIS_PROVIDER", "")
-    site_provider = os.environ.get("DISTILL_SITE_PROVIDER", "")
-    accordion_provider = os.environ.get("DISTILL_ACCORDION_PROVIDER", "")
-    brief_provider = os.environ.get("DISTILL_BRIEF_PROVIDER", "")
-    report_provider = os.environ.get("DISTILL_REPORT_PROVIDER", "")
-    qa_provider = os.environ.get("DISTILL_QA_PROVIDER", "")
-    maintenance_provider = os.environ.get("DISTILL_MAINTENANCE_PROVIDER", "")
-
-    # Anthropic API key (new env var)
-    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-
-    # Ops directory: library/.distill/
-    ops_dir = str(config.library_dir / ".distill")
-
-    rc = RouterConfig(
-        # API keys
-        xai_api_key=config.xai_api_key.get_secret_value(),
-        gemini_api_key=config.gemini_api_key.get_secret_value(),
-        anthropic_api_key=anthropic_api_key,
-        openai_api_key=config.openai_api_key.get_secret_value(),
-        # Global provider
-        provider=provider,
-        # Tier defaults (from DistillConfig, now defaulting to grok-4.3)
-        fast_model=config.xai_fast_model,
-        premium_model=config.xai_premium_model,
-        # Per-workload model overrides (from legacy DistillConfig fields)
-        analysis_model=config.xai_analysis_model,
-        rerank_model=config.xai_rerank_model,
-        synthesis_model=config.xai_synthesis_model,
-        site_model=config.xai_site_model,
-        accordion_model=config.accordion_section_model,
-        brief_model=config.xai_synthesis_model,
-        # Per-workload provider overrides (new env vars)
-        analysis_provider=analysis_provider,
-        rerank_provider=rerank_provider,
-        synthesis_provider=synthesis_provider,
-        site_provider=site_provider,
-        accordion_provider=accordion_provider,
-        brief_provider=brief_provider,
-        report_provider=report_provider,
-        qa_provider=qa_provider,
-        maintenance_provider=maintenance_provider,
-        # Ops directory
-        ops_dir=ops_dir,
+    warnings.warn(
+        "Import site_name_from_url from distill.library.paths instead of distill.config",
+        DeprecationWarning,
+        stacklevel=2,
     )
+    from distill.library.paths import site_name_from_url as _fn
 
-    if model_override:
-        rc = apply_model_override(rc, model_override)
-    elif os.environ.get("DISTILL_MODEL"):
-        rc = apply_model_override(rc, os.environ["DISTILL_MODEL"])
-
-    return rc
-
-
-def apply_model_override(config: "RouterConfig", model: str) -> "RouterConfig":
-    """Apply a CLI --model override to a RouterConfig.
-
-    Sets the fast_model and premium_model to the given model string AND
-    clears all per-workload model overrides, so every workload resolves
-    to the override model. Returns a new RouterConfig with the override applied.
-    """
-    if not model:
-        return config
-
-    from dataclasses import asdict
-
-    from distill.llm.router import RouterConfig
-
-    data = asdict(config)
-    data["fast_model"] = model
-    data["premium_model"] = model
-    # Clear per-workload model overrides so tier defaults (the override) win
-    for key in list(data.keys()):
-        if key.endswith("_model") and key not in ("fast_model", "premium_model"):
-            data[key] = ""
-    # Remove the PREMIUM_WORKLOADS tuple since it's a class-level default
-    data.pop("PREMIUM_WORKLOADS", None)
-    return RouterConfig(**data)
+    return _fn(url)

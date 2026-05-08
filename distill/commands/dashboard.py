@@ -5,8 +5,8 @@ Commands: distill dashboard, distill status
 
 import typer
 
-from distill._cli_impl import dashboard as _dashboard_fn
-from distill._cli_impl import status as _status_fn
+from distill.commands._logic import dashboard as _dashboard_fn
+from distill.commands._logic import status as _status_fn
 
 __all__ = ["app"]
 

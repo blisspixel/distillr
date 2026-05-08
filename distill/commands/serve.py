@@ -5,7 +5,7 @@ Commands: distill serve
 
 import typer
 
-from distill._cli_impl import serve as _serve_fn
+from distill.commands._logic import serve as _serve_fn
 
 __all__ = ["app"]
 

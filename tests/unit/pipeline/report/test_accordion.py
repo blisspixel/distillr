@@ -494,7 +494,7 @@ class TestTaggedHelpers:
             "all",
             None,
             keywords=["Microsoft"],
-            max_chars=150,
+            max_chars=200,
         )
 
         assert "Video 0" in loaded

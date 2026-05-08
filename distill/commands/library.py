@@ -7,17 +7,17 @@ Commands: distill add, distill remove, distill library, distill videos,
 
 import typer
 
-from distill._cli_impl import add as _add_fn
-from distill._cli_impl import diff as _diff_fn
-from distill._cli_impl import findings as _findings_fn
-from distill._cli_impl import library_cmd as _library_cmd_fn
-from distill._cli_impl import open_cmd as _open_cmd_fn
-from distill._cli_impl import package_latest as _package_latest_fn
-from distill._cli_impl import remove as _remove_fn
-from distill._cli_impl import show as _show_fn
-from distill._cli_impl import synthesis as _synthesis_fn
-from distill._cli_impl import trends as _trends_fn
-from distill._cli_impl import videos as _videos_fn
+from distill.commands._logic import add as _add_fn
+from distill.commands._logic import diff as _diff_fn
+from distill.commands._logic import findings as _findings_fn
+from distill.commands._logic import library_cmd as _library_cmd_fn
+from distill.commands._logic import open_cmd as _open_cmd_fn
+from distill.commands._logic import package_latest as _package_latest_fn
+from distill.commands._logic import remove as _remove_fn
+from distill.commands._logic import show as _show_fn
+from distill.commands._logic import synthesis as _synthesis_fn
+from distill.commands._logic import trends as _trends_fn
+from distill.commands._logic import videos as _videos_fn
 
 __all__ = ["app"]
 

@@ -10,11 +10,15 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 __all__ = [
+    "ARTIFACT_SUFFIXES",
+    "ProvenanceFields",
     "apply_frontmatter",
     "artifact_exists",
     "artifact_filename",
@@ -25,7 +29,12 @@ __all__ = [
     "extract_frontmatter",
     "find_artifact",
     "legacy_artifact_path",
+    "provenance_frontmatter",
     "read_artifact",
+    "resolve_slug_collision",
+    "sanitize_path_component",
+    "site_name_from_url",
+    "slugify_title",
     "strip_frontmatter",
     "tags_for",
     "write_markdown_artifact",
@@ -73,6 +82,125 @@ _LEGACY_NAMES = {
     "watch_alerts": "watch_alerts.md",
     "watch_update": "watch_update.md",
 }
+
+# Public alias for the artifact suffix map (used by WikiLink and migration tooling)
+ARTIFACT_SUFFIXES: dict[str, str] = _ARTIFACT_SUFFIXES
+
+_WINDOWS_RESERVED_CHARS = r'[<>:"/\\|?*]'
+
+
+# ---------------------------------------------------------------------------
+# Provenance dataclass and helper
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ProvenanceFields:
+    """Exact generation context for an artifact."""
+
+    model: str
+    model_version: str
+    temperature: float
+    prompt_id: str
+
+
+def provenance_frontmatter(provenance: ProvenanceFields) -> dict[str, Any]:
+    """Return provenance fields as a frontmatter-ready dict."""
+    return {
+        "model": provenance.model,
+        "model_version": provenance.model_version,
+        "temperature": provenance.temperature,
+        "prompt_id": provenance.prompt_id,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Path / slug utilities (relocated from config.py)
+# ---------------------------------------------------------------------------
+
+
+def slugify_title(title: str, source_id: str = "", max_len: int = 60) -> str:
+    """Convert a title or label to a clean directory name.
+
+    Determinism guarantee: same (title, source_id) → same slug, always.
+    Cross-platform: no Windows reserved chars, no trailing dots/spaces, ≤255 bytes.
+    """
+    slug = title.lower()
+    slug = re.sub(r"[''`]", "", slug)
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = slug.strip("-")
+    slug = re.sub(r"-{2,}", "-", slug)
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("-")
+    # Avoid Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+    _WINDOWS_RESERVED_NAMES = frozenset(
+        {"con", "prn", "aux", "nul"}
+        | {f"com{i}" for i in range(1, 10)}
+        | {f"lpt{i}" for i in range(1, 10)}
+    )
+    if slug in _WINDOWS_RESERVED_NAMES:
+        slug = f"_{slug}"
+    if source_id:
+        # Sanitize source_id: lowercase, keep only [a-z0-9], truncate to 8
+        clean_id = re.sub(r"[^a-z0-9]", "", source_id[:8].lower())
+        if clean_id:
+            slug = f"{slug}_{clean_id}"
+    return slug or "untitled"
+
+
+def sanitize_path_component(value: str) -> str:
+    """Make a human-readable filesystem-safe path segment.
+
+    This is primarily needed for Windows-invalid names like
+    'AI News & Strategy Daily | Nate B Jones'.
+    """
+    cleaned = re.sub(_WINDOWS_RESERVED_CHARS, "-", value)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(". ")
+    cleaned = re.sub(r"-{2,}", "-", cleaned)
+    return cleaned or "untitled"
+
+
+def site_name_from_url(url: str) -> str:
+    """Derive a readable site identifier from a URL host."""
+    host = urlparse(url).netloc.lower()
+    host = host.removeprefix("www.")
+    return sanitize_path_component(host or "site")
+
+
+def resolve_slug_collision(
+    target_dir: Path,
+    slug: str,
+    source_type: str,
+    source_id: str,
+) -> str:
+    """Append disambiguating suffix if slug already maps to a different source.
+
+    Checks whether *slug* already exists in *target_dir* for a different
+    (source_type, source_id) pair. If so, appends ``_2``, ``_3``, etc. until
+    a unique slug is found.
+    """
+    candidate = slug
+    counter = 1
+    while True:
+        candidate_path = target_dir / candidate
+        if not candidate_path.exists():
+            # No collision — slug is available
+            return candidate
+        # Check if the existing directory belongs to the same source
+        meta_file = candidate_path / ".source_meta.json"
+        if meta_file.exists():
+            try:
+                import json as _json
+
+                meta = _json.loads(meta_file.read_text(encoding="utf-8"))
+                if meta.get("source_type") == source_type and meta.get("source_id") == source_id:
+                    # Same source — reuse the slug
+                    return candidate
+            except (OSError, ValueError):
+                pass
+        # Different source or unreadable meta — try next suffix
+        counter += 1
+        candidate = f"{slug}_{counter}"
 
 
 def artifact_identity(*parts: str | None) -> str:
@@ -239,6 +367,7 @@ def base_frontmatter(
     tags: Sequence[str] | None = None,
     confidence: str = "",
     extra: Mapping[str, Any] | None = None,
+    provenance: ProvenanceFields | None = None,
 ) -> dict[str, Any]:
     data: dict[str, Any] = {
         "title": title,
@@ -255,6 +384,11 @@ def base_frontmatter(
     }
     if extra:
         for key, value in extra.items():
+            if key not in data or data[key] in ("", [], {}):
+                data[key] = value
+    if provenance:
+        prov_dict = provenance_frontmatter(provenance)
+        for key, value in prov_dict.items():
             if key not in data or data[key] in ("", [], {}):
                 data[key] = value
     return data

@@ -5,7 +5,7 @@ Commands: distill research-brief
 
 import typer
 
-from distill._cli_impl import research_brief_cmd as _research_brief_cmd_fn
+from distill.commands._logic import research_brief_cmd as _research_brief_cmd_fn
 
 __all__ = ["app"]
 

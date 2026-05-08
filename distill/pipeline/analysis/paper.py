@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import logging
 
-from distill.config import DistillConfig, router_config_from_distill
+from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import (
     PaperRecord,
     build_paper_document,
     fetch_paper_pdf_text,
 )
-from distill.library.paths import base_frontmatter, find_artifact, tags_for, write_markdown_artifact
+from distill.library.paths import (
+    ProvenanceFields,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.llm import call as llm_call
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.synthesis import paper_insight_prompt, paper_topic_synthesis_prompt
@@ -36,7 +43,7 @@ def analyze_paper(
     returned paper_document is the exact content the LLM saw, suitable for
     writing to the paper artifact so outputs match what was analyzed.
     """
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
     prompt = paper_insight_prompt(paper.title, paper.paper_id, document)
@@ -89,6 +96,10 @@ def analyze_paper(
         f"url: {paper.abs_url}\n"
         f"analyzed_by: {response.model}\n"
         f"source_mode: {source_mode}\n"
+        f"model: {response.model}\n"
+        f"model_version: {response.model}\n"
+        f"temperature: 0.0\n"
+        f'prompt_id: "analysis.paper.v1"\n'
         "---\n\n"
         f"{result}\n"
     )
@@ -115,7 +126,7 @@ def synthesize_papers(
     if not paper_summaries:
         return ""
 
-    rc = router_config_from_distill(config)
+    rc = RouterConfig()
     response = llm_call(
         rc,
         workload_tag="site",
@@ -145,6 +156,12 @@ def synthesize_papers(
             tags=tags_for(topic, "paper"),
             confidence="corpus-consensus",
             extra={"legacy_filename": "paper_synthesis.md"},
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id="synthesis.paper.v1",
+            ),
         ),
     )
     return synthesis
