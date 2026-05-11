@@ -3,12 +3,39 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from distill.library.paths import strip_frontmatter
 from distill.mcp import server as _server
 from distill.pipeline.search import extract_section, search_corpus
 
 __all__: list[str] = []
+
+
+def _resolve_within_library(library_dir: Path, path: str) -> Path | None:
+    """Resolve ``path`` against ``library_dir`` and return it only when contained.
+
+    Rejects absolute paths (POSIX or Windows) and any value that, once resolved,
+    escapes the library root. Returns ``None`` on rejection so the caller can
+    surface a single uniform error without leaking which check tripped.
+    """
+    if not path or not isinstance(path, str):
+        return None
+    if PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute():
+        return None
+    # Reject explicit drive/UNC fragments and null bytes.
+    if "\x00" in path or path.startswith("\\\\"):
+        return None
+    try:
+        root = library_dir.resolve(strict=False)
+        candidate = (library_dir / path).resolve(strict=False)
+    except (OSError, ValueError):
+        return None
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
 
 
 @_server.mcp.tool()
@@ -71,9 +98,18 @@ def read_insight(path: str, section: str | None = None) -> str:
         section: Optional section heading to extract
     """
     config = _server._config()
-    full_path = config.library_dir / path
+    full_path = _resolve_within_library(config.library_dir, path)
 
-    if not full_path.exists():
+    if full_path is None:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "Path must be a relative path inside the library root.",
+            },
+            indent=2,
+        )
+
+    if not full_path.is_file():
         return json.dumps(
             {"status": "error", "error": f"Path not found: {path}"},
             indent=2,
