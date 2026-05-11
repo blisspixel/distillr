@@ -33,6 +33,7 @@ __all__ = [
     "read_artifact",
     "resolve_slug_collision",
     "sanitize_path_component",
+    "sanitize_topic",
     "site_name_from_url",
     "slugify_title",
     "strip_frontmatter",
@@ -158,6 +159,25 @@ def sanitize_path_component(value: str) -> str:
     cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(". ")
     cleaned = re.sub(r"-{2,}", "-", cleaned)
     return cleaned or "untitled"
+
+
+def sanitize_topic(value: str) -> str:
+    """Sanitize a topic so it is always a single safe directory component.
+
+    Untrusted callers (MCP tools, CLI flags) can pass values like ``../../etc``
+    or ``/tmp/x``. This collapses path separators, rejects traversal-only
+    segments, and falls back to ``"untitled"`` rather than letting the path
+    join escape the topics root.
+    """
+    if not isinstance(value, str):
+        return "untitled"
+    # Strip leading dots so values like ``.env`` or ``..foo`` cannot point at
+    # hidden parent-directory neighbours when used as a directory component.
+    pre = value.lstrip(".") if value else ""
+    cleaned = sanitize_path_component(pre)
+    if cleaned == "untitled":
+        return "untitled"
+    return cleaned
 
 
 def site_name_from_url(url: str) -> str:

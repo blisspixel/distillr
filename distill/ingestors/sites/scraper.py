@@ -178,8 +178,45 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
     return SiteBatch(topic=topic, seeds=seeds)
 
 
+def _link_is_crawlable_for_seed(
+    link: str,
+    *,
+    seed: SiteSeed,
+    root_host: str,
+    visited: set[str],
+) -> str | None:
+    """Return the canonicalized link if it should be crawled, else ``None``.
+
+    Extracted from ``crawl_site`` to keep that function under ruff's
+    mccabe complexity budget. Mirrors the same-host / scheme / public-IP /
+    section / dedupe filters that protect the crawler from SSRF and runaway
+    cross-site recursion.
+    """
+    from distill.ingestors.net import is_public_web_url
+
+    if normalize_host(link) != root_host:
+        return None
+    if not is_crawlable_url(link) or not is_public_web_url(link):
+        return None
+    link_norm = canonicalize_url(link)
+    if seed.same_section_only and not is_same_section(link_norm, seed.url):
+        return None
+    if link_norm in visited:
+        return None
+    return link_norm
+
+
 def crawl_site(seed: SiteSeed) -> list[SitePage]:
     from playwright.sync_api import sync_playwright
+
+    from distill.ingestors.net import is_public_web_url
+
+    # Reject seeds that point at the local browser host, RFC1918 networks, the
+    # cloud-metadata link-local range, or non-http(s) schemes such as
+    # ``file://``. Without this gate, Playwright would dutifully ``page.goto``
+    # whatever the user/agent supplied and surface the response as page text.
+    if not is_public_web_url(seed.url) or not is_crawlable_url(seed.url):
+        return []
 
     root_host = normalize_host(seed.url)
     queue: deque[tuple[str, int, str]] = deque([(seed.url, 0, seed.url)])
@@ -214,14 +251,10 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
                 continue
 
             for link in _prioritize_links(extracted.links, seed.url, normalized):
-                if normalize_host(link) != root_host:
-                    continue
-                if not is_crawlable_url(link):
-                    continue
-                link_norm = canonicalize_url(link)
-                if seed.same_section_only and not is_same_section(link_norm, seed.url):
-                    continue
-                if link_norm in visited:
+                link_norm = _link_is_crawlable_for_seed(
+                    link, seed=seed, root_host=root_host, visited=visited
+                )
+                if link_norm is None:
                     continue
                 queue.append((link_norm, depth + 1, normalized))
 

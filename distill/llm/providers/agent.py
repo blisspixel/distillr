@@ -21,6 +21,21 @@ class AgentProvider:
     """Deferred execution provider — writes task files for external agents."""
 
     def __init__(self, ops_dir: str) -> None:
+        # Fail closed when no ops_dir is configured. An empty string would
+        # otherwise resolve to ``Path("")`` which produces ``tasks/pending``
+        # under the *current working directory* — see the security report on
+        # agent task disclosure. Prompts written by this provider contain
+        # full transcripts/page text/synthesis context, so silently writing
+        # them next to the user's shell cwd is unsafe. Callers must pass a
+        # library-scoped path (typically ``<library_dir>/.distill``).
+        if not ops_dir or not ops_dir.strip():
+            from distill.llm.router import ConfigurationError
+
+            raise ConfigurationError(
+                "AgentProvider requires a non-empty ops_dir. "
+                "Set DISTILL_OPS_DIR or pass ops_dir explicitly so task files "
+                "are written under the library directory, not the cwd."
+            )
         self._ops_dir = Path(ops_dir)
         self._pending_dir = self._ops_dir / "tasks" / "pending"
         self._completed_dir = self._ops_dir / "tasks" / "completed"

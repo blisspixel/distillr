@@ -57,7 +57,13 @@ class DistillConfig(BaseSettings):
         return self.library_dir / "topics"
 
     def topic_dir(self, topic: str) -> Path:
-        return self.topics_dir() / topic
+        from distill.library.paths import sanitize_topic as _sanitize_topic
+
+        # Sanitize at the funnel so every topic-derived path (channels, sites,
+        # papers, watch state, …) is constrained to a single safe component.
+        # Untrusted callers (MCP tool params, CLI flags) cannot escape the
+        # topics root with values like ``../../tmp`` or ``/etc/passwd``.
+        return self.topics_dir() / _sanitize_topic(topic)
 
     def channel_dir(self, topic: str, channel_name: str) -> Path:
         from distill.library.paths import sanitize_path_component as _sanitize
