@@ -87,12 +87,18 @@ def emit_wiki_link(
 
     if corpus_dir is not None:
         if not corpus_dir.is_dir():
+            # A missing or non-directory corpus_dir can't validate anything —
+            # fall back to the plain title rather than emitting an unverified
+            # wiki-link the caller asked us to validate. This matches the
+            # "target not found" branch below so consumers get one consistent
+            # contract: when corpus_dir is provided and the target can't be
+            # confirmed, no rendered link is emitted.
             logger.warning(
                 "corpus_dir is not a directory: %s (title=%r)",
                 corpus_dir,
                 title,
             )
-            return link.render()
+            return title
         target_pattern = f"{link.slug}_{link.suffix}*"
         matches = list(corpus_dir.rglob(target_pattern))
         if not matches:

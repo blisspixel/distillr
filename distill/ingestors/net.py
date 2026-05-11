@@ -8,7 +8,9 @@ entry point. Callers should still only pass URLs built from trusted bases
 
 from __future__ import annotations
 
+import ipaddress
 import logging
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -16,9 +18,77 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["NetworkError", "safe_urlopen"]
+__all__ = ["NetworkError", "is_public_web_url", "safe_urlopen"]
 
 _ALLOWED_SCHEMES = frozenset({"https"})
+_PUBLIC_WEB_SCHEMES = frozenset({"http", "https"})
+
+
+def _is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def _resolve_host_to_addrs(host: str) -> list[str]:
+    """Return all addresses ``host`` resolves to, or an empty list on failure.
+
+    Treats a bare IP literal as already-resolved. DNS failure returns ``[]``
+    so callers fail closed.
+    """
+    try:
+        ipaddress.ip_address(host)
+        return [host]
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError, OSError):
+        return []
+    return [info[4][0] for info in infos if isinstance(info[4][0], str) and info[4][0]]
+
+
+def is_public_web_url(url: str) -> bool:
+    """Return ``True`` if ``url`` is http(s) and resolves to a public IP.
+
+    SSRF guard for any code path that fetches an attacker-influenced URL —
+    site seeds, attachment downloads, redirects. Rejects:
+
+    - non-http(s) schemes (``file://``, ``gopher://``, ``ftp://``, …)
+    - bare-IP hosts that fall in loopback/private/link-local/reserved/metadata
+      ranges (RFC1918, 127.0.0.0/8, 169.254.0.0/16, ::1, fc00::/7, …)
+    - hostnames that resolve to any address in those ranges
+
+    Best-effort: DNS resolution failure returns ``False`` (refuse to fetch).
+    """
+    if not isinstance(url, str) or not url:
+        return False
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme.lower() not in _PUBLIC_WEB_SCHEMES:
+        return False
+    host = (parsed.hostname or "").strip()
+    if not host or host.lower() in {"localhost", "ip6-localhost", "ip6-loopback"}:
+        return False
+
+    addrs = _resolve_host_to_addrs(host)
+    if not addrs:
+        return False
+    for raw in addrs:
+        try:
+            ip = ipaddress.ip_address(raw.split("%")[0])
+        except ValueError:
+            return False
+        if not _is_public_ip(ip):
+            return False
+    return True
 
 
 class NetworkError(Exception):

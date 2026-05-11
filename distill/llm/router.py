@@ -142,6 +142,41 @@ class RouterConfig(BaseSettings):
                     data[field_name] = env_val
         return data  # type: ignore[return-value]  # Pydantic model_validator(mode="before") returns Any
 
+    @model_validator(mode="after")
+    def _default_ops_dir_to_library(self) -> RouterConfig:
+        """Fall back to ``<library_dir>/.distill`` when ops_dir is unset.
+
+        Without this, a bare ``RouterConfig()`` produced by the many pipeline
+        call sites would leave ``ops_dir=""``. That value then propagates into
+        the agent provider, where ``Path("")`` resolves relative to the
+        current working directory and task files (which include full prompts /
+        transcripts / synthesis context) would be written next to the user's
+        shell. Anchoring the default to the library directory keeps those
+        files inside the user's existing library boundary.
+
+        We read the library path from the env var ``DISTILL_OUTPUT_DIR``
+        directly rather than importing ``distill.config``; the test suite
+        enforces that ``distill.llm`` stays decoupled from the rest of
+        the codebase.
+        """
+        if self.ops_dir:
+            return self
+        from pathlib import Path as _Path
+
+        env_dir = os.environ.get("DISTILL_OUTPUT_DIR", "").strip()
+        if env_dir:
+            library_dir = _Path(env_dir)
+        else:
+            # Mirrors ``distill.config._default_library_dir``: library/ sits
+            # next to the ``distill`` package on the filesystem.
+            library_dir = _Path(__file__).resolve().parent.parent.parent / "library"
+        if not library_dir.is_absolute():
+            library_dir = _Path.cwd() / library_dir
+        # ``model_copy`` would re-trigger validators; mutate the field directly
+        # because BaseSettings instances are not frozen.
+        object.__setattr__(self, "ops_dir", str(library_dir / ".distill"))
+        return self
+
     def resolve(self, workload_tag: str) -> tuple[str, str]:
         """Resolve ``(provider_name, model_id)`` for a workload tag."""
         per_workload_provider: str = getattr(self, f"{workload_tag}_provider", "")

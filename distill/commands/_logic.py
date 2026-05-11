@@ -279,12 +279,16 @@ def _select_learning_videos(
     effective_days = _effective_days(days, hours)
     candidate_limit = max(limit * 2, 12)
     raw_candidates = []
+    # Strict chronological mode bypasses both rerank and the heuristic mix,
+    # which means query expansion would only burn tokens and leak the query
+    # to the LLM provider without ever influencing the final selection.
+    effective_expand = expand and not top_by_date
     queries = _expand_learning_queries(
         query,
         config,
         tracker,
         skeptical=skeptical,
-        expand=expand,
+        expand=effective_expand,
     )
     for idx, variant in enumerate(queries, 1):
         console.print(f"[dim]Candidate search {idx}/{len(queries)}: {variant}[/dim]")

@@ -90,6 +90,9 @@ class Library:
 
     def add_channel(self, topic: str, url: str, name: str):
         """Add a channel to a topic."""
+        from distill.library.paths import sanitize_topic
+
+        topic = sanitize_topic(topic)
         if topic not in self._data["topics"]:
             self._data["topics"][topic] = {"channels": []}
 
@@ -173,6 +176,9 @@ class Library:
         days: int = 14,
     ) -> bool:
         """Add a channel to the watch list. Also registers it under the topic."""
+        from distill.library.paths import sanitize_topic
+
+        topic = sanitize_topic(topic)
         wl = self._data.setdefault("watchlist", [])
         if any(e["url"] == url for e in wl):
             return False

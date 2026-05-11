@@ -13,6 +13,7 @@ import requests
 from pypdf import PdfReader
 
 from distill.config import DistillConfig
+from distill.ingestors.net import is_public_web_url
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library.paths import slugify_title
@@ -25,6 +26,12 @@ __all__ = [
 ]
 
 _ATTACHMENT_TEXT_LIMIT = 30_000
+# Cap the on-the-wire download size before any parsing happens. PDFs in the
+# wild are well under 50 MB; a much larger response either points at the
+# wrong resource or is a slow-loris/DoS attempt. Streaming + this cap also
+# prevents an internal SSRF target from returning an unbounded body that
+# would otherwise be fully read into memory by ``response.content``.
+_PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
 
 
 @dataclass
@@ -122,14 +129,57 @@ def write_attachment_manifest(page_dir: Path, attachments: list[AttachmentRecord
     return manifest_path
 
 
+class _AttachmentFetchError(Exception):
+    """Internal: signals a fetch-time failure with a human-readable note."""
+
+    def __init__(self, note: str) -> None:
+        super().__init__(note)
+        self.note = note
+
+
+def _download_pdf_bytes(url: str) -> bytes:
+    """Stream a PDF response with content-type and size guards.
+
+    Raises ``_AttachmentFetchError`` if the response is the wrong content
+    type or exceeds the configured size cap; the caller turns that into an
+    ``attachment.status = "failed"`` record.
+    """
+    with requests.get(url, timeout=30, stream=True) as response:
+        response.raise_for_status()
+        content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if content_type and content_type not in {"application/pdf", "application/octet-stream"}:
+            raise _AttachmentFetchError(f"Unexpected content-type: {content_type}")
+        declared = response.headers.get("Content-Length")
+        if declared and declared.isdigit() and int(declared) > _PDF_DOWNLOAD_CAP_BYTES:
+            raise _AttachmentFetchError("PDF exceeds size cap")
+        buf = BytesIO()
+        total = 0
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > _PDF_DOWNLOAD_CAP_BYTES:
+                raise _AttachmentFetchError("PDF exceeds size cap")
+            buf.write(chunk)
+        return buf.getvalue()
+
+
 def _ingest_pdf_attachment(
     attachment: AttachmentRecord,
     attachments_dir: Path,
 ) -> tuple[AttachmentRecord, str]:
+    # SSRF guard: refuse to fetch attachments that point at the local browser
+    # host, RFC1918 networks, or cloud metadata endpoints. Without this, a
+    # malicious page can embed a ``href="http://169.254.169.254/.../pdf"``
+    # link and have the crawler exfiltrate internal responses through the
+    # downstream LLM prompt.
+    if not is_public_web_url(attachment.url):
+        attachment.status = "failed"
+        attachment.note = "PDF URL is not a public http(s) resource"
+        return attachment, ""
     try:
-        response = requests.get(attachment.url, timeout=30)
-        response.raise_for_status()
-        reader = PdfReader(BytesIO(response.content))
+        data = _download_pdf_bytes(attachment.url)
+        reader = PdfReader(BytesIO(data))
         text_parts: list[str] = []
         for pdf_page in reader.pages[:10]:
             text = (pdf_page.extract_text() or "").strip()
@@ -147,6 +197,10 @@ def _ingest_pdf_attachment(
         attachment.text_path = str(text_path.name)
         attachment.content_chars = len(extracted)
         return attachment, f"### PDF Attachment: {attachment.url}\n{extracted}"
+    except _AttachmentFetchError as exc:
+        attachment.status = "failed"
+        attachment.note = exc.note
+        return attachment, ""
     except Exception as exc:
         attachment.status = "failed"
         attachment.note = str(exc)
