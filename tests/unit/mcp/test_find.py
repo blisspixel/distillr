@@ -119,6 +119,41 @@ class TestReadInsight:
         assert result["status"] == "error"
         assert "not found" in result["error"].lower()
 
+    def test_rejects_absolute_path(self, mock_config, tmp_path):
+        outside = tmp_path / "secret.txt"
+        outside.write_text("XAI_API_KEY=secret", encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import read_insight
+
+            result = json.loads(read_insight(str(outside)))
+
+        assert result["status"] == "error"
+        assert "relative path inside the library root" in result["error"]
+        assert "secret" not in json.dumps(result)
+
+    def test_rejects_relative_traversal(self, mock_config):
+        outside = mock_config.library_dir.parent / ".env"
+        outside.write_text("XAI_API_KEY=secret", encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import read_insight
+
+            result = json.loads(read_insight("../.env"))
+
+        assert result["status"] == "error"
+        assert "relative path inside the library root" in result["error"]
+        assert "secret" not in json.dumps(result)
+
+    def test_rejects_windows_rooted_path(self, mock_config):
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import read_insight
+
+            result = json.loads(read_insight(r"\Users\nicks\.env"))
+
+        assert result["status"] == "error"
+        assert "relative path inside the library root" in result["error"]
+
     def test_read_full_content(self, mock_config):
         # Get relative path to the insight file
         topic_dir = mock_config.topic_dir("ai")

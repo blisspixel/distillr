@@ -27,6 +27,7 @@ from rich.console import Console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.file_search import delete_store
 
 __all__ = [
@@ -180,6 +181,7 @@ def run_research_brief(
     context: str,
     name: str,
     config: DistillConfig,
+    tracker: CostTracker | None = None,
 ) -> Path | None:
     """Run a multi-topic Deep Research briefing; write output/briefing-{name}.md."""
     if not config.gemini_api_key:
@@ -226,6 +228,8 @@ def run_research_brief(
             ],
         )
         interaction_id = interaction.id
+        if tracker:
+            tracker.record_gemini_query()
         console.print(f"  [dim]Job ID: {interaction_id}[/dim]")
 
         poll = 0

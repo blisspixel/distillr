@@ -652,3 +652,50 @@ class TestRunScopeReport:
         assert summary.issue_count == 1
         assert summary.issues[0].stage == "report-docx"
         assert any(path.name == "report-ai.md" for path in summary.output_files)
+
+    def test_successful_report_logs_only_report_cost_delta(self, config, monkeypatch):
+        import json
+
+        from distill.cli_shared import run_scope_report
+        from distill.pipeline.costs import CostTracker, TokenUsage
+        from distill.pipeline.summary import RunSummary
+
+        md_source = config.topic_dir("ai") / "report.md"
+        md_source.parent.mkdir(parents=True, exist_ok=True)
+        md_source.write_text("# Report\nBody", encoding="utf-8")
+
+        def fake_report(**kwargs):
+            kwargs["tracker"].record_gemini_query()
+            return "report body words"
+
+        monkeypatch.setitem(
+            sys.modules,
+            "distill.pipeline.report.accordion",
+            SimpleNamespace(run_accordion_research=fake_report),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "distill.pipeline.report.deep_research",
+            SimpleNamespace(_get_report_path=lambda *args, **kwargs: md_source),
+        )
+        monkeypatch.setattr("distill.library.export.export_report", lambda *args, **kwargs: None)
+
+        tracker = CostTracker()
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=1_000_000,
+                completion_tokens=0,
+                model="grok-4.3",
+                call_type="preexisting",
+            )
+        )
+        summary = RunSummary(command="site")
+
+        run_scope_report("ai", config, tracker, scope="topic", summary=summary)
+
+        log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+        entry = json.loads(log_path.read_text(encoding="utf-8").strip())
+        assert entry["command"] == "report"
+        assert entry["gemini_queries"] == 1
+        assert entry["total_input_tokens"] == 0
+        assert entry["metadata"]["workflow"] == "report"

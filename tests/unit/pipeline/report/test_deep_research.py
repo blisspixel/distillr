@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from distill.config import DistillConfig
 from distill.library.paths import artifact_path, strip_frontmatter
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.deep_research import (
     _gather_corpus_condensed,
     _get_report_path,
@@ -108,9 +109,12 @@ def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("distill.pipeline.report.deep_research.time.sleep", lambda seconds: None)
 
-    result = run_deep_research("ai", config)
+    tracker = CostTracker()
+
+    result = run_deep_research("ai", config, tracker=tracker)
 
     assert result == "final report"
+    assert tracker.gemini_queries == 1
     report_path = artifact_path(config.topic_dir("ai"), "report", identity="ai")
     assert strip_frontmatter(report_path.read_text(encoding="utf-8")) == "final report"
     assert deleted == ["store-1"]
@@ -145,6 +149,33 @@ def test_run_deep_research_handles_failed_interaction(tmp_path, monkeypatch):
 
     assert result is None
     assert deleted == ["store-1", "store-1"]
+
+
+def test_run_deep_research_records_submitted_failed_interaction(tmp_path, monkeypatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+
+    class FakeInteractions:
+        def create(self, **kwargs):
+            return SimpleNamespace(id="job-1")
+
+        def get(self, interaction_id):
+            return SimpleNamespace(status="failed", error="bad news", outputs=[])
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.interactions = FakeInteractions()
+
+    monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", FakeClient)
+    monkeypatch.setattr(
+        "distill.pipeline.report.deep_research.create_research_store",
+        lambda *args, **kwargs: ("store-1", 2),
+    )
+    monkeypatch.setattr("distill.pipeline.report.deep_research.delete_store", lambda *_args: None)
+
+    tracker = CostTracker()
+
+    assert run_deep_research("ai", config, tracker=tracker) is None
+    assert tracker.gemini_queries == 1
 
 
 def test_run_deep_research_returns_none_when_completed_without_output(tmp_path, monkeypatch):

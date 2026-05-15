@@ -41,6 +41,22 @@ def test_topic_watch_library_round_trip(config):
     assert again.limit == 10
 
 
+def test_topic_watch_sanitizes_topic_before_storage(config):
+    lib = Library(config)
+
+    result = lib.add_to_topic_watchlist(
+        "outside-watch",
+        "Outside query",
+        topic="../outside",
+    )
+
+    assert result is True
+    entry = lib.get_topic_watch_entry("outside-watch")
+    assert entry is not None
+    assert entry.topic == "outside"
+    assert not (config.library_dir.parent / "outside").exists()
+
+
 def test_topic_watch_update_and_remove(config):
     lib = Library(config)
     lib.add_to_topic_watchlist("msft", "Microsoft AI news")

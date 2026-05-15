@@ -74,6 +74,7 @@ def preview_learning_selection(
             f"Channel cap: {per_channel_cap} | Rerank: {'on' if rerank else 'off'} | Skeptical: {'on' if skeptical_mode else 'off'}[/dim]\n"
         )
 
+    effective_expand = expand and not top_by_date
     _, selected = select_learning_videos(
         query,
         config,
@@ -86,7 +87,7 @@ def preview_learning_selection(
         rerank=rerank,
         hours=hours,
         skeptical=skeptical_mode,
-        expand=expand,
+        expand=effective_expand,
         top_by_date=top_by_date,
     )
     if not selected:
@@ -154,6 +155,7 @@ def run_learning_command(
             "[yellow]Suspicion-aware discovery enabled for rumor-heavy or April 1 style coverage[/yellow]\n"
         )
 
+    effective_expand = expand and not top_by_date
     _, selected = select_learning_videos(
         query,
         config,
@@ -166,7 +168,7 @@ def run_learning_command(
         rerank=rerank,
         hours=hours,
         skeptical=skeptical_mode,
-        expand=expand,
+        expand=effective_expand,
         top_by_date=top_by_date,
     )
     if not selected:

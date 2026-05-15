@@ -160,7 +160,7 @@ def synthesize_papers(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.paper.v1",
+                prompt_id="synthesis.paper.v2",
             ),
         ),
     )

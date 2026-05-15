@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.7.2 - 2026-05-14
+
+Patch release: synthesis-quality rewrite plus SSRF hardening on the PDF-attachment path.
+
+### Synthesis quality
+
+- Rewrite `paper_topic_synthesis_prompt` to demand cross-paper claims, a comparison matrix, concrete disagreements, and shared methodological blind spots. The previous prompt was producing topic-clustered capsule summaries that duplicated the per-paper Insights files; the new prompt explicitly calls out that anti-pattern and requires multi-paper attribution on every claim.
+- Skip `synthesize_corpus` when the only source section is paper synthesis. Running corpus synthesis over a single section was a summary-of-a-summary with zero new signal; the paper synthesis already is the corpus synthesis for papers-only topics.
+
+### Security
+
+- PDF attachment ingestion now disables auto-redirects and re-validates every redirect target (max 5 hops) through `is_public_web_url`. Closes the redirect-bypass gap in the SSRF/size-cap hardening shipped in 0.7.1's security pass — a redirect to `127.0.0.1` or RFC1918 is now rejected before the fetch.
+
+### Tests + coverage
+
+- Added unit coverage across costs, router, MCP tools, attachment redirect handling, scraper, learning flow, preflight, and report pipelines. Total coverage is now 82%+ on `distill/`.
+
 ## 0.7.1 - 2026-05-08
 
 Patch release with hardening fixes found during QA.

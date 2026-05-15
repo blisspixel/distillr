@@ -11,6 +11,9 @@ from typing import Any
 
 from rich.console import Console
 
+from distill.llm.cost import deep_research_query_cost
+from distill.pipeline.costs import ACCORDION_GROK_ESTIMATE, report_deep_research_estimate
+
 __all__ = [
     "ETATracker",
     "RunIssue",
@@ -214,8 +217,8 @@ def display_estimate(
 
     grok_cost = full_videos * 0.006 + shorts * 0.0004 + scan_videos * 0.001
     synthesis_cost = synthesis_calls * 0.003
-    gemini_cost = 2.50 if include_report else 0
-    accordion_grok = 0.05 if include_report else 0
+    gemini_cost = deep_research_query_cost() if include_report else 0.0
+    accordion_grok = ACCORDION_GROK_ESTIMATE if include_report else 0.0
     total = grok_cost + synthesis_cost + gemini_cost + accordion_grok
 
     parts = []
@@ -232,7 +235,10 @@ def display_estimate(
     con.print()
     con.print(f"  [{_ACCENT}]{desc_str}[/{_ACCENT}]  ·  [dim]~${total:.2f} estimated[/dim]")
     if include_report:
-        con.print("  [dim]includes Deep Research (~$2.50) + report generation[/dim]")
+        con.print(
+            f"  [dim]includes Deep Research (~${report_deep_research_estimate(include_section_writing=False):.2f}) "
+            "+ report generation[/dim]"
+        )
     con.print()
 
 

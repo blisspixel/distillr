@@ -206,9 +206,28 @@ def _link_is_crawlable_for_seed(
     return link_norm
 
 
-def crawl_site(seed: SiteSeed) -> list[SitePage]:
-    from playwright.sync_api import sync_playwright
+def _install_public_web_route(context) -> None:
+    """Abort browser requests that leave the public web URL policy."""
+    from distill.ingestors.net import is_public_web_url
 
+    cache: dict[str, bool] = {}
+
+    def guard(route, request) -> None:
+        parsed = urlparse(request.url)
+        cache_key = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+        allowed = cache.get(cache_key)
+        if allowed is None:
+            allowed = is_public_web_url(request.url)
+            cache[cache_key] = allowed
+        if allowed:
+            route.continue_()
+        else:
+            route.abort()
+
+    context.route("**/*", guard)
+
+
+def crawl_site(seed: SiteSeed) -> list[SitePage]:
     from distill.ingestors.net import is_public_web_url
 
     # Reject seeds that point at the local browser host, RFC1918 networks, the
@@ -218,6 +237,8 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
     if not is_public_web_url(seed.url) or not is_crawlable_url(seed.url):
         return []
 
+    from playwright.sync_api import sync_playwright
+
     root_host = normalize_host(seed.url)
     queue: deque[tuple[str, int, str]] = deque([(seed.url, 0, seed.url)])
     visited: set[str] = set()
@@ -226,6 +247,7 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context()
+        _install_public_web_route(context)
         page = context.new_page()
         page.set_default_timeout(30_000)
 
@@ -244,6 +266,8 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
                 depth,
             )
             if extracted is None:
+                continue
+            if not is_public_web_url(extracted.final_url or extracted.url):
                 continue
             pages.append(extracted)
 

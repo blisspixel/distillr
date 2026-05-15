@@ -13,7 +13,14 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from distill.llm.cost import DEFAULT_MODEL, PRICING, compute_cost, get_pricing
+from distill.llm.cost import (
+    DEFAULT_MODEL,
+    GEMINI_DEEP_RESEARCH_COST,
+    PRICING,
+    compute_cost,
+    deep_research_query_cost,
+    get_pricing,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -71,7 +78,20 @@ def test_unknown_model_falls_back_to_default(caplog: Any) -> None:
 def test_per_query_pricing_gemini_deep_research() -> None:
     """gemini-deep-research uses per-query pricing, ignoring token counts."""
     cost = compute_cost("gemini-deep-research", 10_000, 5_000)
-    assert cost == 2.50
+    assert cost == GEMINI_DEEP_RESEARCH_COST
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "gemini-deep-research",
+        "deep-research",
+        "deep-research-pro-preview-12-2025",
+    ],
+)
+def test_deep_research_aliases_use_per_query_pricing(model: str) -> None:
+    """All Deep Research aliases resolve to the provider-side per-query estimate."""
+    assert compute_cost(model, 10_000, 5_000) == deep_research_query_cost()
 
 
 def test_prefix_matching_for_versioned_model_names() -> None:

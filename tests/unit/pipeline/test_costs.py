@@ -2,7 +2,15 @@
 
 import json
 
-from distill.pipeline.costs import CostTracker, TokenUsage, estimate_run_cost, save_run_log
+from distill.llm.cost import deep_research_query_cost
+from distill.pipeline.costs import (
+    ACCORDION_GROK_ESTIMATE,
+    CostTracker,
+    TokenUsage,
+    estimate_run_cost,
+    report_deep_research_estimate,
+    save_run_log,
+)
 
 
 def test_cost_tracker_summary_and_formatting():
@@ -64,7 +72,12 @@ def test_estimate_run_cost_includes_accordion():
     text = estimate_run_cost(2, 1, accordion=True)
 
     assert "Accordion" in text
-    assert "$" in text
+    assert f"${report_deep_research_estimate():.2f}" in text
+    assert f"Gemini ${deep_research_query_cost():.2f}" in text
+
+
+def test_report_deep_research_estimate_uses_central_pricing():
+    assert report_deep_research_estimate() == (deep_research_query_cost() + ACCORDION_GROK_ESTIMATE)
 
 
 def test_cost_tracker_uses_model_specific_pricing():

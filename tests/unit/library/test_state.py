@@ -88,6 +88,17 @@ class TestAddChannel:
         lib.add_channel("ai", "https://youtube.com/@Test", "Test")
         assert config.videos_dir("ai", "Test").exists()
 
+    def test_add_channel_sanitizes_topic_before_writing(self, config):
+        """Path-like topics stay under the configured library topics directory."""
+        lib = Library(config)
+
+        result = lib.add_channel("../outside", "https://youtube.com/@Test", "Test")
+
+        assert result is True
+        assert "outside" in lib.get_topics()
+        assert config.videos_dir("outside", "Test").exists()
+        assert not (config.library_dir.parent / "outside").exists()
+
     def test_add_channel_persists_to_disk(self, config):
         """Library changes are written to disk."""
         lib = Library(config)

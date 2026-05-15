@@ -175,7 +175,10 @@ def sanitize_topic(value: str) -> str:
     # hidden parent-directory neighbours when used as a directory component.
     pre = value.lstrip(".") if value else ""
     cleaned = sanitize_path_component(pre)
-    if cleaned == "untitled":
+    while ".." in cleaned:
+        cleaned = cleaned.replace("..", ".")
+    cleaned = cleaned.strip("-. ")
+    if not cleaned or cleaned == "untitled":
         return "untitled"
     return cleaned
 
