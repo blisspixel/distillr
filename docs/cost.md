@@ -110,8 +110,8 @@ XAI_SYNTHESIS_MODEL=
 ACCORDION_SECTION_MODEL=
 
 # Multi-provider support (added in 0.3.1)
-# Implemented: xai, gemini, agent, ollama, lmstudio.
-# Stubs (selectable, but every call raises NotImplementedError): anthropic, openai.
+# Implemented providers: xai, gemini, agent, ollama, lmstudio.
+# anthropic/openai are reserved names and are not implemented in this release.
 DISTILL_PROVIDER=xai                    # xai | gemini | agent | ollama | lmstudio
 DISTILL_ANALYSIS_PROVIDER=              # per-workload provider override
 DISTILL_SYNTHESIS_PROVIDER=

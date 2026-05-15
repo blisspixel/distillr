@@ -26,8 +26,10 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
         return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
 
     try:
+        from distill.commands._logic import _write_paper_artifacts
         from distill.ingestors.papers.arxiv import search_arxiv
-        from distill.ingestors.papers.ingest import ingest_paper
+        from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
+        from distill.pipeline.synthesis.corpus import synthesize_corpus
     except ImportError as e:
         return json.dumps({"status": "error", "error": f"Paper dependencies missing: {e}"})
 
@@ -45,13 +47,20 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
         if ctx:
             await ctx.report_progress(progress=i, total=len(selected))
         try:
-            ingest_paper(paper, topic, config, tracker=tracker)
+            insights, document = analyze_paper(paper, config, tracker=tracker)
+            _write_paper_artifacts(topic, paper, config, insights, document)
             results.append({"title": paper.title, "status": "ok"})
         except Exception as e:
             results.append({"title": paper.title, "status": "error", "error": str(e)})
 
     if ctx:
         await ctx.report_progress(progress=len(selected), total=len(selected))
+
+    try:
+        synthesize_papers(topic, config, tracker=tracker)
+        synthesize_corpus(topic, config, tracker=tracker)
+    except Exception:
+        pass
 
     save_run_log(config.library_dir, "papers", tracker)
     return json.dumps(

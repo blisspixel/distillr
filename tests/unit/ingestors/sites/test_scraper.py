@@ -2,10 +2,13 @@ import json
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from distill.ingestors.sites.scraper import (
     SitePage,
     SiteSeed,
     _extract_page,
+    _install_public_web_route,
     _prioritize_links,
     build_page_document,
     canonicalize_url,
@@ -159,6 +162,40 @@ def test_url_helpers_normalize_and_filter():
     assert is_crawlable_url("https://example.com/file.pdf") is False
 
 
+def test_public_web_route_aborts_private_requests(monkeypatch):
+    class FakeRoute:
+        def __init__(self):
+            self.action = ""
+
+        def continue_(self):
+            self.action = "continue"
+
+        def abort(self):
+            self.action = "abort"
+
+    class FakeContext:
+        def route(self, pattern, handler):
+            self.pattern = pattern
+            self.handler = handler
+
+    monkeypatch.setattr(
+        "distill.ingestors.net.is_public_web_url",
+        lambda url: url == "https://example.com/page",
+    )
+    context = FakeContext()
+
+    _install_public_web_route(context)
+
+    allowed = FakeRoute()
+    context.handler(allowed, SimpleNamespace(url="https://example.com/page"))
+    blocked = FakeRoute()
+    context.handler(blocked, SimpleNamespace(url="http://127.0.0.1/admin"))
+
+    assert context.pattern == "**/*"
+    assert allowed.action == "continue"
+    assert blocked.action == "abort"
+
+
 def test_site_section_key_uses_first_two_segments():
     assert (
         site_section_key("https://www.example.com/topic/applied-ai/overview") == "topic/applied-ai"
@@ -303,6 +340,27 @@ def test_extract_page_parses_payload_and_dedupes_fields():
     assert extracted.depth == 1
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "http://127.0.0.1:8000/admin",
+        "http://localhost:8000/admin",
+        "http://169.254.169.254/latest/meta-data/",
+    ],
+)
+def test_crawl_site_rejects_unsafe_seed_before_browser_launch(url, monkeypatch):
+    def fail_import(name, *args, **kwargs):
+        if name == "playwright.sync_api":
+            raise AssertionError("Playwright should not be imported for unsafe seeds")
+        return original_import(name, *args, **kwargs)
+
+    original_import = __import__
+    monkeypatch.setattr("builtins.__import__", fail_import)
+
+    assert crawl_site(SiteSeed(url=url, topic="web")) == []
+
+
 def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: C901 — legacy, will refactor
     pages_by_url = {
         "https://example.com/start": SitePage(
@@ -341,6 +399,9 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: 
             return None
 
     class FakeContext:
+        def route(self, pattern, handler):
+            return None
+
         def new_page(self):
             return FakeBrowserPage()
 
@@ -372,6 +433,10 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: 
         sys.modules,
         "playwright.sync_api",
         SimpleNamespace(sync_playwright=lambda: FakePlaywrightContextManager()),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.net.is_public_web_url",
+        lambda url: url.startswith("https://example.com"),
     )
     monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
 

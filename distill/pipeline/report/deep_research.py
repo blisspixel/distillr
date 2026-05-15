@@ -16,6 +16,7 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.file_search import create_research_store, delete_store
 from distill.prompts.report import deep_research_prompt
 
@@ -36,6 +37,7 @@ def run_deep_research(
     channel_name: str | None = None,
     focus: str | None = None,
     test: bool = False,
+    tracker: CostTracker | None = None,
 ) -> str | None:
     """Run Gemini Deep Research on the corpus using File Search grounding."""
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
@@ -69,6 +71,8 @@ def run_deep_research(
         )
 
         interaction_id = interaction.id
+        if tracker:
+            tracker.record_gemini_query()
         console.print(f"[dim]Job ID: {interaction_id}[/dim]")
 
         poll_count = 0

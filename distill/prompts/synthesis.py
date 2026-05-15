@@ -208,28 +208,99 @@ PAPER CONTENT:
 
 
 def paper_topic_synthesis_prompt(topic: str, paper_summaries: dict[str, str]) -> str:
-    """Synthesize across paper insights for one topic."""
+    """Synthesize across paper insights for one topic.
+
+    The output must be cross-paper analysis -- claims that are only true across
+    multiple papers read together. Topic-clustered capsule summaries are an
+    anti-pattern (the per-paper Insights files already do that job).
+    """
     papers_text = ""
     for name, synthesis in paper_summaries.items():
         papers_text += f"\n\n### {name}\n{synthesis}"
 
-    return f"""You are synthesizing intelligence across research papers for a topic.
+    paper_count = len(paper_summaries)
 
-TOPIC: {topic}
+    return f"""You are doing graduate-level synthesis across {paper_count} research papers on the topic "{topic}".
+
+The goal is analysis that makes the reader smarter than reading any single paper would. The per-paper Insights files already capture single-paper content -- do not repeat that work. Your job is what only becomes visible across multiple papers.
 
 PAPER INSIGHTS:
 {papers_text}
 
-Create a synthesis document with these sections:
+================================================================
+OUTPUT STRUCTURE -- every section has concrete requirements.
+Do NOT produce paragraph summaries under topic headings.
+================================================================
 
-## Strongest Research Signals
-## Shared Themes Across Papers
-## Methods and Evaluation Patterns
-## Practical Implications for Builders
-## Gaps, Disagreements, and Open Questions
-## What To Read Next
+## Cross-Paper Claims
 
-Be specific and keep attribution clear."""
+Claims that depend on 2+ papers read together. Each claim MUST:
+- State what is specifically true and on what evidence
+- Cite the 2+ papers it depends on by short tag + arXiv ID
+- Explain why no single paper in the set establishes it alone
+
+ANTI-PATTERN (do NOT produce): "Papers X, Y, Z all use Bayesian networks." That is enumeration, not synthesis.
+
+VALID EXAMPLE: "Three papers (X 2002.0001, Y 2104.0002, Z 2207.0003) all report 90%+ accuracy on synthetic benchmarks with <=20 nodes, but none validates against real-world data. The 'consensus' on method M is therefore structurally fragile -- it survives only inside the shared evaluation regime."
+
+Aim for 5-10 such claims. If you cannot find any, say so honestly in one sentence and move on. Do not fabricate.
+
+## Concrete Disagreements
+
+Where papers actually contradict each other on the same question. Each entry MUST name:
+- The 2+ papers in conflict (with arXiv IDs)
+- The specific point of disagreement (a metric, an assumption, a definition, a method choice)
+- WHY they reach different conclusions (different datasets, different baseline definitions, different goals)
+- Which side has stronger evidence as presented in the corpus, or "unresolved" if neither does
+
+ANTI-PATTERN: "Paper X emphasizes accuracy; Paper Y emphasizes interpretability." That is different emphasis, not disagreement.
+
+VALID: "Paper X claims method M beats M' by 4 points on benchmark B. Paper Y, on the same benchmark, claims M' beats M by 6 points. The difference traces to X using a 70/30 split where Y uses 50/50; neither reports cross-validation. Unresolved."
+
+If there are no real disagreements, write one sentence saying so. Do not invent conflict.
+
+## Comparison Matrix
+
+A markdown table with one row per paper. Required columns:
+
+| Paper (arXiv ID) | Core contribution | Method | Evaluation (data + metric) | Limitation noted by authors |
+
+Fill every row. Use each paper's own framing. This is the structural backbone of the synthesis -- it is not optional and not skippable.
+
+## Methodological Patterns and Shared Blind Spots
+
+What does the corpus collectively assume, evaluate on, or skip? Identify 3-5 patterns. Each pattern MUST:
+- Name the specific assumption, evaluation choice, or omission
+- List the papers that share it (by arXiv ID, not "most papers")
+- Say why it matters -- what does this shared blind spot mean for the strength of the corpus consensus?
+
+VALID: "Twelve of fifteen papers evaluate only on synthetic networks with <=20 nodes (2002.0001, 2104.0002, ...). No paper tests at production scale. Any cross-paper claim about scalability inherits this blind spot."
+
+## What This Corpus Says That No Single Paper Says
+
+The actual synthesis pay-off. After reading all {paper_count} papers, what do you know that you would not know from reading any one of them? This is THE central section -- if it is empty or generic, the synthesis has failed.
+
+If the corpus genuinely lacks a synthesis claim (e.g., the papers are too disjoint), write one honest sentence saying so. Do not pad with restated single-paper conclusions.
+
+## Open Questions That Would Be Worth Settling
+
+Specific testable questions raised by the cross-paper analysis. Each entry MUST:
+- State the question concretely (not "future work should explore X")
+- Specify what evidence would resolve it
+- Note which paper(s), if any, are closest to answering it
+
+VALID: "Whether method M generalizes beyond synthetic BNs is the open question raised by the corpus. A head-to-head benchmark of methods from 2002.0001 and 2104.0002 on a real-incident dataset like D would settle it. Paper 2207.0003 builds the closest evaluation harness but stops short of running it."
+
+================================================================
+HARD RULES
+================================================================
+
+- Every claim cites specific papers by arXiv ID. No bare assertions.
+- "Be specific" means name the dataset, the metric, the number, the paper. Do not abstract.
+- No section may be filled with paragraph summaries under a topic heading. Every section has structured output (claims with cites, table rows, disagreements with both sides, etc.).
+- If a section has nothing honest to say at this corpus size, write one sentence saying so. Padding is worse than brevity.
+- Reading another single paper should not produce the same output. If your output could plausibly come from reading any one of the papers in the corpus, the synthesis has failed.
+- Do not invent papers, IDs, datasets, or numbers. If a paper Insights file does not contain the detail you need, omit the claim rather than fabricate it."""
 
 
 def corpus_synthesis_prompt(topic: str, source_sections: dict[str, str]) -> str:

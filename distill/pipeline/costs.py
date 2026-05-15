@@ -11,14 +11,23 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from distill.llm.cost import PRICING as LLM_PRICING
-from distill.llm.cost import get_pricing
+from distill.llm.cost import (
+    PRICING as LLM_PRICING,
+)
+from distill.llm.cost import (
+    deep_research_query_cost,
+    get_pricing,
+)
+
+ACCORDION_GROK_ESTIMATE: float = 0.05
 
 __all__ = [
+    "ACCORDION_GROK_ESTIMATE",
     "LLM_PRICING",
     "CostTracker",
     "TokenUsage",
     "estimate_run_cost",
+    "report_deep_research_estimate",
     "save_run_log",
 ]
 
@@ -69,8 +78,7 @@ class CostTracker:
     @property
     def total_gemini_cost(self) -> float:
         """Estimated Gemini Deep Research cost."""
-        rate = get_pricing("gemini-deep-research")
-        return self.gemini_queries * rate.get("per_query", 2.50)
+        return self.gemini_queries * deep_research_query_cost()
 
     @property
     def total_cost(self) -> float:
@@ -182,8 +190,8 @@ def save_run_log(
 def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) -> str:
     """Pre-run cost estimate for dry-run output."""
     grok_cost = full_videos * 0.006 + shorts * 0.0004
-    gemini_cost = 2.50 if accordion else 0
-    accordion_grok = 0.05 if accordion else 0
+    gemini_cost = deep_research_query_cost() if accordion else 0.0
+    accordion_grok = ACCORDION_GROK_ESTIMATE if accordion else 0.0
     total = grok_cost + gemini_cost + accordion_grok
 
     parts = []
@@ -192,6 +200,17 @@ def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) ->
     if shorts:
         parts.append(f"{shorts} Shorts x $0.0004 = ${shorts * 0.0004:.3f}")
     if accordion:
-        parts.append("Accordion: ~$2.55 (Gemini $2.50 + Grok $0.05)")
+        parts.append(
+            f"Accordion: ~${report_deep_research_estimate():.2f} "
+            f"(Gemini ${gemini_cost:.2f} + Grok ${accordion_grok:.2f})"
+        )
 
     return f"Estimated cost: ${total:.2f} ({'; '.join(parts)})"
+
+
+def report_deep_research_estimate(*, include_section_writing: bool = True) -> float:
+    """Estimate a report run that submits one Gemini Deep Research job."""
+    total = deep_research_query_cost()
+    if include_section_writing:
+        total += ACCORDION_GROK_ESTIMATE
+    return total

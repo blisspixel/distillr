@@ -13,6 +13,25 @@ from distill.ingestors.sites.attachments import (
 from distill.ingestors.sites.scraper import SitePage
 
 
+class _FakeResponse:
+    def __init__(self, *, status_code=200, headers=None, chunks=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self._chunks = chunks or [b"%PDF-1.4"]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def raise_for_status(self):
+        return None
+
+    def iter_content(self, chunk_size=65536):
+        yield from self._chunks
+
+
 def test_collect_page_attachments_builds_pdf_and_video_records():
     page = SitePage(
         url="https://example.com/page",
@@ -119,6 +138,76 @@ def test_ingest_page_attachments_handles_empty_and_unsupported_video(tmp_path):
     assert context == ""
     assert attachments[0].status == "detected"
     assert "not supported yet" in attachments[0].note
+
+
+def test_pdf_attachment_rejects_private_url_before_request(monkeypatch, tmp_path):
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    attachment = collect_page_attachments(
+        SitePage(
+            url="https://example.com/page",
+            title="Example",
+            site_name="example.com",
+            page_type="page",
+            text="Body",
+            pdf_links=["http://127.0.0.1/private.pdf"],
+        )
+    )[0]
+    calls = []
+
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.requests.get",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    updated, context = _ingest_pdf_attachment(attachment, attachments_dir)
+
+    assert updated.status == "failed"
+    assert "public http(s)" in updated.note
+    assert context == ""
+    assert calls == []
+
+
+def test_pdf_attachment_revalidates_redirect_targets(monkeypatch, tmp_path):
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    attachment = collect_page_attachments(
+        SitePage(
+            url="https://example.com/page",
+            title="Example",
+            site_name="example.com",
+            page_type="page",
+            text="Body",
+            pdf_links=["https://example.com/guide.pdf"],
+        )
+    )[0]
+    calls = []
+
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.is_public_web_url",
+        lambda url: not url.startswith("http://127.0.0.1"),
+    )
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return _FakeResponse(
+            status_code=302,
+            headers={"Location": "http://127.0.0.1/private.pdf"},
+        )
+
+    monkeypatch.setattr("distill.ingestors.sites.attachments.requests.get", fake_get)
+
+    updated, context = _ingest_pdf_attachment(attachment, attachments_dir)
+
+    assert updated.status == "failed"
+    assert "public http(s)" in updated.note
+    assert context == ""
+    assert calls == [
+        (
+            "https://example.com/guide.pdf",
+            {"timeout": 30, "stream": True, "allow_redirects": False},
+        )
+    ]
 
 
 def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):

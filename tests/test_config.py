@@ -51,6 +51,22 @@ class TestDistillConfig:
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
         assert config.topic_dir("ai") == tmp_path / "lib" / "topics" / "ai"
 
+    def test_topic_dir_sanitizes_path_like_topic(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.topic_dir(r"..\..\outside")
+
+        assert result.parent == config.topics_dir()
+        assert ".." not in result.name
+        result.resolve(strict=False).relative_to(config.topics_dir().resolve(strict=False))
+
+    def test_topic_dir_sanitizes_absolute_topic(self, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        result = config.topic_dir(r"C:\Users\nicks\secret")
+
+        assert result.parent == config.topics_dir()
+        assert result.name == "C-Users-nicks-secret"
+        result.resolve(strict=False).relative_to(config.topics_dir().resolve(strict=False))
+
     def test_channel_dir(self, tmp_path):
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
         result = config.channel_dir("ai", "TestCh")

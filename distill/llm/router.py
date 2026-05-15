@@ -216,12 +216,15 @@ class RouterConfig(BaseSettings):
         key_map: dict[str, tuple[str | None, str | None]] = {
             "xai": ("xai_api_key", "XAI_API_KEY"),
             "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
-            "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
-            "openai": ("openai_api_key", "OPENAI_API_KEY"),
             "agent": (None, None),
             "ollama": (None, None),
             "lmstudio": (None, None),
         }
+        if provider_name in {"anthropic", "openai"}:
+            raise ConfigurationError(
+                f"Provider '{provider_name}' is not implemented yet. "
+                "Use xai, gemini, agent, ollama, or lmstudio."
+            )
 
         if provider_name not in key_map:
             raise ConfigurationError(
@@ -259,8 +262,9 @@ _provider_cache: dict[str, Any] = {}
 
 def _get_provider(provider_name: str, config: RouterConfig) -> Any:
     """Map *provider_name* to a Provider instance, caching per name."""
-    if provider_name in _provider_cache:
-        return _provider_cache[provider_name]
+    cache_key = f"{provider_name}:{config.ops_dir}" if provider_name == "agent" else provider_name
+    if cache_key in _provider_cache:
+        return _provider_cache[cache_key]
 
     provider: Any
     if provider_name == "xai":
@@ -275,14 +279,11 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
         from distill.llm.providers.agent import AgentProvider
 
         provider = AgentProvider(config.ops_dir)
-    elif provider_name == "anthropic":
-        from distill.llm.providers.anthropic import AnthropicProvider
-
-        provider = AnthropicProvider()
-    elif provider_name == "openai":
-        from distill.llm.providers.openai_prov import OpenAIProvider
-
-        provider = OpenAIProvider()
+    elif provider_name in {"anthropic", "openai"}:
+        raise ConfigurationError(
+            f"Provider '{provider_name}' is not implemented yet. "
+            "Use xai, gemini, agent, ollama, or lmstudio."
+        )
     elif provider_name == "ollama":
         from distill.llm.providers.ollama import OllamaProvider
 
@@ -292,10 +293,10 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
 
         provider = LMStudioProvider()
     else:
-        valid = "xai, gemini, agent, anthropic, openai, ollama, lmstudio"
+        valid = "xai, gemini, agent, ollama, lmstudio"
         raise ConfigurationError(f"Unknown provider '{provider_name}'. Valid providers: {valid}")
 
-    _provider_cache[provider_name] = provider
+    _provider_cache[cache_key] = provider
     return provider
 
 

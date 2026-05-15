@@ -8,6 +8,7 @@ re-exported here so that both old and new import paths work.
 
 import json
 import shutil
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
@@ -35,7 +36,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.config import DistillConfig
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import CostTracker, save_run_log
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube.transcripts import get_transcript
@@ -465,6 +466,15 @@ def run_scope_report(
     from distill.pipeline.report.accordion import run_accordion_research
     from distill.pipeline.report.deep_research import _get_report_path
 
+    start_entry_count = len(tracker.entries)
+    start_gemini_queries = tracker.gemini_queries
+    report_metadata = {
+        "topic": topic,
+        "workflow": "report",
+        "scope": scope,
+        "channel": channel_name or "",
+    }
+
     result = run_accordion_research(
         topic=topic,
         config=config,
@@ -485,6 +495,13 @@ def run_scope_report(
                 context=topic,
                 details={"scope": scope, "channel": channel_name or ""},
             )
+        _log_report_cost_delta(
+            config,
+            tracker,
+            start_entry_count=start_entry_count,
+            start_gemini_queries=start_gemini_queries,
+            metadata=report_metadata,
+        )
         return
 
     console.print("\n[bold green]Report complete![/bold green]")
@@ -502,6 +519,13 @@ def run_scope_report(
             missing_message="Report markdown was not written",
         )
     if not md_source.exists():
+        _log_report_cost_delta(
+            config,
+            tracker,
+            start_entry_count=start_entry_count,
+            start_gemini_queries=start_gemini_queries,
+            metadata=report_metadata,
+        )
         return
 
     md_out = output_path(config, f"report-{suffix}.md")
@@ -532,3 +556,29 @@ def run_scope_report(
             context=topic,
             details={"scope": scope, "channel": channel_name or "", "output": str(docx_path)},
         )
+
+    _log_report_cost_delta(
+        config,
+        tracker,
+        start_entry_count=start_entry_count,
+        start_gemini_queries=start_gemini_queries,
+        metadata=report_metadata,
+    )
+
+
+def _log_report_cost_delta(
+    config: DistillConfig,
+    tracker: CostTracker,
+    *,
+    start_entry_count: int,
+    start_gemini_queries: int,
+    metadata: dict[str, str],
+) -> None:
+    report_tracker = CostTracker(
+        entries=list(tracker.entries[start_entry_count:]),
+        gemini_queries=max(tracker.gemini_queries - start_gemini_queries, 0),
+    )
+    if not report_tracker.entries and not report_tracker.gemini_queries:
+        return
+    with suppress(Exception):
+        save_run_log(config.library_dir, "report", report_tracker, metadata=metadata)

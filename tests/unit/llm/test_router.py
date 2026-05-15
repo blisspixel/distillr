@@ -159,6 +159,34 @@ def test_unknown_provider_raises_configuration_error() -> None:
         call(config, "analysis", "test prompt")
 
 
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+def test_unimplemented_providers_fail_validation(provider: str) -> None:
+    """Reserved provider names fail early instead of raising at first LLM call."""
+    config = RouterConfig(
+        provider=provider,
+        anthropic_api_key="test-anthropic",
+        openai_api_key="test-openai",
+    )
+
+    with pytest.raises(ConfigurationError, match="not implemented"):
+        call(config, "analysis", "test prompt")
+
+
+def test_router_config_defaults_ops_dir_to_library(monkeypatch: Any, tmp_path: Path) -> None:
+    """Bare RouterConfig keeps agent task files under library/.distill, not cwd."""
+    cwd = tmp_path / "cwd"
+    library = tmp_path / "library"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    monkeypatch.setenv("DISTILL_OUTPUT_DIR", str(library))
+
+    config = RouterConfig(provider="agent")
+
+    assert config.ops_dir == str(library / ".distill")
+    assert Path(config.ops_dir).is_absolute()
+    assert Path(config.ops_dir) != cwd
+
+
 def test_telemetry_emitted_on_success() -> None:
     """Telemetry record is emitted on successful call."""
     with tempfile.TemporaryDirectory() as tmp:

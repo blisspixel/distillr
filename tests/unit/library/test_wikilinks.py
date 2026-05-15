@@ -77,6 +77,21 @@ class TestEmitWikiLinkFallback:
             # Should fall back to plain text (the title)
             assert result == "Missing Source"
 
+    def test_fallback_when_corpus_dir_missing(self) -> None:
+        """Missing corpus_dir cannot validate, so it returns plain text."""
+        with tempfile.TemporaryDirectory() as tmp:
+            corpus_dir = Path(tmp) / "missing"
+            result = emit_wiki_link("Missing Source", "xyz", "insights", corpus_dir=corpus_dir)
+            assert result == "Missing Source"
+
+    def test_fallback_when_corpus_dir_is_file(self) -> None:
+        """Regular-file corpus_dir cannot validate, so it returns plain text."""
+        with tempfile.TemporaryDirectory() as tmp:
+            corpus_dir = Path(tmp) / "not-a-dir"
+            corpus_dir.write_text("not a directory", encoding="utf-8")
+            result = emit_wiki_link("Missing Source", "xyz", "insights", corpus_dir=corpus_dir)
+            assert result == "Missing Source"
+
     def test_no_fallback_when_corpus_dir_none(self) -> None:
         """Returns wiki-link when corpus_dir is None (no validation)."""
         result = emit_wiki_link("Any Title", "abc", "insights", corpus_dir=None)

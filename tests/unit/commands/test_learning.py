@@ -2,6 +2,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from distill.cli_support import learning
+from distill.commands import _logic as cli_logic
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.ranking import RankedPaper
@@ -205,6 +206,35 @@ def test_select_learning_videos_uses_browser_search_and_channel_cap(config, monk
     assert query_calls == ["q1", "q2"]
     assert [video.video_id for video in enriched] == ["v1", "v2", "v3"]
     assert [item.video.video_id for item in selected] == ["v1", "v3"]
+
+
+def test_top_by_date_disables_query_expansion(config, monkeypatch):
+    expand_flags = []
+
+    def fake_expand(*args, **kwargs):
+        expand_flags.append(kwargs.get("expand"))
+        return ["query"]
+
+    monkeypatch.setattr(cli_logic, "_expand_learning_queries", fake_expand)
+    monkeypatch.setattr(cli_logic, "search_youtube_results", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cli_logic, "search_videos", lambda *args, **kwargs: [])
+
+    enriched, selected = cli_logic._select_learning_videos(
+        "query",
+        config,
+        CostTracker(),
+        days=7,
+        limit=3,
+        sort="date",
+        per_channel_cap=1,
+        shorts=True,
+        rerank=True,
+        top_by_date=True,
+    )
+
+    assert enriched == []
+    assert selected == []
+    assert expand_flags == [False]
 
 
 def test_select_learning_videos_falls_back_to_search_videos(config, monkeypatch):

@@ -146,18 +146,20 @@ def update_ytdlp(timeout: int = 300) -> tuple[bool, str, bool]:
     as "already at the latest release" rather than "upgraded".
     """
     old_version = get_ytdlp_version()
-    # Run pip from a trusted cwd with PYTHONSAFEPATH=1 so an attacker-controlled
-    # ``pip.py``/``pip/`` package in the user's current directory cannot shadow
-    # the legitimate installed pip module via ``python -m pip``'s module
-    # search path. ``-P`` (3.11+) and ``PYTHONSAFEPATH=1`` both suppress
-    # prepending the script/argv0 directory to ``sys.path``; we set both for
-    # belt-and-braces coverage across launchers.
+    # Run pip from a trusted cwd and strip Python path injection variables so
+    # an attacker-controlled ``pip.py``/``pip/`` package in the user's current
+    # directory cannot shadow the legitimate installed pip module via
+    # ``python -m pip``'s module search path. ``PYTHONSAFEPATH`` is honored on
+    # newer Python versions; the trusted cwd keeps this safe on older supported
+    # versions too.
     safe_cwd = str(Path(sys.executable).resolve().parent)
     safe_env = dict(os.environ)
+    safe_env.pop("PYTHONPATH", None)
+    safe_env.pop("PYTHONHOME", None)
     safe_env["PYTHONSAFEPATH"] = "1"
     try:
         result = subprocess.run(
-            [sys.executable, "-P", "-m", "pip", "install", "--upgrade", "yt-dlp"],
+            [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
             capture_output=True,
             text=True,
             timeout=timeout,
