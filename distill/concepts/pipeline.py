@@ -164,7 +164,7 @@ def _mentions_from_jsonl(rows: Iterable[dict]) -> list[ConceptMention]:
     return out
 
 
-def run_concepts(
+def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipeline steps
     topic: str,
     topic_dir: Path,
     *,
