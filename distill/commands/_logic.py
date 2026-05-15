@@ -2507,6 +2507,11 @@ def latest_cmd(
         False, "--brief", help="Generate a concise topic brief after processing"
     ),
     test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
+    concepts_flag: bool = typer.Option(
+        False,
+        "--concepts",
+        help="Run the concept playbook extraction over the topic after ingest succeeds",
+    ),
 ):
     """Opinionated topic-first workflow for getting current fast."""
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
@@ -2561,6 +2566,9 @@ def latest_cmd(
         expand=effective_expand,
         top_by_date=top_by_date,
     )
+    if concepts_flag:
+        effective_topic = topic or _topic_from_query(query)
+        _run_concepts_after_ingest(effective_topic)
 
 
 @app.command(name="brief", rich_help_panel="Discover")
@@ -5223,6 +5231,40 @@ def _check_lmstudio_status() -> str:
     return "unavailable"
 
 
+def _run_concepts_after_ingest(
+    topic: str,
+    *,
+    tracker: "CostTracker | None" = None,
+) -> None:
+    """Run the concept playbook over a topic after an ingest succeeds.
+
+    Helper for the ``--concepts`` opt-in flag on ``distill papers``,
+    ``distill latest``, and ``distill site-batch``. Best-effort: any
+    extraction failure logs but does not fail the ingest -- the freshly-
+    ingested insights are still valuable on their own.
+    """
+    from distill.concepts import run_concepts
+    from distill.llm import RouterConfig
+
+    config = get_config()
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        console.print(f"[dim]--concepts skipped (topic dir missing: {topic_dir})[/dim]")
+        return
+    console.print("\n[bold]Concept playbook[/bold]")
+    try:
+        summary = run_concepts(topic=topic, topic_dir=topic_dir, rc=RouterConfig(), tracker=tracker)
+    except Exception as exc:
+        console.print(f"[yellow]Concept extraction failed: {exc}[/yellow]")
+        return
+    console.print(
+        f"  scanned={summary.insights_scanned} "
+        f"extracted={summary.insights_extracted} "
+        f"mentions+={summary.mentions_added} "
+        f"notes={summary.notes_written} (concepts={summary.concepts_written}, entities={summary.entities_written}, unchanged={summary.concepts_unchanged})"
+    )
+
+
 @app.command(name="concepts", rich_help_panel="Library")
 def concepts(
     topic: str = typer.Argument(
@@ -7100,6 +7142,11 @@ def papers(  # noqa: C901 — legacy, will refactor
         "--preview",
         help="Preview the selected set without processing it",
     ),
+    concepts_flag: bool = typer.Option(
+        False,
+        "--concepts",
+        help="Run the concept playbook extraction over the topic after ingest succeeds",
+    ),
 ):
     """Search arXiv and ingest a paper set into the topic corpus."""
     if sort not in {"relevance", "date"}:
@@ -7196,6 +7243,8 @@ def papers(  # noqa: C901 — legacy, will refactor
         summary.add_output(
             find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
         )
+    if concepts_flag:
+        _run_concepts_after_ingest(topic_name, tracker=tracker)
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -7603,6 +7652,11 @@ def site_batch_cmd(
         False, "--report", help="Run Deep Research report after processing"
     ),
     test: bool = typer.Option(False, "--test", help="Pass --test through to report generation"),
+    concepts_flag: bool = typer.Option(
+        False,
+        "--concepts",
+        help="Run the concept playbook extraction over the topic after ingest succeeds",
+    ),
 ):
     """Process a simple list or JSON config of websites."""
     config = get_config()
@@ -7665,6 +7719,8 @@ def site_batch_cmd(
                 details={"topic": target_topic},
             )
 
+    if concepts_flag:
+        _run_concepts_after_ingest(target_topic, tracker=tracker)
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
     if report:
         _run_scope_report(target_topic, config, tracker, scope="topic", test=test, summary=summary)
