@@ -255,7 +255,7 @@ class TestMergeInvariants:
             # caller order; this asserts the full SourceEvidence set.
             sources_a = sorted(m_a.sources, key=lambda s: s.source_id)
             sources_b = sorted(m_b.sources, key=lambda s: s.source_id)
-            for sa, sb in zip(sources_a, sources_b):
+            for sa, sb in zip(sources_a, sources_b, strict=True):
                 assert sa.artifact_path == sb.artifact_path
                 assert sa.claim_excerpt == sb.claim_excerpt
                 assert sa.evidence_type == sb.evidence_type
