@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.0.2 - 2026-05-16
+
+Security + correctness hardening over 0.8.0/0.8.0.1. Four bugs fixed from a post-release scan:
+
+### Security
+
+- **`read_concept` path-bypass (medium).** The concept/entity restriction in the MCP `read_concept` tool did a substring check on the *unnormalized* input path, so an input like `topics/tkg/concepts/../secret.md` passed the guard while resolving to a non-concept file inside `library_dir`. Library-root containment still held (no OS-wide file read), but the tool's narrower contract was bypassable, exposing private corpus files or `.distill/` task artifacts. Fix: check the *resolved* path's directory parts for a `concepts` or `entities` segment, not the raw input string. Regression tests cover `concepts/../secret.md` and `.distill` traversal.
+
+### Correctness
+
+- **Concept slug collisions overwriting playbooks.** `MergedConcept.slug` is intentionally lossy (`"a b"`, `"a/b"`, `"a-b"` all collapse to `"a_b"`), but the writer assumed any existing file at `<slug>.md` belonged to the same concept and overwrote it. Fix: writer reads the existing note's `normalized_name` from frontmatter; if identities differ, suffix-bumps to `<slug>__2.md`. Idempotent self-rewrites still hit the same file. Added `normalized_name` to playbook frontmatter as the authoritative identity field.
+- **Order-dependent same-source aggregation.** When extraction produced duplicate mentions for `(source_id, canonical_name)`, the normalize layer's representative selection for `claim_excerpt`, `evidence_type`, `artifact_path`, and `normalized_name` depended on input order — the commutativity property tests didn't catch it because they only compared `source_id` sets and evidence counts. Fix: every selected field now uses an order-independent rule (longest claim, lex-min path, majority-vote kind, etc.); the property tests were strengthened to vary those fields and check the full SourceEvidence set.
+- **`distill latest --concepts` token usage was untracked.** `papers` and `site-batch` already threaded their `CostTracker` into the concept-extraction hook, but `latest` couldn't because the learning workflow owns its tracker internally and never returned it. Fix: added an optional `post_ingest_callback` parameter to `run_learning_command` / `process_learning_selection`; `latest_cmd` now passes a callback that runs concepts against the same tracker the rest of the run uses. Concept spend now flows into `cost_log.jsonl` with the rest of the run.
+
+No public API breaks. Six new tests across the touched layers, total 1474 tests pass.
+
 ## 0.8.0.1 - 2026-05-15
 
 Build-config fix. **0.8.0 on PyPI was broken**: the explicit `[tool.setuptools] packages` allowlist in `pyproject.toml` was missing the new `distill.concepts`, `distill.doctor`, and `distill.cli_support` subpackages, so the published wheel was missing those packages and every CLI path that touched them (`distill concepts`, `distill doctor`, the local-inference recommendations in doctor output) crashed with `ModuleNotFoundError` on a fresh install. Caught during a post-release validation install.
