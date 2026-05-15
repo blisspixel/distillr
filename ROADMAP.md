@@ -64,6 +64,7 @@ Previously shipped: **0.1 through 0.8.0** (initial release, internal foundations
 In flight and ahead:
 
 - **0.8.1 Frontmatter rename + migration** (next build) — rename `confidence:` → `synthesis_scope:` in synthesis emitters with a one-shot migration over existing artifacts. Isolated cleanup that 0.8 deferred to keep the playbook PR scoped.
+- **0.8.2 Playbook recovery surface** — `distill concepts diff <slug> [<timestamp>]` and `distill concepts rollback <slug> <timestamp>` over the `.history/` snapshots 0.8 already writes. Today the bytes are there but there's no affordance to inspect or restore them; recovery is half-built without the read surface.
 - **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape), two-pass synthesis with a structured claim intermediate (the same append-only-JSONL pattern 0.8 used for mentions, applied to claims), `distill ingest <path>` for local PDFs / markdown / clipped articles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails.
 - **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate (now also covering concept extraction outputs from 0.8), performance baseline, presentation pass.
@@ -75,6 +76,17 @@ Detail for each in-flight milestone follows. The "[intentionally not in scope](#
 Isolated cleanup. Rename `confidence:` → `synthesis_scope:` in synthesis emitters (`paper_synthesis`, `topic_synthesis`, `corpus_synthesis`, report sections). The current field name invites downstream consumers to treat a routing label (`single-paper` vs `corpus-consensus`) as a calibrated number; it isn't one. Ships a one-shot migration over existing artifacts that mirrors the `scan_legacy_artifacts` / `apply_migration` pattern from 0.7.
 
 Why this version: separated from 0.8.0 because it has nothing to do with the playbook layer. Migration tooling has a different testing surface and shouldn't slow the playbook release.
+
+### 0.8.2 — Playbook recovery surface
+
+0.8 ships `.history/<slug>/<iso-timestamp>.md` snapshots on every overwrite, but nothing reads them. That's snapshot-without-recovery — half a feature. This patch adds the read surface:
+
+- **`distill concepts diff <slug>`** — show the diff between the current concept note and its most recent history snapshot, or between two named timestamps. Frontmatter fields surface as a structured diff (which evidence rows were added or removed, how each interval bound shifted); body sections diff as text. The diff is what answers "why did this concept's `helpful_evidence` widen on the last refresh?"
+- **`distill concepts rollback <slug> <timestamp>`** — atomically restore a prior version from `.history/`. The current version moves into `.history/` itself (so rollback is also reversible), and the chosen snapshot becomes the live note. Updates the `concepts.jsonl` rollup row to match.
+- **`distill concepts log <slug>`** — list available snapshots with timestamps and a one-line summary of what changed at each step (counts of evidence rows added/removed, interval shifts). The audit trail that 0.8's mentions.jsonl gives at the input layer, mirrored at the output layer.
+- MCP companion tools: `concept_history(slug)`, `concept_diff(slug, ts_a, ts_b)`.
+
+Why this version: separated from 0.8.0 because the playbook PR shipped the storage and stopped at the storage. The read surface needs its own design and tests (diff formatting, atomic-rollback semantics, MCP shape) and shouldn't have been a blocker on the merge logic landing. Small and tightly scoped: pure presentation + filesystem moves over data 0.8 already produces.
 
 ### 0.9.0 — Discovery loop, synthesis depth, and local-file ingest
 
@@ -129,7 +141,8 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 - **Ruff** zero-warning under the project config, blocking. Cyclomatic complexity (`C901`) capped; `# noqa` requires an inline justification.
 - **Bandit + pip-audit** blocking in CI. Dev dependencies pinned and audited on a documented cadence.
 - **No silent error swallowing.** Every `except` either re-raises or logs-then-raises. Audited and lint-rule-enforced where ruff supports it.
-- **Golden corpus eval gate.** A frozen ~20-paper reference corpus ships with hand-checked golden insights (claims, methods, limits sections) plus hand-checked concept-playbook output (which concepts cross threshold, which polarities, which intervals). CI runs the full analysis + concepts pipeline against it with mock LLM responses fixed for reproducibility, and gates on per-section agreement with the golden output. Catches the regression class that the rest of the quality bar misses — prompt drift, model swaps, and silent degradation of section extraction or concept polarity assignment — none of which show up in coverage, type, or lint gates. Without this, the 1.0 stability claim covers structure but not output quality.
+- **Golden corpus eval gate.** A frozen ~20-paper reference corpus ships with hand-checked golden insights (claims, methods, limits sections) plus hand-checked concept-playbook output (which concepts cross threshold, which polarities, which intervals). CI runs the full analysis + concepts pipeline against it with mock LLM responses fixed for reproducibility, and gates on per-section agreement with the golden output. Catches the regression class that the rest of the quality bar misses — prompt drift, model swaps, and silent degradation of section extraction or concept polarity assignment — none of which show up in coverage, type, or lint gates.
+- **Paraphrase-robustness pass on the eval gate.** Each fixture insight ships with two or three semantically-equivalent rewrites (synonym substitution, sentence-order rearrangement, prose-vs-bullet restructuring). The eval gate asserts that concept extraction over the rewrites produces the same set of `normalized_name` records (modulo `claim_excerpt` wording). This is the regression class the mock-LLM golden-corpus check can't see: the golden mock-LLM responses fix what the LLM *would* say, but they don't test whether real LLM responses are stable under input variation. Property tests cover the merge layer's mathematical invariants; this covers the extraction layer's input robustness. Together they close the loop the 1.0 stability claim depends on.
 - **Pre-commit hooks identical to CI checks** — no contributor surprises between local and remote.
 
 **Polish.**
@@ -139,6 +152,12 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 - `docs/CONTRIBUTING.md` covers the full quality posture above so contributors know the bar before they open a PR.
 
 Why this version: 1.0 is a stability *and* quality claim. It's the version external systems can build on without expecting churn, and the version a new contributor can land a clean PR in without a long onboarding tail. Competitively, this is the version that closes the traction gap — the biggest risk is getting out-marketed on ease-of-agent-integration by GUI-heavy tools (SwarmVault, obsidian-wiki). The presentation pass, onboarding docs, and stable contracts are what convert "technically superior" into "actually adopted."
+
+## Looking beyond 1.0
+
+Not committed. Notes on directions worth thinking about once 1.0 stability is in place.
+
+- **Semantic alias resolution over `mentions.jsonl`.** 0.8's normalize layer canonicalizes mention names mechanically (case-folding, plural stripping, punctuation cleanup). That handles the easy cases. The hard cases — "rotational embeddings" / "rotation embedding" / "phase rotation" being three names for the same concept; "DeepMind" / "Google DeepMind" being one org — are out of reach of regex. A clustering pass over `(normalized_name, claim_excerpt)` pairs in `mentions.jsonl` would surface candidate aliases that mechanical normalization misses, and the surface could feed back into the normalize layer as a learned alias map. The right shape is probably an offline `distill concepts entities --resolve-aliases` command that proposes merges and asks for confirmation, not an automatic pass that silently reshapes the corpus. Worth prototyping once 1.0 ships and the playbook layer has been in use long enough to surface real alias misses from real corpora.
 
 ## Target package layout (1.0)
 
