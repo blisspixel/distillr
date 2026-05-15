@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "distillr"
-version = "0.8.0"
+version = "0.8.0.1"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = { text = "MIT" }
@@ -66,27 +66,15 @@ dev = [
 distill = "distill.cli:main"
 distill-mcp = "distill.mcp.server:main"
 
-[tool.setuptools]
-packages = [
-    "distill",
-    "distill.commands",
-    "distill.ingestors",
-    "distill.ingestors.youtube",
-    "distill.ingestors.sites",
-    "distill.ingestors.papers",
-    "distill.library",
-    "distill.llm",
-    "distill.llm.providers",
-    "distill.mcp",
-    "distill.mcp.tools",
-    "distill.pipeline",
-    "distill.pipeline.analysis",
-    "distill.pipeline.synthesis",
-    "distill.pipeline.report",
-    "distill.prompts",
-    "distill.web",
-    "distill.web.routes",
-]
+[tool.setuptools.packages.find]
+# Auto-discover every distill.* subpackage. Switched from an explicit
+# packages allowlist after 0.8.0 shipped without the new
+# distill.concepts / distill.doctor / distill.cli_support subpackages --
+# the allowlist drifted out of sync with the source tree. find-packages
+# is the supported pattern for a single-top-level layout and removes the
+# class of bug entirely.
+include = ["distill*"]
+exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 "distill.web" = ["templates/**/*.html", "static/**/*"]

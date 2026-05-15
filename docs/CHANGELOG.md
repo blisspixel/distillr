@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.0.1 - 2026-05-15
+
+Build-config fix. **0.8.0 on PyPI was broken**: the explicit `[tool.setuptools] packages` allowlist in `pyproject.toml` was missing the new `distill.concepts`, `distill.doctor`, and `distill.cli_support` subpackages, so the published wheel was missing those packages and every CLI path that touched them (`distill concepts`, `distill doctor`, the local-inference recommendations in doctor output) crashed with `ModuleNotFoundError` on a fresh install. Caught during a post-release validation install.
+
+- Switch from explicit packages allowlist to `[tool.setuptools.packages.find]` with `include = ["distill*"]`. New subpackages now auto-discovered; the class of bug is eliminated.
+- Verified the 0.8.0.1 wheel bundles `distill/concepts/`, `distill/doctor/`, and `distill/cli_support/` before publishing.
+
+No source code or behavior changes -- this is a packaging-only patch.
+
 ## 0.8.0 - 2026-05-15
 
 **Concept playbook.** Per-topic concept and entity notes that accumulate evidence across the corpus. When the 21st paper on a topic mentions a technique, distillr strengthens what it knows about that technique instead of just appending another insight file. This is the qualitative shift the roadmap has been pointing at: distillr stops being a batch processor and starts maintaining a knowledge base.
