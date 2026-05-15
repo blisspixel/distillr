@@ -48,38 +48,6 @@ Plus the ecosystem around Obsidian Web Clipper + Defuddle (now does YT transcrip
 
 **Why not "just make it an MCP skill"?** Distillr already *is* an MCP server (8 tools, 12 resources, 4 prompts since 0.5). But a thin MCP wrapper or agent skill would be useless for what distillr actually does — long-running batch ingestion, persistent corpus maintenance, and compounding knowledge across sessions are exactly what interactive agents (Claude Code, Cursor, Windsurf) are terrible at. The architecture is separation of concerns: distillr is the dedicated memory layer; agents query it via MCP when they need grounded knowledge. It's "and," not "or."
 
-## What shipped in 0.1.0
-
-Initial public release as `distillr` on PyPI (2026-04-20). Core capabilities:
-
-- Full capture → analyze → synthesize → report pipeline for all three source types
-- 4-phase Deep Research report generation (Gemini + Grok) with QA rewriting
-- Multi-topic research briefings (`distill research-brief`) and single-call deep synthesis (`distill synthesize`) with user-supplied context files
-- Recurring topic-watch with budget guardrails and per-run "what changed" outputs
-- Channel watch + catch-up with custom per-channel extraction instructions
-- MCP server with 8 tools, 12 resources, 4 prompts
-- Local web dashboard (`distill serve`)
-- DOCX export with cover page, TOC, confidence badges
-- Post-run summary panels, cost history, refresh-first state tracking
-- Security hardening: URL-scheme validation, `defusedxml`, bandit/pip-audit in CI
-
-See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for the full 0.1.0 entry plus consolidated pre-release history.
-
-## What shipped in 0.2.0
-
-Released 2026-04-27. Discovery loop hardening: the goal-aware front door is in,
-yt-dlp ergonomics are solid, and the preview → approve → ingest workflow now
-respects what the user actually asked for.
-
-- **Goal-aware `distill discover`.** Generates paper + video queries from a natural-language goal (or `--goal-file`), fans out to arXiv and YouTube, runs a unified goal-aware LLM rerank across both source types, shows one ranked cross-source table, and ingests the shortlist after confirmation. `distill papers` was brought to parity with `distill latest` in the same pass (query expansion, LLM rerank, `--preview`).
-- **`--papers-only` / `--videos-only` for discover.** Mutually exclusive, short-circuits the LLM query-generation call for the disabled side so spend matches intent.
-- **`--top-by-date` for `distill latest`.** Strict "last N uploads in the window" semantics — bypasses both LLM rerank and the heuristic mix, sorts purely by upload date. Channel cap still applies.
-- **Preview-mode cost logging.** Iterative preview cycles (probe, retune, re-probe) now land in `cost_log.jsonl` as `<command>_preview` rows so they're visible separately from ingest spend in `distill costs`.
-- **yt-dlp staleness preflight + `distill doctor --update`.** Zero-network version-age check on entry; caches for 24h; honors `DISTILL_NO_PREFLIGHT=1` for CI. After a successful upgrade attempt, doctor reports "(latest available release)" instead of nagging again. Discovery errors that match extractor-failure patterns print a one-line hint pointing at the fix.
-- **Windows cp1252 console crash fix.** Stdio is reconfigured to UTF-8 at startup so the preflight `⚠` glyph (now also softened to an ASCII `!` as belt-and-suspenders) doesn't crash on default Windows consoles.
-
-See [`docs/CHANGELOG.md#020--2026-04-27`](docs/CHANGELOG.md) for the complete entry.
-
 ## Path to 1.0
 
 The goal of 1.0 is a stable, MCP-first research tool that an external agent can drive without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar — each one unblocks the next. Four themes run through every version:
@@ -91,158 +59,64 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 ### Milestones at a glance
 
-- **0.3 Internal foundations — SHIPPED** (0.3.0-0.4.0). Split `cli.py`, LLM router abstraction, per-prompt telemetry, structured logging, layered subpackage architecture, SecretStr, import-linter, quality conventions.
-- **0.5 MCP-first surface — SHIPPED** (0.5.0). JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions, Grok 4.3 migration.
-- **0.6 Local-control + adaptive context — SHIPPED** (0.6.0). Ollama / LM Studio providers, adaptive chunking, multi-pass analysis, report compaction, hardware detection, `--model` override, Docker.
-- **0.7 Living wiki — SHIPPED** (0.7.0-0.7.1). Obsidian-native wiki-links, artifact provenance in frontmatter, CLI decomposition (finish `_cli_impl.py` to `commands/`), path/slug centralization, legacy bridge removal, report-phase retry hardening.
-- **0.7.2 Synthesis-quality patch** (in-flight) — rewrite paper-synthesis prompt to demand cross-paper claims, comparison matrix, concrete disagreements, and shared blind spots (not topic-clustered capsule summaries). Skip corpus-synthesis when papers are the only input (summary-of-summary adds zero signal). Bug-tier; ships ahead of 0.8.
-- **0.8 Concept playbook** (next build) — ACE-style concept/entity notes with delta merges and contradiction surfacing.
-- **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
-- **0.10 Operational polish** — scheduled refresh, semantic dedup, stale-detection, budget guardrails.
-- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, performance baseline, presentation pass.
+Previously shipped: **0.1 through 0.7.2** (initial release, internal foundations, MCP-first surface, local inference, living wiki, synthesis-quality patch). Per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
-Detail for each milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
+In flight and ahead:
 
-### 0.3 — Internal foundations (SHIPPED)
+- **0.8 Concept playbook** (next build) — per-topic ACE-style concept and entity notes with deterministic delta merges, credal-interval evidence bounds, and contradiction surfacing. New `distill concepts` command + opt-in `--concepts` flag on existing ingest commands. New MCP `find_concepts` / `read_concept` tools.
+- **0.8.1 Frontmatter rename + migration** — rename `confidence:` → `synthesis_scope:` in synthesis emitters with a one-shot migration over existing artifacts. Isolated cleanup, separated from 0.8 so the playbook PR stays scoped.
+- **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape) with eval-gated quality contract, two-pass synthesis with structured claim intermediate, `distill ingest <path>` for local PDFs / markdown / clipped articles.
+- **0.10 Operational polish** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails.
+- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate, performance baseline, presentation pass.
 
-Delivered across 0.3.0 through 0.4.0. Everything listed below is done and in production.
-
-The 6.5K-line `cli.py` and the flat package layout were the chief brakes on every other improvement. This milestone paid the structural debt and set the conventions every later milestone is held to.
-
-**Restructure (done).**
-
-- Split `distill/` into the [target package layout](#target-package-layout-10): `commands/`, `ingestors/`, `llm/`, `pipeline/`, `prompts/`, `library/`, `mcp/`, `web/`.
-- `cli.py` is now a ~150-line Typer wiring module with no business logic. `_cli_impl.py` holds the migrated business logic.
-- `mcp/` split into `mcp/server.py` + `mcp/tools/` + `mcp/resources.py` + `mcp/prompts.py`, with one tool group per file mirroring the CLI command surface.
-- `prompts/` split into `prompts/analysis.py`, `prompts/synthesis.py`, `prompts/report.py`, `prompts/discover.py`, `prompts/shared.py`.
-- LLM router (`distill/llm/`) dispatches by workload tag (`analysis`, `rerank`, `synthesis`, `report`, `qa`) to configured provider+model. Provider stubs for xAI, Gemini, Anthropic, OpenAI, Ollama, and Agent mode.
-- Tests mirror source layout: `tests/unit/{commands,ingestors,llm,pipeline,library,mcp}/` plus `tests/integration/`.
-
-**Conventions (done, CI-enforced).**
-
-- Module size cap (500 lines without justification). Ruff `C901` complexity. One responsibility per module.
-- `__all__` on public modules; leading underscore for internals.
-- Dependency direction enforced via `import-linter`: `commands -> pipeline -> ingestors / llm`, never reverse. `llm/` has no internal `distill.*` imports.
-- Ruff zero-warning. Pyright gating on new subpackages. Coverage ratchet (>=80% on new subpackages).
-
-**Config and observability (done).**
-
-- `SecretStr` for API keys, narrower types, no global mutation.
-- Per-prompt token telemetry logged to `cost_log.jsonl` per call. "Biggest prompts" view in `distill costs`.
-- Structured logging with `--debug`. Rich-print for human-facing surfaces only.
-- Knowledge-base file contract: globally descriptive filenames, standardized YAML frontmatter.
-- `docs/CONTRIBUTING.md` captures all conventions.
-
-### 0.5.0 — MCP-first surface (SHIPPED)
-
-The agent-facing surface stops being a side door and becomes the primary product surface. This is the biggest user-facing value delivery remaining before 1.0.
-
-- **JIT context retrieval.** `find_insights(topic, query)` returns ranked `(path, preview, score)` tuples; `read_insight(path, section?)` for drill-down. This is the 96% token savings pattern — agents get paths and previews instead of full file payloads. Existing whole-file tools stay for explicit "give me the file" calls but stop being the default response shape.
-- **Structured CLI output.** Every CLI command exposes `--json` and respects `NO_COLOR`. Stable, documented exit codes.
-- **MCP tool surface mirrors CLI.** Every long-running command has a matching tool with progress events and a clean done/cancel/error contract. Tool schemas are introspectable.
-- **Research-gap discovery as an MCP tool** that an external agent can call without scraping the dashboard.
-- **Token-efficient tool descriptions.** The research shows 10+ MCP servers lose 30-50% of context window to tool definitions alone. Distill's tool descriptions must be lean — short, precise, no redundant parameter documentation. This is a design constraint, not an afterthought.
-- Native watch-alert notification channels (the `library/watch_alerts.md` stream is in; outbound email/Slack/webhook is not).
-
-Why this version: this is the "MCP-first 2026 app" version. It defines how agents drive distillr from here on, so it should land before the corpus shape changes underneath it.
-
-### 0.6.0 — Local-control + adaptive context
-
-Local inference removes the cost barrier from staying current. When ingestion is basically free, you can afford to refresh topics more often, ingest more sources, and keep the corpus comprehensive — not because you're running 24/7, but because there's no reason *not* to run another pass when new papers drop or a channel posts. The corpus grows richer over time because the economics don't punish thoroughness.
-
-The quality bar is the same as cloud. Local doesn't mean slop. A local insight that's thin or wrong pollutes the corpus and degrades everything downstream — synthesis, expert queries, reports. The system does more passes to compensate for smaller context windows, not fewer. If a local model can't produce output at the quality bar, that workload stays on cloud.
-
-**Local providers.**
-
-- Ollama / LM Studio as first-class providers in the LLM router (the stubs are already in place from 0.3.1). Per-workload model selection via config and `--model` overrides on individual commands.
-- Cost log distinguishes paid-API spend from local-inference time; `distill costs` shows both axes so users can see what they're saving.
-- Recommended models documented per workload (analysis, rerank, synthesis) with quality benchmarks against the cloud baseline. Only models that meet the bar get recommended.
-
-**Model selection strategy.**
-
-The router doesn't hardcode models — it takes whatever Ollama/LM Studio serves. But we document and test against specific models per hardware tier:
-
-| Hardware | Primary Model | Context | Why |
-|----------|--------------|---------|-----|
-| RTX 4090 (24GB) | Qwen3.5-27B (Q4_K_M) | 128K | Best reasoning quality in the 24GB class; outperforms GPT-5 medium on agentic benchmarks. Dense architecture = predictable VRAM. |
-| RTX 4090 (24GB) | Llama 4 Scout (Q4) | 128K+ | MoE (17B active / 109B total); fits 24GB at Q4. 10M native context. Good for long papers. |
-| M1/M2 Mac (16GB) | Qwen3.5-14B or Gemma 4 12B | 32K–64K | Fits in unified memory with room for OS. Chunking pipeline handles the shorter context. |
-| M-series Mac (32GB+) | Qwen3.5-27B or Gemma 4 27B | 128K | Full-size models in unified memory. |
-| RTX 5090 / multi-GPU (32GB+) | Qwen3-32B or Llama 4 Scout (higher quant) | 128K+ | More VRAM = higher quantization = better quality. |
-
-The design is **hardware-adaptive, not model-locked**:
-- `distill doctor` detects available VRAM/RAM and suggests the best model for the hardware
-- Users can override with `--model` or env vars per workload
-- New models slot in without code changes — just update the recommendation docs
-- Quality gate: if a model's output on the eval suite drops below 80% of cloud baseline, it's flagged as "not recommended" for that workload
-
-**Context-aware adaptive processing.**
-
-The router knows each provider's context window. The processing strategy adapts:
-
-- For cloud models (Grok 4.3 at 1M, Gemini 3.1 Pro at 1M): no chunking. A 100K-char paper fits whole. Send it, analyze it in one pass.
-- For local models (32K–128K context windows on current hardware): adaptive chunking with section-aware splitting. Per-category rerank ("which chunks matter for Methods vs Limits vs Open Questions?"). Small-window analysis loop assembles insights from focused passes. The output quality must match cloud — the system does more passes to get there, not fewer.
-- The decision is automatic based on provider metadata — users do not configure this. If the content fits the window, it goes whole. If it does not, the system chunks intelligently.
-
-**Quality equivalence, not degradation.** The local pipeline produces the same structured insights (same YAML frontmatter, same section headings, same depth) as the cloud pipeline. Property tests validate output equivalence. If a workload can't meet the bar locally, the router flags it and the user can choose to send it to cloud or skip it.
-
-**Report pipeline compaction.** High-recall-then-precision summaries replace full-prior-section context between report phases. This benefits all providers but matters most for local models where the 4-phase pipeline would otherwise exceed the window.
-
-**Operational.**
-
-- Dockerfile + docker-compose with Playwright deps included. `distill doctor` knows it's running in a container and skips host-only checks.
-- `distill doctor` reports local model availability, VRAM, and estimated throughput.
-- Tested on: RTX 4090 (24GB VRAM, Windows), M1 Mac (16GB unified). Should work on any Ollama/LM Studio compatible hardware but these are the validated targets.
-- Future hardware (RTX 5090 32GB, M-series with 64GB+, multi-GPU rigs, network GPU clusters) gets better quality automatically — more VRAM means higher quantization or larger models, which the router selects based on detected resources. No code changes needed; the model recommendation table just grows.
-
-Why this version: when ingestion is free, you use it more. More sources ingested, more frequent refreshes, richer corpus. That's what makes the living wiki (0.7) and concept layer (0.8) practical — they need a comprehensive, current corpus to compound against. Local inference is the enabler, not the feature.
-
-### 0.7.0 — Living wiki
-
-The corpus shifts from "directory of artifacts" to "navigable knowledge base," using ecosystem tools (Obsidian, Logseq, Dendron) for visualization rather than building a graph view in distillr.
-
-**Wiki-link discipline and Obsidian interop.**
-
-- Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs (`[[<paper-slug>_Insights|Title]]` instead of plain citations).
-- Backfill / migration tooling for older `insights.md`-style libraries into the 0.3 knowledge-base naming contract.
-- Stable link discipline. `distill doctor --links` for backlink integrity.
-- `distill open --vault` opens the user's default markdown editor pointed at `library/`.
-
-**Artifact provenance in frontmatter.** Every generated artifact records the exact model version, temperature, and prompt identifier used to produce it. This is the foundation for reproducibility — without it, research outputs cannot be trusted or compared across runs. Fields added to YAML frontmatter: `model`, `model_version`, `temperature`, `prompt_id`. Cost tracking (already present) stays alongside.
-
-**CLI decomposition (finish the 0.3 intent).** `_cli_impl.py` (~1,200+ lines of private `_discover_*`, `_llm_expand_*`, and command helpers) is decomposed into the `commands/` subpackage. Each major command group gets its own module with a dedicated Typer app. `_cli_impl.py` is reduced to shared utilities only (target: <200 lines). This unblocks testability and makes the module-size cap enforceable without exceptions.
-
-**Path/slug centralization.** Slugify and path-sanitization logic (currently in `config.py`) moves to `library/paths.py` where it belongs architecturally. Ingestors import from `library/paths` instead of `config`. This completes the separation of concerns between configuration and corpus management.
-
-**Legacy migration bridge removal.** The `router_config_from_distill` bridge code in `config.py` (env parsing inside functions, import-side effects) is deleted. The Grok 4.3 migration (model retirement May 15, 2026) is the forcing function — once the old model is gone, the bridge serves no purpose.
-
-**Report-phase retry hardening.** The 3-failure circuit breaker in the report pipeline gains exponential backoff with jitter. An `LLMCall` dataclass captures full request/response metadata for debugging transient failures.
-
-Why this version: pure prompt + frontmatter + tooling + code-health work, no new model integrations. Lands before the concept layer because concept notes need stable link discipline, provenance, and clean path resolution to be worth building on. The CLI decomposition and bridge removal are included here because they're prerequisites for the 0.8 concept-extraction pass (which adds new commands and pipeline stages that would further bloat `_cli_impl.py` if it isn't decomposed first). Competitively, wiki-links + provenance + stable slugs are now table-stakes in this space (every post-Karpathy tool has some form) — shipping 0.7 clean is the minimum to stay credible alongside SwarmVault, obsidian-wiki, and Lacuna.
+Detail for each in-flight milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
 
 ### 0.8.0 — Concept playbook
 
 Where distillr stops being a batch processor and starts maintaining a knowledge base. Built directly on the 0.7 wiki conventions.
 
-- Concept extraction pass: detect named techniques, architectures, people, vendors mentioned across 3+ insights. Emit `library/concepts/<slug>.md` and `library/entities/<slug>.md` as ACE-style itemized playbooks (`source_id`, `helpful_evidence: [lower, upper]`, `harmful_evidence: [lower, upper]`, `last_seen`, `provenance`) — not freeform summaries. Intervals (credal-network style) preserve disagreement width; scalar `helpful_count` / `harmful_count` are derived views for read ergonomics. Cost is one schema decision now; retrofit cost later is high.
-- Deterministic delta merges on refresh: new sources append entries with provenance, widen the relevant evidence interval on corroboration (lower bound up) or contradiction (upper bound down), add `[contested]` annotations when the interval gets wide enough. Prior versions land in `.history/`. No monolithic rewrites.
-- Contradiction surfacing: contested entries (wide intervals) lifted into `distill health`. `concepts.jsonl` and `entities.jsonl` exports for downstream agents and graph DBs.
-- Frontmatter cleanup: rename `confidence:` → `synthesis_scope:` across emitters. The field is a routing label (`single-paper` vs `corpus-consensus`), not a calibrated number — current name invites downstream consumers to treat it as one. Includes a one-shot migration for existing artifacts.
-- `distill ingest <path>` for local files (PDF, markdown, clipped article) so the playbook layer doesn't only update from network ingestion.
+**Concept and entity extraction.** Detect named techniques, architectures, datasets, metrics, people, organizations, and vendors mentioned across 3+ per-source insights for a topic. Emit per-topic playbook notes at `library/topics/<topic>/concepts/<slug>.md` and `library/topics/<topic>/entities/<slug>.md`. Per-topic because a concept like "transformer" has different meaning across an ML corpus and a power-engineering corpus; cross-topic identity is hard, per-topic identity is tractable. Threshold-of-three filters single-mention noise.
+
+**ACE-style playbook structure, not freeform summaries.** Each note is a deterministic projection of merged source mentions, not LLM-generated prose. Sections: helpful evidence, harmful/contradicting evidence, cross-source patterns, sources (wiki-linked back to the contributing `_Insights.md` files). Frontmatter records the credal-interval evidence bounds plus per-source polarity rows.
+
+**Credal-interval evidence bounds.** Frontmatter stores `helpful_evidence: [lower, upper]` and `harmful_evidence: [lower, upper]`. The lower bound counts only unambiguously-supporting sources; the upper bound additionally counts neutral/ambiguous mentions. The width `upper - lower` is the disagreement margin. *Why intervals:* a scalar `helpful_count: 5` collapses "five sources strongly agree" and "two strongly agree, three discuss in passing" into the same number. Intervals preserve that distinction and let `distill health` surface genuinely contested concepts. Scalar derived views (`helpful_count = upper`) ship alongside in `concepts.jsonl` for ergonomic reads.
+
+**Deterministic delta merges.** Refresh is incremental: only newly-ingested insights run through the LLM extraction step; the merge step is pure Python (commutative under source ordering, idempotent under repeated application). Prior versions of overwritten concept notes land in `library/topics/<topic>/.history/<slug>/<iso-timestamp>.md`. No monolithic rewrites.
+
+**Contradiction surfacing.** Contested concepts (both polarities present) lift into `distill health <topic>` output. Per-topic `concepts.jsonl` and `entities.jsonl` exports give downstream agents and graph DBs a structured-row view.
+
+**Surface.** New `distill concepts <topic>` standalone command (idempotent; runs over existing insights, merges new ones). Opt-in `--concepts` flag on `distill papers`, `latest`, `site-batch`, and `watch` so a single ingest produces concept notes in the same run. New MCP tools `find_concepts` and `read_concept` mirror the `find_insights` / `read_insight` JIT-retrieval pattern.
+
+**Out of scope for 0.8.0** (deferred so the playbook PR ships clean): the `confidence:` → `synthesis_scope:` frontmatter rename lives in 0.8.1 as an isolated migration; `distill ingest <path>` for local files moves to 0.9 alongside the discovery-loop work.
 
 Why this version: the qualitative shift the roadmap has been pointing at. Depends on stable artifact metadata (0.7) and the LLM router (0.3) to keep the merge step cheap.
 
-### 0.9.0 — Discovery loop and synthesis depth
+### 0.8.1 — Frontmatter rename + migration
 
-The preview → approve → ingest workflow becomes the default front door, and synthesis gets the register options it should already have.
+Isolated cleanup. Rename `confidence:` → `synthesis_scope:` in synthesis emitters (`paper_synthesis`, `topic_synthesis`, `corpus_synthesis`, report sections). The current field name invites downstream consumers to treat a routing label (`single-paper` vs `corpus-consensus`) as a calibrated number; it isn't one. Ships a one-shot migration over existing artifacts that mirrors the `scan_legacy_artifacts` / `apply_migration` pattern from 0.7.
+
+Why this version: separated from 0.8.0 because it has nothing to do with the playbook layer. Migration tooling has a different testing surface and shouldn't slow the playbook release.
+
+### 0.9.0 — Discovery loop, synthesis depth, and local-file ingest
+
+The preview → approve → ingest workflow becomes the default front door, synthesis gets a structured intermediate that scales beyond a single prompt rewrite, and locally-held documents become first-class corpus sources.
+
+**Discovery loop UX.**
 
 - Preview-as-primary-flow UX: probe the candidate pool, detect the rerank-score cliff, present "top N excellent / top M including good / everything ≥ threshold" sizing options with per-option spend, then a single typed approval. Default behavior on a fresh topic.
 - Rerank determinism: cached previewed shortlists (commit-by-ID) so the real ingest replays the exact set the user approved.
 - Real cost estimator that reads candidate metadata before the run (arXiv abstract length + page count; yt-dlp duration; site content-length) and calibrates against historical `cost_log.jsonl`.
 - `--rigor strict|balanced|loose` knob across discover/papers/latest. Audit and document the prompt divergence between commands.
 - Trusted-site discovery and clearer source identity in preview: enumerate real page candidates from allowlisted docs domains (TOCs, sitemaps, landing pages) and show page-level titles/URL context instead of only collection labels.
-- **Synthesis architecture: two-pass with structured intermediate.** Replace single-pass synthesis with: (1) claim-extraction pass over each per-source insight emitting `claim_id, source_id, claim_text, evidence_type, dataset, metric` rows; (2) synthesis pass over the claim set that clusters, finds contradictions, and writes the narrative with explicit per-claim citations. Single-pass synthesis is why current output drifts to topic-clustered summaries — the model has no scaffolding for "what a cross-paper claim looks like." The structured intermediate also unblocks the 0.8 concept playbook (credal evidence intervals require atomic claims first).
-- **Synthesis quality contract (PhD-level default).** What "PhD-level" actually requires, enforced via prompt + eval gate: (a) cross-paper claims with multi-paper attribution, (b) a comparison matrix covering every source, (c) concrete disagreements naming both sides and the specific point of conflict, (d) shared methodological blind spots with named sources, (e) a "what this corpus says that no single source does" section. Topic-clustered capsule summaries are the explicit anti-pattern. `--style exec | pop | landscape | disagreements-only` selects emphasis, but every style honors the contract.
+
+**Synthesis depth.**
+
+- **Two-pass synthesis with a structured intermediate.** Replace single-pass synthesis with: (1) claim-extraction pass over each per-source insight emitting `claim_id, source_id, claim_text, evidence_type, dataset, metric` rows into a per-topic `claims.jsonl`; (2) synthesis pass over the claim set that clusters, finds contradictions, and writes the narrative with explicit per-claim citations. The 0.7.2 prompt rewrite raised the quality contract but is still single-pass; the structured intermediate is what makes that contract reliably enforceable and what makes synthesis composable with the 0.8 concept playbook (concepts can attach evidence to specific claim IDs instead of insight files).
+- Synthesis register styles: `--style exec | pop | landscape | disagreements-only` selects emphasis, but every style honors the PhD-level contract shipped in 0.7.2 (cross-paper claims, comparison matrix, named disagreements, shared blind spots).
+
+**Local-file ingest.**
+
+- `distill ingest <path>` for local PDFs, markdown, and clipped articles. Routes through the same analysis pipeline as network ingestion: extract text, run the paper/site analysis prompt, emit `_Insights.md` with full provenance. Closes the gap where the playbook layer only updates from network ingestion. Supports `--topic` to attach to an existing topic, falls back to inferring from file metadata.
 
 Why this version: most of these need 0.3's telemetry to estimate cost honestly and 0.5's MCP surface to expose the same flow to agents. Shipping earlier means re-doing it later.
 
