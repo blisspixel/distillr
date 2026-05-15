@@ -57,7 +57,18 @@ RETIRED_MODELS: dict[str, str] = {
 }
 
 WORKLOAD_TAGS: frozenset[str] = frozenset(
-    {"analysis", "rerank", "synthesis", "site", "accordion", "brief", "report", "qa", "maintenance"}
+    {
+        "analysis",
+        "rerank",
+        "synthesis",
+        "site",
+        "accordion",
+        "brief",
+        "report",
+        "qa",
+        "maintenance",
+        "concepts",
+    }
 )
 
 
@@ -93,6 +104,7 @@ class RouterConfig(BaseSettings):
     report_model: str = ""
     qa_model: str = ""
     maintenance_model: str = ""
+    concepts_model: str = ""
 
     # Per-workload provider overrides (empty = use global provider)
     analysis_provider: str = ""
@@ -104,6 +116,7 @@ class RouterConfig(BaseSettings):
     report_provider: str = ""
     qa_provider: str = ""
     maintenance_provider: str = ""
+    concepts_provider: str = ""
 
     # Ops directory for telemetry and task files
     ops_dir: str = ""
