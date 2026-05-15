@@ -59,37 +59,16 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 ### Milestones at a glance
 
-Previously shipped: **0.1 through 0.7.2** (initial release, internal foundations, MCP-first surface, local inference, living wiki, synthesis-quality patch). Per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+Previously shipped: **0.1 through 0.8.0** (initial release, internal foundations, MCP-first surface, local inference, living wiki, synthesis-quality patch, concept playbook). Per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 In flight and ahead:
 
-- **0.8 Concept playbook** (next build) — per-topic ACE-style concept and entity notes with deterministic delta merges, credal-interval evidence bounds, and contradiction surfacing. New `distill concepts` command + opt-in `--concepts` flag on existing ingest commands. New MCP `find_concepts` / `read_concept` tools.
-- **0.8.1 Frontmatter rename + migration** — rename `confidence:` → `synthesis_scope:` in synthesis emitters with a one-shot migration over existing artifacts. Isolated cleanup, separated from 0.8 so the playbook PR stays scoped.
-- **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape) with eval-gated quality contract, two-pass synthesis with structured claim intermediate, `distill ingest <path>` for local PDFs / markdown / clipped articles.
+- **0.8.1 Frontmatter rename + migration** (next build) — rename `confidence:` → `synthesis_scope:` in synthesis emitters with a one-shot migration over existing artifacts. Isolated cleanup that 0.8 deferred to keep the playbook PR scoped.
+- **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape), two-pass synthesis with a structured claim intermediate (the same append-only-JSONL pattern 0.8 used for mentions, applied to claims), `distill ingest <path>` for local PDFs / markdown / clipped articles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails.
-- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate, performance baseline, presentation pass.
+- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate (now also covering concept extraction outputs from 0.8), performance baseline, presentation pass.
 
 Detail for each in-flight milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
-
-### 0.8.0 — Concept playbook
-
-Where distillr stops being a batch processor and starts maintaining a knowledge base. Built directly on the 0.7 wiki conventions.
-
-**Concept and entity extraction.** Detect named techniques, architectures, datasets, metrics, people, organizations, and vendors mentioned across 3+ per-source insights for a topic. Emit per-topic playbook notes at `library/topics/<topic>/concepts/<slug>.md` and `library/topics/<topic>/entities/<slug>.md`. Per-topic because a concept like "transformer" has different meaning across an ML corpus and a power-engineering corpus; cross-topic identity is hard, per-topic identity is tractable. Threshold-of-three filters single-mention noise.
-
-**ACE-style playbook structure, not freeform summaries.** Each note is a deterministic projection of merged source mentions, not LLM-generated prose. Sections: helpful evidence, harmful/contradicting evidence, cross-source patterns, sources (wiki-linked back to the contributing `_Insights.md` files). Frontmatter records the credal-interval evidence bounds plus per-source polarity rows.
-
-**Credal-interval evidence bounds.** Frontmatter stores `helpful_evidence: [lower, upper]` and `harmful_evidence: [lower, upper]`. The lower bound counts only unambiguously-supporting sources; the upper bound additionally counts neutral/ambiguous mentions. The width `upper - lower` is the disagreement margin. *Why intervals:* a scalar `helpful_count: 5` collapses "five sources strongly agree" and "two strongly agree, three discuss in passing" into the same number. Intervals preserve that distinction and let `distill health` surface genuinely contested concepts. Scalar derived views (`helpful_count = upper`) ship alongside in `concepts.jsonl` for ergonomic reads.
-
-**Deterministic delta merges.** Refresh is incremental: only newly-ingested insights run through the LLM extraction step; the merge step is pure Python (commutative under source ordering, idempotent under repeated application). Prior versions of overwritten concept notes land in `library/topics/<topic>/.history/<slug>/<iso-timestamp>.md`. No monolithic rewrites.
-
-**Contradiction surfacing.** Contested concepts (both polarities present) lift into `distill health <topic>` output. Per-topic `concepts.jsonl` and `entities.jsonl` exports give downstream agents and graph DBs a structured-row view.
-
-**Surface.** New `distill concepts <topic>` standalone command (idempotent; runs over existing insights, merges new ones). Opt-in `--concepts` flag on `distill papers`, `latest`, `site-batch`, and `watch` so a single ingest produces concept notes in the same run. New MCP tools `find_concepts` and `read_concept` mirror the `find_insights` / `read_insight` JIT-retrieval pattern.
-
-**Out of scope for 0.8.0** (deferred so the playbook PR ships clean): the `confidence:` → `synthesis_scope:` frontmatter rename lives in 0.8.1 as an isolated migration; `distill ingest <path>` for local files moves to 0.9 alongside the discovery-loop work.
-
-Why this version: the qualitative shift the roadmap has been pointing at. Depends on stable artifact metadata (0.7) and the LLM router (0.3) to keep the merge step cheap.
 
 ### 0.8.1 — Frontmatter rename + migration
 
@@ -111,7 +90,7 @@ The preview → approve → ingest workflow becomes the default front door, synt
 
 **Synthesis depth.**
 
-- **Two-pass synthesis with a structured intermediate.** Replace single-pass synthesis with: (1) claim-extraction pass over each per-source insight emitting `claim_id, source_id, claim_text, evidence_type, dataset, metric` rows into a per-topic `claims.jsonl`; (2) synthesis pass over the claim set that clusters, finds contradictions, and writes the narrative with explicit per-claim citations. The 0.7.2 prompt rewrite raised the quality contract but is still single-pass; the structured intermediate is what makes that contract reliably enforceable and what makes synthesis composable with the 0.8 concept playbook (concepts can attach evidence to specific claim IDs instead of insight files).
+- **Two-pass synthesis with a structured intermediate.** Replace single-pass synthesis with: (1) claim-extraction pass over each per-source insight emitting `claim_id, source_id, claim_text, evidence_type, dataset, metric` rows into a per-topic `claims.jsonl`; (2) synthesis pass over the claim set that clusters, finds contradictions, and writes the narrative with explicit per-claim citations. The 0.7.2 prompt rewrite raised the quality contract but is still single-pass; the structured intermediate is what makes that contract reliably enforceable. Architecturally this is the same append-only-JSONL + pure-Python-merge pattern 0.8 used for `mentions.jsonl` — the playbook layer validated that the LLM-produces-rows / Python-merges-rows split works in production. Reusing that pattern means concepts can attach evidence to specific claim IDs (instead of whole insight files) once both layers exist.
 - Synthesis register styles: `--style exec | pop | landscape | disagreements-only` selects emphasis, but every style honors the PhD-level contract shipped in 0.7.2 (cross-paper claims, comparison matrix, named disagreements, shared blind spots).
 
 **Local-file ingest.**
@@ -144,13 +123,13 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 
 **Quality bar (CI-enforced, not aspirational).**
 
-- **Test coverage ≥80% overall**, ≥90% on `distill/llm/`, `distill/pipeline/`, `distill/ingestors/`, `distill/commands/`. Coverage is reported on every PR and ratchets — it can go up, not down.
+- **Test coverage ≥80% overall**, ≥90% on `distill/llm/`, `distill/pipeline/`, `distill/ingestors/`, `distill/commands/`, `distill/concepts/`. Coverage is reported on every PR and ratchets — it can go up, not down.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.
 - **Pyright strict** across the full surface, blocking. No `# type: ignore` without an inline reason comment.
 - **Ruff** zero-warning under the project config, blocking. Cyclomatic complexity (`C901`) capped; `# noqa` requires an inline justification.
 - **Bandit + pip-audit** blocking in CI. Dev dependencies pinned and audited on a documented cadence.
 - **No silent error swallowing.** Every `except` either re-raises or logs-then-raises. Audited and lint-rule-enforced where ruff supports it.
-- **Golden corpus eval gate.** A frozen ~20-paper reference corpus ships with hand-checked golden insights (claims, methods, limits sections). CI runs the full analysis pipeline against it with mock LLM responses fixed for reproducibility, and gates on per-section agreement with the golden output. Catches the regression class that the rest of the quality bar misses — prompt drift, model swaps, and silent degradation of section extraction — none of which show up in coverage, type, or lint gates. Without this, the 1.0 stability claim covers structure but not output quality.
+- **Golden corpus eval gate.** A frozen ~20-paper reference corpus ships with hand-checked golden insights (claims, methods, limits sections) plus hand-checked concept-playbook output (which concepts cross threshold, which polarities, which intervals). CI runs the full analysis + concepts pipeline against it with mock LLM responses fixed for reproducibility, and gates on per-section agreement with the golden output. Catches the regression class that the rest of the quality bar misses — prompt drift, model swaps, and silent degradation of section extraction or concept polarity assignment — none of which show up in coverage, type, or lint gates. Without this, the 1.0 stability claim covers structure but not output quality.
 - **Pre-commit hooks identical to CI checks** — no contributor surprises between local and remote.
 
 **Polish.**
