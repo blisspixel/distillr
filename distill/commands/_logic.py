@@ -5386,7 +5386,9 @@ def health(  # noqa: C901 -- straight-line walk over topics + warning categories
 
     if contested_by_topic:
         console.print()
-        console.print("  [bold]Contested concepts[/bold] (both helpful and harmful evidence present):")
+        console.print(
+            "  [bold]Contested concepts[/bold] (both helpful and harmful evidence present):"
+        )
         for t, items in sorted(contested_by_topic.items()):
             console.print(f"  [dim]{t}:[/dim]")
             for c in items[:10]:  # cap per-topic to keep output readable
