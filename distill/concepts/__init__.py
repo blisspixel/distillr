@@ -40,6 +40,7 @@ Module surface:
 
 from __future__ import annotations
 
+from distill.concepts.pipeline import ConceptRunSummary, run_concepts
 from distill.concepts.records import (
     ConceptKind,
     ConceptMention,
@@ -52,8 +53,10 @@ from distill.concepts.records import (
 __all__ = [
     "ConceptKind",
     "ConceptMention",
+    "ConceptRunSummary",
     "EvidenceInterval",
     "MergedConcept",
     "Polarity",
     "SourceEvidence",
+    "run_concepts",
 ]

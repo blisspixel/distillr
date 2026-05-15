@@ -254,7 +254,7 @@ def mentions_jsonl_path(topic_dir: Path) -> Path:
     return topic_dir / ".concepts" / "mentions.jsonl"
 
 
-def append_mentions(topic_dir: Path, rows: list[Mapping[str, Any]]) -> Path:
+def append_mentions(topic_dir: Path, rows: list[Mapping[str, Any]] | list[dict[str, Any]]) -> Path:
     """Append mention records to ``mentions.jsonl``, creating directories as needed.
 
     Append-only: this file is the audit trail of what the LLM produced
