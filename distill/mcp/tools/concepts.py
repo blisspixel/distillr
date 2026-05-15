@@ -107,7 +107,20 @@ def read_concept(path: str) -> str:
         )
     if not full_path.is_file():
         return json.dumps({"status": "error", "error": f"Path not found: {path}"}, indent=2)
-    if "/concepts/" not in path.replace("\\", "/") and "/entities/" not in path.replace("\\", "/"):
+    # SECURITY: check the *resolved* path's directory parts, not the raw input.
+    # An earlier version did substring checks on the unnormalized path string,
+    # which let inputs like ``concepts/../secret.md`` pass the guard while
+    # resolving outside the concepts/entities tree. ``_resolve_within_library``
+    # keeps the read inside ``library_dir``, but that alone doesn't enforce
+    # this tool's narrower contract (concept/entity playbook notes only).
+    try:
+        resolved_parts = {p.lower() for p in full_path.parts}
+    except (OSError, ValueError):
+        return json.dumps(
+            {"status": "error", "error": "Path is not a concept or entity note."},
+            indent=2,
+        )
+    if not (resolved_parts & {"concepts", "entities"}):
         return json.dumps(
             {"status": "error", "error": "Path is not a concept or entity note."},
             indent=2,

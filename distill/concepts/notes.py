@@ -57,6 +57,13 @@ def note_path_for(topic_dir: Path, concept: MergedConcept) -> Path:
 
     Routing is by ``concept.kind.is_entity``; the filename is
     ``<slug>.md`` so Obsidian-style ``[[slug]]`` links resolve cleanly.
+
+    Slug collision handling lives in ``write_playbook`` rather than here:
+    this function returns the *base* path the slug points at; if another
+    concept already owns that path with a different ``normalized_name``,
+    the writer picks ``<slug>__<n>.md`` (suffix bumping) and the
+    ``.normalized_name`` frontmatter field becomes the authoritative
+    identity that resolves the collision on subsequent writes.
     """
     parent = (
         entity_dir_for_topic(topic_dir)
@@ -64,6 +71,54 @@ def note_path_for(topic_dir: Path, concept: MergedConcept) -> Path:
         else concept_dir_for_topic(topic_dir)
     )
     return parent / f"{concept.slug}.md"
+
+
+def _existing_owner(target: Path) -> str | None:
+    """Return the ``normalized_name`` recorded in an existing note's frontmatter, or ``None``.
+
+    Used by collision detection: two distinct concepts can produce the
+    same slug, so before overwriting we read the target's frontmatter
+    and confirm the existing note belongs to the same logical concept.
+    Returns ``None`` if the file doesn't exist or the frontmatter is
+    unreadable / missing the field.
+    """
+    if not target.is_file():
+        return None
+    try:
+        content = target.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    from distill.library.paths import extract_frontmatter
+
+    fm = extract_frontmatter(content)
+    name = fm.get("normalized_name", "")
+    return name or None
+
+
+def _resolve_collision(parent: Path, slug: str, normalized_name: str) -> Path:
+    """Find a path under ``parent`` that this concept can own, suffix-bumping on collision.
+
+    Algorithm: start at ``<slug>.md``. If unused, take it. If used by
+    *this* normalized_name (idempotent re-write), take it. Otherwise
+    bump to ``<slug>__2.md``, ``<slug>__3.md``, ... until we find a
+    free or self-owned slot. Returns the path to use.
+    """
+    base = parent / f"{slug}.md"
+    owner = _existing_owner(base)
+    if owner is None or owner == normalized_name:
+        return base
+    for n in range(2, 1000):
+        candidate = parent / f"{slug}__{n}.md"
+        owner = _existing_owner(candidate)
+        if owner is None or owner == normalized_name:
+            return candidate
+    # Pathological: 1000 distinct slug collisions in one topic. Fall
+    # back to a name-hash suffix so we still produce a deterministic
+    # path rather than raising.
+    import hashlib
+
+    digest = hashlib.sha1(normalized_name.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+    return parent / f"{slug}__{digest}.md"
 
 
 def history_path_for(topic_dir: Path, concept: MergedConcept, timestamp: str) -> Path:
@@ -94,6 +149,13 @@ def _build_frontmatter(concept: MergedConcept) -> dict[str, Any]:
         "type": "entity" if concept.kind.is_entity else "concept",
         "name": concept.name,
         "slug": concept.slug,
+        # normalized_name is the *identity* field for collision detection.
+        # Two distinct concepts can hash to the same slug under the lossy
+        # canonicalization (e.g. "a b" and "a/b" both -> "a_b"); the writer
+        # reads this field back on the next write to decide whether the
+        # target file belongs to the same concept (overwrite) or a
+        # different one (suffix-bump to "<slug>__2.md", etc).
+        "normalized_name": concept.normalized_name,
         "topic": concept.topic,
         "kind": concept.kind.value,
         "source_count": concept.source_count,
@@ -229,8 +291,17 @@ def write_playbook(
 
     ``now_iso`` is injected so callers can supply a stable timestamp for
     testing; in production this is ``utcnow_iso()``.
+
+    Collision handling: ``MergedConcept.slug`` collapses non-alphanumeric
+    characters to underscores, so distinct concepts can produce the same
+    slug ("a b", "a/b", "a-b" all -> "a_b"). The writer reads the existing
+    target's frontmatter to check ownership and falls back to
+    ``<slug>__2.md`` etc. when the slot is owned by a different
+    ``normalized_name``. The ``.history/`` snapshot path also tracks the
+    chosen filename so the snapshot tree mirrors the live tree.
     """
-    target = note_path_for(topic_dir, concept)
+    parent = note_path_for(topic_dir, concept).parent
+    target = _resolve_collision(parent, concept.slug, concept.normalized_name)
     new_content = render_playbook(concept)
 
     if target.exists():

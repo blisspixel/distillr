@@ -195,6 +195,69 @@ class TestWritePlaybook:
         history_dir = tmp_path / ".history" / "rotational_embeddings"
         assert not history_dir.exists()
 
+    def test_collision_suffix_bumps_distinct_concepts(self, tmp_path: Path) -> None:
+        """Two distinct normalized_names that produce the same slug must not overwrite each other.
+
+        Regression: MergedConcept.slug is lossy ("a b" and "a/b" both
+        collapse to "a_b"). The writer previously assumed any existing
+        file at <slug>.md was the same concept and overwrote it. The
+        fix reads the existing note's normalized_name from frontmatter
+        and suffix-bumps when the slugs collide but identities differ.
+        """
+        c1 = MergedConcept(
+            name="A B",
+            normalized_name="a b",
+            kind=ConceptKind.TECHNIQUE,
+            topic="t",
+            sources=(SourceEvidence(source_id="S1", artifact_path="p.md", polarity=Polarity.HELPFUL),),
+            helpful_evidence=EvidenceInterval(1, 1),
+            harmful_evidence=EvidenceInterval(0, 0),
+            first_seen="x",
+            last_seen="x",
+        )
+        c2 = MergedConcept(
+            name="A/B",
+            normalized_name="a/b",
+            kind=ConceptKind.TECHNIQUE,
+            topic="t",
+            sources=(SourceEvidence(source_id="S2", artifact_path="q.md", polarity=Polarity.HELPFUL),),
+            helpful_evidence=EvidenceInterval(1, 1),
+            harmful_evidence=EvidenceInterval(0, 0),
+            first_seen="x",
+            last_seen="x",
+        )
+        # Both have slug "a_b" but distinct normalized_names
+        assert c1.slug == c2.slug == "a_b"
+
+        path1, _ = write_playbook(tmp_path, c1, now_iso="2026-05-15T10:00:00Z")
+        path2, _ = write_playbook(tmp_path, c2, now_iso="2026-05-15T10:00:01Z")
+
+        # Distinct files: the second concept must not overwrite the first
+        assert path1 != path2
+        assert path1.exists()
+        assert path2.exists()
+        # The first concept's content is intact
+        assert "a b" in path1.read_text(encoding="utf-8")
+        # The second concept got the suffix-bumped path
+        assert "__2" in path2.name
+
+    def test_idempotent_same_concept_with_lossy_slug(self, tmp_path: Path) -> None:
+        """Re-writing the same concept (same normalized_name) doesn't suffix-bump."""
+        c = MergedConcept(
+            name="A B",
+            normalized_name="a b",
+            kind=ConceptKind.TECHNIQUE,
+            topic="t",
+            sources=(SourceEvidence(source_id="S1", artifact_path="p.md", polarity=Polarity.HELPFUL),),
+            helpful_evidence=EvidenceInterval(1, 1),
+            harmful_evidence=EvidenceInterval(0, 0),
+            first_seen="x",
+            last_seen="x",
+        )
+        path1, _ = write_playbook(tmp_path, c, now_iso="2026-05-15T10:00:00Z")
+        path2, _ = write_playbook(tmp_path, c, now_iso="2026-05-15T11:00:00Z")
+        assert path1 == path2  # same logical concept -> same file
+
     def test_overwrites_and_snapshots_prior(self, tmp_path: Path) -> None:
         first = _concept(helpful=(2, 4))
         write_playbook(tmp_path, first, now_iso="2026-05-15T14:30:00Z")
