@@ -2507,6 +2507,11 @@ def latest_cmd(
         False, "--brief", help="Generate a concise topic brief after processing"
     ),
     test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
+    concepts_flag: bool = typer.Option(
+        False,
+        "--concepts",
+        help="Run the concept playbook extraction over the topic after ingest succeeds",
+    ),
 ):
     """Opinionated topic-first workflow for getting current fast."""
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
@@ -2561,6 +2566,9 @@ def latest_cmd(
         expand=effective_expand,
         top_by_date=top_by_date,
     )
+    if concepts_flag:
+        effective_topic = topic or _topic_from_query(query)
+        _run_concepts_after_ingest(effective_topic)
 
 
 @app.command(name="brief", rich_help_panel="Discover")
@@ -5223,8 +5231,121 @@ def _check_lmstudio_status() -> str:
     return "unavailable"
 
 
+def _run_concepts_after_ingest(
+    topic: str,
+    *,
+    tracker: "CostTracker | None" = None,
+) -> None:
+    """Run the concept playbook over a topic after an ingest succeeds.
+
+    Helper for the ``--concepts`` opt-in flag on ``distill papers``,
+    ``distill latest``, and ``distill site-batch``. Best-effort: any
+    extraction failure logs but does not fail the ingest -- the freshly-
+    ingested insights are still valuable on their own.
+    """
+    from distill.concepts import run_concepts
+    from distill.llm import RouterConfig
+
+    config = get_config()
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        console.print(f"[dim]--concepts skipped (topic dir missing: {topic_dir})[/dim]")
+        return
+    console.print("\n[bold]Concept playbook[/bold]")
+    try:
+        summary = run_concepts(topic=topic, topic_dir=topic_dir, rc=RouterConfig(), tracker=tracker)
+    except Exception as exc:
+        console.print(f"[yellow]Concept extraction failed: {exc}[/yellow]")
+        return
+    console.print(
+        f"  scanned={summary.insights_scanned} "
+        f"extracted={summary.insights_extracted} "
+        f"mentions+={summary.mentions_added} "
+        f"notes={summary.notes_written} (concepts={summary.concepts_written}, entities={summary.entities_written}, unchanged={summary.concepts_unchanged})"
+    )
+
+
+@app.command(name="concepts", rich_help_panel="Library")
+def concepts(
+    topic: str = typer.Argument(
+        ..., help="Topic name (existing or new)", autocompletion=_complete_topics
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "--refresh",
+        help="Re-extract over every insight, ignoring the existing mentions.jsonl log",
+    ),
+    threshold: int = typer.Option(
+        3,
+        "--threshold",
+        "-t",
+        help="Minimum distinct sources to emit a concept note (default 3, the noise floor)",
+    ),
+    json_out: bool = typer.Option(False, "--json", help="Emit a machine-readable summary envelope"),
+):
+    """Extract and merge concept / entity playbook notes for a topic.
+
+    Walks library/topics/<topic>/{papers,videos,sites}/**/*_Insights.md,
+    runs the concept-extraction LLM pass over any insight not already
+    in mentions.jsonl, then merges and writes:
+
+      library/topics/<topic>/concepts/<slug>.md      (techniques, etc.)
+      library/topics/<topic>/entities/<slug>.md      (people, orgs, vendors)
+      library/topics/<topic>/concepts.jsonl          (rollup)
+      library/topics/<topic>/entities.jsonl          (rollup)
+
+    Idempotent: re-running without --refresh skips already-extracted
+    insights and only re-writes notes whose merged content actually
+    changed.
+    """
+    from distill.concepts import run_concepts
+    from distill.llm import RouterConfig
+    from distill.pipeline.costs import CostTracker
+
+    config = get_config()
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
+        raise typer.Exit(1)
+
+    rc = RouterConfig()
+    tracker = CostTracker()
+    summary = run_concepts(
+        topic=topic,
+        topic_dir=topic_dir,
+        rc=rc,
+        threshold=threshold,
+        refresh=refresh,
+        tracker=tracker,
+    )
+
+    if json_out:
+        from distill.commands._json import JsonEnvelope
+
+        payload = summary.to_dict()
+        payload["cost"] = tracker.format_cost()
+        typer.echo(JsonEnvelope.success(payload).to_json())
+        return
+
+    console.print()
+    console.print(f"[bold]Concept playbook -- {topic}[/bold]")
+    console.print(f"  Insights scanned:    {summary.insights_scanned}")
+    console.print(f"  Insights extracted:  {summary.insights_extracted}")
+    console.print(f"  Mentions added:      {summary.mentions_added}")
+    console.print(
+        f"  Concept notes:       {summary.concepts_written} written, {summary.concepts_unchanged} unchanged"
+    )
+    console.print(f"  Entity notes:        {summary.entities_written} written")
+    console.print(f"  Cost:                {tracker.format_cost()}")
+    console.print()
+    if summary.insights_extracted == 0 and summary.mentions_added == 0:
+        console.print(
+            "  [dim]No new insights to extract. Use --refresh to re-extract over all sources.[/dim]"
+        )
+
+
 @app.command(rich_help_panel="Maintain")
-def health(
+def health(  # noqa: C901 -- straight-line walk over topics + warning categories
     topic: str = typer.Argument(
         "all",
         help="Topic to audit, or 'all' for the full library",
@@ -5232,10 +5353,20 @@ def health(
     ),
 ):
     """Audit corpus quality signals like stale syntheses and thin artifacts."""
+    from distill.concepts.contradictions import find_contested
+
     config = get_config()
     lib = Library(config)
     topics = lib.get_topics() if topic == "all" else [topic]
     warnings = _collect_corpus_health_warnings(config, lib, topics, limit=50)
+
+    contested_by_topic: dict[str, list] = {}
+    for t in topics:
+        topic_dir = config.topic_dir(t)
+        if topic_dir.exists():
+            contested = find_contested(topic_dir)
+            if contested:
+                contested_by_topic[t] = contested
 
     console.print()
     console.print("[bold]Corpus Health[/bold]")
@@ -5246,12 +5377,28 @@ def health(
         console.print("  [yellow]No topics found to audit[/yellow]")
         return
 
-    if not warnings:
+    if not warnings and not contested_by_topic:
         console.print("  [green]No obvious corpus health issues detected[/green]")
         return
 
     for item in warnings:
         console.print(f"  [yellow]-[/yellow] {item}")
+
+    if contested_by_topic:
+        console.print()
+        console.print(
+            "  [bold]Contested concepts[/bold] (both helpful and harmful evidence present):"
+        )
+        for t, items in sorted(contested_by_topic.items()):
+            console.print(f"  [dim]{t}:[/dim]")
+            for c in items[:10]:  # cap per-topic to keep output readable
+                label = "entity" if c.is_entity else "concept"
+                console.print(
+                    f"    [yellow]-[/yellow] {c.name} ({label}, {c.helpful_count} helpful / "
+                    f"{c.harmful_count} harmful across {c.source_count} sources)"
+                )
+            if len(items) > 10:
+                console.print(f"    [dim]... and {len(items) - 10} more[/dim]")
 
     console.print()
     console.print(
@@ -7021,6 +7168,11 @@ def papers(  # noqa: C901 — legacy, will refactor
         "--preview",
         help="Preview the selected set without processing it",
     ),
+    concepts_flag: bool = typer.Option(
+        False,
+        "--concepts",
+        help="Run the concept playbook extraction over the topic after ingest succeeds",
+    ),
 ):
     """Search arXiv and ingest a paper set into the topic corpus."""
     if sort not in {"relevance", "date"}:
@@ -7117,6 +7269,8 @@ def papers(  # noqa: C901 — legacy, will refactor
         summary.add_output(
             find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
         )
+    if concepts_flag:
+        _run_concepts_after_ingest(topic_name, tracker=tracker)
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -7524,6 +7678,11 @@ def site_batch_cmd(
         False, "--report", help="Run Deep Research report after processing"
     ),
     test: bool = typer.Option(False, "--test", help="Pass --test through to report generation"),
+    concepts_flag: bool = typer.Option(
+        False,
+        "--concepts",
+        help="Run the concept playbook extraction over the topic after ingest succeeds",
+    ),
 ):
     """Process a simple list or JSON config of websites."""
     config = get_config()
@@ -7586,6 +7745,8 @@ def site_batch_cmd(
                 details={"topic": target_topic},
             )
 
+    if concepts_flag:
+        _run_concepts_after_ingest(target_topic, tracker=tracker)
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
     if report:
         _run_scope_report(target_topic, config, tracker, scope="topic", test=test, summary=summary)
