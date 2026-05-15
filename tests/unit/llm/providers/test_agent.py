@@ -16,7 +16,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from distill.llm.providers.agent import AgentProvider
-from distill.llm.router import LLM_Response, PendingTaskError
+from distill.llm.router import ConfigurationError, LLM_Response, PendingTaskError
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -130,6 +130,28 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
 
 class TestAgentProviderLifecycle:
     """Test AgentProvider task file writing, reading, and lifecycle."""
+
+    def test_empty_ops_dir_is_rejected(self) -> None:
+        """Agent tasks must never default to ./tasks under the cwd."""
+        with pytest.raises(ConfigurationError, match="non-empty ops_dir"):
+            AgentProvider(ops_dir="")
+
+    def test_router_reasoning_effort_argument_is_accepted(self, tmp_path: Path) -> None:
+        """Router may pass reasoning_effort; agent provider ignores it safely."""
+        ops_dir = tmp_path / "ops"
+        provider = AgentProvider(ops_dir=str(ops_dir))
+
+        with pytest.raises(PendingTaskError):
+            asyncio.run(
+                provider.call(
+                    "agent",
+                    "test prompt",
+                    call_type="analysis",
+                    reasoning_effort="medium",
+                )
+            )
+
+        assert (ops_dir / "tasks" / "pending").exists()
 
     def test_task_file_written_to_correct_directory(self, tmp_path: Path) -> None:
         """Task file is written to <ops_dir>/tasks/pending/."""

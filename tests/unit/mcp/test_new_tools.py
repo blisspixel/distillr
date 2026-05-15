@@ -113,6 +113,43 @@ class TestPapersTool:
         assert result["status"] == "error"
         assert "XAI_API_KEY" in result["error"]
 
+    def test_processes_paper_records(self, mock_config, monkeypatch, tmp_path):
+        from distill.ingestors.papers.arxiv import PaperRecord
+
+        paper = PaperRecord(
+            paper_id="2602.12670v1",
+            title="Agent Memory Systems",
+            abstract="A paper about memory systems.",
+            authors=["Alice"],
+            abs_url="https://arxiv.org/abs/2602.12670v1",
+            pdf_url="https://arxiv.org/pdf/2602.12670v1.pdf",
+        )
+        monkeypatch.setattr("distill.ingestors.papers.arxiv.search_arxiv", lambda *a, **k: [paper])
+        monkeypatch.setattr(
+            "distill.pipeline.analysis.paper.analyze_paper",
+            lambda *a, **k: ("# Insights", "# Paper"),
+        )
+        monkeypatch.setattr(
+            "distill.commands._logic._write_paper_artifacts",
+            lambda *a, **k: tmp_path / "paper",
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.analysis.paper.synthesize_papers",
+            lambda *a, **k: "# Synthesis",
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.synthesis.corpus.synthesize_corpus",
+            lambda *a, **k: "# Corpus",
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.papers import papers
+
+            result = json.loads(asyncio.run(papers("ai", "agent memory", limit=1)))
+
+        assert result["status"] == "complete"
+        assert result["papers"] == [{"title": "Agent Memory Systems", "status": "ok"}]
+
 
 class TestSiteBatchTool:
     def test_no_urls_or_seed(self, mock_config):
@@ -129,7 +166,65 @@ class TestSiteBatchTool:
 
             result = json.loads(asyncio.run(site_batch("ai", seed_file="/nonexistent.txt")))
         assert result["status"] == "error"
-        assert "not found" in result["error"].lower()
+        assert "inside the library root" in result["error"]
+
+    def test_seed_file_must_stay_inside_library(self, mock_config, tmp_path):
+        outside = tmp_path / "seeds.txt"
+        outside.write_text("https://private.example/internal\n", encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=str(outside))))
+
+        assert result["status"] == "error"
+        assert "inside the library root" in result["error"]
+        assert "private.example" not in json.dumps(result)
+
+    def test_seed_file_inside_library_processes_site_seed(self, mock_config, monkeypatch):
+        seed_file = mock_config.library_dir / "seeds.txt"
+        seed_file.write_text("https://example.com/guide\n", encoding="utf-8")
+        seen = []
+
+        def fake_process_site_seed(seed, config, tracker, summary):
+            seen.append((seed.url, seed.topic, config, summary.command))
+            return "Example", 1
+
+        monkeypatch.setattr("distill.commands._logic._process_site_seed", fake_process_site_seed)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="seeds.txt")))
+
+        assert result["status"] == "complete"
+        assert result["pages"] == [
+            {
+                "url": "https://example.com/guide",
+                "site": "Example",
+                "pages": 1,
+                "status": "ok",
+            }
+        ]
+        assert seen == [("https://example.com/guide", "ai", mock_config, "site-batch")]
+
+    def test_direct_urls_use_existing_site_pipeline(self, mock_config, monkeypatch):
+        seen = []
+
+        def fake_process_site_seed(seed, config, tracker, summary):
+            seen.append((seed.url, seed.max_depth, seed.max_pages))
+            return "Example", 0
+
+        monkeypatch.setattr("distill.commands._logic._process_site_seed", fake_process_site_seed)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", urls=["https://example.com/guide"])))
+
+        assert result["status"] == "complete"
+        assert result["pages"][0]["status"] == "skipped"
+        assert seen == [("https://example.com/guide", 0, 1)]
 
 
 class TestSynthesizeTool:
@@ -158,3 +253,33 @@ class TestDiscoverTool:
             result = json.loads(asyncio.run(discover("test goal")))
         assert result["status"] == "error"
         assert "XAI_API_KEY" in result["error"]
+
+    def test_papers_only_handles_paper_record_authors(self, mock_config, monkeypatch):
+        from distill.ingestors.papers.arxiv import PaperRecord
+
+        monkeypatch.setattr(
+            "distill.ingestors.papers.arxiv.search_arxiv",
+            lambda *a, **k: [
+                PaperRecord(
+                    paper_id="2602.12670v1",
+                    title="Agent Memory Systems",
+                    abstract="A paper about memory systems.",
+                    authors=["Alice", "Bob"],
+                    abs_url="https://arxiv.org/abs/2602.12670v1",
+                )
+            ],
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.discover import discover
+
+            result = json.loads(asyncio.run(discover("agent memory", papers_only=True)))
+
+        assert result["status"] == "complete"
+        assert result["papers"] == [
+            {
+                "title": "Agent Memory Systems",
+                "authors": ["Alice", "Bob"],
+                "url": "https://arxiv.org/abs/2602.12670v1",
+            }
+        ]

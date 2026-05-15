@@ -1,5 +1,7 @@
 import json
+import sys
 from datetime import datetime
+from pathlib import Path
 
 from distill import preflight
 
@@ -154,6 +156,44 @@ def test_update_ytdlp_returns_failure_on_pip_error(monkeypatch):
     assert ok is False
     assert "pip exploded" in detail
     assert was_noop is False
+
+
+def test_update_ytdlp_runs_pip_from_trusted_cwd_with_sanitized_env(monkeypatch):
+    class _Result:
+        returncode = 0
+        stderr = ""
+        stdout = ""
+
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return _Result()
+
+    monkeypatch.setenv("PYTHONPATH", ".")
+    monkeypatch.setenv("PYTHONHOME", "bad")
+    monkeypatch.setattr(preflight.subprocess, "run", fake_run)
+    versions = iter(["2026.1.1", "2026.4.20"])
+    monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: next(versions))
+
+    ok, detail, was_noop = preflight.update_ytdlp()
+
+    assert ok is True
+    assert detail == "2026.4.20"
+    assert was_noop is False
+    assert captured["args"] == [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "yt-dlp",
+    ]
+    assert captured["kwargs"]["cwd"] == str(Path(sys.executable).resolve().parent)
+    assert "PYTHONPATH" not in captured["kwargs"]["env"]
+    assert "PYTHONHOME" not in captured["kwargs"]["env"]
+    assert captured["kwargs"]["env"]["PYTHONSAFEPATH"] == "1"
 
 
 def test_update_ytdlp_returns_success_on_pip_zero_exit(monkeypatch):

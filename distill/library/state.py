@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from distill.config import DistillConfig
+from distill.library.paths import sanitize_topic
 
 __all__ = [
     "ChannelInfo",
@@ -90,8 +91,6 @@ class Library:
 
     def add_channel(self, topic: str, url: str, name: str):
         """Add a channel to a topic."""
-        from distill.library.paths import sanitize_topic
-
         topic = sanitize_topic(topic)
         if topic not in self._data["topics"]:
             self._data["topics"][topic] = {"channels": []}
@@ -111,6 +110,7 @@ class Library:
 
     def remove_channel(self, topic: str, url: str) -> bool:
         """Remove a channel from a topic."""
+        topic = sanitize_topic(topic)
         if topic not in self._data["topics"]:
             return False
         channels = self._data["topics"][topic]["channels"]
@@ -125,6 +125,7 @@ class Library:
         return list(self._data["topics"].keys())
 
     def get_channels(self, topic: str) -> list[ChannelInfo]:
+        topic = sanitize_topic(topic)
         if topic not in self._data["topics"]:
             return []
         return [
@@ -139,6 +140,7 @@ class Library:
         return result
 
     def get_channel_by_name(self, topic: str, name: str) -> ChannelInfo | None:
+        topic = sanitize_topic(topic)
         for ch in self.get_channels(topic):
             if ch.name == name:
                 return ch
@@ -159,7 +161,7 @@ class Library:
             WatchEntry(
                 url=e["url"],
                 name=e["name"],
-                topic=e.get("topic", "watch"),
+                topic=sanitize_topic(e.get("topic", "watch")),
                 added_at=e.get("added_at", ""),
                 instructions=e.get("instructions", ""),
                 days=e.get("days", 14),
@@ -176,8 +178,6 @@ class Library:
         days: int = 14,
     ) -> bool:
         """Add a channel to the watch list. Also registers it under the topic."""
-        from distill.library.paths import sanitize_topic
-
         topic = sanitize_topic(topic)
         wl = self._data.setdefault("watchlist", [])
         if any(e["url"] == url for e in wl):
@@ -243,7 +243,7 @@ class Library:
             TopicWatchEntry(
                 name=e["name"],
                 query=e["query"],
-                topic=e.get("topic", "watch"),
+                topic=sanitize_topic(e.get("topic", "watch")),
                 cadence=e.get("cadence", "weekly"),
                 days=e.get("days", 7),
                 limit=e.get("limit", 10),
@@ -276,6 +276,7 @@ class Library:
         max_run_cost: float = 0.0,
         monthly_budget: float = 0.0,
     ) -> bool:
+        topic = sanitize_topic(topic)
         twl = self._data.setdefault("topic_watchlist", [])
         if any(e["name"].lower() == name.lower() for e in twl):
             return False

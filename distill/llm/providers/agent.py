@@ -80,6 +80,7 @@ class AgentProvider:
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
+        reasoning_effort: str | None = None,
     ) -> LLM_Response:
         """Check for existing result or write a new task file.
 

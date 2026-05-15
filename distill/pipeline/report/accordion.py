@@ -247,6 +247,8 @@ def _run_dossier_phase(
         )
 
         interaction_id = interaction.id
+        if tracker:
+            tracker.record_gemini_query()
         console.print(f"[dim]Job ID: {interaction_id}[/dim]")
 
         poll_count = 0
@@ -279,9 +281,6 @@ def _run_dossier_phase(
             console.print("[red]Research completed but no output received[/red]")
             delete_store(client, store_name)
             return None
-
-        if tracker:
-            tracker.record_gemini_query()
 
         return result_text
 

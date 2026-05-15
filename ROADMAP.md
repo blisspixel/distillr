@@ -95,6 +95,7 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 - **0.5 MCP-first surface — SHIPPED** (0.5.0). JIT context (`find_insights` / `read_insight`), `--json` everywhere, MCP tools mirror CLI commands, token-efficient tool descriptions, Grok 4.3 migration.
 - **0.6 Local-control + adaptive context — SHIPPED** (0.6.0). Ollama / LM Studio providers, adaptive chunking, multi-pass analysis, report compaction, hardware detection, `--model` override, Docker.
 - **0.7 Living wiki — SHIPPED** (0.7.0-0.7.1). Obsidian-native wiki-links, artifact provenance in frontmatter, CLI decomposition (finish `_cli_impl.py` to `commands/`), path/slug centralization, legacy bridge removal, report-phase retry hardening.
+- **0.7.2 Synthesis-quality patch** (in-flight) — rewrite paper-synthesis prompt to demand cross-paper claims, comparison matrix, concrete disagreements, and shared blind spots (not topic-clustered capsule summaries). Skip corpus-synthesis when papers are the only input (summary-of-summary adds zero signal). Bug-tier; ships ahead of 0.8.
 - **0.8 Concept playbook** (next build) — ACE-style concept/entity notes with delta merges and contradiction surfacing.
 - **0.9 Discovery loop and synthesis depth** — preview-as-default, cliff detection, `--rigor`, synthesis register styles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, stale-detection, budget guardrails.
@@ -223,9 +224,10 @@ Why this version: pure prompt + frontmatter + tooling + code-health work, no new
 
 Where distillr stops being a batch processor and starts maintaining a knowledge base. Built directly on the 0.7 wiki conventions.
 
-- Concept extraction pass: detect named techniques, architectures, people, vendors mentioned across 3+ insights. Emit `library/concepts/<slug>.md` and `library/entities/<slug>.md` as ACE-style itemized playbooks (`source_id`, `helpful_count`, `harmful_count`, `last_seen`, `provenance`) — not freeform summaries.
-- Deterministic delta merges on refresh: new sources append entries with provenance, increment `helpful_count` on corroboration, add `[contested]` annotations on contradiction. Prior versions land in `.history/`. No monolithic rewrites.
-- Contradiction surfacing: contested entries lifted into `distill health`. `concepts.jsonl` and `entities.jsonl` exports for downstream agents and graph DBs.
+- Concept extraction pass: detect named techniques, architectures, people, vendors mentioned across 3+ insights. Emit `library/concepts/<slug>.md` and `library/entities/<slug>.md` as ACE-style itemized playbooks (`source_id`, `helpful_evidence: [lower, upper]`, `harmful_evidence: [lower, upper]`, `last_seen`, `provenance`) — not freeform summaries. Intervals (credal-network style) preserve disagreement width; scalar `helpful_count` / `harmful_count` are derived views for read ergonomics. Cost is one schema decision now; retrofit cost later is high.
+- Deterministic delta merges on refresh: new sources append entries with provenance, widen the relevant evidence interval on corroboration (lower bound up) or contradiction (upper bound down), add `[contested]` annotations when the interval gets wide enough. Prior versions land in `.history/`. No monolithic rewrites.
+- Contradiction surfacing: contested entries (wide intervals) lifted into `distill health`. `concepts.jsonl` and `entities.jsonl` exports for downstream agents and graph DBs.
+- Frontmatter cleanup: rename `confidence:` → `synthesis_scope:` across emitters. The field is a routing label (`single-paper` vs `corpus-consensus`), not a calibrated number — current name invites downstream consumers to treat it as one. Includes a one-shot migration for existing artifacts.
 - `distill ingest <path>` for local files (PDF, markdown, clipped article) so the playbook layer doesn't only update from network ingestion.
 
 Why this version: the qualitative shift the roadmap has been pointing at. Depends on stable artifact metadata (0.7) and the LLM router (0.3) to keep the merge step cheap.
@@ -239,7 +241,8 @@ The preview → approve → ingest workflow becomes the default front door, and 
 - Real cost estimator that reads candidate metadata before the run (arXiv abstract length + page count; yt-dlp duration; site content-length) and calibrates against historical `cost_log.jsonl`.
 - `--rigor strict|balanced|loose` knob across discover/papers/latest. Audit and document the prompt divergence between commands.
 - Trusted-site discovery and clearer source identity in preview: enumerate real page candidates from allowlisted docs domains (TOCs, sitemaps, landing pages) and show page-level titles/URL context instead of only collection labels.
-- Synthesis register styles, with PhD-level (graduate cross-document analysis, per-claim source attribution) as the new default. `--style exec | pop | landscape | disagreements-only`.
+- **Synthesis architecture: two-pass with structured intermediate.** Replace single-pass synthesis with: (1) claim-extraction pass over each per-source insight emitting `claim_id, source_id, claim_text, evidence_type, dataset, metric` rows; (2) synthesis pass over the claim set that clusters, finds contradictions, and writes the narrative with explicit per-claim citations. Single-pass synthesis is why current output drifts to topic-clustered summaries — the model has no scaffolding for "what a cross-paper claim looks like." The structured intermediate also unblocks the 0.8 concept playbook (credal evidence intervals require atomic claims first).
+- **Synthesis quality contract (PhD-level default).** What "PhD-level" actually requires, enforced via prompt + eval gate: (a) cross-paper claims with multi-paper attribution, (b) a comparison matrix covering every source, (c) concrete disagreements naming both sides and the specific point of conflict, (d) shared methodological blind spots with named sources, (e) a "what this corpus says that no single source does" section. Topic-clustered capsule summaries are the explicit anti-pattern. `--style exec | pop | landscape | disagreements-only` selects emphasis, but every style honors the contract.
 
 Why this version: most of these need 0.3's telemetry to estimate cost honestly and 0.5's MCP surface to expose the same flow to agents. Shipping earlier means re-doing it later.
 
@@ -249,7 +252,7 @@ The "leave it running" version. Hands-off operation for a daily-driver research 
 
 - Scheduled refresh via cron / Task Scheduler; goal-file refresh hook for `distill watch`.
 - Semantic dedup across videos, pages, and papers (artifact-preserving — source-origin attribution stays in the synthesis layer).
-- Stale-detection and auto-reanalysis triggers when prompts or models change materially.
+- Stale-detection and auto-reanalysis triggers when prompts or models change materially. **Artifact-level, not blanket.** Each artifact's frontmatter already records `prompt_id` and `model_version` (since 0.7); stale-detection inverts that index and re-analyzes only the artifacts on the critical path of the changed component. Blanket re-runs on every prompt bump don't scale once the corpus passes a few hundred artifacts.
 - Cost anomaly detection and budget guardrails per topic and workflow.
 - Live per-item progress plus resume-friendly failure handling for long mixed-source runs, so transcript-rate limits or slow site ingestion are visible without manual filesystem inspection.
 
@@ -273,6 +276,7 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 - **Ruff** zero-warning under the project config, blocking. Cyclomatic complexity (`C901`) capped; `# noqa` requires an inline justification.
 - **Bandit + pip-audit** blocking in CI. Dev dependencies pinned and audited on a documented cadence.
 - **No silent error swallowing.** Every `except` either re-raises or logs-then-raises. Audited and lint-rule-enforced where ruff supports it.
+- **Golden corpus eval gate.** A frozen ~20-paper reference corpus ships with hand-checked golden insights (claims, methods, limits sections). CI runs the full analysis pipeline against it with mock LLM responses fixed for reproducibility, and gates on per-section agreement with the golden output. Catches the regression class that the rest of the quality bar misses — prompt drift, model swaps, and silent degradation of section extraction — none of which show up in coverage, type, or lint gates. Without this, the 1.0 stability claim covers structure but not output quality.
 - **Pre-commit hooks identical to CI checks** — no contributor surprises between local and remote.
 
 **Polish.**

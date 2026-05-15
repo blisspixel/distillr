@@ -66,6 +66,15 @@ def synthesize_corpus(
     if not source_sections:
         return ""
 
+    # Skip corpus synthesis when the only input is the paper synthesis itself.
+    # Running it would be a summary-of-a-summary: zero new information over
+    # paper_synthesis.md, and the model can only meta-comment on its single
+    # input. Corpus synthesis is only meaningful when bridging multiple source
+    # types (YouTube/sites/papers). For papers-only topics the paper synthesis
+    # IS the corpus synthesis.
+    if list(source_sections.keys()) == ["Paper Synthesis"]:
+        return ""
+
     rc = RouterConfig()
     response = llm_call(
         rc,

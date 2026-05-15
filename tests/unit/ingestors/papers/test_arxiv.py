@@ -18,6 +18,25 @@ SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 </feed>"""
 
 
+class FakePdfResponse:
+    def __init__(self, *, status_code=200, headers=None, chunks=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self._chunks = chunks or [b"%PDF"]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def raise_for_status(self):
+        return None
+
+    def iter_content(self, chunk_size=65536):
+        yield from self._chunks
+
+
 def test_parse_arxiv_id_supports_abs_and_pdf():
     paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
     assert paper_ingest.parse_arxiv_id("https://arxiv.org/abs/2602.12670") == "2602.12670"
@@ -35,6 +54,27 @@ def test_search_arxiv_papers_parses_feed(monkeypatch):
     assert papers[0].paper_id == "2602.12670v1"
     assert papers[0].title == "Agent Memory Systems"
     assert papers[0].authors == ["Alice", "Bob"]
+
+
+def test_search_arxiv_alias_uses_max_results(monkeypatch):
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    calls = []
+
+    def fake_search(query, limit=10, sort="date"):
+        calls.append((query, limit, sort))
+        return []
+
+    monkeypatch.setattr(paper_ingest, "search_arxiv_papers", fake_search)
+
+    assert paper_ingest.search_arxiv("agent memory", max_results=7) == []
+    assert calls == [("agent memory", 7, "date")]
+
+
+def test_search_arxiv_is_exported_from_package():
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    paper_package = importlib.import_module("distill.ingestors.papers")
+
+    assert paper_package.search_arxiv is paper_ingest.search_arxiv
 
 
 def test_fetch_arxiv_paper_returns_single_record(monkeypatch):
@@ -136,7 +176,7 @@ def test_fetch_paper_pdf_text_reads_and_truncates(monkeypatch):
 
     monkeypatch.setattr(
         "distill.ingestors.papers.arxiv.requests.get",
-        lambda *args, **kwargs: SimpleNamespace(content=b"%PDF", raise_for_status=lambda: None),
+        lambda *args, **kwargs: FakePdfResponse(),
     )
     monkeypatch.setattr(
         "distill.ingestors.papers.arxiv.PdfReader",
@@ -146,6 +186,48 @@ def test_fetch_paper_pdf_text_reads_and_truncates(monkeypatch):
     text = paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf")
 
     assert len(text) == 100000
+
+
+def test_fetch_paper_pdf_text_rejects_non_arxiv_url(monkeypatch):
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    calls = []
+    monkeypatch.setattr(
+        "distill.ingestors.papers.arxiv.requests.get",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    assert paper_ingest.fetch_paper_pdf_text("https://example.com/pdf/2602.12670.pdf") == ""
+    assert calls == []
+
+
+def test_fetch_paper_pdf_text_rejects_oversized_pdf(monkeypatch):
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+
+    monkeypatch.setattr(
+        "distill.ingestors.papers.arxiv.requests.get",
+        lambda *args, **kwargs: FakePdfResponse(headers={"Content-Length": str(51 * 1024 * 1024)}),
+    )
+
+    assert paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf") == ""
+
+
+def test_fetch_paper_pdf_text_revalidates_redirect(monkeypatch):
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return FakePdfResponse(status_code=302, headers={"Location": "https://example.com/x.pdf"})
+
+    monkeypatch.setattr("distill.ingestors.papers.arxiv.requests.get", fake_get)
+
+    assert paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf") == ""
+    assert calls == [
+        (
+            "https://arxiv.org/pdf/2602.12670.pdf",
+            {"timeout": 60, "stream": True, "allow_redirects": False},
+        )
+    ]
 
 
 def test_fetch_paper_pdf_text_returns_empty_on_errors(monkeypatch):

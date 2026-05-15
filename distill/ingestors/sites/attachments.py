@@ -7,7 +7,7 @@ import re
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from pypdf import PdfReader
@@ -32,6 +32,7 @@ _ATTACHMENT_TEXT_LIMIT = 30_000
 # prevents an internal SSRF target from returning an unbounded body that
 # would otherwise be fully read into memory by ``response.content``.
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
+_PDF_MAX_REDIRECTS = 5
 
 
 @dataclass
@@ -144,24 +145,42 @@ def _download_pdf_bytes(url: str) -> bytes:
     type or exceeds the configured size cap; the caller turns that into an
     ``attachment.status = "failed"`` record.
     """
-    with requests.get(url, timeout=30, stream=True) as response:
-        response.raise_for_status()
-        content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-        if content_type and content_type not in {"application/pdf", "application/octet-stream"}:
-            raise _AttachmentFetchError(f"Unexpected content-type: {content_type}")
-        declared = response.headers.get("Content-Length")
-        if declared and declared.isdigit() and int(declared) > _PDF_DOWNLOAD_CAP_BYTES:
-            raise _AttachmentFetchError("PDF exceeds size cap")
-        buf = BytesIO()
-        total = 0
-        for chunk in response.iter_content(chunk_size=64 * 1024):
-            if not chunk:
+    current_url = url
+    for _ in range(_PDF_MAX_REDIRECTS + 1):
+        if not is_public_web_url(current_url):
+            raise _AttachmentFetchError("PDF URL is not a public http(s) resource")
+        with requests.get(
+            current_url,
+            timeout=30,
+            stream=True,
+            allow_redirects=False,
+        ) as response:
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("Location")
+                if not location:
+                    raise _AttachmentFetchError("PDF redirect missing Location header")
+                current_url = urljoin(current_url, location)
                 continue
-            total += len(chunk)
-            if total > _PDF_DOWNLOAD_CAP_BYTES:
+            response.raise_for_status()
+            content_type = (
+                (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            )
+            if content_type and content_type not in {"application/pdf", "application/octet-stream"}:
+                raise _AttachmentFetchError(f"Unexpected content-type: {content_type}")
+            declared = response.headers.get("Content-Length")
+            if declared and declared.isdigit() and int(declared) > _PDF_DOWNLOAD_CAP_BYTES:
                 raise _AttachmentFetchError("PDF exceeds size cap")
-            buf.write(chunk)
-        return buf.getvalue()
+            buf = BytesIO()
+            total = 0
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > _PDF_DOWNLOAD_CAP_BYTES:
+                    raise _AttachmentFetchError("PDF exceeds size cap")
+                buf.write(chunk)
+            return buf.getvalue()
+    raise _AttachmentFetchError("PDF redirect limit exceeded")
 
 
 def _ingest_pdf_attachment(

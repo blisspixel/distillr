@@ -33,6 +33,7 @@ __all__ = [
     "fetch_arxiv_paper",
     "fetch_paper_pdf_text",
     "parse_arxiv_id",
+    "search_arxiv",
     "search_arxiv_multi",
     "search_arxiv_papers",
 ]
@@ -41,7 +42,10 @@ ARXIV_API = "https://export.arxiv.org/api/query"
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 _PDF_TEXT_LIMIT = 100_000
 _PDF_PAGE_LIMIT = 40
+_PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
+_PDF_MAX_REDIRECTS = 5
 _ARXIV_REQUEST_SPACING_SECONDS = 3.5
+_ARXIV_PDF_HOSTS = frozenset({"arxiv.org", "www.arxiv.org"})
 
 
 @dataclass
@@ -106,6 +110,11 @@ def search_arxiv_papers(query: str, limit: int = 10, *, sort: str = "date") -> l
             time.sleep(30)
             return _parse_arxiv_feed(_fetch_text(url))
         raise
+
+
+def search_arxiv(query: str, max_results: int = 10) -> list[PaperRecord]:
+    """Backward-compatible arXiv search alias used by MCP tools."""
+    return search_arxiv_papers(query, limit=max_results)
 
 
 def search_arxiv_multi(
@@ -225,9 +234,10 @@ def fetch_paper_pdf_text(pdf_url: str) -> str:
     if not pdf_url:
         return ""
     try:
-        response = requests.get(pdf_url, timeout=60)
-        response.raise_for_status()
-        reader = PdfReader(BytesIO(response.content))
+        data = _download_arxiv_pdf_bytes(pdf_url)
+        if not data:
+            return ""
+        reader = PdfReader(BytesIO(data))
         text_parts: list[str] = []
         for page in reader.pages[:_PDF_PAGE_LIMIT]:
             text = (page.extract_text() or "").strip()
@@ -241,6 +251,52 @@ def fetch_paper_pdf_text(pdf_url: str) -> str:
         return combined[:_PDF_TEXT_LIMIT]
     except Exception:
         return ""
+
+
+def _is_arxiv_pdf_url(url: str) -> bool:
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and (parsed.hostname or "").lower() in _ARXIV_PDF_HOSTS
+        and parsed.path.startswith("/pdf/")
+    )
+
+
+def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
+    current_url = pdf_url
+    for _ in range(_PDF_MAX_REDIRECTS + 1):
+        if not _is_arxiv_pdf_url(current_url):
+            return b""
+        with requests.get(
+            current_url,
+            timeout=60,
+            stream=True,
+            allow_redirects=False,
+        ) as response:
+            if 300 <= response.status_code < 400:
+                location = response.headers.get("Location")
+                if not location:
+                    return b""
+                current_url = urllib.parse.urljoin(current_url, location)
+                continue
+            response.raise_for_status()
+            declared = response.headers.get("Content-Length")
+            if declared and declared.isdigit() and int(declared) > _PDF_DOWNLOAD_CAP_BYTES:
+                return b""
+            buf = BytesIO()
+            total = 0
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > _PDF_DOWNLOAD_CAP_BYTES:
+                    return b""
+                buf.write(chunk)
+            return buf.getvalue()
+    return b""
 
 
 def _fetch_text(url: str) -> str:

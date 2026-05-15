@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from distill.config import DistillConfig
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.brief import (
     _bundle_insights,
     _upload_files,
@@ -164,8 +165,10 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
             ]
         ),
     )
-    result = run_research_brief(["ai"], "ctx", "demo", config)
+    tracker = CostTracker()
+    result = run_research_brief(["ai"], "ctx", "demo", config, tracker=tracker)
 
     assert result == Path("output") / "briefing-demo.md"
     assert result.read_text(encoding="utf-8") == "brief body"
+    assert tracker.gemini_queries == 1
     assert deleted

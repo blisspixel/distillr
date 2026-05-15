@@ -2511,9 +2511,10 @@ def latest_cmd(
     """Opinionated topic-first workflow for getting current fast."""
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
     # --top-by-date is the user saying "I want the N most recent uploads, period."
-    # Force-disable LLM rerank so we don't quietly pay for query expansion that
-    # we'll then ignore.
+    # Force-disable LLM rerank and query expansion so chronological mode does
+    # not quietly spend tokens on ranking/search variants it will ignore.
     effective_rerank = rerank and not top_by_date
+    effective_expand = not top_by_date
     if preview:
         config, tracker, _selected = _preview_learning_selection(
             query,
@@ -2526,6 +2527,7 @@ def latest_cmd(
             rerank=effective_rerank,
             header="Latest",
             table_title="Latest Best-Pick Learning Set",
+            expand=effective_expand,
             top_by_date=top_by_date,
         )
         if effective_rerank and not config.xai_api_key:
@@ -2556,6 +2558,7 @@ def latest_cmd(
         test=test,
         generate_brief=brief,
         header="Latest",
+        expand=effective_expand,
         top_by_date=top_by_date,
     )
 
@@ -2684,14 +2687,32 @@ def research_brief_cmd(
     config = get_config()
     _require_api_key(config.gemini_api_key, "GEMINI_API_KEY required for Deep Research")
 
-    output_path = run_research_brief(
-        topics=expanded,
-        context=context_text,
-        name=name,
-        config=config,
-    )
+    tracker = CostTracker()
+    summary = RunSummary(command="research-brief")
+    summary.set_metadata(topic=",".join(expanded), workflow="research-brief")
+
+    try:
+        output_path = run_research_brief(
+            topics=expanded,
+            context=context_text,
+            name=name,
+            config=config,
+            tracker=tracker,
+        )
+    except Exception as exc:
+        summary.add_exception("research-brief", exc, context=",".join(expanded))
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        raise
     if output_path is None:
+        summary.add_issue(
+            "research-brief",
+            "Research briefing did not produce results",
+            context=",".join(expanded),
+        )
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
         raise typer.Exit(1)
+    summary.add_output(output_path)
+    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
 @app.command(name="synthesize", rich_help_panel="Discover")
@@ -3907,6 +3928,7 @@ def report(  # noqa: C901 — legacy, will refactor
             channel_name=channel,
             focus=focus,
             test=test,
+            tracker=tracker,
         )
     else:
         # Accordion method
@@ -3979,6 +4001,14 @@ def report(  # noqa: C901 — legacy, will refactor
                 except Exception as e2:
                     console.print(f"[yellow]DOCX export failed: {e2}[/yellow]")
 
+    if not result:
+        summary.add_issue(
+            "report",
+            "Research did not produce results",
+            context=topic or "all",
+            details={"scope": scope, "channel": channel or "", "research_only": research_only},
+        )
+
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
     if result:
@@ -3995,12 +4025,6 @@ def report(  # noqa: C901 — legacy, will refactor
         )
 
     if not result:
-        summary.add_issue(
-            "report",
-            "Research did not produce results",
-            context=topic or "all",
-            details={"scope": scope, "channel": channel or "", "research_only": research_only},
-        )
         raise typer.Exit(1)
 
 

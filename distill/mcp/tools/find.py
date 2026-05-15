@@ -21,14 +21,20 @@ def _resolve_within_library(library_dir: Path, path: str) -> Path | None:
     """
     if not path or not isinstance(path, str):
         return None
-    if PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute():
+    windows_path = PureWindowsPath(path)
+    if (
+        PurePosixPath(path).is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or windows_path.root
+    ):
         return None
-    # Reject explicit drive/UNC fragments and null bytes.
-    if "\x00" in path or path.startswith("\\\\"):
+    # Reject null bytes before handing the value to pathlib.
+    if "\x00" in path:
         return None
     try:
         root = library_dir.resolve(strict=False)
-        candidate = (library_dir / path).resolve(strict=False)
+        candidate = (root / path).resolve(strict=False)
     except (OSError, ValueError):
         return None
     try:

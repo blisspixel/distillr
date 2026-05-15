@@ -254,11 +254,15 @@ async def discover(  # noqa: C901
 
             found = search_arxiv(goal, max_results=limit)
             for paper in found[:limit]:
+                authors = [
+                    getattr(author, "name", author)
+                    for author in (paper.authors[:3] if paper.authors else [])
+                ]
                 results["papers"].append(
                     {
                         "title": paper.title,
-                        "authors": [a.name for a in paper.authors[:3]] if paper.authors else [],
-                        "url": paper.entry_id if hasattr(paper, "entry_id") else "",
+                        "authors": authors,
+                        "url": getattr(paper, "entry_id", "") or getattr(paper, "abs_url", ""),
                     }
                 )
         except Exception as e:

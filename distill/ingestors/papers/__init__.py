@@ -7,6 +7,7 @@ from distill.ingestors.papers.arxiv import (
     fetch_arxiv_paper,
     fetch_paper_pdf_text,
     parse_arxiv_id,
+    search_arxiv,
     search_arxiv_multi,
     search_arxiv_papers,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "fetch_arxiv_paper",
     "fetch_paper_pdf_text",
     "parse_arxiv_id",
+    "search_arxiv",
     "search_arxiv_multi",
     "search_arxiv_papers",
 ]
