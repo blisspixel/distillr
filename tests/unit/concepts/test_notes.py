@@ -209,7 +209,9 @@ class TestWritePlaybook:
             normalized_name="a b",
             kind=ConceptKind.TECHNIQUE,
             topic="t",
-            sources=(SourceEvidence(source_id="S1", artifact_path="p.md", polarity=Polarity.HELPFUL),),
+            sources=(
+                SourceEvidence(source_id="S1", artifact_path="p.md", polarity=Polarity.HELPFUL),
+            ),
             helpful_evidence=EvidenceInterval(1, 1),
             harmful_evidence=EvidenceInterval(0, 0),
             first_seen="x",
@@ -220,7 +222,9 @@ class TestWritePlaybook:
             normalized_name="a/b",
             kind=ConceptKind.TECHNIQUE,
             topic="t",
-            sources=(SourceEvidence(source_id="S2", artifact_path="q.md", polarity=Polarity.HELPFUL),),
+            sources=(
+                SourceEvidence(source_id="S2", artifact_path="q.md", polarity=Polarity.HELPFUL),
+            ),
             helpful_evidence=EvidenceInterval(1, 1),
             harmful_evidence=EvidenceInterval(0, 0),
             first_seen="x",
@@ -248,7 +252,9 @@ class TestWritePlaybook:
             normalized_name="a b",
             kind=ConceptKind.TECHNIQUE,
             topic="t",
-            sources=(SourceEvidence(source_id="S1", artifact_path="p.md", polarity=Polarity.HELPFUL),),
+            sources=(
+                SourceEvidence(source_id="S1", artifact_path="p.md", polarity=Polarity.HELPFUL),
+            ),
             helpful_evidence=EvidenceInterval(1, 1),
             harmful_evidence=EvidenceInterval(0, 0),
             first_seen="x",
