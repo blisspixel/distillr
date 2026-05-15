@@ -91,6 +91,39 @@ class TestConceptsCommand:
         assert "insights_scanned" in json_blob
         assert "success" in json_blob or "data" in json_blob
 
+    def test_health_surfaces_contested_concepts(self, fixture_config: DistillConfig) -> None:
+        """distill health <topic> lifts contested concepts into its warnings."""
+        # Seed a topic dir with a fake concepts.jsonl containing one contested row
+        topic_dir = fixture_config.topic_dir("tkg")
+        topic_dir.mkdir(parents=True)
+        (topic_dir / "concepts.jsonl").write_text(
+            json.dumps(
+                {
+                    "name": "Disputed Method",
+                    "slug": "disputed_method",
+                    "kind": "technique",
+                    "topic": "tkg",
+                    "source_count": 5,
+                    "helpful_count": 3,
+                    "harmful_count": 2,
+                    "contested": True,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        # health needs a topic in Library; the simplest path is add_channel
+        # which creates the topic entry as a side effect.
+        from distill.library.state import Library
+
+        lib = Library(fixture_config)
+        lib.add_channel("tkg", "https://example.com", "TestChan")
+
+        result = runner.invoke(cli.app, ["health", "tkg"])
+        assert result.exit_code == 0
+        assert "Contested concepts" in result.output
+        assert "Disputed Method" in result.output
+
     def test_refresh_re_extracts(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)
         rows = [

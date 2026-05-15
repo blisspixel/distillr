@@ -5345,7 +5345,7 @@ def concepts(
 
 
 @app.command(rich_help_panel="Maintain")
-def health(
+def health(  # noqa: C901 -- straight-line walk over topics + warning categories
     topic: str = typer.Argument(
         "all",
         help="Topic to audit, or 'all' for the full library",
@@ -5353,10 +5353,20 @@ def health(
     ),
 ):
     """Audit corpus quality signals like stale syntheses and thin artifacts."""
+    from distill.concepts.contradictions import find_contested
+
     config = get_config()
     lib = Library(config)
     topics = lib.get_topics() if topic == "all" else [topic]
     warnings = _collect_corpus_health_warnings(config, lib, topics, limit=50)
+
+    contested_by_topic: dict[str, list] = {}
+    for t in topics:
+        topic_dir = config.topic_dir(t)
+        if topic_dir.exists():
+            contested = find_contested(topic_dir)
+            if contested:
+                contested_by_topic[t] = contested
 
     console.print()
     console.print("[bold]Corpus Health[/bold]")
@@ -5367,12 +5377,26 @@ def health(
         console.print("  [yellow]No topics found to audit[/yellow]")
         return
 
-    if not warnings:
+    if not warnings and not contested_by_topic:
         console.print("  [green]No obvious corpus health issues detected[/green]")
         return
 
     for item in warnings:
         console.print(f"  [yellow]-[/yellow] {item}")
+
+    if contested_by_topic:
+        console.print()
+        console.print("  [bold]Contested concepts[/bold] (both helpful and harmful evidence present):")
+        for t, items in sorted(contested_by_topic.items()):
+            console.print(f"  [dim]{t}:[/dim]")
+            for c in items[:10]:  # cap per-topic to keep output readable
+                label = "entity" if c.is_entity else "concept"
+                console.print(
+                    f"    [yellow]-[/yellow] {c.name} ({label}, {c.helpful_count} helpful / "
+                    f"{c.harmful_count} harmful across {c.source_count} sources)"
+                )
+            if len(items) > 10:
+                console.print(f"    [dim]... and {len(items) - 10} more[/dim]")
 
     console.print()
     console.print(
