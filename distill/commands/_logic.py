@@ -411,6 +411,7 @@ def _run_learning_command(
     expand: bool = True,
     focus: str | None = None,
     top_by_date: bool = False,
+    post_ingest_callback=None,
 ) -> None:
     _preflight()
     _learning_flow_support.run_learning_command(
@@ -441,6 +442,7 @@ def _run_learning_command(
         expand=expand,
         focus=focus,
         top_by_date=top_by_date,
+        post_ingest_callback=post_ingest_callback,
     )
 
 
@@ -455,6 +457,7 @@ def _process_learning_selection(
     test: bool,
     generate_brief: bool,
     report_focus: str | None = None,
+    post_ingest_callback=None,
 ) -> None:
     _learning_flow_support.process_learning_selection(
         topic_name,
@@ -476,6 +479,7 @@ def _process_learning_selection(
         run_scope_report=_run_scope_report,
         generate_and_export_topic_brief=_generate_and_export_topic_brief,
         report_focus=report_focus,
+        post_ingest_callback=post_ingest_callback,
     )
 
 
@@ -2548,6 +2552,18 @@ def latest_cmd(
         )
         return
 
+    # Thread concept extraction through the learning workflow's tracker so
+    # --concepts spend lands in the same cost_log.jsonl row as the rest of
+    # the run, instead of going untracked. Earlier the call site here
+    # invoked the concepts helper without a tracker because the learning
+    # flow owns its tracker internally and doesn't return it.
+    from collections.abc import Callable as _Callable
+
+    post_ingest_callback: _Callable[[str, CostTracker], None] | None = (
+        (lambda topic_name, tracker: _run_concepts_after_ingest(topic_name, tracker=tracker))
+        if concepts_flag
+        else None
+    )
     _run_learning_command(
         query,
         topic=topic,
@@ -2565,10 +2581,8 @@ def latest_cmd(
         header="Latest",
         expand=effective_expand,
         top_by_date=top_by_date,
+        post_ingest_callback=post_ingest_callback,
     )
-    if concepts_flag:
-        effective_topic = topic or _topic_from_query(query)
-        _run_concepts_after_ingest(effective_topic)
 
 
 @app.command(name="brief", rich_help_panel="Discover")

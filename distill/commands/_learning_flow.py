@@ -127,6 +127,7 @@ def run_learning_command(
     expand: bool = True,
     focus: str | None = None,
     top_by_date: bool = False,
+    post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
 ) -> None:
     config = get_config()
     if not config.xai_api_key:
@@ -186,6 +187,7 @@ def run_learning_command(
         test=test,
         generate_brief=generate_brief,
         report_focus=report_focus,
+        post_ingest_callback=post_ingest_callback,
     )
 
 
@@ -210,6 +212,7 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
     run_scope_report: Callable[..., None],
     generate_and_export_topic_brief: Callable[..., None],
     report_focus: str | None = None,
+    post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
 ) -> None:
     grouped = {}
     for item in selected:
@@ -336,6 +339,21 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
             context=topic_name,
             details={"topic": topic_name},
         )
+
+    # Post-ingest hook lets callers (e.g. `distill latest --concepts`)
+    # attach extra LLM work to the same tracker so spend is captured in
+    # the run's cost log instead of going untracked.
+    if post_ingest_callback is not None:
+        try:
+            post_ingest_callback(topic_name, tracker)
+        except Exception as e:
+            cli_shared.record_exception_issue(
+                summary,
+                stage="post-ingest-callback",
+                exc=e,
+                context=topic_name,
+                details={"topic": topic_name},
+            )
 
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 

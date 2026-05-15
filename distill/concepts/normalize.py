@@ -129,33 +129,64 @@ def group_mentions(
 def _aggregate_per_source(mentions: list[ConceptMention]) -> ConceptMention:
     """Collapse multiple mentions from one source into one representative.
 
-    Polarity aggregation: unanimous polarity wins; disagreement -> NEUTRAL.
-    Other fields: longest ``name`` (display form); earliest ``extracted_at``;
-    first non-empty ``claim_excerpt`` and ``evidence_type``; ``kind`` from
-    the lex-first by value (deterministic tie-break).
+    Every selected field is order-independent: the input list of duplicate
+    mentions can be permuted in any way and this function returns an equal
+    record. That property is what makes the upstream grouping commutative
+    end-to-end. Earlier versions of this function selected ``artifact_path``,
+    ``normalized_name``, ``claim_excerpt``, and ``evidence_type`` from
+    ``mentions[0]`` (or "first non-empty"), which silently leaked caller
+    ordering into the representative -- two equivalent runs with shuffled
+    inputs produced different SourceEvidence rows.
+
+    Selection rules (all deterministic under permutation):
+
+    - ``polarity``: unanimous wins; disagreement collapses to NEUTRAL.
+    - ``name``: longest surface form (lex-tiebreak on length).
+    - ``kind``: most-common; tie-break by ``kind.value`` lex order.
+    - ``extracted_at``: earliest non-empty timestamp.
+    - ``normalized_name``: lex-min across mentions (canonical text form).
+    - ``artifact_path``: lex-min across mentions. (All duplicate mentions
+      from the same source typically share an artifact_path; when they
+      don't, lex-min beats first-seen because it doesn't depend on input
+      order.)
+    - ``claim_excerpt``: longest non-empty (most informative); lex-tiebreak.
+    - ``evidence_type``: lex-min non-empty.
     """
     if len(mentions) == 1:
         return mentions[0]
 
-    sorted_by_polarity = sorted(mentions, key=lambda m: m.polarity.value)
     polarities = {m.polarity for m in mentions}
-    polarity = sorted_by_polarity[0].polarity if len(polarities) == 1 else Polarity.NEUTRAL
+    polarity = next(iter(polarities)) if len(polarities) == 1 else Polarity.NEUTRAL
 
     name = max((m.name for m in mentions), key=lambda s: (len(s), s))
-    kind = min((m.kind for m in mentions), key=lambda k: k.value)
+
+    from collections import Counter
+
+    kind_counts = Counter(m.kind.value for m in mentions)
+    kind_value = sorted(kind_counts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+    kind = next(m.kind for m in mentions if m.kind.value == kind_value)
+
     timestamps = sorted(m.extracted_at for m in mentions if m.extracted_at)
     extracted_at = timestamps[0] if timestamps else ""
-    claim = next((m.claim_excerpt for m in mentions if m.claim_excerpt), "")
-    evidence_type = next((m.evidence_type for m in mentions if m.evidence_type), "")
 
-    head = mentions[0]
+    normalized_name = min(m.normalized_name for m in mentions)
+    artifact_path = min(m.artifact_path for m in mentions)
+    source_id = min(m.source_id for m in mentions)  # all equal by construction; defensive
+    claim = max(
+        (m.claim_excerpt for m in mentions if m.claim_excerpt),
+        default="",
+        key=lambda s: (len(s), s),
+    )
+    evidence_types = sorted(m.evidence_type for m in mentions if m.evidence_type)
+    evidence_type = evidence_types[0] if evidence_types else ""
+
     return ConceptMention(
         name=name,
-        normalized_name=head.normalized_name,
+        normalized_name=normalized_name,
         kind=kind,
         polarity=polarity,
-        source_id=head.source_id,
-        artifact_path=head.artifact_path,
+        source_id=source_id,
+        artifact_path=artifact_path,
         claim_excerpt=claim,
         evidence_type=evidence_type,
         extracted_at=extracted_at,

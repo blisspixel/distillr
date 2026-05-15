@@ -152,6 +152,39 @@ class TestReadConcept:
         assert result["status"] == "error"
         assert "concept" in result["error"].lower()
 
+    def test_traversal_bypass_with_fake_concepts_segment_rejected(
+        self, mock_config: DistillConfig
+    ) -> None:
+        """concepts/../secret.md must not pass the concept/entity guard.
+
+        Regression: the earlier substring check on the raw path let any
+        input containing '/concepts/' through. The fix checks the
+        resolved path's directory parts, which is order-independent and
+        doesn't care about path strings.
+        """
+        topic_dir = _seed_topic(mock_config)
+        secret = topic_dir / "secret.md"
+        secret.write_text("private corpus data", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            # The raw string contains '/concepts/' but the resolved path
+            # is topics/tkg/secret.md -- outside concepts/.
+            result = json.loads(read_concept("topics/tkg/concepts/../secret.md"))
+        assert result["status"] == "error"
+        assert "private corpus data" not in result.get("content", "")
+
+    def test_traversal_to_dotdistill_rejected(self, mock_config: DistillConfig) -> None:
+        """Traversal into .distill (task files / prompts) must not pass."""
+        _seed_topic(mock_config)
+        ops_dir = mock_config.library_dir / ".distill" / "tasks"
+        ops_dir.mkdir(parents=True)
+        (ops_dir / "task.md").write_text("private prompt payload", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(
+                read_concept("topics/tkg/concepts/../../../.distill/tasks/task.md")
+            )
+        assert result["status"] == "error"
+        assert "private prompt payload" not in result.get("content", "")
+
     def test_missing_file_error(self, mock_config: DistillConfig) -> None:
         with patch("distill.mcp.server._config", return_value=mock_config):
             result = json.loads(read_concept("topics/ghost/concepts/x.md"))

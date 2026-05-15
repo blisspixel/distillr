@@ -186,15 +186,25 @@ source_ids = st.sampled_from(["A", "B", "C", "D", "E", "F", "G", "H"])
 concept_names = st.sampled_from(["alpha concept", "beta concept", "gamma concept"])
 
 
-def _mention_from_tuple(t: tuple[str, str, Polarity, int]) -> ConceptMention:
-    source, name, polarity, day = t
+def _mention_from_tuple(t: tuple[str, str, Polarity, int, int, int]) -> ConceptMention:
+    """Build a mention with varying provenance fields so duplicates can disagree.
+
+    The ``variant`` and ``claim_variant`` integers steer ``artifact_path``
+    and ``claim_excerpt`` to slightly different values. Without this,
+    two duplicate mentions from the same source always agreed on those
+    fields and the commutativity property test couldn't see the
+    order-dependent-aggregation regression class.
+    """
+    source, name, polarity, day, variant, claim_variant = t
     return ConceptMention(
         name=name,
         normalized_name=name,
         kind=ConceptKind.TECHNIQUE,
         polarity=polarity,
         source_id=source,
-        artifact_path=f"papers/{source}/p.md",
+        artifact_path=f"papers/{source}/v{variant}.md",
+        claim_excerpt=f"claim variant {claim_variant} text",
+        evidence_type=f"type{claim_variant}",
         extracted_at=f"2026-05-{(day % 28) + 1:02d}T00:00:00Z",
     )
 
@@ -204,6 +214,8 @@ mention_tuples = st.tuples(
     concept_names,
     polarities,
     st.integers(min_value=0, max_value=27),
+    st.integers(min_value=0, max_value=2),  # artifact_path variant
+    st.integers(min_value=0, max_value=2),  # claim_excerpt variant
 )
 
 
@@ -238,6 +250,16 @@ class TestMergeInvariants:
             assert m_a.source_count == m_b.source_count
             assert {s.source_id for s in m_a.sources} == {s.source_id for s in m_b.sources}
             assert m_a.kind == m_b.kind
+            # Per-source provenance fields must also be permutation-stable.
+            # Earlier, claim_excerpt/artifact_path/normalized_name leaked
+            # caller order; this asserts the full SourceEvidence set.
+            sources_a = sorted(m_a.sources, key=lambda s: s.source_id)
+            sources_b = sorted(m_b.sources, key=lambda s: s.source_id)
+            for sa, sb in zip(sources_a, sources_b):
+                assert sa.artifact_path == sb.artifact_path
+                assert sa.claim_excerpt == sb.claim_excerpt
+                assert sa.evidence_type == sb.evidence_type
+                assert sa.polarity == sb.polarity
 
     @given(mentions=mention_set(1, 12))
     @settings(max_examples=200)
