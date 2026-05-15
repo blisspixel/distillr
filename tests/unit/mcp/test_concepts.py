@@ -179,9 +179,7 @@ class TestReadConcept:
         ops_dir.mkdir(parents=True)
         (ops_dir / "task.md").write_text("private prompt payload", encoding="utf-8")
         with patch("distill.mcp.server._config", return_value=mock_config):
-            result = json.loads(
-                read_concept("topics/tkg/concepts/../../../.distill/tasks/task.md")
-            )
+            result = json.loads(read_concept("topics/tkg/concepts/../../../.distill/tasks/task.md"))
         assert result["status"] == "error"
         assert "private prompt payload" not in result.get("content", "")
 
