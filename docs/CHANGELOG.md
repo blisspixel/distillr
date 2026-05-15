@@ -13,6 +13,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.0 - 2026-05-15
+
+**Concept playbook.** Per-topic concept and entity notes that accumulate evidence across the corpus. When the 21st paper on a topic mentions a technique, distillr strengthens what it knows about that technique instead of just appending another insight file. This is the qualitative shift the roadmap has been pointing at: distillr stops being a batch processor and starts maintaining a knowledge base.
+
+### What's new
+
+- **New subpackage `distill/concepts/`.** Per-insight LLM extraction (one call per `_Insights.md`), append-only `mentions.jsonl` audit log, pure-Python deterministic merge, ACE-style itemized playbook notes at `library/topics/<topic>/concepts/<slug>.md` and `library/topics/<topic>/entities/<slug>.md`, JSONL rollups at `concepts.jsonl` / `entities.jsonl`.
+- **Credal-interval evidence bounds.** Frontmatter stores `helpful_evidence: [lower, upper]` and `harmful_evidence: [lower, upper]` where the lower bound counts unambiguous evidence and the upper bound additionally counts neutral mentions. The width is the disagreement / ambiguity margin. Scalar `helpful_count` / `harmful_count` derived views ship alongside in `concepts.jsonl` for ergonomic reads.
+- **Deterministic delta merges.** The merge layer is pure Python: commutative under source ordering, idempotent under repeated application, monotonic-widening when new sources arrive. Property tests at 200 examples each pin the invariants.
+- **`.history/` versioning.** Before overwriting an existing concept note, the prior content is snapshot to `library/topics/<topic>/.history/<slug>/<iso-timestamp>.md`. Idempotent: re-running the pipeline on an unchanged corpus writes nothing.
+- **Contradiction surfacing.** Contested concepts (both polarities present) lift into `distill health <topic>` output, grouped by topic with helpful/harmful counts and source totals.
+
+### CLI
+
+- **`distill concepts <topic>`** — standalone command, idempotent. Flags: `--refresh` (re-extract over every insight), `--threshold N` (minimum distinct sources to emit, default 3), `--json` (envelope output).
+- **`--concepts` opt-in flag** on `distill papers`, `distill latest`, `distill site-batch` so a single ingest produces concept notes in the same run. Best-effort: extraction failures don't fail the ingest.
+- **`distill health <topic>`** extended with a "Contested concepts" section listing each contested concept with its helpful / harmful evidence counts and source totals, grouped by topic.
+
+### MCP surface
+
+- `find_concepts(topic, query, kind, contested_only, limit)` — ranked concept-row search across per-topic concepts.jsonl + entities.jsonl. Filters by name substring, kind, contested flag. Returns JIT shape (path + scalar fields + count).
+- `read_concept(path)` — library-relative concept playbook reader with path containment and concepts/entities subdirectory enforcement.
+- `list_contested(topic, limit)` — convenience wrapper for contested-only retrieval.
+
+### Architecture and routing
+
+- New `concepts` workload tag in the LLM router. Routes to `fast_model` by default; per-workload override via `DISTILL_CONCEPTS_MODEL` / `DISTILL_CONCEPTS_PROVIDER` like every other workload.
+- Concept extraction cost surfaces in `cost_log.jsonl` with `call_type="concepts_extract"`, separable from analysis spend in `distill costs`.
+
+### Tests + coverage
+
+- 152 new tests across the 0.8 surface: unit (records, normalize, merge, notes, exports, extract, contradictions), property-based (commutativity, idempotency, monotonic widening, lower<=upper invariant), CLI (CliRunner), MCP (3 tools), and end-to-end integration against a 5-paper fixture corpus.
+- Coverage on `distill/concepts/` is 98% (well above the 90% bar for new subpackages).
+- Total project coverage 82.75%, up from 82.07%.
+
+### Out of scope (deferred)
+
+The roadmap's original 0.8 entry bundled five items; this release ships only the playbook core. The other two land in follow-up patches per the revised roadmap:
+
+- `confidence:` -> `synthesis_scope:` frontmatter rename + migration -> 0.8.1.
+- `distill ingest <path>` for local PDFs / markdown / clipped articles -> 0.9 alongside discovery-loop and synthesis-depth work.
+
+This keeps the playbook PR focused and the synthesis-rename / local-ingest changes properly scoped on their own.
+
 ## 0.7.2 - 2026-05-14
 
 Patch release: synthesis-quality rewrite plus SSRF hardening on the PDF-attachment path.
