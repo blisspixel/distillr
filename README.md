@@ -221,6 +221,8 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
+**Next: 0.8 Concept Playbook.** Per-topic concept and entity notes that accumulate evidence across the corpus. When the 21st paper on a topic mentions a technique, distill strengthens what it knows about that technique instead of just appending another insight file. New `distill concepts <topic>` command + opt-in `--concepts` flag on existing ingest commands. New MCP `find_concepts` / `read_concept` tools. ACE-style itemized playbooks with credal-interval evidence bounds and contradiction surfacing in `distill health`.
+
 ## Contributing
 
 See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for dev setup, quality gates, and scope. Security disclosures go through [`docs/SECURITY.md`](docs/SECURITY.md).
