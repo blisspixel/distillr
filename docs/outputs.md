@@ -152,7 +152,7 @@ source_id: "abc123"
 url: "https://www.youtube.com/watch?v=abc123"
 date: "2026-03-09"
 tags: ["distill/ai_agents", "source/youtube"]
-confidence: "single-source"
+synthesis_scope: "single-source"
 channel: "NateBJones"
 ---
 ```
@@ -168,7 +168,7 @@ source: arxiv
 source_id: 2604.11544v1
 url: https://arxiv.org/abs/2604.11544v1
 tags: ["distill/tkg", "source/arxiv"]
-confidence: "single-paper"
+synthesis_scope: "single-paper"
 analyzed_by: grok-4.20-0309-reasoning
 source_mode: full_pdf
 ---

@@ -13,6 +13,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.1 - 2026-05-16
+
+**Frontmatter rename.** The synthesis emitters wrote a `confidence:` field whose values (`single-paper`, `corpus-consensus`, `interpretation`, …) were always scope/routing labels, never calibrated confidence numbers. Renamed to `synthesis_scope:` so downstream consumers (Obsidian Dataview queries, MCP agents, custom scripts) don't mis-interpret the routing label as a numeric grade.
+
+### What's new
+
+- **`synthesis_scope:` everywhere** — `distill/library/paths.py::base_frontmatter` now writes `synthesis_scope:` instead of `confidence:`. Every emitter (per-paper insights, per-video insights, per-page insights, channel/topic/corpus synthesis, paper synthesis, site synthesis, accordion/briefing/deep-research reports, watch alerts, topic diffs, topic trends) updated to pass `synthesis_scope=…` instead of `confidence=…`.
+- **`distill doctor --migrate-frontmatter [--apply]`** — one-shot migration over existing artifacts. Dry-run by default, lists each file that needs rewriting and the value being migrated. `--apply` executes the rewrite in place. Mirrors the `--migrate-links` pattern from 0.7. Idempotent: re-running on an already-migrated corpus is a no-op. Drops orphaned `confidence:` lines if a file ended up with both fields from a partial prior run.
+
+### Migration
+
+```bash
+distill doctor --migrate-frontmatter            # dry-run, shows what would change
+distill doctor --migrate-frontmatter --apply    # execute the rewrite
+```
+
+The migration scans `library/**/*.md` excluding hidden directories (`.history/`, `.distill/`, `.concepts/`) so versioned snapshots and operational artifacts stay untouched. New artifacts written after this release already use `synthesis_scope:` — the migration is only for pre-0.8.1 corpora.
+
+### Tests
+
+Eight new tests across the migration surface (scan/apply/idempotent/dropped-orphan-field/format-preservation). Coverage still ≥80%.
+
+### Also fixed
+
+- **`canonicalize` idempotency.** Hypothesis caught `canonicalize("000ss") == "000s"` but `canonicalize("000s") == "000"` — the plural-stripping regex `(\w{3})s\b` matched the inner three chars + terminal `s`, leaving the result still ending in `s` to be stripped again on a second pass. Tightened to `(\w{2}[^\Ws])s\b` so the char preceding the terminal `s` must itself be a non-`s` word char. Preserves `-ss` endings (`address`, `pass`, `less`) and short acronyms (`css`, `ml`). Failing example pinned via `@example(s="000ss")`.
+- **Property-test HealthCheck flakes under coverage.** `tests/unit/library/test_paths_props.py`, `test_wikilinks_props.py`, `test_frontmatter_props.py`, `tests/unit/llm/providers/test_agent.py`, and one test in `tests/unit/llm/test_router.py` were hitting `HealthCheck.too_slow` (and occasionally `filter_too_much`) under `pytest --cov`'s tracing overhead. Strategies that map through `slugify_title` or that filter heavily via `assume()` are slow enough under instrumentation to exceed hypothesis's 2-second input-generation budget. Suppressed the relevant health checks. Tests still run at `max_examples=100`; the property semantics are unchanged.
+
+### Out of scope (scope choice)
+
+The per-source `Insights.md` values (`single-source`, `single-paper`, `source-content`) are also renamed, not just the cross-source synthesis values. The roadmap entry listed "synthesis emitters" but the rationale ("the field is a routing label, not a number") applies uniformly — partial renames would leave the same misnomer in the per-source files. Consistent rename now is cheaper than two migrations.
+
 ## 0.8.0.3 - 2026-05-16
 
 Follow-up hardening on top of 0.8.0.2. Two bugs fixed, one stale annotation cleaned up.

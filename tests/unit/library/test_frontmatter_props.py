@@ -5,7 +5,7 @@ Feature: living-wiki-0-7
 
 from __future__ import annotations
 
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from distill.library.paths import (
@@ -96,7 +96,7 @@ class TestProvenanceFieldsCompleteness:
     """
 
     @given(provenance=provenance_fields_st)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_provenance_round_trip_via_frontmatter(self, provenance: ProvenanceFields) -> None:
         """Writing provenance to frontmatter and extracting yields all four fields."""
         # Build frontmatter dict with provenance
@@ -121,7 +121,7 @@ class TestProvenanceFieldsCompleteness:
         assert extracted["prompt_id"] == str(provenance.prompt_id)
 
     @given(provenance=provenance_fields_st)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_provenance_in_base_frontmatter(self, provenance: ProvenanceFields) -> None:
         """base_frontmatter with provenance includes all four provenance fields."""
         fm = base_frontmatter(
@@ -161,7 +161,7 @@ class TestFrontmatterFieldPreservation:
         ),
         provenance=provenance_fields_st,
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_existing_keys_preserved_after_provenance_merge(
         self, existing: dict[str, str], provenance: ProvenanceFields
     ) -> None:
@@ -218,7 +218,7 @@ class TestFrontmatterRoundTrip:
     """
 
     @given(fm=frontmatter_dicts)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_dump_then_extract_preserves_keys(self, fm: dict[str, object]) -> None:
         """All keys survive a dump→extract round-trip."""
         dumped = dump_frontmatter(fm)
@@ -250,7 +250,7 @@ class TestFrontmatterRoundTrip:
             max_size=10,
         )
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_string_values_round_trip_exactly(self, fm: dict[str, str]) -> None:
         """String values survive round-trip exactly (after JSON quote stripping)."""
         dumped = dump_frontmatter(fm)
@@ -273,7 +273,7 @@ class TestFrontmatterRoundTrip:
             max_size=10,
         )
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_integer_values_round_trip(self, fm: dict[str, int]) -> None:
         """Integer values survive round-trip (as string representations)."""
         dumped = dump_frontmatter(fm)
@@ -295,7 +295,7 @@ class TestFrontmatterRoundTrip:
             max_size=10,
         )
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_float_values_round_trip(self, fm: dict[str, float]) -> None:
         """Float values survive round-trip (comparing as floats)."""
         dumped = dump_frontmatter(fm)
@@ -316,7 +316,7 @@ class TestFrontmatterRoundTrip:
             max_size=10,
         )
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_boolean_values_round_trip(self, fm: dict[str, bool]) -> None:
         """Boolean values survive round-trip (YAML true/false)."""
         dumped = dump_frontmatter(fm)

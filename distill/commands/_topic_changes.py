@@ -507,7 +507,7 @@ def _write_watch_alert_digest(
             title="Topic Watch Alerts",
             source="distill",
             tags=tags_for("", "watch"),
-            confidence="operational",
+            synthesis_scope="operational",
             extra={"alerts": len(alert_lines), "legacy_filename": "watch_alerts.md"},
         ),
     )
@@ -647,7 +647,7 @@ def _write_topic_change_briefing(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "watch"),
-            confidence="operational",
+            synthesis_scope="operational",
             extra={
                 "watch_name": watch_name,
                 "query": query,
@@ -684,7 +684,7 @@ def _write_topic_change_briefing(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "diff"),
-            confidence="operational",
+            synthesis_scope="operational",
             extra={
                 "watch_name": watch_name or "",
                 "query": query or "",
@@ -732,7 +732,7 @@ def _write_topic_change_briefing(
             title="Latest Changes",
             source="distill",
             tags=tags_for("", "watch"),
-            confidence="operational",
+            synthesis_scope="operational",
             extra={"legacy_filename": "latest_changes.md"},
         ),
     )

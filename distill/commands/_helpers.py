@@ -396,7 +396,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 url=video.url,
                 date=video.upload_date,
                 tags=tags_for(topic, "youtube", effective_mode),
-                confidence="single-source",
+                synthesis_scope="single-source",
                 extra={
                     "channel": meta["channel"],
                     "duration_seconds": video.duration,

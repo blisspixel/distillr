@@ -50,10 +50,14 @@ __all__ = [
 
 DEFAULT_SOURCE_THRESHOLD = 3
 
-# Trailing plural -s only when the word is at least 4 chars (preserve "css",
-# "ml", "ai", etc.). Possessive "'s" also stripped. Trailing punctuation
-# stripped fully.
-_TRAILING_PLURAL = re.compile(r"(\w{3})s\b")
+# Trailing plural -s only when the word is at least 4 chars AND the
+# character before the terminal -s is itself not an 's'. The 4-char floor
+# preserves short acronyms ("css", "ml", "ai"); the non-s requirement
+# preserves -ss endings ("less", "pass", "address") and -- importantly --
+# keeps the function idempotent: without it, a double-s tail like "000ss"
+# strips to "000s" and a second application strips to "000", violating
+# canonicalize(canonicalize(x)) == canonicalize(x).
+_TRAILING_PLURAL = re.compile(r"(\w{2}[^\Ws])s\b")
 _TRAILING_PUNCT = re.compile(r"[\s\W_]+$")
 _LEADING_PUNCT = re.compile(r"^[\s\W_]+")
 _INNER_WS = re.compile(r"\s+")
