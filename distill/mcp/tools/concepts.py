@@ -107,20 +107,28 @@ def read_concept(path: str) -> str:
         )
     if not full_path.is_file():
         return json.dumps({"status": "error", "error": f"Path not found: {path}"}, indent=2)
-    # SECURITY: check the *resolved* path's directory parts, not the raw input.
-    # An earlier version did substring checks on the unnormalized path string,
-    # which let inputs like ``concepts/../secret.md`` pass the guard while
-    # resolving outside the concepts/entities tree. ``_resolve_within_library``
-    # keeps the read inside ``library_dir``, but that alone doesn't enforce
-    # this tool's narrower contract (concept/entity playbook notes only).
+    # SECURITY: enforce the *library-relative* layout, not absolute-path parts.
+    # An earlier version did substring checks on the unnormalized path string
+    # (bypassed by ``concepts/../secret.md``); the replacement inspected
+    # ``full_path.parts`` (bypassed when ``library_dir`` itself sits under an
+    # ancestor named ``concepts`` or ``entities`` -- e.g. a user configured
+    # ``DISTILL_OUTPUT_DIR=/home/alice/concepts/library``, which makes every
+    # library file's absolute parts contain "concepts" and pass the guard).
+    # ``_resolve_within_library`` keeps the read inside ``library_dir``, but
+    # this tool's contract is narrower: only ``topics/<topic>/(concepts|entities)/<file>.md``.
     try:
-        resolved_parts = {p.lower() for p in full_path.parts}
-    except (OSError, ValueError):
+        relative_parts = full_path.relative_to(config.library_dir.resolve(strict=False)).parts
+    except ValueError:
         return json.dumps(
             {"status": "error", "error": "Path is not a concept or entity note."},
             indent=2,
         )
-    if not (resolved_parts & {"concepts", "entities"}):
+    if (
+        len(relative_parts) != 4
+        or relative_parts[0] != "topics"
+        or relative_parts[2] not in {"concepts", "entities"}
+        or not relative_parts[3].endswith(".md")
+    ):
         return json.dumps(
             {"status": "error", "error": "Path is not a concept or entity note."},
             indent=2,
