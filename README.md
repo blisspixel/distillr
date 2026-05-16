@@ -151,7 +151,7 @@ source_id: "2604.11544v1"
 url: "https://arxiv.org/abs/2604.11544v1"
 authors: ["Alice Example", "Bob Example"]
 tags: ["distill/tkg", "source/arxiv", "cs.AI"]
-confidence: "single-paper"
+synthesis_scope: "single-paper"
 analyzed_by: grok-4.20-0309-reasoning
 source_mode: full_pdf
 ---
@@ -221,9 +221,9 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
-**Recent: 0.8 Concept Playbook (shipped 2026-05-15).** Per-topic concept and entity notes accumulate evidence across the corpus with credal-interval bounds. `distill concepts <topic>` + `--concepts` opt-in on ingest commands + MCP `find_concepts` / `read_concept` / `list_contested` + contested-concept surfacing in `distill health`.
+**Recent: 0.8.1 Frontmatter rename (shipped 2026-05-16).** `confidence:` → `synthesis_scope:` across every emitter, plus a one-shot migration (`distill doctor --migrate-frontmatter [--apply]`). The field was always a routing label (`single-paper`, `corpus-consensus`, `interpretation`), not a calibrated number — the rename removes the misnomer.
 
-**Next: 0.8.1 Frontmatter rename.** Rename `confidence:` → `synthesis_scope:` in synthesis emitters with a one-shot migration over existing artifacts. Isolated cleanup that 0.8 deferred. Then 0.9 (discovery loop + two-pass synthesis + local-file ingest).
+**Next: 0.8.2 Playbook recovery surface.** `distill concepts diff` / `rollback` / `log` over the `.history/` snapshots 0.8 already writes — read affordance for versioned concept notes. Then 0.9 (discovery loop + two-pass synthesis + local-file ingest).
 
 ## Contributing
 

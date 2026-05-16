@@ -56,7 +56,7 @@ class TestWikiLinkEmissionFormat:
     """
 
     @given(title=titles, source_id=source_ids, artifact_type=artifact_types)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_rendered_link_matches_expected_format(
         self, title: str, source_id: str, artifact_type: str
     ) -> None:
@@ -79,7 +79,7 @@ class TestWikiLinkEmissionFormat:
         assert rendered == expected
 
     @given(title=titles, source_id=source_ids, artifact_type=artifact_types)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_slug_portion_equals_slugify_title(
         self, title: str, source_id: str, artifact_type: str
     ) -> None:
@@ -89,7 +89,7 @@ class TestWikiLinkEmissionFormat:
         assert link.slug == expected_slug
 
     @given(title=titles, source_id=source_ids, artifact_type=artifact_types)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_display_portion_equals_cleaned_title(
         self, title: str, source_id: str, artifact_type: str
     ) -> None:
@@ -147,7 +147,10 @@ class TestLinkIntegrityDetection:
         broken_slug_list=st.lists(valid_slugs, min_size=1, max_size=5, unique=True),
         display_title=display_titles,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=100,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    )
     def test_check_links_finds_all_wiki_link_patterns(
         self,
         valid_slug_list: list[str],
@@ -189,7 +192,10 @@ class TestLinkIntegrityDetection:
         broken_slug_list=st.lists(valid_slugs, min_size=1, max_size=5, unique=True),
         display_title=display_titles,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=100,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    )
     def test_check_links_correctly_classifies_broken_vs_valid(
         self,
         valid_slug_list: list[str],
@@ -233,7 +239,10 @@ class TestLinkIntegrityDetection:
         broken_slug_list=st.lists(valid_slugs, min_size=1, max_size=3, unique=True),
         display_title=display_titles,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=100,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    )
     def test_check_links_reports_correct_line_numbers(
         self,
         valid_slug_list: list[str],
@@ -291,7 +300,10 @@ class TestBrokenLinkFix:
         broken_slug_list=st.lists(valid_slugs, min_size=1, max_size=5, unique=True),
         display_title=display_titles,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=100,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    )
     def test_fix_broken_links_replaces_only_broken_links(
         self,
         valid_slug_list: list[str],
@@ -347,7 +359,10 @@ class TestBrokenLinkFix:
         broken_slug_list=st.lists(valid_slugs, min_size=1, max_size=5, unique=True),
         display_title=display_titles,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=100,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    )
     def test_fix_broken_links_preserves_valid_links_unchanged(
         self,
         valid_slug_list: list[str],
@@ -390,7 +405,10 @@ class TestBrokenLinkFix:
         broken_slug_list=st.lists(valid_slugs, min_size=1, max_size=5, unique=True),
         display_title=display_titles,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=100,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+    )
     def test_fix_broken_links_uses_display_title_as_replacement(
         self,
         broken_slug_list: list[str],

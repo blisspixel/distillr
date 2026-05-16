@@ -107,7 +107,7 @@ def synthesize_channel(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "youtube"),
-            confidence="corpus-consensus",
+            synthesis_scope="corpus-consensus",
             extra={"channel": channel_name, "legacy_filename": "synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,
@@ -191,7 +191,7 @@ def synthesize_topic(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "youtube"),
-            confidence="corpus-consensus",
+            synthesis_scope="corpus-consensus",
             extra={"legacy_filename": "topic_synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,

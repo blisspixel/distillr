@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from distill.concepts.normalize import (
@@ -72,6 +72,12 @@ class TestCanonicalize:
 
     @given(s=st.text(min_size=0, max_size=200))
     @settings(max_examples=200)
+    # Discovered failure (0.8.1 fix): "000ss" stripped to "000s" then "000",
+    # because the plural regex was matching any 3-char prefix + trailing s,
+    # which left the result still ending in -s. Pinned to keep the regression
+    # in scope of every future run, not just the runs hypothesis happens to
+    # generate it on.
+    @example(s="000ss")
     def test_idempotent(self, s: str) -> None:
         once = canonicalize(s)
         twice = canonicalize(once)

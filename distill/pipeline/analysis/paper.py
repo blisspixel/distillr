@@ -154,7 +154,7 @@ def synthesize_papers(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "paper"),
-            confidence="corpus-consensus",
+            synthesis_scope="corpus-consensus",
             extra={"legacy_filename": "paper_synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,

@@ -103,7 +103,7 @@ def synthesize_corpus(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "mixed"),
-            confidence="corpus-consensus",
+            synthesis_scope="corpus-consensus",
             extra={"legacy_filename": "corpus_synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,

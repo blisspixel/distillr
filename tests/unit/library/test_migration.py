@@ -12,7 +12,9 @@ import pytest
 
 from distill.library.migration import (
     _compute_modern_name,
+    apply_frontmatter_field_migration,
     apply_migration,
+    scan_confidence_field,
     scan_legacy_artifacts,
 )
 
@@ -253,3 +255,112 @@ class TestComputeModernName:
         path = tmp_path / "my-slug" / "unknown_file.md"
         path.parent.mkdir(parents=True)
         assert _compute_modern_name(path) == "unknown_file.md"
+
+
+# ---------------------------------------------------------------------------
+# 0.8.1 — confidence: -> synthesis_scope: rename
+# ---------------------------------------------------------------------------
+
+
+def _write_md(path: Path, frontmatter_lines: list[str], body: str = "body") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fm = "---\n" + "\n".join(frontmatter_lines) + "\n---\n"
+    path.write_text(fm + body + "\n", encoding="utf-8")
+
+
+class TestScanConfidenceField:
+    def test_finds_files_with_confidence_field(self, library_dir: Path) -> None:
+        target = library_dir / "topics" / "tkg" / "papers" / "x" / "x_Insights.md"
+        _write_md(
+            target,
+            ['title: "x"', 'type: "insights"', 'confidence: "single-paper"'],
+        )
+        actions = scan_confidence_field(library_dir)
+        assert len(actions) == 1
+        assert actions[0].path == target
+        assert actions[0].old_field == "confidence"
+        assert actions[0].new_field == "synthesis_scope"
+        assert actions[0].value == '"single-paper"'
+
+    def test_skips_files_already_migrated(self, library_dir: Path) -> None:
+        already = library_dir / "topics" / "tkg" / "papers" / "y" / "y_Insights.md"
+        _write_md(
+            already,
+            ['title: "y"', 'type: "insights"', 'synthesis_scope: "single-paper"'],
+        )
+        assert scan_confidence_field(library_dir) == []
+
+    def test_skips_hidden_dirs(self, library_dir: Path) -> None:
+        """``.history/``, ``.distill/``, ``.concepts/`` are immutable history."""
+        for hidden in (".history", ".distill", ".concepts"):
+            target = library_dir / "topics" / "tkg" / hidden / "snap.md"
+            _write_md(target, ['confidence: "single-paper"'])
+        assert scan_confidence_field(library_dir) == []
+
+    def test_skips_files_without_frontmatter(self, library_dir: Path) -> None:
+        plain = library_dir / "topics" / "tkg" / "notes.md"
+        plain.parent.mkdir(parents=True)
+        plain.write_text("# Just a note\nNo frontmatter, no confidence:\n", encoding="utf-8")
+        assert scan_confidence_field(library_dir) == []
+
+
+class TestApplyFrontmatterFieldMigration:
+    def test_rewrites_confidence_to_synthesis_scope(self, library_dir: Path) -> None:
+        target = library_dir / "topics" / "tkg" / "papers" / "x" / "x_Insights.md"
+        _write_md(
+            target,
+            [
+                'title: "x"',
+                'type: "insights"',
+                'confidence: "single-paper"',
+                'generated_at: "2026-05-15"',
+            ],
+        )
+        result = apply_frontmatter_field_migration(scan_confidence_field(library_dir))
+        assert result.files_rewritten == 1
+        assert result.errors == []
+        text = target.read_text(encoding="utf-8")
+        assert "synthesis_scope:" in text
+        assert "confidence:" not in text
+        # Other fields untouched
+        assert 'title: "x"' in text
+        assert 'generated_at: "2026-05-15"' in text
+        # Body untouched
+        assert text.endswith("body\n")
+
+    def test_idempotent_second_run_is_noop(self, library_dir: Path) -> None:
+        target = library_dir / "topics" / "tkg" / "papers" / "x" / "x_Insights.md"
+        _write_md(target, ['confidence: "single-paper"'])
+        first = apply_frontmatter_field_migration(scan_confidence_field(library_dir))
+        assert first.files_rewritten == 1
+        # Second pass finds nothing
+        second = apply_frontmatter_field_migration(scan_confidence_field(library_dir))
+        assert second.files_rewritten == 0
+        assert second.files_skipped == 0  # no actions to process
+
+    def test_drops_old_field_when_new_field_already_present(self, library_dir: Path) -> None:
+        """Partial prior run / manual edit: both fields present, old one wins via removal."""
+        target = library_dir / "topics" / "tkg" / "papers" / "x" / "x_Insights.md"
+        _write_md(
+            target,
+            [
+                'title: "x"',
+                'synthesis_scope: "single-paper"',
+                'confidence: "stale-value"',
+            ],
+        )
+        result = apply_frontmatter_field_migration(scan_confidence_field(library_dir))
+        assert result.files_rewritten == 1
+        text = target.read_text(encoding="utf-8")
+        assert "confidence:" not in text
+        # The new field's original value is preserved (we drop the old, don't overwrite).
+        assert 'synthesis_scope: "single-paper"' in text
+        assert "stale-value" not in text
+
+    def test_preserves_indentation_and_value_format(self, library_dir: Path) -> None:
+        target = library_dir / "topics" / "tkg" / "papers" / "x" / "x_Insights.md"
+        # Reproduce the exact dump_frontmatter output: ``key: value`` (single space).
+        _write_md(target, ['confidence: "corpus-consensus"'])
+        apply_frontmatter_field_migration(scan_confidence_field(library_dir))
+        text = target.read_text(encoding="utf-8")
+        assert 'synthesis_scope: "corpus-consensus"' in text

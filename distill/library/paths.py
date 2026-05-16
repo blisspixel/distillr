@@ -388,10 +388,16 @@ def base_frontmatter(
     date: str = "",
     authors: Sequence[str] | None = None,
     tags: Sequence[str] | None = None,
-    confidence: str = "",
+    synthesis_scope: str = "",
     extra: Mapping[str, Any] | None = None,
     provenance: ProvenanceFields | None = None,
 ) -> dict[str, Any]:
+    # NOTE: the field was named ``confidence`` pre-0.8.1. Values like
+    # ``single-paper`` / ``corpus-consensus`` / ``interpretation`` describe
+    # the *scope* of the artifact (which sources fed it), not a calibrated
+    # confidence number. Renamed to ``synthesis_scope`` so downstream
+    # consumers don't treat the routing label as a numeric grade.
+    # ``distill doctor --migrate-frontmatter`` rewrites pre-0.8.1 artifacts.
     data: dict[str, Any] = {
         "title": title,
         "type": artifact_type,
@@ -402,7 +408,7 @@ def base_frontmatter(
         "date": date,
         "authors": list(authors or []),
         "tags": list(tags or []),
-        "confidence": confidence,
+        "synthesis_scope": synthesis_scope,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
     }
     if extra:

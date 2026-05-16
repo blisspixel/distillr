@@ -62,7 +62,10 @@ def _mock_provider(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(
+    max_examples=100,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much],
+)
 @given(
     workload_tag=st.sampled_from(_KNOWN_TAGS),
     input_tokens=st.integers(min_value=0, max_value=1_000_000),

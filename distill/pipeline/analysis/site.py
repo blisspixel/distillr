@@ -123,7 +123,7 @@ def synthesize_site(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "website"),
-            confidence="corpus-consensus",
+            synthesis_scope="corpus-consensus",
             extra={"site": site_name, "legacy_filename": "synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,
@@ -188,7 +188,7 @@ def synthesize_site_topic(
             topic=topic,
             source="distill",
             tags=tags_for(topic, "website"),
-            confidence="corpus-consensus",
+            synthesis_scope="corpus-consensus",
             extra={"legacy_filename": "topic_synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,
