@@ -188,6 +188,87 @@ class TestReadConcept:
             result = json.loads(read_concept("topics/ghost/concepts/x.md"))
         assert result["status"] == "error"
 
+    def test_library_under_concepts_ancestor_does_not_bypass_guard(self, tmp_path: Path) -> None:
+        """library_dir under an absolute ancestor named 'concepts' must not
+        grant read access to non-playbook library files.
+
+        Regression: the prior guard checked ``full_path.parts`` (absolute
+        components). When ``DISTILL_OUTPUT_DIR`` lives under a directory
+        named ``concepts`` or ``entities`` -- a realistic config-dependent
+        case -- every library file's absolute parts contain "concepts" and
+        pass the guard, disclosing non-playbook files (synthesis output,
+        ``.distill`` task artifacts, etc.) to the MCP caller.
+        """
+        ancestor = tmp_path / "concepts" / "library"
+        ancestor.mkdir(parents=True)
+        config = DistillConfig(xai_api_key="t", distill_output_dir=ancestor)
+        _seed_topic(config)
+        topic_dir = config.topic_dir("tkg")
+        (topic_dir / "secret.md").write_text("private corpus data", encoding="utf-8")
+        ops = config.library_dir / ".distill" / "tasks"
+        ops.mkdir(parents=True)
+        (ops / "task.md").write_text("private prompt payload", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=config):
+            for path, sentinel in [
+                ("topics/tkg/secret.md", "private corpus data"),
+                (".distill/tasks/task.md", "private prompt payload"),
+            ]:
+                result = json.loads(read_concept(path))
+                assert result["status"] == "error", f"{path} should be rejected"
+                assert sentinel not in result.get("content", "")
+            # Sanity: legitimate playbook reads still work under the same config
+            ok = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
+            assert "Rotational Embeddings" in ok["content"]
+
+    def test_library_under_entities_ancestor_does_not_bypass_guard(self, tmp_path: Path) -> None:
+        """Same bypass class for an ``entities`` ancestor."""
+        ancestor = tmp_path / "entities" / "library"
+        ancestor.mkdir(parents=True)
+        config = DistillConfig(xai_api_key="t", distill_output_dir=ancestor)
+        _seed_topic(config)
+        topic_dir = config.topic_dir("tkg")
+        (topic_dir / "secret.md").write_text("private corpus data", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=config):
+            result = json.loads(read_concept("topics/tkg/secret.md"))
+        assert result["status"] == "error"
+        assert "private corpus data" not in result.get("content", "")
+
+    def test_history_snapshot_path_rejected(self, mock_config: DistillConfig) -> None:
+        """``.history/<slug>/<ts>.md`` is not a live playbook note.
+
+        Dedicated MCP tools (``concept_history`` / ``concept_diff``, 0.8.2)
+        read snapshots; ``read_concept``'s contract is the live note only.
+        """
+        topic_dir = _seed_topic(mock_config)
+        hist = topic_dir / ".history" / "rotational_embedding" / "2026-05-15T00-00-00.md"
+        hist.parent.mkdir(parents=True)
+        hist.write_text("snapshot body", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(
+                read_concept("topics/tkg/.history/rotational_embedding/2026-05-15T00-00-00.md")
+            )
+        assert result["status"] == "error"
+        assert "snapshot body" not in result.get("content", "")
+
+    def test_non_markdown_in_concepts_dir_rejected(self, mock_config: DistillConfig) -> None:
+        """Sidecar/non-markdown files in concepts/ are not playbook notes."""
+        topic_dir = _seed_topic(mock_config)
+        sidecar = topic_dir / "concepts" / "stash.txt"
+        sidecar.write_text("not a note", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(read_concept("topics/tkg/concepts/stash.txt"))
+        assert result["status"] == "error"
+        assert "not a note" not in result.get("content", "")
+
+    def test_top_level_md_outside_topics_rejected(self, mock_config: DistillConfig) -> None:
+        """A markdown file at the library root must not pass the shape check."""
+        rogue = mock_config.library_dir / "README.md"
+        rogue.write_text("library root readme", encoding="utf-8")
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(read_concept("README.md"))
+        assert result["status"] == "error"
+        assert "library root readme" not in result.get("content", "")
+
 
 class TestListContested:
     def test_missing_topic_error(self, mock_config: DistillConfig) -> None:
