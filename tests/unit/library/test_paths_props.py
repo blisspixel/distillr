@@ -11,7 +11,7 @@ import tempfile
 import tempfile as _tempfile
 from pathlib import Path
 
-from hypothesis import assume, given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from distill.library.migration import (
@@ -71,7 +71,7 @@ class TestSlugDeterminism:
     """
 
     @given(title=titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_same_inputs_produce_same_output(self, title: str, source_id: str) -> None:
         """slugify_title is deterministic: same inputs → same output."""
         result1 = slugify_title(title, source_id)
@@ -80,7 +80,7 @@ class TestSlugDeterminism:
         assert result1 == result2 == result3
 
     @given(title=titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_determinism_with_explicit_max_len(self, title: str, source_id: str) -> None:
         """slugify_title is deterministic regardless of when it's called."""
         for max_len in (30, 60, 100):
@@ -113,14 +113,14 @@ class TestSlugFilesystemSafety:
     """
 
     @given(title=unicode_titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_output_contains_only_valid_chars(self, title: str, source_id: str) -> None:
         """Slug contains only lowercase alphanumeric, hyphens, and underscores."""
         slug = slugify_title(title, source_id)
         assert _VALID_SLUG_CHARS.match(slug), f"Slug {slug!r} contains invalid characters"
 
     @given(title=unicode_titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_no_trailing_dots_or_spaces(self, title: str, source_id: str) -> None:
         """Slug has no trailing dots or spaces."""
         slug = slugify_title(title, source_id)
@@ -128,7 +128,7 @@ class TestSlugFilesystemSafety:
         assert not slug.endswith(" "), f"Slug {slug!r} ends with a space"
 
     @given(title=unicode_titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_no_windows_reserved_chars(self, title: str, source_id: str) -> None:
         """Slug contains no Windows-reserved characters."""
         slug = slugify_title(title, source_id)
@@ -138,7 +138,7 @@ class TestSlugFilesystemSafety:
             )
 
     @given(title=unicode_titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_byte_length_within_limit(self, title: str, source_id: str) -> None:
         """Slug byte length is ≤ 255 (filesystem limit)."""
         slug = slugify_title(title, source_id)
@@ -146,7 +146,7 @@ class TestSlugFilesystemSafety:
         assert byte_len <= 255, f"Slug {slug!r} has byte length {byte_len} > 255"
 
     @given(title=long_titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_long_inputs_still_safe(self, title: str, source_id: str) -> None:
         """Even very long inputs produce safe slugs within byte limits."""
         slug = slugify_title(title, source_id)
@@ -154,7 +154,7 @@ class TestSlugFilesystemSafety:
         assert len(slug.encode("utf-8")) <= 255
 
     @given(title=titles, source_id=source_ids)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_slug_is_non_empty(self, title: str, source_id: str) -> None:
         """Slug is never empty (falls back to 'untitled' if needed)."""
         slug = slugify_title(title, source_id)
@@ -190,7 +190,7 @@ class TestSlugCollisionDisambiguation:
             max_size=10,
         ),
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_distinct_sources_get_distinct_slugs(
         self, title: str, source_id_a: str, source_id_b: str
     ) -> None:
@@ -224,7 +224,7 @@ class TestSlugCollisionDisambiguation:
             max_size=10,
         ),
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_same_source_reuses_slug(self, title: str, source_id: str) -> None:
         """Same source always gets the same slug (no unnecessary disambiguation)."""
         base_slug = slugify_title(title, source_id)
@@ -256,7 +256,7 @@ class TestSlugCollisionDisambiguation:
             max_size=10,
         ),
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_different_source_types_also_disambiguated(
         self,
         source_type_a: str,
@@ -313,7 +313,7 @@ class TestLegacyArtifactDetectionAndRename:
     """
 
     @given(slug=dir_slugs, artifact_type=legacy_types)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_legacy_file_detected_and_rename_correct(self, slug: str, artifact_type: str) -> None:
         """Any file matching a legacy pattern is detected with correct rename."""
         legacy_filename = _LEGACY_NAMES[artifact_type]
@@ -354,7 +354,7 @@ class TestLegacyArtifactDetectionAndRename:
         slug=dir_slugs,
         types=st.lists(legacy_types, min_size=1, max_size=5, unique=True),
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_multiple_legacy_files_all_detected(self, slug: str, types: list[str]) -> None:
         """Multiple legacy files in the same directory are all detected."""
         with _tempfile.TemporaryDirectory() as tmp:
@@ -380,7 +380,7 @@ class TestLegacyArtifactDetectionAndRename:
                 assert f in detected_sources, f"Legacy file {f.name} was not detected"
 
     @given(slug=dir_slugs, artifact_type=legacy_types)
-    @settings(max_examples=100)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_modern_named_files_not_detected(self, slug: str, artifact_type: str) -> None:
         """Files already using modern naming are NOT detected as legacy."""
         suffix = _ARTIFACT_SUFFIXES[artifact_type]

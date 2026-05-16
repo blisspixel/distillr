@@ -365,7 +365,7 @@ def _write_report_artifact(
             topic=topic if scope != "all" else "",
             source="distill",
             tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
-            confidence="interpretation",
+            synthesis_scope="interpretation",
             extra=extra,
             provenance=ProvenanceFields(
                 model=DEEP_RESEARCH_MODEL,

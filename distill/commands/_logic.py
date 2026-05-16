@@ -3476,7 +3476,7 @@ def diff(
                 topic=topic,
                 source="distill",
                 tags=tags_for(topic, "diff"),
-                confidence="operational",
+                synthesis_scope="operational",
                 extra={
                     "watch_name": watch_name or "",
                     "query": query or "",
@@ -3550,7 +3550,7 @@ def trends(
                 topic=topic,
                 source="distill",
                 tags=tags_for(topic, "trends"),
-                confidence="operational",
+                synthesis_scope="operational",
                 extra={"legacy_filename": "topic_trends.md"},
             ),
         )
@@ -3768,7 +3768,7 @@ def run(  # noqa: C901 — legacy, will refactor
                             url=video.url,
                             date=video.upload_date,
                             tags=tags_for(t, "youtube", analysis_mode),
-                            confidence="single-source",
+                            synthesis_scope="single-source",
                             extra={
                                 "channel": ch.name,
                                 "duration_seconds": video.duration,
@@ -4765,10 +4765,15 @@ def doctor(  # noqa: C901 — legacy, will refactor
         "--migrate-links",
         help="Scan for legacy-named artifacts and print dry-run migration plan",
     ),
+    migrate_frontmatter: bool = typer.Option(
+        False,
+        "--migrate-frontmatter",
+        help="Rewrite pre-0.8.1 ``confidence:`` frontmatter to ``synthesis_scope:`` (dry-run)",
+    ),
     apply: bool = typer.Option(
         False,
         "--apply",
-        help="Execute the migration plan (requires --migrate-links)",
+        help="Execute the migration plan (requires --migrate-links or --migrate-frontmatter)",
     ),
 ):
     """Check API keys, tools, and library health."""
@@ -4858,12 +4863,56 @@ def doctor(  # noqa: C901 — legacy, will refactor
 
         return
 
+    # --- Frontmatter field rename mode (confidence -> synthesis_scope) ---
+    if migrate_frontmatter:
+        from distill.library.migration import (
+            apply_frontmatter_field_migration,
+            scan_confidence_field,
+        )
+
+        library_dir = config.library_dir
+        if not library_dir.exists():
+            console.print("[red]Error: library directory does not exist.[/red]")
+            raise typer.Exit(1)
+
+        actions = scan_confidence_field(library_dir)
+
+        if not actions:
+            console.print(
+                "  [green]Nothing to migrate — no ``confidence:`` frontmatter found.[/green]"
+            )
+            return
+
+        if not apply:
+            console.print("\n  [bold]Frontmatter Migration Plan (dry-run):[/bold]")
+            for action in actions[:20]:
+                console.print(
+                    f"  REWRITE: {action.path.relative_to(library_dir)} "
+                    f"({action.old_field} -> {action.new_field}, value={action.value!r})"
+                )
+            if len(actions) > 20:
+                console.print(f"  [dim]... and {len(actions) - 20} more[/dim]")
+            console.print(
+                f"\n  Summary: {len(actions)} file(s) need rewriting. Use --apply to execute."
+            )
+        else:
+            result = apply_frontmatter_field_migration(actions)
+            console.print("\n  [bold]Frontmatter Migration Complete[/bold]")
+            console.print(f"  Files rewritten: {result.files_rewritten}")
+            console.print(f"  Files skipped:   {result.files_skipped}")
+            if result.errors:
+                console.print(f"  Errors:          {len(result.errors)}")
+                for err in result.errors:
+                    console.print(f"    [red]•[/red] {err}")
+
+        return
+
     # --- Validate flag combinations ---
     if fix and not links:
         console.print("[red]Error: --fix requires --links[/red]")
         raise typer.Exit(1)
-    if apply and not migrate_links:
-        console.print("[red]Error: --apply requires --migrate-links[/red]")
+    if apply and not (migrate_links or migrate_frontmatter):
+        console.print("[red]Error: --apply requires --migrate-links or --migrate-frontmatter[/red]")
         raise typer.Exit(1)
 
     if json_mode:
@@ -6754,7 +6803,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
                     url=meta.get("url", ""),
                     date=upload_date,
                     tags=tags_for(topic, "youtube", analysis_mode),
-                    confidence="single-source",
+                    synthesis_scope="single-source",
                     extra={
                         "channel": ch_name,
                         "duration_seconds": meta.get("duration", 0),
@@ -6908,7 +6957,7 @@ def _process_site_seed(  # noqa: C901 — legacy, will refactor
                 source="website",
                 url=seed.url,
                 tags=tags_for(seed.topic, "website", "update"),
-                confidence="operational",
+                synthesis_scope="operational",
                 extra={"site": site_name, "legacy_filename": "site_update.md"},
             ),
         )
@@ -6960,7 +7009,7 @@ def _process_site_seed(  # noqa: C901 — legacy, will refactor
             date=page_obj.published_at,
             authors=page_obj.authors,
             tags=[*tags_for(seed.topic, "website"), *page_obj.tags],
-            confidence="source-content",
+            synthesis_scope="source-content",
             extra={
                 "site": page_obj.site_name,
                 "page_type": page_obj.page_type,
@@ -7001,7 +7050,7 @@ def _process_site_seed(  # noqa: C901 — legacy, will refactor
                 frontmatter={
                     **page_frontmatter,
                     "type": "insights",
-                    "confidence": "single-source",
+                    "synthesis_scope": "single-source",
                     "legacy_filename": "insights.md",
                 },
             )
@@ -7070,7 +7119,7 @@ def _write_paper_artifacts(
         date=paper.published_at,
         authors=paper.authors,
         tags=[*tags_for(topic, paper.source), *paper.categories],
-        confidence="source-content",
+        synthesis_scope="source-content",
         extra={
             "paper_id": paper.paper_id,
             "pdf_url": paper.pdf_url,
@@ -7087,7 +7136,7 @@ def _write_paper_artifacts(
         frontmatter={
             **paper_frontmatter,
             "type": "insights",
-            "confidence": "single-paper",
+            "synthesis_scope": "single-paper",
             "legacy_filename": "insights.md",
         },
     )

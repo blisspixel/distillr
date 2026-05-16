@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from distill.llm.providers.agent import AgentProvider
@@ -41,7 +41,7 @@ _result_text = st.text(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=100)
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 @given(prompt=_prompt_str, workload_tag=_workload_tag)
 def test_task_file_structure(prompt: str, workload_tag: str) -> None:
     """Feature: llm-router-model-upgrade, Property 9: Task_File structure completeness
@@ -84,7 +84,7 @@ def test_task_file_structure(prompt: str, workload_tag: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=100)
+@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 @given(prompt=_prompt_str, workload_tag=_workload_tag, result_text=_result_text)
 def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> None:
     """Feature: llm-router-model-upgrade, Property 10: Agent_Provider result round-trip

@@ -87,7 +87,7 @@ def run_accordion_research(
             topic=topic if scope != "all" else "",
             source="distill",
             tags=tags_for(topic, "research") if scope != "all" else tags_for("", "research"),
-            confidence="interpretation",
+            synthesis_scope="interpretation",
             extra={"legacy_filename": "research.md"},
             provenance=ProvenanceFields(
                 model=DEEP_RESEARCH_MODEL,
@@ -183,7 +183,7 @@ def run_accordion_research(
             topic=topic if scope != "all" else "",
             source="distill",
             tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
-            confidence="interpretation",
+            synthesis_scope="interpretation",
             extra={"legacy_filename": "report.md"},
             provenance=ProvenanceFields(
                 model=section_model,

@@ -103,7 +103,7 @@ def generate_topic_brief(  # noqa: C901 — legacy, will refactor
             topic=topic,
             source="distill",
             tags=tags_for(topic, "brief"),
-            confidence="interpretation",
+            synthesis_scope="interpretation",
             extra={"legacy_filename": "brief.md"},
             provenance=ProvenanceFields(
                 model=response.model,

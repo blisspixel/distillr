@@ -59,23 +59,16 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 ### Milestones at a glance
 
-Previously shipped: **0.1 through 0.8.0** (initial release, internal foundations, MCP-first surface, local inference, living wiki, synthesis-quality patch, concept playbook). Per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+Previously shipped: **0.1 through 0.8.1** (initial release, internal foundations, MCP-first surface, local inference, living wiki, synthesis-quality patch, concept playbook, frontmatter-field rename). Per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 In flight and ahead:
 
-- **0.8.1 Frontmatter rename + migration** (next build) — rename `confidence:` → `synthesis_scope:` in synthesis emitters with a one-shot migration over existing artifacts. Isolated cleanup that 0.8 deferred to keep the playbook PR scoped.
-- **0.8.2 Playbook recovery surface** — `distill concepts diff <slug> [<timestamp>]` and `distill concepts rollback <slug> <timestamp>` over the `.history/` snapshots 0.8 already writes. Today the bytes are there but there's no affordance to inspect or restore them; recovery is half-built without the read surface.
+- **0.8.2 Playbook recovery surface** (next build) — `distill concepts diff <slug> [<timestamp>]` and `distill concepts rollback <slug> <timestamp>` over the `.history/` snapshots 0.8 already writes. Today the bytes are there but there's no affordance to inspect or restore them; recovery is half-built without the read surface.
 - **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape), two-pass synthesis with a structured claim intermediate (the same append-only-JSONL pattern 0.8 used for mentions, applied to claims), `distill ingest <path>` for local PDFs / markdown / clipped articles.
 - **0.10 Operational polish** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails.
 - **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate (now also covering concept extraction outputs from 0.8), performance baseline, presentation pass.
 
 Detail for each in-flight milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
-
-### 0.8.1 — Frontmatter rename + migration
-
-Isolated cleanup. Rename `confidence:` → `synthesis_scope:` in synthesis emitters (`paper_synthesis`, `topic_synthesis`, `corpus_synthesis`, report sections). The current field name invites downstream consumers to treat a routing label (`single-paper` vs `corpus-consensus`) as a calibrated number; it isn't one. Ships a one-shot migration over existing artifacts that mirrors the `scan_legacy_artifacts` / `apply_migration` pattern from 0.7.
-
-Why this version: separated from 0.8.0 because it has nothing to do with the playbook layer. Migration tooling has a different testing surface and shouldn't slow the playbook release.
 
 ### 0.8.2 — Playbook recovery surface
 
