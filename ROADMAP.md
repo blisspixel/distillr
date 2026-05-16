@@ -215,13 +215,13 @@ distill/
 │   ├── doctor.py
 │   ├── serve.py
 │   ├── dashboard.py
-│   └── ingest.py            # 0.8 — local-file ingest
+│   └── ingest.py            # 0.9 — local-file ingest
 │
 ├── ingestors/               # capture layer — one source per subpackage
 │   ├── youtube/             # search, download, transcript
 │   ├── sites/               # scraper, attachments, browser
 │   ├── papers/              # arxiv, pdf
-│   └── local/               # 0.8 — local-file routing
+│   └── local/               # 0.9 — local-file routing
 │
 ├── llm/                     # provider abstraction + routing
 │   ├── router.py            # workload-tag → provider+model dispatch

@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.0.3 - 2026-05-16
+
+Follow-up hardening on top of 0.8.0.2. Two bugs fixed, one stale annotation cleaned up.
+
+### Security
+
+- **`read_concept` absolute-path-parts bypass (medium).** 0.8.0.2 replaced the substring-based concept/entity guard with a check on `full_path.parts` — but `full_path` is the *absolute* resolved path, so its parts include ancestors outside `library_dir`. A user with `DISTILL_OUTPUT_DIR` configured under a directory named `concepts` or `entities` (e.g. `/home/alice/concepts/library`) satisfied the guard for every file in the library, letting an MCP caller read non-playbook artifacts (synthesis output, `.distill/tasks/` task artifacts, etc.). Fix: enforce the layout on the *library-relative* path — require exactly `topics/<topic>/(concepts|entities)/<file>.md` — instead of inspecting absolute parts. Regression tests cover library directories under `concepts` and `entities` ancestors, plus shape edge cases (history-snapshot paths, non-`.md` sidecars, top-level files).
+
+### Correctness
+
+- **Search artifact-type misclassification under ancestor-named library paths.** `pipeline/search.py::_detect_artifact_type` walked `path.parts` of the absolute path when classifying artifacts as `paper` vs `insights` for ranking. A library configured under a `papers/` or `sites/` ancestor would mis-label every artifact. Today the score table doesn't weight those types differently, so the user-visible effect is bounded to the `artifact_type` field, but the bug is the same class as the `read_concept` issue and would become a ranking-skew bug if `_TYPE_BOOST` is extended. Fix: classify against the library-relative path. Regression test pins the behavior.
+
+### Docs
+
+- **ROADMAP package-layout annotations.** `# 0.8 — local-file ingest` / `# 0.8 — local-file routing` corrected to `# 0.9` to match the milestone description (the entry was moved from 0.8 to 0.9 in an earlier edit but the inline `#` comments were missed).
+
+No public API breaks. Existing 0.8.0.2 regression tests still pass; three new tests across the touched layers.
+
 ## 0.8.0.2 - 2026-05-16
 
 Security + correctness hardening over 0.8.0/0.8.0.1. Four bugs fixed from a post-release scan:

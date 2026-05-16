@@ -175,6 +175,30 @@ class TestSearchCorpus:
         assert all(isinstance(r, SearchResult) for r in results)
         assert all(r.score > 0 for r in results)
 
+    def test_artifact_type_unaffected_by_absolute_ancestor_names(self, tmp_path):
+        """Classification must not key off ancestor directories outside the library.
+
+        Regression: ``_detect_artifact_type`` previously inspected
+        ``path.parts`` (the absolute path), so a library rooted under a
+        directory named ``papers`` or ``sites`` mis-labeled every artifact.
+        Now scoped to the library-relative path.
+        """
+        # Library lives under a directory named "papers" — would have poisoned
+        # the classifier under the old code.
+        ancestor = tmp_path / "papers" / "library"
+        config = DistillConfig(xai_api_key="test", distill_output_dir=ancestor)
+        topic_dir = config.topic_dir("test-topic")
+        # Place an insights-style artifact NOT inside a "papers/" subtree.
+        target = topic_dir / "channels" / "ch1" / "videos" / "v1" / "x_Insights.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            "---\ntitle: t\n---\n# Heading\nMachine learning content here.",
+            encoding="utf-8",
+        )
+        results = search_corpus(config, "test-topic", "machine learning")
+        assert len(results) == 1
+        assert results[0].artifact_type == "insights"  # not "paper"
+
 
 class TestExtractSection:
     def test_found_section(self):

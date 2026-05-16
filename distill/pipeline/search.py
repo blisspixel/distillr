@@ -98,14 +98,15 @@ def search_corpus(
         if not body.strip():
             continue
 
-        artifact_type = _detect_artifact_type(md_file)
+        rel_path_obj = md_file.relative_to(library_root)
+        artifact_type = _detect_artifact_type(md_file, rel_path_obj)
         score = _score_document(body, terms, artifact_type)
 
         if score <= 0:
             continue
 
         preview = _generate_preview(body, terms)
-        rel_path = str(md_file.relative_to(library_root))
+        rel_path = str(rel_path_obj)
 
         results.append(
             SearchResult(
@@ -168,14 +169,21 @@ def _tokenize(text: str) -> list[str]:
     return [t for t in re.split(r"[\s\W]+", text.lower()) if t]
 
 
-def _detect_artifact_type(path: Path) -> str:
-    """Detect artifact type from filename."""
+def _detect_artifact_type(path: Path, relative_path: Path) -> str:
+    """Detect artifact type from filename, falling back to relative parent dirs.
+
+    ``relative_path`` must be ``path`` expressed relative to the library root;
+    parent-directory classification (``papers/``, ``sites/``) is intentionally
+    scoped to the corpus tree, since ``path.parts`` includes absolute ancestors
+    that may legitimately contain the same names (e.g. a library configured
+    under ``/home/alice/papers/library``).
+    """
     name = path.stem.lower()
     for pattern, atype in _ARTIFACT_TYPE_PATTERNS:
         if pattern in name:
             return atype
-    # Check parent directory names
-    parts = [p.lower() for p in path.parts]
+    # Check parent directory names within the library tree only.
+    parts = [p.lower() for p in relative_path.parts]
     if "papers" in parts:
         return "paper"
     if "sites" in parts:
