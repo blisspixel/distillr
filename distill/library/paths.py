@@ -59,6 +59,7 @@ _ARTIFACT_SUFFIXES = {
     "topic_diff": "Topic_Diff",
     "topic_trends": "Topic_Trends",
     "transcript": "Transcript",
+    "tweet": "Tweet",
     "watch_alerts": "Watch_Alerts",
     "watch_update": "Watch_Update",
 }
@@ -80,6 +81,7 @@ _LEGACY_NAMES = {
     "topic_diff": "topic_diff.md",
     "topic_trends": "topic_trends.md",
     "transcript": "transcript.txt",
+    "tweet": "tweet.md",
     "watch_alerts": "watch_alerts.md",
     "watch_update": "watch_update.md",
 }

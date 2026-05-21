@@ -64,9 +64,11 @@ Previously shipped: **0.1 through 0.8.1** (initial release, internal foundations
 In flight and ahead:
 
 - **0.8.2 Playbook recovery surface** (next build) — `distill concepts diff <slug> [<timestamp>]` and `distill concepts rollback <slug> <timestamp>` over the `.history/` snapshots 0.8 already writes. Today the bytes are there but there's no affordance to inspect or restore them; recovery is half-built without the read surface.
+- **0.8.3 Agent-discoverable library** — auto-generate a `CLAUDE.md` orientation file in every topic directory so when an agent (Claude Code, Cursor, any tool that auto-loads `CLAUDE.md`) `cd`s into a topic, it gets immediate orientation without needing the MCP server. Tiny patch; turns each topic into a self-describing directory.
 - **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape), two-pass synthesis with a structured claim intermediate (the same append-only-JSONL pattern 0.8 used for mentions, applied to claims), `distill ingest <path>` for local PDFs / markdown / clipped articles.
-- **0.10 Operational polish** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails.
-- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate (now also covering concept extraction outputs from 0.8), performance baseline, presentation pass.
+- **0.9.1 Source breadth and audio capability** — five-adapter pass to close the most common "I want to add this to my corpus" gaps. X (already in via the 0.9.0 validation run), podcasts (RSS to .mp3 to Whisper), GitHub repos (README and structured issues/discussions subset), generic audio/video files via `distill ingest <path-to-.mp3-or-.mp4>`, and Substack/newsletter posts (RSS-driven site ingest). Each follows a documented adapter contract; further sources defer to the post-1.0 plugin system.
+- **0.10 Operational polish + run-time verify** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails. Plus a new run-time verify hook on every analysis emit (the Agent SDK's `gather context -> act -> verify` loop, applied to distillr's writes), and a `find_insights_summary` MCP tool sized for sub-agent delegation.
+- **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate (now also covering concept extraction outputs from 0.8), performance baseline, presentation pass, and a documented prompt-revision cadence (contracts are stable; prompts are versioned and revised on a schedule).
 
 Detail for each in-flight milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
 
@@ -80,6 +82,23 @@ Detail for each in-flight milestone follows. The "[intentionally not in scope](#
 - MCP companion tools: `concept_history(slug)`, `concept_diff(slug, ts_a, ts_b)`.
 
 Why this version: separated from 0.8.0 because the playbook PR shipped the storage and stopped at the storage. The read surface needs its own design and tests (diff formatting, atomic-rollback semantics, MCP shape) and shouldn't have been a blocker on the merge logic landing. Small and tightly scoped: pure presentation + filesystem moves over data 0.8 already produces.
+
+### 0.8.3 — Agent-discoverable library
+
+Distillr is positioned as the persistent memory layer for AI agent workflows. The MCP server makes the corpus queryable for agents that speak MCP, but a large and growing fraction of real agent traffic (Claude Code, Cursor, Codex CLI, generic coding agents) auto-loads `CLAUDE.md` files from the working directory as their default context-discovery mechanism. Today an agent that `cd`s into `library/topics/microsoft-fabric/` sees only the artifact tree — it has to enumerate files to figure out what the topic contains. That's friction the library can remove for free.
+
+- **Per-topic `CLAUDE.md`** — on every topic refresh (`distill topic update`, `distill papers`, `distill latest`, etc.), regenerate `library/topics/<topic>/CLAUDE.md` from the topic's existing artifacts. Contents:
+  - One-line topic summary (the lede of the topic synthesis)
+  - Source counts and last refresh timestamp
+  - Embedded copy (or wikilink) of the existing `<topic>_Topic_Synthesis.md`
+  - "Ask me about" — 5-7 example queries derived from the corpus's named entities and concept layer
+  - "MCP tools available" — short listing of `find_insights`, `read_insight`, etc. so the agent knows the structured surface exists alongside the file system
+- **Per-library `CLAUDE.md` at the library root** — same idea one level up: an index of topics with one-line summaries, so an agent dropped at `library/` sees the whole research scope at a glance.
+- **No new format** — `CLAUDE.md` is plain Markdown, identical to every other artifact in the library; the only thing special is the filename convention that agents already honor.
+
+Why this version: separated from 0.8.2 because it's a different concern (presentation for an external consumer vs. recovery for distillr's own writes). Mechanical to implement — pure templating over existing artifacts, no new LLM calls, no new dependencies. Pairs naturally with 0.8.2's recovery work because both make the library more self-describing.
+
+Why named in 0.8.x rather than 1.0 polish: the Agent SDK ecosystem just shipped (see the May 2026 Anthropic training material that motivated this milestone), and the friction of "agents can't orient in our directories" gets worse the longer we wait. Tiny scope, immediate compounding benefit.
 
 ### 0.9.0 — Discovery loop, synthesis depth, and local-file ingest
 
@@ -112,9 +131,46 @@ The preview → approve → ingest workflow becomes the default front door, synt
 
 Why this version: most of these need 0.3's telemetry to estimate cost honestly and 0.5's MCP surface to expose the same flow to agents. Shipping earlier means re-doing it later.
 
-### 0.10.0 — Operational polish
+### 0.9.1 — Source breadth and audio capability
 
-The "leave it running" version. Hands-off operation for a daily-driver research system.
+The three-source baseline (YouTube, websites, arXiv) was calibrated to "sources with public APIs and existing transcript layers." A validation run against two X posts revealed two simultaneous gaps: X itself was unsupported, and any source with audio but no native captions (X-native video, podcasts, conference talks, Loom, Vimeo) had no transcription path. Both shipped during the 0.9 validation work — they're now the foundation a focused breadth pass builds on.
+
+**What 0.9 left ready (do not re-design in 0.9.1):**
+
+- `distill ingest <url>` thin dispatcher (routes by host to the right adapter; falls back to existing `distill site` / `distill latest` / `distill paper` for unknown hosts). Mirror of the local-file dispatcher 0.9 introduces for paths.
+- X (Twitter) adapter via the public `cdn.syndication.twimg.com` embed endpoint — legitimate publisher path, not anti-bot evasion. Emits `Tweet.md` + `Transcript.txt` (when video attached) + `Insights.md` with standard frontmatter.
+- Whisper transcription layer (`distill/ingestors/transcribe.py`) with **local-first provider routing**: `faster-whisper` on CUDA or CPU is the default, OpenAI Whisper API is the cloud fallback. Per-source `vocabulary_hint` derived from the source's own metadata (tweet text, author handle, paper title, page H1) is passed as Whisper's `initial_prompt` to bias proper-noun spelling — closes the "Claude Code → QuadCode" mistranscription class.
+- `distill doctor` Transcription section: surfaces faster-whisper version, CUDA device count + supported compute types, cached Whisper models, and the routing line ("local-first → cloud fallback" vs. cloud-only vs. unavailable) so provider surprises are visible before a run.
+
+**What 0.9.1 adds (the five-adapter set):**
+
+- **Podcasts** — RSS feed ingestion, episode `.mp3` download via stdlib, Whisper transcription, standard analysis prompt tuned for interview/conversation shape. Closes the largest single content surface for primary practitioner audio. Reuses the transcribe.py provider routing wholesale.
+- **GitHub repos** — README + structured subset of issues/discussions/releases, via the public REST API (no auth required at low rate, `GITHUB_TOKEN` lifts limits). Critical because for any OSS tool, the repo itself is the primary source — not the marketing page. Emits `Repo.md` + `Insights.md`.
+- **Generic audio/video files** — `distill ingest <path-to-.mp3-or-.m4a-or-.mp4>` (or `.wav`, `.opus`) routed through the Whisper layer + a "raw media" analysis prompt that expects no native structure. Drops out almost free from the 0.9 local-file dispatcher + the Whisper layer; covers conference talks distributed as files, downloaded Loom recordings, voice memos, interview MP3s.
+- **Substack / newsletter posts** — RSS-driven site ingest with the existing site scraper plus a small adapter for Substack's predictable per-post HTML structure (header, byline, body, footnotes). Most of the work is RSS feed enumeration and the per-post structural extraction; the analysis prompt is the existing site-page prompt.
+- **X (already shipped in 0.9 validation)** — listed here for completeness; 0.9.1 hardens with: tests, MCP `find_insights`-style read tool, optional thread expansion (fetch parent + reply chain), and consolidated cost/run tracking through the standard `CostTracker` / `RunSummary` plumbing.
+
+**Adapter contract (enforced by reviewer checklist, not lint):**
+
+Every new adapter must implement these five behaviors so it composes with the rest of the system:
+
+1. **Capture as a deterministic function of public input** — given the same URL or path, the captured artifact bytes are reproducible (modulo upstream changes). No login walls, no captcha defeat, no scraping that breaks if the site adds anti-bot. The X adapter's syndication-endpoint approach is the reference shape.
+2. **Emit conventional artifacts** — at minimum a raw artifact (`Tweet.md` / `Episode.md` / `Repo.md` / `Page.md` / `Paper.md`) and an `_Insights.md`, both via `write_markdown_artifact` with `base_frontmatter` + `ProvenanceFields`. No new directory layouts or filename schemes — file under `library/topics/<topic>/<source>/<identity>/`.
+3. **Pass source metadata to downstream model calls** — Whisper transcription gets a `vocabulary_hint` derived from the source's own text; analysis prompts get author/title/date in their context. The pattern that fixed proper-noun mistranscription for tweets generalizes: the source knows what's in it.
+4. **Cost-track through `CostTracker`** — every LLM and transcription call records to the run tracker with a meaningful `call_type`. No off-ledger spend.
+5. **MCP tool parity** — every CLI ingest verb has a matching MCP tool that takes the same arguments and produces the same artifacts. Agents and humans see the same affordance.
+
+**Calibration debt — the real risk of "more sources" and how this scope bounds it:**
+
+The roadmap excludes additional cloud LLM providers (see "[intentionally not in scope](#intentionally-not-in-scope)") precisely because each provider is calibration debt — prompts that work well on one regress on another. The same logic applies to sources: a paper-style analysis prompt under-extracts on a podcast (different structure, different signal density, different listener stance). 0.9.1 caps the breadth pass at five adapters with the contract above so the 1.0 golden-corpus eval gate stays tractable. Further sources — LinkedIn, Bluesky, Mastodon, HackerNews, Reddit, Discord exports, Slack archives, slide decks — defer to the post-1.0 plugin system the roadmap already gestures at. The cap is deliberate; if a community contribution wants to add a sixth adapter, the contract above is the gate, not the version number.
+
+Why this version: the breadth pass needs 0.9's `distill ingest` dispatcher to exist as a real entry point, and 0.10's stale-detection + budget guardrails would mis-fire if applied to half-built adapters. Slotting between 0.9 and 0.10 lets each source land with its routing affordance and its budget plumbing both already in place. The Whisper layer + X adapter shipped in 0.9 are the cheap part; the four remaining adapters are the disciplined-execution part.
+
+### 0.10.0 — Operational polish + run-time verify
+
+The "leave it running" version. Hands-off operation for a daily-driver research system, plus the run-time verification gate that closes the agent-loop pattern Anthropic's Agent SDK material formalizes.
+
+**Operational polish.**
 
 - Scheduled refresh via cron / Task Scheduler; goal-file refresh hook for `distill watch`.
 - Semantic dedup across videos, pages, and papers (artifact-preserving — source-origin attribution stays in the synthesis layer).
@@ -122,7 +178,22 @@ The "leave it running" version. Hands-off operation for a daily-driver research 
 - Cost anomaly detection and budget guardrails per topic and workflow.
 - Live per-item progress plus resume-friendly failure handling for long mixed-source runs, so transcript-rate limits or slow site ingestion are visible without manual filesystem inspection.
 
-Why this version: these features compound the value of everything above. They don't make sense to land before the corpus is structurally stable, which 0.8 secures.
+**Run-time verify hook.**
+
+Anthropic's Agent SDK formalizes the agent loop as `gather context -> take action -> verify`. Distillr today does gather (discover) and act (analyze + synthesize) but has no run-time verify gate — if an analysis prompt hallucinates a paper title, a vendor positioning claim, or a benchmark number that wasn't in the source text, nothing catches it before the artifact is committed to the library. The golden-corpus eval gate in 1.0 is the *test-time* version of this; this milestone adds the *write-time* version:
+
+- **Inline claim-grounding check on every analysis emit** — for every `_Insights.md` write, the orchestrator post-processes the structured output: extract each load-bearing claim (numbers, named products, dates, named people), grep the source artifact for verbatim or near-verbatim support, flag any unsupported claim in a small `_verify.json` sidecar with the same identity stem as the insights file.
+- **Configurable severity** — `--verify warn` (default; surface to console, write anyway), `--verify strict` (refuse to write if any unsupported load-bearing claim is found; user can override per-run with `--verify off`). Mirrors the Agent SDK's "hooks" pattern — deterministic verification layered on top of stochastic model output.
+- **Verifier is a small local-model pass when possible** — the verifier doesn't have to share the analysis model's biases. A cheap separate-process check (small local LLM, or even a regex-based first cut for the easy cases like "this section claims a number; does the number appear in the source") catches the regressions a self-judge prompt would miss.
+
+**Sub-agent-friendly MCP surface.**
+
+Today's `find_insights(topic, query)` returns full artifact bodies. For a 50-paper corpus, an agent that queries this blows past most context windows. The Agent SDK's sub-agent pattern (delegate "do X over Y, here's bounded context, return result") needs a token-bounded query primitive:
+
+- **`find_insights_summary(topic, query, max_tokens=4000)`** — same query, returns a synthesis sized to fit a sub-agent's context. Implementation: existing `find_insights` plus a one-shot LLM compression pass over the matching slice with the query as the focus. Cached by `(topic, query, max_tokens, corpus_revision)` so repeated sub-agent calls don't repay the compression cost.
+- **`list_topic_summary(topic)`** — paragraph-length topic overview pulled from the topic synthesis frontmatter, used when a sub-agent is choosing which topic to query.
+
+Why this version: stale-detection, semantic dedup, and run-time verify all need stable artifact identity and provenance, which 0.7 + 0.8 secure. The sub-agent MCP tools depend on the 0.9 two-pass synthesis claim intermediate (so the summary pass has structured inputs rather than re-extracting from prose). 0.10 is where these compound on top of everything underneath.
 
 ### 1.0.0 — Stability commitment + quality bar
 
@@ -133,6 +204,15 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 - CLI flags, MCP tool/resource/prompt schemas, library directory layout, and frontmatter fields are versioned. Breaking changes require a major-version bump and a documented migration.
 - Documented backwards-compatibility policy for the `library/` directory (a 0.5 corpus opens cleanly in 1.0).
 - Performance baseline published — wall-clock and token spend for a reference 20-paper run, a reference 50-video catch-up, a reference site-batch. CI flags regressions beyond a documented budget.
+
+**Stability is about contracts, not about prompts. Prompt-revision cadence is separate.**
+
+The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP schemas, library layout, frontmatter fields). It deliberately does **not** freeze the *prompts* that drive analysis, synthesis, concept extraction, and verification. Anthropic's Agent SDK material is explicit on the principle: "expect to rewrite agent code every six months" as model capabilities change. Distillr's prompts are no different — what works on grok-4.3 doesn't necessarily work on grok-4.7, and over-fitting prompts to last quarter's model is its own kind of brittleness.
+
+- **Prompts are versioned (`prompt_id`), not frozen.** Every artifact's frontmatter already records the `prompt_id` and `model_version` that produced it (since 0.7). 1.0 formalizes that this is the *only* required stability for prompts — the actual prompt body can revise without a major-version bump as long as the contract its output satisfies (frontmatter shape, claimed sections, golden eval gate pass) holds.
+- **Documented revision cadence.** Prompts get a scheduled revision pass roughly every two model generations (so several times a year at current pace), and an unscheduled revision when the golden eval gate flags a regression that's load-bearing.
+- **Stale-detection is the user-facing consequence.** 0.10's stale-detection re-analyzes artifacts whose `prompt_id` or `model_version` falls behind the current floor. The cadence above is what defines the floor.
+- **Distinction matters because users build on contracts, not prompts.** A downstream MCP consumer or Obsidian dataview depends on `synthesis_scope: "single-paper"` meaning the same thing it always meant — that's contract stability. It doesn't depend on the analysis prompt being literally identical to the 0.7 version — that's an implementation detail that *should* evolve as models improve.
 
 **Quality bar (CI-enforced, not aspirational).**
 
