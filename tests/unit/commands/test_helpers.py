@@ -37,8 +37,8 @@ class TestEnsureUtf8Stdio:
         ensure_utf8_stdio()
 
         assert calls == [
-            {"encoding": "utf-8", "errors": "replace"},
-            {"encoding": "utf-8", "errors": "replace"},
+            {"encoding": "utf-8", "errors": "replace", "line_buffering": True},
+            {"encoding": "utf-8", "errors": "replace", "line_buffering": True},
         ]
 
     def test_silent_when_stream_lacks_reconfigure(self, monkeypatch):

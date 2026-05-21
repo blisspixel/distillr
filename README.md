@@ -46,11 +46,12 @@ That matters when you are doing thesis work, competitive analysis, technical due
 
 One local `library/` directory of plain Markdown. No database, no cloud lock-in, no proprietary format. Files use globally descriptive names plus YAML frontmatter so knowledge-base tools, Dataview-style plugins, and AI coding assistants can understand them without guessing from generic `insights.md` tabs.
 
-Three source types, same pipeline shape (capture → analyze → synthesize → report):
+Four source types, same pipeline shape (capture -> analyze -> synthesize -> report):
 
 - **YouTube** — channels, topic searches, videos, Shorts
 - **Websites** — vendor sites, research hubs, curated URL sets (browser-first crawl with PDF/embedded-video ingestion)
 - **arXiv papers** — phrase-matched search, full-PDF extraction, structured per-paper insights, cross-paper synthesis
+- **X (Twitter) posts** — via `distill ingest <tweet-url>`; uses the public syndication embed endpoint (no anti-bot scraping). When a tweet has a native video attachment, the audio is transcribed via local-first Whisper (`faster-whisper` on GPU/CPU, OpenAI Whisper as cloud fallback) with a vocabulary hint derived from the source metadata to keep proper nouns intact.
 
 Plus an MCP server so AI assistants and agent systems can query the library directly.
 
@@ -189,15 +190,19 @@ distill serve                   # local web dashboard at http://127.0.0.1:8899
 
 The terminal home screen shows tracked topics, channel and topic watches, recent runs, failures, and rolling spend. The web dashboard adds clickable drill-downs to per-topic, per-channel, and per-video views with rendered markdown, plus cost history and watchlist status. Both auto-refresh and read directly from library files — no database.
 
-## MCP server
+## MCP server, and agent-discoverable directories
 
-Claude Desktop / Claude Code config:
+Distillr is built for two parallel agent-integration paths:
+
+**Path 1 — MCP (structured queries).** Claude Desktop / Claude Code config:
 
 ```json
 { "mcpServers": { "distill": { "command": "distill-mcp" } } }
 ```
 
 Distill exposes 8 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
+
+**Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. From 0.8.3 forward, every topic directory ships an auto-generated `CLAUDE.md` orientation file that agents which auto-load it (Claude Code, Cursor, others) pick up automatically. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
 ## Cost
 
@@ -221,9 +226,9 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
-**Recent: 0.8.1 Frontmatter rename (shipped 2026-05-16).** `confidence:` → `synthesis_scope:` across every emitter, plus a one-shot migration (`distill doctor --migrate-frontmatter [--apply]`). The field was always a routing label (`single-paper`, `corpus-consensus`, `interpretation`), not a calibrated number — the rename removes the misnomer.
+**Recent: 0.8.1 Frontmatter rename (shipped 2026-05-16).** `confidence:` -> `synthesis_scope:` across every emitter, plus a one-shot migration (`distill doctor --migrate-frontmatter [--apply]`). The field was always a routing label (`single-paper`, `corpus-consensus`, `interpretation`), not a calibrated number — the rename removes the misnomer.
 
-**Next: 0.8.2 Playbook recovery surface.** `distill concepts diff` / `rollback` / `log` over the `.history/` snapshots 0.8 already writes — read affordance for versioned concept notes. Then 0.9 (discovery loop + two-pass synthesis + local-file ingest).
+**Next: 0.8.2 Playbook recovery surface.** `distill concepts diff` / `rollback` / `log` over the `.history/` snapshots 0.8 already writes — read affordance for versioned concept notes. Then 0.8.3 (per-topic `CLAUDE.md` auto-generation so agents that `cd` into a topic directory get immediate orientation), 0.9 (discovery loop + two-pass synthesis + local-file ingest), 0.9.1 (source breadth + audio capability — see [`ROADMAP.md`](ROADMAP.md#091--source-breadth-and-audio-capability) for the five-adapter set and contract), 0.10 (operational polish + run-time verify hook + sub-agent-friendly MCP tools).
 
 ## Contributing
 

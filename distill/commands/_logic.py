@@ -5113,6 +5113,90 @@ def doctor(  # noqa: C901 — legacy, will refactor
     else:
         console.print("  [dim]--  scribe            not set (optional transcript fallback)[/dim]")
 
+    # Transcription providers (Whisper for sources without native captions:
+    # X-native video, podcasts, conference talks, generic audio/video files).
+    # YouTube continues to use yt-dlp captions — these checks are only
+    # relevant for sources outside that path.
+    console.print()
+    console.print("  [bold]Transcription[/bold]")
+    console.print(f"  [dim]{'-' * 50}[/dim]")
+
+    fw_installed = False
+    try:
+        import importlib.metadata
+
+        fw_version = importlib.metadata.version("faster-whisper")
+        fw_installed = True
+        console.print(
+            f"  [green]OK[/green]  faster-whisper    [dim]v{fw_version} (local provider)[/dim]"
+        )
+    except importlib.metadata.PackageNotFoundError:
+        console.print(
+            "  [dim]--  faster-whisper    not installed "
+            "(pip install faster-whisper for local GPU/CPU transcription)[/dim]"
+        )
+    except Exception as exc:
+        console.print(f"  [yellow]--[/yellow]  faster-whisper    [yellow]{exc!s:.60}[/yellow]")
+
+    if fw_installed:
+        try:
+            import ctranslate2  # type: ignore[import-not-found]
+
+            cuda_count = ctranslate2.get_cuda_device_count()
+            if cuda_count > 0:
+                compute_types = ctranslate2.get_supported_compute_types("cuda")
+                preferred = "float16" if "float16" in compute_types else next(iter(compute_types))
+                console.print(
+                    f"  [green]OK[/green]  CUDA device       "
+                    f"[dim]{cuda_count} device(s), compute={preferred}[/dim]"
+                )
+            else:
+                console.print(
+                    "  [yellow]--[/yellow]  CUDA device       "
+                    "[dim]none detected; local Whisper will run on CPU (slower)[/dim]"
+                )
+        except Exception as exc:
+            console.print(f"  [yellow]--[/yellow]  CUDA device       [yellow]{exc!s:.60}[/yellow]")
+
+        # Peek HF cache for already-downloaded Whisper models so users
+        # know whether the first run will incur a ~3GB download.
+        hf_cache = Path(os.environ.get("HF_HOME") or Path.home() / ".cache" / "huggingface")
+        cached_models: list[str] = []
+        if hf_cache.exists():
+            hub_dir = hf_cache / "hub"
+            if hub_dir.exists():
+                for entry in hub_dir.iterdir():
+                    name = entry.name
+                    if name.startswith("models--") and "whisper" in name.lower():
+                        cached_models.append(name.replace("models--", "").replace("--", "/"))
+        if cached_models:
+            console.print(
+                f"  [green]OK[/green]  whisper models    [dim]{', '.join(cached_models[:3])}[/dim]"
+            )
+        else:
+            console.print(
+                "  [dim]--  whisper models    none cached "
+                "(first transcription will download ~3GB for large-v3)[/dim]"
+            )
+
+    # Routing surface: which providers transcribe.py will pick from
+    # today, in order. Helps debug "why did this go to cloud?" surprises.
+    providers = []
+    if fw_installed:
+        providers.append("local (faster-whisper large-v3)")
+    if config.xai_api_key:
+        providers.append("cloud (xai-grok-stt $0.10/hr)")
+    if config.openai_api_key:
+        providers.append("cloud (openai whisper-1 $0.36/hr)")
+    if providers:
+        routing = " -> ".join(providers)
+    else:
+        routing = (
+            "[red]no provider available[/red] -- install faster-whisper, "
+            "or set XAI_API_KEY / OPENAI_API_KEY"
+        )
+    console.print(f"  [dim]Provider routing: {routing}[/dim]")
+
     # Library
     console.print()
     console.print("  [bold]Library[/bold]")
@@ -7603,24 +7687,31 @@ def discover(  # noqa: C901 — legacy, will refactor
                 scrape_only=False,
                 ingest_attachments=ingest_attachments,
             )
-        try:
-            topic_synth = synthesize_site_topic(topic_name, config, tracker=tracker)
-            if topic_synth:
-                summary.add_output(
-                    find_artifact(
-                        config.topic_dir(topic_name),
-                        "topic_synthesis",
-                        identity=topic_name,
+        # When videos were also ingested, they own the topic_synthesis artifact
+        # (written by synthesize_topic). Running the website topic synthesis here
+        # would overwrite it and drop the video story from the user-facing
+        # Topic_Synthesis.md. The website material is still bridged into the
+        # corpus synthesis via the per-site syntheses, so skip the site-level
+        # topic synthesis in mixed (video + site) runs.
+        if not ranked_videos:
+            try:
+                topic_synth = synthesize_site_topic(topic_name, config, tracker=tracker)
+                if topic_synth:
+                    summary.add_output(
+                        find_artifact(
+                            config.topic_dir(topic_name),
+                            "topic_synthesis",
+                            identity=topic_name,
+                        )
                     )
+            except Exception as exc:
+                cli_shared.record_exception_issue(
+                    summary,
+                    stage="site-topic-synthesis",
+                    exc=exc,
+                    context=topic_name,
+                    details={"topic": topic_name},
                 )
-        except Exception as exc:
-            cli_shared.record_exception_issue(
-                summary,
-                stage="site-topic-synthesis",
-                exc=exc,
-                context=topic_name,
-                details={"topic": topic_name},
-            )
 
     corpus = synthesize_corpus(topic_name, config, tracker=tracker)
     if corpus:
