@@ -85,6 +85,12 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     watch_app,
 )
 
+# Register commands defined in dedicated modules (kept out of the 7k-line
+# _logic.py). The import side-effect attaches the command to ``app``.
+from distill.commands.ingest import register as _register_ingest
+
+_register_ingest(app)
+
 __all__ = ["app", "main"]
 
 
