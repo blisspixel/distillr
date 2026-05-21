@@ -316,6 +316,31 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                     site_seed=seed,
                 )
             )
+    # Curated site seeds are a user-provided signal of intent. The LLM rerank can
+    # silently omit them from ranked_items -- e.g. when the goal is phrased around
+    # one vendor, curated competitor seeds for a comparison get dropped entirely.
+    # Re-attach any curated seed the rerank left out with a floor score so it
+    # stays eligible for the per-source --site-limit slice instead of vanishing
+    # without trace. The caller still caps the count via --site-limit.
+    ranked_site_urls = {r.identifier for r in ranked if r.kind == "site"}
+    for seed in sites:
+        if seed.url in ranked_site_urls:
+            continue
+        ranked.append(
+            RankedDiscoverItem(
+                kind="site",
+                identifier=seed.url,
+                title=_site_candidate_title(seed),
+                subtitle=seed.resolved_site_name() or "website",
+                date="-",
+                final_score=0.4,
+                goal_fit=0.0,
+                depth_score=0.0,
+                complementarity_score=0.0,
+                rationale="Curated seed retained (omitted by rerank; user-provided).",
+                site_seed=seed,
+            )
+        )
     return sorted(ranked, key=lambda x: x.final_score, reverse=True)
 
 
