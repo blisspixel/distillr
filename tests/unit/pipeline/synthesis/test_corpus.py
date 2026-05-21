@@ -33,3 +33,48 @@ def test_synthesize_corpus_writes_output(tmp_path):
     output = find_artifact(topic_dir, "corpus_synthesis", identity="mixed")
     assert output.name == "mixed_Corpus_Synthesis.md"
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "corpus synthesis"
+
+
+def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesis(tmp_path):
+    """Regression: corpus must read per-channel video syntheses directly.
+
+    The topic_synthesis filename is shared by the video and website producers,
+    so in a mixed run the website synthesis overwrites the video one. Corpus
+    synthesis must surface the channel content regardless and must not depend on
+    the collidable topic_synthesis file.
+    """
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+
+    for name, body in [
+        ("CreatorOne", "ALPHA_CHANNEL_INSIGHT"),
+        ("CreatorTwo", "BETA_CHANNEL_INSIGHT"),
+    ]:
+        channel_dir = config.channel_dir(topic, name)
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text(body, encoding="utf-8")
+
+    site_dir = config.site_dir(topic, "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "synthesis.md").write_text("GAMMA_SITE_INSIGHT", encoding="utf-8")
+
+    # Simulate the collision: a site-only rollup left in topic_synthesis on disk.
+    topic_dir = config.topic_dir(topic)
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "topic_synthesis.md").write_text("SITE_ONLY_ROLLUP", encoding="utf-8")
+
+    captured: dict[str, str] = {}
+
+    def _capture(config, workload_tag, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return LLM_Response(text="corpus", input_tokens=10, output_tokens=20, model="grok-4.3")
+
+    with patch("distill.pipeline.synthesis.corpus.llm_call", _capture):
+        synthesize_corpus(topic, config)
+
+    prompt = captured["prompt"]
+    assert "ALPHA_CHANNEL_INSIGHT" in prompt
+    assert "BETA_CHANNEL_INSIGHT" in prompt
+    assert "GAMMA_SITE_INSIGHT" in prompt
+    # The collidable topic_synthesis file is no longer trusted as a source.
+    assert "SITE_ONLY_ROLLUP" not in prompt

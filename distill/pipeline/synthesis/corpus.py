@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from distill.config import DistillConfig
 from distill.library.paths import (
     ProvenanceFields,
@@ -21,6 +23,32 @@ __all__ = [
 ]
 
 
+def _collect_subdir_sections(
+    parent_dir: Path,
+    topic: str,
+    artifact_type: str,
+    section_prefix: str,
+    link_title_prefix: str,
+) -> dict[str, str]:
+    """Collect per-subdirectory synthesis artifacts (channels or sites) as
+    labeled corpus sections, each prefixed with a wikilink to its source."""
+    sections: dict[str, str] = {}
+    if not parent_dir.exists():
+        return sections
+    for sub_dir in sorted(parent_dir.iterdir()):
+        if not sub_dir.is_dir():
+            continue
+        identity = f"{topic}_{sub_dir.name}"
+        synth_file = find_artifact(sub_dir, artifact_type, identity=identity)
+        if not synth_file.exists():
+            continue
+        link = emit_wiki_link(f"{link_title_prefix}: {sub_dir.name}", identity, artifact_type)
+        sections[f"{section_prefix}: {sub_dir.name}"] = f"Source: {link}\n" + synth_file.read_text(
+            encoding="utf-8"
+        )
+    return sections
+
+
 def synthesize_corpus(
     topic: str,
     config: DistillConfig,
@@ -29,12 +57,20 @@ def synthesize_corpus(
     source_sections: dict[str, str] = {}
 
     topic_dir = config.topic_dir(topic)
-    topic_synth = find_artifact(topic_dir, "topic_synthesis", identity=topic)
-    if topic_synth.exists():
-        link = emit_wiki_link(f"Topic synthesis: {topic}", topic, "topic_synthesis")
-        source_sections["YouTube / Website Topic Synthesis"] = (
-            f"Source: {link}\n" + topic_synth.read_text(encoding="utf-8")
+
+    # Read per-channel video syntheses directly rather than the rolled-up
+    # topic_synthesis file. The topic_synthesis identity is written by both the
+    # video producer (synthesize_topic) and the website producer
+    # (synthesize_site_topic); in a mixed-source run the website synthesis
+    # overwrites the video one, which previously dropped all video intelligence
+    # from the corpus. It also goes unwritten entirely for single-channel topics
+    # (synthesize_topic needs >=2 channels). Reading channels directly mirrors
+    # how site syntheses are read and makes the corpus complete regardless.
+    source_sections.update(
+        _collect_subdir_sections(
+            topic_dir / "channels", topic, "synthesis", "Video channel", "Channel synthesis"
         )
+    )
 
     paper_synth = find_artifact(topic_dir, "paper_synthesis", identity=topic)
     if paper_synth.exists():
@@ -43,25 +79,11 @@ def synthesize_corpus(
             encoding="utf-8"
         )
 
-    sites_dir = config.sites_dir(topic)
-    if sites_dir.exists():
-        for site_dir in sorted(sites_dir.iterdir()):
-            if not site_dir.is_dir():
-                continue
-            synth_file = find_artifact(
-                site_dir,
-                "site_synthesis",
-                identity=f"{topic}_{site_dir.name}",
-            )
-            if synth_file.exists():
-                link = emit_wiki_link(
-                    f"Site synthesis: {site_dir.name}",
-                    f"{topic}_{site_dir.name}",
-                    "site_synthesis",
-                )
-                source_sections[f"Site: {site_dir.name}"] = (
-                    f"Source: {link}\n" + synth_file.read_text(encoding="utf-8")
-                )
+    source_sections.update(
+        _collect_subdir_sections(
+            config.sites_dir(topic), topic, "site_synthesis", "Site", "Site synthesis"
+        )
+    )
 
     if not source_sections:
         return ""
