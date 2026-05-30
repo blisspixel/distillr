@@ -13,12 +13,14 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
-async def synthesize(topic: str, force: bool = False, ctx: Context = None) -> str:  # noqa: C901
+async def synthesize(topic: str, force: bool = False, style: str = "", ctx: Context = None) -> str:  # noqa: C901
     """Run or regenerate synthesis for a topic across all sources.
 
     Args:
         topic: Topic to synthesize
         force: Force regeneration even if fresh
+        style: Optional register for the topic/corpus synthesis -- one of
+            exec, pop, landscape, disagreements-only (empty = standard).
     """
     config = _server._config()
     if not config.xai_api_key:
@@ -26,6 +28,15 @@ async def synthesize(topic: str, force: bool = False, ctx: Context = None) -> st
 
     from distill.pipeline.synthesis.corpus import synthesize_corpus
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+    from distill.prompts.synthesis import STYLE_NAMES
+
+    if style and style not in STYLE_NAMES:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": f"Unknown style '{style}'. Use one of: {list(STYLE_NAMES)}.",
+            }
+        )
 
     lib = _server._lib(config)
     tracker = CostTracker()
@@ -46,7 +57,7 @@ async def synthesize(topic: str, force: bool = False, ctx: Context = None) -> st
     if ctx:
         await ctx.report_progress(progress=len(channels), total=total_steps)
     try:
-        synthesize_topic(topic, config, tracker=tracker)
+        synthesize_topic(topic, config, tracker=tracker, style=style)
         results.append({"scope": "topic", "status": "ok"})
     except Exception as e:
         results.append({"scope": "topic", "status": "error", "error": str(e)})
@@ -55,7 +66,7 @@ async def synthesize(topic: str, force: bool = False, ctx: Context = None) -> st
     if ctx:
         await ctx.report_progress(progress=len(channels) + 1, total=total_steps)
     try:
-        corpus = synthesize_corpus(topic, config, tracker=tracker)
+        corpus = synthesize_corpus(topic, config, tracker=tracker, style=style)
         if corpus:
             results.append({"scope": "corpus", "status": "ok"})
         else:

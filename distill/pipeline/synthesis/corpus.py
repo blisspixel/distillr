@@ -56,6 +56,8 @@ def synthesize_corpus(
     topic: str,
     config: DistillConfig,
     tracker: CostTracker | None = None,
+    *,
+    style: str = "",
 ) -> str:
     source_sections: dict[str, str] = {}
 
@@ -104,7 +106,7 @@ def synthesize_corpus(
     response = llm_call(
         rc,
         workload_tag="site",
-        prompt=corpus_synthesis_prompt(topic, source_sections),
+        prompt=corpus_synthesis_prompt(topic, source_sections, style=style),
         call_type="corpus_synthesis",
     )
     synthesis = response.text
