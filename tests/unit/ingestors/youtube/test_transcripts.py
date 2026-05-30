@@ -1,5 +1,6 @@
 """Tests for distill.transcripts."""
 
+import os
 from unittest.mock import patch
 
 from distill.config import DistillConfig
@@ -292,8 +293,12 @@ class TestScribeFallback:
         new_file = output_dir / "new.txt"
         old_file.write_text("old", encoding="utf-8")
         new_file.write_text("new", encoding="utf-8")
-        old_file.touch()
-        new_file.touch()
+        # Set explicit, distinct mtimes so "latest output" is unambiguous.
+        # Back-to-back touch() calls can land on the same mtime tick on
+        # coarse-resolution filesystems (notably in CI), making the
+        # tie-break arbitrary and the test flaky.
+        os.utime(old_file, (1_000_000, 1_000_000))
+        os.utime(new_file, (2_000_000, 2_000_000))
         config = DistillConfig(
             distill_output_dir=tmp_path / "lib",
             scribe_path=str(scribe_dir),
