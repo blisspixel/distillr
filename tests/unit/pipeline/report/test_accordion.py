@@ -771,7 +771,7 @@ class TestDossierPhase:
         result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
 
         assert result == "dossier body"
-        tracker.record_gemini_query.assert_called_once_with()
+        tracker.record_gemini_query.assert_called_once_with("deep-research-preview-04-2026")
 
 
 class TestAccordionRun:

@@ -236,3 +236,50 @@ def test_save_run_log_no_migration_when_new_exists(tmp_path):
     assert len(lines) == 2
     assert json.loads(lines[0])["command"] == "already_migrated"
     assert json.loads(lines[1])["command"] == "append"
+
+
+# ---- model-aware Gemini Deep Research cost ---------------------------------
+
+
+def test_gemini_cost_is_model_aware():
+    tracker = CostTracker()
+    tracker.record_gemini_query("deep-research-preview-04-2026")  # standard ~2.50
+    tracker.record_gemini_query("deep-research-max-preview-04-2026")  # max ~5.00
+    assert tracker.gemini_queries == 2
+    assert tracker.total_gemini_cost == 7.50
+
+
+def test_gemini_cost_count_only_fallback():
+    # A tracker that carries only a count (e.g. a sub-range report copy) still
+    # prices at the standard per-query estimate.
+    tracker = CostTracker(gemini_queries=2)
+    assert tracker.total_gemini_cost == 2 * deep_research_query_cost()
+
+
+# ---- transcription cost tracking -------------------------------------------
+
+
+def test_record_transcription_cloud_and_local():
+    tracker = CostTracker()
+    tracker.record_transcription("xai-grok-stt", 3600.0, model="grok-stt")  # 1h @ $0.10
+    tracker.record_transcription("whisper-1", 1800.0)  # 0.5h @ $0.36 = 0.18
+    tracker.record_transcription("local", 7200.0)  # free
+    assert len(tracker.transcriptions) == 3
+    assert round(tracker.total_transcription_cost, 4) == round(0.10 + 0.18, 4)
+
+
+def test_total_cost_includes_transcription():
+    tracker = CostTracker()
+    tracker.record(TokenUsage(prompt_tokens=1_000_000, completion_tokens=0, model="grok-4.3"))
+    tracker.record_transcription("xai-grok-stt", 3600.0)
+    # grok input 1M @ $1.25 + transcription 1h @ $0.10
+    assert round(tracker.total_cost, 4) == round(1.25 + 0.10, 4)
+
+
+def test_summary_dict_includes_transcription_when_present():
+    tracker = CostTracker()
+    assert "transcription_calls" not in tracker.summary_dict()
+    tracker.record_transcription("whisper-1", 3600.0)
+    summary = tracker.summary_dict()
+    assert summary["transcription_calls"] == 1
+    assert summary["estimated_transcription_cost"] == "$0.3600"

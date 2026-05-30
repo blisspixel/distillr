@@ -123,3 +123,20 @@ def test_per_token_model_rates(model: str, expected_input: float, expected_outpu
     rates = get_pricing(model)
     assert rates["input"] == expected_input
     assert rates["output"] == expected_output
+
+
+def test_deep_research_query_cost_model_aware() -> None:
+    from distill.llm.cost import deep_research_query_cost
+
+    assert deep_research_query_cost("deep-research-preview-04-2026") == 2.50
+    assert deep_research_query_cost("deep-research-max-preview-04-2026") == 5.00
+    assert deep_research_query_cost() == 2.50  # default standard estimate
+
+
+def test_transcription_cost() -> None:
+    from distill.llm.cost import transcription_cost
+
+    assert transcription_cost("xai-grok-stt", 3600.0) == 0.10
+    assert round(transcription_cost("whisper-1", 1800.0), 4) == 0.18
+    assert transcription_cost("local", 3600.0) == 0.0
+    assert transcription_cost("unknown-provider", 3600.0) == 0.0
