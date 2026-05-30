@@ -24,18 +24,30 @@ def create_app(config: DistillConfig) -> FastAPI:
 
     templates = Jinja2Templates(directory=WEB_DIR / "templates")
 
-    # Register template filters
+    # Register template filters.
+    #
+    # Artifact bodies are derived from untrusted ingested sources (a malicious
+    # page or transcript could carry raw HTML, or an LLM could echo an injected
+    # ``<script>`` into an insight). Templates render this through ``|markdown|
+    # safe``, so the rendered HTML MUST be sanitized first -- otherwise it is a
+    # stored-XSS vector in the dashboard. Sanitize the rendered output with nh3
+    # (allowlist), per Python-Markdown's own guidance to sanitize output rather
+    # than trust the renderer. If a sanitizer or renderer is unavailable, fail
+    # safe by escaping everything.
+    def _escape_all(text: str) -> str:
+        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return f"<pre>{escaped}</pre>"
+
     try:
         import markdown as md_lib
+        import nh3
 
         def md_filter(text: str) -> str:
-            return md_lib.markdown(text, extensions=["tables", "fenced_code"])
+            html = md_lib.markdown(text, extensions=["tables", "fenced_code"])
+            return nh3.clean(html)
 
     except ImportError:
-
-        def md_filter(text: str) -> str:
-            escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            return f"<pre>{escaped}</pre>"
+        md_filter = _escape_all
 
     templates.env.filters["markdown"] = md_filter
     templates.env.filters["format_date"] = format_date

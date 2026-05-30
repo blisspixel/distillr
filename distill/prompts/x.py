@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
+
 __all__ = ["tweet_insight_prompt", "vocabulary_expansion_prompt"]
 
 
@@ -111,6 +113,8 @@ ATTACHED MEDIA:
     return f"""You are extracting intelligence from an X (Twitter) post for a
 research corpus. Treat the post as primary source material and produce a
 structured insights document grounded only in what was actually said.
+
+SECURITY: {UNTRUSTED_CONTENT_RULES}
 
 POST: {tweet_url}
 AUTHOR: {author_name} ({author_handle})

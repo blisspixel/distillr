@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.7 - 2026-05-30
+
+**Security hardening.** Closes the two genuinely-relevant security gaps for an API-consumer tool that ingests untrusted public sources. (The broader "AI security" surface — model poisoning, extraction, inversion, DP, enclaves — is out of scope by architecture: distillr trains and serves no models. See the new "Security posture" section in [`ROADMAP.md`](../ROADMAP.md#security-posture).)
+
+- **Indirect prompt-injection resistance.** Every analyzed source (transcript, page, PDF, tweet) is untrusted text that could embed instructions to hijack the analysis. A shared `UNTRUSTED_CONTENT_RULES` constant is now threaded into every per-source analysis prompt (video / shorts / scan / site page / paper / tweet): the source is labelled untrusted data and the model is told to ignore any instructions inside it. Prevention to pair with the planned 0.10 run-time verify hook (detection).
+- **Web-dashboard XSS fixed.** The local dashboard rendered artifacts through `markdown(...)` with raw HTML passed through, a stored-XSS vector for untrusted-derived content. Rendered HTML now goes through an `nh3` allowlist sanitizer (strips `<script>`, event handlers, `javascript:` URLs; preserves formatting and tables). Adds `nh3` to dependencies.
+
 ## 0.8.6 - 2026-05-30
 
 **Cost-tracking completeness.** Closes an off-ledger spend gap and makes the expensive operation (Deep Research) price accurately, so `distill costs` reflects real spend.
