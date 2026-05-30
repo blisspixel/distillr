@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.11 - 2026-05-30
+
+**Gap-driven discovery (`discover --from-gaps`).** The inverse of goal-driven discovery: instead of starting from a user-written goal, `distill discover --from-gaps --topic <t>` reads the topic's coverage gaps (thin source types, missing syntheses, stale recency) and synthesizes a discovery goal from them, then runs the normal query-generation -> rerank -> preview/approve -> ingest flow. "You're single-source on X, missing a corpus synthesis" becomes "find recent sources that fill those gaps." The gap computation was lifted from the MCP server into a shared `distill/pipeline/gaps.py` so the `research_gaps` MCP tool and the discover command share one implementation (no `commands -> mcp` coupling). Continues the 0.9.0 milestone.
+
 ## 0.8.10 - 2026-05-30
 
 **Synthesis register styles (`--style`).** `distill resynthesize --style exec|pop|landscape|disagreements-only` selects an emphasis register for the human-read topic and corpus syntheses, while every style still honors the PhD-level contract (cross-source claims, named disagreements, shared blind spots). `exec` leads with the decision; `pop` is an accessible explainer; `landscape` surveys the field's shape; `disagreements-only` foregrounds conflicts. Default (no `--style`) is unchanged. Prompt-layer only via a new `STYLE_GUIDANCE` map; the MCP `synthesize` tool gains a matching `style` argument. Continues the 0.9.0 milestone.
