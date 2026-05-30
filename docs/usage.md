@@ -244,6 +244,16 @@ Paper outputs land under:
 - `library/topics/<topic>/<topic>_Paper_Synthesis.md` (cross-paper synthesis)
 - `library/topics/<topic>/<topic>_Corpus_Synthesis.md` (mixed-source view)
 
+### Two-pass synthesis (`--two-pass`)
+
+`distill resynthesize <topic> --two-pass` runs a claim-based corpus synthesis instead of summarizing the per-source insights directly. Pass 1 extracts atomic claims from every `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl` (one cheap LLM call per not-yet-extracted source — re-runs skip sources already in the store). Pass 2 synthesizes over the claim set: it clusters claims by what they assert, names contradictions between sources explicitly, and cites each statement back to specific claim handles (`[C7]`), surfacing low-confidence and single-source claims as the corpus's soft spots rather than dropping them.
+
+Single-pass synthesis remains the default; `--two-pass` is opt-in and falls back to single-pass if a topic has no extractable claims. The same path is available to agents through the MCP `synthesize` tool's `two_pass` argument.
+
+```bash
+distill resynthesize my-research --two-pass
+```
+
 ## Reports
 
 The 4-phase strategic report (research -> section writing -> assembly -> QA):
