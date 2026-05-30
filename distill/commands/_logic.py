@@ -6683,17 +6683,32 @@ def catch_up(  # noqa: C901 — legacy, will refactor
 def resynthesize(
     topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
     channel: str | None = typer.Option(None, "--channel", "-c", help="Limit to one channel"),
+    style: str = typer.Option(
+        "",
+        "--style",
+        help="Topic-synthesis register: exec | pop | landscape | disagreements-only (default: standard).",
+    ),
 ):
     """Regenerate synthesis from existing insights -- no re-analysis.
 
     Rebuilds channel synthesis and topic synthesis from existing insight artifacts
     already on disk. Fast and cheap -- useful after manual edits or to refresh
-    synthesis with updated prompts.
+    synthesis with updated prompts. ``--style`` selects an emphasis register for
+    the topic synthesis.
 
     Examples:
       distill resynthesize ai
+      distill resynthesize ai --style exec
       distill resynthesize NateBJones
     """
+    from distill.prompts.synthesis import STYLE_NAMES
+
+    if style and style not in STYLE_NAMES:
+        console.print(
+            f"[red]Unknown --style '{style}'.[/red] Choose one of: {', '.join(STYLE_NAMES)}."
+        )
+        raise typer.Exit(2)
+
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required")
     lib = Library(config)
@@ -6746,7 +6761,7 @@ def resynthesize(
 
     console.print(f"  Synthesizing topic [bold]{topic}[/bold]...")
     try:
-        synthesize_topic(topic, config, tracker=tracker)
+        synthesize_topic(topic, config, tracker=tracker, style=style)
         topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
         ok = cli_shared.record_output_or_issue(
             summary,
