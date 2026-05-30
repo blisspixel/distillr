@@ -1,5 +1,7 @@
 """Report prompt templates -- deep research, accordion, topic brief."""
 
+from distill.prompts.shared import REGISTER_RULES
+
 __all__ = [
     "POSITION_GUIDANCE",
     "REPORT_SECTIONS",
@@ -437,6 +439,7 @@ Write the **{section["title"]}** section.
 
 ### Formatting
 - Never use em-dashes or en-dashes. Use commas, semicolons, colons, or parentheses instead.
+- {REGISTER_RULES}
 - Write 800-1500 words for this section. Go deep on fewer points rather than shallow on many.
 
 Write the section now. Output ONLY the section content (no title heading -- that will be added during assembly).
@@ -661,4 +664,5 @@ Rules:
 - Ground everything in the provided synthesis/insights.
 - Prefer specifics over generic summaries.
 - Do not invent facts not present in the source material.
+- {REGISTER_RULES}
 """

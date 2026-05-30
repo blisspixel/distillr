@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.8 - 2026-05-30
+
+**Anti-AI-slop register guard (first 0.9.0 increment).** Adds a shared `REGISTER_RULES` constant (`prompts/shared.py`) and threads it into the human-read outputs: topic and corpus synthesis, the report section writer, and the topic brief. It bans filler superlatives, empty scaffolding ("it's worth noting", "delve into", "in conclusion"), hedge-stacking, and the "not only X but also Y" tic, grounded in the Wikipedia "signs of AI writing" list. Anti-hallucination keeps the corpus correct; this keeps the prose publishable. Prompt-layer only, no new dependency. Begins the 0.9.0 synthesis-depth milestone; the structured extraction prompts are deliberately left untouched (their output is data, not prose).
+
 ## 0.8.7 - 2026-05-30
 
 **Security hardening.** Closes the two genuinely-relevant security gaps for an API-consumer tool that ingests untrusted public sources. (The broader "AI security" surface — model poisoning, extraction, inversion, DP, enclaves — is out of scope by architecture: distillr trains and serves no models. See the new "Security posture" section in [`ROADMAP.md`](../ROADMAP.md#security-posture).)

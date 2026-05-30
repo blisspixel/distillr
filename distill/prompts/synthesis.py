@@ -1,6 +1,6 @@
 """Synthesis prompt templates -- channel, topic, site, paper, corpus synthesis."""
 
-from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
+from distill.prompts.shared import REGISTER_RULES, UNTRUSTED_CONTENT_RULES
 
 __all__ = [
     "channel_synthesis_prompt",
@@ -79,7 +79,9 @@ The most important insights that emerge when you combine all these perspectives.
 ## Gaps
 What topics aren't being covered? What questions aren't being answered?
 
-Be specific about which creator said what. Attribution matters for credibility. If several creators seem to rely on the same originating claim, say that explicitly instead of treating the repetition as fresh confirmation."""
+Be specific about which creator said what. Attribution matters for credibility. If several creators seem to rely on the same originating claim, say that explicitly instead of treating the repetition as fresh confirmation.
+
+STYLE: {REGISTER_RULES}"""
 
 
 def site_page_insight_prompt(
@@ -335,4 +337,6 @@ Evidence handling rules:
 - Be explicit about which source types are driving each conclusion.
 - Do not treat the same claim repeated across creators, websites, or papers as independent confirmation unless the sources appear to rely on different underlying evidence.
 - When evidence is echoed but origin is unclear, describe it as widely repeated rather than independently corroborated.
-- When separate source types point to the same conclusion for different reasons, say why that looks like real corroboration."""
+- When separate source types point to the same conclusion for different reasons, say why that looks like real corroboration.
+
+STYLE: {REGISTER_RULES}"""

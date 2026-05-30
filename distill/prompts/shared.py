@@ -8,8 +8,24 @@ __all__ = [
     "ANTI_HALLUCINATION_RULES",
     "FORMATTING_RULES",
     "PROVENANCE_RULES",
+    "REGISTER_RULES",
     "UNTRUSTED_CONTENT_RULES",
 ]
+
+# Anti-AI-slop register guard for the human-read outputs (syntheses, reports,
+# briefings). Anti-hallucination keeps the corpus correct; this keeps the prose
+# publishable. Grounded in the Wikipedia "signs of AI writing" list. Threaded
+# into the synthesis/report/brief prompts (not the extraction prompts, whose
+# output is structured data, not prose).
+REGISTER_RULES = (
+    "Write in a plain, direct register. Do NOT use filler superlatives (revolutionary, "
+    "groundbreaking, game-changing, cutting-edge, must-have, seamless) or empty scaffolding "
+    "phrases (it's worth noting, it's important to note, delve into, dive into, in conclusion, "
+    "in summary, in today's fast-paced world, when it comes to). Do not stack hedges "
+    "(may potentially possibly). Avoid the 'not only X but also Y' and 'X isn't just Y, it's Z' "
+    "constructions. State findings plainly and let the specifics carry the weight; keep "
+    "spelling and terminology consistent throughout."
+)
 
 # Indirect-prompt-injection guard. Every analyzed source (transcript, page, PDF,
 # tweet) is untrusted third-party text; a source can embed instructions that try

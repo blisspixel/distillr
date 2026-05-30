@@ -249,3 +249,25 @@ def test_analysis_prompts_carry_untrusted_content_rule():
         tweet_url="u",
         tweet_text="body",
     )
+
+
+def test_human_read_prompts_carry_register_rules():
+    # Anti-AI-slop register guard must reach the human-read synthesis/report
+    # outputs (not the structured extraction prompts).
+    from distill.prompts.report import REPORT_SECTIONS, section_prompt, topic_brief_prompt
+    from distill.prompts.shared import REGISTER_RULES
+    from distill.prompts.synthesis import corpus_synthesis_prompt, topic_synthesis_prompt
+
+    assert REGISTER_RULES in topic_synthesis_prompt("t", {"a": "x", "b": "y"})
+    assert REGISTER_RULES in corpus_synthesis_prompt("t", {"papers": "x"})
+    assert REGISTER_RULES in topic_brief_prompt("t", "synthesis", "insights")
+    sec = section_prompt(
+        section=REPORT_SECTIONS[0],
+        topic="t",
+        research_dossier="r",
+        previous_sections=[],
+        section_index=1,
+        total_sections=3,
+        tagged_material="",
+    )
+    assert REGISTER_RULES in sec
