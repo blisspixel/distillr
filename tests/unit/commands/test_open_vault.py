@@ -9,8 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import click.exceptions
 import pytest
+import typer
 
 
 class TestOpenVault:
@@ -80,7 +80,7 @@ class TestOpenVault:
         ):
             from distill._cli_impl import open_cmd
 
-            with pytest.raises(click.exceptions.Exit):
+            with pytest.raises(typer.Exit):
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="")
 
     def test_vault_with_path_option(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -124,7 +124,7 @@ class TestOpenVault:
         ):
             from distill._cli_impl import open_cmd
 
-            with pytest.raises(click.exceptions.Exit):
+            with pytest.raises(typer.Exit):
                 open_cmd(
                     topic=None, channel=None, what="output", vault=True, path="nonexistent/path"
                 )
@@ -146,5 +146,5 @@ class TestOpenVault:
         ):
             from distill._cli_impl import open_cmd
 
-            with pytest.raises(click.exceptions.Exit):
+            with pytest.raises(typer.Exit):
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="")
