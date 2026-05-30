@@ -271,3 +271,23 @@ def test_human_read_prompts_carry_register_rules():
         tagged_material="",
     )
     assert REGISTER_RULES in sec
+
+
+def test_synthesis_register_styles():
+    from distill.prompts.synthesis import (
+        STYLE_GUIDANCE,
+        STYLE_NAMES,
+        corpus_synthesis_prompt,
+        topic_synthesis_prompt,
+    )
+
+    assert set(STYLE_NAMES) == {"exec", "pop", "landscape", "disagreements-only"}
+    # default: no emphasis block
+    assert "EMPHASIS:" not in topic_synthesis_prompt("t", {"a": "x", "b": "y"})
+    # each style injects its guidance into both human-read syntheses
+    for style in STYLE_NAMES:
+        guidance = STYLE_GUIDANCE[style]
+        assert guidance in topic_synthesis_prompt("t", {"a": "x", "b": "y"}, style=style)
+        assert guidance in corpus_synthesis_prompt("t", {"papers": "x"}, style=style)
+    # unknown style is ignored (no emphasis), not an error at the prompt layer
+    assert "EMPHASIS:" not in corpus_synthesis_prompt("t", {"papers": "x"}, style="nope")

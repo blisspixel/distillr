@@ -3,6 +3,8 @@
 from distill.prompts.shared import REGISTER_RULES, UNTRUSTED_CONTENT_RULES
 
 __all__ = [
+    "STYLE_GUIDANCE",
+    "STYLE_NAMES",
     "channel_synthesis_prompt",
     "corpus_synthesis_prompt",
     "paper_insight_prompt",
@@ -12,6 +14,42 @@ __all__ = [
     "site_topic_synthesis_prompt",
     "topic_synthesis_prompt",
 ]
+
+
+# Register styles for the human-read syntheses (topic + corpus). Each selects
+# emphasis while still honoring the PhD-level contract (cross-source claims,
+# named disagreements, shared blind spots). An empty/unknown style leaves the
+# default behavior unchanged. Surfaced via `distill resynthesize --style`.
+STYLE_GUIDANCE: dict[str, str] = {
+    "exec": (
+        "Register: executive. Lead with the decision-relevant conclusion, then the evidence. "
+        "Prioritize what would change a buy, build, or staffing decision. Tight and scannable for "
+        "a busy reader who wants the 'so what' first."
+    ),
+    "pop": (
+        "Register: accessible explainer. Write for a smart non-specialist: define jargon on first "
+        "use, use concrete analogies, keep a clear throughline. Keep the substance rigorous; only "
+        "the packaging is simplified."
+    ),
+    "landscape": (
+        "Register: landscape survey. Emphasize the shape of the whole space: who the players are, "
+        "how the approaches cluster, where the field is converging or splitting. Comparative and "
+        "structural rather than chronological."
+    ),
+    "disagreements-only": (
+        "Register: disagreements-focused. Foreground only where sources conflict, contradict, or "
+        "weight evidence differently. Name each disagreement, the sides, and what evidence would "
+        "resolve it. Mention consensus only where it frames a contested point."
+    ),
+}
+
+STYLE_NAMES: tuple[str, ...] = tuple(STYLE_GUIDANCE)
+
+
+def _emphasis_block(style: str) -> str:
+    """Return an ``EMPHASIS:`` line for ``style``, or ``""`` for default/unknown."""
+    guidance = STYLE_GUIDANCE.get(style, "")
+    return f"\nEMPHASIS: {guidance}" if guidance else ""
 
 
 def channel_synthesis_prompt(channel_name: str, channel_context: str, all_insights: str) -> str:
@@ -49,8 +87,8 @@ What is this creator tracking that hasn't fully played out yet? What should we k
 Be concrete and specific. Reference individual videos when making claims."""
 
 
-def topic_synthesis_prompt(topic: str, channel_syntheses: dict[str, str]) -> str:
-    """Cross-channel synthesis for a topic."""
+def topic_synthesis_prompt(topic: str, channel_syntheses: dict[str, str], style: str = "") -> str:
+    """Cross-channel synthesis for a topic. ``style`` selects an optional register."""
     channels_text = ""
     for name, synthesis in channel_syntheses.items():
         channels_text += f"\n\n### {name}\n{synthesis}"
@@ -81,7 +119,7 @@ What topics aren't being covered? What questions aren't being answered?
 
 Be specific about which creator said what. Attribution matters for credibility. If several creators seem to rely on the same originating claim, say that explicitly instead of treating the repetition as fresh confirmation.
 
-STYLE: {REGISTER_RULES}"""
+STYLE: {REGISTER_RULES}{_emphasis_block(style)}"""
 
 
 def site_page_insight_prompt(
@@ -311,8 +349,8 @@ HARD RULES
 - Do not invent papers, IDs, datasets, or numbers. If a paper Insights file does not contain the detail you need, omit the claim rather than fabricate it."""
 
 
-def corpus_synthesis_prompt(topic: str, source_sections: dict[str, str]) -> str:
-    """Synthesize across all source types for a topic corpus."""
+def corpus_synthesis_prompt(topic: str, source_sections: dict[str, str], style: str = "") -> str:
+    """Synthesize across all source types for a topic corpus. ``style`` selects a register."""
     body = ""
     for label, content in source_sections.items():
         body += f"\n\n## {label}\n{content}"
@@ -339,4 +377,4 @@ Evidence handling rules:
 - When evidence is echoed but origin is unclear, describe it as widely repeated rather than independently corroborated.
 - When separate source types point to the same conclusion for different reasons, say why that looks like real corroboration.
 
-STYLE: {REGISTER_RULES}"""
+STYLE: {REGISTER_RULES}{_emphasis_block(style)}"""

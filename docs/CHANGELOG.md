@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.10 - 2026-05-30
+
+**Synthesis register styles (`--style`).** `distill resynthesize --style exec|pop|landscape|disagreements-only` selects an emphasis register for the human-read topic and corpus syntheses, while every style still honors the PhD-level contract (cross-source claims, named disagreements, shared blind spots). `exec` leads with the decision; `pop` is an accessible explainer; `landscape` surveys the field's shape; `disagreements-only` foregrounds conflicts. Default (no `--style`) is unchanged. Prompt-layer only via a new `STYLE_GUIDANCE` map; the MCP `synthesize` tool gains a matching `style` argument. Continues the 0.9.0 milestone.
+
 ## 0.8.9 - 2026-05-30
 
 **Local-file ingest (`distill ingest <path>`).** `distill ingest` now accepts a local file path in addition to a URL: a PDF, Markdown file, plain-text file, or saved/clipped HTML article is extracted and routed through the same analysis pipeline the network sources use, emitting a raw `_Content.md` plus an `_Insights.md` (full provenance, cost-tracked) under `library/topics/<topic>/local/<slug>/`. PDFs use the paper-analysis prompt; Markdown / text / HTML use the page-analysis prompt (both carry the 0.8.7 untrusted-content guard). Closes the gap where the playbook layer only updated from network ingestion. Continues the 0.9.0 milestone.

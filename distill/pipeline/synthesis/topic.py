@@ -126,8 +126,13 @@ def synthesize_topic(
     topic: str,
     config: DistillConfig,
     tracker: CostTracker | None = None,
+    *,
+    style: str = "",
 ) -> str:
-    """Generate topic-level synthesis from all channel syntheses."""
+    """Generate topic-level synthesis from all channel syntheses.
+
+    ``style`` selects an optional register (see ``prompts.synthesis.STYLE_GUIDANCE``).
+    """
     topic_dir = config.topic_dir(topic)
     channels_dir = topic_dir / "channels"
 
@@ -162,7 +167,7 @@ def synthesize_topic(
 
     try:
         rc = RouterConfig()
-        prompt = topic_synthesis_prompt(topic, channel_syntheses)
+        prompt = topic_synthesis_prompt(topic, channel_syntheses, style=style)
         response = llm_call(
             rc, workload_tag="synthesis", prompt=prompt, call_type="topic_synthesis"
         )
