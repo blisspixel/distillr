@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.5 - 2026-05-30
+
+**Model refresh (Gemini).** Brings distillr's Google model references up to the May 2026 lineup. No xAI change: the `grok-4.3` default is the current flagship and stays.
+
+- **Gemini Deep Research** (the report / research-brief engine) bumped from the superseded `deep-research-pro-preview-12-2025` to its April-2026 successor **`deep-research-preview-04-2026`** across the accordion, brief, and deep-research pipelines. The pricier `deep-research-max-preview-04-2026` is recognized for cost-tracking but not used by default.
+- **`gemini-3.5-flash`** (GA 2026-05-19, $1.50 / $9.00 per 1M, 1M context) added to the pricing and context-window tables so it is cost-tracked and selectable as a Gemini-provider model.
+- **`distill doctor`** Gemini connectivity check updated from the older `gemini-2.5-flash` to `gemini-3.5-flash`.
+- Retired/superseded model IDs (the old Deep Research preview, the May-15-retired Grok IDs) are retained in the pricing table for historical cost computation; the router continues to alias retired Grok IDs forward to `grok-4.3`.
+
 ## 0.8.4 - 2026-05-30
 
 **Agent-discoverable library.** Auto-generated `CLAUDE.md` orientation files so coding agents that auto-load them (Claude Code, Cursor, Codex CLI, others) get immediate context when they `cd` into the library or a topic, without needing the MCP server.
