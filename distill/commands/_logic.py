@@ -6688,6 +6688,11 @@ def resynthesize(
         "--style",
         help="Topic-synthesis register: exec | pop | landscape | disagreements-only (default: standard).",
     ),
+    two_pass: bool = typer.Option(
+        False,
+        "--two-pass",
+        help="Claim-based corpus synthesis: extract claims to claims.jsonl, then synthesize over the claim set (opt-in).",
+    ),
 ):
     """Regenerate synthesis from existing insights -- no re-analysis.
 
@@ -6696,9 +6701,16 @@ def resynthesize(
     synthesis with updated prompts. ``--style`` selects an emphasis register for
     the topic synthesis.
 
+    ``--two-pass`` adds a claim-based corpus synthesis: it extracts atomic claims
+    from every insight into a per-topic ``claims.jsonl`` (one cheap LLM call per
+    new source), then synthesizes over the claim set so the result clusters
+    claims, names contradictions, and cites each statement back to its source.
+    Opt-in; single-pass synthesis remains the default.
+
     Examples:
       distill resynthesize ai
       distill resynthesize ai --style exec
+      distill resynthesize ai --two-pass
       distill resynthesize NateBJones
     """
     from distill.prompts.synthesis import STYLE_NAMES
@@ -6781,6 +6793,34 @@ def resynthesize(
             context=topic,
             details={"topic": topic},
         )
+
+    if two_pass:
+        console.print(f"  Two-pass corpus synthesis for [bold]{topic}[/bold] (claims)...")
+        try:
+            synthesize_corpus(topic, config, tracker=tracker, two_pass=True)
+            corpus_synth = find_artifact(
+                config.topic_dir(topic), "corpus_synthesis", identity=topic
+            )
+            ok = cli_shared.record_output_or_issue(
+                summary,
+                corpus_synth,
+                stage="corpus-synthesis-two-pass",
+                context=topic,
+                details={"topic": topic, "two_pass": True},
+                missing_message="No corpus synthesis output written",
+            )
+            console.print(
+                "  [dim]done[/dim]" if ok else "  [yellow]no corpus synthesis output[/yellow]"
+            )
+        except Exception as e:
+            console.print(f"  [red]Two-pass corpus synthesis failed: {e}[/red]")
+            cli_shared.record_exception_issue(
+                summary,
+                stage="corpus-synthesis-two-pass",
+                exc=e,
+                context=topic,
+                details={"topic": topic},
+            )
 
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 

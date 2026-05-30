@@ -45,26 +45,16 @@ from distill.concepts.notes import (
     write_playbook,
 )
 from distill.concepts.records import ConceptMention, utcnow_iso
+from distill.library.insights import InsightRef, discover_insights
 from distill.llm import RouterConfig
 from distill.pipeline.costs import CostTracker
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ConceptRunSummary", "discover_insights", "run_concepts"]
-
-
-@dataclass(frozen=True)
-class InsightRef:
-    """One discovered ``_Insights.md`` ready to extract.
-
-    Holds enough to populate a ``ConceptMention`` without re-walking
-    the filesystem: the on-disk path, the stable ``source_id``, and the
-    topic-relative ``artifact_path`` used for backlinks.
-    """
-
-    path: Path
-    source_id: str
-    artifact_path: str
+# InsightRef / discover_insights are re-exported from the shared
+# ``distill.library.insights`` helper, lifted there so the claim layer can
+# share the same topic walk.
+__all__ = ["ConceptRunSummary", "InsightRef", "discover_insights", "run_concepts"]
 
 
 @dataclass
@@ -99,58 +89,6 @@ class ConceptRunSummary:
             "concepts_unchanged": self.concepts_unchanged,
             "notes_written": self.notes_written,
         }
-
-
-def _derive_source_id(insight_path: Path) -> str:
-    """Derive a stable source_id from an insight path.
-
-    The directory containing the ``_Insights.md`` is the source's
-    artifact directory; its slug is the closest thing we have to a
-    canonical source identifier in the filesystem. Where the insight's
-    frontmatter contains a ``paper_id`` / ``video_id`` / ``page_id``
-    those are preferable, but the slug is the fallback that always
-    works without a YAML parse.
-    """
-    # Try frontmatter first for the canonical id
-    from distill.library.paths import extract_frontmatter
-
-    try:
-        fm = extract_frontmatter(insight_path.read_text(encoding="utf-8"))
-    except OSError:
-        fm = {}
-    for key in ("paper_id", "video_id", "page_id", "source_id"):
-        if fm.get(key):
-            return str(fm[key])
-    return insight_path.parent.name
-
-
-def discover_insights(topic_dir: Path) -> list[InsightRef]:
-    """Find every ``_Insights.md`` under a topic dir, sorted for determinism.
-
-    Sort order: topic-relative path. Sorting matters because the order
-    insights are extracted influences the order of ``mentions.jsonl``
-    entries, which influences git diffs. Determinism here keeps the
-    audit log stable across runs on the same corpus.
-    """
-    if not topic_dir.exists():
-        return []
-    refs: list[InsightRef] = []
-    for path in sorted(topic_dir.rglob("*_Insights.md")):
-        # Skip concept/entity notes themselves -- they live under
-        # concepts/ and entities/ and never end in _Insights.md anyway,
-        # but be defensive.
-        rel = path.relative_to(topic_dir)
-        if rel.parts[0] in {"concepts", "entities", ".history", ".concepts"}:
-            continue
-        source_id = _derive_source_id(path)
-        refs.append(
-            InsightRef(
-                path=path,
-                source_id=source_id,
-                artifact_path=str(rel).replace("\\", "/"),
-            )
-        )
-    return refs
 
 
 def _mentions_from_jsonl(rows: Iterable[dict]) -> list[ConceptMention]:

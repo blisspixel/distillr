@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.0 - 2026-05-30
+
+**Two-pass synthesis with a structured claim intermediate (opt-in).** The headline of the 0.9 milestone: synthesis can now run over an extracted *claim set* instead of re-reading every insight into one prompt.
+
+- **New `distill/claims/` layer**, structured exactly like the 0.8 `distill/concepts/` playbook layer (frozen `Claim` records, a `ClaimRole` StrEnum — background / method / result / limitation / conclusion, LLM-produces-rows / Python-parses-rows split, deterministic JSONL round-trip).
+  - Pass 1 — `run_claims(topic, ...)` walks every `_Insights.md`, extracts atomic claims (one cheap LLM call per not-yet-seen source, tagged `claims_extract` for separate cost tracking), and appends them to an append-only `<topic>/.claims/claims.jsonl`. Already-extracted sources are skipped, so refresh is cheap.
+  - Each claim carries an optional subject/predicate/object triple, optional dataset/metric, an `evidence_type`, and a `role_confidence` score. The extractor chooses granularity per claim; low-confidence role tags are surfaced downstream rather than dropped. Claim ids are content-addressed (`source_id` + normalized-text hash) so re-extraction is stable and downstream scoring can cache by id.
+  - Pass 2 — a new `claim_synthesis_prompt` clusters claims by what they assert, names contradictions between sources explicitly, cites every statement back to specific claim handles (`[C7]`), and flags low-confidence / single-source claims as the corpus's soft spots.
+- **Opt-in wiring.** `distill resynthesize <topic> --two-pass` and the MCP `synthesize` tool's `two_pass` arg route the corpus synthesis through the claim set. Single-pass synthesis remains the default; two-pass falls back to single-pass when a topic has no extractable claims, so the flag never silently produces an empty synthesis.
+- **Shared insight discovery.** The `_Insights.md` walk (`discover_insights` / `derive_source_id`) was lifted to a foundational `distill/library/insights.py` so the concept and claim layers share one implementation; a new import-linter contract keeps both knowledge layers below commands/mcp/web/ingestors.
+
+Deferred to 1.0 (noted in the roadmap, not built here): per-claim fitness caching by `(claim_id, evaluator_id)`, the golden-eval gate that validates two-pass and flips the default, and metamorphic robustness checks.
+
 ## 0.8.12 - 2026-05-30
 
 **Discovery-loop UX.** Makes `distill discover` a confident size-then-approve loop.

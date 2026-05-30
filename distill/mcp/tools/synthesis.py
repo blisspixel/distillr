@@ -13,7 +13,13 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
-async def synthesize(topic: str, force: bool = False, style: str = "", ctx: Context = None) -> str:  # noqa: C901
+async def synthesize(  # noqa: C901
+    topic: str,
+    force: bool = False,
+    style: str = "",
+    two_pass: bool = False,
+    ctx: Context = None,
+) -> str:
     """Run or regenerate synthesis for a topic across all sources.
 
     Args:
@@ -21,6 +27,9 @@ async def synthesize(topic: str, force: bool = False, style: str = "", ctx: Cont
         force: Force regeneration even if fresh
         style: Optional register for the topic/corpus synthesis -- one of
             exec, pop, landscape, disagreements-only (empty = standard).
+        two_pass: When true, the corpus synthesis extracts atomic claims into a
+            per-topic claims.jsonl and synthesizes over the claim set (clusters,
+            contradictions, per-claim citations). Opt-in; default single-pass.
     """
     config = _server._config()
     if not config.xai_api_key:
@@ -66,9 +75,9 @@ async def synthesize(topic: str, force: bool = False, style: str = "", ctx: Cont
     if ctx:
         await ctx.report_progress(progress=len(channels) + 1, total=total_steps)
     try:
-        corpus = synthesize_corpus(topic, config, tracker=tracker, style=style)
+        corpus = synthesize_corpus(topic, config, tracker=tracker, style=style, two_pass=two_pass)
         if corpus:
-            results.append({"scope": "corpus", "status": "ok"})
+            results.append({"scope": "corpus", "status": "ok", "two_pass": two_pass})
         else:
             results.append({"scope": "corpus", "status": "skipped", "reason": "no mixed sources"})
     except Exception as e:

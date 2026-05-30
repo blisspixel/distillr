@@ -38,7 +38,7 @@ Then ask Claude things like:
 | `process_video_url` | Transcribe + analyze a single video |
 | `watch_add` / `watch_remove` | Manage your watch list |
 | `generate_report` | Deep research report (Gemini + Grok 4-phase pipeline) |
-| `resynthesize_topic` | Regenerate channel, topic, and mixed-source corpus synthesis from existing insights |
+| `resynthesize_topic` | Regenerate channel, topic, and mixed-source corpus synthesis from existing insights (`two_pass=true` for claim-based corpus synthesis over `claims.jsonl`) |
 | `research_gaps` | Inspect a topic corpus for thin coverage, stale recency, and missing artifacts |
 | `concept_history` | List a concept/entity note's `.history` snapshots with per-step change summaries |
 | `concept_diff` | Structured diff of a concept note across versions (source/interval/contested deltas + body diff) |
