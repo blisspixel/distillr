@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from distill.config import DistillConfig
@@ -21,6 +22,8 @@ from distill.prompts.synthesis import corpus_synthesis_prompt
 __all__ = [
     "synthesize_corpus",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def _collect_subdir_sections(
@@ -135,4 +138,14 @@ def synthesize_corpus(
             ),
         ),
     )
+
+    # Refresh the agent-orientation CLAUDE.md for this topic + the library index.
+    # Best-effort: a failure here must never fail an otherwise-successful run.
+    try:
+        from distill.library import claude_md
+
+        claude_md.refresh_for_topic(config.library_dir, topic_dir, topic)
+    except Exception as exc:
+        logger.debug("CLAUDE.md refresh skipped for %s: %s", topic, exc)
+
     return synthesis
