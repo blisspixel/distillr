@@ -21,9 +21,95 @@ from distill.prompts.synthesis import corpus_synthesis_prompt
 
 __all__ = [
     "synthesize_corpus",
+    "synthesize_corpus_from_claims",
 ]
 
 logger = logging.getLogger(__name__)
+
+
+def synthesize_corpus_from_claims(
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker | None = None,
+    *,
+    now_iso: str | None = None,
+) -> str:
+    """Two-pass corpus synthesis: extract claims, then synthesize over the set.
+
+    Pass 1 runs ``run_claims`` to build/refresh the per-topic ``claims.jsonl``
+    (one LLM call per not-yet-extracted insight). Pass 2 feeds the full claim
+    set to ``claim_synthesis_prompt`` so the model clusters claims, names
+    contradictions, and cites each statement back to specific claims.
+
+    Returns the synthesis text, or ``""`` when no claims could be extracted
+    (the caller falls back to single-pass). Writes the same ``corpus_synthesis``
+    artifact as the single-pass path, tagged with the claim-synthesis prompt id
+    and ``two_pass: true`` provenance.
+    """
+    from distill.claims.exports import read_claims
+    from distill.claims.pipeline import run_claims
+    from distill.prompts.claims import CLAIM_SYNTHESIS_PROMPT_ID, claim_synthesis_prompt
+
+    topic_dir = config.topic_dir(topic)
+    rc = RouterConfig()
+
+    run_claims(topic, topic_dir, rc=rc, tracker=tracker, now_iso=now_iso)
+    claims = read_claims(topic_dir)
+    if not claims:
+        logger.info("Two-pass synthesis: no claims extracted for %s", topic)
+        return ""
+
+    response = llm_call(
+        rc,
+        workload_tag="synthesis",
+        prompt=claim_synthesis_prompt(topic, claims),
+        call_type="corpus_synthesis_two_pass",
+    )
+    synthesis = response.text
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="corpus_synthesis_two_pass",
+            )
+        )
+
+    write_markdown_artifact(
+        topic_dir,
+        "corpus_synthesis",
+        synthesis,
+        identity=topic,
+        frontmatter=base_frontmatter(
+            artifact_type="corpus-synthesis",
+            title=f"Corpus synthesis: {topic}",
+            topic=topic,
+            source="distill",
+            tags=tags_for(topic, "mixed"),
+            synthesis_scope="corpus-consensus",
+            extra={
+                "legacy_filename": "corpus_synthesis.md",
+                "two_pass": True,
+                "claim_count": len(claims),
+            },
+            provenance=ProvenanceFields(
+                model=response.model,
+                model_version=response.model,
+                temperature=0.0,
+                prompt_id=CLAIM_SYNTHESIS_PROMPT_ID,
+            ),
+        ),
+    )
+
+    try:
+        from distill.library import claude_md
+
+        claude_md.refresh_for_topic(config.library_dir, topic_dir, topic)
+    except Exception as exc:
+        logger.debug("CLAUDE.md refresh skipped for %s: %s", topic, exc)
+
+    return synthesis
 
 
 def _collect_subdir_sections(
@@ -58,7 +144,19 @@ def synthesize_corpus(
     tracker: CostTracker | None = None,
     *,
     style: str = "",
+    two_pass: bool = False,
+    now_iso: str | None = None,
 ) -> str:
+    # Opt-in two-pass: synthesize over an extracted claim set instead of the
+    # per-source summaries. Falls back to single-pass when no claims could be
+    # extracted (e.g. a topic with no insights yet), so the flag never silently
+    # produces an empty synthesis where single-pass would have produced one.
+    if two_pass:
+        result = synthesize_corpus_from_claims(topic, config, tracker=tracker, now_iso=now_iso)
+        if result:
+            return result
+        logger.info("Two-pass produced no claims for %s; falling back to single-pass", topic)
+
     source_sections: dict[str, str] = {}
 
     topic_dir = config.topic_dir(topic)
