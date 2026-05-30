@@ -174,15 +174,18 @@ class TestWriteVideoMetadata:
 
 class TestRequireApiKey:
     def test_raises_on_empty(self):
-        from click.exceptions import Exit
+        # require_api_key raises typer.Exit. Catch that directly rather than
+        # click.exceptions.Exit: typer >=0.26 vendors its own click, so
+        # typer.Exit is no longer identical to click.exceptions.Exit.
+        import typer
 
-        with pytest.raises(Exit):
+        with pytest.raises(typer.Exit):
             require_api_key("", "Key missing")
 
     def test_raises_on_none(self):
-        from click.exceptions import Exit
+        import typer
 
-        with pytest.raises(Exit):
+        with pytest.raises(typer.Exit):
             require_api_key(None, "Key missing")
 
     def test_passes_on_value(self):
