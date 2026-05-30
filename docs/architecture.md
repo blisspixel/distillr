@@ -56,7 +56,7 @@ A single LLM call cannot sustain analytical depth across a long document — it 
 
 ### Phase 1: Research (Gemini Deep Research)
 
-Upload all insights and syntheses to a File Search store, then ask Deep Research (`deep-research-pro-preview-12-2025`, built on Gemini 3.1 Pro) to validate, cross-reference, and extend using web sources. The output is raw structured facts across 8 categories: validated announcements, market data, competitive positioning, enterprise adoption, pricing/economics, corrections, coverage gaps, and forward signals.
+Upload all insights and syntheses to a File Search store, then ask Deep Research (`deep-research-preview-04-2026`, built on Gemini 3.1 Pro) to validate, cross-reference, and extend using web sources. The output is raw structured facts across 8 categories: validated announcements, market data, competitive positioning, enterprise adoption, pricing/economics, corrections, coverage gaps, and forward signals.
 
 Citations must reference primary sources (not Wikipedia, not numbered `[cite: N]` formats). Creator estimates are explicitly tagged as such, never promoted to confirmed facts.
 
@@ -130,7 +130,7 @@ xAI model choice is separated by workload, overridable via `.env`:
 | Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4.3` ($1.25/$2.50 per 1M) | High volume, good quality at low cost |
 | Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.3` ($1.25/$2.50 per 1M) | Same model handles both tiers since 0.3.1 |
 
-Gemini Deep Research (`deep-research-pro-preview-12-2025`) handles report Phase 1 and `distill research-brief`.
+Gemini Deep Research (`deep-research-preview-04-2026`) handles report Phase 1 and `distill research-brief`.
 
 See [cost.md](cost.md) for the full cost model.
 

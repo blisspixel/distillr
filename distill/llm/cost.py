@@ -17,7 +17,9 @@ GEMINI_DEEP_RESEARCH_COST: float = 2.50
 DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
     GEMINI_DEEP_RESEARCH_MODEL,
     "deep-research",
-    "deep-research-pro-preview-12-2025",
+    "deep-research-preview-04-2026",
+    "deep-research-max-preview-04-2026",
+    "deep-research-pro-preview-12-2025",  # superseded 2026-04; kept for historical cost
 )
 _GEMINI_DEEP_RESEARCH_PRICING: dict[str, float] = {"per_query": GEMINI_DEEP_RESEARCH_COST}
 
@@ -42,10 +44,15 @@ PRICING: dict[str, dict[str, float]] = {
     "grok-3": {"input": 3.00, "output": 9.00},
     "grok-imagine-image-pro": {"per_query": 1.00},
     # Google Gemini models
+    "gemini-3.5-flash": {"input": 1.50, "output": 9.00},
     "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
     "gemini-3.1-flash": {"input": 0.25, "output": 1.50},
+    # Deep Research is a per-query product; $2.50/query is an approximation across
+    # the standard variants (Max may run higher).
     GEMINI_DEEP_RESEARCH_MODEL: _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research": _GEMINI_DEEP_RESEARCH_PRICING,
+    "deep-research-preview-04-2026": _GEMINI_DEEP_RESEARCH_PRICING,
+    "deep-research-max-preview-04-2026": _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
     # Anthropic (stub pricing for when users configure it)
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},

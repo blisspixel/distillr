@@ -93,7 +93,8 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | `grok-4.3` | $1.25/1M | $2.50/1M | 1M | Default for all workloads (analysis, reranking, synthesis, briefs, papers, sites, report section writing) |
 | `grok-4-1-fast-reasoning` | $0.20/1M | $0.50/1M | 2M | Legacy fast tier (still supported via env override) |
 | `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Legacy premium tier (still supported via env override) |
-| `deep-research-pro-preview-12-2025` | pay-as-you-go | ~$2–5/query | N/A | Report Phase 1, `distill research-brief` |
+| `deep-research-preview-04-2026` | pay-as-you-go | ~$2–5/query | N/A | Report Phase 1, `distill research-brief` |
+| `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19) |
 
 Since 0.3.1, both fast and premium tiers default to `grok-4.3`. The older models remain available via `.env` overrides for users who prefer them.
 
