@@ -1,4 +1,4 @@
-"""CLI tests for `distill concepts <topic>`."""
+"""CLI tests for the `distill concepts` group (build + recovery surface)."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class TestConceptsCommand:
         assert "playbook" in result.output.lower()
 
     def test_rejects_missing_topic_dir(self, fixture_config: DistillConfig) -> None:
-        result = runner.invoke(cli.app, ["concepts", "ghost-topic"])
+        result = runner.invoke(cli.app, ["concepts", "build", "ghost-topic"])
         assert result.exit_code == 1
         assert "does not exist" in result.output.lower()
 
@@ -69,7 +69,7 @@ class TestConceptsCommand:
             [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
         ]
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)):
-            result = runner.invoke(cli.app, ["concepts", "tkg", "--threshold", "3"])
+            result = runner.invoke(cli.app, ["concepts", "build", "tkg", "--threshold", "3"])
         assert result.exit_code == 0
         assert "Concept playbook" in result.output
         assert "Insights scanned:" in result.output
@@ -84,7 +84,9 @@ class TestConceptsCommand:
             [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
         ] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)):
-            result = runner.invoke(cli.app, ["concepts", "tkg", "--threshold", "3", "--json"])
+            result = runner.invoke(
+                cli.app, ["concepts", "build", "tkg", "--threshold", "3", "--json"]
+            )
         assert result.exit_code == 0
         json_blob = result.output[result.output.index("{") :]
         assert "topic" in json_blob
@@ -130,12 +132,122 @@ class TestConceptsCommand:
             [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
         ] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)) as mock_llm:
-            runner.invoke(cli.app, ["concepts", "tkg", "--threshold", "3"])
+            runner.invoke(cli.app, ["concepts", "build", "tkg", "--threshold", "3"])
         assert mock_llm.call_count == 3
 
         rows_2 = [
             [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
         ] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows_2)) as mock_llm:
-            runner.invoke(cli.app, ["concepts", "tkg", "--threshold", "3", "--refresh"])
+            runner.invoke(cli.app, ["concepts", "build", "tkg", "--threshold", "3", "--refresh"])
         assert mock_llm.call_count == 3  # refresh re-extracts all
+
+
+def _build_history(topic_dir: Path) -> list[str]:
+    """Write two versions of a concept so one history snapshot exists.
+
+    Returns the snapshot ISO timestamps (oldest first).
+    """
+    from distill.concepts.exports import write_exports
+    from distill.concepts.notes import write_playbook
+    from distill.concepts.records import (
+        ConceptKind,
+        EvidenceInterval,
+        MergedConcept,
+        Polarity,
+        SourceEvidence,
+    )
+
+    def _c(sources: list[tuple[str, Polarity]], helpful: tuple[int, int], last_seen: str):
+        srcs = tuple(
+            SourceEvidence(source_id=s, artifact_path=f"papers/{s}/{s}_Insights.md", polarity=p)
+            for s, p in sources
+        )
+        return MergedConcept(
+            name="Rotational Embedding",
+            normalized_name="rotational embedding",
+            kind=ConceptKind.TECHNIQUE,
+            topic="tkg",
+            sources=srcs,
+            helpful_evidence=EvidenceInterval(*helpful),
+            harmful_evidence=EvidenceInterval(0, 0),
+            first_seen="2026-05-01T00:00:00Z",
+            last_seen=last_seen,
+        )
+
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    v1 = _c([("A", Polarity.HELPFUL), ("B", Polarity.HELPFUL)], (2, 2), "2026-05-28T07:00:00Z")
+    write_playbook(topic_dir, v1, now_iso="2026-05-28T07:00:00Z")
+    write_exports(topic_dir, [v1])
+    v2 = _c(
+        [("A", Polarity.HELPFUL), ("B", Polarity.HELPFUL), ("C", Polarity.HELPFUL)],
+        (3, 3),
+        "2026-05-29T08:10:31Z",
+    )
+    write_playbook(topic_dir, v2, now_iso="2026-05-29T08:10:31Z")
+    write_exports(topic_dir, [v2])
+    return ["2026-05-29T08:10:31Z"]  # the one snapshot (holds v1)
+
+
+class TestConceptsRecoveryCommands:
+    def test_log_lists_snapshots(self, fixture_config: DistillConfig) -> None:
+        _build_history(fixture_config.topic_dir("tkg"))
+        result = runner.invoke(cli.app, ["concepts", "log", "tkg", "rotational_embedding"])
+        assert result.exit_code == 0
+        assert "snapshot(s)" in result.output
+        assert "2026-05-29T08:10:31Z" in result.output
+        assert "+1 source" in result.output
+
+    def test_log_missing_slug_errors(self, fixture_config: DistillConfig) -> None:
+        fixture_config.topic_dir("tkg").mkdir(parents=True)
+        result = runner.invoke(cli.app, ["concepts", "log", "tkg", "ghost"])
+        assert result.exit_code == 1
+        assert "no concept or entity note" in result.output.lower()
+
+    def test_diff_snapshot_vs_current(self, fixture_config: DistillConfig) -> None:
+        _build_history(fixture_config.topic_dir("tkg"))
+        result = runner.invoke(cli.app, ["concepts", "diff", "tkg", "rotational_embedding"])
+        assert result.exit_code == 0
+        assert "Frontmatter changes" in result.output
+        # v1 -> current adds source C
+        assert "+ source" in result.output and "C" in result.output
+
+    def test_diff_unknown_timestamp_errors(self, fixture_config: DistillConfig) -> None:
+        _build_history(fixture_config.topic_dir("tkg"))
+        result = runner.invoke(
+            cli.app, ["concepts", "diff", "tkg", "rotational_embedding", "1999-01-01"]
+        )
+        assert result.exit_code == 1
+        assert "no snapshot" in result.output.lower()
+
+    def test_rollback_restores_and_updates_rollup(self, fixture_config: DistillConfig) -> None:
+        topic_dir = fixture_config.topic_dir("tkg")
+        _build_history(topic_dir)
+        result = runner.invoke(
+            cli.app,
+            [
+                "concepts",
+                "rollback",
+                "tkg",
+                "rotational_embedding",
+                "2026-05-29T08:10:31Z",
+                "--yes",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Restored" in result.output
+        # Live note rolled back to v1: 2 sources.
+        note = (topic_dir / "concepts" / "rotational_embedding.md").read_text(encoding="utf-8")
+        assert "source_count: 2" in note
+        row = json.loads((topic_dir / "concepts.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        assert row["source_count"] == 2
+
+    def test_rollback_aborts_without_confirmation(self, fixture_config: DistillConfig) -> None:
+        _build_history(fixture_config.topic_dir("tkg"))
+        result = runner.invoke(
+            cli.app,
+            ["concepts", "rollback", "tkg", "rotational_embedding", "2026-05-29T08:10:31Z"],
+            input="n\n",
+        )
+        assert result.exit_code == 1
+        assert "aborted" in result.output.lower()

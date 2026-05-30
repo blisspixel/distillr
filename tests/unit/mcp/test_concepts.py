@@ -9,7 +9,13 @@ from unittest.mock import patch
 import pytest
 
 from distill.config import DistillConfig
-from distill.mcp.tools.concepts import find_concepts, list_contested, read_concept
+from distill.mcp.tools.concepts import (
+    concept_diff,
+    concept_history,
+    find_concepts,
+    list_contested,
+    read_concept,
+)
 
 
 @pytest.fixture
@@ -282,3 +288,79 @@ class TestListContested:
             result = json.loads(list_contested("tkg"))
         assert result["count"] == 1
         assert result["contested"][0]["name"] == "Disputed Method"
+
+
+def _build_history(topic_dir: Path) -> None:
+    """Two writes -> one history snapshot, via the real write path."""
+    from distill.concepts.exports import write_exports
+    from distill.concepts.notes import write_playbook
+    from distill.concepts.records import (
+        ConceptKind,
+        EvidenceInterval,
+        MergedConcept,
+        Polarity,
+        SourceEvidence,
+    )
+
+    def _c(sources: list[tuple[str, Polarity]], helpful: tuple[int, int], last_seen: str):
+        srcs = tuple(
+            SourceEvidence(source_id=s, artifact_path=f"papers/{s}/{s}_Insights.md", polarity=p)
+            for s, p in sources
+        )
+        return MergedConcept(
+            name="Rotational Embedding",
+            normalized_name="rotational embedding",
+            kind=ConceptKind.TECHNIQUE,
+            topic="tkg",
+            sources=srcs,
+            helpful_evidence=EvidenceInterval(*helpful),
+            harmful_evidence=EvidenceInterval(0, 0),
+            first_seen="2026-05-01T00:00:00Z",
+            last_seen=last_seen,
+        )
+
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    v1 = _c([("A", Polarity.HELPFUL), ("B", Polarity.HELPFUL)], (2, 2), "2026-05-28T07:00:00Z")
+    write_playbook(topic_dir, v1, now_iso="2026-05-28T07:00:00Z")
+    write_exports(topic_dir, [v1])
+    v2 = _c(
+        [("A", Polarity.HELPFUL), ("B", Polarity.HELPFUL), ("C", Polarity.HELPFUL)],
+        (3, 3),
+        "2026-05-29T08:10:31Z",
+    )
+    write_playbook(topic_dir, v2, now_iso="2026-05-29T08:10:31Z")
+    write_exports(topic_dir, [v2])
+
+
+class TestConceptHistory:
+    def test_missing_topic_errors(self, mock_config: DistillConfig) -> None:
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_history("ghost", "x"))
+        assert result["status"] == "error"
+
+    def test_lists_history_steps(self, mock_config: DistillConfig) -> None:
+        _build_history(mock_config.topic_dir("tkg"))
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_history("tkg", "rotational_embedding"))
+        assert result["snapshot_count"] == 1
+        assert result["has_live_note"] is True
+        assert result["history"][0]["timestamp"] == "2026-05-29T08:10:31Z"
+        assert "+1 source" in result["history"][0]["change"]
+
+
+class TestConceptDiff:
+    def test_snapshot_vs_current(self, mock_config: DistillConfig) -> None:
+        _build_history(mock_config.topic_dir("tkg"))
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_diff("tkg", "rotational_embedding"))
+        assert result["sources_added"] == ["C"]
+        assert result["old"] == "2026-05-29T08:10:31Z"
+        assert result["new"] == "current"
+
+    def test_unknown_timestamp_errors(self, mock_config: DistillConfig) -> None:
+        _build_history(mock_config.topic_dir("tkg"))
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(
+                concept_diff("tkg", "rotational_embedding", "1999-01-01", "2000-01-01")
+            )
+        assert result["status"] == "error"

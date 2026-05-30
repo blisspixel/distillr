@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.2 - 2026-05-29
+
+**Playbook recovery surface.** 0.8 wrote `.history/<slug>/<iso-timestamp>.md` snapshots on every concept-note overwrite, but nothing could read or restore them — snapshot-without-recovery. This release adds the read and restore surface over data 0.8 already produces (no new LLM calls, no new dependencies).
+
+### What's new
+
+- **`distill concepts` is now a command group.** Extraction moved from `distill concepts <topic>` to **`distill concepts build <topic>`** so the group can host the recovery subcommands. (Pre-1.0 interface change; flags are otherwise identical.)
+- **`distill concepts log <topic> <slug>`** — list a note's history snapshots, newest first, each annotated with a one-line summary of what changed at that step (sources added/removed, evidence-interval shifts, contested flips).
+- **`distill concepts diff <topic> <slug> [ts_a] [ts_b]`** — diff a note across versions. No timestamps: most recent snapshot vs the live note. One timestamp: that snapshot vs live. Two: snapshot vs snapshot. Frontmatter changes surface as a structured delta (which evidence rows joined/left, how each interval bound moved, contested/scalar shifts); the body diffs as text.
+- **`distill concepts rollback <topic> <slug> <timestamp>`** — atomically restore a prior snapshot. The current version is snapshot into `.history` first (so rollback is itself reversible), the chosen snapshot becomes the live note, and the matching `concepts.jsonl` / `entities.jsonl` rollup row is rebuilt from the restored note's frontmatter. `--yes` skips the confirmation prompt.
+- **MCP companion tools** — `concept_history(topic, slug)` and `concept_diff(topic, slug, ts_a, ts_b)` expose the same read surface to agents, mirroring the existing `find_concepts` / `read_concept` shape.
+
+### Design notes
+
+- Rollback **reconstructs, never recomputes**: it restores the note and its rollup row from the snapshot's own frontmatter rather than re-running the merge, because `mentions.jsonl` is append-only and re-merging would reproduce the current state, not the requested snapshot.
+- All recovery logic lives in pure functions in `distill/concepts/recovery.py` (filesystem IO only, injected `now_iso` for deterministic tests); the CLI and MCP layers are thin presentation over it.
+
+### Tests
+
+`tests/unit/concepts/test_recovery.py` (timestamp round-trips, snapshot enumeration/resolution, typed frontmatter parsing, structured diff, transition summaries, rollback incl. rollup rewrite / reversible backup / no-op / deleted-note recreation) plus CLI and MCP tests for the three commands and two tools. Overall coverage ≥80%.
+
 ## 0.8.1 - 2026-05-16
 
 **Frontmatter rename.** The synthesis emitters wrote a `confidence:` field whose values (`single-paper`, `corpus-consensus`, `interpretation`, …) were always scope/routing labels, never calibrated confidence numbers. Renamed to `synthesis_scope:` so downstream consumers (Obsidian Dataview queries, MCP agents, custom scripts) don't mis-interpret the routing label as a numeric grade.

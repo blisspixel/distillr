@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from distill.concepts import recovery
 from distill.concepts.contradictions import find_contested
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.library.paths import strip_frontmatter
@@ -157,5 +158,156 @@ def list_contested(topic: str, limit: int = 20) -> str:
     items = find_contested(topic_dir)[:limit]
     return json.dumps(
         {"contested": [c.to_dict() for c in items], "count": len(items), "topic": topic},
+        indent=2,
+    )
+
+
+@_server.mcp.tool()
+def concept_history(topic: str, slug: str) -> str:
+    """List history snapshots for a concept/entity note, newest first.
+
+    Each step summarizes what changed (source deltas, evidence-interval
+    shifts, contested flips) moving forward to the next-newer version.
+
+    Args:
+        topic: Topic name.
+        slug: Concept/entity slug (the note's filename stem).
+    """
+    config = _server._config()
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
+
+    snapshots = recovery.list_snapshots(topic_dir, slug)
+    live_path = recovery.note_path_for_slug(topic_dir, slug)
+    if live_path is None and not snapshots:
+        return json.dumps(
+            {"status": "error", "error": f"No note for slug '{slug}' in topic '{topic}'."},
+            indent=2,
+        )
+
+    newer_fields = (
+        recovery.parse_note_fields(live_path.read_text(encoding="utf-8"))
+        if live_path is not None
+        else None
+    )
+    newer_label = "current"
+    steps = []
+    for snap in reversed(snapshots):
+        snap_fields = recovery.parse_note_fields(snap.path.read_text(encoding="utf-8"))
+        steps.append(
+            {
+                "timestamp": snap.iso,
+                "replaced_by": newer_label if newer_fields is not None else None,
+                "change": (
+                    recovery.summarize_transition(snap_fields, newer_fields)
+                    if newer_fields is not None
+                    else None
+                ),
+            }
+        )
+        newer_label = snap.iso
+        newer_fields = snap_fields
+
+    return json.dumps(
+        {
+            "topic": topic,
+            "slug": slug,
+            "has_live_note": live_path is not None,
+            "snapshot_count": len(snapshots),
+            "history": steps,
+        },
+        indent=2,
+    )
+
+
+@_server.mcp.tool()
+def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
+    """Diff a concept note across versions; return a structured delta.
+
+    No timestamps: most recent snapshot vs the live note. One timestamp:
+    that snapshot vs the live note. Two timestamps: ts_a vs ts_b.
+
+    Args:
+        topic: Topic name.
+        slug: Concept/entity slug (the note's filename stem).
+        ts_a: Optional older snapshot timestamp.
+        ts_b: Optional newer snapshot timestamp.
+    """
+    config = _server._config()
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
+
+    live_path = recovery.note_path_for_slug(topic_dir, slug)
+    snapshots = recovery.list_snapshots(topic_dir, slug)
+    if live_path is None and not snapshots:
+        return json.dumps(
+            {"status": "error", "error": f"No note for slug '{slug}' in topic '{topic}'."},
+            indent=2,
+        )
+
+    def _resolve(ts: str) -> recovery.Snapshot | None:
+        return recovery.resolve_snapshot(topic_dir, slug, ts)
+
+    if ts_a and ts_b:
+        a, b = _resolve(ts_a), _resolve(ts_b)
+        if a is None or b is None:
+            missing = ts_a if a is None else ts_b
+            return json.dumps(
+                {"status": "error", "error": f"No snapshot matching '{missing}'."}, indent=2
+            )
+        diff = recovery.diff_notes(
+            a.path.read_text(encoding="utf-8"),
+            b.path.read_text(encoding="utf-8"),
+            old_label=a.iso,
+            new_label=b.iso,
+        )
+    else:
+        if live_path is None:
+            return json.dumps(
+                {"status": "error", "error": "No live note; pass two timestamps."}, indent=2
+            )
+        if ts_a:
+            old = _resolve(ts_a)
+            if old is None:
+                return json.dumps(
+                    {"status": "error", "error": f"No snapshot matching '{ts_a}'."}, indent=2
+                )
+        elif snapshots:
+            old = snapshots[-1]
+        else:
+            return json.dumps(
+                {
+                    "topic": topic,
+                    "slug": slug,
+                    "message": "No history snapshots yet; nothing to diff.",
+                },
+                indent=2,
+            )
+        diff = recovery.diff_notes(
+            old.path.read_text(encoding="utf-8"),
+            live_path.read_text(encoding="utf-8"),
+            old_label=old.iso,
+            new_label="current",
+        )
+
+    return json.dumps(
+        {
+            "topic": topic,
+            "slug": slug,
+            "old": diff.old_label,
+            "new": diff.new_label,
+            "sources_added": diff.sources_added,
+            "sources_removed": diff.sources_removed,
+            "sources_repolarized": [
+                {"source_id": sid, "from": old_pol, "to": new_pol}
+                for sid, old_pol, new_pol in diff.sources_repolarized
+            ],
+            "field_changes": [
+                {"field": c.field, "old": c.old, "new": c.new} for c in diff.field_changes
+            ],
+            "body_diff": diff.body_diff,
+        },
         indent=2,
     )

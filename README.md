@@ -226,9 +226,9 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
-**Recent: 0.8.1 Frontmatter rename (shipped 2026-05-16).** `confidence:` -> `synthesis_scope:` across every emitter, plus a one-shot migration (`distill doctor --migrate-frontmatter [--apply]`). The field was always a routing label (`single-paper`, `corpus-consensus`, `interpretation`), not a calibrated number — the rename removes the misnomer.
+**Recent: 0.8.2 Playbook recovery surface (shipped 2026-05-29).** `distill concepts log` / `diff` / `rollback` over the `.history/` snapshots 0.8 already writes (plus MCP `concept_history` / `concept_diff`) — the read-and-restore affordance for versioned concept notes. Extraction moved to `distill concepts build <topic>` so `concepts` could become a command group.
 
-**Next: 0.8.2 Playbook recovery surface.** `distill concepts diff` / `rollback` / `log` over the `.history/` snapshots 0.8 already writes — read affordance for versioned concept notes. Then 0.8.3 (per-topic `CLAUDE.md` auto-generation so agents that `cd` into a topic directory get immediate orientation), 0.9 (discovery loop + two-pass synthesis + local-file ingest), 0.9.1 (source breadth + audio capability — see [`ROADMAP.md`](ROADMAP.md#091--source-breadth-and-audio-capability) for the five-adapter set and contract), 0.10 (operational polish + run-time verify hook + sub-agent-friendly MCP tools).
+**Next: 0.8.3 Agent-discoverable library.** Per-topic `CLAUDE.md` auto-generation so agents that `cd` into a topic directory get immediate orientation. Then 0.9 (discovery loop + gap-driven discovery + two-pass synthesis + local-file ingest), 0.9.1 (source breadth + audio capability — see [`ROADMAP.md`](ROADMAP.md#091--source-breadth-and-audio-capability) for the five-adapter set and contract), 0.9.2 (self-maintaining audit: `distill audit` bundles the existing health/link/gap checks into one report + action menu), 0.10 (operational polish + run-time verify hook + the `distill ask` output->input loop + sub-agent-friendly MCP tools).
 
 ## Contributing
 
