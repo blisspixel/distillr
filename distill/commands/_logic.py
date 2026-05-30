@@ -5412,7 +5412,21 @@ def _run_concepts_after_ingest(
     )
 
 
-@app.command(name="concepts", rich_help_panel="Library")
+concepts_app = typer.Typer(
+    help=(
+        "Concept and entity playbook for a topic.\n\n"
+        "  distill concepts build <topic>            extract + merge playbook notes\n"
+        "  distill concepts log <topic> <slug>       list a note's history snapshots\n"
+        "  distill concepts diff <topic> <slug>      diff a note against its history\n"
+        "  distill concepts rollback <topic> <slug> <timestamp>   restore a snapshot\n"
+    ),
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+)
+app.add_typer(concepts_app, name="concepts", rich_help_panel="Library")
+
+
+@concepts_app.command(name="build", rich_help_panel="Library")
 def concepts(
     topic: str = typer.Argument(
         ..., help="Topic name (existing or new)", autocompletion=_complete_topics

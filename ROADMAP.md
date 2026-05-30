@@ -63,25 +63,29 @@ Previously shipped: **0.1 through 0.8.1** (initial release, internal foundations
 
 In flight and ahead:
 
-- **0.8.2 Playbook recovery surface** (next build) — `distill concepts diff <slug> [<timestamp>]` and `distill concepts rollback <slug> <timestamp>` over the `.history/` snapshots 0.8 already writes. Today the bytes are there but there's no affordance to inspect or restore them; recovery is half-built without the read surface.
-- **0.8.3 Agent-discoverable library** — auto-generate a `CLAUDE.md` orientation file in every topic directory so when an agent (Claude Code, Cursor, any tool that auto-loads `CLAUDE.md`) `cd`s into a topic, it gets immediate orientation without needing the MCP server. Tiny patch; turns each topic into a self-describing directory.
-- **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape), two-pass synthesis with a structured claim intermediate (the same append-only-JSONL pattern 0.8 used for mentions, applied to claims), `distill ingest <path>` for local PDFs / markdown / clipped articles.
+- **0.8.2 Playbook recovery surface** (shipped 2026-05-29) — `distill concepts log/diff/rollback` (topic-first positional, e.g. `distill concepts diff <topic> <slug> [ts_a] [ts_b]`) over the `.history/` snapshots 0.8 already writes, plus MCP `concept_history` / `concept_diff`. Extraction moved to `distill concepts build <topic>` so `concepts` became a command group. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+- **0.8.3 Agent-discoverable library** (next build) — auto-generate a `CLAUDE.md` orientation file in every topic directory so when an agent (Claude Code, Cursor, any tool that auto-loads `CLAUDE.md`) `cd`s into a topic, it gets immediate orientation without needing the MCP server. Tiny patch; turns each topic into a self-describing directory.
+- **0.9 Discovery loop, synthesis depth, and local-file ingest** — preview-as-default, cliff detection, `--rigor`, synthesis register styles (PhD/exec/pop/landscape) with an anti-AI-slop register guard, gap-driven discovery (the existing `research_gaps` signal feeds auto-generated discover queries), two-pass synthesis with a structured claim intermediate (the same append-only-JSONL pattern 0.8 used for mentions, applied to claims), `distill ingest <path>` for local PDFs / markdown / clipped articles.
 - **0.9.1 Source breadth and audio capability** — five-adapter pass to close the most common "I want to add this to my corpus" gaps. X (already in via the 0.9.0 validation run), podcasts (RSS to .mp3 to Whisper), GitHub repos (README and structured issues/discussions subset), generic audio/video files via `distill ingest <path-to-.mp3-or-.mp4>`, and Substack/newsletter posts (RSS-driven site ingest). Each follows a documented adapter contract; further sources defer to the post-1.0 plugin system.
-- **0.10 Operational polish + run-time verify** — scheduled refresh, semantic dedup, artifact-level stale-detection, budget guardrails. Plus a new run-time verify hook on every analysis emit (the Agent SDK's `gather context -> act -> verify` loop, applied to distillr's writes), and a `find_insights_summary` MCP tool sized for sub-agent delegation.
+- **0.9.2 Self-maintaining audit** — upgrade the existing console-only `distill health` into `distill audit <topic>`: one bundled run (link-check, stale syntheses, contested concepts, coverage gaps) that emits a single human-readable report artifact plus an action menu (apply link/style fixes, draft missing notes, ingest gap-filling sources). The demoable packaging win that turns scattered quality signals into one self-maintaining surface.
+- **0.10 Operational polish + run-time verify** — scheduled refresh (now also schedules `distill audit`), semantic dedup, artifact-level stale-detection, budget guardrails. Plus a new run-time verify hook on every analysis emit (the Agent SDK's `gather context -> act -> verify` loop, applied to distillr's writes), the `distill ask` output->input loop (query the corpus, write a provenance-stamped answer, optionally re-ingest it, gated on the verify hook), and a `find_insights_summary` MCP tool sized for sub-agent delegation.
 - **1.0 Stability commitment + quality bar** — versioned CLI / MCP / library / frontmatter contracts, test coverage, Pyright strict, blocking lint/security CI, golden-corpus eval gate (now also covering concept extraction outputs from 0.8), performance baseline, presentation pass, and a documented prompt-revision cadence (contracts are stable; prompts are versioned and revised on a schedule).
 
 Detail for each in-flight milestone follows. The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
 
-### 0.8.2 — Playbook recovery surface
+### 0.8.2 — Playbook recovery surface (shipped 2026-05-29)
 
-0.8 ships `.history/<slug>/<iso-timestamp>.md` snapshots on every overwrite, but nothing reads them. That's snapshot-without-recovery — half a feature. This patch adds the read surface:
+0.8 shipped `.history/<slug>/<iso-timestamp>.md` snapshots on every overwrite, but nothing read them. That was snapshot-without-recovery — half a feature. This patch added the read-and-restore surface. As built (a topic is required to locate a note, so every verb is topic-first positional, consistent with the rest of the CLI):
 
-- **`distill concepts diff <slug>`** — show the diff between the current concept note and its most recent history snapshot, or between two named timestamps. Frontmatter fields surface as a structured diff (which evidence rows were added or removed, how each interval bound shifted); body sections diff as text. The diff is what answers "why did this concept's `helpful_evidence` widen on the last refresh?"
-- **`distill concepts rollback <slug> <timestamp>`** — atomically restore a prior version from `.history/`. The current version moves into `.history/` itself (so rollback is also reversible), and the chosen snapshot becomes the live note. Updates the `concepts.jsonl` rollup row to match.
-- **`distill concepts log <slug>`** — list available snapshots with timestamps and a one-line summary of what changed at each step (counts of evidence rows added/removed, interval shifts). The audit trail that 0.8's mentions.jsonl gives at the input layer, mirrored at the output layer.
-- MCP companion tools: `concept_history(slug)`, `concept_diff(slug, ts_a, ts_b)`.
+- **`distill concepts diff <topic> <slug> [ts_a] [ts_b]`** — diff a note across versions. No timestamps: most recent snapshot vs the live note; one: that snapshot vs live; two: snapshot vs snapshot. Frontmatter surfaces as a structured diff (which evidence rows joined/left, polarity flips, how each interval bound shifted, contested/scalar changes); the body diffs as text. Answers "why did this concept's `helpful_evidence` widen on the last refresh?"
+- **`distill concepts rollback <topic> <slug> <timestamp>`** — atomically restore a prior version from `.history/`. The current version is snapshot into `.history/` first (so rollback is also reversible), the chosen snapshot becomes the live note, and the `concepts.jsonl` / `entities.jsonl` rollup row is rebuilt from the restored note's frontmatter. `--yes` skips the confirmation prompt.
+- **`distill concepts log <topic> <slug>`** — list snapshots with timestamps and a one-line summary of what changed at each step (sources added/removed, interval shifts, contested flips). The audit trail that 0.8's `mentions.jsonl` gives at the input layer, mirrored at the output layer.
+- MCP companion tools: `concept_history(topic, slug)`, `concept_diff(topic, slug, ts_a, ts_b)`.
+- **Interface change:** extraction moved from `distill concepts <topic>` to **`distill concepts build <topic>`** so `concepts` could become a command group hosting the recovery verbs. A Click group can't also carry a positional `topic` argument (it would swallow the subcommand name), so `build` is the explicit extraction verb. Pre-1.0, documented in the changelog.
 
-Why this version: separated from 0.8.0 because the playbook PR shipped the storage and stopped at the storage. The read surface needs its own design and tests (diff formatting, atomic-rollback semantics, MCP shape) and shouldn't have been a blocker on the merge logic landing. Small and tightly scoped: pure presentation + filesystem moves over data 0.8 already produces.
+As built: recovery logic is pure functions in `distill/concepts/recovery.py` (filesystem IO only, injected `now_iso`); rollback **reconstructs the rollup row from the snapshot's frontmatter rather than re-running the merge** (the append-only `mentions.jsonl` would otherwise reproduce the current state, not the requested snapshot). Tested in `tests/unit/concepts/test_recovery.py` plus CLI and MCP coverage.
+
+Why this version: separated from 0.8.0 because the playbook PR shipped the storage and stopped at the storage. The read surface needed its own design and tests (diff formatting, atomic-rollback semantics, MCP shape) and shouldn't have blocked the merge logic landing. Small and tightly scoped: pure presentation + filesystem moves over data 0.8 already produces.
 
 ### 0.8.3 — Agent-discoverable library
 
@@ -111,6 +115,7 @@ The preview → approve → ingest workflow becomes the default front door, synt
 - Real cost estimator that reads candidate metadata before the run (arXiv abstract length + page count; yt-dlp duration; site content-length) and calibrates against historical `cost_log.jsonl`.
 - `--rigor strict|balanced|loose` knob across discover/papers/latest. Audit and document the prompt divergence between commands.
 - Trusted-site discovery and clearer source identity in preview: enumerate real page candidates from allowlisted docs domains (TOCs, sitemaps, landing pages) and show page-level titles/URL context instead of only collection labels.
+- **Gap-driven discovery.** Today `discover` is goal-driven: it starts from a user-written goal and fans out. The `research_gaps(topic)` MCP tool (shipped in 0.8) already computes the inverse signal — *what the corpus is thin on* (single-source coverage, too few channels, missing corpus synthesis) plus `next_actions`. Wire that signal forward: let an existing corpus's gap findings auto-generate the discover queries that fill them ("12 sources on synthesis depth, zero on error propagation — preview candidates?"). This is the corpus-gap-driven complement to goal-driven discovery, and it is the first half of the self-maintaining loop that 0.9.2's audit completes. Surface it both as a `--from-gaps` mode on `discover` and as the "ingest these" branch of 0.9.2's action menu.
 
 **Synthesis depth.**
 
@@ -124,6 +129,7 @@ The preview → approve → ingest workflow becomes the default front door, synt
 
   *Fitness caching for cross-claim scoring.* Both downstream uses of `claims.jsonl` (synthesis clustering and 0.8 concept attachment) will re-score the same claims many times. The orchestrator should cache per-claim LLM judgments by `(claim_id, evaluator_id)` so re-runs amortize cost; this is the same caching pattern referenced metamorphic-testing implementations use to make 240+ test evaluations tractable.
 - Synthesis register styles: `--style exec | pop | landscape | disagreements-only` selects emphasis, but every style honors the PhD-level contract shipped in 0.7.2 (cross-paper claims, comparison matrix, named disagreements, shared blind spots).
+- **Anti-AI-slop register guard.** `prompts/shared.py` today carries `ANTI_HALLUCINATION_RULES`, `PROVENANCE_RULES`, and a one-line `FORMATTING_RULES` (no em-dashes). That covers *what is true* but not *how it reads* — a distinct concern for the human-read outputs (briefings, reports, synthesis register styles above). Add a `REGISTER_RULES` constant grounded in the Wikipedia "signs of AI writing" list (no filler superlatives, no "delve / it's worth noting / in conclusion" scaffolding, consistent UK/US spelling, no hedge-stacking) and thread it into the synthesis/report/brief prompts. Anti-hallucination keeps the corpus *correct*; this keeps the prose *publishable*. Low effort, no new dependency — a prompt-layer constant plus its wiring.
 
 **Local-file ingest.**
 
@@ -166,13 +172,29 @@ The roadmap excludes additional cloud LLM providers (see "[intentionally not in 
 
 Why this version: the breadth pass needs 0.9's `distill ingest` dispatcher to exist as a real entry point, and 0.10's stale-detection + budget guardrails would mis-fire if applied to half-built adapters. Slotting between 0.9 and 0.10 lets each source land with its routing affordance and its budget plumbing both already in place. The Whisper layer + X adapter shipped in 0.9 are the cheap part; the four remaining adapters are the disciplined-execution part.
 
+### 0.9.2 — Self-maintaining audit
+
+The Karpathy "LLM Wiki" pattern that defines this space (see the competitive landscape above) leans on a once-a-month *health check*: a single skill that audits the whole knowledge base, reports contradictions and gaps and stale entries, and offers an action menu to fix them. Distillr already has every ingredient, but they are scattered and none of them produces the one-report-with-actions surface that makes the pattern compelling and demoable:
+
+- `distill health` (shipped) walks topics for stale syntheses (>90d), thin transcripts/insights, and contested concepts — but it is **console-only**: no artifact, no action menu.
+- `distill doctor --links` (shipped) runs the broken-backlink / orphaned-reference check — but **separately**, not as part of the audit.
+- `research_gaps(topic)` (shipped, MCP) computes coverage gaps + `next_actions` — but is **MCP-only** and not wired into `health`.
+
+0.9.2 composes these into one surface. No new analysis capability; this is a packaging milestone, and the roadmap is explicit that the gap vs GUI-heavy competitors is "marketing/onboarding, not missing features" (see competitive landscape). A single clean audit is exactly the kind of legible, screenshot-able artifact that closes that gap.
+
+- **`distill audit <topic|all>`** — one run that bundles the three checks above plus artifact-level stale-detection (the `prompt_id` / `model_version` floor that 0.10 formalizes, read here when present). Supersedes the console-only `health` output; `health` becomes an alias or the fast/no-report path.
+- **One report artifact** — write the audit to `<topic>_Audit.md` (standard frontmatter + provenance) instead of only printing it, so the result is itself a corpus artifact an agent or human can read later. This mirrors the video's "the health check lands a report in outputs" mechanic.
+- **Phase-2 action menu** — after the report, offer the concrete follow-ups: apply link/style fixes, draft stubs for suggested-but-missing concept notes, and (the gap-filling branch) hand the `research_gaps` `next_actions` to gap-driven `discover` from 0.9.0 so "you're thin on X" becomes "preview candidates for X." Non-interactive (`--report-only`) for scheduled runs; interactive for hands-on review. Mirrors the video's two-phase "report, then choose what to action."
+
+Why this version: it depends on 0.9.0's gap-driven discovery for the action menu's "ingest these" branch, and it reads 0.10's stale floor when present but does not block on it. It deliberately precedes the 0.10 output->input loop, because an audit surface you trust is the prerequisite for safely feeding generated answers back into the corpus — you want the contradiction/provenance check in place *before* you start re-ingesting your own outputs.
+
 ### 0.10.0 — Operational polish + run-time verify
 
 The "leave it running" version. Hands-off operation for a daily-driver research system, plus the run-time verification gate that closes the agent-loop pattern Anthropic's Agent SDK material formalizes.
 
 **Operational polish.**
 
-- Scheduled refresh via cron / Task Scheduler; goal-file refresh hook for `distill watch`.
+- Scheduled refresh via cron / Task Scheduler; goal-file refresh hook for `distill watch`. The same scheduler also runs 0.9.2's `distill audit --report-only` on a cadence (the video's "monthly health check" automation), so corpus drift is caught without manual prompting and the audit report lands as a dated artifact.
 - Semantic dedup across videos, pages, and papers (artifact-preserving — source-origin attribution stays in the synthesis layer).
 - Stale-detection and auto-reanalysis triggers when prompts or models change materially. **Artifact-level, not blanket.** Each artifact's frontmatter already records `prompt_id` and `model_version` (since 0.7); stale-detection inverts that index and re-analyzes only the artifacts on the critical path of the changed component. Blanket re-runs on every prompt bump don't scale once the corpus passes a few hundred artifacts.
 - Cost anomaly detection and budget guardrails per topic and workflow.
@@ -185,6 +207,14 @@ Anthropic's Agent SDK formalizes the agent loop as `gather context -> take actio
 - **Inline claim-grounding check on every analysis emit** — for every `_Insights.md` write, the orchestrator post-processes the structured output: extract each load-bearing claim (numbers, named products, dates, named people), grep the source artifact for verbatim or near-verbatim support, flag any unsupported claim in a small `_verify.json` sidecar with the same identity stem as the insights file.
 - **Configurable severity** — `--verify warn` (default; surface to console, write anyway), `--verify strict` (refuse to write if any unsupported load-bearing claim is found; user can override per-run with `--verify off`). Mirrors the Agent SDK's "hooks" pattern — deterministic verification layered on top of stochastic model output.
 - **Verifier is a small local-model pass when possible** — the verifier doesn't have to share the analysis model's biases. A cheap separate-process check (small local LLM, or even a regex-based first cut for the easy cases like "this section claims a number; does the number appear in the source") catches the regressions a self-judge prompt would miss.
+
+**Output->input loop (`distill ask`).**
+
+This is the mechanic the Karpathy "LLM Wiki" pattern is built around and the one half of the loop distillr does not yet have: you ask the corpus a question, you like the answer, and the answer *becomes corpus* so the next question starts from a richer base. Today distillr is excellent at `input -> corpus` (capture, analyze, synthesize) but every output (`report`, `research-brief`, `synthesize`) is a **terminal artifact** — nothing re-ingests it, and there is no lightweight query verb at all. The compounding "day 1 basic, day 100 an asset" behavior the pattern promises depends entirely on closing this loop.
+
+- **`distill ask "<question>" --topic <t>`** — query the corpus (reuse the `find_insights` retrieval path), answer grounded only in the topic's artifacts, and write a provenance-stamped answer to an answers layer (`library/topics/<t>/answers/<slug>_Answer.md`, standard frontmatter, `[[backlinks]]` to every cited source). MCP parity: an `ask` tool with the same arguments.
+- **Optional re-ingest** — `--save` (or a prompt) promotes a liked answer into the corpus so synthesis and future answers can build on it. This is the compounding step.
+- **Gated on the verify hook — this is non-negotiable.** The video names the exact failure mode this risks: "the AI writes something slightly wrong, you save it back, and the next answer quietly builds on a mistake." Re-ingest therefore runs the run-time verify hook above on the answer first; an answer with an unsupported load-bearing claim is refused (or flagged and quarantined under `--verify warn`) rather than silently folded in. The verify hook is *why* this loop is safe in distillr and unsafe in the unguarded folder-and-CLAUDE.md version. It is also why this lands in 0.10 (after the hook) and after 0.9.2 (so an audit surface already exists to catch any contradiction that does slip through).
 
 **Sub-agent-friendly MCP surface.**
 
