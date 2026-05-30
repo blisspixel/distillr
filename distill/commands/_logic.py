@@ -7504,6 +7504,12 @@ def discover(  # noqa: C901 — legacy, will refactor
         help="Derive the goal from an existing topic's coverage gaps (requires --topic). "
         "Turns research_gaps into auto-generated discover queries.",
     ),
+    rigor: str = typer.Option(
+        "balanced",
+        "--rigor",
+        help="Quality bar for the reranked shortlist: strict | balanced | loose. "
+        "Drops candidates whose goal-fit score is below the level's threshold.",
+    ),
     preview: bool = typer.Option(
         False, "--preview", help="Show the goal-ranked plan without ingesting"
     ),
@@ -7515,7 +7521,12 @@ def discover(  # noqa: C901 — legacy, will refactor
     (the inverse of goal-driven discovery): "you are thin on X, single-source on
     Y" becomes "find sources that fill X and Y".
     """
+    from distill.pipeline.discovery import RIGOR_LEVELS
+
     _preflight()
+    if rigor not in RIGOR_LEVELS:
+        console.print(f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS)}.")
+        raise typer.Exit(1)
     if papers_only and videos_only:
         console.print(
             "[red]--papers-only and --videos-only are mutually exclusive. "
@@ -7638,6 +7649,24 @@ def discover(  # noqa: C901 — legacy, will refactor
         console.print("[red]Rerank produced no ranked items.[/red]")
         raise typer.Exit(1)
 
+    # --rigor: drop candidates below the level's goal-fit threshold.
+    from distill.pipeline.discovery import rigor_threshold
+
+    threshold = rigor_threshold(rigor)
+    kept = [r for r in ranked if r.final_score >= threshold]
+    if not kept:
+        console.print(
+            f"[yellow]No candidates clear the '{rigor}' bar (score >= {threshold:.2f}). "
+            "Try --rigor loose or a broader goal.[/yellow]"
+        )
+        raise typer.Exit(1)
+    if len(kept) < len(ranked):
+        console.print(
+            f"  [dim]--rigor {rigor}: kept {len(kept)}/{len(ranked)} candidates "
+            f"(score >= {threshold:.2f})[/dim]"
+        )
+    ranked = kept
+
     # Apply per-source limits after ranking
     ranked_papers = [r for r in ranked if r.kind == "paper"][:paper_limit]
     ranked_videos = [r for r in ranked if r.kind == "video"][:video_limit]
@@ -7649,6 +7678,20 @@ def discover(  # noqa: C901 — legacy, will refactor
     )
 
     _display_ranked_discover(shortlist, title=f"Goal-Ranked Corpus Plan ({len(shortlist)} items)")
+
+    # Size the set: the score "cliff" marks the clearly-excellent top, and a
+    # free-metadata cost estimate shows the likely spend before committing.
+    from distill.pipeline.costs import estimate_discover_cost
+    from distill.pipeline.discovery import detect_score_cliff
+
+    cliff = detect_score_cliff([r.final_score for r in shortlist])
+    est_cost = estimate_discover_cost(
+        papers=len(ranked_papers), videos=len(ranked_videos), sites=len(ranked_sites)
+    )
+    console.print(
+        f"  [dim]Top {cliff} sit above the score cliff (the clearly-excellent set). "
+        f"Estimated ingest cost: ~${est_cost:.2f}.[/dim]"
+    )
 
     if preview:
         console.print("\n[dim]Run without `--preview` to ingest this set.[/dim]")

@@ -28,6 +28,7 @@ __all__ = [
     "CostTracker",
     "TokenUsage",
     "TranscriptionUsage",
+    "estimate_discover_cost",
     "estimate_run_cost",
     "report_deep_research_estimate",
     "save_run_log",
@@ -256,6 +257,28 @@ def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) ->
         )
 
     return f"Estimated cost: ${total:.2f} ({'; '.join(parts)})"
+
+
+# Per-source analysis-cost estimates (USD), derived from the grok-4.3 default
+# and typical token volumes; transcription is assumed local (free) for the
+# preview estimate. Calibration against cost_log.jsonl is a later refinement.
+_DISCOVER_PAPER_COST: float = 0.012  # full-PDF analysis
+_DISCOVER_SITE_COST: float = 0.008  # page analysis
+_DISCOVER_VIDEO_COST: float = 0.006  # transcript analysis
+
+
+def estimate_discover_cost(papers: int = 0, videos: int = 0, sites: int = 0) -> float:
+    """Rough pre-run USD estimate for a discover ingest set (free metadata only).
+
+    Count-based per-source-type estimate, no extra network fetches. Papers cost
+    more (full-PDF analysis) than videos or pages. Good enough to size a run and
+    show per-option spend in the preview; not an exact quote.
+    """
+    return (
+        max(0, papers) * _DISCOVER_PAPER_COST
+        + max(0, sites) * _DISCOVER_SITE_COST
+        + max(0, videos) * _DISCOVER_VIDEO_COST
+    )
 
 
 def report_deep_research_estimate(*, include_section_writing: bool = True) -> float:
