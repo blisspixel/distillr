@@ -331,6 +331,17 @@ distill concepts rollback tkg rotational_embedding 2026-05-29T08:10:31Z --yes   
 
 The `<slug>` is the note's filename stem (e.g. `concepts/rotational_embedding.md` -> `rotational_embedding`). Timestamps are accepted in either ISO (`2026-05-29T08:10:31Z`) or filesystem-stem (`2026-05-29T08-10-31Z`) form; `distill concepts log` prints the exact values to copy. Agents can reach the same read surface over MCP via `concept_history` and `concept_diff`.
 
+## Agent orientation (CLAUDE.md)
+
+Every topic directory and the library root carry an auto-generated `CLAUDE.md` orientation file, so a coding agent that auto-loads `CLAUDE.md` (Claude Code, Cursor, Codex CLI, and others) gets immediate context the moment it `cd`s in: a one-line summary, source counts, a link to the topic synthesis, "ask me about" example queries from the corpus's named entities and concepts, and the MCP read-surface tools. These regenerate automatically on every topic refresh; the command below is for backfilling existing topics or regenerating on demand.
+
+```bash
+distill claude-md tkg          # regenerate one topic's CLAUDE.md + the library index
+distill claude-md --all        # regenerate every topic + the library index
+```
+
+`CLAUDE.md` is plain Markdown with no frontmatter and is generated from existing artifacts (no LLM calls). It is meant to be regenerated, not hand-edited.
+
 ## Viewing and exporting
 
 ```bash

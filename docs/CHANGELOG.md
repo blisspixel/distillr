@@ -9,11 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- **0.8.4 Agent-discoverable library** — auto-generate a per-topic and per-library `CLAUDE.md` orientation file so agents that `cd` into a topic directory get immediate context without the MCP server. Pure templating over existing artifacts; no new LLM calls or dependencies. See [`ROADMAP.md`](../ROADMAP.md#084--agent-discoverable-library).
 - **1.0 verification depth** — Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
+
+## 0.8.4 - 2026-05-30
+
+**Agent-discoverable library.** Auto-generated `CLAUDE.md` orientation files so coding agents that auto-load them (Claude Code, Cursor, Codex CLI, others) get immediate context when they `cd` into the library or a topic, without needing the MCP server.
+
+### What's new
+
+- **Per-topic `library/topics/<topic>/CLAUDE.md`** — one-line summary (topic-synthesis lede), source counts (papers / videos / pages), a wikilink to the topic synthesis, "Ask me about" example queries from the corpus's named entities and concepts, and the read-surface MCP tool listing.
+- **Library-root `library/CLAUDE.md`** — an index of every topic with one-line summaries and source counts.
+- **Automatic regeneration** on every topic refresh: the synthesis writers (`synthesize_topic` / `synthesize_corpus`) regenerate the affected topic's file and the library index, best-effort so a failure never fails a synthesis.
+- **`distill claude-md [<topic>] [--all]`** — manual regeneration / backfill for existing topics.
+
+### Design notes
+
+- All generation logic is pure functions in `distill/library/claude_md.py` (foundational layer): reads existing artifacts and the `concepts.jsonl` / `entities.jsonl` rollups as raw JSON (no `distill.concepts` import), injects `now_iso` for deterministic tests. `CLAUDE.md` is plain Markdown with no frontmatter. No new LLM calls, no new dependencies, no cost.
+
+### Tests
+
+`tests/unit/library/test_claude_md.py` (source counting, lede extraction, top concepts/entities, rendering, atomic write, library index, empty-topic skip) plus `tests/unit/commands/test_claude_md.py` for the CLI command.
 
 ## 0.8.3 - 2026-05-30
 
