@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.12 - 2026-05-30
+
+**Discovery-loop UX.** Makes `distill discover` a confident size-then-approve loop.
+
+- **`--rigor strict|balanced|loose`** drops reranked candidates below a goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits, so the shortlist reflects the quality bar you ask for.
+- **Score-cliff sizing** — the shortlist now reports how many top items sit above the largest rerank-score drop (the "clearly-excellent" set), so you can size the ingest against the natural cliff.
+- **Pre-run cost estimate** — a free-metadata estimate (`estimate_discover_cost`, count-based per source type) is shown before you commit, no extra network fetches.
+- **Deterministic rerank** — the discover rerank LLM call now runs at `temperature=0`, so the previewed order is reproducible.
+
+Continues the 0.9.0 milestone. (The preview-flow-as-default rework and a cached shortlist for exact replay remain follow-ons.)
+
 ## 0.8.11 - 2026-05-30
 
 **Gap-driven discovery (`discover --from-gaps`).** The inverse of goal-driven discovery: instead of starting from a user-written goal, `distill discover --from-gaps --topic <t>` reads the topic's coverage gaps (thin source types, missing syntheses, stale recency) and synthesizes a discovery goal from them, then runs the normal query-generation -> rerank -> preview/approve -> ingest flow. "You're single-source on X, missing a corpus synthesis" becomes "find recent sources that fill those gaps." The gap computation was lifted from the MCP server into a shared `distill/pipeline/gaps.py` so the `research_gaps` MCP tool and the discover command share one implementation (no `commands -> mcp` coupling). Continues the 0.9.0 milestone.

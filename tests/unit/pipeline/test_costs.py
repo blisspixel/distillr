@@ -283,3 +283,12 @@ def test_summary_dict_includes_transcription_when_present():
     summary = tracker.summary_dict()
     assert summary["transcription_calls"] == 1
     assert summary["estimated_transcription_cost"] == "$0.3600"
+
+
+def test_estimate_discover_cost():
+    from distill.pipeline.costs import estimate_discover_cost
+
+    assert estimate_discover_cost() == 0.0
+    # 5 papers ($0.06) + 10 videos ($0.06) + 3 sites ($0.024)
+    assert round(estimate_discover_cost(papers=5, videos=10, sites=3), 4) == 0.144
+    assert estimate_discover_cost(papers=-1) == 0.0  # clamps negatives

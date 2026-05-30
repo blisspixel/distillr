@@ -205,3 +205,26 @@ def test_discover_rerank_returns_empty_for_non_list_payload(config, monkeypatch)
     ranked = discover.discover_rerank("goal", [], [], [], config, None)
 
     assert ranked == []
+
+
+def test_detect_score_cliff():
+    from distill.pipeline.discovery import detect_score_cliff
+
+    # clear cliff: 0.85 -> 0.40 is the biggest drop, 3 items above it
+    assert detect_score_cliff([0.90, 0.88, 0.85, 0.40, 0.35]) == 3
+    # flat distribution: no drop exceeds min_drop -> keep all
+    assert detect_score_cliff([0.50, 0.49, 0.48, 0.47]) == 4
+    # order-independent (sorts internally)
+    assert detect_score_cliff([0.35, 0.90, 0.40, 0.88, 0.85]) == 3
+    assert detect_score_cliff([0.9]) == 1
+    assert detect_score_cliff([]) == 0
+
+
+def test_rigor_threshold():
+    from distill.pipeline.discovery import RIGOR_LEVELS, rigor_threshold
+
+    assert RIGOR_LEVELS == ("strict", "balanced", "loose")
+    assert rigor_threshold("strict") == 0.7
+    assert rigor_threshold("balanced") == 0.5
+    assert rigor_threshold("loose") == 0.3
+    assert rigor_threshold("unknown") == 0.5  # default balanced

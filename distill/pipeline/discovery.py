@@ -224,7 +224,12 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
     rc = RouterConfig()
     prompt = discover_rerank_prompt(goal, candidates)
     response = llm_call(
-        rc, workload_tag="rerank", prompt=prompt, max_tokens=8192, call_type="discover_rerank"
+        rc,
+        workload_tag="rerank",
+        prompt=prompt,
+        max_tokens=8192,
+        call_type="discover_rerank",
+        temperature=0.0,  # deterministic rerank so the previewed order is reproducible
     )
     if tracker:
         tracker.record(
@@ -364,3 +369,38 @@ def display_ranked_discover(items: list[RankedDiscoverItem], title: str) -> None
             item.rationale or "-",
         )
     console.print(table)
+
+
+# ---- discovery-loop UX: rigor + score-cliff sizing -------------------------
+
+# Minimum rerank final_score to keep, per rigor level. ``--rigor strict`` keeps
+# only high-fit candidates; ``loose`` keeps almost everything goal-relevant.
+RIGOR_THRESHOLDS: dict[str, float] = {"strict": 0.7, "balanced": 0.5, "loose": 0.3}
+RIGOR_LEVELS: tuple[str, ...] = tuple(RIGOR_THRESHOLDS)
+
+
+def rigor_threshold(rigor: str) -> float:
+    """Return the minimum ``final_score`` for a rigor level (default balanced)."""
+    return RIGOR_THRESHOLDS.get(rigor, RIGOR_THRESHOLDS["balanced"])
+
+
+def detect_score_cliff(scores: list[float], *, min_drop: float = 0.08) -> int:
+    """Return how many top items sit above the largest rerank-score "cliff".
+
+    Given final scores, find the biggest gap between consecutive scores (sorted
+    high to low) and return the count of items before it -- the "obviously
+    excellent" set. A drop must exceed ``min_drop`` to count as a cliff;
+    otherwise (a flat distribution) every item is returned. Pure and
+    order-independent (it sorts internally).
+    """
+    ordered = sorted(scores, reverse=True)
+    if len(ordered) < 2:
+        return len(ordered)
+    biggest_drop = 0.0
+    cliff_at = len(ordered)
+    for i in range(1, len(ordered)):
+        drop = ordered[i - 1] - ordered[i]
+        if drop > biggest_drop:
+            biggest_drop = drop
+            cliff_at = i
+    return cliff_at if biggest_drop >= min_drop else len(ordered)
