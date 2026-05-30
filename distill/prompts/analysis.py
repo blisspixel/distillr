@@ -1,5 +1,7 @@
 """Video analysis prompt templates -- extraction, synthesis, shorts, scan, channel context."""
 
+from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
+
 __all__ = [
     "auto_watch_instructions_prompt",
     "channel_context_prompt",
@@ -58,6 +60,8 @@ CRITICAL RULES:
 - If the creator builds a multi-part argument (e.g., "there are 4 dynamics that..."), capture ALL parts, not just a summary.
 - Distinguish between what the creator reports as fact vs. what they analyze/interpret vs. what they predict.
 - Do NOT inject information not present in the transcript. Extract only what was actually said.
+
+SECURITY: {UNTRUSTED_CONTENT_RULES}
 
 TRANSCRIPT:
 {transcript}"""
@@ -197,6 +201,8 @@ Rate this Short's intelligence value: HIGH (breaking news, major announcement, u
 
 CRITICAL: Only extract what was actually said. Do not inject information not present in the transcript.
 
+SECURITY: {UNTRUSTED_CONTENT_RULES}
+
 TRANSCRIPT:
 {transcript}"""
 
@@ -242,6 +248,8 @@ Maximum 5 items.
 Rate: HIGH (breaking news, unique data, major announcement), MEDIUM (useful analysis or context), LOW (rehash, entertainment, thin content). One sentence explaining why.
 
 CRITICAL: Only extract what was actually said. No invented information. Keep total output under 500 words.
+
+SECURITY: {UNTRUSTED_CONTENT_RULES}
 
 TRANSCRIPT:
 {transcript}"""
