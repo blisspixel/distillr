@@ -120,6 +120,8 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Insights quality check — heuristic validation (all expected sections present? suspiciously short?)
 - [~] Transcript validation — flag suspiciously short transcripts (<500 chars for a 30-minute video) as likely failed captions
 - [ ] Structured logging — proper log levels, log to file for post-run review, debug mode flag
+- [ ] **`distill audit` — one bundled health surface with a report artifact and action menu** (0.9.2). Today the pieces are scattered and console-only: `distill health` walks stale syntheses / thin artifacts / contested concepts, `distill doctor --links` runs the broken-backlink check separately, and `research_gaps(topic)` (MCP) computes coverage gaps but isn't wired in. Compose them into a single `distill audit <topic|all>` that (a) runs all of the above plus artifact-level stale-detection, (b) writes the result to a `<topic>_Audit.md` artifact instead of only printing, and (c) offers a phase-2 action menu (apply link/style fixes, draft missing concept-note stubs, hand gaps to gap-driven `discover`). `--report-only` for scheduled runs. This is the Karpathy "monthly health check" pattern; near-zero new capability, high packaging value against GUI-heavy competitors.
+- [ ] **Output->input loop (`distill ask`)** (0.10, gated on the run-time verify hook). Every output today (`report`, `research-brief`, `synthesize`) is terminal — nothing re-ingests it, and there's no lightweight query verb. Add `distill ask "<q>" --topic <t>`: query the corpus via the `find_insights` path, write a provenance-stamped `_Answer.md` with `[[backlinks]]`, and `--save` to re-ingest a liked answer as a first-class source so the corpus compounds with use. Re-ingest **must** run the verify hook first (refuse/quarantine unsupported load-bearing claims) — this is what prevents the "answer quietly builds on a mistake" failure the pattern is prone to. MCP `ask` tool for parity.
 
 ### 8. Expand cross-source intelligence
 
@@ -130,11 +132,13 @@ be moved to `CHANGELOG.md` on next release).
 - [ ] `distill watch` integration for goal files — re-run discover against a saved goal on a cadence so goal-driven topics refresh the same way keyword topics do.
 - [ ] Multi-topic channels — same channel filed under multiple topics with shared transcripts
 - [x] MCP-powered research-gap discovery so external agents can ask Distill what is missing and trigger follow-on ingestion
+- [ ] **Gap-driven discovery — close the loop from `research_gaps` to `discover`** (0.9.0). `research_gaps(topic)` already computes the inverse of goal-driven discovery (what the corpus is thin on, plus `next_actions`), but the signal dead-ends in MCP output. Wire it forward: a `discover --from-gaps <topic>` mode that turns the gap findings into auto-generated discover queries ("12 sources on synthesis depth, 0 on error propagation — preview candidates?"), and surface the same path as the "ingest these" branch of 0.9.2's `distill audit` action menu. Corpus-gap-driven discovery is the complement to today's goal-driven front door.
 - [ ] More source types — podcasts, RSS feeds, conference talks (same pipeline, different discovery)
 
 ### 9. Ongoing operation and access
 
 - [ ] Scheduled refresh — cron/task-scheduler integration for hands-off weekly updates
+- [ ] **Scheduled audit** (0.10, depends on 0.9.2) — the same scheduler runs `distill audit --report-only` on a cadence (the video's "monthly health check" automation), landing a dated audit artifact so corpus drift, contradictions, and gaps surface without manual prompting.
 - [ ] Native notification integrations for daily briefings, weekly digests, and important-change alerts
 - [ ] Web UI — browse the library, read insights, compare channels in a browser
 
@@ -314,3 +318,14 @@ write-ups before implementation.
   trade-off from `roadmap.md` item 6 (chunk-and-rerank): chunking handles
   "input is too long for one prompt"; deep synthesis handles "every claim
   needs to be visible at once for cross-document reasoning."
+- [ ] **Anti-AI-slop register guard** (0.9.0, companion to the register styles
+  above). `prompts/shared.py` carries `ANTI_HALLUCINATION_RULES`,
+  `PROVENANCE_RULES`, and a one-line `FORMATTING_RULES` (no em-dashes) — rules
+  about *correctness*, not *prose register*. The human-read outputs (briefings,
+  reports, the synthesis register styles) benefit from an explicit
+  `REGISTER_RULES` constant grounded in the Wikipedia "signs of AI writing"
+  list: no filler superlatives, no "delve / it's worth noting / in conclusion"
+  scaffolding, consistent UK/US spelling, no hedge-stacking. Thread it into the
+  synthesis/report/brief prompts. Anti-hallucination keeps the corpus correct;
+  this keeps the prose publishable. Prompt-layer constant + wiring, no new
+  dependency.

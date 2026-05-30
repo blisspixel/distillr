@@ -16,6 +16,7 @@ Full command reference. For the short version, see the README.
 - [Reports](#reports)
 - [Research briefings and deep synthesis](#research-briefings-and-deep-synthesis)
 - [Library management](#library-management)
+- [Concept playbook and recovery](#concept-playbook-and-recovery)
 - [Viewing and exporting](#viewing-and-exporting)
 - [Diagnostics](#diagnostics)
 
@@ -304,6 +305,31 @@ distill run --all --refresh
 distill run ai --refresh --shorts                   # include Shorts in refresh
 distill run ai --dry-run                            # preview what would run
 ```
+
+## Concept playbook and recovery
+
+The concept playbook accumulates evidence about named techniques, architectures, datasets, people, and vendors across a topic's `_Insights.md` files. Every refresh that changes a note snapshots the prior version under `.history/`, so the playbook is recoverable.
+
+```bash
+# Build / refresh the playbook for a topic (extraction + deterministic merge)
+distill concepts build tkg
+distill concepts build tkg --threshold 3 --refresh   # re-extract over every insight
+
+# Inspect a note's version history (newest first, with per-step change summaries)
+distill concepts log tkg rotational_embedding
+
+# Diff a note across versions
+distill concepts diff tkg rotational_embedding                       # most recent snapshot vs live
+distill concepts diff tkg rotational_embedding 2026-05-29T08:10:31Z  # that snapshot vs live
+distill concepts diff tkg rotational_embedding <ts_a> <ts_b>         # snapshot vs snapshot
+
+# Restore a prior snapshot (reversible: current version is backed up first;
+# the concepts.jsonl / entities.jsonl rollup row is rewritten to match)
+distill concepts rollback tkg rotational_embedding 2026-05-29T08:10:31Z
+distill concepts rollback tkg rotational_embedding 2026-05-29T08:10:31Z --yes   # skip confirm
+```
+
+The `<slug>` is the note's filename stem (e.g. `concepts/rotational_embedding.md` -> `rotational_embedding`). Timestamps are accepted in either ISO (`2026-05-29T08:10:31Z`) or filesystem-stem (`2026-05-29T08-10-31Z`) form; `distill concepts log` prints the exact values to copy. Agents can reach the same read surface over MCP via `concept_history` and `concept_diff`.
 
 ## Viewing and exporting
 
