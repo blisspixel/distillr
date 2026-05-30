@@ -5034,7 +5034,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
             from google import genai
 
             client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
-            client.models.generate_content(model="gemini-2.5-flash", contents="hi")
+            client.models.generate_content(model="gemini-3.5-flash", contents="hi")
             console.print("  [green]OK[/green]  GEMINI_API_KEY    [dim]Deep Research[/dim]")
         except Exception as e:
             err = str(e)[:60]

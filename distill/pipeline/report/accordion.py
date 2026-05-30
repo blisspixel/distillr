@@ -45,7 +45,9 @@ __all__ = [
 
 console = Console()
 
-DEEP_RESEARCH_MODEL = "deep-research-pro-preview-12-2025"
+# Gemini Deep Research (the April-2026 successor to deep-research-pro-preview-12-2025).
+# Standard variant, not the pricier deep-research-max-preview-04-2026.
+DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 MAX_CORPUS_CHARS = 350_000
 
 

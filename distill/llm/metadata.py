@@ -17,6 +17,7 @@ CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
     "grok-4.20-non-reasoning": 131_072,
     "grok-4.20-0309-reasoning": 131_072,
     "grok-4.20": 131_072,
+    "gemini-3.5-flash": 1_000_000,
     "gemini-3.1-pro": 1_000_000,
     "gemini-3.1-flash": 1_000_000,
     "claude-sonnet-4": 200_000,
