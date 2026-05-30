@@ -158,3 +158,14 @@ def test_dashboard_route_falls_back_to_dev_version(monkeypatch, config):
     response = client.get("/")
     assert response.status_code == 200
     assert "dev" in response.text
+
+
+def test_markdown_filter_sanitizes_untrusted_html(config):
+    # Artifact bodies come from untrusted sources; the dashboard renders them as
+    # |markdown|safe, so the filter must strip active HTML to avoid stored XSS.
+    app = create_app(config)
+    md = app.state.templates.env.filters["markdown"]
+    out = md("# Title\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n**bold**")
+    assert "<script" not in out
+    assert "javascript:" not in out
+    assert "<strong>" in out  # legitimate markdown still rendered

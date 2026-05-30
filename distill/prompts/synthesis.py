@@ -1,5 +1,7 @@
 """Synthesis prompt templates -- channel, topic, site, paper, corpus synthesis."""
 
+from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
+
 __all__ = [
     "channel_synthesis_prompt",
     "corpus_synthesis_prompt",
@@ -121,6 +123,8 @@ Rules:
 - Be concrete and specific.
 - Do not invent details not supported by the page.
 
+SECURITY: {UNTRUSTED_CONTENT_RULES}
+
 PAGE CONTENT:
 {content}"""
 
@@ -202,6 +206,8 @@ Rules:
 - Distinguish fact from interpretation.
 - Do not claim experimental outcomes that are not actually in the content.
 - Be concrete and specific.
+
+SECURITY: {UNTRUSTED_CONTENT_RULES}
 
 PAPER CONTENT:
 {content}"""

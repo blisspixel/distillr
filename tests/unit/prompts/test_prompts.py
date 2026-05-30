@@ -222,3 +222,30 @@ class TestAdditionalPromptBuilders:
         )()
         paper_prompt = paper_rerank_prompt("goal", [paper])
         assert "..." in paper_prompt
+
+
+def test_analysis_prompts_carry_untrusted_content_rule():
+    # Indirect-prompt-injection guard must be threaded into every per-source
+    # analysis prompt that embeds untrusted ingested text.
+    from distill.prompts.analysis import (
+        pass1_extraction_prompt,
+        scan_insight_prompt,
+        shorts_insight_prompt,
+    )
+    from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
+    from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_prompt
+    from distill.prompts.x import tweet_insight_prompt
+
+    marker = UNTRUSTED_CONTENT_RULES
+    assert marker in pass1_extraction_prompt("t", "d", "c", "body")
+    assert marker in shorts_insight_prompt("t", "d", "c", "body")
+    assert marker in scan_insight_prompt("t", "d", "c", "body")
+    assert marker in site_page_insight_prompt("t", "u", "s", "p", "body")
+    assert marker in paper_insight_prompt("t", "id", "body")
+    assert marker in tweet_insight_prompt(
+        author_name="a",
+        author_handle="@a",
+        posted_at="d",
+        tweet_url="u",
+        tweet_text="body",
+    )
