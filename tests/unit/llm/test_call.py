@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from distill.llm.call import LLMCall
 
@@ -57,9 +57,9 @@ class TestLLMCallConstruction:
         assert call.attempt == 2
 
     def test_timestamp_default_is_utc_iso(self) -> None:
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         call = LLMCall(model="test", prompt_hash="h")
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
         ts = datetime.fromisoformat(call.timestamp)
         assert before <= ts <= after
 

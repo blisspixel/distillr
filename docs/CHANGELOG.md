@@ -9,9 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
+- **0.8.4 Agent-discoverable library** — auto-generate a per-topic and per-library `CLAUDE.md` orientation file so agents that `cd` into a topic directory get immediate context without the MCP server. Pure templating over existing artifacts; no new LLM calls or dependencies. See [`ROADMAP.md`](../ROADMAP.md#084--agent-discoverable-library).
+- **1.0 verification depth** — Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
+
+## 0.8.3 - 2026-05-30
+
+**Reproducible toolchain and engineering baseline.** A no-business-logic release that makes the build harness deterministic and self-enforcing. Motivated directly by 0.8.2, which shipped clean code yet broke CI when an unpinned `typer>=0.9.0` floated to typer 0.26 (it now vendors its own `click`, so `typer.Exit` stopped being `click.exceptions.Exit`). distillr had no lockfile, so every CI run re-resolved the whole dependency tree against the latest release of everything. This release closes that gap.
+
+### What's new
+
+- **`uv` as the sole toolchain.** Migrated from pip + setuptools to `uv`: a committed `uv.lock`, `uv sync --frozen` in CI for deterministic environments, `build-backend = "uv_build"`, and `[dependency-groups]` dev tooling replacing the `.[dev]` extra. The editable-install workflow is preserved (`uv sync` / `uv run`).
+- **Python 3.12–3.14 support matrix.** Floor raised from 3.10 (EOL Oct 2026) to `requires-python = ">=3.12"`; classifiers updated; CI runs `[3.12, 3.13, 3.14]`; ruff and Pyright target 3.12. Deliberately not 3.14-only — distillr is a published library.
+- **Dependabot** (`.github/dependabot.yml`): weekly grouped patch/minor updates with majors flagged; every bump runs full CI against the lock before merge.
+- **Contracts now enforced in CI.** `import-linter` (dependency-direction layer contracts, previously configured but never run) and `pip-audit` are blocking lanes; `xfail_strict` and `--strict-markers` are on.
+- **Branch coverage.** Coverage switched from line to branch metric, gated at the measured baseline (floor 79) and ratcheted up-only toward the 1.0 target of 95.
+- **`pre-commit` identical to CI.** Lint/type/security/test hooks run via `uv run --frozen` (the exact locked versions CI uses); Pyright and import-linter added; full pytest on the pre-push stage.
+- **Supply chain.** A CycloneDX SBOM ships as a build artifact, and PyPI publishing emits PEP 740 build-provenance attestations over the existing OIDC trusted-publishing channel.
+
+### Incidental modernizations
+
+The `py312` target surfaced two `(str, Enum)` enums (now `StrEnum`) and one generic function (now PEP 695 type-parameter syntax). Behavior-identical, verified by the suite.
+
+### Verification
+
+Full suite green across the 3.12 / 3.13 / 3.14 matrix (1633 tests each); ruff, ruff-format, Pyright (`distill/llm/`), import-linter (3/3 contracts), pip-audit, and `uv build` (wheel confirmed to bundle `distill/web` templates + static assets) all pass.
 
 ## 0.8.2 - 2026-05-29
 

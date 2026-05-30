@@ -6,6 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/distillr.svg)](https://pypi.org/project/distillr/)
 [![Python](https://img.shields.io/pypi/pyversions/distillr.svg)](https://pypi.org/project/distillr/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
@@ -202,7 +203,7 @@ Distillr is built for two parallel agent-integration paths:
 
 Distill exposes 8 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
 
-**Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. From 0.8.3 forward, every topic directory ships an auto-generated `CLAUDE.md` orientation file that agents which auto-load it (Claude Code, Cursor, others) pick up automatically. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
+**Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. From 0.8.4 forward, every topic directory ships an auto-generated `CLAUDE.md` orientation file that agents which auto-load it (Claude Code, Cursor, others) pick up automatically. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
 ## Cost
 
@@ -226,9 +227,9 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
-**Recent: 0.8.2 Playbook recovery surface (shipped 2026-05-29).** `distill concepts log` / `diff` / `rollback` over the `.history/` snapshots 0.8 already writes (plus MCP `concept_history` / `concept_diff`) — the read-and-restore affordance for versioned concept notes. Extraction moved to `distill concepts build <topic>` so `concepts` could become a command group.
+**Recent: 0.8.3 Reproducible toolchain and engineering baseline (shipped 2026-05-30).** Full `uv` migration (committed `uv.lock`, `uv sync --frozen` in CI, `uv_build` backend), Dependabot, Python 3.12–3.14 support matrix, import-linter and pip-audit promoted into blocking CI, branch-coverage ratchet, `pre-commit` made identical to CI, plus an SBOM and PEP 740 build-provenance attestations on release. No business logic — motivated by the 0.8.2 release where an unpinned `typer` floated to 0.26 and broke CI on unchanged code. See [`ROADMAP.md`](ROADMAP.md#083--reproducible-toolchain-and-engineering-baseline).
 
-**Next: 0.8.3 Agent-discoverable library.** Per-topic `CLAUDE.md` auto-generation so agents that `cd` into a topic directory get immediate orientation. Then 0.9 (discovery loop + gap-driven discovery + two-pass synthesis + local-file ingest), 0.9.1 (source breadth + audio capability — see [`ROADMAP.md`](ROADMAP.md#091--source-breadth-and-audio-capability) for the five-adapter set and contract), 0.9.2 (self-maintaining audit: `distill audit` bundles the existing health/link/gap checks into one report + action menu), 0.10 (operational polish + run-time verify hook + the `distill ask` output->input loop + sub-agent-friendly MCP tools).
+**Next: 0.8.4 Agent-discoverable library.** Per-topic `CLAUDE.md` auto-generation so agents that `cd` into a topic directory get immediate orientation. Then 0.9 (discovery loop + gap-driven discovery + two-pass synthesis + local-file ingest), 0.9.1 (source breadth + audio capability — see [`ROADMAP.md`](ROADMAP.md#091--source-breadth-and-audio-capability) for the five-adapter set and contract), 0.9.2 (self-maintaining audit: `distill audit` bundles the existing health/link/gap checks into one report + action menu), 0.10 (operational polish + run-time verify hook + the `distill ask` output->input loop + sub-agent-friendly MCP tools).
 
 ## Contributing
 

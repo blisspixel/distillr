@@ -1,13 +1,14 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.11.11,<0.12.0"]
+build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.8.2"
+version = "0.8.3"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Nick Seal" }]
 keywords = ["research", "intelligence", "synthesis", "arxiv", "youtube", "rag", "knowledge-base", "mcp"]
 classifiers = [
@@ -16,16 +17,15 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "yt-dlp>=2025.1.0",
     "openai>=1.0.0",
@@ -48,45 +48,55 @@ dependencies = [
     "defusedxml>=0.7.1",
 ]
 
-[project.optional-dependencies]
+[project.scripts]
+distill = "distill.cli:main"
+distill-mcp = "distill.mcp.server:main"
+
+# Dev tooling lives in a PEP 735 dependency group (synced by default with
+# `uv sync`). It is intentionally not a [project.optional-dependencies] extra:
+# the project ships to PyPI without dragging test/lint tooling into the
+# install graph of downstream consumers.
+[dependency-groups]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "hypothesis>=6.0",
     "ruff>=0.6.0",
+    "pyright>=1.1.390",
     "bandit[toml]>=1.7",
     "pip-audit>=2.7",
     "pre-commit>=3.5",
-    "build>=1.0",
-    "twine>=5.0",
     "import-linter>=2.0",
 ]
 
-[project.scripts]
-distill = "distill.cli:main"
-distill-mcp = "distill.mcp.server:main"
-
-[tool.setuptools.packages.find]
-# Auto-discover every distill.* subpackage. Switched from an explicit
-# packages allowlist after 0.8.0 shipped without the new
-# distill.concepts / distill.doctor / distill.cli_support subpackages --
-# the allowlist drifted out of sync with the source tree. find-packages
-# is the supported pattern for a single-top-level layout and removes the
-# class of bug entirely.
-include = ["distill*"]
-exclude = ["tests*"]
-
-[tool.setuptools.package-data]
-"distill.web" = ["templates/**/*.html", "static/**/*"]
+# uv build backend. Flat layout (the package lives at the repo root, not under
+# src/), so module-root is empty and module-name is set explicitly because the
+# distribution name (distillr) differs from the import package (distill). All
+# files inside distill/ -- including distill/web/templates and distill/web/static
+# -- are packaged into the wheel by default; verified via `uv build` + wheel
+# inspection in CI.
+[tool.uv.build-backend]
+module-name = "distill"
+module-root = ""
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: tests that hit real YouTube (deselect with -m 'not integration')"]
-addopts = "-m 'not integration'"
+# --strict-markers: an unregistered @pytest.mark typo is an error, not a silent
+# no-op. xfail_strict: an xfail that unexpectedly passes fails the suite, so a
+# fixed bug can never hide behind a stale xfail.
+addopts = "-m 'not integration' --strict-markers"
+xfail_strict = true
+
+[tool.coverage.run]
+# Branch coverage (stricter than line): every conditional must exercise both
+# arms. Ratcheted up-only in CI via --cov-fail-under toward the 1.0 >=95% gate.
+branch = true
+source = ["distill"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 # Selected rule categories:
@@ -177,7 +187,7 @@ reportAssignmentType = "warning"
 reportReturnType = "warning"
 reportIndexIssue = "warning"
 reportPossiblyUnboundVariable = "warning"
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 pythonPlatform = "All"
 
 [tool.importlinter]

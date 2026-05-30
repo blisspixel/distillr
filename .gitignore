@@ -11,9 +11,14 @@ build/
 
 # Virtual environments
 .venv/
+.venv-*/
 venv/
 env/
 ENV/
+
+# SBOM / dependency-export artifacts (generated in CI, uploaded as artifacts)
+*.cdx.json
+sbom-requirements.txt
 
 # Test / coverage
 .pytest_cache/

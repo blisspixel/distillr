@@ -5,11 +5,8 @@ from __future__ import annotations
 import random
 import time
 from collections.abc import Callable
-from typing import TypeVar
 
 __all__ = ["PERMANENT_ERRORS", "compute_delay", "retry_with_backoff"]
-
-T = TypeVar("T")
 
 # HTTP status codes and exception types that should never be retried.
 PERMANENT_ERRORS: tuple[int, ...] = (400, 401, 403, 404, 422)
@@ -37,7 +34,7 @@ def compute_delay(
     return exponential + jitter
 
 
-def retry_with_backoff(
+def retry_with_backoff[T](
     fn: Callable[[], T],
     *,
     max_retries: int = 3,

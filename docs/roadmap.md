@@ -142,6 +142,22 @@ be moved to `CHANGELOG.md` on next release).
 - [ ] Native notification integrations for daily briefings, weekly digests, and important-change alerts
 - [ ] Web UI — browse the library, read insights, compare channels in a browser
 
+### 9b. Engineering foundation — reproducible toolchain and quality gates
+
+The build harness, not the corpus. The shaping decisions and the adopted/adapted/declined rationale live in [`../ROADMAP.md`](../ROADMAP.md#083--reproducible-toolchain-and-engineering-baseline) and its "Engineering standards" subsection; this is the itemized backlog.
+
+- [x] **Full `uv` migration** (0.8.3) — committed `uv.lock`, `uv sync --frozen` in CI, `build-backend = "uv_build"`, `[dependency-groups]` dev tooling (replacing the `.[dev]` extra); `publish.yml` builds with `uv build`, keeping its tag-ancestry / version-match / CI-success gates. Editable-install workflow preserved. Motivated by the 0.8.2 release where an unpinned `typer` floated to 0.26 and broke CI on unchanged code.
+- [x] **Dependabot** (0.8.3) — `.github/dependabot.yml`, weekly grouped patch/minor with majors flagged; every bump runs full CI against the lock before merge.
+- [x] **Python 3.12–3.14 support matrix** (0.8.3) — `requires-python = ">=3.12"` (floor up from 3.10, EOL Oct 2026), classifiers updated, CI matrix `[3.12, 3.13, 3.14]`, ruff/Pyright target `py312`/`3.12`. Deliberately not 3.14-only: distillr is a published library.
+- [x] **Enforce existing contracts in CI** (0.8.3) — add `lint-imports` (import-linter contracts already in `pyproject.toml`) and `pip-audit` as blocking lanes; `xfail_strict = true` + `--strict-markers` in pytest config.
+- [~] **Branch coverage ratchet** (0.8.3 → 1.0) — `[tool.coverage.run] branch = true`, `--cov-fail-under` set to the measured branch baseline (floor 79) and ratcheted up-only toward the 1.0 flat ≥95% gate.
+- [x] **`pre-commit` identical to CI** (0.8.3) — lint/type/security/test hooks run via `uv run --frozen` (locked versions); Pyright + import-linter added, full pytest on pre-push.
+- [x] **SBOM on release** (0.8.3) — CycloneDX / `uv export` software bill of materials attached as a build artifact.
+- [x] **PEP 740 build-provenance attestations** (0.8.3) — emit signed attestations over the existing OIDC trusted-publishing channel so the source-to-wheel chain is cryptographically verifiable. The cheap slice of the Sigstore/SLSA supply-chain ask; full SLSA L3 generators and container scanning (trivy) are out of scope (distillr ships a wheel, not an image).
+- [ ] **Full Pyright-strict ratchet** (1.0) — complete the per-package climb 0.8.3 begins (`distill/llm/` already strict-blocking); no `# type: ignore` without an inline reason.
+- [ ] **Parse, don't validate — strict domain types at every boundary** (1.0) — parse every external input (MCP tool arguments, frontmatter, adapter/local-file ingest, LLM structured outputs) once at the boundary into a rich domain type (`strict=True, extra='forbid'` Pydantic model, `NewType`, or frozen dataclass); core logic never sees raw primitives.
+- [ ] **Verification depth on the deterministic core** (1.0, "formally contracted where it matters") — Design by Contract via `deal` on the merge/normalize/recovery invariants (idempotent + order-independent merge, round-tripping rollback, non-inverting intervals; `deal` also generates Hypothesis tests from the contracts); mutation testing (`mutmut`) of `concepts/` + `library/` + `llm/retry` on a cadence to prove test efficacy; a Hypothesis state machine over the playbook lifecycle (append -> merge -> notes -> snapshot -> rollback -> re-merge); and fault-injection at the external boundaries (malformed LLM JSON, truncated transcripts, network/yt-dlp failures) proving clean degradation and that no-silent-error-swallowing holds under turbulence. Scoped to the pure-Python core + boundaries, not blanket. distillr's concurrency is asyncio IO, so the discipline is async-safety, not free-threaded shared-memory rules.
+
 ### 10. Living Wiki Corpus (Obsidian-native, LLM-maintained)
 
 Distill's corpus is already a directory of plain-text markdown artifacts with

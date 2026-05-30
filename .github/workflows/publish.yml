@@ -20,14 +20,11 @@ jobs:
           # would make ``git merge-base --is-ancestor`` always fail.
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install build
-        run: pip install build
+          version: "0.11.11"
+          enable-cache: true
 
       - name: Resolve tagged commit
         id: release_ref
@@ -52,7 +49,7 @@ jobs:
       - name: Verify tag matches package version
         run: |
           tag="${GITHUB_REF#refs/tags/v}"
-          pkg=$(python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          pkg=$(uv version --short)
           if [ "$tag" != "$pkg" ]; then
             echo "Tag v$tag does not match pyproject.toml version $pkg"
             exit 1
@@ -80,13 +77,40 @@ jobs:
           fi
 
       - name: Build sdist and wheel
-        run: python -m build
+        run: uv build
+
+      - name: Verify wheel bundles web assets
+        run: |
+          # Guard against a packaging regression silently shipping a wheel
+          # without the dashboard templates/static the web UI needs.
+          whl=$(ls dist/*.whl)
+          for f in distill/web/templates/base.html distill/web/static/style.css; do
+            if ! unzip -l "$whl" | grep -q "$f"; then
+              echo "Wheel ${whl} is missing ${f}; refusing to publish."
+              exit 1
+            fi
+          done
+          echo "Web assets present in ${whl}."
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt -o sbom-requirements.txt
+          uvx --from cyclonedx-bom cyclonedx-py requirements sbom-requirements.txt \
+            --pyproject pyproject.toml --of JSON -o "distillr-${tag}.cdx.json"
+          rm -f sbom-requirements.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: distillr-*.cdx.json
 
   publish:
     name: Publish to PyPI
@@ -107,3 +131,7 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # PEP 740 provenance attestations, signed via the OIDC identity (no
+          # stored credentials). Makes the source-to-wheel chain verifiable.
+          attestations: true
