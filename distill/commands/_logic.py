@@ -7498,12 +7498,23 @@ def discover(  # noqa: C901 — legacy, will refactor
         "--ingest-attachments",
         help="For selected site seeds, pull PDF text and supported embedded video transcripts into the page corpus",
     ),
+    from_gaps: bool = typer.Option(
+        False,
+        "--from-gaps",
+        help="Derive the goal from an existing topic's coverage gaps (requires --topic). "
+        "Turns research_gaps into auto-generated discover queries.",
+    ),
     preview: bool = typer.Option(
         False, "--preview", help="Show the goal-ranked plan without ingesting"
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt"),
 ):
-    """Goal-aware cross-source discovery: papers + videos, reranked against a goal."""
+    """Goal-aware cross-source discovery: papers + videos, reranked against a goal.
+
+    With ``--from-gaps``, the goal is synthesized from the topic's coverage gaps
+    (the inverse of goal-driven discovery): "you are thin on X, single-source on
+    Y" becomes "find sources that fill X and Y".
+    """
     _preflight()
     if papers_only and videos_only:
         console.print(
@@ -7523,13 +7534,28 @@ def discover(  # noqa: C901 — legacy, will refactor
             console.print(f"[red]Goal file not found: {goal_file}[/red]")
             raise typer.Exit(1)
         goal = goal_file.read_text(encoding="utf-8").strip()
-    if not goal.strip():
+    if from_gaps and not topic:
+        console.print("[red]--from-gaps requires --topic <name> to analyze.[/red]")
+        raise typer.Exit(1)
+    if not goal.strip() and not from_gaps:
         console.print("[red]Goal is empty. Provide a goal argument or --goal-file path.[/red]")
         raise typer.Exit(1)
 
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required for goal-aware discovery")
     tracker = CostTracker()
+
+    if from_gaps:
+        from distill.pipeline.gaps import gap_discovery_goal, topic_gap_summary
+
+        gap_summary = topic_gap_summary(config, topic)
+        goal = gap_discovery_goal(gap_summary)
+        console.print(f"[cyan]Gap-driven discovery for '{topic}'. Detected gaps:[/cyan]")
+        for g in gap_summary["gaps"]:
+            console.print(f"  [dim]- {g}[/dim]")
+        console.print(f"  [dim]Synthesized goal:[/dim] {goal[:160]}...")
+        console.print()
+
     topic_name = topic or _topic_from_query(goal[:80])
     effective_site_limit = site_limit if site_seeds is not None else 0
     if paper_limit <= 0 and video_limit <= 0 and effective_site_limit <= 0:
