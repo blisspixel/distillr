@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.9 - 2026-05-30
+
+**Local-file ingest (`distill ingest <path>`).** `distill ingest` now accepts a local file path in addition to a URL: a PDF, Markdown file, plain-text file, or saved/clipped HTML article is extracted and routed through the same analysis pipeline the network sources use, emitting a raw `_Content.md` plus an `_Insights.md` (full provenance, cost-tracked) under `library/topics/<topic>/local/<slug>/`. PDFs use the paper-analysis prompt; Markdown / text / HTML use the page-analysis prompt (both carry the 0.8.7 untrusted-content guard). Closes the gap where the playbook layer only updated from network ingestion. Continues the 0.9.0 milestone.
+
+- New `distill/ingestors/local/extract.py` (text extraction: pypdf for PDFs, a stdlib HTML-to-text pass that drops script/style, surrogate sanitization, a 100K-char cap) and `distill/pipeline/analysis/local.py` (orchestration). The command dispatches to the local pipeline when the target exists on disk, otherwise treats it as a URL.
+
 ## 0.8.8 - 2026-05-30
 
 **Anti-AI-slop register guard (first 0.9.0 increment).** Adds a shared `REGISTER_RULES` constant (`prompts/shared.py`) and threads it into the human-read outputs: topic and corpus synthesis, the report section writer, and the topic brief. It bans filler superlatives, empty scaffolding ("it's worth noting", "delve into", "in conclusion"), hedge-stacking, and the "not only X but also Y" tic, grounded in the Wikipedia "signs of AI writing" list. Anti-hallucination keeps the corpus correct; this keeps the prose publishable. Prompt-layer only, no new dependency. Begins the 0.9.0 synthesis-depth milestone; the structured extraction prompts are deliberately left untouched (their output is data, not prose).

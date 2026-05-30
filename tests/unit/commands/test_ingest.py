@@ -144,3 +144,24 @@ def test_ingest_cmd_no_transcribe_flag_passes_through(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert captured["kwargs"]["transcribe"] is False
     assert captured["kwargs"]["analyze"] is False
+
+
+def test_ingest_cmd_routes_local_file_path(tmp_path: Path) -> None:
+    from distill.cli import app
+    from distill.config import DistillConfig
+
+    src = tmp_path / "My Note.md"
+    src.write_text("# Note\n\nA local clipped article about agents.", encoding="utf-8")
+
+    with patch("distill.commands.ingest.get_config") as get_config_mock:
+        get_config_mock.return_value = DistillConfig(
+            xai_api_key="x", distill_output_dir=tmp_path / "lib"
+        )
+        runner = CliRunner()
+        # --no-analyze keeps it offline (no LLM call); just capture + write the document.
+        result = runner.invoke(app, ["ingest", str(src), "--topic", "t", "--no-analyze"])
+
+    assert result.exit_code == 0, result.output
+    assert "Document" in result.output
+    docs = list((tmp_path / "lib" / "topics" / "t" / "local").glob("*/*_Content.md"))
+    assert docs and "clipped article" in docs[0].read_text(encoding="utf-8")
