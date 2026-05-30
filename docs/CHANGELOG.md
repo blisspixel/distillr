@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.8.6 - 2026-05-30
+
+**Cost-tracking completeness.** Closes an off-ledger spend gap and makes the expensive operation (Deep Research) price accurately, so `distill costs` reflects real spend.
+
+- **Audio transcription is now on the ledger.** Cloud speech-to-text (xAI Grok STT ~$0.10/hr, OpenAI Whisper ~$0.36/hr) was previously unrecorded; it is now tracked per call via `CostTracker.record_transcription(provider, duration_s)`, priced from a new per-hour `TRANSCRIPTION_PRICING` table. Local faster-whisper resolves to $0. Recorded at the X/tweet ingest using the source's known video duration.
+- **Deep Research cost is model-aware.** `record_gemini_query(model)` now prices each query by model, so **Deep Research Max** (`deep-research-max-preview-04-2026`, ~$5/query) is no longer undercounted at the standard ~$2.50 rate. Count-only trackers (sub-range report copies) keep the standard estimate.
+- `total_cost` and the run summary now include transcription spend; `summary_dict` surfaces `transcription_calls` / `estimated_transcription_cost` when present.
+- **Audit result:** all LLM text-generation call sites and Gemini Deep Research were already tracked; transcription was the one gap and is now closed. Model selection remains tier-based and defaults to the cost-efficient `grok-4.3`.
+
 ## 0.8.5 - 2026-05-30
 
 **Model refresh (Gemini).** Brings distillr's Google model references up to the May 2026 lineup. No xAI change: the `grok-4.3` default is the current flagship and stays.

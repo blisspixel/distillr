@@ -17,6 +17,7 @@ from distill.llm.cost import (
 from distill.llm.cost import (
     deep_research_query_cost,
     get_pricing,
+    transcription_cost,
 )
 
 ACCORDION_GROK_ESTIMATE: float = 0.05
@@ -26,6 +27,7 @@ __all__ = [
     "LLM_PRICING",
     "CostTracker",
     "TokenUsage",
+    "TranscriptionUsage",
     "estimate_run_cost",
     "report_deep_research_estimate",
     "save_run_log",
@@ -43,19 +45,47 @@ class TokenUsage:
 
 
 @dataclass
+class TranscriptionUsage:
+    """One cloud speech-to-text call's audio duration and estimated cost."""
+
+    provider: str = ""
+    model: str = ""
+    duration_s: float = 0.0
+    cost: float = 0.0
+
+
+@dataclass
 class CostTracker:
     """Accumulates token usage and cost across a run."""
 
     entries: list[TokenUsage] = field(default_factory=list)
     gemini_queries: int = 0
+    gemini_query_models: list[str] = field(default_factory=list)
+    transcriptions: list[TranscriptionUsage] = field(default_factory=list)
 
     def record(self, usage: TokenUsage):
         """Record a token usage entry."""
         self.entries.append(usage)
 
-    def record_gemini_query(self):
-        """Record a Gemini Deep Research query."""
+    def record_gemini_query(self, model: str = ""):
+        """Record a Gemini Deep Research query (model-aware for per-query cost)."""
         self.gemini_queries += 1
+        self.gemini_query_models.append(model)
+
+    def record_transcription(self, provider: str, duration_s: float, *, model: str = ""):
+        """Record a cloud transcription call's audio duration and estimated cost.
+
+        Local transcription (faster-whisper) is free; recording it is harmless
+        (cost resolves to 0) and keeps the ledger complete.
+        """
+        self.transcriptions.append(
+            TranscriptionUsage(
+                provider=provider,
+                model=model,
+                duration_s=duration_s,
+                cost=transcription_cost(provider, duration_s),
+            )
+        )
 
     @property
     def total_input_tokens(self) -> int:
@@ -77,12 +107,25 @@ class CostTracker:
 
     @property
     def total_gemini_cost(self) -> float:
-        """Estimated Gemini Deep Research cost."""
+        """Estimated Gemini Deep Research cost, per-query and model-aware.
+
+        When the per-query models are known (the normal path) each query is
+        priced by its model, so Deep Research Max (~$5) is counted at its higher
+        rate. Falls back to the standard per-query estimate for count-only
+        trackers (e.g. sub-range report copies that carry only ``gemini_queries``).
+        """
+        if self.gemini_query_models:
+            return sum(deep_research_query_cost(m) for m in self.gemini_query_models)
         return self.gemini_queries * deep_research_query_cost()
 
     @property
+    def total_transcription_cost(self) -> float:
+        """Estimated cloud speech-to-text cost across the run."""
+        return sum(t.cost for t in self.transcriptions)
+
+    @property
     def total_cost(self) -> float:
-        return self.total_grok_cost + self.total_gemini_cost
+        return self.total_grok_cost + self.total_gemini_cost + self.total_transcription_cost
 
     def format_cost(self) -> str:
         """Human-readable cost string."""
@@ -103,7 +146,7 @@ class CostTracker:
             model_summary["input_tokens"] += entry.prompt_tokens
             model_summary["output_tokens"] += entry.completion_tokens
 
-        return {
+        summary = {
             "grok_calls": len(self.entries),
             "gemini_queries": self.gemini_queries,
             "total_input_tokens": self.total_input_tokens,
@@ -113,6 +156,13 @@ class CostTracker:
             "estimated_total_cost": self.format_cost(),
             "by_model": by_model,
         }
+        if self.transcriptions:
+            summary["transcription_calls"] = len(self.transcriptions)
+            summary["transcription_seconds"] = round(
+                sum(t.duration_s for t in self.transcriptions), 1
+            )
+            summary["estimated_transcription_cost"] = f"${self.total_transcription_cost:.4f}"
+        return summary
 
 
 def save_run_log(
