@@ -152,7 +152,7 @@ The preview → approve → ingest workflow becomes the default front door, synt
 
 **Local-file ingest.**
 
-- `distill ingest <path>` for local PDFs, markdown, and clipped articles. Routes through the same analysis pipeline as network ingestion: extract text, run the paper/site analysis prompt, emit `_Insights.md` with full provenance. Closes the gap where the playbook layer only updates from network ingestion. Supports `--topic` to attach to an existing topic, falls back to inferring from file metadata.
+- `distill ingest <path>` for local PDFs, markdown, and clipped articles. *(Shipped 0.8.9.)* Routes through the same analysis pipeline as network ingestion: extract text (pypdf for PDFs, a stdlib HTML-to-text pass for saved articles), run the paper/site analysis prompt, emit a raw `_Content.md` plus `_Insights.md` with full provenance under `library/topics/<topic>/local/<slug>/`. Cost-tracked; the `ingest` command dispatches to the local pipeline when the target exists on disk, otherwise treats it as a URL. Supports `--topic`.
 
 Why this version: most of these need 0.3's telemetry to estimate cost honestly and 0.5's MCP surface to expose the same flow to agents. Shipping earlier means re-doing it later.
 

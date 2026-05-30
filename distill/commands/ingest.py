@@ -1,23 +1,24 @@
-"""``distill ingest <url>`` — adaptive single-URL ingestion entry point.
+"""``distill ingest <target>`` — adaptive single-target ingestion entry point.
 
-Detects the source type from the URL host and dispatches to the
-appropriate hardened adapter. Today this routes X (Twitter) posts to
-the new X adapter; unknown hosts fall through with a clear message
-pointing at the existing ``distill site`` / ``distill latest`` /
-``distill paper`` commands. This is the seed of the unified
-``distill ingest`` surface the 0.9 roadmap milestone scopes for local
-files — the dispatcher pattern is identical for URL vs. path.
+Routes by target. A local file path (PDF / Markdown / text / saved HTML) is
+extracted and analyzed through the local-file pipeline; otherwise the target is
+treated as a URL and dispatched by host to the appropriate hardened adapter
+(today X / Twitter). Unknown hosts fall through with a clear message pointing at
+the existing ``distill site`` / ``distill latest`` / ``distill paper`` commands.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
 
 from distill.commands._logic import get_config
+from distill.ingestors.local import LocalExtractionError
 from distill.ingestors.x.syndication import parse_tweet_url
+from distill.pipeline.analysis.local import ingest_local_file
 from distill.pipeline.analysis.tweet import ingest_tweet
 from distill.pipeline.costs import CostTracker
 
@@ -31,7 +32,9 @@ def _host(url: str) -> str:
 
 
 def ingest_cmd(
-    url: str = typer.Argument(help="URL to ingest. Currently supports x.com / twitter.com."),
+    url: str = typer.Argument(
+        help="URL (x.com / twitter.com) or a local file path (.pdf / .md / .txt / .html)."
+    ),
     topic: str = typer.Option("inbox", "--topic", "-t", help="Topic to file under"),
     no_transcribe: bool = typer.Option(
         False,
@@ -44,10 +47,38 @@ def ingest_cmd(
         help="Skip insight extraction (just capture raw + transcript).",
     ),
 ):
-    """Ingest a single URL into the library, picking the right adapter by host."""
+    """Ingest a single URL or local file into the library, picking the right adapter."""
     config = get_config()
-    host = _host(url)
     tracker = CostTracker()
+
+    # Local file path takes precedence: if the target exists on disk, ingest it
+    # through the local-file pipeline rather than treating it as a URL.
+    local_path = Path(url).expanduser()
+    if local_path.is_file():
+        try:
+            local = ingest_local_file(
+                local_path,
+                topic=topic,
+                config=config,
+                analyze=not no_analyze,
+                tracker=tracker,
+            )
+        except LocalExtractionError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(2) from None
+        console.print("")
+        console.print(
+            f"  [green]Document[/green]  "
+            f"{local.document_path.relative_to(config.library_dir)} [dim]({local.kind})[/dim]"
+        )
+        if local.insights_path:
+            console.print(
+                f"  [green]Insights[/green]  {local.insights_path.relative_to(config.library_dir)}"
+            )
+        console.print(f"\n  [dim]LLM spend: {tracker.format_cost()}[/dim]")
+        return
+
+    host = _host(url)
 
     if host in {"x.com", "twitter.com", "mobile.twitter.com"}:
         tweet_id = parse_tweet_url(url)
