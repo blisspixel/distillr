@@ -5,7 +5,7 @@ import time
 import traceback
 from contextlib import suppress
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -363,7 +363,7 @@ def _normalize_details(details: dict[str, Any] | None) -> tuple[tuple[str, str],
 def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C901 — legacy, will refactor
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     payload = {
         "timestamp": timestamp,
         "command": summary.command,

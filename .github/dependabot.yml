@@ -1,0 +1,38 @@
+# Dependabot keeps the locked dependency tree current and, crucially, surfaces
+# every upgrade as a PR that runs the full CI matrix against uv.lock *before*
+# merge. This is the control that turns a breaking transitive bump (e.g. the
+# typer 0.26 vendored-click change that broke 0.8.2's CI on unchanged code)
+# into a reviewable red PR instead of a red main.
+version: 2
+
+updates:
+  # Python dependencies, read natively from pyproject.toml + uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+    groups:
+      # Batch low-risk patch/minor bumps into one PR per group. Major bumps are
+      # intentionally left ungrouped so each one lands as its own PR for review.
+      production-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-minor-patch:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions referenced in the workflows (setup-uv, checkout, etc.).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns: ["*"]

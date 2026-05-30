@@ -1,8 +1,14 @@
-# Run `pre-commit install` once after cloning.
-# Hooks then run automatically on every `git commit`.
+# Run `pre-commit install --install-hooks` once after cloning, then
+# `pre-commit install --hook-type pre-push` to enable the test lane.
+# Hooks then run automatically on every `git commit` (and `git push`).
 #
 # To run manually against the whole tree: `pre-commit run --all-files`
 # To skip hooks for a single commit: `git commit --no-verify`
+#
+# Design: the lint/type/security/test hooks run through `uv run --frozen`, so
+# they use the exact tool versions pinned in uv.lock -- i.e. the same versions
+# CI runs. A clean `pre-commit run --all-files` therefore means a clean CI run,
+# with no version drift between local and remote. uv must be installed.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -20,16 +26,49 @@ repos:
         args: [--fix=lf]
       - id: detect-private-key
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-      - id: ruff-format
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix --force-exclude --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
 
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.0
-    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
       - id: bandit
-        args: ["-c", "pyproject.toml", "-r", "distill/"]
-        additional_dependencies: ["bandit[toml]"]
+        name: bandit (security)
+        entry: uv run --frozen bandit -r distill/ -c pyproject.toml --severity-level medium
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: lint-imports
+        name: import-linter (layer contracts)
+        entry: uv run --frozen lint-imports
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: pyright-llm
+        name: pyright (distill/llm, blocking)
+        entry: uv run --frozen pyright distill/llm/
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Full suite is too slow for every commit; runs on push instead, matching
+      # the CI test gate. Enable with: pre-commit install --hook-type pre-push
+      - id: pytest
+        name: pytest (full suite)
+        entry: uv run --frozen pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

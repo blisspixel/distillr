@@ -22,8 +22,8 @@ Vocabulary:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 __all__ = [
@@ -36,7 +36,7 @@ __all__ = [
 ]
 
 
-class Polarity(str, Enum):
+class Polarity(StrEnum):
     """How a source treats a concept.
 
     String-valued enum so the records serialize cleanly to JSON without
@@ -48,7 +48,7 @@ class Polarity(str, Enum):
     NEUTRAL = "neutral"
 
 
-class ConceptKind(str, Enum):
+class ConceptKind(StrEnum):
     """High-level category of a named thing.
 
     Concepts (techniques, architectures, datasets, metrics) live in
@@ -293,4 +293,4 @@ def utcnow_iso() -> str:
     Centralized so tests can monkeypatch this single function when they
     need stable timestamps in fixtures.
     """
-    return datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
+    return datetime.now(UTC).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
