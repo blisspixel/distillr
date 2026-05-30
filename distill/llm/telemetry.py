@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, fields
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ def write_record(ops_dir: str, record: Telemetry_Record) -> None:
     path = Path(ops_dir) / "telemetry.jsonl"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        record.timestamp = datetime.now(timezone.utc).isoformat()
+        record.timestamp = datetime.now(UTC).isoformat()
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(record)) + "\n")
     except OSError as exc:

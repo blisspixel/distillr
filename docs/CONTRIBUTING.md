@@ -4,25 +4,27 @@ Thanks for your interest. This document covers the bare minimum needed to get a 
 
 ## Dev setup
 
+distillr uses [uv](https://docs.astral.sh/uv/) as its sole toolchain (package manager, virtualenv, and Python-version manager). Install uv once, then:
+
 ```bash
 git clone https://github.com/blisspixel/distillr.git
 cd distillr
-python -m venv venv
-source venv/bin/activate           # Windows: venv\Scripts\activate
-pip install -e ".[dev]"            # installs distill + pytest, ruff, bandit, pip-audit, pre-commit, build, twine
-playwright install chromium
+uv sync                            # creates .venv from uv.lock; installs distill (editable) + dev tools
+uv run playwright install chromium
 cp .env.example .env               # then add API keys if you want to run live
-distill doctor
+uv run distill doctor
 ```
+
+`uv sync` reads `.python-version` (3.12) and auto-downloads the interpreter if you don't have it. distillr requires **Python 3.12+**. Run any command in the project env with `uv run <cmd>` (e.g. `uv run distill ...`), or activate `.venv` directly. The install is editable, so source edits apply without reinstalling.
 
 You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test suite itself (default mode) doesn't hit real APIs — integration tests are gated behind `-m integration`.
 
 ## Running tests
 
 ```bash
-pytest -q                          # default — unit + contract tests, no network
-pytest -m integration              # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
-pytest --cov=distill --cov-fail-under=80
+uv run pytest -q                   # default — unit + contract tests, no network
+uv run pytest -m integration       # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
+uv run pytest --cov=distill --cov-fail-under=79   # branch coverage gate
 ```
 
 ## Quality gates
@@ -30,23 +32,24 @@ pytest --cov=distill --cov-fail-under=80
 CI enforces the following on every push. Before opening a PR, at least run:
 
 ```bash
-pytest -q                          # unit + contract tests pass
-pytest --cov=distill --cov-fail-under=80   # coverage stays at or above 80%
-ruff check .                       # lint clean
-ruff format --check .              # formatting clean
-bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
+uv run pytest -q                                              # unit + contract tests pass
+uv run pytest --cov=distill --cov-fail-under=79               # branch coverage stays above the floor
+uv run ruff check .                                           # lint clean
+uv run ruff format --check .                                  # formatting clean
+uv run bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
+uv run lint-imports                                           # dependency-direction contracts hold
 ```
 
-The first three are cheap; run them locally. Bandit is cheap too. `pip-audit --skip-editable` runs in CI against the installed distribution and catches known CVEs in transitive dependencies (it skips the editable distillr install itself, since the package isn't on PyPI under this name yet).
+Coverage is **branch** coverage (every conditional must exercise both arms) and is ratcheted up-only toward the 1.0 target of 95%; the floor only rises. `pip-audit --skip-editable` runs in CI against the locked dependency tree and catches known CVEs (it skips the editable distillr install itself).
 
 ### Pre-commit hooks
 
-The fastest way to stay green: install the pre-commit hooks once, and ruff/bandit/whitespace/yaml/toml checks run automatically on every `git commit`.
+The fastest way to stay green: install the hooks once. The lint/type/security hooks run through `uv run --frozen`, so they use the exact locked tool versions CI runs — a clean `pre-commit run --all-files` means a clean CI run.
 
 ```bash
-pip install pre-commit
-pre-commit install
-pre-commit run --all-files         # one-time baseline pass
+uv run pre-commit install --install-hooks       # ruff / bandit / import-linter / pyright on every commit
+uv run pre-commit install --hook-type pre-push  # full test suite on every push
+uv run pre-commit run --all-files               # one-time baseline pass
 ```
 
 If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the changes and commit again.
@@ -55,14 +58,16 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 
 | Tool | Purpose | Runs in CI? |
 |---|---|---|
+| **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes — `uv sync --frozen` everywhere |
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
-| **pytest + coverage** | Unit + contract tests, plus 80% package coverage floor | Yes, blocking (integration tests gated behind `-m integration`) |
+| **pytest + coverage** | Unit + contract tests, plus a ratcheted branch-coverage floor | Yes, blocking (integration tests gated behind `-m integration`) |
+| **import-linter** | Dependency-direction (layer) contracts | Yes, blocking |
 | **bandit** | Python security scanner | Yes, blocking on MEDIUM+ |
 | **pip-audit** | Known-CVE scanner for dependencies | Yes, blocking |
-| **pyright** | Static type checker | Yes, advisory (non-blocking while the codebase is incrementally typed) |
-| **pre-commit** | Local enforcement wrapper | Runs locally; CI re-validates |
+| **pyright** | Static type checker | Blocking on `distill/llm/`; advisory elsewhere (ratcheting toward strict-everywhere by 1.0) |
+| **pre-commit** | Local enforcement wrapper; hooks call `uv run --frozen` so local == CI | Runs locally; CI re-validates |
 
-Ruff config, ruff rules, bandit config, and pyright config all live in `pyproject.toml`. Ruff's rule set is opinionated but not onerous; fix what it flags or, for a genuine exception, add a narrow `# noqa: <code>` with a comment explaining why.
+uv config, ruff config, bandit config, pyright config, and the import-linter contracts all live in `pyproject.toml`; dependencies are pinned in `uv.lock`. Ruff's rule set is opinionated but not onerous; fix what it flags or, for a genuine exception, add a narrow `# noqa: <code>` with a comment explaining why.
 
 ## Repository layout
 
@@ -107,30 +112,35 @@ Before pushing to main or tagging a release, run the full gate locally. CI catch
 
 ```bash
 # 1. Tests — including property-based tests (hypothesis)
-pytest -q --cov=distill --cov-fail-under=80
+uv run pytest -q --cov=distill --cov-fail-under=79
 
 # 2. Lint — both check and format
-ruff check .
-ruff format --check .
+uv run ruff check .
+uv run ruff format --check .
 
 # 3. Security
-bandit -r distill/ -c pyproject.toml --severity-level medium
+uv run bandit -r distill/ -c pyproject.toml --severity-level medium
 
 # 4. Type check — blocking on distill/llm/, advisory elsewhere
-pyright distill/llm/
+uv run pyright distill/llm/
 
 # 5. Dependency direction enforcement
-lint-imports
+uv run lint-imports
 
-# 6. Verify nothing unwanted is staged
+# 6. Build sanity — sdist + wheel build, web assets bundled
+uv build
+
+# 7. Verify nothing unwanted is staged
 git diff --cached --stat
 git status
 ```
 
+Or just run `uv run pre-commit run --all-files` (with the pre-push hook installed) to cover 1-5 in one command.
+
 Common mistakes that have burned us:
 
-- **Missing dev dependencies in CI.** CI must install via `pip install -e ".[dev]"`, not `pip install pytest pytest-cov`. If you add a dev dependency to `pyproject.toml`, it needs to be in the `[dev]` extras — that's what CI installs.
-- **`asyncio.get_event_loop()` on Linux.** Python 3.10+ on Linux has no default event loop in the main thread. Use `asyncio.run()` in tests, not `asyncio.get_event_loop().run_until_complete()`. It works on Windows locally but fails on CI.
+- **Forgetting to re-lock after a dependency change.** Dev tooling lives in the `[dependency-groups].dev` group and runtime deps in `[project.dependencies]`. After editing either, run `uv lock` and commit the updated `uv.lock` — CI installs with `uv sync --frozen` and will fail if the lock is stale or missing the new dependency.
+- **`asyncio.get_event_loop()` on Linux.** Python 3.12+ on Linux has no default event loop in the main thread. Use `asyncio.run()` in tests, not `asyncio.get_event_loop().run_until_complete()`. It works on Windows locally but fails on CI.
 - **Forgetting `ruff format` after `ruff check --fix`.** Auto-fixes can leave formatting inconsistent. Always run both.
 - **Committing cache directories.** `.hypothesis/`, `__pycache__/`, `.ruff_cache/` must be in `.gitignore`. If you add a new tool that generates a cache dir, add it to `.gitignore` before running it.
 - **PyPI version reuse.** PyPI will never accept a re-upload of the same version number. If a tagged release has already been published, you must bump the version — even for a one-line fix. There is no workaround.
