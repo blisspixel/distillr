@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 GEMINI_DEEP_RESEARCH_MODEL: str = "gemini-deep-research"
 GEMINI_DEEP_RESEARCH_COST: float = 2.50
+# Deep Research Max reads many more sources per task (~$5/report typical, $2-15
+# range) so it carries a distinct per-query estimate from the standard variant.
+DEEP_RESEARCH_MAX_COST: float = 5.00
 DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
     GEMINI_DEEP_RESEARCH_MODEL,
     "deep-research",
@@ -22,6 +25,19 @@ DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
     "deep-research-pro-preview-12-2025",  # superseded 2026-04; kept for historical cost
 )
 _GEMINI_DEEP_RESEARCH_PRICING: dict[str, float] = {"per_query": GEMINI_DEEP_RESEARCH_COST}
+_DEEP_RESEARCH_MAX_PRICING: dict[str, float] = {"per_query": DEEP_RESEARCH_MAX_COST}
+
+# Cloud speech-to-text pricing, USD per hour of audio (batch rates). Local
+# faster-whisper is free. Keyed by the provider/model string TranscriptionResult
+# reports, so both are accepted.
+TRANSCRIPTION_PRICING: dict[str, float] = {
+    "xai-grok-stt": 0.10,
+    "grok-stt": 0.10,
+    "openai": 0.36,
+    "whisper-1": 0.36,
+    "local": 0.0,
+    "faster-whisper": 0.0,
+}
 
 # ---------------------------------------------------------------------------
 # Pricing per 1 M tokens.  Per-query models use a ``per_query`` key instead.
@@ -52,7 +68,7 @@ PRICING: dict[str, dict[str, float]] = {
     GEMINI_DEEP_RESEARCH_MODEL: _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research": _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research-preview-04-2026": _GEMINI_DEEP_RESEARCH_PRICING,
-    "deep-research-max-preview-04-2026": _GEMINI_DEEP_RESEARCH_PRICING,
+    "deep-research-max-preview-04-2026": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
     # Anthropic (stub pricing for when users configure it)
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
@@ -65,9 +81,24 @@ PRICING: dict[str, dict[str, float]] = {
 DEFAULT_MODEL: str = "grok-4.3"
 
 
-def deep_research_query_cost() -> float:
-    """Return the per-query estimate for Gemini Deep Research jobs."""
-    return get_pricing(GEMINI_DEEP_RESEARCH_MODEL).get("per_query", GEMINI_DEEP_RESEARCH_COST)
+def deep_research_query_cost(model: str = "") -> float:
+    """Return the per-query estimate for a Gemini Deep Research job.
+
+    Model-aware: ``deep-research-max-preview-04-2026`` is ~$5/query, the standard
+    variants ~$2.50. An empty model falls back to the standard estimate.
+    """
+    name = model or GEMINI_DEEP_RESEARCH_MODEL
+    return get_pricing(name).get("per_query", GEMINI_DEEP_RESEARCH_COST)
+
+
+def transcription_cost(provider: str, seconds: float) -> float:
+    """USD for ``seconds`` of audio at ``provider``'s per-hour STT rate.
+
+    Returns 0 for local/unknown providers. ``provider`` is the provider or model
+    string from ``TranscriptionResult`` (e.g. ``"xai-grok-stt"``, ``"whisper-1"``).
+    """
+    rate = TRANSCRIPTION_PRICING.get(provider, 0.0)
+    return rate * max(0.0, seconds) / 3600.0
 
 
 def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:

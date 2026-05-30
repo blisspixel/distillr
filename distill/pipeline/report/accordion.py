@@ -250,7 +250,7 @@ def _run_dossier_phase(
 
         interaction_id = interaction.id
         if tracker:
-            tracker.record_gemini_query()
+            tracker.record_gemini_query(DEEP_RESEARCH_MODEL)
         console.print(f"[dim]Job ID: {interaction_id}[/dim]")
 
         poll_count = 0
