@@ -203,4 +203,14 @@ def synthesize_topic(
     )
     console.print(f"  [green]Saved {output_file}[/green]")
 
+    # Refresh the agent-orientation CLAUDE.md for this topic + the library index.
+    # Best-effort: pure templating over what we just wrote, but a failure here
+    # must never fail an otherwise-successful synthesis.
+    try:
+        from distill.library import claude_md
+
+        claude_md.refresh_for_topic(config.library_dir, topic_dir, topic)
+    except Exception as exc:
+        console.print(f"  [dim]CLAUDE.md refresh skipped: {exc}[/dim]")
+
     return synthesis
