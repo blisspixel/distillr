@@ -1321,13 +1321,17 @@ def _run_scope_report(
 
 
 def _get_version() -> str:
-    """Get package version from metadata."""
-    try:
-        from importlib.metadata import version
+    """Get package version from metadata. Distribution is named ``distillr``."""
+    from importlib.metadata import version
 
-        return version("distill")
-    except Exception:
-        return "dev"
+    for dist in ("distillr", "distill"):
+        try:
+            v = version(dist)
+        except Exception:
+            continue
+        if v:  # guard against malformed metadata yielding an empty/None version
+            return v
+    return "dev"
 
 
 def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 0) -> str:

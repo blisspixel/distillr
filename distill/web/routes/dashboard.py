@@ -13,12 +13,17 @@ async def index(request: Request):
     templates = request.app.state.templates
     snapshot = dashboard_snapshot(config)
 
-    try:
-        from importlib.metadata import version
+    from importlib.metadata import version
 
-        ver = version("distill")
-    except Exception:
-        ver = "dev"
+    ver = "dev"
+    for dist in ("distillr", "distill"):
+        try:
+            found = version(dist)
+        except Exception:  # never let version lookup 500 the dashboard
+            continue
+        if found:
+            ver = found
+            break
 
     return templates.TemplateResponse(
         request,

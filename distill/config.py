@@ -6,8 +6,18 @@ from pydantic_settings import BaseSettings
 
 
 def _default_library_dir() -> Path:
-    """Return an absolute default library directory next to this package."""
-    return Path(__file__).resolve().parent.parent / "library"
+    """Return an absolute default library directory.
+
+    From a source checkout (a ``pyproject.toml`` sits one level up), keep the
+    convenient ``<repo>/library`` so development data stays beside the code.
+    When pip-installed, ``<package>/..`` is ``site-packages`` -- a bad home for
+    user data (wiped on every reinstall/upgrade, may need admin write) -- so
+    default to ``~/.distill/library`` instead. Override with DISTILL_OUTPUT_DIR.
+    """
+    parent = Path(__file__).resolve().parent.parent
+    if (parent / "pyproject.toml").exists():
+        return parent / "library"
+    return Path.home() / ".distill" / "library"
 
 
 def sanitize_path_component(value: str) -> str:
