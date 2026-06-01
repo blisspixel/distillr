@@ -272,6 +272,22 @@ async def discover(  # noqa: C901
     if ctx:
         await ctx.report_progress(progress=3, total=3)
 
+    # Metadata-aware spend estimate for the candidates this run surfaced, so an
+    # agent can size an ingest the same way the CLI preview does.
+    from distill.pipeline.costs import estimate_discover_items, load_cost_calibration
+
+    estimate = estimate_discover_items(
+        papers=len(results["papers"]),
+        video_durations=[None] * len(results["videos"]),
+        calibration=load_cost_calibration(config.library_dir),
+    )
+    results["cost_estimate"] = {
+        "expected": round(estimate.expected, 4),
+        "low": round(estimate.low, 4),
+        "high": round(estimate.high, 4),
+        "calibrated": estimate.calibrated,
+    }
+
     save_run_log(config.library_dir, "discover", tracker)
     results["status"] = "complete"
     results["cost"] = _server._cost_summary(tracker)

@@ -50,6 +50,39 @@ The arXiv API's default parser OR's bare terms, so `temporal knowledge graph` re
 
 This is the sweet spot between OR-flood noise and phrase-match brittleness.
 
+### Rigor calibration (`--rigor` across discover / papers / latest)
+
+`--rigor strict|balanced|loose` drops reranked candidates below a `final_score`
+threshold before the per-source limit applies. The thresholds are **calibrated per
+command, not shared**, because the three rerank prompts (`prompts/discover.py`)
+score on different criteria:
+
+| Command | Rerank prompt scores on | strict / balanced / loose |
+|---------|-------------------------|---------------------------|
+| `discover` | cross-source `goal_fit`, `depth`, `complementarity` | 0.70 / 0.50 / 0.30 |
+| `papers` | `relevance`, `depth`, `novelty`, `credibility` (single-source, query-grounded) | 0.65 / 0.45 / 0.30 |
+| `latest` | `relevance`, `depth`, `practicality`, `freshness`, `credibility` | 0.60 / 0.40 / 0.25 |
+
+The divergence is **intentional**, and the calibration follows a real observation: on
+one topic, `discover` rated 0/33 candidate videos worth ingesting at its bar while
+`latest` surfaced 5 strong picks (including lectures by authors of that session's
+top-ranked papers). `discover` is a cross-source *curation gate* — it asks "does this
+earn a slot in a goal-built corpus alongside everything else?", so it scores
+conservatively and its bar is highest. `papers` and `latest` are single-source
+*relevance rankers* — the user already chose the source type and wants the best of it,
+so those prompts score on-topic items a little more generously and their bars sit a
+notch lower to avoid discarding strong picks. Thresholds live in
+`distill/pipeline/discovery.py` (`RIGOR_THRESHOLDS`, `PAPER_RIGOR_THRESHOLDS`,
+`VIDEO_RIGOR_THRESHOLDS`; resolved via `source_rigor_threshold(source, rigor)`); they
+are initial calibration points, revised under the same versioned-prompt cadence as the
+prompts themselves.
+
+Two guardrails: rigor operates on the *LLM rerank* score, so under `--no-rerank` (or
+chronological `--top-by-date`) an explicit bar is skipped with a warning rather than
+applied to heuristic scores that live on a different scale; and on `papers`/`latest`
+the default is `off` (keep the rerank's top-N as before), so the bar only engages when
+asked for. `discover` keeps `balanced` as its default, unchanged since 0.8.12.
+
 ## How reports get built
 
 A single LLM call cannot sustain analytical depth across a long document — it compresses, generalizes, and runs out of steam. Distill's report pipeline splits gathering facts from writing prose, then writes section-by-section with full context.
