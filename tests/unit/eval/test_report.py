@@ -56,6 +56,36 @@ def test_anchor_recommended_when_nothing_cheaper_clears():
     assert summary.confidence == "high"
 
 
+def _errored(model: str, n: int) -> list:
+    return [
+        EvalRow(
+            workload="paper",
+            fixture_id=f"f{i}",
+            model=model,
+            quality=QualityScore(dimensions=[], composite=0.0),
+            cost=0.0,
+            input_tokens=0,
+            output_tokens=0,
+            error="TimeoutError: read timeout",
+        )
+        for i in range(n)
+    ]
+
+
+def test_errored_model_excluded_from_recommendation_and_counted():
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None) + _errored("local", 3)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    local = next(s for s in summary.models if s.model == "local")
+    assert local.errors == 3 and local.rows == 0
+    assert summary.recommended == "grok-4.3"  # errored model can't be recommended
+
+
+def test_no_recommendation_when_anchor_all_errored():
+    summary = summarize(_errored("grok-4.3", 3), anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended is None
+    assert "no valid output" in summary.confidence_reason
+
+
 def test_render_surfaces_anchor_confidence_and_winrate():
     rows = _rows("grok-4.3", [0.95], 0.10, None) + _rows("local", [0.92], 0.0, 0.6)
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)

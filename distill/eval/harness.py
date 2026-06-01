@@ -32,6 +32,14 @@ __all__ = ["EvalRow", "estimate_eval_cost", "provider_for_model", "run_model_eva
 
 # Analysis LLM calls per workload (video is 2-pass).
 _CALLS_PER_WORKLOAD: dict[str, int] = {"paper": 1, "video": 2, "site": 1}
+# Providers with no per-token API cost — local inference is free, so it must be
+# priced at $0 (the cost registry would otherwise fall back to the cloud default
+# rate and erase the whole point of evaluating a local model).
+_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio"})
+
+
+def _is_local(model: str) -> bool:
+    return provider_for_model(model) in _LOCAL_PROVIDERS
 
 
 def estimate_eval_cost(
@@ -46,13 +54,15 @@ def estimate_eval_cost(
     from distill.llm.cost import compute_cost
 
     total = 0.0
+    judge_local = _is_local(judge_model)
     for fixture in fixtures:
         in_tok = len(fixture.source_text) // 4 + 600  # source + prompt template overhead
         out_tok = 800
         calls = _CALLS_PER_WORKLOAD.get(fixture.workload, 1)
         for model in models:
-            total += calls * compute_cost(model, in_tok, out_tok)
-            if model != anchor:  # pairwise judge: 2 order-randomized calls
+            if not _is_local(model):  # local analysis is free
+                total += calls * compute_cost(model, in_tok, out_tok)
+            if model != anchor and not judge_local:  # pairwise judge: 2 order-randomized calls
                 total += 2 * compute_cost(judge_model, in_tok + 2 * out_tok, 120)
     return total
 
@@ -69,6 +79,7 @@ class EvalRow:
     pairwise_winrate: float | None = None  # vs anchor; None for the anchor itself
     judge_rationale: str = ""
     cached: bool = False
+    error: str = ""  # non-empty when analysis failed (timeout / provider error)
 
 
 def provider_for_model(model: str) -> str:
@@ -89,9 +100,15 @@ def _call(
     rc: RouterConfig, workload_tag: str, prompt: str, call_type: str, tracker: CostTracker
 ) -> str:
     # temperature=0 so a model's output is reproducible across runs and the only
-    # variable between rows is the model itself.
+    # variable between rows is the model itself. Generous timeout because a local
+    # model's first call includes a cold load into VRAM.
     response = llm_call(
-        rc, workload_tag=workload_tag, prompt=prompt, call_type=call_type, temperature=0.0
+        rc,
+        workload_tag=workload_tag,
+        prompt=prompt,
+        call_type=call_type,
+        temperature=0.0,
+        timeout=600,
     )
     tracker.record(
         TokenUsage(
@@ -139,6 +156,7 @@ class _Analysis:
     input_tokens: int
     output_tokens: int
     cached: bool
+    error: str = ""
 
 
 def _analyze(
@@ -160,11 +178,29 @@ def _analyze(
         )
     row_tracker = CostTracker()
     rc = RouterConfig(provider=provider_for_model(model), model=model)
-    output = runner(fixture, rc, row_tracker)
-    run_tracker.entries.extend(row_tracker.entries)
+    local = _is_local(model)  # local inference is free; keep it off the cost ledger
+    # A single model failing (timeout, provider error, OOM on a local model) must
+    # not abort the whole sweep — record the partial cost, mark the row errored,
+    # and let the run continue. Errored results are NOT cached (so a retry runs).
+    try:
+        output = runner(fixture, rc, row_tracker)
+    except Exception as exc:
+        if not local:
+            run_tracker.entries.extend(row_tracker.entries)
+        logger.warning("eval analysis failed for %s on %s: %s", model, fixture.id, exc)
+        return _Analysis(
+            output="",
+            cost=0.0 if local else row_tracker.total_cost,
+            input_tokens=row_tracker.total_input_tokens,
+            output_tokens=row_tracker.total_output_tokens,
+            cached=False,
+            error=f"{type(exc).__name__}: {exc}"[:200],
+        )
+    if not local:
+        run_tracker.entries.extend(row_tracker.entries)
     analysis = _Analysis(
         output=output,
-        cost=row_tracker.total_cost,
+        cost=0.0 if local else row_tracker.total_cost,
         input_tokens=row_tracker.total_input_tokens,
         output_tokens=row_tracker.total_output_tokens,
         cached=False,
@@ -199,13 +235,17 @@ def _pairwise(
     if cached is not None:
         wr = cached.get("win_rate")
         return (float(wr) if wr is not None else None), cached.get("rationale", "")
-    result = judge_pairwise(
-        fixture.source_text,
-        candidate_output,
-        anchor_output,
-        judge_model=judge_model,
-        tracker=run_tracker,
-    )
+    try:
+        result = judge_pairwise(
+            fixture.source_text,
+            candidate_output,
+            anchor_output,
+            judge_model=judge_model,
+            tracker=run_tracker,
+        )
+    except Exception as exc:
+        logger.warning("eval pairwise judge failed for %s on %s: %s", model, fixture.id, exc)
+        return None, ""
     win_rate = result.win_rate if result else None
     rationale = result.rationale if result else ""
     _save_json(cache_dir, key, {"win_rate": win_rate, "rationale": rationale})
@@ -246,7 +286,14 @@ def run_model_eval(
             a = analyses[(model, fixture.id)]
             win_rate: float | None = None
             rationale = ""
-            if model != anchor and anchor_a is not None:
+            # Judge only when both this model and the anchor produced real output.
+            if (
+                model != anchor
+                and not a.error
+                and anchor_a is not None
+                and not anchor_a.error
+                and anchor_a.output
+            ):
                 win_rate, rationale = _pairwise(
                     model,
                     fixture,
@@ -275,6 +322,7 @@ def run_model_eval(
                     pairwise_winrate=win_rate,
                     judge_rationale=rationale,
                     cached=a.cached,
+                    error=a.error,
                 )
             )
     return rows
