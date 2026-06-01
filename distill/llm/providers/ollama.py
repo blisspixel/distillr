@@ -85,11 +85,17 @@ class OllamaProvider:
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:
+                # Size the context window to the actual need. A model's default
+                # context can be enormous (e.g. 262144); Ollama would then allocate
+                # a KV cache to match and spill VRAM to CPU — turning a 24GB GPU
+                # run into a slow, error-prone CPU one even for a tiny prompt. We
+                # request only prompt + output + headroom, capped at the model's max.
+                num_ctx = await self._adaptive_num_ctx(model, prompt, max_tokens)
                 payload: dict[str, Any] = {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
-                    "options": {"num_predict": max_tokens},
+                    "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
                 }
                 # For JSON-structured prompts: use format="json" without thinking
                 # (thinking conflicts with JSON format constraint in most models)
@@ -154,6 +160,23 @@ class OllamaProvider:
 
         assert last_error is not None  # nosec B101
         raise last_error
+
+    _MIN_NUM_CTX: int = 4096
+
+    async def _adaptive_num_ctx(self, model: str, prompt: str, max_tokens: int) -> int:
+        """Context size for this call: prompt + output + headroom, capped at model max.
+
+        Prevents a model's huge default context from allocating a KV cache that
+        exceeds VRAM. Estimates prompt tokens at ~4 chars/token with 30% headroom.
+        """
+        needed = int(len(prompt) / 4 * 1.3) + max_tokens + 512
+        try:
+            model_max = await self.get_context_window(model)
+        except (ConnectionError, OSError):
+            model_max = 0
+        if model_max:
+            needed = min(needed, model_max)
+        return max(self._MIN_NUM_CTX, needed)
 
     async def get_context_window(self, model: str) -> int:
         """Query Ollama /api/show for the model's context window. Cached per model."""

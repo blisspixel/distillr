@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.9 - 2026-06-01
+
+**GPU-adaptive local inference + a working neutral judge (all found via real eval runs).** Driving `distill eval` against actual local models and a cross-vendor judge surfaced a chain of integration bugs that unit tests can't see; each is fixed and tested. End state: a free local model (gemma4:26b) validated as competitive with grok-4.3 on the paper workload under a neutral gemini judge (win-rate 0.58), all on a 24 GB GPU.
+
+- **Adaptive context sizing (root-cause GPU fix).** The Ollama provider never set `num_ctx`, so a model with a huge default context (qwen3.6:27b → 262144) allocated a matching KV cache and spilled VRAM to CPU — 44 GB / 50% CPU even for a 200-word prompt. It now sizes `num_ctx` to the actual prompt (+ headroom), capped at the model's max: that same model now loads at **23 GB / 88% GPU** and runs. Helps *all* local inference, not just eval.
+- **VRAM-aware eval.** `distill eval` detects GPU VRAM and **skips local models whose weights exceed it** (they'd spill to CPU), with `--allow-oversized` to force. Analysis is processed **model-outer** so a local model stays loaded across its fixtures instead of thrashing in/out of VRAM every call.
+- **Judge provider routing.** A non-xAI judge (e.g. gemini) was sent to the xAI endpoint (`Model not found`). The judge now routes to its model's own provider. Added `reasoning_effort` to the Gemini/Anthropic/OpenAI provider signatures for interface parity (the judge was the first non-xAI chat call through the router), and raised the judge token cap so thinking models (Gemini 3.x) don't truncate their JSON verdict.
+- **Honest confidence + no cache poisoning.** When the judge produces no signal (unavailable/failed), a deterministic-only recommendation is now `tentative`, not a false "high — judge agrees." Failed judge verdicts are no longer cached (a transient failure was frozen in and reused on every rerun).
+
 ## 0.9.8 - 2026-06-01
 
 **`distill eval` hardened from real cloud+local validation runs.** A first real run (grok-4.3 vs a local Ollama model, < $0.05 total) surfaced two bugs that only show up against live providers; both are fixed and tested.

@@ -46,6 +46,22 @@ def test_pairwise_returns_none_when_unparseable(monkeypatch):
     assert judge_pairwise("s", "c", "a", judge_model="grok-4.3") is None
 
 
+def test_judge_routes_to_its_own_provider(monkeypatch):
+    # A gemini judge must hit the gemini endpoint, not the default xAI one
+    # (the bug that returned "Model not found: gemini-3.1-pro" from grok).
+    captured: dict = {}
+
+    def fake_call(config, **kwargs):
+        captured["provider"] = config.provider
+        captured["model"] = config.model
+        return _resp('{"winner": "A", "rationale": "x"}')
+
+    monkeypatch.setattr(judge_mod, "llm_call", fake_call)
+    judge_pairwise("s", "cand", "anchor", judge_model="gemini-3.1-pro")
+    assert captured["provider"] == "gemini"
+    assert captured["model"] == "gemini-3.1-pro"
+
+
 def test_judge_shares_family():
     assert judge_shares_family("grok-4.3", "grok-4.20") is True
     assert judge_shares_family("grok-4.3", "qwen3.5:27b") is False

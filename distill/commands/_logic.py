@@ -5386,6 +5386,28 @@ def _check_ollama_status() -> tuple[str, list[str]]:
         return ("unavailable", [])
 
 
+def _ollama_model_sizes() -> dict[str, float]:
+    """Map installed Ollama model name -> on-disk size in GB ({} if unavailable)."""
+    import asyncio
+
+    try:
+        from distill.llm.providers.ollama import OllamaProvider
+
+        provider = OllamaProvider()
+        try:
+            models_data = asyncio.run(provider.list_models())
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+            models_data = loop.run_until_complete(provider.list_models())
+        return {
+            str(m.get("name", "")): float(m.get("size", 0) or 0) / 1e9
+            for m in models_data
+            if m.get("name")
+        }
+    except (ConnectionError, Exception):
+        return {}
+
+
 def _check_lmstudio_status() -> str:
     """Check if LM Studio server is running. Returns 'running' or 'unavailable'."""
     import httpx
@@ -8413,6 +8435,11 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     no_cache: bool = typer.Option(
         False, "--no-cache", help="Ignore the eval cache and re-run every (model, fixture)"
     ),
+    allow_oversized: bool = typer.Option(
+        False,
+        "--allow-oversized",
+        help="Run local models whose weights exceed GPU VRAM (default: skip them — they spill to CPU)",
+    ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the pre-run cost confirmation"),
 ):
     """Compare models on cost x quality over frozen fixtures; recommend the cheapest that clears the bar.
@@ -8452,6 +8479,31 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     # The anchor must be in the run so candidates have something to compare against.
     if anchor not in model_list:
         model_list.insert(0, anchor)
+
+    # GPU-adaptive guard: a local model whose weights exceed VRAM will spill to
+    # CPU (slow / flaky). Skip such models by default rather than thrash.
+    from distill.doctor.hardware import detect_hardware
+
+    vram = detect_hardware().vram_gb
+    if vram > 0:
+        sizes = _ollama_model_sizes()
+        oversized = [
+            m
+            for m in model_list
+            if provider_for_model(m) in ("ollama", "lmstudio")
+            and sizes.get(m, 0.0) > vram
+            and m != anchor
+        ]
+        for m in oversized:
+            console.print(
+                f"[yellow]{m} (~{sizes[m]:.0f}GB) exceeds your {vram:.0f}GB VRAM — it would "
+                f"spill to CPU.[/yellow]"
+            )
+        if oversized and not allow_oversized:
+            model_list = [m for m in model_list if m not in oversized]
+            console.print(
+                "[dim]Skipped the above (pass --allow-oversized to run them anyway).[/dim]"
+            )
 
     config = get_config()
     needs_xai = provider_for_model(judge) == "xai" or any(

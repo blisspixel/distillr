@@ -20,6 +20,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from distill.eval._models import provider_for_model
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
@@ -104,7 +105,9 @@ def _one_comparison(
         rc,
         workload_tag="qa",
         prompt=_pairwise_prompt(source, output_a, output_b),
-        max_tokens=400,
+        # Generous cap: "thinking" models (Gemini 3.x, Qwen3) spend output budget
+        # on a reasoning trace before the verdict; a tight cap truncates the JSON.
+        max_tokens=2048,
         call_type="eval_judge_pairwise",
         temperature=0.0,
     )
@@ -134,7 +137,10 @@ def judge_pairwise(
     Returns ``None`` if neither ordering yields a parseable verdict (the row then
     has no judge signal and scores deterministic-only). Cost-tracked.
     """
-    rc = (router_config or RouterConfig()).with_model_override(judge_model)
+    # Route to the judge model's own provider (a gemini judge must hit the gemini
+    # endpoint, not the default xAI one) and force the judge model id.
+    base = router_config or RouterConfig(provider=provider_for_model(judge_model))
+    rc = base.with_model_override(judge_model)
     # Ordering 1: candidate = A, anchor = B. Ordering 2: swapped. Averaging the
     # two cancels any A/B position preference the judge has.
     w1, r1 = _one_comparison(rc, source_excerpt, candidate_output, anchor_output, tracker)

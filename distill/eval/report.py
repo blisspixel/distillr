@@ -127,7 +127,15 @@ def _confidence(rec: ModelSummary, anchor: ModelSummary, bar: float) -> tuple[st
             f"{rec.model}'s worst fixture ({rec.min_composite:.2f}) dips below the bar "
             f"({bar:.2f}) — add fixtures or inspect before switching",
         )
-    if rec.mean_winrate is not None and rec.mean_winrate < _WINRATE_FLOOR:
+    if rec.mean_winrate is None:
+        # No head-to-head signal (judge unavailable/failed). Deterministic scores
+        # alone are gameable by verbose, well-structured output — don't call this high.
+        return (
+            "tentative",
+            f"{rec.model} clears the deterministic bar but the judge produced no signal "
+            "(unavailable) — verify with a working --judge before switching",
+        )
+    if rec.mean_winrate < _WINRATE_FLOOR:
         return (
             "tentative",
             f"deterministic scores clear the bar but the judge favors the anchor "
