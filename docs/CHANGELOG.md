@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.12 - 2026-06-01
+
+**Local-first onboarding: `distill eval` works keyless, and `distill doctor` tells you what to run next.**
+
+A user who downloads distill, wants to run local, and has no cloud key should be able to eval without fuss — not hit "XAI_API_KEY required." Two changes make the adaptive path real:
+
+- **Adaptive `auto` defaults in `distill eval`.** `--models`, `--anchor`, and `--judge` now default to `auto`. With an `XAI_API_KEY` present, `auto` resolves to `grok-4.3` (the cloud reference). With **no** cloud key, `auto` resolves to a fitting local model via `_best_local_model()` (largest Ollama model that fits detected VRAM), and the anchor falls back to the first listed model — so a local-only user can run `distill eval --models qwen3.5:27b,gemma4:26b` with no key and no flags. The judge likewise picks a local model rather than erroring on a missing key.
+- **`distill doctor` next-step line.** Doctor now ends with a concrete first command tailored to detected state: cloud-ready boxes get a `distill papers` example (plus a local-vs-cloud `distill eval` compare when Ollama models are present); a keyless box with local models gets the keyless `distill eval` command; a bare box gets the two ways to get started (set `XAI_API_KEY`, or `ollama pull`). No more guessing what to type after the health report.
+
 ## 0.9.11 - 2026-06-01
 
 **Portability: cross-platform hardware detection + local is clearly optional.**

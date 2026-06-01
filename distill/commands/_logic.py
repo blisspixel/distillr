@@ -5363,6 +5363,27 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
             if rec_base not in ollama_model_names and rec.model_name not in ollama_models:
                 console.print(f"     [dim]ollama pull {rec.model_name}[/dim]")
 
+    # Next step — a concrete first command tailored to what's actually configured.
+    console.print()
+    console.print("  [bold]Next step[/bold]")
+    console.print(f"  [dim]{'-' * 50}[/dim]")
+    if get_config().xai_api_key:
+        console.print('  Cloud ready:  [cyan]distill papers "agent memory" --limit 5[/cyan]')
+        if ollama_models:
+            console.print(
+                f"  Compare local vs cloud (local is free):  "
+                f"[cyan]distill eval --models grok-4.3,{ollama_models[0]}[/cyan]"
+            )
+    elif ollama_models:
+        console.print(
+            f"  Local ready, no API key:  [cyan]distill eval --models {ollama_models[0]}[/cyan]"
+        )
+        console.print("  [dim]Add XAI_API_KEY to .env to also use cloud models.[/dim]")
+    else:
+        console.print(
+            "  [dim]Add XAI_API_KEY to .env for cloud, or `ollama pull qwen3.5:27b` to run local.[/dim]"
+        )
+
 
 def _check_ollama_status() -> tuple[str, list[str]]:
     """Check if Ollama server is running and list available models.
@@ -5406,6 +5427,26 @@ def _ollama_model_sizes() -> dict[str, float]:
         }
     except (ConnectionError, Exception):
         return {}
+
+
+def _best_local_model() -> str | None:
+    """Pick a sensible installed Ollama model for the machine, or None if none.
+
+    With a GPU: the largest model that fits VRAM (best quality that runs). Without
+    a usable VRAM probe (CPU/AMD/Intel): the smallest installed (most usable on CPU).
+    """
+    sizes = _ollama_model_sizes()
+    if not sizes:
+        return None
+    from distill.doctor.hardware import detect_hardware
+
+    vram = detect_hardware().vram_gb
+    if vram > 0:
+        fitting = {n: gb for n, gb in sizes.items() if gb <= vram}
+        if fitting:
+            return max(fitting, key=lambda n: fitting[n])  # largest that fits
+        return min(sizes, key=lambda n: sizes[n])  # nothing fits → smallest
+    return min(sizes, key=lambda n: sizes[n])  # no GPU → smallest is most usable
 
 
 def _check_lmstudio_status() -> str:
@@ -8409,18 +8450,20 @@ def site_batch_cmd(
 def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + results log
     workload: str = typer.Option("all", "--workload", "-w", help="paper | video | site | all"),
     models: str = typer.Option(
-        "grok-4.3",
+        "auto",
         "--models",
         "-m",
-        help="Comma-separated model ids to compare (e.g. grok-4.3,qwen3.5:27b)",
+        help="Comma-separated model ids to compare. 'auto' = grok-4.3 with an XAI key, "
+        "else a fitting local Ollama model.",
     ),
     anchor: str = typer.Option(
-        "grok-4.3",
+        "auto",
         "--anchor",
-        help="Incumbent/reference model the others are compared against (added to --models if absent)",
+        help="Reference model the others are compared against. 'auto' = grok-4.3 with an "
+        "XAI key, else the first listed model.",
     ),
     judge: str = typer.Option(
-        "grok-4.3",
+        "auto",
         "--judge",
         help="Advisory pairwise judge (order-randomized vs the anchor); advisory only",
     ),
@@ -8472,10 +8515,26 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     if workload not in valid:
         console.print(f"[red]Unknown --workload '{workload}'.[/red] Choose: {', '.join(valid)}.")
         raise typer.Exit(1)
+
+    config = get_config()
+    # Adaptive defaults: cloud (grok-4.3) when an XAI key exists, else a fitting
+    # local Ollama model — so a local-only user runs `distill eval` without keys.
+    cloud_ok = bool(config.xai_api_key)
+    best_local = _best_local_model()
+    if models == "auto":
+        models = "grok-4.3" if cloud_ok else (best_local or "")
     model_list = [m.strip() for m in models.split(",") if m.strip()]
     if not model_list:
-        console.print("[red]No models given. Pass --models grok-4.3,<other>.[/red]")
+        console.print(
+            "[red]No models to eval.[/red] With an XAI key: --models grok-4.3,qwen3.5:27b. "
+            "For local-only: install an Ollama model (see `distill doctor`) or pass --models <name>."
+        )
         raise typer.Exit(1)
+    if anchor == "auto":
+        anchor = "grok-4.3" if cloud_ok else model_list[0]
+    if judge == "auto":
+        judge = "grok-4.3" if cloud_ok else (best_local or model_list[0])
+
     # The anchor must be in the run so candidates have something to compare against.
     if anchor not in model_list:
         model_list.insert(0, anchor)
@@ -8507,7 +8566,6 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
             "cloud models are unaffected.[/dim]"
         )
 
-    config = get_config()
     needs_xai = provider_for_model(judge) == "xai" or any(
         provider_for_model(m) == "xai" for m in model_list
     )
