@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.13 - 2026-06-01
+
+**Two install-time correctness fixes found by running a real pip install.**
+
+- **`distill doctor` reported `Version: vdev`.** Version detection queried `importlib.metadata.version("distill")`, but the published distribution is named **`distillr`** — so the lookup always raised `PackageNotFoundError` and fell back to `"dev"`. It now queries `distillr` (with a `distill` fallback) and guards against malformed metadata, so doctor shows the real installed version. Same fix applied to the web dashboard footer.
+- **The library no longer defaults inside `site-packages`.** `_default_library_dir()` returned `<package>/../library`, which in a pip install resolves to `.../site-packages/library` — user corpus data written there is wiped on every reinstall/upgrade and can need admin write. It now detects a source checkout (a `pyproject.toml` one level up → keep the convenient `<repo>/library` for development) versus an installed package (→ default to `~/.distill/library`, a stable per-user location). Override with `DISTILL_OUTPUT_DIR` as before.
+
 ## 0.9.12 - 2026-06-01
 
 **Local-first onboarding: `distill eval` works keyless, and `distill doctor` tells you what to run next.**

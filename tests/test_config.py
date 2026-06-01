@@ -1,7 +1,38 @@
 from pathlib import Path
 
-from distill.config import DistillConfig
+from distill.config import DistillConfig, _default_library_dir
 from distill.library.paths import sanitize_path_component, slugify_title
+
+
+class TestDefaultLibraryDir:
+    def test_source_checkout_uses_repo_library(self, tmp_path, monkeypatch):
+        """With a pyproject.toml one level up (a source checkout), use <repo>/library."""
+        pkg = tmp_path / "repo" / "distill"
+        pkg.mkdir(parents=True)
+        (tmp_path / "repo" / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        monkeypatch.setattr("distill.config.__file__", str(pkg / "config.py"))
+        assert _default_library_dir() == tmp_path / "repo" / "library"
+
+    def test_installed_uses_home_not_site_packages(self, tmp_path, monkeypatch):
+        """Pip-installed (no pyproject.toml above) must NOT write into site-packages."""
+        site = tmp_path / "site-packages" / "distill"
+        site.mkdir(parents=True)
+        monkeypatch.setattr("distill.config.__file__", str(site / "config.py"))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+        result = _default_library_dir()
+        assert "site-packages" not in str(result)
+        assert result == tmp_path / "home" / ".distill" / "library"
+
+
+class TestVersion:
+    def test_get_version_resolves_distillr_distribution(self):
+        """The distribution is named ``distillr``; doctor must not report ``dev``
+        when the package is installed (it queried the wrong name before)."""
+        from distill.commands._logic import _get_version
+
+        version = _get_version()
+        assert version != "dev"
+        assert version[0].isdigit()  # looks like a real version, e.g. 0.9.13
 
 
 class TestDistillConfig:
