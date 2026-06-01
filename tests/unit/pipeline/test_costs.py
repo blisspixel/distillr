@@ -292,3 +292,133 @@ def test_estimate_discover_cost():
     # 5 papers ($0.06) + 10 videos ($0.06) + 3 sites ($0.024)
     assert round(estimate_discover_cost(papers=5, videos=10, sites=3), 4) == 0.144
     assert estimate_discover_cost(papers=-1) == 0.0  # clamps negatives
+
+
+# ---- metadata-aware, self-calibrating discover estimate (0.9.1) ------------
+
+
+def _write_cost_rows(tmp_path, rows: list[dict]) -> None:
+    """Write run-log rows to <tmp_path>/.distill/cost_log.jsonl for calibration."""
+    ops = tmp_path / ".distill"
+    ops.mkdir(parents=True, exist_ok=True)
+    with (ops / "cost_log.jsonl").open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row) + "\n")
+
+
+def _paper_row(cost: float, papers: int) -> dict:
+    return {
+        "command": "papers",
+        "actual_cost": cost,
+        "full_videos": 0,
+        "by_call_type": {"paper": {"calls": papers}, "paper_synthesis": {"calls": 1}},
+    }
+
+
+def _video_row(cost: float, videos: int) -> dict:
+    return {
+        "command": "latest",
+        "actual_cost": cost,
+        "full_videos": videos,
+        "by_call_type": {"pass1": {"calls": videos}, "pass2": {"calls": videos}},
+    }
+
+
+def test_load_cost_calibration_no_log_uses_defaults(tmp_path):
+    from distill.pipeline.costs import (
+        _DISCOVER_PAPER_COST,
+        _DISCOVER_VIDEO_COST,
+        load_cost_calibration,
+    )
+
+    cal = load_cost_calibration(tmp_path)
+    assert cal.per_paper == _DISCOVER_PAPER_COST
+    assert cal.per_video == _DISCOVER_VIDEO_COST
+    assert cal.any_calibrated is False
+    assert cal.samples == {"paper": 0, "video": 0, "site": 0}
+
+
+def test_load_cost_calibration_derives_per_paper_rate(tmp_path):
+    from distill.pipeline.costs import load_cost_calibration
+
+    # Three clean paper runs: total $0.30 over 10 papers -> $0.03/paper.
+    _write_cost_rows(
+        tmp_path,
+        [_paper_row(0.10, 4), _paper_row(0.10, 4), _paper_row(0.10, 2)],
+    )
+    cal = load_cost_calibration(tmp_path)
+    assert round(cal.per_paper, 4) == 0.03
+    assert cal.samples["paper"] == 10
+    assert cal.any_calibrated is True
+    # No video/site history -> those stay on defaults.
+    assert cal.samples["video"] == 0
+
+
+def test_load_cost_calibration_derives_per_video_from_full_videos(tmp_path):
+    from distill.pipeline.costs import load_cost_calibration
+
+    # Clean video runs: $0.12 over 12 videos -> $0.01/video (counted via full_videos).
+    _write_cost_rows(tmp_path, [_video_row(0.06, 6), _video_row(0.06, 6)])
+    cal = load_cost_calibration(tmp_path)
+    assert round(cal.per_video, 4) == 0.01
+    assert cal.samples["video"] == 12
+    assert cal.samples["paper"] == 0
+
+
+def test_load_cost_calibration_thin_history_falls_back(tmp_path):
+    from distill.pipeline.costs import _DISCOVER_PAPER_COST, load_cost_calibration
+
+    # Only 2 papers seen (< default min_samples of 3) -> keep the constant.
+    _write_cost_rows(tmp_path, [_paper_row(0.50, 2)])
+    cal = load_cost_calibration(tmp_path)
+    assert cal.per_paper == _DISCOVER_PAPER_COST
+    assert cal.samples["paper"] == 0
+
+
+def test_load_cost_calibration_ignores_preview_and_mixed_runs(tmp_path):
+    from distill.pipeline.costs import _DISCOVER_PAPER_COST, load_cost_calibration
+
+    mixed = {
+        "command": "discover",
+        "actual_cost": 5.0,
+        "full_videos": 3,
+        "by_call_type": {"paper": {"calls": 3}, "pass1": {"calls": 3}, "site_page": {"calls": 2}},
+    }
+    preview = dict(_paper_row(9.9, 9), command="papers_preview")
+    _write_cost_rows(tmp_path, [mixed, preview])
+    cal = load_cost_calibration(tmp_path)
+    # Mixed run is not "clean" and preview is skipped -> no paper calibration.
+    assert cal.per_paper == _DISCOVER_PAPER_COST
+    assert cal.any_calibrated is False
+
+
+def test_estimate_discover_items_scales_with_video_duration():
+    from distill.pipeline.costs import CostCalibration, estimate_discover_items
+
+    cal = CostCalibration(per_video=0.01, samples={"paper": 0, "video": 5, "site": 0})
+    # Nominal-length video (900s) costs the base rate; a 4x-long one is capped at 4x.
+    nominal = estimate_discover_items(video_durations=[900.0], calibration=cal)
+    longer = estimate_discover_items(video_durations=[3600.0], calibration=cal)
+    assert round(nominal.expected, 4) == 0.01
+    assert round(longer.expected, 4) == 0.04
+    # Unknown duration assumes nominal rather than zero.
+    unknown = estimate_discover_items(video_durations=[None], calibration=cal)
+    assert round(unknown.expected, 4) == 0.01
+
+
+def test_estimate_discover_items_range_widens_without_calibration():
+    from distill.pipeline.costs import CostCalibration, estimate_discover_items
+
+    calibrated = CostCalibration(per_paper=0.02, samples={"paper": 5, "video": 0, "site": 0})
+    cal_est = estimate_discover_items(papers=10, calibration=calibrated)
+    assert cal_est.calibrated is True
+    assert round(cal_est.expected, 4) == 0.20
+    assert round(cal_est.low, 4) == 0.14  # 0.7x
+    assert round(cal_est.high, 4) == 0.30  # 1.5x
+
+    # No calibration -> wider 0.5x..2.0x band on the default rate.
+    default_est = estimate_discover_items(papers=10)
+    assert default_est.calibrated is False
+    assert round(default_est.low, 4) == round(default_est.expected * 0.5, 4)
+    assert round(default_est.high, 4) == round(default_est.expected * 2.0, 4)
+    assert default_est.format().startswith("~$")

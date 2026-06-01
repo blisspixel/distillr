@@ -275,6 +275,7 @@ def _select_learning_videos(
     skeptical: bool = False,
     expand: bool = True,
     top_by_date: bool = False,
+    rigor: str = "off",
 ):
     effective_days = _effective_days(days, hours)
     candidate_limit = max(limit * 2, 12)
@@ -336,6 +337,11 @@ def _select_learning_videos(
             use_llm=rerank,
             skeptical=skeptical,
         )
+        # A rigor bar drops sub-threshold videos before the channel cap; chronological
+        # mode (top_by_date) bypasses scoring entirely, so rigor never applies there.
+        ranked = _apply_source_rigor(
+            ranked, source="video", rigor=rigor, rerank_on=rerank, limit=len(ranked)
+        )
     selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
     return enriched, selected
 
@@ -367,6 +373,7 @@ def _preview_learning_selection(
     skeptical: bool | None = None,
     expand: bool = True,
     top_by_date: bool = False,
+    rigor: str = "off",
 ):
     return _learning_flow_support.preview_learning_selection(
         query,
@@ -388,6 +395,7 @@ def _preview_learning_selection(
         skeptical=skeptical,
         expand=expand,
         top_by_date=top_by_date,
+        rigor=rigor,
     )
 
 
@@ -412,6 +420,7 @@ def _run_learning_command(
     focus: str | None = None,
     top_by_date: bool = False,
     post_ingest_callback=None,
+    rigor: str = "off",
 ) -> None:
     _preflight()
     _learning_flow_support.run_learning_command(
@@ -443,6 +452,7 @@ def _run_learning_command(
         focus=focus,
         top_by_date=top_by_date,
         post_ingest_callback=post_ingest_callback,
+        rigor=rigor,
     )
 
 
@@ -2489,6 +2499,12 @@ def latest_cmd(
         "--rerank/--no-rerank",
         help="Use LLM reranking to pick the best videos (default: on)",
     ),
+    rigor: str = typer.Option(
+        "off",
+        "--rigor",
+        help="Quality bar on the rerank score: strict | balanced | loose | off (default off). "
+        "Drops candidates below the per-source threshold before the channel cap; needs --rerank.",
+    ),
     top_by_date: bool = typer.Option(
         False,
         "--top-by-date",
@@ -2518,7 +2534,14 @@ def latest_cmd(
     ),
 ):
     """Opinionated topic-first workflow for getting current fast."""
+    from distill.pipeline.discovery import RIGOR_LEVELS_WITH_OFF
+
     _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
+    if rigor not in RIGOR_LEVELS_WITH_OFF:
+        console.print(
+            f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS_WITH_OFF)}."
+        )
+        raise typer.Exit(1)
     # --top-by-date is the user saying "I want the N most recent uploads, period."
     # Force-disable LLM rerank and query expansion so chronological mode does
     # not quietly spend tokens on ranking/search variants it will ignore.
@@ -2538,6 +2561,7 @@ def latest_cmd(
             table_title="Latest Best-Pick Learning Set",
             expand=effective_expand,
             top_by_date=top_by_date,
+            rigor=rigor,
         )
         if effective_rerank and not config.xai_api_key:
             console.print(
@@ -2582,6 +2606,7 @@ def latest_cmd(
         expand=effective_expand,
         top_by_date=top_by_date,
         post_ingest_callback=post_ingest_callback,
+        rigor=rigor,
     )
 
 
@@ -7379,6 +7404,12 @@ def papers(  # noqa: C901 — legacy, will refactor
         "--rerank/--no-rerank",
         help="Use LLM reranking to pick the best papers (default: on)",
     ),
+    rigor: str = typer.Option(
+        "off",
+        "--rigor",
+        help="Quality bar on the rerank score: strict | balanced | loose | off (default off). "
+        "Drops candidates below the per-source threshold before the --limit cap; needs --rerank.",
+    ),
     preview: bool = typer.Option(
         False,
         "--preview",
@@ -7391,8 +7422,15 @@ def papers(  # noqa: C901 — legacy, will refactor
     ),
 ):
     """Search arXiv and ingest a paper set into the topic corpus."""
+    from distill.pipeline.discovery import RIGOR_LEVELS_WITH_OFF
+
     if sort not in {"relevance", "date"}:
         console.print("[red]--sort must be 'relevance' or 'date'[/red]")
+        raise typer.Exit(1)
+    if rigor not in RIGOR_LEVELS_WITH_OFF:
+        console.print(
+            f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS_WITH_OFF)}."
+        )
         raise typer.Exit(1)
 
     config = get_config()
@@ -7440,16 +7478,20 @@ def papers(  # noqa: C901 — legacy, will refactor
         f"[dim]Found {len(candidates)} candidate paper(s) across {len(queries)} search(es)[/dim]\n"
     )
 
+    # With a rigor bar, rerank the whole candidate pool so the threshold has
+    # something to drop; otherwise keep the cheap top-N behavior.
+    pool_n = len(candidates) if (rerank and rigor != "off") else limit
     ranked = rerank_papers(
         query,
         candidates,
         config,
         tracker=tracker,
-        top_n=limit,
+        top_n=pool_n,
         use_llm=rerank,
     )
     if rerank and not config.xai_api_key:
         console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
+    ranked = _apply_source_rigor(ranked, source="paper", rigor=rigor, rerank_on=rerank, limit=limit)
 
     if preview:
         _display_ranked_papers(ranked, title="Paper Best-Pick Learning Set")
@@ -7487,6 +7529,302 @@ def papers(  # noqa: C901 — legacy, will refactor
         )
     if concepts_flag:
         _run_concepts_after_ingest(topic_name, tracker=tracker)
+    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+
+
+def _apply_source_rigor(ranked: list, *, source: str, rigor: str, rerank_on: bool, limit: int):
+    """Drop reranked items below the per-source rigor bar, then cap at ``limit``.
+
+    ``rigor="off"`` (the papers/latest default) is a passthrough. Rigor is
+    calibrated to the LLM rerank's ``final_score``; with ``--no-rerank`` the
+    scores are heuristic and off that scale, so an explicit bar is skipped with a
+    warning rather than mis-filtering. Used by ``papers`` and ``latest``.
+    """
+    if rigor == "off":
+        return ranked[:limit]
+    if not rerank_on:
+        console.print(
+            f"[yellow]--rigor {rigor} needs the LLM rerank (it scores on the rerank's scale); "
+            "ignoring it under --no-rerank.[/yellow]"
+        )
+        return ranked[:limit]
+    from distill.pipeline.discovery import source_rigor_threshold
+
+    threshold = source_rigor_threshold(source, rigor)
+    kept = [r for r in ranked if r.final_score >= threshold]
+    if len(kept) < len(ranked):
+        console.print(
+            f"  [dim]--rigor {rigor}: kept {len(kept)}/{len(ranked)} candidate(s) "
+            f"(score >= {threshold:.2f})[/dim]"
+        )
+    if not kept:
+        console.print(
+            f"[yellow]No candidates clear the '{rigor}' bar (score >= {threshold:.2f}). "
+            "Try --rigor loose.[/yellow]"
+        )
+    return kept[:limit]
+
+
+def _is_fresh_topic(config, topic_name: str) -> bool:
+    """True when the topic has no ingested artifacts yet (drives sizing-as-default)."""
+    topic_dir = config.topic_dir(topic_name)
+    if not topic_dir.exists():
+        return True
+    return not any(topic_dir.rglob("*.md"))
+
+
+def _sizing_option_line(index: int, opt) -> str:
+    """Format one sizing-menu row: number, label, source breakdown, basis, spend."""
+    parts = []
+    if opt.papers:
+        parts.append(f"{opt.papers} paper(s)")
+    if opt.videos:
+        parts.append(f"{opt.videos} video(s)")
+    if opt.sites:
+        parts.append(f"{opt.sites} site(s)")
+    breakdown = ", ".join(parts) if parts else "0 items"
+    return (
+        f"  [bold]{index}[/bold]. {opt.label} — {len(opt.items)} item(s) "
+        f"({breakdown}); {opt.basis} — {opt.estimate.format()}"
+    )
+
+
+def _discover_sizing_flow(
+    *,
+    goal: str,
+    topic_name: str,
+    config,
+    tracker,
+    summary,
+    ranked: list,
+    paper_limit: int,
+    video_limit: int,
+    site_limit: int,
+    ingest_attachments: bool,
+) -> None:
+    """Preview-as-default: show ranked candidates, offer sized options, ingest the pick.
+
+    The chosen set is saved to the preview cache so the exact selection is
+    re-runnable with ``--from-preview``. The menu choice is itself the
+    confirmation, so the downstream ingest runs without a second prompt.
+    """
+    from distill.pipeline.costs import load_cost_calibration
+    from distill.pipeline.discovery import build_sizing_options
+    from distill.pipeline.preview_cache import preview_cache_dir, save_preview
+
+    _display_ranked_discover(
+        sorted(ranked, key=lambda r: r.final_score, reverse=True)[:25],
+        title=f"Goal-Ranked Candidates ({len(ranked)} reranked)",
+    )
+    options = build_sizing_options(
+        ranked,
+        paper_limit=paper_limit,
+        video_limit=video_limit,
+        site_limit=site_limit,
+        calibration=load_cost_calibration(config.library_dir),
+    )
+    if not options:
+        console.print(
+            "[yellow]No candidates worth ingesting at any quality bar. "
+            "Broaden the goal or widen --days.[/yellow]"
+        )
+        return
+
+    console.print("\n[bold]How much of this should I ingest?[/bold]")
+    for i, opt in enumerate(options, 1):
+        console.print(_sizing_option_line(i, opt))
+    console.print("  [bold]n[/bold]. Cancel")
+
+    choice = typer.prompt("\nChoose a size", default="1").strip().lower()
+    if choice in ("n", "no", "cancel", ""):
+        console.print("[yellow]Aborted by user.[/yellow]")
+        return
+    try:
+        idx = int(choice)
+    except ValueError:
+        idx = 0
+    if idx < 1 or idx > len(options):
+        console.print(f"[yellow]'{choice}' is not a listed option. Aborted.[/yellow]")
+        return
+
+    chosen = options[idx - 1]
+    est = chosen.estimate
+    snapshot = save_preview(
+        preview_cache_dir(config.library_dir),
+        goal=goal,
+        model="",
+        rigor=chosen.label,
+        items=chosen.items,
+        estimate={
+            "expected": est.expected,
+            "low": est.low,
+            "high": est.high,
+            "calibrated": est.calibrated,
+        },
+        now_iso=datetime.now().isoformat(),
+    )
+    console.print(
+        f"[dim]Selected '{chosen.label}' set, saved as {snapshot.id} "
+        f"(re-runnable with --from-preview {snapshot.id}).[/dim]"
+    )
+    _discover_ingest_set(
+        topic_name=topic_name,
+        config=config,
+        tracker=tracker,
+        summary=summary,
+        ranked_papers=[it for it in chosen.items if it.kind == "paper"],
+        ranked_videos=[it for it in chosen.items if it.kind == "video"],
+        ranked_sites=[it for it in chosen.items if it.kind == "site"],
+        ingest_attachments=ingest_attachments,
+        yes=True,  # the menu selection IS the confirmation
+    )
+
+
+def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_sites) -> bool:
+    """Prompt before ingesting; return True to proceed."""
+    parts = []
+    if ranked_papers:
+        parts.append(f"{len(ranked_papers)} paper(s)")
+    if ranked_videos:
+        parts.append(f"{len(ranked_videos)} video(s)")
+    if ranked_sites:
+        parts.append(f"{len(ranked_sites)} site seed(s)")
+    ingest_summary = ", ".join(parts) if parts else "0 items"
+    return typer.confirm(f"\nIngest {ingest_summary} into topic '{topic_name}'?", default=False)
+
+
+def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers) -> None:
+    """Analyze and write the ranked papers, then refresh the paper synthesis."""
+    console.print(f"\n[bold]Ingesting {len(ranked_papers)} paper(s)[/bold]")
+    for idx, item in enumerate(ranked_papers, 1):
+        paper = item.paper
+        if paper is None:
+            continue
+        console.print(f"  [{idx}/{len(ranked_papers)}] [bold]{paper.title}[/bold]")
+        insights, document = analyze_paper(paper, config, tracker=tracker)
+        paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
+        summary.add_output(find_artifact(paper_dir, "paper"))
+        summary.add_output(find_artifact(paper_dir, "insights"))
+    if synthesize_papers(topic_name, config, tracker=tracker):
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
+        )
+
+
+def _discover_ingest_videos(topic_name, config, tracker, ranked_videos) -> None:
+    """Ingest the ranked videos through the shared learning pipeline."""
+    console.print(f"\n[bold]Ingesting {len(ranked_videos)} video(s)[/bold]")
+    video_items = [
+        SimpleNamespace(video=r.video, final_score=r.final_score, rationale=r.rationale)
+        for r in ranked_videos
+        if r.video is not None
+    ]
+    _process_learning_selection(
+        topic_name,
+        config,
+        tracker,
+        video_items,
+        save=True,
+        report=False,
+        test=False,
+        generate_brief=False,
+    )
+
+
+def _discover_ingest_sites(
+    topic_name, config, tracker, summary, ranked_sites, ingest_attachments, *, has_videos
+) -> None:
+    """Ingest the ranked site seeds (single page each)."""
+    console.print(f"\n[bold]Ingesting {len(ranked_sites)} site seed(s)[/bold]")
+    for idx, item in enumerate(ranked_sites, 1):
+        seed = item.site_seed
+        if seed is None:
+            continue
+        console.print(f"  [{idx}/{len(ranked_sites)}] [bold]{item.title}[/bold]")
+        adjusted_seed = SiteSeed(
+            url=seed.url,
+            topic=topic_name,
+            site_name=seed.site_name,
+            label=seed.label,
+            max_depth=0,
+            max_pages=1,
+            same_section_only=seed.same_section_only,
+        )
+        _process_site_seed(
+            adjusted_seed,
+            config,
+            tracker,
+            summary,
+            scrape_only=False,
+            ingest_attachments=ingest_attachments,
+        )
+    # When videos were also ingested, they own the topic_synthesis artifact
+    # (written by synthesize_topic). Running the website topic synthesis here
+    # would overwrite it and drop the video story from the user-facing
+    # Topic_Synthesis.md. The website material is still bridged into the corpus
+    # synthesis via the per-site syntheses, so skip the site-level topic
+    # synthesis in mixed (video + site) runs.
+    if has_videos:
+        return
+    try:
+        if synthesize_site_topic(topic_name, config, tracker=tracker):
+            summary.add_output(
+                find_artifact(config.topic_dir(topic_name), "topic_synthesis", identity=topic_name)
+            )
+    except Exception as exc:
+        cli_shared.record_exception_issue(
+            summary,
+            stage="site-topic-synthesis",
+            exc=exc,
+            context=topic_name,
+            details={"topic": topic_name},
+        )
+
+
+def _discover_ingest_set(
+    *,
+    topic_name: str,
+    config,
+    tracker,
+    summary,
+    ranked_papers: list,
+    ranked_videos: list,
+    ranked_sites: list,
+    ingest_attachments: bool,
+    yes: bool,
+) -> None:
+    """Ingest an already-ranked discover set (papers + videos + site seeds).
+
+    Shared by the live discover flow and ``--from-preview`` replay so a previewed
+    set ingests through the exact same path it would on a fresh run. Each ranked
+    item carries its source payload (``.paper`` / ``.video`` / ``.site_seed``).
+    """
+    if not yes and not _confirm_discover_ingest(
+        topic_name, ranked_papers, ranked_videos, ranked_sites
+    ):
+        console.print("[yellow]Aborted by user.[/yellow]")
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        return
+
+    if ranked_papers:
+        _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers)
+    if ranked_videos:
+        _discover_ingest_videos(topic_name, config, tracker, ranked_videos)
+    if ranked_sites:
+        _discover_ingest_sites(
+            topic_name,
+            config,
+            tracker,
+            summary,
+            ranked_sites,
+            ingest_attachments,
+            has_videos=bool(ranked_videos),
+        )
+
+    if synthesize_corpus(topic_name, config, tracker=tracker):
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
+        )
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
@@ -7553,17 +7891,36 @@ def discover(  # noqa: C901 — legacy, will refactor
     preview: bool = typer.Option(
         False, "--preview", help="Show the goal-ranked plan without ingesting"
     ),
+    from_preview: str = typer.Option(
+        "",
+        "--from-preview",
+        help="Replay and ingest the exact set saved by an earlier --preview run, by its id. "
+        "Skips query-generation and the rerank, so you commit to precisely what you saw.",
+    ),
+    size: bool = typer.Option(
+        False,
+        "--size",
+        help="Force the size-then-approve menu (excellent / good / everything, each with its "
+        "spend) even on a topic that already has artifacts. On a fresh topic this is the default.",
+    ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt"),
 ):
     """Goal-aware cross-source discovery: papers + videos, reranked against a goal.
 
     With ``--from-gaps``, the goal is synthesized from the topic's coverage gaps
     (the inverse of goal-driven discovery): "you are thin on X, single-source on
-    Y" becomes "find sources that fill X and Y".
+    Y" becomes "find sources that fill X and Y". With ``--from-preview <id>``, the
+    exact shortlist a previous ``--preview`` run saved is ingested verbatim.
     """
     from distill.pipeline.discovery import RIGOR_LEVELS
 
     _preflight()
+    if from_preview and (from_gaps or preview):
+        console.print(
+            "[red]--from-preview replays a saved set; it can't combine with "
+            "--from-gaps or --preview.[/red]"
+        )
+        raise typer.Exit(1)
     if rigor not in RIGOR_LEVELS:
         console.print(f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS)}.")
         raise typer.Exit(1)
@@ -7588,13 +7945,53 @@ def discover(  # noqa: C901 — legacy, will refactor
     if from_gaps and not topic:
         console.print("[red]--from-gaps requires --topic <name> to analyze.[/red]")
         raise typer.Exit(1)
-    if not goal.strip() and not from_gaps:
+    if not goal.strip() and not from_gaps and not from_preview:
         console.print("[red]Goal is empty. Provide a goal argument or --goal-file path.[/red]")
         raise typer.Exit(1)
 
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required for goal-aware discovery")
     tracker = CostTracker()
+
+    if from_preview:
+        from distill.pipeline.preview_cache import (
+            PreviewCacheError,
+            load_preview,
+            preview_cache_dir,
+        )
+
+        try:
+            snapshot = load_preview(preview_cache_dir(config.library_dir), from_preview)
+        except PreviewCacheError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        replay_topic = topic or _topic_from_query(snapshot.goal[:80])
+        replay_summary = RunSummary(command="discover")
+        replay_summary.set_metadata(topic=replay_topic, workflow="discover", source_type="mixed")
+        replay_papers = [it for it in snapshot.items if it.kind == "paper"]
+        replay_videos = [it for it in snapshot.items if it.kind == "video"]
+        replay_sites = [it for it in snapshot.items if it.kind == "site"]
+        goal_line = snapshot.goal.splitlines()[0][:120] if snapshot.goal else ""
+        console.print(
+            f"\n[bold]Replaying previewed set {snapshot.id}[/bold] "
+            f"({len(replay_papers)} paper(s), {len(replay_videos)} video(s), "
+            f"{len(replay_sites)} site(s)) into topic '{replay_topic}'"
+        )
+        if goal_line:
+            console.print(f"[dim]Goal: {goal_line}[/dim]")
+        console.print()
+        _discover_ingest_set(
+            topic_name=replay_topic,
+            config=config,
+            tracker=tracker,
+            summary=replay_summary,
+            ranked_papers=replay_papers,
+            ranked_videos=replay_videos,
+            ranked_sites=replay_sites,
+            ingest_attachments=ingest_attachments,
+            yes=yes,
+        )
+        return
 
     if from_gaps:
         from distill.pipeline.gaps import gap_discovery_goal, topic_gap_summary
@@ -7689,6 +8086,24 @@ def discover(  # noqa: C901 — legacy, will refactor
         console.print("[red]Rerank produced no ranked items.[/red]")
         raise typer.Exit(1)
 
+    # Preview-as-default: on a fresh topic (or when --size is forced), present the
+    # size-then-approve menu instead of auto-applying --rigor. --yes and --preview
+    # keep the non-interactive paths below.
+    if not preview and not yes and (size or _is_fresh_topic(config, topic_name)):
+        _discover_sizing_flow(
+            goal=goal,
+            topic_name=topic_name,
+            config=config,
+            tracker=tracker,
+            summary=summary,
+            ranked=ranked,
+            paper_limit=paper_limit,
+            video_limit=video_limit,
+            site_limit=effective_site_limit,
+            ingest_attachments=ingest_attachments,
+        )
+        return
+
     # --rigor: drop candidates below the level's goal-fit threshold.
     from distill.pipeline.discovery import rigor_threshold
 
@@ -7720,21 +8135,47 @@ def discover(  # noqa: C901 — legacy, will refactor
     _display_ranked_discover(shortlist, title=f"Goal-Ranked Corpus Plan ({len(shortlist)} items)")
 
     # Size the set: the score "cliff" marks the clearly-excellent top, and a
-    # free-metadata cost estimate shows the likely spend before committing.
-    from distill.pipeline.costs import estimate_discover_cost
+    # metadata-aware, self-calibrating cost estimate shows the likely spend
+    # before committing (per-video duration scales the estimate; rates calibrate
+    # against cost_log.jsonl history once enough runs accrue).
+    from distill.pipeline.costs import estimate_discover_items, load_cost_calibration
     from distill.pipeline.discovery import detect_score_cliff
 
     cliff = detect_score_cliff([r.final_score for r in shortlist])
-    est_cost = estimate_discover_cost(
-        papers=len(ranked_papers), videos=len(ranked_videos), sites=len(ranked_sites)
+    calibration = load_cost_calibration(config.library_dir)
+    estimate = estimate_discover_items(
+        papers=len(ranked_papers),
+        video_durations=[getattr(r.video, "duration", None) for r in ranked_videos],
+        sites=len(ranked_sites),
+        calibration=calibration,
     )
     console.print(
         f"  [dim]Top {cliff} sit above the score cliff (the clearly-excellent set). "
-        f"Estimated ingest cost: ~${est_cost:.2f}.[/dim]"
+        f"Estimated ingest cost: {estimate.format()}.[/dim]"
     )
 
     if preview:
-        console.print("\n[dim]Run without `--preview` to ingest this set.[/dim]")
+        from distill.pipeline.preview_cache import preview_cache_dir, save_preview
+
+        snapshot = save_preview(
+            preview_cache_dir(config.library_dir),
+            goal=goal,
+            model="",
+            rigor=rigor,
+            items=shortlist,
+            estimate={
+                "expected": estimate.expected,
+                "low": estimate.low,
+                "high": estimate.high,
+                "calibrated": estimate.calibrated,
+            },
+            now_iso=datetime.now().isoformat(),
+        )
+        console.print(
+            f"\n[dim]Previewed set saved as[/dim] [bold]{snapshot.id}[/bold]. "
+            "[dim]Ingest exactly this set with:[/dim]\n"
+            f"  [cyan]distill discover --from-preview {snapshot.id} --topic {topic_name}[/cyan]"
+        )
         display_summary(
             summary,
             cost_tracker=tracker,
@@ -7744,119 +8185,17 @@ def discover(  # noqa: C901 — legacy, will refactor
         )
         return
 
-    if not yes:
-        ingest_parts = []
-        if ranked_papers:
-            ingest_parts.append(f"{len(ranked_papers)} paper(s)")
-        if ranked_videos:
-            ingest_parts.append(f"{len(ranked_videos)} video(s)")
-        if ranked_sites:
-            ingest_parts.append(f"{len(ranked_sites)} site seed(s)")
-        ingest_summary = ", ".join(ingest_parts) if ingest_parts else "0 items"
-        proceed = typer.confirm(
-            f"\nIngest {ingest_summary} into topic '{topic_name}'?",
-            default=False,
-        )
-        if not proceed:
-            console.print("[yellow]Aborted by user.[/yellow]")
-            display_summary(
-                summary, cost_tracker=tracker, console=console, log_dir=config.library_dir
-            )
-            return
-
-    # Ingest papers
-    if ranked_papers:
-        console.print(f"\n[bold]Ingesting {len(ranked_papers)} paper(s)[/bold]")
-        for idx, item in enumerate(ranked_papers, 1):
-            paper = item.paper
-            if paper is None:
-                continue
-            console.print(f"  [{idx}/{len(ranked_papers)}] [bold]{paper.title}[/bold]")
-            insights, document = analyze_paper(paper, config, tracker=tracker)
-            paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
-            summary.add_output(find_artifact(paper_dir, "paper"))
-            summary.add_output(find_artifact(paper_dir, "insights"))
-        synth = synthesize_papers(topic_name, config, tracker=tracker)
-        if synth:
-            summary.add_output(
-                find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
-            )
-
-    # Ingest videos (reuse the learning pipeline)
-    if ranked_videos:
-        console.print(f"\n[bold]Ingesting {len(ranked_videos)} video(s)[/bold]")
-        video_items = [
-            SimpleNamespace(video=r.video, final_score=r.final_score, rationale=r.rationale)
-            for r in ranked_videos
-            if r.video is not None
-        ]
-        _process_learning_selection(
-            topic_name,
-            config,
-            tracker,
-            video_items,
-            save=True,
-            report=False,
-            test=False,
-            generate_brief=False,
-        )
-
-    if ranked_sites:
-        console.print(f"\n[bold]Ingesting {len(ranked_sites)} site seed(s)[/bold]")
-        for idx, item in enumerate(ranked_sites, 1):
-            seed = item.site_seed
-            if seed is None:
-                continue
-            console.print(f"  [{idx}/{len(ranked_sites)}] [bold]{item.title}[/bold]")
-            adjusted_seed = SiteSeed(
-                url=seed.url,
-                topic=topic_name,
-                site_name=seed.site_name,
-                label=seed.label,
-                max_depth=0,
-                max_pages=1,
-                same_section_only=seed.same_section_only,
-            )
-            _process_site_seed(
-                adjusted_seed,
-                config,
-                tracker,
-                summary,
-                scrape_only=False,
-                ingest_attachments=ingest_attachments,
-            )
-        # When videos were also ingested, they own the topic_synthesis artifact
-        # (written by synthesize_topic). Running the website topic synthesis here
-        # would overwrite it and drop the video story from the user-facing
-        # Topic_Synthesis.md. The website material is still bridged into the
-        # corpus synthesis via the per-site syntheses, so skip the site-level
-        # topic synthesis in mixed (video + site) runs.
-        if not ranked_videos:
-            try:
-                topic_synth = synthesize_site_topic(topic_name, config, tracker=tracker)
-                if topic_synth:
-                    summary.add_output(
-                        find_artifact(
-                            config.topic_dir(topic_name),
-                            "topic_synthesis",
-                            identity=topic_name,
-                        )
-                    )
-            except Exception as exc:
-                cli_shared.record_exception_issue(
-                    summary,
-                    stage="site-topic-synthesis",
-                    exc=exc,
-                    context=topic_name,
-                    details={"topic": topic_name},
-                )
-
-    corpus = synthesize_corpus(topic_name, config, tracker=tracker)
-    if corpus:
-        summary.add_output(
-            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
-        )
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+    _discover_ingest_set(
+        topic_name=topic_name,
+        config=config,
+        tracker=tracker,
+        summary=summary,
+        ranked_papers=ranked_papers,
+        ranked_videos=ranked_videos,
+        ranked_sites=ranked_sites,
+        ingest_attachments=ingest_attachments,
+        yes=yes,
+    )
 
 
 @app.command(name="site", rich_help_panel="Discover")
