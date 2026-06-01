@@ -286,12 +286,31 @@ def test_summary_dict_includes_transcription_when_present():
 
 
 def test_estimate_discover_cost():
-    from distill.pipeline.costs import estimate_discover_cost
+    from distill.pipeline.costs import (
+        _DISCOVER_PAPER_COST,
+        _DISCOVER_SITE_COST,
+        _DISCOVER_VIDEO_COST,
+        estimate_discover_cost,
+    )
 
     assert estimate_discover_cost() == 0.0
-    # 5 papers ($0.06) + 10 videos ($0.06) + 3 sites ($0.024)
-    assert round(estimate_discover_cost(papers=5, videos=10, sites=3), 4) == 0.144
+    # Rates are derived from the default model's pricing, so compute the
+    # expectation from the constants rather than pinning a dollar figure.
+    expected = 5 * _DISCOVER_PAPER_COST + 10 * _DISCOVER_VIDEO_COST + 3 * _DISCOVER_SITE_COST
+    assert round(estimate_discover_cost(papers=5, videos=10, sites=3), 6) == round(expected, 6)
     assert estimate_discover_cost(papers=-1) == 0.0  # clamps negatives
+
+
+def test_stage_cost_tracks_default_model_pricing():
+    from distill.llm.cost import DEFAULT_MODEL, compute_cost
+    from distill.pipeline.costs import _STAGE_TOKENS, estimate_stage_cost
+
+    # estimate_stage_cost must equal compute_cost over the stage's token volumes
+    # at the default model — i.e. it tracks the model, never a hard-coded rate.
+    tin, tout = _STAGE_TOKENS["video_full"]
+    assert estimate_stage_cost("video_full") == compute_cost(DEFAULT_MODEL, tin, tout)
+    # grok-4.3 default ($1.25 / $2.50): 13k in + 6k out = $0.03125.
+    assert round(estimate_stage_cost("video_full"), 5) == 0.03125
 
 
 # ---- metadata-aware, self-calibrating discover estimate (0.9.1) ------------

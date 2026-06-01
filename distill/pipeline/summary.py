@@ -12,7 +12,11 @@ from typing import Any
 from rich.console import Console
 
 from distill.llm.cost import deep_research_query_cost
-from distill.pipeline.costs import ACCORDION_GROK_ESTIMATE, report_deep_research_estimate
+from distill.pipeline.costs import (
+    ACCORDION_GROK_ESTIMATE,
+    estimate_stage_cost,
+    report_deep_research_estimate,
+)
 
 __all__ = [
     "ETATracker",
@@ -215,8 +219,12 @@ def display_estimate(
 ) -> None:
     con = console or Console()
 
-    grok_cost = full_videos * 0.006 + shorts * 0.0004 + scan_videos * 0.001
-    synthesis_cost = synthesis_calls * 0.003
+    grok_cost = (
+        full_videos * estimate_stage_cost("video_full")
+        + shorts * estimate_stage_cost("video_short")
+        + scan_videos * estimate_stage_cost("video_scan")
+    )
+    synthesis_cost = synthesis_calls * estimate_stage_cost("synthesis")
     gemini_cost = deep_research_query_cost() if include_report else 0.0
     accordion_grok = ACCORDION_GROK_ESTIMATE if include_report else 0.0
     total = grok_cost + synthesis_cost + gemini_cost + accordion_grok
