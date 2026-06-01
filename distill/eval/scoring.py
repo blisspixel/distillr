@@ -1,10 +1,14 @@
 """Deterministic quality scoring for the model eval.
 
 Pure functions, no IO, no LLM. Scores an analysis output on four dimensions
-against a fixture's golden expectations, and blends in an optional *advisory*
-LLM-judge score under a capped weight. The composite and any threshold decision
-that consumes it are deterministic by construction (the judge only contributes a
-bounded fraction) — consistent with the "LLM proposes, Python decides" invariant.
+against a fixture's golden expectations. This is the *decision* signal — the
+recommendation is computed from these scores alone (see ``report``). The LLM
+judge is a separate, advisory pairwise signal that only affects *confidence*,
+never the composite (so "LLM proposes, Python decides" holds — ``docs/invariants.md``).
+
+Depth is deliberately **verbosity-resistant**: it gives full credit once an
+analysis is substantive enough and then *decays* for padding, so a longer answer
+can't win on length alone (the documented top bias in LLM evals).
 """
 
 from __future__ import annotations
@@ -20,10 +24,6 @@ __all__ = [
     "score_output",
 ]
 
-# Advisory LLM-judge weight in the composite. Capped well below 0.5 so the
-# deterministic dimensions always dominate the decision.
-JUDGE_WEIGHT: float = 0.30
-
 
 @dataclass(frozen=True)
 class DimensionScore:
@@ -34,11 +34,9 @@ class DimensionScore:
 
 @dataclass(frozen=True)
 class QualityScore:
-    """Per-output quality: deterministic dimensions + optional advisory judge."""
+    """Per-output deterministic quality. ``composite`` == mean of the dimensions."""
 
     dimensions: list[DimensionScore] = field(default_factory=list)
-    deterministic: float = 0.0
-    judge: float | None = None
     composite: float = 0.0
 
 
@@ -61,9 +59,23 @@ def _structure_score(output: str, expected_sections: Sequence[str]) -> Dimension
 
 
 def _depth_score(output: str, min_words: int) -> DimensionScore:
+    """Verbosity-resistant: full credit in a sane band, decay for padding.
+
+    Ramps linearly to 1.0 at ``min_words``, holds full credit up to a generous
+    ceiling (4x), then decays toward a 0.6 floor so a padded answer cannot beat a
+    tight one. Length is a sufficiency signal, not a quality multiplier.
+    """
     words = len(output.split())
     target = max(1, min_words)
-    return DimensionScore("Depth", min(1.0, words / target), f"{words} words")
+    if words <= target:
+        score = words / target
+        return DimensionScore("Depth", score, f"{words} words (<= target)")
+    ceiling = 4 * target
+    if words <= ceiling:
+        return DimensionScore("Depth", 1.0, f"{words} words")
+    # Beyond 4x target: decay 1.0 -> 0.6 over the next 4x, then floor.
+    over = min(1.0, (words - ceiling) / (4 * target))
+    return DimensionScore("Depth", 1.0 - 0.4 * over, f"{words} words (padded)")
 
 
 def _coverage_score(output: str, golden_concepts: Sequence[str]) -> DimensionScore:
@@ -72,8 +84,6 @@ def _coverage_score(output: str, golden_concepts: Sequence[str]) -> DimensionSco
         return DimensionScore("Concept coverage", 1.0, "no golden concepts")
     found_terms = {c.lower() for c in extract_key_concepts(output)}
     output_lower = output.lower()
-    # A golden concept counts as covered if it appears as an extracted term or as a
-    # substring of the output (tolerates phrasing the extractor misses).
     hits = sum(1 for g in golden if g in found_terms or g in output_lower)
     return DimensionScore("Concept coverage", hits / len(golden), f"{hits}/{len(golden)} concepts")
 
@@ -94,27 +104,13 @@ def score_output(
     expected_sections: Sequence[str] = (),
     golden_concepts: Sequence[str] = (),
     min_words: int = 200,
-    judge: float | None = None,
 ) -> QualityScore:
-    """Score one analysis output. ``judge`` is an optional 0-1 advisory score.
-
-    Deterministic = mean of the four dimensions. Composite blends in the judge at
-    ``JUDGE_WEIGHT`` when present, else equals the deterministic score.
-    """
+    """Score one analysis output. Composite = mean of the four dimensions."""
     dims = [
         _structure_score(output, expected_sections),
         _depth_score(output, min_words),
         _coverage_score(output, golden_concepts),
         _formatting_score(output),
     ]
-    deterministic = sum(d.score for d in dims) / len(dims)
-    if judge is None:
-        composite = deterministic
-    else:
-        composite = (1.0 - JUDGE_WEIGHT) * deterministic + JUDGE_WEIGHT * judge
-    return QualityScore(
-        dimensions=dims,
-        deterministic=deterministic,
-        judge=judge,
-        composite=composite,
-    )
+    composite = sum(d.score for d in dims) / len(dims)
+    return QualityScore(dimensions=dims, composite=composite)

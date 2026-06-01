@@ -1,50 +1,52 @@
-"""Tests for distill.eval.judge (advisory LLM-judge, mocked LLM)."""
+"""Tests for distill.eval.judge (advisory pairwise judge, mocked LLM)."""
 
 from types import SimpleNamespace
 
 from distill.eval import judge as judge_mod
-from distill.eval.judge import judge_output
+from distill.eval.judge import judge_pairwise, judge_shares_family
 from distill.pipeline.costs import CostTracker
 
 
-def _fake_response(text: str):
-    return SimpleNamespace(text=text, input_tokens=120, output_tokens=40, model="grok-4.3")
+def _resp(text: str):
+    return SimpleNamespace(text=text, input_tokens=200, output_tokens=30, model="grok-4.3")
 
 
-def test_judge_parses_and_records_cost(monkeypatch):
-    monkeypatch.setattr(
-        judge_mod,
-        "llm_call",
-        lambda *a, **k: _fake_response(
-            '{"faithfulness": 0.9, "depth": 0.6, "coverage": 0.75, "rationale": "solid"}'
-        ),
+def test_pairwise_candidate_always_wins_both_orderings(monkeypatch):
+    # Judge always picks the candidate, whichever slot it's in:
+    # ordering 1 candidate=A -> winner A; ordering 2 candidate=B -> winner B.
+    seq = iter(
+        [
+            '{"winner": "A", "rationale": "cand better"}',
+            '{"winner": "B", "rationale": "cand better"}',
+        ]
     )
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp(next(seq)))
     tracker = CostTracker()
-    score = judge_output(
-        "source", "analysis", candidate_model="qwen3.5:27b", judge_model="grok-4.3", tracker=tracker
+    res = judge_pairwise("src", "cand", "anchor", judge_model="grok-4.3", tracker=tracker)
+    assert res is not None
+    assert res.win_rate == 1.0
+    assert res.comparisons == 2
+    assert len(tracker.entries) == 2  # both orderings priced
+
+
+def test_pairwise_position_bias_cancels(monkeypatch):
+    # A judge that ALWAYS prefers slot A regardless of content: ordering1 (cand=A)
+    # -> cand wins; ordering2 (anchor=A) -> anchor wins. Averages to a 0.5 tie,
+    # i.e. the position bias cancels rather than crowning the candidate.
+    monkeypatch.setattr(
+        judge_mod, "llm_call", lambda *a, **k: _resp('{"winner": "A", "rationale": "slot A"}')
     )
-    assert score is not None
-    assert score.faithfulness == 0.9
-    assert round(score.overall, 4) == round((0.9 + 0.6 + 0.75) / 3, 4)
-    assert score.rationale == "solid"
-    assert len(tracker.entries) == 1
-    assert tracker.entries[0].call_type == "eval_judge"
+    res = judge_pairwise("src", "cand", "anchor", judge_model="grok-4.3")
+    assert res is not None
+    assert res.win_rate == 0.5
 
 
-def test_judge_refuses_to_grade_its_own_model(monkeypatch):
-    called = {"n": 0}
-
-    def _fail(*a, **k):
-        called["n"] += 1
-        raise AssertionError("should not call the LLM for self-judging")
-
-    monkeypatch.setattr(judge_mod, "llm_call", _fail)
-    score = judge_output("s", "o", candidate_model="grok-4.3", judge_model="grok-4.3")
-    assert score is None
-    assert called["n"] == 0
+def test_pairwise_returns_none_when_unparseable(monkeypatch):
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp("no json here"))
+    assert judge_pairwise("s", "c", "a", judge_model="grok-4.3") is None
 
 
-def test_judge_tolerates_unparseable_response(monkeypatch):
-    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _fake_response("not json at all"))
-    score = judge_output("s", "o", candidate_model="x", judge_model="grok-4.3")
-    assert score is None  # deterministic-only fallback, no crash
+def test_judge_shares_family():
+    assert judge_shares_family("grok-4.3", "grok-4.20") is True
+    assert judge_shares_family("grok-4.3", "qwen3.5:27b") is False
+    assert judge_shares_family("gemini-3.1-pro", "grok-4.3") is False

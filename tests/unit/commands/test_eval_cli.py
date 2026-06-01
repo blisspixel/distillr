@@ -19,48 +19,81 @@ def mock_config(tmp_path, monkeypatch):
 
 
 def _rows():
-    def row(model, comp, cost):
+    def row(model, comp, cost, winrate):
         return EvalRow(
             workload="paper",
             fixture_id="paper-tkg",
             model=model,
-            quality=QualityScore(dimensions=[], deterministic=comp, judge=None, composite=comp),
+            quality=QualityScore(dimensions=[], composite=comp),
             cost=cost,
             input_tokens=0,
             output_tokens=0,
+            pairwise_winrate=winrate,
         )
 
-    return [row("grok-4.3", 0.95, 0.03), row("qwen3.5:27b", 0.90, 0.0)]
+    return [row("grok-4.3", 0.95, 0.03, None), row("qwen3.5:27b", 0.91, 0.0, 0.6)]
 
 
-def test_eval_runs_and_recommends(mock_config, monkeypatch):
+def _patch_eval(monkeypatch):
     import distill.eval as eval_pkg
 
     monkeypatch.setattr(eval_pkg, "run_model_eval", lambda *a, **k: _rows())
 
+
+def test_eval_runs_and_recommends(mock_config, monkeypatch):
+    _patch_eval(monkeypatch)
     result = runner.invoke(
-        cli.app,
-        ["eval", "--workload", "paper", "--models", "grok-4.3,qwen3.5:27b", "--yes"],
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3,qwen3.5:27b", "--yes"]
     )
     assert result.exit_code == 0, result.output
     assert "Model eval" in result.output
     assert "recommended" in result.output.lower()
     assert "qwen3.5:27b" in result.output
+    # Results log always appended for drift tracking.
+    log = mock_config.library_dir / ".distill" / "eval" / "results.jsonl"
+    assert log.exists()
+    assert len(log.read_text(encoding="utf-8").strip().splitlines()) == 2
 
 
-def test_eval_writes_report_artifact(mock_config, monkeypatch):
-    import distill.eval as eval_pkg
-
-    monkeypatch.setattr(eval_pkg, "run_model_eval", lambda *a, **k: _rows())
-
+def test_eval_adds_anchor_to_models_and_writes_report(mock_config, monkeypatch):
+    _patch_eval(monkeypatch)
     result = runner.invoke(
         cli.app,
-        ["eval", "--workload", "paper", "--models", "grok-4.3,qwen3.5:27b", "--yes", "--report"],
+        [
+            "eval",
+            "--workload",
+            "paper",
+            "--models",
+            "qwen3.5:27b",
+            "--anchor",
+            "grok-4.3",
+            "--yes",
+            "--report",
+        ],
     )
     assert result.exit_code == 0, result.output
     reports = list((mock_config.library_dir / ".distill" / "eval").glob("paper_*.md"))
     assert len(reports) == 1
-    assert "Recommended" in reports[0].read_text(encoding="utf-8")
+    assert "anchor" in reports[0].read_text(encoding="utf-8").lower()
+
+
+def test_eval_warns_when_judge_shares_anchor_family(mock_config, monkeypatch):
+    _patch_eval(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        [
+            "eval",
+            "--workload",
+            "paper",
+            "--models",
+            "grok-4.3,qwen3.5:27b",
+            "--judge",
+            "grok-4.3",
+            "--yes",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "shares the anchor's family" in result.output
 
 
 def test_eval_rejects_unknown_workload(mock_config):
