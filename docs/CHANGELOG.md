@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.11 - 2026-06-01
+
+**Portability: cross-platform hardware detection + local is clearly optional.**
+
+- **Windows RAM detection.** `_get_system_ram()` only handled macOS/Linux, so `distill doctor` reported "RAM: 0 GB" on Windows. Added a `ctypes` `GlobalMemoryStatusEx` probe (no new deps).
+- **Graceful on non-NVIDIA / no-GPU machines.** The eval's VRAM-fit guard already covers NVIDIA (`nvidia-smi`) and Apple Silicon (unified memory). On AMD/Intel/CPU-only or any box where VRAM can't be probed, it no longer goes silent — it notes "local models will run on CPU (slow); cloud models are unaffected" instead of blocking. Cloud models are never gated by the local-hardware check.
+- **Local is optional, documented.** The eval (and the whole pipeline) runs cloud-only on any OS with no Ollama installed; local models are an opt-in cost lever. Spelled out in `docs/usage.md`.
+
 ## 0.9.10 - 2026-06-01
 
 **Honest workload label for `--workload all`.** The summary table took its label from the first fixture, so an all-workloads run (paper+video+site pooled) was mislabeled "paper." It now reads `all (paper+site+video)` when the rows span multiple workloads, and keeps the single workload's name otherwise. Found running the first full-coverage validation.

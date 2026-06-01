@@ -105,8 +105,17 @@ class TestSystemRam:
             ram = _get_system_ram()
         assert ram == pytest.approx(15.6, abs=0.2)
 
+    def test_windows_ram(self) -> None:
+        # Windows is now supported; _get_system_ram routes to _get_windows_ram.
+        with (
+            patch("platform.system", return_value="Windows"),
+            patch("distill.doctor.hardware._get_windows_ram", return_value=32.0),
+        ):
+            ram = _get_system_ram()
+        assert ram == pytest.approx(32.0, abs=0.1)
+
     def test_unknown_os(self) -> None:
-        with patch("platform.system", return_value="Windows"):
+        with patch("platform.system", return_value="Plan9"):
             ram = _get_system_ram()
         assert ram == 0.0
 

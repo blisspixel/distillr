@@ -107,12 +107,41 @@ def _get_apple_chip_name() -> str:
 
 
 def _get_system_ram() -> float:
-    """Get system RAM in GB."""
+    """Get system RAM in GB (macOS, Linux, and Windows)."""
     system = platform.system()
     if system == "Darwin":
         return _get_macos_ram()
-    elif system == "Linux":
+    if system == "Linux":
         return _get_linux_ram()
+    if system == "Windows":
+        return _get_windows_ram()
+    return 0.0
+
+
+def _get_windows_ram() -> float:
+    """Get Windows physical RAM in GB via GlobalMemoryStatusEx (no extra deps)."""
+    try:
+        import ctypes
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = (
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            )
+
+        stat = _MemoryStatusEx()
+        stat.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):  # type: ignore[attr-defined]
+            return round(stat.ullTotalPhys / (1024**3), 1)
+    except (OSError, AttributeError, ValueError):
+        pass
     return 0.0
 
 
