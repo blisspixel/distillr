@@ -132,6 +132,12 @@ Any section that scores FAIL gets automatically rewritten with QA feedback injec
 
 ## Key design decisions
 
+The non-negotiable rules behind these decisions — what distill is, is not, and the
+invariants that hold across versions (Markdown is the source of truth, any index is
+derived and disposable, provenance on every artifact) — live in
+[`invariants.md`](invariants.md). The decisions below are how this section's pipeline
+implements that charter.
+
 ### Library-first organization
 
 Topics group channels and sources by what you care about, not by who made the content. Research at the topic level is where the strongest findings come from — multiple perspectives on the same space, cross-referenced and validated.

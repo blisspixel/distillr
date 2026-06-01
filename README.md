@@ -201,7 +201,7 @@ Distillr is built for two parallel agent-integration paths:
 { "mcpServers": { "distill": { "command": "distill-mcp" } } }
 ```
 
-Distill exposes 8 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
+Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
 
 **Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. From 0.8.4 forward, every topic directory ships an auto-generated `CLAUDE.md` orientation file that agents which auto-load it (Claude Code, Cursor, others) pick up automatically. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
@@ -214,6 +214,7 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 ## Docs
 
 - [`docs/usage.md`](docs/usage.md) — full command reference
+- [`docs/invariants.md`](docs/invariants.md) — design charter: what distill is, is not, and the rules that don't bend
 - [`docs/architecture.md`](docs/architecture.md) — data flow, 4-phase report pipeline, model routing, security hardening
 - [`docs/outputs.md`](docs/outputs.md) — what every artifact contains
 - [`docs/cost.md`](docs/cost.md) — cost model, examples, guardrails

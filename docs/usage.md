@@ -24,6 +24,8 @@ Full command reference. For the short version, see the README.
 
 When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, lets you optionally add curated website seed files, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
 
+On a **fresh topic** (no artifacts yet), discover leads with a *size-then-approve* menu instead of auto-ingesting: it shows the ranked candidates and 2–3 sized options — *Excellent / Including good / Everything worthwhile* — each with its source breakdown and its own spend estimate, and ingests the option you pick. `--yes` skips the menu (rigor-filtered auto-ingest); `--size` forces the menu on a topic that already has artifacts.
+
 ```bash
 # Inline goal
 distill discover "help an AI become a great music composer" --topic music --preview
@@ -46,13 +48,16 @@ Flags:
 - `--days / -d` — YouTube recency window (default 365)
 - `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
 - `--ingest-attachments` — for selected site seeds, pull PDF text and supported embedded-video transcripts into the page corpus
-- `--preview` — show the ranked plan without ingesting (~$0.05). Preview-only spend lands in `cost_log.jsonl` as `discover_preview` so iterative preview cycles are visible separately from ingest spend.
-- `--yes / -y` — skip the interactive confirmation prompt
+- `--rigor strict|balanced|loose` — quality bar on the rerank score; drops candidates below the level's goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits. Default `balanced`.
+- `--preview` — show the ranked plan without ingesting. Prints a metadata-aware spend estimate as a range (e.g. `~$0.42 (est; $0.29-$0.63)`) and **saves the exact shortlist under an id**; preview-only spend lands in `cost_log.jsonl` as `discover_preview`.
+- `--from-preview <id>` — ingest the exact set a previous `--preview` saved, by its id. Skips query-generation and the rerank entirely, so you commit to precisely what you saw. (Mutually exclusive with `--preview` / `--from-gaps`.)
+- `--from-gaps` — derive the goal from an existing topic's coverage gaps instead of a written goal (requires `--topic`).
+- `--yes / -y` — skip the interactive confirmation / sizing menu (rigor-filtered auto-ingest)
 - `--goal-file` — load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
 
 Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, and curated site seeds are ranked in the same pool — a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are seed-driven: `discover` does not web-search for pages, it reranks the exact URLs you provide in `--site-seeds` and ingests the selected ones in exact-page mode.
 
-Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
+The pre-run spend estimate scales per-video cost by duration and **self-calibrates** against your `cost_log.jsonl` history (per-source rates from clean single-source runs, falling back to defaults when history is thin), so it sharpens as you use the tool. Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
 
 ## YouTube: Stay current on a topic
 
@@ -65,6 +70,8 @@ distill latest "Claude Code leak analysis" --topic claude-code-leak --hours 20 -
 ```
 
 `distill latest` defaults to a date-first, Shorts-inclusive, multi-query discovery pass tuned for stay-current workflows. `--hours` gives sub-day precision. For rumor-heavy or April 1 style topics, the selector leans skeptical (favors concrete evidence terms).
+
+`--rigor strict|balanced|loose|off` adds a quality bar on the rerank score (video thresholds 0.6 / 0.4 / 0.25), dropping weak picks before the channel cap; default `off` (unchanged behavior), and it needs the LLM rerank — under `--no-rerank` / `--top-by-date` an explicit bar is skipped with a warning. The thresholds are calibrated per command (lower than `discover`'s, since `latest` is a single-source relevance ranker rather than a cross-source curation gate — see [`architecture.md`](architecture.md) "Rigor calibration").
 
 For strict "last N uploads in the window" semantics — bypassing both the LLM rerank and the heuristic relevance/depth mix and sorting purely by upload date — pass `--top-by-date`. Channel cap still applies, and `--rerank` is force-disabled so query-expansion spend isn't billed for output that's then ignored.
 
@@ -226,6 +233,7 @@ Flags on `distill papers`:
 - `--sort relevance|date` — arXiv candidate order before rerank (default `relevance`)
 - `--expand / --no-expand` — expand the single user query into up to six arXiv search variants via Grok (default on). Candidates are deduped by `paper_id` across variants. arXiv calls are spaced 3.5s to respect rate limits.
 - `--rerank / --no-rerank` — LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
+- `--rigor strict|balanced|loose|off` — quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` — under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
 - `--preview` — show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
 
 The default pipeline (expand + rerank + relevance-sorted) fixes the prior failure mode where generic queries like "music theory deep learning" or "automatic harmonization" pulled in unrelated subfields (physics, image processing) because arXiv's tokenizer has no concept of research intent.
