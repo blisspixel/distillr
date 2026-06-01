@@ -35,8 +35,11 @@ def analyze_site_page(
     page: SitePage,
     config: DistillConfig,
     tracker: CostTracker | None = None,
+    router_config: RouterConfig | None = None,
 ) -> str:
-    rc = RouterConfig()
+    """Analyze a site page. ``router_config`` lets a caller (e.g. the eval
+    harness) force a specific model/provider; defaults to the configured routing."""
+    rc = router_config or RouterConfig()
     prompt = site_page_insight_prompt(
         page.title,
         page.url,
