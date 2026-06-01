@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.5 - 2026-06-01
+
+**Cost estimates and budget guardrails recalibrated to the actual default model.** The pricing *registry* (`distill/llm/cost.py`) was already correct and current (verified against June-2026 rates: grok-4.3 $1.25/$2.50, grok-4.20 $2/$6, gemini-3.1-pro $2/$12, gemini-3.5-flash $1.50/$9, Deep Research ~$2.50/$5), but the cost *estimates* still used the retired `grok-4-1-fast` rate (~$0.006/video) while `config.py` defaults every workload to `grok-4.3` (~$0.03/video). So pre-run estimates — including the `--max-run-cost` / `--monthly-budget` projections — under-counted real spend ~5×, and the budget guard fired too late.
+
+- **Estimates now derive from the pricing registry, not hard-coded dollars.** New `_STAGE_TOKENS` + `estimate_stage_cost(stage)` in `distill/pipeline/costs.py` compute each stage's cost from representative token volumes × the current default model's pricing, so the estimate tracks the model and can never silently drift again. Rewired `estimate_run_cost`, `estimate_discover_cost` defaults, `estimate_topic_watch_cost` / `estimated_topic_watch_sweep` (the budget-guard projection), and `display_estimate`.
+- **Net effect:** budget projections are now accurate on grok-4.3 (a 10-video watch projects ~$0.31 + report, not ~$0.06 + report), so `--max-run-cost` and `--monthly-budget` actually protect. The 0.9.1 self-calibrating estimator still overrides these with measured rates once a topic has history; these are the model-accurate cold-start fallback.
+- **Docs:** `cost.md` per-stage table, example runs, and budget guidance recomputed at grok-4.3; README cost section and sample-run figure corrected (the $1.01 sample was grok-4.20 pricing; at the grok-4.3 default the same run is ~$0.58). The retired fast tier remains selectable via `XAI_FAST_MODEL` for users who want bulk-cheap over fidelity.
+
 ## 0.9.4 - 2026-06-01
 
 **`--rigor` across `discover` / `papers` / `latest`, on calibrated thresholds.** The quality-bar knob that only `discover` had now works on the single-source commands too — drops reranked candidates below a `final_score` floor before the per-source limit. This completes the 0.9 discovery-loop close-out.

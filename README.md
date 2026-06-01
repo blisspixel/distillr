@@ -17,7 +17,7 @@ pip install distillr
 distill papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
-That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and roughly ~$1 in model spend. Terminal output during the run looks like this:
+That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this:
 
 ```
 Papers: temporal knowledge graph
@@ -28,7 +28,7 @@ Topic: tkg | Selected papers: 20
   [2/20] Inductive Reasoning for Temporal Knowledge Graphs with Emerging Entities
   ...
 
-  6m 47s  ~$1.01 (391,278 in / 38,117 out)
+  6m 47s  ~$0.58 (391,278 in / 38,117 out)
 
   time_is_not_a_label_260411544_Paper.md     90.4 KB
   time_is_not_a_label_260411544_Insights.md   8.1 KB
@@ -207,7 +207,7 @@ Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/
 
 ## Cost
 
-Bulk video analysis is essentially free (~$0.006/video). Gemini Deep Research dominates paid reports (~$2–3/report). `distill synthesize` is ~$0.50 for a multi-topic corpus pass. Every run logs actual vs estimated cost to `library/cost_log.jsonl`; `distill costs` shows the history.
+On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. (The retired `grok-4-1-fast` tier was ~5× cheaper at ~$0.006/video and is still selectable via `.env` if you want bulk-cheap over fidelity.) Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

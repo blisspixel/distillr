@@ -267,8 +267,15 @@ def test_topic_watch_estimation_helpers(config):
     )
     watches = lib.get_topic_watchlist()
 
-    assert round(estimate_topic_watch_cost(watches[0]), 2) == 2.61
-    assert round(estimated_topic_watch_sweep(watches), 2) == 2.64
+    from distill.pipeline.costs import estimate_stage_cost, report_deep_research_estimate
+
+    video = estimate_stage_cost("video_full")
+    report = report_deep_research_estimate()
+    # watches[0]: limit 10 + report; watches[1]: limit 5, no report.
+    assert round(estimate_topic_watch_cost(watches[0]), 4) == round(10 * video + report, 4)
+    assert round(estimated_topic_watch_sweep(watches), 4) == round(
+        10 * video + report + 5 * video, 4
+    )
 
 
 def test_corpus_counting_and_recent_artifacts(config):
