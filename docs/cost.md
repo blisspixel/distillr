@@ -66,6 +66,8 @@ Add `distill research-brief` (~$3–5) only if you want web-augmented cross-topi
 
 Previewing first (`--preview`) stops after the rerank step and costs **~$0.04–0.05**. That's the point of preview — sanity-check the shortlist for pennies before committing.
 
+The pre-run estimate shown under a discover preview (and per option in the fresh-topic sizing menu) is **metadata-aware and self-calibrating**: per-video cost scales with the candidate's duration, and the per-source rates are derived from clean single-source runs in your own `cost_log.jsonl` (falling back to the defaults above when history is thin). It's reported as an honest range, e.g. `~$0.42 (est; $0.29-$0.63)`, that narrows as calibration data accrues — so the number tracks *your* model and content mix rather than a fixed table.
+
 ## Budget guidance
 
 - Bulk video analysis is essentially free. 1,000 videos costs ~$6.
