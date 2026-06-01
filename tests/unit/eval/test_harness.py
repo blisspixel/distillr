@@ -123,6 +123,40 @@ def test_estimate_local_only_is_free():
     assert est == 0.0
 
 
+def test_phase1_is_model_outer_to_avoid_vram_thrash(monkeypatch):
+    # Analysis must process all of one model's fixtures before the next model, so
+    # a local model stays loaded in VRAM instead of being swapped every fixture.
+    monkeypatch.setattr(harness_mod, "judge_pairwise", lambda *a, **k: None)
+    calls: list = []
+    run_model_eval("paper", ["m1", "m2"], anchor="m1", analyze=_fake_analyze_factory(calls))
+    models_in_call_order = [model for (_fid, model) in calls]
+    assert models_in_call_order == ["m1", "m1", "m1", "m2", "m2", "m2"]
+
+
+def test_failed_judge_verdict_is_not_cached(tmp_path, monkeypatch):
+    # A transient judge failure (None) must not be cached — otherwise every rerun
+    # reuses the failure instead of re-judging. First run fails; second succeeds.
+    state = {"n": 0}
+
+    def judge(src, cand, anchor, **k):
+        state["n"] += 1
+        if state["n"] <= 3:  # first run's 3 fixtures all fail
+            return None
+        return PairwiseResult(win_rate=0.7, comparisons=2, rationale="ok")
+
+    monkeypatch.setattr(harness_mod, "judge_pairwise", judge)
+    fake = _fake_analyze_factory([])
+    r1 = run_model_eval(
+        "paper", ["grok-4.3", "qwen3.5:27b"], anchor="grok-4.3", cache_dir=tmp_path, analyze=fake
+    )
+    assert all(row.pairwise_winrate is None for row in r1 if row.model == "qwen3.5:27b")
+    r2 = run_model_eval(
+        "paper", ["grok-4.3", "qwen3.5:27b"], anchor="grok-4.3", cache_dir=tmp_path, analyze=fake
+    )
+    # Analyses are cached, but the failed verdict re-ran and now succeeds.
+    assert all(row.pairwise_winrate == 0.7 for row in r2 if row.model == "qwen3.5:27b")
+
+
 def test_provider_inference():
     assert harness_mod.provider_for_model("grok-4.3") == "xai"
     assert harness_mod.provider_for_model("qwen3.5:27b") == "ollama"

@@ -17,6 +17,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from distill.eval._models import is_local as _is_local
+from distill.eval._models import provider_for_model
 from distill.eval.fixtures import Fixture, load_fixtures
 from distill.eval.judge import DEFAULT_JUDGE_MODEL, judge_pairwise
 from distill.eval.scoring import QualityScore, score_output
@@ -32,14 +34,6 @@ __all__ = ["EvalRow", "estimate_eval_cost", "provider_for_model", "run_model_eva
 
 # Analysis LLM calls per workload (video is 2-pass).
 _CALLS_PER_WORKLOAD: dict[str, int] = {"paper": 1, "video": 2, "site": 1}
-# Providers with no per-token API cost — local inference is free, so it must be
-# priced at $0 (the cost registry would otherwise fall back to the cloud default
-# rate and erase the whole point of evaluating a local model).
-_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio"})
-
-
-def _is_local(model: str) -> bool:
-    return provider_for_model(model) in _LOCAL_PROVIDERS
 
 
 def estimate_eval_cost(
@@ -80,20 +74,6 @@ class EvalRow:
     judge_rationale: str = ""
     cached: bool = False
     error: str = ""  # non-empty when analysis failed (timeout / provider error)
-
-
-def provider_for_model(model: str) -> str:
-    """Infer the provider from a model id (anything unrecognized is treated local)."""
-    m = model.lower()
-    if m.startswith("grok"):
-        return "xai"
-    if m.startswith(("gemini", "deep-research")):
-        return "gemini"
-    if m.startswith("claude"):
-        return "anthropic"
-    if m.startswith(("gpt", "o1", "o3")):
-        return "openai"
-    return "ollama"
 
 
 def _call(
@@ -248,7 +228,10 @@ def _pairwise(
         return None, ""
     win_rate = result.win_rate if result else None
     rationale = result.rationale if result else ""
-    _save_json(cache_dir, key, {"win_rate": win_rate, "rationale": rationale})
+    # Don't cache a failed verdict (None) — otherwise a transient judge failure is
+    # frozen in and every rerun reuses it instead of re-judging.
+    if win_rate is not None:
+        _save_json(cache_dir, key, {"win_rate": win_rate, "rationale": rationale})
     return win_rate, rationale
 
 
@@ -272,10 +255,12 @@ def run_model_eval(
     runner = analyze or _run_analysis
     fixtures = load_fixtures(workload)
 
-    # Phase 1: analysis for every (fixture, model).
+    # Phase 1: analysis for every (model, fixture). Model-outer on purpose — a
+    # local model then stays loaded in VRAM across its fixtures instead of being
+    # swapped in/out every fixture (which thrashes a single-GPU box).
     analyses: dict[tuple[str, str], _Analysis] = {}
-    for fixture in fixtures:
-        for model in models:
+    for model in models:
+        for fixture in fixtures:
             analyses[(model, fixture.id)] = _analyze(model, fixture, runner, run_tracker, cache_dir)
 
     # Phase 2: pairwise judge each candidate vs the anchor's output, then score.

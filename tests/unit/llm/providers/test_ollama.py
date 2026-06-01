@@ -538,3 +538,34 @@ class TestOllamaProviderInit:
         with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://env:8888"}):
             provider = OllamaProvider()
         assert provider._base_url == "http://env:8888"
+
+
+class TestAdaptiveNumCtx:
+    """num_ctx is sized to the prompt, not the model's (possibly huge) default —
+    so a 262144-context model doesn't allocate a KV cache that spills VRAM to CPU."""
+
+    def test_tiny_prompt_uses_floor_not_model_default(self) -> None:
+        import asyncio
+
+        provider = OllamaProvider()
+        provider.get_context_window = AsyncMock(return_value=262144)  # huge default
+        ctx = asyncio.run(provider._adaptive_num_ctx("qwen3.6:27b", "short prompt", 800))
+        assert ctx == 4096  # floor — nowhere near 262144
+
+    def test_large_prompt_grows_but_caps_at_model_max(self) -> None:
+        import asyncio
+
+        provider = OllamaProvider()
+        provider.get_context_window = AsyncMock(return_value=8192)
+        big = "x" * 400_000  # ~100k token estimate, far over the model max
+        ctx = asyncio.run(provider._adaptive_num_ctx("small-ctx:7b", big, 8192))
+        assert ctx == 8192  # capped at the model's max context
+
+    def test_scales_with_prompt_when_under_model_max(self) -> None:
+        import asyncio
+
+        provider = OllamaProvider()
+        provider.get_context_window = AsyncMock(return_value=262144)
+        big = "x" * 200_000  # ~65k token estimate
+        ctx = asyncio.run(provider._adaptive_num_ctx("qwen3.6:27b", big, 8192))
+        assert 60_000 < ctx < 262_144  # sized to need, well under the default

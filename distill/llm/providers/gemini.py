@@ -34,6 +34,7 @@ class GeminiProvider:
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
+        reasoning_effort: str | None = None,  # accepted for provider-interface parity; unused
     ) -> LLM_Response:
         """Send a prompt to Google Gemini and return an LLM_Response.
 

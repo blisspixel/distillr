@@ -22,6 +22,7 @@ class AnthropicProvider:
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
+        reasoning_effort: str | None = None,
     ) -> LLM_Response:
         """Raise NotImplementedError with install hint."""
         raise NotImplementedError(
