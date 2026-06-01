@@ -77,7 +77,12 @@ def summarize(
     rows: list[EvalRow], *, anchor: str, threshold: float = DEFAULT_THRESHOLD
 ) -> EvalSummary:
     """Aggregate per-model and pick the cheapest model clearing threshold x anchor."""
-    workload = rows[0].workload if rows else ""
+    # Label honestly: one workload shows its name; a mixed set (``--workload all``)
+    # says "all (paper+video+site)" rather than mislabeling as the first fixture's.
+    distinct = sorted({r.workload for r in rows})
+    workload = (
+        distinct[0] if len(distinct) == 1 else f"all ({'+'.join(distinct)})" if distinct else ""
+    )
     by_model: dict[str, list[EvalRow]] = {}
     for row in rows:
         by_model.setdefault(row.model, []).append(row)

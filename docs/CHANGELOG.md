@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.10 - 2026-06-01
+
+**Honest workload label for `--workload all`.** The summary table took its label from the first fixture, so an all-workloads run (paper+video+site pooled) was mislabeled "paper." It now reads `all (paper+site+video)` when the rows span multiple workloads, and keeps the single workload's name otherwise. Found running the first full-coverage validation.
+
 ## 0.9.9 - 2026-06-01
 
 **GPU-adaptive local inference + a working neutral judge (all found via real eval runs).** Driving `distill eval` against actual local models and a cross-vendor judge surfaced a chain of integration bugs that unit tests can't see; each is fixed and tested. End state: a free local model (gemma4:26b) validated as competitive with grok-4.3 on the paper workload under a neutral gemini judge (win-rate 0.58), all on a 24 GB GPU.
