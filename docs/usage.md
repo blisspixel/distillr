@@ -307,6 +307,8 @@ Flags:
 - `--no-cache` — re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
 - `--yes` — skip the pre-run cost confirmation
 
+**Local is optional and cross-platform.** The eval (and all of distill) runs cloud-only on any OS — local models are an opt-in cost lever, not a requirement. When you do eval local models, the VRAM-fit guard reads NVIDIA VRAM (`nvidia-smi`) or Apple Silicon unified memory; on AMD/Intel/CPU-only or any machine where VRAM can't be probed it doesn't block — it just notes that local will run on CPU (slow). Cloud models are never affected by the local-hardware check.
+
 Every run also appends one row per `(model, fixture)` to `library/.distill/eval/results.jsonl` (scores, win-rate, cost) so you can track quality and cost **drift over time** as models change.
 
 The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A **tentative** confidence means don't switch yet — the recommended model's worst fixture dipped below the bar or the judge favored the anchor. (Quick local-only check: `distill doctor --eval --model <name>`.)

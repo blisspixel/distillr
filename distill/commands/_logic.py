@@ -8480,20 +8480,15 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     if anchor not in model_list:
         model_list.insert(0, anchor)
 
-    # GPU-adaptive guard: a local model whose weights exceed VRAM will spill to
-    # CPU (slow / flaky). Skip such models by default rather than thrash.
+    # GPU-adaptive guard (portable: NVIDIA/AMD VRAM, Apple unified memory, or
+    # gracefully skipped when none is detected). Cloud models are never affected.
     from distill.doctor.hardware import detect_hardware
 
+    local_models = [m for m in model_list if provider_for_model(m) in ("ollama", "lmstudio")]
     vram = detect_hardware().vram_gb
-    if vram > 0:
+    if vram > 0 and local_models:
         sizes = _ollama_model_sizes()
-        oversized = [
-            m
-            for m in model_list
-            if provider_for_model(m) in ("ollama", "lmstudio")
-            and sizes.get(m, 0.0) > vram
-            and m != anchor
-        ]
+        oversized = [m for m in local_models if sizes.get(m, 0.0) > vram and m != anchor]
         for m in oversized:
             console.print(
                 f"[yellow]{m} (~{sizes[m]:.0f}GB) exceeds your {vram:.0f}GB VRAM — it would "
@@ -8504,6 +8499,13 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
             console.print(
                 "[dim]Skipped the above (pass --allow-oversized to run them anyway).[/dim]"
             )
+    elif vram <= 0 and local_models:
+        # No usable GPU detected (CPU-only, AMD/Intel without a VRAM probe, etc.).
+        # Don't block — local just runs on CPU (slow). Cloud models are unaffected.
+        console.print(
+            "[dim]No GPU VRAM detected — local models will run on CPU (slow); "
+            "cloud models are unaffected.[/dim]"
+        )
 
     config = get_config()
     needs_xai = provider_for_model(judge) == "xai" or any(

@@ -151,6 +151,35 @@ def test_eval_allow_oversized_keeps_the_model(mock_config, monkeypatch):
     assert "huge:70b" in captured["models"]  # forced in
 
 
+def _mock_no_gpu(monkeypatch):
+    from distill.doctor import hardware
+
+    profile = hardware.HardwareProfile(
+        gpu_type="none", gpu_name="", vram_gb=0.0, system_ram_gb=16.0, is_container=False
+    )
+    monkeypatch.setattr(hardware, "detect_hardware", lambda: profile)
+
+
+def test_eval_notes_cpu_when_no_gpu_and_local_requested(mock_config, monkeypatch):
+    _mock_no_gpu(monkeypatch)
+    _patch_eval(monkeypatch)
+    result = runner.invoke(
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3,qwen3.5:27b", "--yes"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "run on CPU" in result.output  # local requested, no GPU -> informed, not blocked
+
+
+def test_eval_no_cpu_note_when_cloud_only(mock_config, monkeypatch):
+    _mock_no_gpu(monkeypatch)
+    _patch_eval(monkeypatch)
+    result = runner.invoke(
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "run on CPU" not in result.output  # cloud-only is unaffected by GPU absence
+
+
 def test_eval_rejects_unknown_workload(mock_config):
     result = runner.invoke(cli.app, ["eval", "--workload", "bogus", "--yes"])
     assert result.exit_code == 1
