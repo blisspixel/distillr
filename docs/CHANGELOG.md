@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.8 - 2026-06-01
+
+**`distill eval` hardened from real cloud+local validation runs.** A first real run (grok-4.3 vs a local Ollama model, < $0.05 total) surfaced two bugs that only show up against live providers; both are fixed and tested.
+
+- **Fault isolation.** A single slow/failed call (a local model's cold-load timing out) crashed the entire sweep. Now each `(model, fixture)` is isolated: a failure is logged, the row is flagged `error` (excluded from scoring but counted), and the run still completes with a table. Added `timeout=600` for local cold-loads, and graceful pairwise-judge failure. If the anchor itself fails everywhere, the run reports "no valid output" instead of recommending.
+- **Local inference is now correctly free.** The cost registry was pricing local models (e.g. `qwen3.5:27b`) at the grok-4.3 fallback rate — erasing the entire cost advantage of running local. Local-provider analysis is now **$0** in both the pre-run estimate and the per-row cost (and kept off the run's cost ledger).
+- The validation also confirmed the design works end-to-end: a local model scored *higher* on the deterministic dimensions (0.98 vs 0.92) but lost the pairwise judge (win-rate 0.00), so the recommendation correctly came back **`tentative`** — the confidence flag prevented a wrong switch to the weaker model. Tests added for graceful degradation, errored-anchor handling, and local-priced-at-zero.
+
 ## 0.9.7 - 2026-06-01
 
 **`distill eval` rebuilt to a real release-gate standard.** Before spending money on model comparisons, the eval was hardened against the failure modes that make a cheap eval give an expensive-to-act-on wrong answer (grounded in the 2026 LLM-as-judge literature — position/verbosity/self-preference bias, statistical significance, pairwise > pointwise for gate decisions).

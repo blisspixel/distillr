@@ -37,6 +37,7 @@ class ModelSummary:
     mean_winrate: float | None  # vs anchor; None for the anchor itself / no judge
     total_cost: float
     rows: int
+    errors: int = 0  # fixtures where this model's analysis failed (excluded from scores)
 
 
 @dataclass(frozen=True)
@@ -55,8 +56,11 @@ def _mean(values: list[float]) -> float:
 
 
 def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
-    composites = [r.quality.composite for r in rows]
-    winrates = [r.pairwise_winrate for r in rows if r.pairwise_winrate is not None]
+    # Errored fixtures (timeout / provider failure) are excluded from quality
+    # aggregation but counted, so a flaky model can't look good by omission.
+    ok = [r for r in rows if not r.error]
+    composites = [r.quality.composite for r in ok]
+    winrates = [r.pairwise_winrate for r in ok if r.pairwise_winrate is not None]
     return ModelSummary(
         model=model,
         mean_composite=_mean(composites),
@@ -64,7 +68,8 @@ def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
         max_composite=max(composites) if composites else 0.0,
         mean_winrate=_mean(winrates) if winrates else None,
         total_cost=sum(r.cost for r in rows),
-        rows=len(rows),
+        rows=len(ok),
+        errors=sum(1 for r in rows if r.error),
     )
 
 
@@ -86,9 +91,12 @@ def summarize(
     reason = ""
     if anchor_summary is None:
         reason = f"anchor '{anchor}' not in results"
+    elif anchor_summary.rows == 0:
+        reason = f"anchor '{anchor}' produced no valid output ({anchor_summary.errors} error(s))"
     else:
         bar = threshold * anchor_summary.mean_composite
-        clearing = [s for s in summaries if s.mean_composite >= bar]
+        # Only models that produced valid output on at least one fixture are eligible.
+        clearing = [s for s in summaries if s.rows > 0 and s.mean_composite >= bar]
         rec = min(clearing, key=lambda s: (s.total_cost, -s.mean_composite))
         recommended = rec.model
         confidence, reason = _confidence(rec, anchor_summary, bar)
@@ -106,6 +114,11 @@ def summarize(
 
 def _confidence(rec: ModelSummary, anchor: ModelSummary, bar: float) -> tuple[str, str]:
     """Deterministic confidence in the recommendation (advisory signals only)."""
+    if rec.errors > 0:
+        return (
+            "tentative",
+            f"{rec.model} failed on {rec.errors} fixture(s) — rerun before trusting the pick",
+        )
     if rec.model == anchor.model:
         return "high", "recommends the anchor — nothing cheaper clears the bar"
     if rec.min_composite < bar:
@@ -142,6 +155,8 @@ def console_lines(summary: EvalSummary) -> list[str]:
             tag += "  (anchor)"
         if s.model == summary.recommended:
             tag += "  <- recommended"
+        if s.errors:
+            tag += f"  [{s.errors} err]"
         lines.append(
             f"  {s.model:<26} {s.mean_composite:>6.2f} {s.min_composite:>6.2f} "
             f"{_winrate_str(s, summary.anchor):>6} {'$' + format(s.total_cost, '.4f'):>9}{tag}"
@@ -201,6 +216,8 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
             marks.append("anchor")
         if s.model == summary.recommended:
             marks.append("**recommended**")
+        if s.errors:
+            marks.append(f"{s.errors} error(s)")
         suffix = f" ({', '.join(marks)})" if marks else ""
         out.append(
             f"| `{s.model}`{suffix} | {s.mean_composite:.2f} | {s.min_composite:.2f} "
