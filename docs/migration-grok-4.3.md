@@ -1,6 +1,6 @@
 # Grok 4.3 Migration Guide
 
-xAI is retiring several models from the API effective **May 15, 2026 at 12:00pm PT**. After that date, requests to retired models will fail. This guide covers what you need to change.
+xAI retired several models from the API effective **May 15, 2026 at 12:00pm PT**. As of that date, requests to the retired slugs **redirect to `grok-4.3`** (or `grok-build-0.1` for `grok-code-fast-1`) and are **billed at the redirect target's rates** ($1.25/$2.50 for grok-4.3) — so they keep working but at grok-4.3 pricing, not the original cheaper rate. The slugs are expected to stop resolving entirely after a further deprecation window. This guide covers what you need to change.
 
 ## Retired Models
 

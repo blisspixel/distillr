@@ -207,7 +207,7 @@ Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/
 
 ## Cost
 
-On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. (The retired `grok-4-1-fast` tier was ~5× cheaper at ~$0.006/video and is still selectable via `.env` if you want bulk-cheap over fidelity.) Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it.
+On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor — xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The only cheaper path is running analysis on a **local model** (Ollama/LM Studio) — `distill doctor --eval --model <name>` measures whether a local model clears the quality bar before you switch. Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

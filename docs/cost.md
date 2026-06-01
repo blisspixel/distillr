@@ -2,7 +2,7 @@
 
 Distill runs on a mix of free and paid stages. YouTube captions and local PDF extraction are free. Model calls are metered per-token by xAI (Grok) and per-query by Google (Gemini Deep Research).
 
-Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table — and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. The retired `grok-4-1-fast` tier ($0.20/$0.50) was ~5× cheaper and is still selectable via `.env` if you prefer bulk-cheap over fidelity.
+Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table — and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. grok-4.3 is the **cloud floor**: xAI retired the cheaper fast tiers (grok-4-1-fast, grok-4-fast, grok-3, …) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](migration-grok-4.3.md)). To go cheaper than grok-4.3 you run analysis on a **local model** (Ollama/LM Studio, $0 marginal) — validate it first with `distill doctor --eval --model <name>`.
 
 ## Per-stage cost
 
@@ -72,7 +72,7 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
 
 ## Budget guidance
 
-- Bulk video analysis is cheap but not free on grok-4.3: ~$0.03/video, so 1,000 videos costs ~$31. (On the retired `grok-4-1-fast` tier it was ~$6 — set `XAI_FAST_MODEL=grok-4-1-fast-reasoning` in `.env` if you want that trade-off.)
+- Bulk video analysis is cheap but not free on grok-4.3: ~$0.03/video, so 1,000 videos costs ~$31. There is no cheaper xAI cloud tier anymore (the fast tiers retired 2026-05-15); to drive bulk cost toward $0, run analysis on a local model (`DISTILL_PROVIDER=ollama`) once `distill doctor --eval` confirms it meets the quality bar.
 - Gemini Deep Research dominates the bill at $2–3 per report.
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis because it's single-call Grok with no Deep Research involvement.
 - Budget ~$15–20 per topic per quarter as a safe upper bound for a channel-heavy workflow on grok-4.3.
@@ -95,8 +95,8 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | Model | Input | Output | Context | Used for |
 |---|---|---|---|---|
 | `grok-4.3` | $1.25/1M | $2.50/1M | 1M | Default for all workloads (analysis, reranking, synthesis, briefs, papers, sites, report section writing) |
-| `grok-4-1-fast-reasoning` | $0.20/1M | $0.50/1M | 2M | Legacy fast tier (still supported via env override) |
-| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Legacy premium tier (still supported via env override) |
+| `grok-4-1-fast-reasoning` | — | — | — | **Retired 2026-05-15**; slug redirects to grok-4.3 and bills at grok-4.3 rates. distillr auto-substitutes it (the $0.20/$0.50 entry in the registry is kept only to price pre-retirement `cost_log.jsonl` rows). |
+| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Still available; selectable via env override for higher-fidelity passes |
 | `deep-research-preview-04-2026` | pay-as-you-go | ~$2–5/query | N/A | Report Phase 1, `distill research-brief` |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19) |
 
