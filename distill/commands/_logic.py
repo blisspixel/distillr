@@ -8384,7 +8384,7 @@ def site_batch_cmd(
 
 
 @app.command(name="eval", rich_help_panel="Maintain")
-def eval_cmd(
+def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + results log
     workload: str = typer.Option("all", "--workload", "-w", help="paper | video | site | all"),
     models: str = typer.Option(
         "grok-4.3",
@@ -8392,15 +8392,20 @@ def eval_cmd(
         "-m",
         help="Comma-separated model ids to compare (e.g. grok-4.3,qwen3.5:27b)",
     ),
+    anchor: str = typer.Option(
+        "grok-4.3",
+        "--anchor",
+        help="Incumbent/reference model the others are compared against (added to --models if absent)",
+    ),
     judge: str = typer.Option(
         "grok-4.3",
         "--judge",
-        help="Advisory judge model; skipped for a candidate it equals (no self-judging)",
+        help="Advisory pairwise judge (order-randomized vs the anchor); advisory only",
     ),
     threshold: float = typer.Option(
         0.90,
         "--threshold",
-        help="Recommend the cheapest model whose quality >= threshold x the anchor's",
+        help="Recommend the cheapest model whose mean quality >= threshold x the anchor's",
     ),
     report: bool = typer.Option(
         False, "--report", help="Write the cost x quality table to .distill/eval/<workload>_<ts>.md"
@@ -8412,23 +8417,28 @@ def eval_cmd(
 ):
     """Compare models on cost x quality over frozen fixtures; recommend the cheapest that clears the bar.
 
-    The advisory LLM-judge contributes a capped weight; the pass threshold and the
-    recommended pick are deterministic. It recommends — it never switches your
-    configured model. To go cheaper than the grok-4.3 cloud floor, eval a local
-    model (e.g. `--models grok-4.3,qwen3.5:27b` with Ollama running).
+    The recommendation is deterministic (cheapest model whose mean composite clears
+    threshold x the anchor). The pairwise LLM-judge is advisory — order-randomized
+    against the anchor, it only sets the confidence flag, never the pick. It
+    recommends; it never switches your configured model. To go cheaper than the
+    grok-4.3 cloud floor, eval a local model (e.g. `--models grok-4.3,qwen3.5:27b`
+    with Ollama running).
     """
     from datetime import datetime
 
     from distill.eval import (
         WORKLOADS,
         console_lines,
+        estimate_eval_cost,
+        judge_shares_family,
         load_fixtures,
         render_markdown,
+        results_log_lines,
         run_model_eval,
         summarize,
     )
     from distill.eval.harness import provider_for_model
-    from distill.pipeline.costs import CostTracker, estimate_stage_cost, save_run_log
+    from distill.pipeline.costs import CostTracker, save_run_log
 
     _preflight()
     valid = (*WORKLOADS, "all")
@@ -8439,6 +8449,9 @@ def eval_cmd(
     if not model_list:
         console.print("[red]No models given. Pass --models grok-4.3,<other>.[/red]")
         raise typer.Exit(1)
+    # The anchor must be in the run so candidates have something to compare against.
+    if anchor not in model_list:
+        model_list.insert(0, anchor)
 
     config = get_config()
     needs_xai = provider_for_model(judge) == "xai" or any(
@@ -8451,16 +8464,19 @@ def eval_cmd(
     if not fixtures:
         console.print(f"[yellow]No fixtures for workload '{workload}'.[/yellow]")
         raise typer.Exit(1)
-    stage = {"paper": "paper", "video": "video_full", "site": "site_page"}
-    analysis_est = sum(estimate_stage_cost(stage[f.workload]) for f in fixtures) * len(model_list)
-    est = analysis_est * 1.4  # rough allowance for the advisory judge calls
+
+    est = estimate_eval_cost(fixtures, model_list, anchor=anchor, judge_model=judge)
     console.print(
         f"[bold]Model eval[/bold]: {len(model_list)} model(s) x {len(fixtures)} fixture(s) "
-        f"({workload}). Judge: {judge}."
+        f"({workload}). Anchor: {anchor}. Judge: {judge}."
     )
-    console.print(
-        f"[dim]Estimated spend ~${est:.2f} (analysis + judge), at default-model pricing.[/dim]"
-    )
+    console.print(f"[dim]Estimated spend ~${est:.2f}.[/dim]")
+    if judge_shares_family(judge, anchor):
+        console.print(
+            "[dim]Note: the judge shares the anchor's family, so the pairwise comparison is "
+            "conservative (favors the anchor). Pass --judge <neutral-model> for an unbiased "
+            "head-to-head; the recommendation itself is deterministic and unaffected.[/dim]"
+        )
     if not yes and not typer.confirm("Run the eval?", default=True):
         console.print("[yellow]Aborted.[/yellow]")
         raise typer.Exit(0)
@@ -8468,17 +8484,24 @@ def eval_cmd(
     tracker = CostTracker()
     cache_dir = None if no_cache else (config.library_dir / ".distill" / "eval_cache")
     rows = run_model_eval(
-        workload, model_list, judge_model=judge, tracker=tracker, cache_dir=cache_dir
+        workload, model_list, anchor=anchor, judge_model=judge, tracker=tracker, cache_dir=cache_dir
     )
-    summary = summarize(rows, threshold=threshold)
+    summary = summarize(rows, anchor=anchor, threshold=threshold)
     console.print()
     for line in console_lines(summary):
         console.print(line)
 
+    # Append-only results log for drift tracking over time.
+    now = datetime.now()
+    out_dir = config.library_dir / ".distill" / "eval"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / "results.jsonl").open("a", encoding="utf-8") as f:
+        for line in results_log_lines(
+            rows, now_iso=now.isoformat(), anchor=anchor, judge_model=judge
+        ):
+            f.write(line + "\n")
+
     if report:
-        out_dir = config.library_dir / ".distill" / "eval"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        now = datetime.now()
         path = out_dir / f"{workload}_{now.strftime('%Y%m%dT%H%M%S')}.md"
         path.write_text(render_markdown(summary, now_iso=now.isoformat()), encoding="utf-8")
         console.print(f"\n[dim]Report written to {path}[/dim]")

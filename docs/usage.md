@@ -294,19 +294,22 @@ distill eval --models grok-4.3,qwen3.5:27b
 distill eval --workload paper --models grok-4.3,qwen3.5:27b --report --yes
 ```
 
-It runs each model over frozen golden fixtures (one per analysis workload: paper / video / site), scores each output on deterministic dimensions (structure, depth, concept coverage vs the golden, formatting) **plus an advisory LLM-judge** (faithfulness / depth / coverage), attaches the real per-run cost from the pricing registry, and prints a cost × quality table with a **recommendation**: the cheapest model whose mean quality clears `--threshold` (default 0.90) of the best ("anchor") model's.
+It runs each model over frozen golden fixtures (3 per analysis workload: paper / video / site) at `temperature=0`, scores each output on **deterministic dimensions** (structure, verbosity-resistant depth, concept coverage vs the golden, formatting), and judges each candidate **pairwise against the anchor** with order-randomized comparisons (both A/B orderings, so position bias cancels). It attaches real per-run cost, prints a cost × quality table, and gives a **recommendation with a confidence flag**: the cheapest model whose mean composite clears `--threshold` (default 0.90) of the anchor's. The pairwise judge and the per-fixture spread feed only *confidence* — the pick is deterministic.
 
 Flags:
 
 - `--workload paper|video|site|all` — which fixtures to run (default `all`)
 - `--models a,b,c` — comma-separated model ids; provider is inferred (grok → xAI, anything unrecognized → local Ollama)
-- `--judge <model>` — advisory judge (default `grok-4.3`); it is **skipped** for any candidate it equals (no self-judging), and its score contributes only a capped weight — the recommendation itself is deterministic
-- `--threshold 0.9` — recommend the cheapest model whose quality ≥ threshold × anchor
+- `--anchor <model>` — the incumbent/reference everything is compared against (default `grok-4.3`; added to `--models` if absent)
+- `--judge <model>` — advisory pairwise judge (default `grok-4.3`). When it shares the anchor's family the comparison is *conservative* (favors the anchor) and a caveat prints — pass a neutral judge for an unbiased head-to-head. Advisory only; never changes the pick.
+- `--threshold 0.9` — recommend the cheapest model whose mean composite ≥ threshold × anchor
 - `--report` — write the table to `library/.distill/eval/<workload>_<ts>.md`
 - `--no-cache` — re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
 - `--yes` — skip the pre-run cost confirmation
 
-The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). Re-run it whenever a new model lands. (Quick local-only check: `distill doctor --eval --model <name>`.)
+Every run also appends one row per `(model, fixture)` to `library/.distill/eval/results.jsonl` (scores, win-rate, cost) so you can track quality and cost **drift over time** as models change.
+
+The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A **tentative** confidence means don't switch yet — the recommended model's worst fixture dipped below the bar or the judge favored the anchor. (Quick local-only check: `distill doctor --eval --model <name>`.)
 
 ## Research briefings and deep synthesis
 
