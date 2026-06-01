@@ -282,6 +282,32 @@ distill report ai --test                            # cheaper, faster validation
 
 See [architecture.md](architecture.md) for how the 4 phases interact.
 
+## Evaluate models (cost × quality)
+
+Models change fast and there is no cheap xAI cloud tier anymore (the fast tiers retired 2026-05-15; `grok-4.3` is the cloud floor). `distill eval` measures whether a cheaper model — usually a **local** one — is good enough, instead of guessing.
+
+```bash
+# Compare the cloud floor against a local model on all workloads
+distill eval --models grok-4.3,qwen3.5:27b
+
+# One workload, write a report artifact, skip the cost prompt
+distill eval --workload paper --models grok-4.3,qwen3.5:27b --report --yes
+```
+
+It runs each model over frozen golden fixtures (one per analysis workload: paper / video / site), scores each output on deterministic dimensions (structure, depth, concept coverage vs the golden, formatting) **plus an advisory LLM-judge** (faithfulness / depth / coverage), attaches the real per-run cost from the pricing registry, and prints a cost × quality table with a **recommendation**: the cheapest model whose mean quality clears `--threshold` (default 0.90) of the best ("anchor") model's.
+
+Flags:
+
+- `--workload paper|video|site|all` — which fixtures to run (default `all`)
+- `--models a,b,c` — comma-separated model ids; provider is inferred (grok → xAI, anything unrecognized → local Ollama)
+- `--judge <model>` — advisory judge (default `grok-4.3`); it is **skipped** for any candidate it equals (no self-judging), and its score contributes only a capped weight — the recommendation itself is deterministic
+- `--threshold 0.9` — recommend the cheapest model whose quality ≥ threshold × anchor
+- `--report` — write the table to `library/.distill/eval/<workload>_<ts>.md`
+- `--no-cache` — re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
+- `--yes` — skip the pre-run cost confirmation
+
+The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). Re-run it whenever a new model lands. (Quick local-only check: `distill doctor --eval --model <name>`.)
+
 ## Research briefings and deep synthesis
 
 When the 4-phase report is the wrong shape (multi-topic literature review, stakeholder decision briefing, architectural grounding for a downstream agent), use one of these instead:

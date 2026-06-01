@@ -35,6 +35,7 @@ def analyze_paper(
     paper: PaperRecord,
     config: DistillConfig,
     tracker: CostTracker | None = None,
+    router_config: RouterConfig | None = None,
 ) -> tuple[str, str]:
     """Run per-paper analysis and return (insights_md, paper_document).
 
@@ -42,8 +43,11 @@ def analyze_paper(
     to the LLM. Falls back to abstract-only if PDF fetch/extract fails. The
     returned paper_document is the exact content the LLM saw, suitable for
     writing to the paper artifact so outputs match what was analyzed.
+
+    ``router_config`` lets a caller (e.g. the eval harness) force a specific
+    model/provider; defaults to the configured routing.
     """
-    rc = RouterConfig()
+    rc = router_config or RouterConfig()
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
     prompt = paper_insight_prompt(paper.title, paper.paper_id, document)

@@ -8383,6 +8383,110 @@ def site_batch_cmd(
         _run_scope_report(target_topic, config, tracker, scope="topic", test=test, summary=summary)
 
 
+@app.command(name="eval", rich_help_panel="Maintain")
+def eval_cmd(
+    workload: str = typer.Option("all", "--workload", "-w", help="paper | video | site | all"),
+    models: str = typer.Option(
+        "grok-4.3",
+        "--models",
+        "-m",
+        help="Comma-separated model ids to compare (e.g. grok-4.3,qwen3.5:27b)",
+    ),
+    judge: str = typer.Option(
+        "grok-4.3",
+        "--judge",
+        help="Advisory judge model; skipped for a candidate it equals (no self-judging)",
+    ),
+    threshold: float = typer.Option(
+        0.90,
+        "--threshold",
+        help="Recommend the cheapest model whose quality >= threshold x the anchor's",
+    ),
+    report: bool = typer.Option(
+        False, "--report", help="Write the cost x quality table to .distill/eval/<workload>_<ts>.md"
+    ),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Ignore the eval cache and re-run every (model, fixture)"
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the pre-run cost confirmation"),
+):
+    """Compare models on cost x quality over frozen fixtures; recommend the cheapest that clears the bar.
+
+    The advisory LLM-judge contributes a capped weight; the pass threshold and the
+    recommended pick are deterministic. It recommends — it never switches your
+    configured model. To go cheaper than the grok-4.3 cloud floor, eval a local
+    model (e.g. `--models grok-4.3,qwen3.5:27b` with Ollama running).
+    """
+    from datetime import datetime
+
+    from distill.eval import (
+        WORKLOADS,
+        console_lines,
+        load_fixtures,
+        render_markdown,
+        run_model_eval,
+        summarize,
+    )
+    from distill.eval.harness import provider_for_model
+    from distill.pipeline.costs import CostTracker, estimate_stage_cost, save_run_log
+
+    _preflight()
+    valid = (*WORKLOADS, "all")
+    if workload not in valid:
+        console.print(f"[red]Unknown --workload '{workload}'.[/red] Choose: {', '.join(valid)}.")
+        raise typer.Exit(1)
+    model_list = [m.strip() for m in models.split(",") if m.strip()]
+    if not model_list:
+        console.print("[red]No models given. Pass --models grok-4.3,<other>.[/red]")
+        raise typer.Exit(1)
+
+    config = get_config()
+    needs_xai = provider_for_model(judge) == "xai" or any(
+        provider_for_model(m) == "xai" for m in model_list
+    )
+    if needs_xai:
+        _require_api_key(config.xai_api_key, "XAI_API_KEY required for grok models / the judge")
+
+    fixtures = load_fixtures(workload)
+    if not fixtures:
+        console.print(f"[yellow]No fixtures for workload '{workload}'.[/yellow]")
+        raise typer.Exit(1)
+    stage = {"paper": "paper", "video": "video_full", "site": "site_page"}
+    analysis_est = sum(estimate_stage_cost(stage[f.workload]) for f in fixtures) * len(model_list)
+    est = analysis_est * 1.4  # rough allowance for the advisory judge calls
+    console.print(
+        f"[bold]Model eval[/bold]: {len(model_list)} model(s) x {len(fixtures)} fixture(s) "
+        f"({workload}). Judge: {judge}."
+    )
+    console.print(
+        f"[dim]Estimated spend ~${est:.2f} (analysis + judge), at default-model pricing.[/dim]"
+    )
+    if not yes and not typer.confirm("Run the eval?", default=True):
+        console.print("[yellow]Aborted.[/yellow]")
+        raise typer.Exit(0)
+
+    tracker = CostTracker()
+    cache_dir = None if no_cache else (config.library_dir / ".distill" / "eval_cache")
+    rows = run_model_eval(
+        workload, model_list, judge_model=judge, tracker=tracker, cache_dir=cache_dir
+    )
+    summary = summarize(rows, threshold=threshold)
+    console.print()
+    for line in console_lines(summary):
+        console.print(line)
+
+    if report:
+        out_dir = config.library_dir / ".distill" / "eval"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        now = datetime.now()
+        path = out_dir / f"{workload}_{now.strftime('%Y%m%dT%H%M%S')}.md"
+        path.write_text(render_markdown(summary, now_iso=now.isoformat()), encoding="utf-8")
+        console.print(f"\n[dim]Report written to {path}[/dim]")
+
+    save_run_log(config.library_dir, "eval", tracker)
+    console.print(f"[dim]Eval spend: {tracker.format_cost()}[/dim]")
+
+
 def main():
     """Entry point for the `distill` CLI command."""
     app()

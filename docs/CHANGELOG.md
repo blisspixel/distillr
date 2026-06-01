@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.6 - 2026-06-01
+
+**`distill eval` — cost × quality model selection with an advisory judge.** Models change fast and xAI's May-15 retirement left grok-4.3 as the cloud floor (no cheap fast tier), so the only way below it is a local model — and the only honest way to decide "is it good enough?" is to measure. `distill eval` sweeps candidate models over frozen golden fixtures and recommends the cheapest that clears your quality bar.
+
+- **What it does:** runs each model over one fixture per analysis workload (paper / video / site) using the *real* analysis prompts, scores each output on deterministic dimensions (structure, depth, concept-coverage vs the golden, formatting) **plus an advisory LLM-judge** (faithfulness / depth / coverage), attaches real per-run cost from the pricing registry, and prints a cost × quality table with a recommendation. `--report` writes it to `.distill/eval/`.
+- **Charter-safe by design** ([`docs/invariants.md`](../docs/invariants.md)): the judge is *advisory* — capped weight in the composite, **skipped for any candidate it equals** (no self-judging), and it never makes the call. The pass threshold and the recommended pick are deterministic. It **recommends**, never switches your model. Eval spend is cost-tracked + estimate-first; results cache by `(model, fixture, judge)` under `.distill/eval_cache/` so re-running after a model launch only runs new rows.
+- New `distill/eval/` package (`scoring`, `judge`, `fixtures`, `harness`, `report`) and a `distill eval` command (`--workload`, `--models`, `--judge`, `--threshold`, `--report`, `--no-cache`, `--yes`). `analyze_paper` / `analyze_video` / `analyze_site_page` gained an optional `router_config` param (behavior-identical default) so the harness can run the real pipeline under a forced model.
+- **Also corrects** the retired-model cost guidance from 0.9.5: the fast tiers redirect to grok-4.3 and bill at grok-4.3 rates, so there is no cheap cloud option — docs now point to `distill eval` + local models as the cheaper path.
+
 ## 0.9.5 - 2026-06-01
 
 **Cost estimates and budget guardrails recalibrated to the actual default model.** The pricing *registry* (`distill/llm/cost.py`) was already correct and current (verified against June-2026 rates: grok-4.3 $1.25/$2.50, grok-4.20 $2/$6, gemini-3.1-pro $2/$12, gemini-3.5-flash $1.50/$9, Deep Research ~$2.50/$5), but the cost *estimates* still used the retired `grok-4-1-fast` rate (~$0.006/video) while `config.py` defaults every workload to `grok-4.3` (~$0.03/video). So pre-run estimates — including the `--max-run-cost` / `--monthly-budget` projections — under-counted real spend ~5×, and the budget guard fired too late.
