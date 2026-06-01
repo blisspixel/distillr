@@ -1,50 +1,71 @@
-"""Tests for distill.eval.report (deterministic cost x quality recommendation)."""
+"""Tests for distill.eval.report (deterministic recommendation + confidence)."""
 
 from distill.eval.harness import EvalRow
-from distill.eval.report import console_lines, render_markdown, summarize
+from distill.eval.report import console_lines, render_markdown, results_log_lines, summarize
 from distill.eval.scoring import QualityScore
 
 
-def _row(model: str, composite: float, cost: float) -> EvalRow:
-    return EvalRow(
-        workload="paper",
-        fixture_id="f",
-        model=model,
-        quality=QualityScore(
-            dimensions=[], deterministic=composite, judge=None, composite=composite
-        ),
-        cost=cost,
-        input_tokens=0,
-        output_tokens=0,
-    )
+def _rows(model: str, composites: list[float], cost_each: float, winrate: float | None) -> list:
+    return [
+        EvalRow(
+            workload="paper",
+            fixture_id=f"f{i}",
+            model=model,
+            quality=QualityScore(dimensions=[], composite=c),
+            cost=cost_each,
+            input_tokens=0,
+            output_tokens=0,
+            pairwise_winrate=winrate,
+        )
+        for i, c in enumerate(composites)
+    ]
 
 
-def test_recommends_cheapest_model_clearing_the_bar():
-    # local is slightly worse but free and clears 0.90 x anchor (0.855).
-    rows = [_row("grok-4.3", 0.95, 0.30), _row("qwen3.5:27b", 0.88, 0.0)]
-    summary = summarize(rows, threshold=0.90)
-    assert summary.anchor == "grok-4.3"
+def test_recommends_cheapest_clearing_with_high_confidence():
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)  # anchor (no winrate)
+    rows += _rows("qwen3.5:27b", [0.90, 0.90, 0.90], 0.0, 0.55)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "qwen3.5:27b"
+    assert summary.confidence == "high"
 
 
-def test_falls_back_to_anchor_when_nothing_cheaper_clears():
-    rows = [_row("grok-4.3", 0.95, 0.30), _row("qwen3.5:27b", 0.70, 0.0)]
-    summary = summarize(rows, threshold=0.90)  # bar 0.855; local 0.70 fails
+def test_tentative_when_worst_fixture_dips_below_bar():
+    # mean 0.88 clears bar 0.855, but one fixture at 0.80 is below it.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
+    rows += _rows("local", [0.92, 0.92, 0.80], 0.0, 0.55)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "local"
+    assert summary.confidence == "tentative"
+    assert "worst fixture" in summary.confidence_reason
+
+
+def test_tentative_when_judge_favors_anchor():
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
+    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.30)  # clears on scores, loses to judge
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "local"
+    assert summary.confidence == "tentative"
+    assert "judge" in summary.confidence_reason
+
+
+def test_anchor_recommended_when_nothing_cheaper_clears():
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
+    rows += _rows("local", [0.70, 0.70, 0.70], 0.0, 0.40)  # fails the bar
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "grok-4.3"
+    assert summary.confidence == "high"
 
 
-def test_console_and_markdown_render_recommendation():
-    rows = [_row("grok-4.3", 0.95, 0.30), _row("qwen3.5:27b", 0.90, 0.0)]
-    summary = summarize(rows, threshold=0.90)
+def test_render_surfaces_anchor_confidence_and_winrate():
+    rows = _rows("grok-4.3", [0.95], 0.10, None) + _rows("local", [0.92], 0.0, 0.6)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     text = "\n".join(console_lines(summary))
-    assert "recommended" in text.lower()
+    assert "anchor" in text and "recommended" in text.lower()
     md = render_markdown(summary, now_iso="2026-06-01T00:00:00")
-    assert "qwen3.5:27b" in md
-    assert "Recommended" in md
-    assert "advisory" in md.lower()
-
-
-def test_empty_rows_do_not_crash():
-    summary = summarize([], threshold=0.9)
-    assert summary.recommended is None
-    assert summary.models == []
+    assert "Win-rate vs anchor" in md
+    assert "order-randomized" in md
+    log = results_log_lines(
+        rows, now_iso="2026-06-01T00:00:00", anchor="grok-4.3", judge_model="grok-4.3"
+    )
+    assert len(log) == 2
+    assert '"anchor": "grok-4.3"' in log[0]

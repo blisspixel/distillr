@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.7 - 2026-06-01
+
+**`distill eval` rebuilt to a real release-gate standard.** Before spending money on model comparisons, the eval was hardened against the failure modes that make a cheap eval give an expensive-to-act-on wrong answer (grounded in the 2026 LLM-as-judge literature — position/verbosity/self-preference bias, statistical significance, pairwise > pointwise for gate decisions).
+
+- **Pairwise, order-randomized judge.** Replaced the pointwise judge with a candidate-vs-**anchor** comparison run in **both A/B orderings** so position bias cancels; reports the candidate's win-rate. Reference-guided by construction (the anchor is the reference). When the judge shares the anchor's family the comparison is conservative (favors the anchor) and a caveat prints.
+- **Decision is fully deterministic.** The composite is the deterministic dimensions only; the judge win-rate and per-fixture spread feed a **confidence flag** (`high` / `tentative`), never the pick. `--anchor` names the incumbent/reference (default `grok-4.3`).
+- **Verbosity bias removed** from the depth dimension — full credit at a sane length, decay for padding, so a longer answer can't win on length.
+- **Statistical honesty:** 3 fixtures per workload (was 1), per-model spread (min/max) reported, and a recommendation that goes `tentative` when the recommended model's worst fixture dips below the bar or the judge favors the anchor.
+- **Observability:** `temperature=0` on analysis calls (reproducible), an append-only `.distill/eval/results.jsonl` (drift over time), and a **fixture-aware cost estimate** (the old one overshot real spend ~5–12× by pricing production-size tokens).
+
 ## 0.9.6 - 2026-06-01
 
 **`distill eval` — cost × quality model selection with an advisory judge.** Models change fast and xAI's May-15 retirement left grok-4.3 as the cloud floor (no cheap fast tier), so the only way below it is a local model — and the only honest way to decide "is it good enough?" is to measure. `distill eval` sweeps candidate models over frozen golden fixtures and recommends the cheapest that clears your quality bar.

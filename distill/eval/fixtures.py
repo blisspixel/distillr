@@ -99,10 +99,124 @@ _SITE = Fixture(
     ),
 )
 
+_PAPER2 = Fixture(
+    id="paper-retrieval",
+    workload="paper",
+    title="Late-Interaction Retrieval Without a Vector Index",
+    paper_id="2604.00002v1",
+    expected_sections=("contribution", "method", "limit"),
+    golden_concepts=("ColBERT", "BEIR", "nDCG", "MaxSim", "latency"),
+    source_text=(
+        "Dense retrieval usually pools a passage into one vector, losing token-level signal. "
+        "Late-interaction methods like ColBERT keep per-token vectors and score with MaxSim, but "
+        "the index balloons. We show a late-interaction retriever can run without a dedicated "
+        "vector index by quantizing token vectors to 2 bits and scoring over an inverted file. "
+        "On BEIR we hold 98 percent of full-precision nDCG@10 while cutting index size 8x. "
+        "End-to-end query latency drops to 41ms on a single CPU core. We do not evaluate on "
+        "long documents beyond 512 tokens, and the 2-bit quantization degrades sharply on "
+        "multilingual benchmarks we did not tune for."
+    ),
+)
+
+_PAPER3 = Fixture(
+    id="paper-distill",
+    workload="paper",
+    title="Self-Distillation Stabilizes Small Reasoning Models",
+    paper_id="2604.00003v1",
+    expected_sections=("contribution", "method", "limit"),
+    golden_concepts=("GSM8K", "self-distillation", "chain-of-thought", "perplexity", "RLHF"),
+    source_text=(
+        "Small models trained on chain-of-thought traces overfit to surface patterns and "
+        "collapse on held-out arithmetic. We propose self-distillation: the model generates "
+        "multiple reasoning traces, a verifier keeps the consistent ones, and the model is "
+        "fine-tuned on its own filtered output. On GSM8K a 3B model improves from 41 to 58 "
+        "percent exact match without any RLHF, and validation perplexity stabilizes across "
+        "epochs where the baseline diverges. The method needs a reliable verifier; on tasks "
+        "without a cheap correctness check it gives no gain, and we did not test beyond math "
+        "and short code."
+    ),
+)
+
+_VIDEO2 = Fixture(
+    id="video-agents",
+    workload="video",
+    title="Why Most Agent Frameworks Fail in Production",
+    channel="Build Real Agents",
+    expected_sections=("takeaway", "summary"),
+    golden_concepts=("tool calling", "context window", "retries", "eval", "guardrails"),
+    source_text=(
+        "Most agent demos work once and fail in production for three reasons. First, tool "
+        "calling is brittle: the model invents arguments, so you need typed schemas and a "
+        "validation layer that rejects bad calls before they run. Second, context windows fill "
+        "with stale tool results; you have to clear or compact them or the agent loses the "
+        "plot. Third, there is no eval: teams ship prompt changes blind. The fix is boring "
+        "engineering: deterministic guardrails around the model, retries with backoff on tool "
+        "failures, and a regression eval you run on every prompt change. The model is the easy "
+        "part; the harness is the product."
+    ),
+)
+
+_VIDEO3 = Fixture(
+    id="video-quant",
+    workload="video",
+    title="Running 70B Models on One Consumer GPU",
+    channel="Local LLM Weekly",
+    expected_sections=("takeaway", "summary"),
+    golden_concepts=("quantization", "VRAM", "GGUF", "throughput", "perplexity"),
+    source_text=(
+        "You can run a 70B model on a single 24GB GPU, but the tradeoffs matter. The trick is "
+        "quantization: 4-bit GGUF weights cut VRAM roughly fourfold with a small perplexity "
+        "hit, while 2-bit fits more but degrades reasoning noticeably. Offloading layers to "
+        "CPU lets a bigger model fit but throughput collapses to a few tokens per second. The "
+        "practical sweet spot today is a 4-bit quant of a 30B-class model: it fits in VRAM, "
+        "keeps perplexity close to full precision, and sustains usable throughput. Measure "
+        "perplexity on your own prompts before trusting any quant."
+    ),
+)
+
+_SITE2 = Fixture(
+    id="site-prompt-caching",
+    workload="site",
+    title="Prompt Caching: Cut Repeat-Context Costs",
+    url="https://example.com/docs/prompt-caching",
+    site_name="Example Docs",
+    expected_sections=("summary", "point"),
+    golden_concepts=("prompt caching", "cache hit", "TTL", "tokens", "latency"),
+    source_text=(
+        "Prompt caching lets the provider reuse the computed state of a long, stable prefix "
+        "across requests, so you pay full price for it once and a steep discount on cache hits. "
+        "Put the unchanging content — system prompt, tool definitions, a large document — at "
+        "the front, and the variable part last, because caching keys on a prefix match. Cached "
+        "entries carry a TTL, often around five minutes, after which the prefix is recomputed. "
+        "Wins are largest for agents that reread the same context every turn: cache hits cut "
+        "both input-token cost and latency. Caching does not help one-shot calls with no shared "
+        "prefix, and a single changed token early in the prompt busts the whole cache."
+    ),
+)
+
+_SITE3 = Fixture(
+    id="site-webhooks",
+    workload="site",
+    title="Designing Reliable Webhooks",
+    url="https://example.com/docs/webhooks",
+    site_name="Example Docs",
+    expected_sections=("summary", "point"),
+    golden_concepts=("idempotency", "retries", "HMAC", "exponential backoff", "dead-letter"),
+    source_text=(
+        "A reliable webhook system assumes delivery will fail and duplicates will happen. Sign "
+        "every payload with an HMAC so the receiver can verify origin, and include a unique "
+        "event id so the receiver can dedupe — handlers must be idempotent because you will "
+        "redeliver. On non-2xx responses, retry with exponential backoff and jitter, capping "
+        "attempts, then route exhausted events to a dead-letter queue for manual replay. Keep "
+        "handler work fast: acknowledge receipt immediately and process asynchronously, or slow "
+        "consumers will trigger spurious retries and amplify load."
+    ),
+)
+
 _FIXTURES: dict[str, list[Fixture]] = {
-    "paper": [_PAPER],
-    "video": [_VIDEO],
-    "site": [_SITE],
+    "paper": [_PAPER, _PAPER2, _PAPER3],
+    "video": [_VIDEO, _VIDEO2, _VIDEO3],
+    "site": [_SITE, _SITE2, _SITE3],
 }
 
 

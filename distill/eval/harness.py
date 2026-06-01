@@ -1,10 +1,11 @@
 """Eval harness — run candidate models over fixtures, score quality + cost.
 
-For each (model, fixture) the harness builds the *real* analysis prompt (the same
-builders the production pipeline uses), runs it under a forced model/provider,
-scores the output (deterministic dimensions + advisory judge), and records the
-candidate model's analysis cost. Results are cached by (model, fixture, judge) so
-re-running after a new model launches only runs the new rows.
+Two phases per run: (1) analyze every (model, fixture) with the *real* production
+prompts under a forced model at ``temperature=0``; (2) judge each candidate
+pairwise against the **anchor** (incumbent/reference) model's output for the same
+fixture. The deterministic score is the decision signal; the pairwise win-rate is
+advisory (feeds confidence only). Analysis outputs and pairwise verdicts cache
+independently so re-running after a new model launches only runs the new work.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from distill.eval.fixtures import Fixture, load_fixtures
-from distill.eval.judge import DEFAULT_JUDGE_MODEL, judge_output
+from distill.eval.judge import DEFAULT_JUDGE_MODEL, judge_pairwise
 from distill.eval.scoring import QualityScore, score_output
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
@@ -27,7 +28,33 @@ from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_pr
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["EvalRow", "provider_for_model", "run_model_eval"]
+__all__ = ["EvalRow", "estimate_eval_cost", "provider_for_model", "run_model_eval"]
+
+# Analysis LLM calls per workload (video is 2-pass).
+_CALLS_PER_WORKLOAD: dict[str, int] = {"paper": 1, "video": 2, "site": 1}
+
+
+def estimate_eval_cost(
+    fixtures: list[Fixture], models: list[str], *, anchor: str, judge_model: str
+) -> float:
+    """Fixture-aware pre-run estimate (USD), priced from each fixture's real size.
+
+    Unlike a per-stage constant, this scales with the actual (small) fixture
+    source, so it doesn't overshoot — analysis is priced per candidate model and
+    the pairwise judge adds two calls per non-anchor model.
+    """
+    from distill.llm.cost import compute_cost
+
+    total = 0.0
+    for fixture in fixtures:
+        in_tok = len(fixture.source_text) // 4 + 600  # source + prompt template overhead
+        out_tok = 800
+        calls = _CALLS_PER_WORKLOAD.get(fixture.workload, 1)
+        for model in models:
+            total += calls * compute_cost(model, in_tok, out_tok)
+            if model != anchor:  # pairwise judge: 2 order-randomized calls
+                total += 2 * compute_cost(judge_model, in_tok + 2 * out_tok, 120)
+    return total
 
 
 @dataclass(frozen=True)
@@ -39,6 +66,7 @@ class EvalRow:
     cost: float
     input_tokens: int
     output_tokens: int
+    pairwise_winrate: float | None = None  # vs anchor; None for the anchor itself
     judge_rationale: str = ""
     cached: bool = False
 
@@ -60,7 +88,11 @@ def provider_for_model(model: str) -> str:
 def _call(
     rc: RouterConfig, workload_tag: str, prompt: str, call_type: str, tracker: CostTracker
 ) -> str:
-    response = llm_call(rc, workload_tag=workload_tag, prompt=prompt, call_type=call_type)
+    # temperature=0 so a model's output is reproducible across runs and the only
+    # variable between rows is the model itself.
+    response = llm_call(
+        rc, workload_tag=workload_tag, prompt=prompt, call_type=call_type, temperature=0.0
+    )
     tracker.record(
         TokenUsage(
             prompt_tokens=response.input_tokens,
@@ -92,74 +124,144 @@ def _run_analysis(fixture: Fixture, rc: RouterConfig, tracker: CostTracker) -> s
     raise ValueError(f"unknown workload: {fixture.workload}")
 
 
-def _cache_key(model: str, fixture: Fixture, judge_model: str) -> str:
-    src = hashlib.sha256(fixture.source_text.encode("utf-8")).hexdigest()[:8]
-    payload = f"{model}|{fixture.id}|{src}|{judge_model}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+def _hash(*parts: str) -> str:
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def _src_hash(fixture: Fixture) -> str:
+    return hashlib.sha256(fixture.source_text.encode("utf-8")).hexdigest()[:8]
+
+
+@dataclass(frozen=True)
+class _Analysis:
+    output: str
+    cost: float
+    input_tokens: int
+    output_tokens: int
+    cached: bool
+
+
+def _analyze(
+    model: str,
+    fixture: Fixture,
+    runner: Callable[[Fixture, RouterConfig, CostTracker], str],
+    run_tracker: CostTracker,
+    cache_dir: Path | None,
+) -> _Analysis:
+    key = _hash("analysis", model, fixture.id, _src_hash(fixture))
+    cached = _load_json(cache_dir, key)
+    if cached is not None:
+        return _Analysis(
+            output=cached["output"],
+            cost=float(cached.get("cost", 0.0)),
+            input_tokens=int(cached.get("input_tokens", 0)),
+            output_tokens=int(cached.get("output_tokens", 0)),
+            cached=True,
+        )
+    row_tracker = CostTracker()
+    rc = RouterConfig(provider=provider_for_model(model), model=model)
+    output = runner(fixture, rc, row_tracker)
+    run_tracker.entries.extend(row_tracker.entries)
+    analysis = _Analysis(
+        output=output,
+        cost=row_tracker.total_cost,
+        input_tokens=row_tracker.total_input_tokens,
+        output_tokens=row_tracker.total_output_tokens,
+        cached=False,
+    )
+    _save_json(
+        cache_dir,
+        key,
+        {
+            "model": model,
+            "fixture_id": fixture.id,
+            "output": analysis.output,
+            "cost": analysis.cost,
+            "input_tokens": analysis.input_tokens,
+            "output_tokens": analysis.output_tokens,
+        },
+    )
+    return analysis
+
+
+def _pairwise(
+    model: str,
+    fixture: Fixture,
+    candidate_output: str,
+    anchor_output: str,
+    anchor: str,
+    judge_model: str,
+    run_tracker: CostTracker,
+    cache_dir: Path | None,
+) -> tuple[float | None, str]:
+    key = _hash("pairwise", model, fixture.id, _src_hash(fixture), anchor, judge_model)
+    cached = _load_json(cache_dir, key)
+    if cached is not None:
+        wr = cached.get("win_rate")
+        return (float(wr) if wr is not None else None), cached.get("rationale", "")
+    result = judge_pairwise(
+        fixture.source_text,
+        candidate_output,
+        anchor_output,
+        judge_model=judge_model,
+        tracker=run_tracker,
+    )
+    win_rate = result.win_rate if result else None
+    rationale = result.rationale if result else ""
+    _save_json(cache_dir, key, {"win_rate": win_rate, "rationale": rationale})
+    return win_rate, rationale
 
 
 def run_model_eval(
     workload: str,
     models: list[str],
     *,
+    anchor: str = DEFAULT_JUDGE_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
     tracker: CostTracker | None = None,
     cache_dir: Path | None = None,
     analyze: Callable[[Fixture, RouterConfig, CostTracker], str] | None = None,
 ) -> list[EvalRow]:
-    """Sweep ``models`` over the workload's fixtures and return scored rows.
+    """Sweep ``models`` over the workload's fixtures; return scored rows.
 
-    ``analyze`` is injectable for testing (defaults to the real prompt+LLM path).
-    Each row's ``cost`` is the candidate model's analysis spend only; judge spend
-    is eval overhead and lands in the shared ``tracker`` for run accounting.
+    Phase 1 analyzes every (model, fixture); phase 2 judges each non-anchor model
+    pairwise against the anchor's output for that fixture. ``analyze`` is
+    injectable for testing.
     """
     run_tracker = tracker if tracker is not None else CostTracker()
     runner = analyze or _run_analysis
     fixtures = load_fixtures(workload)
-    rows: list[EvalRow] = []
 
+    # Phase 1: analysis for every (fixture, model).
+    analyses: dict[tuple[str, str], _Analysis] = {}
     for fixture in fixtures:
         for model in models:
-            cached = _load_cached(cache_dir, model, fixture, judge_model) if cache_dir else None
-            if cached is not None:
-                output, judge_overall, judge_rationale, cost, tin, tout = cached
-                was_cached = True
-            else:
-                row_tracker = CostTracker()
-                rc = RouterConfig(provider=provider_for_model(model), model=model)
-                output = runner(fixture, rc, row_tracker)
-                cost = row_tracker.total_cost
-                tin, tout = row_tracker.total_input_tokens, row_tracker.total_output_tokens
-                run_tracker.entries.extend(row_tracker.entries)
-                judge = judge_output(
-                    fixture.source_text,
-                    output,
-                    candidate_model=model,
-                    judge_model=judge_model,
-                    tracker=run_tracker,
-                )
-                judge_overall = judge.overall if judge else None
-                judge_rationale = judge.rationale if judge else ""
-                was_cached = False
-                _save_cached(
-                    cache_dir,
+            analyses[(model, fixture.id)] = _analyze(model, fixture, runner, run_tracker, cache_dir)
+
+    # Phase 2: pairwise judge each candidate vs the anchor's output, then score.
+    rows: list[EvalRow] = []
+    for fixture in fixtures:
+        anchor_a = analyses.get((anchor, fixture.id))
+        for model in models:
+            a = analyses[(model, fixture.id)]
+            win_rate: float | None = None
+            rationale = ""
+            if model != anchor and anchor_a is not None:
+                win_rate, rationale = _pairwise(
                     model,
                     fixture,
+                    a.output,
+                    anchor_a.output,
+                    anchor,
                     judge_model,
-                    output,
-                    judge_overall,
-                    judge_rationale,
-                    cost,
-                    tin,
-                    tout,
+                    run_tracker,
+                    cache_dir,
                 )
-
             quality = score_output(
-                output,
+                a.output,
                 expected_sections=fixture.expected_sections,
                 golden_concepts=fixture.golden_concepts,
                 min_words=fixture.min_words,
-                judge=judge_overall,
             )
             rows.append(
                 EvalRow(
@@ -167,60 +269,31 @@ def run_model_eval(
                     fixture_id=fixture.id,
                     model=model,
                     quality=quality,
-                    cost=cost,
-                    input_tokens=tin,
-                    output_tokens=tout,
-                    judge_rationale=judge_rationale,
-                    cached=was_cached,
+                    cost=a.cost,
+                    input_tokens=a.input_tokens,
+                    output_tokens=a.output_tokens,
+                    pairwise_winrate=win_rate,
+                    judge_rationale=rationale,
+                    cached=a.cached,
                 )
             )
     return rows
 
 
-def _load_cached(
-    cache_dir: Path, model: str, fixture: Fixture, judge_model: str
-) -> tuple[str, float | None, str, float, int, int] | None:
-    path = cache_dir / f"{_cache_key(model, fixture, judge_model)}.json"
+def _load_json(cache_dir: Path | None, key: str) -> dict | None:
+    if cache_dir is None:
+        return None
+    path = cache_dir / f"{key}.json"
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return (
-            data["output"],
-            data.get("judge_overall"),
-            data.get("judge_rationale", ""),
-            float(data.get("cost", 0.0)),
-            int(data.get("input_tokens", 0)),
-            int(data.get("output_tokens", 0)),
-        )
-    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return None
 
 
-def _save_cached(
-    cache_dir: Path | None,
-    model: str,
-    fixture: Fixture,
-    judge_model: str,
-    output: str,
-    judge_overall: float | None,
-    judge_rationale: str,
-    cost: float,
-    tin: int,
-    tout: int,
-) -> None:
+def _save_json(cache_dir: Path | None, key: str, payload: dict) -> None:
     if cache_dir is None:
         return
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = cache_dir / f"{_cache_key(model, fixture, judge_model)}.json"
-    payload = {
-        "model": model,
-        "fixture_id": fixture.id,
-        "output": output,
-        "judge_overall": judge_overall,
-        "judge_rationale": judge_rationale,
-        "cost": cost,
-        "input_tokens": tin,
-        "output_tokens": tout,
-    }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (cache_dir / f"{key}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

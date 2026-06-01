@@ -1,6 +1,6 @@
-"""Tests for distill.eval.scoring (deterministic dimensions + composite blend)."""
+"""Tests for distill.eval.scoring (deterministic dimensions, verbosity-resistant)."""
 
-from distill.eval.scoring import JUDGE_WEIGHT, extract_key_concepts, score_output
+from distill.eval.scoring import extract_key_concepts, score_output
 
 _GOOD = (
     "## Core Contribution\n- A continuous rotation over ICEWS with strong MRR.\n"
@@ -29,10 +29,7 @@ def test_score_output_rewards_structure_depth_coverage_formatting():
         "Concept coverage",
         "Formatting",
     }
-    assert q.deterministic > 0.8
-    # No judge supplied -> composite equals deterministic.
-    assert q.judge is None
-    assert q.composite == q.deterministic
+    assert q.composite > 0.8
 
 
 def test_thin_output_scores_low():
@@ -42,20 +39,21 @@ def test_thin_output_scores_low():
         golden_concepts=("ICEWS", "MRR"),
         min_words=180,
     )
-    assert q.deterministic < 0.3
+    assert q.composite < 0.3
 
 
-def test_judge_blends_at_capped_weight():
-    base = score_output(_GOOD, expected_sections=("contribution",), golden_concepts=("ICEWS",))
-    with_judge = score_output(
-        _GOOD,
-        expected_sections=("contribution",),
-        golden_concepts=("ICEWS",),
-        judge=0.0,
-    )
-    # A judge score of 0 pulls the composite down by exactly JUDGE_WEIGHT of the
-    # deterministic score, never more (advisory, capped).
-    assert with_judge.judge == 0.0
-    expected = (1.0 - JUDGE_WEIGHT) * base.deterministic
-    assert round(with_judge.composite, 6) == round(expected, 6)
-    assert with_judge.composite < base.composite
+def test_depth_is_verbosity_resistant():
+    # Same content; one padded far past the sane ceiling. Padding must NOT score
+    # higher on depth — a longer answer can't win on length alone.
+    base = "## A\n- " + "alpha " * 200
+    padded = "## A\n- " + "alpha " * 2000
+    d_base = next(d for d in score_output(base, min_words=180).dimensions if d.name == "Depth")
+    d_padded = next(d for d in score_output(padded, min_words=180).dimensions if d.name == "Depth")
+    assert d_base.score == 1.0
+    assert d_padded.score < d_base.score  # decays for padding
+
+
+def test_depth_ramps_below_target():
+    short = "one two three four five"  # 5 words
+    d = next(dim for dim in score_output(short, min_words=100).dimensions if dim.name == "Depth")
+    assert 0.0 < d.score < 0.1
