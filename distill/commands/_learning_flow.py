@@ -53,6 +53,7 @@ def preview_learning_selection(
     skeptical: bool | None = None,
     expand: bool = True,
     top_by_date: bool = False,
+    rigor: str = "off",
 ):
     config = get_config()
     tracker = cost_tracker_factory()
@@ -89,6 +90,7 @@ def preview_learning_selection(
         skeptical=skeptical_mode,
         expand=effective_expand,
         top_by_date=top_by_date,
+        rigor=rigor,
     )
     if not selected:
         console.print("[yellow]No recent videos matched the search criteria[/yellow]")
@@ -128,6 +130,7 @@ def run_learning_command(
     focus: str | None = None,
     top_by_date: bool = False,
     post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
+    rigor: str = "off",
 ) -> None:
     config = get_config()
     if not config.xai_api_key:
@@ -171,6 +174,7 @@ def run_learning_command(
         skeptical=skeptical_mode,
         expand=effective_expand,
         top_by_date=top_by_date,
+        rigor=rigor,
     )
     if not selected:
         console.print("[yellow]No recent videos matched the search criteria[/yellow]")

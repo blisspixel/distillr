@@ -14,6 +14,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.4 - 2026-06-01
+
+**`--rigor` across `discover` / `papers` / `latest`, on calibrated thresholds.** The quality-bar knob that only `discover` had now works on the single-source commands too — drops reranked candidates below a `final_score` floor before the per-source limit. This completes the 0.9 discovery-loop close-out.
+
+- **Calibrated per command, not copy-pasted.** The three rerank prompts score on different criteria, so the thresholds differ: discover (cross-source goal-fit gate) 0.70/0.50/0.30; papers 0.65/0.45/0.30; latest 0.60/0.40/0.25. The calibration is grounded in a documented case — discover rated 0/33 videos worth ingesting on a topic where `latest` surfaced 5 strong picks — and the rationale (curation gate vs. single-source relevance ranker) is written up in `docs/architecture.md` ("Rigor calibration"). New `PAPER_RIGOR_THRESHOLDS` / `VIDEO_RIGOR_THRESHOLDS` + `source_rigor_threshold(source, rigor)` in `distill/pipeline/discovery.py`.
+- **Opt-out, never surprising.** On `papers` / `latest` the default is `off` (keep the rerank's top picks exactly as before); the bar engages only when you ask for `strict`/`balanced`/`loose`. `discover` keeps its `balanced` default (unchanged since 0.8.12).
+- **Honest about scope.** Rigor scores on the *LLM rerank*, so under `--no-rerank` (or chronological `--top-by-date`) an explicit bar is skipped with a warning rather than applied to heuristic scores on a different scale. When a bar is applied, a `kept X/Y` line shows what it dropped. `papers`/`latest` rerank the full candidate pool before the limit when a bar is set, so the threshold has something to cut.
+
+## 0.9.3 - 2026-06-01
+
+**Preview-as-default sizing on fresh topics.** `distill discover "<goal>" --topic <new>` no longer auto-applies a fixed `--rigor` bar and ingests; on a topic with no artifacts yet it now shows the reranked candidates and a **size-then-approve menu** — "Excellent / Including good / Everything worthwhile" — each line carrying its source breakdown and its own 0.9.1 spend estimate, so you choose the depth against the real quality cliff and the real cost before committing. This is the preview-as-primary-flow the roadmap (section 12) was built around.
+
+- New pure `build_sizing_options` + `SizingOption` in `distill/pipeline/discovery.py`: derives a nested ladder from the score cliff (`detect_score_cliff`) and the balanced/loose rigor thresholds, caps each cut by the per-source limits, de-duplicates cuts that resolve to the same set, and attaches a per-option `CostEstimate`. Fully tested, no IO.
+- The chosen set is saved to the 0.9.2 preview cache and its id printed, so any selection is re-runnable verbatim with `--from-preview`.
+- **Behavior is opt-out, never surprising.** `--yes` keeps the non-interactive path (rigor filter + auto-ingest); `--preview` and `--from-preview` are unchanged. Topics that already have artifacts keep the single-confirm flow unless you pass the new `--size` flag to force the menu.
+
+## 0.9.2 - 2026-06-01
+
+**Commit-by-id preview replay (`discover --from-preview <id>`).** The discover rerank is a judgment call, so the set you previewed could differ from the set a real run ingests. Now `discover --preview` saves the exact goal-ranked shortlist and prints an id; `discover --from-preview <id> --topic <t>` replays that set verbatim — skipping query-generation and the rerank entirely — so you commit to precisely what you saw. temperature=0 (0.8.12) makes a re-rank reproducible; replay guarantees it. Closes the cached-commit-by-id follow-on left open by 0.8.12 / 0.9.0.
+
+- New `distill/pipeline/preview_cache.py` (pure functions, injected `now_iso`): `save_preview` writes `library/.preview_cache/<id>.json` under a **content-addressed** id (a hash of goal + model + rigor + member identifiers, so the same selection always gets the same id); `load_preview` faithfully reconstructs each `PaperRecord` / `VideoInfo` / `SiteSeed` so replay ingests identically. Unknown / malformed / corrupt ids raise `PreviewCacheError` with an actionable message — never a silent failure.
+- The discover ingest path was extracted into a shared `_discover_ingest_set` helper (plus focused per-source sub-helpers), so the live flow and `--from-preview` replay ingest through one code path. `--from-preview` is mutually exclusive with `--from-gaps` / `--preview`.
+- MCP parity is tracked separately: the MCP `discover` tool already returns candidates without ingesting (a preview by nature) and now carries the 0.9.1 `cost_estimate`; a dedicated replay arg follows when the MCP tool gains an ingest path.
+
+## 0.9.1 - 2026-06-01
+
+**Metadata-aware, self-calibrating discover cost estimate.** The pre-run spend line under a `discover` preview was a flat `count x constant`; it now reads free candidate metadata and calibrates against real history, and reports a range instead of a single point.
+
+- **Per-video duration scaling.** Transcript-analysis cost tracks runtime, so each candidate video's share now scales linearly around a nominal 15-minute average (clamped 0.3x..4x); unknown duration assumes nominal. Papers keep a flat per-item rate (PDF page count is not fetched at discovery — it would need a network call), as do site seeds.
+- **Self-calibrating rates.** `load_cost_calibration(log_dir)` derives per-paper / per-video / per-site USD rates from *clean single-source* runs in `cost_log.jsonl` (a paper-only run prices papers, etc.), so a mixed `discover` run never cross-contaminates a rate. `_preview` rows are skipped and a source type with fewer than 3 ingested items keeps its default constant. The rates improve as history accrues.
+- **Honest range.** The estimate now prints `~$0.42 (est; $0.29-$0.63)` — an asymmetric band (overruns are more common than underruns) that widens to 0.5x..2.0x when no calibration exists yet and narrows to 0.7x..1.5x once it does.
+- New `CostCalibration` / `CostEstimate` dataclasses, `load_cost_calibration`, and `estimate_discover_items` in `distill/pipeline/costs.py`; the count-based `estimate_discover_cost` stays (now calibration-aware) for simple callers. The MCP `discover` tool gains a `cost_estimate` field for parity. Closes the duration/length-aware calibration follow-on left open by 0.8.12 / 0.9.0.
+
 ## 0.9.0 - 2026-05-30
 
 **Two-pass synthesis with a structured claim intermediate (opt-in).** The headline of the 0.9 milestone: synthesis can now run over an extracted *claim set* instead of re-reading every insight into one prompt.

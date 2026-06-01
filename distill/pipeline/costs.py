@@ -7,6 +7,7 @@ registry in ``distill.llm.cost`` — this module no longer owns pricing data.
 
 import json
 import shutil
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -25,11 +26,15 @@ ACCORDION_GROK_ESTIMATE: float = 0.05
 __all__ = [
     "ACCORDION_GROK_ESTIMATE",
     "LLM_PRICING",
+    "CostCalibration",
+    "CostEstimate",
     "CostTracker",
     "TokenUsage",
     "TranscriptionUsage",
     "estimate_discover_cost",
+    "estimate_discover_items",
     "estimate_run_cost",
+    "load_cost_calibration",
     "report_deep_research_estimate",
     "save_run_log",
 ]
@@ -259,25 +264,211 @@ def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) ->
     return f"Estimated cost: ${total:.2f} ({'; '.join(parts)})"
 
 
-# Per-source analysis-cost estimates (USD), derived from the grok-4.3 default
-# and typical token volumes; transcription is assumed local (free) for the
-# preview estimate. Calibration against cost_log.jsonl is a later refinement.
+# Per-source analysis-cost defaults (USD), derived from the grok-4.3 default and
+# typical token volumes; transcription is assumed local (free) for the preview
+# estimate. These are the fallback used until enough history accrues for
+# ``load_cost_calibration`` to derive real per-unit rates from cost_log.jsonl.
 _DISCOVER_PAPER_COST: float = 0.012  # full-PDF analysis
 _DISCOVER_SITE_COST: float = 0.008  # page analysis
 _DISCOVER_VIDEO_COST: float = 0.006  # transcript analysis
 
+# Assumed historical-average video length the calibrated per-video rate is
+# anchored to; a candidate's real duration scales linearly around this.
+_NOMINAL_VIDEO_SECONDS: float = 900.0  # 15 minutes
+# How far a single video's duration is allowed to move the per-video estimate.
+_VIDEO_FACTOR_FLOOR: float = 0.3
+_VIDEO_FACTOR_CEIL: float = 4.0
+# Minimum clean single-source runs before a calibrated rate replaces the default.
+_CALIBRATION_MIN_SAMPLES: int = 3
+# Call-type markers used to tell what a logged run actually analyzed.
+_VIDEO_CALL_TYPES: frozenset[str] = frozenset({"pass1", "pass2", "short", "scan"})
 
-def estimate_discover_cost(papers: int = 0, videos: int = 0, sites: int = 0) -> float:
-    """Rough pre-run USD estimate for a discover ingest set (free metadata only).
 
-    Count-based per-source-type estimate, no extra network fetches. Papers cost
-    more (full-PDF analysis) than videos or pages. Good enough to size a run and
-    show per-option spend in the preview; not an exact quote.
+@dataclass(frozen=True)
+class CostCalibration:
+    """Per-source-type USD rates derived from historical run logs.
+
+    Each rate is the average whole-run cost attributable to one ingested item of
+    that type (analysis plus its share of synthesis), measured from *clean*
+    single-source runs so cross-attribution does not skew it. When history is
+    thin the corresponding default constant is used and ``samples`` records 0.
     """
+
+    per_paper: float = _DISCOVER_PAPER_COST
+    per_video: float = _DISCOVER_VIDEO_COST
+    per_site: float = _DISCOVER_SITE_COST
+    samples: dict[str, int] = field(default_factory=lambda: {"paper": 0, "video": 0, "site": 0})
+
+    @property
+    def any_calibrated(self) -> bool:
+        """True if at least one rate came from real history rather than a default."""
+        return any(v > 0 for v in self.samples.values())
+
+
+@dataclass(frozen=True)
+class CostEstimate:
+    """A pre-run spend estimate with an honest uncertainty range."""
+
+    expected: float
+    low: float
+    high: float
+    calibrated: bool
+
+    def format(self) -> str:
+        """Compact human-readable estimate, e.g. ``~$0.42 (est; $0.29-$0.63)``."""
+        return f"~${self.expected:.2f} (est; ${self.low:.2f}-${self.high:.2f})"
+
+
+def _cost_log_path(log_dir: Path) -> Path:
+    """Resolve the cost-log path, preferring the ``.distill/`` ops dir.
+
+    Mirrors :func:`save_run_log`'s location logic, read-only: the current log
+    lives under ``.distill/`` but a legacy root-level log may still exist.
+    """
+    new_log = log_dir / ".distill" / "cost_log.jsonl"
+    if new_log.exists():
+        return new_log
+    return log_dir / "cost_log.jsonl"
+
+
+def _classify_clean_run(row: dict) -> tuple[str, float, int] | None:
+    """Map a run-log row to ``(source_kind, cost, item_count)`` if it's usable.
+
+    Returns ``None`` unless the row is a *clean* single-source run with a real
+    cost and item count — preview rows and mixed runs (which would
+    cross-contaminate a per-source rate) are rejected here.
+    """
+    if str(row.get("command", "")).endswith("_preview"):
+        return None
+    cost = row.get("actual_cost") or 0.0
+    if cost <= 0:
+        return None
+    by_type = row.get("by_call_type") or {}
+    has_paper = "paper" in by_type
+    has_site = "site_page" in by_type
+    has_video = any(ct in by_type for ct in _VIDEO_CALL_TYPES)
+    if has_paper and not has_site and not has_video:
+        n = int(by_type.get("paper", {}).get("calls", 0))
+        return ("paper", cost, n) if n else None
+    if has_video and not has_paper and not has_site:
+        n = int(row.get("full_videos", 0)) or int(by_type.get("pass1", {}).get("calls", 0))
+        return ("video", cost, n) if n else None
+    if has_site and not has_paper and not has_video:
+        n = int(by_type.get("site_page", {}).get("calls", 0))
+        return ("site", cost, n) if n else None
+    return None
+
+
+def load_cost_calibration(
+    log_dir: Path, *, min_samples: int = _CALIBRATION_MIN_SAMPLES
+) -> CostCalibration:
+    """Derive per-source USD rates from historical runs in ``cost_log.jsonl``.
+
+    Only *clean* single-source runs feed each rate (a paper-only run prices
+    papers, a video-only run prices videos, a site-only run prices sites), so a
+    mixed ``discover`` run never cross-contaminates a rate. A source type with
+    fewer than ``min_samples`` ingested items keeps its default constant.
+    """
+    log_file = _cost_log_path(log_dir)
+    if not log_file.exists():
+        return CostCalibration()
+    try:
+        lines = log_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return CostCalibration()
+
+    cost = {"paper": 0.0, "video": 0.0, "site": 0.0}
+    count = {"paper": 0, "video": 0, "site": 0}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        classified = _classify_clean_run(row)
+        if classified is None:
+            continue
+        kind, run_cost, n = classified
+        cost[kind] += run_cost
+        count[kind] += n
+
+    defaults = {
+        "paper": _DISCOVER_PAPER_COST,
+        "video": _DISCOVER_VIDEO_COST,
+        "site": _DISCOVER_SITE_COST,
+    }
+    rate = {k: (cost[k] / count[k]) if count[k] >= min_samples else defaults[k] for k in defaults}
+    samples = {k: (count[k] if count[k] >= min_samples else 0) for k in defaults}
+    return CostCalibration(
+        per_paper=rate["paper"],
+        per_video=rate["video"],
+        per_site=rate["site"],
+        samples=samples,
+    )
+
+
+def _video_duration_factor(seconds: float | None) -> float:
+    """Scale a video's cost by its length around the nominal average.
+
+    Transcript-analysis cost tracks roughly linearly with runtime, so a 30-min
+    talk costs about twice a 15-min one. Unknown/zero duration assumes nominal.
+    """
+    if not seconds or seconds <= 0:
+        return 1.0
+    return max(_VIDEO_FACTOR_FLOOR, min(_VIDEO_FACTOR_CEIL, seconds / _NOMINAL_VIDEO_SECONDS))
+
+
+def estimate_discover_cost(
+    papers: int = 0,
+    videos: int = 0,
+    sites: int = 0,
+    *,
+    calibration: CostCalibration | None = None,
+) -> float:
+    """Rough pre-run USD point estimate for a discover ingest set (counts only).
+
+    Count-based per-source-type estimate, no extra network fetches. Uses
+    calibrated per-unit rates when ``calibration`` is supplied, else the default
+    constants (identical to the historical behavior). For the metadata-aware
+    estimate with an uncertainty range, use :func:`estimate_discover_items`.
+    """
+    cal = calibration or CostCalibration()
     return (
-        max(0, papers) * _DISCOVER_PAPER_COST
-        + max(0, sites) * _DISCOVER_SITE_COST
-        + max(0, videos) * _DISCOVER_VIDEO_COST
+        max(0, papers) * cal.per_paper
+        + max(0, sites) * cal.per_site
+        + max(0, videos) * cal.per_video
+    )
+
+
+def estimate_discover_items(
+    *,
+    papers: int = 0,
+    video_durations: Sequence[float | None] = (),
+    sites: int = 0,
+    calibration: CostCalibration | None = None,
+) -> CostEstimate:
+    """Metadata-aware spend estimate with an uncertainty range.
+
+    Reads the free metadata available at preview time -- per-video duration is
+    the strongest signal and scales each video's share around the nominal
+    average. Paper PDF page count is *not* fetched at discovery (it would need a
+    network call), so papers use the flat calibrated per-paper rate; sites
+    likewise use the per-site rate. The returned range is asymmetric (overruns
+    are more common than underruns) and widens when no calibration is available.
+    """
+    cal = calibration or CostCalibration()
+    expected = max(0, papers) * cal.per_paper + max(0, sites) * cal.per_site
+    expected += sum(cal.per_video * _video_duration_factor(d) for d in video_durations)
+
+    calibrated = cal.any_calibrated
+    low_mult, high_mult = (0.7, 1.5) if calibrated else (0.5, 2.0)
+    return CostEstimate(
+        expected=expected,
+        low=expected * low_mult,
+        high=expected * high_mult,
+        calibrated=calibrated,
     )
 
 

@@ -18,7 +18,12 @@ from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import (
+    CostEstimate,
+    CostTracker,
+    TokenUsage,
+    estimate_discover_items,
+)
 from distill.prompts.discover import discover_query_generation_prompt, discover_rerank_prompt
 
 # Constants duplicated from commands._helpers to avoid upward dependency.
@@ -46,6 +51,8 @@ def _format_date(date_str: str) -> str:
 
 __all__ = [
     "RankedDiscoverItem",
+    "SizingOption",
+    "build_sizing_options",
     "discover_fetch_videos",
     "discover_generate_queries",
     "discover_rerank",
@@ -375,13 +382,42 @@ def display_ranked_discover(items: list[RankedDiscoverItem], title: str) -> None
 
 # Minimum rerank final_score to keep, per rigor level. ``--rigor strict`` keeps
 # only high-fit candidates; ``loose`` keeps almost everything goal-relevant.
+#
+# The thresholds are calibrated *per command*, not shared, because the three
+# rerank prompts score on different criteria (see docs/architecture.md, "Rigor
+# calibration"). ``discover`` gates on cross-source ``goal_fit`` and is the
+# strictest; the single-source ``papers`` and ``latest`` rerankers optimize
+# topical relevance and tend to score on-topic items a little higher, so their
+# bars sit a notch lower to avoid discarding strong picks (the documented case:
+# discover kept 0/33 videos on a topic where ``latest`` surfaced 5 strong ones).
 RIGOR_THRESHOLDS: dict[str, float] = {"strict": 0.7, "balanced": 0.5, "loose": 0.3}
+PAPER_RIGOR_THRESHOLDS: dict[str, float] = {"strict": 0.65, "balanced": 0.45, "loose": 0.3}
+VIDEO_RIGOR_THRESHOLDS: dict[str, float] = {"strict": 0.6, "balanced": 0.4, "loose": 0.25}
 RIGOR_LEVELS: tuple[str, ...] = tuple(RIGOR_THRESHOLDS)
+# papers/latest add "off" (the default there): keep the rerank's picks as before,
+# filter only when the user explicitly asks for a bar.
+RIGOR_LEVELS_WITH_OFF: tuple[str, ...] = (*RIGOR_LEVELS, "off")
+
+_SOURCE_RIGOR_TABLES: dict[str, dict[str, float]] = {
+    "discover": RIGOR_THRESHOLDS,
+    "paper": PAPER_RIGOR_THRESHOLDS,
+    "video": VIDEO_RIGOR_THRESHOLDS,
+}
 
 
 def rigor_threshold(rigor: str) -> float:
-    """Return the minimum ``final_score`` for a rigor level (default balanced)."""
+    """Return the minimum ``final_score`` for a discover rigor level (default balanced)."""
     return RIGOR_THRESHOLDS.get(rigor, RIGOR_THRESHOLDS["balanced"])
+
+
+def source_rigor_threshold(source: str, rigor: str) -> float:
+    """Return the per-source minimum ``final_score`` for a rigor level.
+
+    ``source`` is ``"discover"``, ``"paper"``, or ``"video"``; unknown sources
+    fall back to the discover table. ``balanced`` is the per-table default.
+    """
+    table = _SOURCE_RIGOR_TABLES.get(source, RIGOR_THRESHOLDS)
+    return table.get(rigor, table["balanced"])
 
 
 def detect_score_cliff(scores: list[float], *, min_drop: float = 0.08) -> int:
@@ -404,3 +440,90 @@ def detect_score_cliff(scores: list[float], *, min_drop: float = 0.08) -> int:
             biggest_drop = drop
             cliff_at = i
     return cliff_at if biggest_drop >= min_drop else len(ordered)
+
+
+@dataclass(frozen=True)
+class SizingOption:
+    """One "how much should I ingest?" choice with its per-source spend."""
+
+    label: str
+    basis: str  # human description of the cut, e.g. "score >= 0.50"
+    items: list[RankedDiscoverItem]
+    papers: int
+    videos: int
+    sites: int
+    estimate: CostEstimate
+
+
+def _cap_by_source(
+    items: list[RankedDiscoverItem], *, paper_limit: int, video_limit: int, site_limit: int
+) -> tuple[list[RankedDiscoverItem], list[RankedDiscoverItem], list[RankedDiscoverItem]]:
+    """Split items by kind and apply each source's per-run cap (best-first order)."""
+    papers = [r for r in items if r.kind == "paper"][:paper_limit]
+    videos = [r for r in items if r.kind == "video"][:video_limit]
+    sites = [r for r in items if r.kind == "site"][:site_limit]
+    return papers, videos, sites
+
+
+def build_sizing_options(
+    ranked: list[RankedDiscoverItem],
+    *,
+    paper_limit: int,
+    video_limit: int,
+    site_limit: int,
+    calibration=None,
+) -> list[SizingOption]:
+    """Derive nested "excellent / good / everything" ingest sizes from a reranked set.
+
+    Each option applies a quality cut (the score cliff, then the balanced and loose
+    rigor thresholds), caps by the per-source limits, and attaches a metadata-aware
+    spend estimate. Options that resolve to the same item set are de-duplicated, and
+    the result is sorted smallest-first so the menu reads as a ladder. Pure: no IO.
+    """
+    ordered = sorted(ranked, key=lambda r: r.final_score, reverse=True)
+    cliff = detect_score_cliff([r.final_score for r in ordered])
+    cuts = [
+        ("Excellent", f"top {cliff} above the score cliff", ordered[:cliff]),
+        (
+            "Including good",
+            f"score >= {RIGOR_THRESHOLDS['balanced']:.2f}",
+            [r for r in ordered if r.final_score >= RIGOR_THRESHOLDS["balanced"]],
+        ),
+        (
+            "Everything worthwhile",
+            f"score >= {RIGOR_THRESHOLDS['loose']:.2f}",
+            [r for r in ordered if r.final_score >= RIGOR_THRESHOLDS["loose"]],
+        ),
+    ]
+    options: list[SizingOption] = []
+    seen: set[tuple[str, ...]] = set()
+    for label, basis, subset in cuts:
+        papers, videos, sites = _cap_by_source(
+            subset, paper_limit=paper_limit, video_limit=video_limit, site_limit=site_limit
+        )
+        selected = papers + videos + sites
+        if not selected:
+            continue
+        key = tuple(sorted(it.identifier for it in selected))
+        if key in seen:
+            continue
+        seen.add(key)
+        estimate = estimate_discover_items(
+            papers=len(papers),
+            video_durations=[getattr(v.video, "duration", None) for v in videos],
+            sites=len(sites),
+            calibration=calibration,
+        )
+        options.append(
+            SizingOption(
+                label=label,
+                basis=basis,
+                items=selected,
+                papers=len(papers),
+                videos=len(videos),
+                sites=len(sites),
+                estimate=estimate,
+            )
+        )
+    options.sort(key=lambda o: len(o.items))
+    return options
