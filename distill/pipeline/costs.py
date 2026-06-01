@@ -13,12 +13,14 @@ from datetime import datetime
 from pathlib import Path
 
 from distill.llm.cost import (
-    PRICING as LLM_PRICING,
-)
-from distill.llm.cost import (
+    DEFAULT_MODEL,
+    compute_cost,
     deep_research_query_cost,
     get_pricing,
     transcription_cost,
+)
+from distill.llm.cost import (
+    PRICING as LLM_PRICING,
 )
 
 ACCORDION_GROK_ESTIMATE: float = 0.05
@@ -34,10 +36,39 @@ __all__ = [
     "estimate_discover_cost",
     "estimate_discover_items",
     "estimate_run_cost",
+    "estimate_stage_cost",
     "load_cost_calibration",
     "report_deep_research_estimate",
     "save_run_log",
 ]
+
+# Representative (input, output) token volumes for one ingested unit of each
+# pipeline stage. Cold-start cost estimates are DERIVED from these against the
+# current default model's pricing (``estimate_stage_cost``) rather than hard-coded
+# in dollars, so they track the model. This closes the class of bug where the
+# estimates stayed at the retired grok-4-1-fast rate (~$0.006/video) after the
+# default moved to grok-4.3 (~$0.03/video), silently under-projecting budgets.
+# Once a topic accrues history, ``load_cost_calibration`` overrides these with
+# the real measured rates; until then these are the model-accurate fallback.
+_STAGE_TOKENS: dict[str, tuple[int, int]] = {
+    "video_full": (13_000, 6_000),  # 2-pass analysis
+    "video_short": (800, 500),  # 1-pass Short
+    "video_scan": (1_500, 800),  # lightweight triage
+    "paper": (20_000, 3_000),  # full-PDF analysis
+    "site_page": (12_000, 3_000),  # page analysis
+    "synthesis": (20_000, 4_000),  # channel/topic synthesis
+}
+
+
+def estimate_stage_cost(stage: str, *, model: str = "") -> float:
+    """USD estimate for one ingested unit of ``stage`` at the default model's pricing.
+
+    Derives from ``_STAGE_TOKENS`` and the unified pricing registry so the
+    estimate always reflects the model actually in use (``DEFAULT_MODEL`` unless
+    overridden), instead of a stale hard-coded rate.
+    """
+    tin, tout = _STAGE_TOKENS[stage]
+    return compute_cost(model or DEFAULT_MODEL, tin, tout)
 
 
 @dataclass
@@ -244,17 +275,21 @@ def save_run_log(
 
 
 def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) -> str:
-    """Pre-run cost estimate for dry-run output."""
-    grok_cost = full_videos * 0.006 + shorts * 0.0004
+    """Pre-run cost estimate for dry-run output (at the default model's pricing)."""
+    full_rate = estimate_stage_cost("video_full")
+    short_rate = estimate_stage_cost("video_short")
+    grok_cost = full_videos * full_rate + shorts * short_rate
     gemini_cost = deep_research_query_cost() if accordion else 0.0
     accordion_grok = ACCORDION_GROK_ESTIMATE if accordion else 0.0
     total = grok_cost + gemini_cost + accordion_grok
 
     parts = []
     if full_videos:
-        parts.append(f"{full_videos} full videos x $0.006 = ${full_videos * 0.006:.2f}")
+        parts.append(
+            f"{full_videos} full videos x ${full_rate:.3f} = ${full_videos * full_rate:.2f}"
+        )
     if shorts:
-        parts.append(f"{shorts} Shorts x $0.0004 = ${shorts * 0.0004:.3f}")
+        parts.append(f"{shorts} Shorts x ${short_rate:.4f} = ${shorts * short_rate:.3f}")
     if accordion:
         parts.append(
             f"Accordion: ~${report_deep_research_estimate():.2f} "
@@ -264,13 +299,14 @@ def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) ->
     return f"Estimated cost: ${total:.2f} ({'; '.join(parts)})"
 
 
-# Per-source analysis-cost defaults (USD), derived from the grok-4.3 default and
-# typical token volumes; transcription is assumed local (free) for the preview
-# estimate. These are the fallback used until enough history accrues for
+# Per-source analysis-cost defaults (USD), derived from the current default
+# model's pricing and representative per-stage token volumes (``_STAGE_TOKENS``);
+# transcription is assumed local (free) for the preview estimate. These are the
+# cold-start fallback used until enough history accrues for
 # ``load_cost_calibration`` to derive real per-unit rates from cost_log.jsonl.
-_DISCOVER_PAPER_COST: float = 0.012  # full-PDF analysis
-_DISCOVER_SITE_COST: float = 0.008  # page analysis
-_DISCOVER_VIDEO_COST: float = 0.006  # transcript analysis
+_DISCOVER_PAPER_COST: float = estimate_stage_cost("paper")  # full-PDF analysis
+_DISCOVER_SITE_COST: float = estimate_stage_cost("site_page")  # page analysis
+_DISCOVER_VIDEO_COST: float = estimate_stage_cost("video_full")  # transcript analysis
 
 # Assumed historical-average video length the calibrated per-video rate is
 # anchored to; a candidate's real duration scales linearly around this.

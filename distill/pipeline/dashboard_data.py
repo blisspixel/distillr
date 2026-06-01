@@ -8,7 +8,7 @@ from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import site_section_key
 from distill.library import Library
 from distill.library.paths import artifact_exists, find_artifact
-from distill.pipeline.costs import report_deep_research_estimate
+from distill.pipeline.costs import estimate_stage_cost, report_deep_research_estimate
 
 
 def duration_str(seconds) -> str:
@@ -138,14 +138,14 @@ def parse_run_datetime(value: str) -> datetime | None:
 def estimated_topic_watch_sweep(topic_watchlist) -> float:
     total = 0.0
     for entry in topic_watchlist:
-        total += entry.limit * 0.006
+        total += entry.limit * estimate_stage_cost("video_full")
         if entry.report:
             total += report_deep_research_estimate()
     return total
 
 
 def estimate_topic_watch_cost(entry) -> float:
-    total = entry.limit * 0.006
+    total = entry.limit * estimate_stage_cost("video_full")
     if entry.report:
         total += report_deep_research_estimate()
     return total

@@ -2,29 +2,31 @@
 
 Distill runs on a mix of free and paid stages. YouTube captions and local PDF extraction are free. Model calls are metered per-token by xAI (Grok) and per-query by Google (Gemini Deep Research).
 
+Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table — and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. The retired `grok-4-1-fast` tier ($0.20/$0.50) was ~5× cheaper and is still selectable via `.env` if you prefer bulk-cheap over fidelity.
+
 ## Per-stage cost
 
-| Stage | Typical cost | Basis |
+| Stage | Typical cost | Basis (@ grok-4.3) |
 |---|---|---|
 | YouTube caption extraction | **$0** | yt-dlp pulls auto-generated captions |
 | arXiv PDF download + text extraction | **$0** | pypdf, local |
-| Per-video analysis — full (2 passes) | **~$0.006** | ~13K input + ~6K output @ Grok 4.1 Fast rates |
-| Per-video analysis — Short (1 pass) | **~$0.0004** | ~800 input + ~500 output @ Grok 4.1 Fast |
-| Per-video analysis — scan (1 pass) | **~$0.001** | Lightweight triage @ Grok 4.1 Fast |
-| Per-page analysis (website) | **~$0.01–0.04** | Varies with page length @ Grok 4.20 |
-| Per-paper analysis (full PDF) | **~$0.015–0.05** | ~15–25K input + ~3K output @ Grok 4.20 |
-| Channel synthesis | **~$0.006** | ~20K input + ~4K output @ Grok 4.1 Fast |
-| Topic synthesis | **~$0.006** | Similar to channel synthesis |
-| Paper synthesis (per topic) | **~$0.05** | ~150K input + ~5K output @ Grok 4.1 Fast |
-| **Paper query expansion (`distill papers`)** | **~$0.005** | One Grok 4.1 Fast call to generate up to 6 search variants |
-| **Paper rerank (`distill papers`)** | **~$0.01–0.03** | One Grok 4.1 Fast call scoring 20–40 paper candidates pre-ingest |
-| **Discover query generation (`distill discover`)** | **~$0.005** | One Grok 4.1 Fast call generating paper + video queries from a goal |
-| **Discover rerank (`distill discover`)** | **~$0.02–0.05** | One Grok 4.1 Fast call scoring combined paper+video candidates against the goal |
+| Per-video analysis — full (2 passes) | **~$0.03** | ~13K input + ~6K output |
+| Per-video analysis — Short (1 pass) | **~$0.002** | ~800 input + ~500 output |
+| Per-video analysis — scan (1 pass) | **~$0.004** | ~1.5K input + ~800 output (lightweight triage) |
+| Per-page analysis (website) | **~$0.02–0.05** | Varies with page length |
+| Per-paper analysis (full PDF) | **~$0.03–0.05** | ~20K input + ~3K output |
+| Channel synthesis | **~$0.035** | ~20K input + ~4K output |
+| Topic synthesis | **~$0.035** | Similar to channel synthesis |
+| Paper synthesis (per topic) | **~$0.20** | ~150K input + ~5K output |
+| **Paper query expansion (`distill papers`)** | **~$0.01** | One call to generate up to 6 search variants |
+| **Paper rerank (`distill papers`)** | **~$0.01–0.03** | One call scoring 20–40 paper candidates pre-ingest |
+| **Discover query generation (`distill discover`)** | **~$0.01** | One call generating paper + video queries from a goal |
+| **Discover rerank (`distill discover`)** | **~$0.02–0.05** | One call scoring combined paper+video candidates against the goal |
 | Report Phase 1 (Gemini Deep Research) | **~$2–3** | 1 Deep Research query, variable search depth |
-| Report Phase 2 (sections) | **~$0.05** | ~150K input + ~40K output @ Grok 4.1 Fast |
-| Report Phase 4 (QA + rewrites) | **~$0.01** | ~20K input + ~2K output @ Grok 4.1 Fast |
+| Report Phase 2 (sections) | **~$0.29** | ~150K input + ~40K output |
+| Report Phase 4 (QA + rewrites) | **~$0.03** | ~20K input + ~2K output |
 | `distill research-brief` | **~$3–5** | 1 Gemini Deep Research query with custom File Search store |
-| `distill synthesize` | **~$0.50** | 1 Grok 4.20 call over the gathered corpus |
+| `distill synthesize` | **~$0.20–0.40** | 1 Grok 4.3 call over the gathered corpus |
 
 ## Example runs
 
@@ -32,23 +34,23 @@ Distill runs on a mix of free and paid stages. YouTube captions and local PDF ex
 
 | Component | Calculation | Cost |
 |---|---|---|
-| 182 full videos × 2 passes | 182 × $0.006 | ~$1.09 |
-| 187 Shorts × 1 pass | 187 × $0.0004 | ~$0.07 |
-| Channel synthesis | 1 × $0.006 | ~$0.006 |
+| 182 full videos × 2 passes | 182 × $0.03 | ~$5.70 |
+| 187 Shorts × 1 pass | 187 × $0.002 | ~$0.42 |
+| Channel synthesis | 1 × $0.035 | ~$0.035 |
 | Report Phase 1 (Gemini) | 1 query | ~$2–3 |
-| Report Phase 2 (sections) | 10 × Grok | ~$0.05 |
-| Report Phase 4 (QA + rewrites) | 1–3 × Grok | ~$0.01 |
-| **Total** | | **~$3.20–4.20** |
+| Report Phase 2 (sections) | 1 × Grok | ~$0.29 |
+| Report Phase 4 (QA + rewrites) | 1–3 × Grok | ~$0.03 |
+| **Total** | | **~$8.5–9.5** |
 
 **100 arXiv papers across 5 topics + one cross-topic synthesis:**
 
 | Component | Calculation | Cost |
 |---|---|---|
-| 100 papers × full-PDF analysis | 100 × $0.03 avg | ~$3.00 |
-| 5 × (query expansion + rerank) | 5 × $0.025 | ~$0.13 |
-| 5 topic syntheses | 5 × $0.05 | ~$0.25 |
-| One `distill synthesize` across all 5 topics | 1 × $0.50 | ~$0.50 |
-| **Total** | | **~$3.88** |
+| 100 papers × full-PDF analysis | 100 × $0.0325 | ~$3.25 |
+| 5 × (query expansion + rerank) | 5 × $0.03 | ~$0.15 |
+| 5 paper syntheses | 5 × $0.20 | ~$1.00 |
+| One `distill synthesize` across all 5 topics | 1 × $0.30 | ~$0.30 |
+| **Total** | | **~$4.70** |
 
 Add `distill research-brief` (~$3–5) only if you want web-augmented cross-topic Deep Research on top.
 
@@ -56,24 +58,24 @@ Add `distill research-brief` (~$3–5) only if you want web-augmented cross-topi
 
 | Component | Calculation | Cost |
 |---|---|---|
-| Discover query generation | 1 × $0.005 | ~$0.005 |
+| Discover query generation | 1 × $0.01 | ~$0.01 |
 | Discover goal-aware rerank | 1 × $0.03 avg | ~$0.03 |
-| 8 papers × full-PDF analysis | 8 × $0.03 | ~$0.24 |
-| 8 videos × full 2-pass analysis | 8 × $0.006 | ~$0.05 |
-| Per-channel syntheses + topic synthesis | ~6 × $0.006 | ~$0.04 |
-| Paper synthesis + corpus synthesis | 2 × $0.05 | ~$0.10 |
-| **Total** | | **~$0.47** |
+| 8 papers × full-PDF analysis | 8 × $0.0325 | ~$0.26 |
+| 8 videos × full 2-pass analysis | 8 × $0.03 | ~$0.25 |
+| Per-channel syntheses + topic synthesis | ~6 × $0.035 | ~$0.21 |
+| Paper synthesis + corpus synthesis | $0.20 + $0.10 | ~$0.30 |
+| **Total** | | **~$1.05** |
 
-Previewing first (`--preview`) stops after the rerank step and costs **~$0.04–0.05**. That's the point of preview — sanity-check the shortlist for pennies before committing.
+Previewing first (`--preview`) stops after the rerank step and costs **~$0.04–0.06**. That's the point of preview — sanity-check the shortlist for pennies before committing. The fresh-topic sizing menu shows each option's spend so you can size against the real cost before approving.
 
 The pre-run estimate shown under a discover preview (and per option in the fresh-topic sizing menu) is **metadata-aware and self-calibrating**: per-video cost scales with the candidate's duration, and the per-source rates are derived from clean single-source runs in your own `cost_log.jsonl` (falling back to the defaults above when history is thin). It's reported as an honest range, e.g. `~$0.42 (est; $0.29-$0.63)`, that narrows as calibration data accrues — so the number tracks *your* model and content mix rather than a fixed table.
 
 ## Budget guidance
 
-- Bulk video analysis is essentially free. 1,000 videos costs ~$6.
+- Bulk video analysis is cheap but not free on grok-4.3: ~$0.03/video, so 1,000 videos costs ~$31. (On the retired `grok-4-1-fast` tier it was ~$6 — set `XAI_FAST_MODEL=grok-4-1-fast-reasoning` in `.env` if you want that trade-off.)
 - Gemini Deep Research dominates the bill at $2–3 per report.
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis because it's single-call Grok with no Deep Research involvement.
-- Budget ~$5 per topic per quarter as a safe upper bound for a channel-heavy workflow.
+- Budget ~$15–20 per topic per quarter as a safe upper bound for a channel-heavy workflow on grok-4.3.
 
 Use `distill costs` to see actual cost history with per-run token breakdowns. Every run logs estimated vs actual costs to `library/cost_log.jsonl` for calibration.
 
