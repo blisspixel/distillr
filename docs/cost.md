@@ -2,7 +2,7 @@
 
 Distill runs on a mix of free and paid stages. YouTube captions and local PDF extraction are free. Model calls are metered per-token by xAI (Grok) and per-query by Google (Gemini Deep Research).
 
-Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table — and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. grok-4.3 is the **cloud floor**: xAI retired the cheaper fast tiers (grok-4-1-fast, grok-4-fast, grok-3, …) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](migration-grok-4.3.md)). To go cheaper than grok-4.3 you run analysis on a **local model** (Ollama/LM Studio, $0 marginal) — validate it first with `distill doctor --eval --model <name>`.
+Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table — and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. grok-4.3 is the **cloud floor**: xAI retired the cheaper fast tiers (grok-4-1-fast, grok-4-fast, grok-3, …) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](migration-grok-4.3.md)). To go cheaper than grok-4.3 you run analysis on a **local model** (Ollama/LM Studio, $0 marginal) — measure the tradeoff first with `distill eval --models grok-4.3,<local-model>`, which scores quality and cost over frozen fixtures and recommends the cheapest model that clears your bar.
 
 ## Per-stage cost
 
@@ -72,7 +72,7 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
 
 ## Budget guidance
 
-- Bulk video analysis is cheap but not free on grok-4.3: ~$0.03/video, so 1,000 videos costs ~$31. There is no cheaper xAI cloud tier anymore (the fast tiers retired 2026-05-15); to drive bulk cost toward $0, run analysis on a local model (`DISTILL_PROVIDER=ollama`) once `distill doctor --eval` confirms it meets the quality bar.
+- Bulk video analysis is cheap but not free on grok-4.3: ~$0.03/video, so 1,000 videos costs ~$31. There is no cheaper xAI cloud tier anymore (the fast tiers retired 2026-05-15); to drive bulk cost toward $0, run analysis on a local model (`DISTILL_PROVIDER=ollama`) once `distill eval` confirms it clears the quality bar.
 - Gemini Deep Research dominates the bill at $2–3 per report.
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis because it's single-call Grok with no Deep Research involvement.
 - Budget ~$15–20 per topic per quarter as a safe upper bound for a channel-heavy workflow on grok-4.3.

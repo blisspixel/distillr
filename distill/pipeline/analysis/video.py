@@ -34,9 +34,14 @@ def analyze_video(
     config: DistillConfig,
     tracker: CostTracker | None = None,
     custom_instructions: str = "",
+    router_config: RouterConfig | None = None,
 ) -> str:
-    """Run 2-pass analysis on a video transcript. Returns insights markdown."""
-    rc = RouterConfig()
+    """Run 2-pass analysis on a video transcript. Returns insights markdown.
+
+    ``router_config`` lets a caller (e.g. the eval harness) force a specific
+    model/provider; defaults to the configured routing.
+    """
+    rc = router_config or RouterConfig()
 
     prompt1 = pass1_extraction_prompt(
         title, upload_date, channel_name, transcript, custom_instructions

@@ -2,6 +2,11 @@
 
 Quality gate for local model validation. Compares local model output against cloud baselines.
 
+> For interactive **cost × quality model selection** (sweep several models over frozen
+> fixtures, advisory LLM-judge, recommendation), use the newer `distill eval` command and
+> the `distill/eval/` package — see [`docs/usage.md`](../../docs/usage.md#evaluate-models-cost--quality).
+> This suite remains the quick local-vs-cloud check used by `distill doctor --eval`.
+
 ## Generating baselines
 
 Run with cloud provider to generate reference outputs:
