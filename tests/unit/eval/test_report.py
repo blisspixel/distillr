@@ -92,6 +92,29 @@ def test_errored_model_excluded_from_recommendation_and_counted():
     assert summary.recommended == "grok-4.3"  # errored model can't be recommended
 
 
+def test_mixed_workloads_label_as_all():
+    rows = _rows("grok-4.3", [0.9], 0.1, None)
+    rows += [
+        EvalRow(
+            workload=w,
+            fixture_id=f"{w}-1",
+            model="grok-4.3",
+            quality=QualityScore(dimensions=[], composite=0.9),
+            cost=0.0,
+            input_tokens=0,
+            output_tokens=0,
+        )
+        for w in ("video", "site")
+    ]
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.9)
+    assert summary.workload == "all (paper+site+video)"
+
+
+def test_single_workload_keeps_its_name():
+    summary = summarize(_rows("grok-4.3", [0.9], 0.1, None), anchor="grok-4.3", threshold=0.9)
+    assert summary.workload == "paper"
+
+
 def test_no_recommendation_when_anchor_all_errored():
     summary = summarize(_errored("grok-4.3", 3), anchor="grok-4.3", threshold=0.90)
     assert summary.recommended is None
