@@ -180,6 +180,30 @@ def test_eval_no_cpu_note_when_cloud_only(mock_config, monkeypatch):
     assert "run on CPU" not in result.output  # cloud-only is unaffected by GPU absence
 
 
+def test_eval_local_only_works_without_cloud_key(tmp_path, monkeypatch):
+    # No XAI key: anchor/judge "auto" must resolve to local models so a local-only
+    # user can eval without any cloud key or fuss.
+    config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    _mock_no_gpu(monkeypatch)
+    monkeypatch.setattr(_cli_impl, "_best_local_model", lambda: "gemma4:26b")
+    import distill.eval as eval_pkg
+
+    captured = {}
+
+    def fake_run(workload, models, *, anchor, judge_model, **k):
+        captured.update(models=list(models), anchor=anchor, judge=judge_model)
+        return _rows()
+
+    monkeypatch.setattr(eval_pkg, "run_model_eval", fake_run)
+    result = runner.invoke(
+        cli.app, ["eval", "--workload", "paper", "--models", "qwen3.5:27b,gemma4:26b", "--yes"]
+    )
+    assert result.exit_code == 0, result.output  # no XAI key required
+    assert captured["anchor"] == "qwen3.5:27b"  # first listed model is the reference
+    assert captured["judge"] == "gemma4:26b"  # auto -> a fitting local model
+
+
 def test_eval_rejects_unknown_workload(mock_config):
     result = runner.invoke(cli.app, ["eval", "--workload", "bogus", "--yes"])
     assert result.exit_code == 1
