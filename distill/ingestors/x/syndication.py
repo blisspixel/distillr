@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 import re
 import string
@@ -10,6 +11,10 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+
+# Cap the (httpx auto-decompressed) syndication body so a gzip/br bomb from a
+# hostile or compromised endpoint can't exhaust memory at JSON-parse time.
+_MAX_SYNDICATION_BYTES = 5 * 1024 * 1024
 
 __all__ = [
     "SYNDICATION_BASE",
@@ -122,10 +127,17 @@ def fetch_tweet(url_or_id: str, *, timeout: float = 20.0) -> TweetRecord:
         "Accept": "application/json",
     }
 
-    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-        resp = client.get(SYNDICATION_BASE, params=params, headers=headers)
+    with (
+        httpx.Client(timeout=timeout, follow_redirects=True) as client,
+        client.stream("GET", SYNDICATION_BASE, params=params, headers=headers) as resp,
+    ):
         resp.raise_for_status()
-        data = resp.json()
+        buf = bytearray()
+        for chunk in resp.iter_bytes():
+            buf += chunk
+            if len(buf) > _MAX_SYNDICATION_BYTES:
+                raise ValueError(f"syndication payload exceeds {_MAX_SYNDICATION_BYTES}-byte cap")
+        data = json.loads(bytes(buf))
 
     if not data or not isinstance(data, dict):
         raise ValueError(f"Empty or unexpected syndication payload for tweet {tweet_id}")

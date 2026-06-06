@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import patch
 
@@ -243,22 +244,28 @@ def test_published_iso_empty_when_no_date() -> None:
 
 
 class _FakeResponse:
-    def __init__(self, data: dict[str, Any], status_code: int = 200) -> None:
+    def __init__(self, data: Any, status_code: int = 200) -> None:
         self._data = data
         self.status_code = status_code
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        pass
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
             raise httpx.HTTPStatusError("err", request=None, response=None)  # type: ignore[arg-type]
 
-    def json(self) -> Any:
-        return self._data
+    def iter_bytes(self) -> list[bytes]:
+        return [json.dumps(self._data).encode("utf-8")]
 
 
 class _FakeClient:
     def __init__(self, data: Any) -> None:
         self._data = data
-        self.get_calls: list[tuple[str, dict, dict]] = []
+        self.stream_calls: list[tuple[str, dict, dict]] = []
 
     def __enter__(self) -> _FakeClient:
         return self
@@ -266,8 +273,8 @@ class _FakeClient:
     def __exit__(self, *_: Any) -> None:
         pass
 
-    def get(self, url: str, params: dict, headers: dict) -> _FakeResponse:
-        self.get_calls.append((url, params, headers))
+    def stream(self, method: str, url: str, params: dict, headers: dict) -> _FakeResponse:
+        self.stream_calls.append((url, params, headers))
         return _FakeResponse(self._data)
 
 
@@ -279,7 +286,7 @@ def test_fetch_tweet_accepts_bare_id() -> None:
     assert rec.tweet_id == "2055709363701264550"
     assert rec.text == "raw id path"
     # Token was supplied (any string is fine, just verify it's there)
-    assert "token" in fake.get_calls[0][1]
+    assert "token" in fake.stream_calls[0][1]
 
 
 def test_fetch_tweet_unrecognized_url_raises() -> None:

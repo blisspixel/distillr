@@ -11,6 +11,10 @@ from distill.pipeline.costs import CostTracker, save_run_log
 
 __all__: list[str] = []
 
+# Each paper triggers a download + an LLM analysis call, so cap how many a single
+# (possibly prompt-injected) MCP call can process to bound cloud spend.
+_MAX_PAPERS = 25
+
 
 @_server.mcp.tool()
 async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) -> str:
@@ -24,6 +28,11 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
     config = _server._config()
     if not config.xai_api_key:
         return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
+
+    try:
+        limit = max(1, min(int(limit), _MAX_PAPERS))
+    except (TypeError, ValueError):
+        limit = 5
 
     try:
         from distill.commands._logic import _write_paper_artifacts
