@@ -76,7 +76,14 @@ class TestCostsTool:
 
 class TestDoctorTool:
     def test_returns_checks(self, mock_config):
-        with patch("distill.mcp.server._config", return_value=mock_config):
+        # Keep live key validation off the network; return healthy stubs.
+        def _fake(provider, config):
+            return ("ok", "stub") if provider == "xai" else ("not_set", "")
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.commands._logic._doctor_validate_key", side_effect=_fake),
+        ):
             from distill.mcp.tools.doctor import doctor
 
             result = json.loads(doctor())
@@ -84,6 +91,25 @@ class TestDoctorTool:
         check_names = [c["check"] for c in result["checks"]]
         assert "xai_api_key" in check_names
         assert "library_dir" in check_names
+
+    def test_flags_invalid_key(self, mock_config):
+        """A present-but-rejected key reports 'invalid', not a false-green 'ok'."""
+
+        def _fake(provider, config):
+            if provider == "gemini":
+                return ("invalid", "400 API_KEY_INVALID")
+            return ("ok", "stub")
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.commands._logic._doctor_validate_key", side_effect=_fake),
+        ):
+            from distill.mcp.tools.doctor import doctor
+
+            result = json.loads(doctor())
+        gem = next(c for c in result["checks"] if c["check"] == "gemini_api_key")
+        assert gem["status"] == "invalid"
+        assert result["status"] == "warning"
 
     def test_missing_api_key(self, tmp_path):
         config = DistillConfig(

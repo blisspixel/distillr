@@ -30,6 +30,24 @@ def mock_config(tmp_path):
     return config
 
 
+@pytest.fixture(autouse=True)
+def _offline_key_validation():
+    """Keep doctor's live API-key validation off the network in unit tests.
+
+    Both doctor paths now live-validate keys via ``_doctor_validate_key``;
+    default it to a healthy offline result so tests never make real provider
+    calls. Individual tests re-patch it to exercise invalid-key handling.
+    """
+
+    def _fake(provider, config):
+        if provider == "xai":
+            return ("ok", "grok-4.3")
+        return ("not_set", "")
+
+    with patch("distill.commands._logic._doctor_validate_key", side_effect=_fake):
+        yield
+
+
 class TestJsonCosts:
     """Test distill costs --json produces valid JSON."""
 
@@ -98,13 +116,44 @@ class TestJsonDoctor:
         assert "\x1b" not in result.output
 
     def test_doctor_json_has_api_key_status(self, mock_config):
-        """doctor --json reports API key status."""
+        """doctor --json reports live-validated API key status, not presence."""
         with patch("distill._cli_impl.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "doctor"])
 
         parsed = json.loads(result.output)
         checks = parsed["data"]["checks"]
         assert "xai_api_key" in checks
+        # Values reflect live validity, not mere presence.
+        assert checks["xai_api_key"] in {"ok", "invalid", "missing"}
+        assert checks["gemini_api_key"] in {"ok", "invalid", "not_set"}
+        assert checks["openai_api_key"] in {"ok", "invalid", "not_set"}
+
+    def test_doctor_json_flags_invalid_key(self, mock_config):
+        """A present-but-rejected key reports 'invalid' + a warning, not a false-green.
+
+        Regression guard: the --json path used to report presence only ("set"),
+        so a revoked/expired key looked healthy while reports failed.
+        """
+
+        def _fake(provider, config):
+            if provider == "xai":
+                return ("ok", "grok-4.3")
+            if provider == "gemini":
+                return ("invalid", "400 API_KEY_INVALID")
+            return ("not_set", "")
+
+        with (
+            patch("distill._cli_impl.get_config", return_value=mock_config),
+            patch("distill.commands._logic._doctor_validate_key", side_effect=_fake),
+        ):
+            result = runner.invoke(app, ["--json", "doctor"])
+
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        checks = parsed["data"]["checks"]
+        assert checks["gemini_api_key"] == "invalid"
+        assert checks["xai_api_key"] == "ok"
+        assert any("GEMINI_API_KEY" in w for w in parsed["data"]["warnings"])
 
 
 class TestJsonAlerts:

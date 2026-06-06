@@ -16,25 +16,22 @@ def doctor() -> str:
     config = _server._config()
     checks: list[dict] = []
 
-    # API keys
-    checks.append(
-        {
-            "check": "xai_api_key",
-            "status": "ok" if config.xai_api_key.get_secret_value() else "missing",
-        }
-    )
-    checks.append(
-        {
-            "check": "gemini_api_key",
-            "status": "ok" if config.gemini_api_key.get_secret_value() else "missing",
-        }
-    )
-    checks.append(
-        {
-            "check": "openai_api_key",
-            "status": "ok" if config.openai_api_key.get_secret_value() else "optional",
-        }
-    )
+    # API keys -- live-validated via the shared CLI helper so the MCP doctor,
+    # the CLI doctor, and the --json path never disagree about key health.
+    # Presence alone is not health: a revoked/expired key is present but dead,
+    # and reporting it "ok" is the false-green this tool used to produce.
+    from distill.commands._logic import _doctor_validate_key
+
+    for provider, label in (
+        ("xai", "xai_api_key"),
+        ("gemini", "gemini_api_key"),
+        ("openai", "openai_api_key"),
+    ):
+        status, detail = _doctor_validate_key(provider, config)
+        entry: dict = {"check": label, "status": status}
+        if status == "invalid":
+            entry["detail"] = detail[:120]
+        checks.append(entry)
 
     # yt-dlp
     yt_dlp_path = shutil.which("yt-dlp")
@@ -90,7 +87,10 @@ def doctor() -> str:
                 }
             )
 
-    all_ok = all(c["status"] in ("ok", "optional") for c in checks)
+    # "not_set" = an optional key (gemini/openai) is absent -- not a failure.
+    # "missing" (required xai absent) and "invalid" (present but rejected) flip
+    # the overall status to warning.
+    all_ok = all(c["status"] in ("ok", "optional", "not_set") for c in checks)
     return json.dumps(
         {
             "status": "ok" if all_ok else "warning",
