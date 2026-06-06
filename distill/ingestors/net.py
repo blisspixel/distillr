@@ -6,14 +6,17 @@ resolve to non-public addresses (:func:`is_public_web_url`), and follows
 redirects only through a handler that re-validates every hop. Callers should
 still pass URLs built from trusted bases where possible.
 
-Residual risk: the public-IP check resolves DNS independently of the subsequent
-connection, so a determined attacker controlling DNS with a low TTL can in
-principle rebind between the check and the fetch. Host-pinned callers (arXiv)
-are unaffected; closing it fully needs connect-time IP pinning.
+Connect-time IP pinning (:func:`resolve_public_ip` + :func:`pin_host_to_ip`)
+closes the DNS-rebind window for the Python fetch paths -- ``safe_urlopen`` and
+the requests-based attachment download resolve+validate the host once and pin
+the connection to that IP, while TLS still verifies the original host. The
+in-browser scraper (Playwright/Chromium) does its own DNS and is bounded by its
+public-web route policy rather than IP pinning.
 """
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import logging
 import socket
@@ -21,10 +24,17 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["NetworkError", "is_public_web_url", "safe_urlopen"]
+__all__ = [
+    "NetworkError",
+    "is_public_web_url",
+    "pin_host_to_ip",
+    "resolve_public_ip",
+    "safe_urlopen",
+]
 
 _ALLOWED_SCHEMES = frozenset({"https"})
 _PUBLIC_WEB_SCHEMES = frozenset({"http", "https"})
@@ -59,42 +69,75 @@ def _resolve_host_to_addrs(host: str) -> list[str]:
     return [info[4][0] for info in infos if isinstance(info[4][0], str) and info[4][0]]
 
 
-def is_public_web_url(url: str) -> bool:
-    """Return ``True`` if ``url`` is http(s) and resolves to a public IP.
+def resolve_public_ip(url: str) -> str | None:
+    """Validate ``url`` and return the single public IP its host resolves to.
 
-    SSRF guard for any code path that fetches an attacker-influenced URL —
-    site seeds, attachment downloads, redirects. Rejects:
-
-    - non-http(s) schemes (``file://``, ``gopher://``, ``ftp://``, …)
-    - bare-IP hosts that fall in loopback/private/link-local/reserved/metadata
-      ranges (RFC1918, 127.0.0.0/8, 169.254.0.0/16, ::1, fc00::/7, …)
-    - hostnames that resolve to any address in those ranges
-
-    Best-effort: DNS resolution failure returns ``False`` (refuse to fetch).
+    SSRF guard for any code path that fetches an attacker-influenced URL. Returns
+    ``None`` for a non-http(s) scheme (``file://``, ``gopher://``, …), a
+    missing/loopback host, a DNS failure, or if ANY resolved address is in a
+    loopback/private/link-local/reserved/metadata range (fail closed). The
+    returned IP is what a caller should connect to via :func:`pin_host_to_ip` so
+    the fetch cannot be DNS-rebound to an internal address between this check and
+    the connection.
     """
     if not isinstance(url, str) or not url:
-        return False
+        return None
     try:
         parsed = urllib.parse.urlparse(url)
     except ValueError:
-        return False
+        return None
     if parsed.scheme.lower() not in _PUBLIC_WEB_SCHEMES:
-        return False
+        return None
     host = (parsed.hostname or "").strip()
     if not host or host.lower() in {"localhost", "ip6-localhost", "ip6-loopback"}:
-        return False
-
+        return None
     addrs = _resolve_host_to_addrs(host)
     if not addrs:
-        return False
+        return None
     for raw in addrs:
         try:
             ip = ipaddress.ip_address(raw.split("%")[0])
         except ValueError:
-            return False
+            return None
         if not _is_public_ip(ip):
-            return False
-    return True
+            return None
+    return addrs[0].split("%")[0]
+
+
+def is_public_web_url(url: str) -> bool:
+    """Return ``True`` if ``url`` is http(s) and resolves only to public IPs.
+
+    Thin boolean wrapper over :func:`resolve_public_ip`. Pair the resolve form
+    with :func:`pin_host_to_ip` when fetching, to also close the DNS-rebind
+    window between the check and the connection.
+    """
+    return resolve_public_ip(url) is not None
+
+
+@contextlib.contextmanager
+def pin_host_to_ip(host: str, ip: str) -> Iterator[None]:
+    """Force ``socket.getaddrinfo(host, ...)`` to return only ``ip`` in-scope.
+
+    Closes the DNS-rebind TOCTOU: resolve+validate ``host`` -> ``ip`` once (via
+    :func:`resolve_public_ip`), then fetch inside this context so the HTTP client
+    connects to the validated ``ip``. TLS SNI and certificate verification still
+    use ``host`` (the URL is unchanged), so HTTPS is unaffected. Only ``host`` is
+    pinned; other hosts resolve normally.
+
+    Best-effort: the patch is process-global, so a concurrent fetch to the same
+    host on another thread would also be pinned. distill fetches sequentially,
+    so this is safe in practice -- it is not a general-purpose primitive.
+    """
+    real_getaddrinfo = socket.getaddrinfo
+
+    def _patched(h, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return real_getaddrinfo(ip if h == host else h, *args, **kwargs)
+
+    socket.getaddrinfo = _patched
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = real_getaddrinfo
 
 
 class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -152,17 +195,21 @@ def safe_urlopen(
     parsed = urllib.parse.urlparse(target_url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"Refusing to open URL with scheme {parsed.scheme!r}: {target_url}")
-    # SSRF guard: reject a target whose host resolves to a non-public address,
-    # and follow redirects only through _SSRF_SAFE_OPENER, which re-checks every
-    # hop. (Scheme-only validation here previously let a trusted host redirect to
-    # an internal/metadata address.)
-    if not is_public_web_url(target_url):
+    # SSRF guard: resolve+validate the host to a public IP once and pin the
+    # connection to it (closing the DNS-rebind window), and follow redirects
+    # only through _SSRF_SAFE_OPENER, which re-checks every hop. (Scheme-only
+    # validation here previously let a trusted host redirect to an internal
+    # address, and a rebind could flip the host after the check.)
+    pinned_ip = resolve_public_ip(target_url)
+    if pinned_ip is None:
         raise ValueError(f"Refusing to open non-public URL: {target_url}")
+    host = parsed.hostname or ""
 
     last_error: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            return _SSRF_SAFE_OPENER.open(url_or_request, timeout=timeout)  # nosec B310
+            with pin_host_to_ip(host, pinned_ip):
+                return _SSRF_SAFE_OPENER.open(url_or_request, timeout=timeout)  # nosec B310
         except urllib.error.HTTPError as exc:
             last_error = exc
             if (exc.code == 429 or exc.code >= 500) and attempt < retries:

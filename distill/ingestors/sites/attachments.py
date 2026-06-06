@@ -13,7 +13,7 @@ import requests
 from pypdf import PdfReader
 
 from distill.config import DistillConfig
-from distill.ingestors.net import is_public_web_url
+from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library.paths import slugify_title
@@ -147,14 +147,22 @@ def _download_pdf_bytes(url: str) -> bytes:
     """
     current_url = url
     for _ in range(_PDF_MAX_REDIRECTS + 1):
-        if not is_public_web_url(current_url):
+        # Resolve+validate to a public IP and pin the connection to it, so a
+        # DNS rebind between the check and the fetch (or on a redirect hop)
+        # cannot point requests at an internal address. TLS still uses the host.
+        pinned_ip = resolve_public_ip(current_url)
+        if pinned_ip is None:
             raise _AttachmentFetchError("PDF URL is not a public http(s) resource")
-        with requests.get(
-            current_url,
-            timeout=30,
-            stream=True,
-            allow_redirects=False,
-        ) as response:
+        host = urlparse(current_url).hostname or ""
+        with (
+            pin_host_to_ip(host, pinned_ip),
+            requests.get(
+                current_url,
+                timeout=30,
+                stream=True,
+                allow_redirects=False,
+            ) as response,
+        ):
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")
                 if not location:
