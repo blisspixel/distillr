@@ -330,10 +330,31 @@ def write_markdown_artifact(
     return write_text_artifact(directory, artifact_type, content, identity=identity)
 
 
+def _parse_scalar_or_list(value: str) -> str | list[str]:
+    """Parse an inline-list frontmatter string (``["a", "b"]``) back into a list.
+
+    ``extract_frontmatter`` returns every value as a string. When
+    ``apply_frontmatter`` carries a pre-existing list field forward (because the
+    incoming frontmatter doesn't re-supply it), re-dumping the raw string would
+    emit ``tags: "[a, b]"`` -- a list silently turned into a quoted scalar.
+    Parsing it back keeps the round-trip honest. ``dump_frontmatter`` always
+    emits lists as valid JSON arrays, so a quote-aware ``json.loads`` round-trips
+    them exactly; anything that isn't a JSON array passes through unchanged.
+    """
+    s = value.strip()
+    if not (len(s) >= 2 and s[0] == "[" and s[-1] == "]"):
+        return value
+    try:
+        parsed = json.loads(s)
+    except (ValueError, TypeError):
+        return value
+    return [str(item) for item in parsed] if isinstance(parsed, list) else value
+
+
 def apply_frontmatter(content: str, frontmatter: Mapping[str, Any]) -> str:
     """Replace any existing frontmatter with a normalized YAML block."""
-    existing = {
-        key: value
+    existing: dict[str, Any] = {
+        key: _parse_scalar_or_list(value)
         for key, value in extract_frontmatter(content).items()
         if key not in {"paper_title", "video_title", "page_title"}
     }

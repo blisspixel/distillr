@@ -46,6 +46,20 @@ def test_pairwise_returns_none_when_unparseable(monkeypatch):
     assert judge_pairwise("s", "c", "a", judge_model="grok-4.3") is None
 
 
+def test_pairwise_returns_none_when_only_one_ordering_parses(monkeypatch):
+    # A single parseable ordering is position-biased; without both there is no
+    # debiased verdict, so the result is None (deterministic-only) rather than a
+    # biased win-rate reported as if it were debiased.
+    seq = iter(
+        [
+            '{"winner": "A", "rationale": "cand better"}',  # ordering 1 parses
+            "garbage, no json",  # ordering 2 fails
+        ]
+    )
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp(next(seq)))
+    assert judge_pairwise("s", "c", "a", judge_model="grok-4.3") is None
+
+
 def test_judge_routes_to_its_own_provider(monkeypatch):
     # A gemini judge must hit the gemini endpoint, not the default xAI one
     # (the bug that returned "Model not found: gemini-3.1-pro" from grok).

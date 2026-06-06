@@ -23,7 +23,13 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from distill.claims.exports import already_extracted_source_ids, append_claims, read_claims
+from distill.claims.exports import (
+    already_extracted_source_ids,
+    append_claims,
+    read_claims,
+    read_extracted_sources,
+    record_extracted_sources,
+)
 from distill.claims.extract import extract_claims_from_insight
 from distill.claims.records import utcnow_iso
 from distill.library.insights import discover_insights
@@ -93,11 +99,19 @@ def run_claims(
         return summary
 
     timestamp = now_iso or utcnow_iso()
-    seen = set() if refresh else already_extracted_source_ids(topic_dir)
+    # Skip insights already extracted. Union the claim rows with the
+    # extracted-sources ledger so a source that produced zero claims (no row in
+    # claims.jsonl) is still recognized as done and not re-extracted every run.
+    seen = (
+        set()
+        if refresh
+        else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
+    )
     pending = [r for r in refs if r.source_id not in seen]
     summary.insights_extracted = len(pending)
 
     new_claims = []
+    processed: list[str] = []
     for ref in pending:
         try:
             result = extract_claims_from_insight(
@@ -113,10 +127,15 @@ def run_claims(
             logger.warning("Claim extraction failed for %s: %s", ref.path, exc)
             continue
         new_claims.extend(result.claims)
+        # Record every successfully-processed source -- even a zero-claim one --
+        # so it is not re-extracted on the next run.
+        processed.append(ref.source_id)
 
     if new_claims:
         append_claims(topic_dir, new_claims)
         summary.claims_added = len(new_claims)
+
+    record_extracted_sources(topic_dir, processed)
 
     # Count distinct claims, not raw rows: claims.jsonl is append-only, so a
     # --refresh re-appends a source's claims and len(read_claims) would double-

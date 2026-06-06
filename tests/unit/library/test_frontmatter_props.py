@@ -10,12 +10,22 @@ from hypothesis import strategies as st
 
 from distill.library.paths import (
     ProvenanceFields,
+    apply_frontmatter,
     base_frontmatter,
     dump_frontmatter,
     extract_frontmatter,
     provenance_frontmatter,
     strip_frontmatter,
 )
+
+
+def test_apply_frontmatter_keeps_list_field_as_list_when_not_resupplied() -> None:
+    # A pre-existing list field (tags) not re-supplied by the patch must round-
+    # trip as an inline list, not collapse into a quoted scalar string.
+    content = dump_frontmatter({"title": "T", "tags": ["a", "b"]}) + "\n\nbody"
+    patched = apply_frontmatter(content, {"generated_at": "2026-06-06"})
+    assert 'tags: ["a", "b"]' in patched
+    assert 'tags: "[a, b]"' not in patched
 
 
 def test_extract_frontmatter_value_with_triple_dash_not_truncated() -> None:
