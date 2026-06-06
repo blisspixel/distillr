@@ -56,6 +56,18 @@ def _concept(
     )
 
 
+def test_recovery_rejects_traversal_slug(tmp_path: Path) -> None:
+    # slug reaches filesystem joins from untrusted MCP/CLI callers; a traversal
+    # slug must not read or write outside the topic dir.
+    td = tmp_path / "topics" / "tkg"
+    td.mkdir(parents=True)
+    bad = "../../../../etc/secret"
+    assert recovery.note_path_for_slug(td, bad) is None
+    assert recovery.list_snapshots(td, bad) == []
+    with pytest.raises(ValueError, match=r"[Uu]nsafe"):
+        recovery.rollback(td, bad, "2026-01-01T00-00-00Z", now_iso="2026-01-02T00:00:00Z")
+
+
 def test_rollback_refuses_on_slug_collision(tmp_path: Path) -> None:
     # "gpt 4" and "gpt-4" are distinct concepts that both slugify to "gpt_4".
     # Rolling back the slug to the bumped concept's snapshot must NOT clobber

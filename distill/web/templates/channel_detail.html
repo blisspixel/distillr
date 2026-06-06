@@ -9,7 +9,7 @@
 </div>
 
 <h1>{{ channel }}</h1>
-<p class="subtitle">{{ video_count }} videos{% if ch_info %} &middot; <a href="{{ ch_info.url }}" target="_blank">YouTube</a>{% endif %}</p>
+<p class="subtitle">{{ video_count }} videos{% if ch_info and (ch_info.url or '').startswith(('http://', 'https://')) %} &middot; <a href="{{ ch_info.url }}" target="_blank" rel="noopener noreferrer">YouTube</a>{% endif %}</p>
 
 <div class="tabs" data-group="ch">
   <button class="tab active" data-group="ch" data-tab="tab-videos">Videos ({{ video_count }})</button>

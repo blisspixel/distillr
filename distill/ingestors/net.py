@@ -1,9 +1,15 @@
 """Small shared networking utilities used across ingestion modules.
 
-Centralizes URL-scheme validation for the ``urllib.request.urlopen`` calls
-scattered across the codebase, so every open goes through a single checked
-entry point. Callers should still only pass URLs built from trusted bases
-(e.g. the arXiv API endpoint, a hard-coded YouTube search URL constructor).
+Centralizes SSRF-safe fetching for the ``urllib.request`` calls scattered across
+the codebase: :func:`safe_urlopen` validates the scheme, rejects targets that
+resolve to non-public addresses (:func:`is_public_web_url`), and follows
+redirects only through a handler that re-validates every hop. Callers should
+still pass URLs built from trusted bases where possible.
+
+Residual risk: the public-IP check resolves DNS independently of the subsequent
+connection, so a determined attacker controlling DNS with a low TTL can in
+principle rebind between the check and the fetch. Host-pinned callers (arXiv)
+are unaffected; closing it fully needs connect-time IP pinning.
 """
 
 from __future__ import annotations
@@ -91,6 +97,26 @@ def is_public_web_url(url: str) -> bool:
     return True
 
 
+class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-validate every redirect target against the SSRF policy.
+
+    ``urllib`` follows 30x redirects transparently, so a trusted host can bounce
+    a request to ``http://169.254.169.254/`` or an RFC1918 address. This handler
+    runs each redirect hop's URL through :func:`is_public_web_url` and refuses
+    the redirect if it points anywhere non-public.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        if not is_public_web_url(newurl):
+            raise urllib.error.HTTPError(
+                newurl, code, "refusing redirect to non-public URL", headers, fp
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_SSRF_SAFE_OPENER = urllib.request.build_opener(_PublicWebRedirectHandler())
+
+
 class NetworkError(Exception):
     """Raised when a network request fails after all retries."""
 
@@ -126,11 +152,17 @@ def safe_urlopen(
     parsed = urllib.parse.urlparse(target_url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"Refusing to open URL with scheme {parsed.scheme!r}: {target_url}")
+    # SSRF guard: reject a target whose host resolves to a non-public address,
+    # and follow redirects only through _SSRF_SAFE_OPENER, which re-checks every
+    # hop. (Scheme-only validation here previously let a trusted host redirect to
+    # an internal/metadata address.)
+    if not is_public_web_url(target_url):
+        raise ValueError(f"Refusing to open non-public URL: {target_url}")
 
     last_error: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            return urllib.request.urlopen(url_or_request, timeout=timeout)  # nosec B310
+            return _SSRF_SAFE_OPENER.open(url_or_request, timeout=timeout)  # nosec B310
         except urllib.error.HTTPError as exc:
             last_error = exc
             if (exc.code == 429 or exc.code >= 500) and attempt < retries:

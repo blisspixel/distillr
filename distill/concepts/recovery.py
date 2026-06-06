@@ -84,6 +84,21 @@ def safe_ts_to_iso(safe_ts: str) -> str:
 # ---- path resolution -------------------------------------------------------
 
 
+def _is_safe_slug(slug: str) -> bool:
+    """True if ``slug`` is a single safe path component (no traversal).
+
+    Recovery entry points take ``slug`` from untrusted callers (the MCP
+    ``concept_history`` / ``concept_diff`` tools and the CLI). A real note slug
+    is ``[a-z0-9_]``; reject separators, ``..``, drive/UNC, and null bytes so a
+    hostile slug cannot escape the topic dir to read or write arbitrary files.
+    """
+    if not isinstance(slug, str) or not slug or "\x00" in slug:
+        return False
+    if "/" in slug or "\\" in slug or slug in (".", ".."):
+        return False
+    return slug == Path(slug).name
+
+
 def history_dir_for_slug(topic_dir: Path, slug: str) -> Path:
     """Return ``<topic_dir>/.history/<slug>/``. Does not create."""
     return topic_dir / ".history" / slug
@@ -98,6 +113,8 @@ def note_path_for_slug(topic_dir: Path, slug: str) -> Path | None:
     whose frontmatter ``slug`` field matches. Returns ``None`` when no
     live note exists for the slug.
     """
+    if not _is_safe_slug(slug):
+        return None
     for sub in ("concepts", "entities"):
         candidate = topic_dir / sub / f"{slug}.md"
         if candidate.is_file():
@@ -136,6 +153,8 @@ class Snapshot:
 
 def list_snapshots(topic_dir: Path, slug: str) -> list[Snapshot]:
     """Return all snapshots for ``slug``, oldest first. Empty if none."""
+    if not _is_safe_slug(slug):
+        return []
     history = history_dir_for_slug(topic_dir, slug)
     if not history.is_dir():
         return []
@@ -458,6 +477,8 @@ def rollback(
     live note already byte-matches the snapshot, no files change and
     ``RollbackResult.changed`` is ``False``.
     """
+    if not _is_safe_slug(slug):
+        raise ValueError(f"Unsafe concept slug: {slug!r}")
     snapshot = resolve_snapshot(topic_dir, slug, timestamp)
     if snapshot is None:
         raise FileNotFoundError(f"No snapshot for slug '{slug}' matching timestamp '{timestamp}'.")

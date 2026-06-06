@@ -42,7 +42,7 @@ def test_analyze_site_page_builds_frontmatter(tmp_path):
         result = analyze_site_page(_page(), config, tracker=tracker)
 
     assert 'page_title: "Agent \\"Overview\\""' in result
-    assert "site: example.com" in result
+    assert 'site: "example.com"' in result
     assert "analyzed_by: grok-4.3" in result
     assert result.rstrip().endswith("site body")
     assert len(tracker.entries) == 1

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from rich.console import Console
 
 from distill.config import DistillConfig
@@ -58,13 +60,19 @@ def analyze_site_page(
                 call_type="site_page",
             )
         )
-    safe_title = page.title.replace('"', '\\"')
+
+    # JSON-encode page-derived values: a newline (or quote) in an ingested
+    # page's title/metadata would otherwise break out of its line and inject
+    # extra frontmatter fields. json.dumps quotes and escapes both.
+    def _q(value: object) -> str:
+        return json.dumps(str(value), ensure_ascii=False)
+
     return (
         f"---\n"
-        f'page_title: "{safe_title}"\n'
-        f"site: {page.site_name}\n"
-        f"page_type: {page.page_type}\n"
-        f"url: {page.url}\n"
+        f"page_title: {_q(page.title)}\n"
+        f"site: {_q(page.site_name)}\n"
+        f"page_type: {_q(page.page_type)}\n"
+        f"url: {_q(page.url)}\n"
         f"analyzed_by: {response.model}\n"
         f"model: {response.model}\n"
         f"model_version: {response.model}\n"
