@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.18 - 2026-06-06
+
+**Cleared the deferred backlog -- the remaining real bugs from the deep sweeps are now fixed.**
+
+- **Two-pass claim extraction re-ran a zero-claim source on every run.** "Already extracted" was inferred from rows in `claims.jsonl`, but a source that legitimately yields no claims writes no row -- so it was re-extracted (a wasted LLM call) every run, breaking the documented "re-running with no new insights does no LLM calls" guarantee. A per-topic extracted-sources ledger now records every processed insight (including zero-claim ones), so it is skipped next time.
+- **`apply_frontmatter` could turn a list field into a quoted scalar.** Patching one frontmatter field on an artifact whose existing `tags`/`authors` weren't re-supplied re-emitted the carried-forward list as `tags: "[a, b]"` instead of `tags: ["a", "b"]`. Inline lists are now parsed back to lists before re-dumping so they round-trip intact (`extract_frontmatter`'s string contract is unchanged -- the fix is local to the merge).
+- **The eval pairwise judge could report a position-biased win-rate as "debiased".** When only one of the two orderings produced a parseable verdict, the single-ordering (biased) win-rate was returned despite the design averaging both orderings to cancel A/B position bias. It now requires both orderings; a half-result is treated as no judge signal (the row scores deterministic-only, tentative) rather than a misleadingly "debiased" number.
+
+Also verified and deliberately left unchanged: the providers' `time.sleep` runs under `asyncio.run` as the only coroutine on an ephemeral loop (starves nothing -- the `async` is vestigial, not a bug), and the migration's `write_text` LF→CRLF on Linux-origin files is a cosmetic whitespace effect with no data loss, systemic to every writer.
+
 ## 0.9.17 - 2026-06-06
 
 **Third bug-hunt wave (report phases, claims/synthesis, local ingest) plus an adversarial self-review of every prior fix.**
