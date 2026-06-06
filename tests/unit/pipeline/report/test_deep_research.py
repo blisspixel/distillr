@@ -13,6 +13,23 @@ from distill.pipeline.report.deep_research import (
 )
 
 
+def _completed(text):
+    """A completed interaction in the real google-genai 2.7+ steps shape."""
+    return SimpleNamespace(
+        status="completed",
+        steps=[
+            SimpleNamespace(
+                type="model_output",
+                content=[SimpleNamespace(type="text", text=text)],
+            )
+        ],
+    )
+
+
+def _in_progress():
+    return SimpleNamespace(status="in_progress", steps=[])
+
+
 def test_get_report_path_respects_scope(tmp_path):
     config = DistillConfig(distill_output_dir=tmp_path / "lib")
 
@@ -82,8 +99,8 @@ def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
 
     interaction_states = [
-        SimpleNamespace(status="running", outputs=[]),
-        SimpleNamespace(status="completed", outputs=[SimpleNamespace(text="final report")]),
+        _in_progress(),
+        _completed("final report"),
     ]
 
     class FakeInteractions:
@@ -107,7 +124,7 @@ def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
         "distill.pipeline.report.deep_research.delete_store",
         lambda client, name: deleted.append(name),
     )
-    monkeypatch.setattr("distill.pipeline.report.deep_research.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("distill.pipeline.report._interactions.time.sleep", lambda seconds: None)
 
     tracker = CostTracker()
 
@@ -128,7 +145,7 @@ def test_run_deep_research_handles_failed_interaction(tmp_path, monkeypatch):
             return SimpleNamespace(id="job-1")
 
         def get(self, interaction_id):
-            return SimpleNamespace(status="failed", error="bad news", outputs=[])
+            return SimpleNamespace(status="failed", steps=[])
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -148,7 +165,7 @@ def test_run_deep_research_handles_failed_interaction(tmp_path, monkeypatch):
     result = run_deep_research("ai", config)
 
     assert result is None
-    assert deleted == ["store-1", "store-1"]
+    assert deleted == ["store-1"]
 
 
 def test_run_deep_research_records_submitted_failed_interaction(tmp_path, monkeypatch):
@@ -159,7 +176,7 @@ def test_run_deep_research_records_submitted_failed_interaction(tmp_path, monkey
             return SimpleNamespace(id="job-1")
 
         def get(self, interaction_id):
-            return SimpleNamespace(status="failed", error="bad news", outputs=[])
+            return SimpleNamespace(status="failed", steps=[])
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -186,7 +203,7 @@ def test_run_deep_research_returns_none_when_completed_without_output(tmp_path, 
             return SimpleNamespace(id="job-1")
 
         def get(self, interaction_id):
-            return SimpleNamespace(status="completed", outputs=[])
+            return SimpleNamespace(status="completed", steps=[])
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
@@ -206,7 +223,7 @@ def test_run_deep_research_returns_none_when_completed_without_output(tmp_path, 
     result = run_deep_research("ai", config)
 
     assert result is None
-    assert deleted == ["store-1", "store-1"]
+    assert deleted == ["store-1"]
 
 
 def test_gather_corpus_condensed_all_scope_collects_topic_syntheses(tmp_path):
@@ -275,11 +292,11 @@ def test_run_deep_research_logs_long_running_status(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
 
     interaction_states = [
-        SimpleNamespace(status="running", outputs=[]),
-        SimpleNamespace(status="running", outputs=[]),
-        SimpleNamespace(status="running", outputs=[]),
-        SimpleNamespace(status="running", outputs=[]),
-        SimpleNamespace(status="completed", outputs=[SimpleNamespace(text="done")]),
+        _in_progress(),
+        _in_progress(),
+        _in_progress(),
+        _in_progress(),
+        _completed("done"),
     ]
 
     class FakeInteractions:
@@ -298,7 +315,7 @@ def test_run_deep_research_logs_long_running_status(tmp_path, monkeypatch):
         "distill.pipeline.report.deep_research.create_research_store",
         lambda *args, **kwargs: ("store-1", 2),
     )
-    monkeypatch.setattr("distill.pipeline.report.deep_research.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("distill.pipeline.report._interactions.time.sleep", lambda seconds: None)
     deleted = []
     monkeypatch.setattr(
         "distill.pipeline.report.deep_research.delete_store",

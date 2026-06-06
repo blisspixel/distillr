@@ -26,6 +26,7 @@ from distill.llm.call import LLMCall
 from distill.llm.retry import retry_with_backoff
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.deep_research import _get_report_path
 from distill.pipeline.report.file_search import create_research_store, delete_store
 from distill.prompts.report import (
@@ -253,35 +254,13 @@ def _run_dossier_phase(
             tracker.record_gemini_query(DEEP_RESEARCH_MODEL)
         console.print(f"[dim]Job ID: {interaction_id}[/dim]")
 
-        poll_count = 0
-        while True:
-            interaction = client.interactions.get(interaction_id)
-            status = interaction.status
-            poll_count += 1
+        completed = await_interaction(client, interaction_id, console, label="Deep Research")
+        if completed is None:
+            return None
 
-            if status == "completed":
-                console.print(f"[green]Deep Research complete ({poll_count * 15}s)[/green]")
-                break
-            if status == "failed":
-                error = getattr(interaction, "error", "Unknown error")
-                console.print(f"[red]Research failed: {error}[/red]")
-                delete_store(client, store_name)
-                return None
-            else:
-                if poll_count % 4 == 0:
-                    console.print(
-                        f"  [dim]Still researching... ({poll_count * 15}s, status: {status})[/dim]"
-                    )
-
-            time.sleep(15)
-
-        result_text = ""
-        if interaction.outputs:
-            result_text = interaction.outputs[-1].text
-
+        result_text = interaction_text(completed)
         if not result_text:
             console.print("[red]Research completed but no output received[/red]")
-            delete_store(client, store_name)
             return None
 
         return result_text

@@ -668,7 +668,13 @@ class TestDossierPhase:
 
             def get(self, interaction_id):
                 return SimpleNamespace(
-                    status="completed", outputs=[SimpleNamespace(text="dossier body")]
+                    status="completed",
+                    steps=[
+                        SimpleNamespace(
+                            type="model_output",
+                            content=[SimpleNamespace(type="text", text="dossier body")],
+                        )
+                    ],
                 )
 
         class FakeClient:
@@ -699,7 +705,7 @@ class TestDossierPhase:
                 return SimpleNamespace(id="job-1")
 
             def get(self, interaction_id):
-                return SimpleNamespace(status="failed", error="bad request")
+                return SimpleNamespace(status="failed", steps=[])
 
         class FakeClient:
             def __init__(self, *args, **kwargs):
@@ -710,7 +716,7 @@ class TestDossierPhase:
         result = _run_dossier_phase("ai", config, "topic", None, None, False)
 
         assert result is None
-        assert deleted == ["store-1", "store-1"]
+        assert deleted == ["store-1"]
 
     @patch("distill.pipeline.report.accordion.time.sleep", lambda seconds: None)
     def test_run_dossier_phase_returns_none_when_output_empty(self, config, monkeypatch):
@@ -729,7 +735,7 @@ class TestDossierPhase:
                 return SimpleNamespace(id="job-1")
 
             def get(self, interaction_id):
-                return SimpleNamespace(status="completed", outputs=[])
+                return SimpleNamespace(status="completed", steps=[])
 
         class FakeClient:
             def __init__(self, *args, **kwargs):
@@ -740,7 +746,7 @@ class TestDossierPhase:
         result = _run_dossier_phase("ai", config, "topic", None, None, False)
 
         assert result is None
-        assert deleted == ["store-1", "store-1"]
+        assert deleted == ["store-1"]
 
     @patch("distill.pipeline.report.accordion.time.sleep", lambda seconds: None)
     def test_run_dossier_phase_records_tracker_usage(self, config, monkeypatch):
@@ -759,7 +765,13 @@ class TestDossierPhase:
 
             def get(self, interaction_id):
                 return SimpleNamespace(
-                    status="completed", outputs=[SimpleNamespace(text="dossier body")]
+                    status="completed",
+                    steps=[
+                        SimpleNamespace(
+                            type="model_output",
+                            content=[SimpleNamespace(type="text", text="dossier body")],
+                        )
+                    ],
                 )
 
         class FakeClient:

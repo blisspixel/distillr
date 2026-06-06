@@ -42,6 +42,12 @@ class TestDistillConfig:
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("SCRIBE_PATH", raising=False)
+        # _env_file=None skips .env, but pydantic-settings still reads OS env
+        # vars -- clear the ones this test asserts defaults for, so a developer
+        # who exports them locally does not see a false failure.
+        monkeypatch.delenv("DISTILL_DEFAULT_MONTHS", raising=False)
+        monkeypatch.delenv("XAI_ANALYSIS_MODEL", raising=False)
+        monkeypatch.delenv("XAI_SITE_MODEL", raising=False)
         config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
         assert config.xai_api_key.get_secret_value() == ""
         assert config.gemini_api_key.get_secret_value() == ""
