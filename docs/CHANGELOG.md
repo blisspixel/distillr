@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.15 - 2026-06-06
+
+**Second multi-agent bug-hunt sweep — the capture layer (ingestors) and the MCP + web surfaces.**
+
+- **X (Twitter) video tweets produced malformed `Tweet.md`.** A stray filter dropped *every* blank line from the whole document (to remove one optional poster line), collapsing all Markdown paragraph separators so headers and body jammed together — for any tweet with a video. The video block is now built without the document-wide filter.
+- **arXiv full-text extraction silently degraded to abstract-only.** `_is_arxiv_pdf_url` required `https`, but arXiv's Atom feed serves pdf links as `http://`, so the download was rejected and `fetch_paper_pdf_text` returned `""` with no error. Both schemes are now accepted; the host allow-list (not the scheme) is what bounds SSRF, and http redirects to https.
+- **One corrupt `metadata.json` crashed MCP resources and `research_gaps`.** `video_list` (in `pipeline/gaps.py`) read every video's metadata with an unguarded `json.loads`, so a single truncated file (common after an interrupted run) raised `JSONDecodeError` up through several MCP resources and the `research_gaps` tool. It now skips the bad entry, matching every sibling reader.
+- **Path-traversal gap in the web video route.** `GET /topics/{topic}/channels/{channel}/videos/{slug}` appended the raw URL `slug` to a filesystem path with no sanitization, so a percent-encoded `../` could read files outside the channel directory. The slug is now confined under the channel's `videos/` directory (404 on escape), matching the MCP layer's containment.
+- **Hardened the dashboard's external video link** to render only for `http(s)` URLs (with `rel="noopener noreferrer"`), so a non-`http` scheme in ingested metadata cannot become a clickable link.
+
 ## 0.9.14 - 2026-06-06
 
 **Repaired Gemini Deep Research (broken against google-genai 2.7), hardened `distill doctor`'s API-key checks, and a multi-agent bug-hunt sweep of correctness fixes across the report pipeline, CLI, and LLM providers.**
