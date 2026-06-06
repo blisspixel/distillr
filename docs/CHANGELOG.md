@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.19 - 2026-06-06
+
+**Security hardening pass — a multi-agent audit across SSRF, path traversal, XSS, injection, deserialization, secrets, and ReDoS. Five real issues fixed; the rest of the surface verified clean.**
+
+- **SSRF — X video download (Critical).** `download_video` fetched `video_url` from the (attacker-influenced) tweet syndication response with no validation and `follow_redirects=True`, so a hostile tweet could make distill fetch `http://169.254.169.254/` or an internal host and write the bytes to disk for transcription. It is now pinned to `*.twimg.com` + a public IP, re-validates every redirect hop, and caps the download size.
+- **SSRF — `safe_urlopen` redirects (High).** The shared `urllib` fetch validated only the scheme and followed redirects transparently, so a trusted host (arXiv/YouTube) could 30x-redirect to an internal/metadata address. It now rejects any target resolving to a non-public IP and follows redirects only through a handler that re-checks every hop.
+- **Path traversal — concept recovery (High).** The `concept_history` / `concept_diff` MCP tools (and the CLI rollback) passed the `slug` argument straight into filesystem joins, so an untrusted agent could read -- and via rollback, write -- `.md` files outside the library (`slug="../../../etc/secret"`). Slugs are validated as a single safe path component at every entry point now.
+- **Stored XSS — dashboard channel link (Medium).** `channel_detail.html` put a channel URL into an `href` with no scheme check, so a `javascript:` URL (storable via the `watch_add`/`add_channel` MCP tools) would execute on click. The link is gated to `http(s)` (matching the video page) with `rel="noopener noreferrer"`.
+- **Frontmatter injection — site analysis (Low).** An ingested page `<title>` (or other page metadata) containing a newline could inject extra frontmatter fields; page-derived values are JSON-escaped now.
+
+Audited and confirmed clean: command/argument injection (no `shell=True`; yt-dlp via its Python API; hardcoded argv for nvidia-smi/ollama), unsafe deserialization (no `pickle`/`eval`/`yaml.load`; `defusedxml` for arXiv XML), secret leakage (keys are `SecretStr`, never logged or echoed in errors/artifacts/telemetry), ReDoS (no catastrophic patterns), the markdown→HTML→nh3 sanitization order, the loopback-only dashboard bind, and MCP path containment elsewhere (`read_insight`/`read_concept`/`site_batch`). A residual DNS-rebind TOCTOU in the SSRF guard is documented in `net.py` (host-pinned callers unaffected; full closure needs connect-time IP pinning).
+
 ## 0.9.18 - 2026-06-06
 
 **Cleared the deferred backlog -- the remaining real bugs from the deep sweeps are now fixed.**
