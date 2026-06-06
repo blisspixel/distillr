@@ -324,6 +324,11 @@ def _filter_recent_candidates(videos: list, days: int, hours: int | None = None)
         if published_at:
             try:
                 upload_dt = datetime.fromisoformat(published_at)
+                # YouTube returns tz-aware timestamps (RFC3339 with Z/offset);
+                # cutoff is naive local time, so normalize to naive local to
+                # avoid "can't compare offset-naive and offset-aware" below.
+                if upload_dt.tzinfo is not None:
+                    upload_dt = upload_dt.astimezone().replace(tzinfo=None)
             except ValueError:
                 upload_dt = None
             if upload_dt is not None:

@@ -6,10 +6,30 @@ import random
 import time
 from collections.abc import Callable
 
-__all__ = ["PERMANENT_ERRORS", "compute_delay", "retry_with_backoff"]
+__all__ = [
+    "PERMANENT_ERRORS",
+    "compute_delay",
+    "is_permanent_error",
+    "retry_with_backoff",
+]
 
 # HTTP status codes and exception types that should never be retried.
 PERMANENT_ERRORS: tuple[int, ...] = (400, 401, 403, 404, 422)
+
+
+def is_permanent_error(exc: Exception) -> bool:
+    """True if ``exc`` carries an HTTP status that must never be retried.
+
+    Inspects the common SDK exception shapes -- a ``status_code`` attribute
+    (the openai SDK) or a nested ``response.status_code`` (httpx). Returns
+    False when no status can be determined, so callers safely fall back to
+    their normal retry behavior rather than misclassifying an unknown error.
+    """
+    status: object = getattr(exc, "status_code", None)
+    if status is None:
+        response: object = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+    return status in PERMANENT_ERRORS
 
 
 def compute_delay(

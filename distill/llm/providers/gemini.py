@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Any
 
+from distill.llm.retry import is_permanent_error
 from distill.llm.router import LLM_Response
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,8 @@ class GeminiProvider:
                 )
             except Exception as exc:
                 last_error = exc
+                if is_permanent_error(exc):
+                    raise
                 if attempt < retries:
                     wait = 2**attempt * 5
                     logger.warning(

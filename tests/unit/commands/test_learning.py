@@ -148,6 +148,24 @@ def test_filter_recent_candidates_handles_exact_published_at_and_bad_dates():
     assert [video.video_id for video in filtered] == ["recent", "invalid", "missing"]
 
 
+def test_filter_recent_candidates_handles_tz_aware_published_at():
+    # YouTube returns tz-aware RFC3339 timestamps; the cutoff is naive local
+    # time, so the comparison must not raise "can't compare offset-naive and
+    # offset-aware datetimes" -- it previously did.
+    aware = VideoInfo(
+        "aware",
+        "Aware",
+        "20260420",
+        600,
+        "https://youtube.com/watch?v=aware",
+        published_at=datetime.now().astimezone().isoformat(),
+    )
+
+    filtered = learning._filter_recent_candidates([aware], days=7)
+
+    assert [video.video_id for video in filtered] == ["aware"]
+
+
 def test_auto_skeptical_mode_triggers_on_april_first(monkeypatch):
     class FakeDateTime:
         @staticmethod
