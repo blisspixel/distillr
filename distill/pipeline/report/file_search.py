@@ -47,21 +47,24 @@ def create_research_store(  # noqa: C901 — legacy, will refactor
     store = client.file_search_stores.create(
         config={"display_name": f"distill-{topic}-{scope}-{int(time.time())}"}
     )
-    store_name = store.name
+    store_name = store.name or ""
     console.print(f"  [dim]Created store: {store_name}[/dim]")
 
-    files = _gather_files(topic, config, scope, channel_name)
-    if not files:
-        console.print("[yellow]No files to upload to store[/yellow]")
-        return store_name, 0
-
-    console.print(f"  [cyan]Uploading {len(files)} documents to File Search store...[/cyan]")
     uploaded = 0
     pending_ops: list[Any] = []
     temp_paths: list[Path] = []
-    total = len(files)
 
+    # Everything after store creation runs under this try so the store (a paid
+    # remote resource) is deleted if gathering, upload, or indexing raises. The
+    # clean no-content path returns without deleting -- the caller owns that.
     try:
+        files = _gather_files(topic, config, scope, channel_name)
+        if not files:
+            console.print("[yellow]No files to upload to store[/yellow]")
+            return store_name, 0
+
+        console.print(f"  [cyan]Uploading {len(files)} documents to File Search store...[/cyan]")
+        total = len(files)
         for i, (label, content) in enumerate(files):
             tmp_path: Path | None = None
             try:
@@ -116,13 +119,15 @@ def create_research_store(  # noqa: C901 — legacy, will refactor
                 console.print(
                     f"  [yellow]Indexing timeout — {len(pending_ops)} docs may still be processing[/yellow]"
                 )
+        console.print(f"  [green]Indexed {uploaded}/{total} documents[/green]")
+        return store_name, uploaded
+    except Exception:
+        delete_store(client, store_name)
+        raise
     finally:
         for tmp_path in temp_paths:
             with contextlib.suppress(Exception):
                 tmp_path.unlink(missing_ok=True)
-
-    console.print(f"  [green]Indexed {uploaded}/{total} documents[/green]")
-    return store_name, uploaded
 
 
 def delete_store(client: genai.Client, store_name: str):

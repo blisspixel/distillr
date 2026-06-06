@@ -72,6 +72,7 @@ def await_interaction(
     *,
     label: str,
     poll_secs: int = 15,
+    max_polls: int = 240,
 ) -> Any | None:
     """Poll a background interaction until it reaches a terminal state.
 
@@ -81,9 +82,16 @@ def await_interaction(
     :data:`POLLING_STATUSES`; any other status -- including one this code does
     not recognize -- is treated as terminal and ends the loop. The caller keeps
     ownership of its own cleanup (e.g. deleting the File Search store).
+
+    Bounded by ``max_polls`` (default 240 = 1 hour at the 15s default) so a job
+    that never advances past an in-flight status -- a server-side stall, a job
+    that died without updating status -- cannot poll a paid run forever. Deep
+    Research typically completes in 5-15 minutes, so the bound never trips on a
+    healthy run; if it does, the function reports a timeout and returns ``None``.
     """
+    status = "unknown"
     poll = 0
-    while True:
+    while poll < max_polls:
         interaction = client.interactions.get(interaction_id)
         status = interaction.status
         poll += 1
@@ -101,3 +109,9 @@ def await_interaction(
                 f"  [dim]{label} still running... ({poll * poll_secs}s, status: {status})[/dim]"
             )
         time.sleep(poll_secs)
+
+    console.print(
+        f"[red]{label} timed out after {max_polls * poll_secs}s without completing "
+        f"(last status: {status})[/red]"
+    )
+    return None
