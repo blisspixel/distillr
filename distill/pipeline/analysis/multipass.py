@@ -17,6 +17,7 @@ from distill.pipeline.analysis.reranker import (
     INSIGHT_CATEGORIES,
     rerank_for_category,
 )
+from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ def _build_focused_prompt(category: str, chunk_texts: list[str]) -> str:
         f"Focus specifically on: {description}\n\n"
         f"Provide a concise, well-structured summary of the {category} "
         f"found in this content. Use bullet points or short paragraphs.\n\n"
+        f"SECURITY: {UNTRUSTED_CONTENT_RULES}\n\n"
         f"Content:\n{combined_content}"
     )
 

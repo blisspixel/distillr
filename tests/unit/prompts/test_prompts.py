@@ -19,6 +19,20 @@ from distill.prompts import (
 )
 
 
+def test_aggregation_prompts_carry_injection_guard():
+    # Second-hop prompts combine untrusted-derived content (insights, syntheses,
+    # candidate titles/abstracts); each must frame it as data so a poisoned
+    # source can't steer a corpus-level synthesis, report, or ranking.
+    assert "untrusted" in channel_synthesis_prompt("c", "ctx", "insights").lower()
+    assert "untrusted" in topic_synthesis_prompt("t", {"c": "syn"}).lower()
+    assert "untrusted" in corpus_synthesis_prompt("t", {"src": "body"}).lower()
+    assert "untrusted" in deep_research_prompt("t", "corpus").lower()
+    assert "untrusted" in search_rerank_prompt("q", []).lower()
+    assert "untrusted" in paper_rerank_prompt("q", []).lower()
+    assert "untrusted" in discover_rerank_prompt("g", []).lower()
+    assert "untrusted" in auto_watch_instructions_prompt("c", ["t1"]).lower()
+
+
 class TestPass1Prompt:
     def test_basic(self):
         result = pass1_extraction_prompt("Title", "20250101", "Channel", "Some transcript")

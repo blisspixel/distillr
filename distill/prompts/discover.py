@@ -9,6 +9,8 @@ __all__ = [
     "search_rerank_prompt",
 ]
 
+from distill.prompts.shared import DERIVED_CONTENT_RULES
+
 
 def search_query_expansion_prompt(query: str, *, skeptical: bool = False) -> str:
     """Prompt for generating a small set of YouTube search intents for a topic."""
@@ -111,6 +113,8 @@ Return ONLY valid JSON in this shape:
 
 Rank all strong candidates in best-first order. Keep rationales brief and concrete.
 
+SECURITY: {DERIVED_CONTENT_RULES}
+
 CANDIDATES:
 {candidates}
 """
@@ -197,6 +201,8 @@ Return ONLY valid JSON in this shape:
 }}
 
 Rank all strong candidates in best-first order. Keep rationales brief and concrete.
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 CANDIDATES:
 {candidates}
@@ -285,6 +291,8 @@ Return ONLY valid JSON in this shape:
 }}
 
 Rank in best-first order by final_score. Keep rationales tied to the goal, not generic.
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 CANDIDATES:
 {blob}

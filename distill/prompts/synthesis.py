@@ -1,6 +1,10 @@
 """Synthesis prompt templates -- channel, topic, site, paper, corpus synthesis."""
 
-from distill.prompts.shared import REGISTER_RULES, UNTRUSTED_CONTENT_RULES
+from distill.prompts.shared import (
+    DERIVED_CONTENT_RULES,
+    REGISTER_RULES,
+    UNTRUSTED_CONTENT_RULES,
+)
 
 __all__ = [
     "STYLE_GUIDANCE",
@@ -61,6 +65,8 @@ CHANNEL: {channel_name}
 CHANNEL CONTEXT:
 {channel_context}
 
+SECURITY: {DERIVED_CONTENT_RULES}
+
 ALL VIDEO INSIGHTS:
 {all_insights}
 
@@ -96,6 +102,8 @@ def topic_synthesis_prompt(topic: str, channel_syntheses: dict[str, str], style:
     return f"""You are synthesizing intelligence across multiple YouTube channels covering the same topic.
 
 TOPIC: {topic}
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 CHANNEL SYNTHESES:
 {channels_text}
@@ -175,6 +183,8 @@ def site_synthesis_prompt(site_name: str, page_summaries: str) -> str:
 
 SITE: {site_name}
 
+SECURITY: {DERIVED_CONTENT_RULES}
+
 PAGE INSIGHTS:
 {page_summaries}
 
@@ -199,6 +209,8 @@ def site_topic_synthesis_prompt(topic: str, site_summaries: dict[str, str]) -> s
     return f"""You are synthesizing intelligence across website sources for a topic.
 
 TOPIC: {topic}
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 SITE SYNTHESIS DOCUMENTS:
 {sites_text}
@@ -269,6 +281,8 @@ def paper_topic_synthesis_prompt(topic: str, paper_summaries: dict[str, str]) ->
     return f"""You are doing graduate-level synthesis across {paper_count} research papers on the topic "{topic}".
 
 The goal is analysis that makes the reader smarter than reading any single paper would. The per-paper Insights files already capture single-paper content -- do not repeat that work. Your job is what only becomes visible across multiple papers.
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 PAPER INSIGHTS:
 {papers_text}
@@ -358,6 +372,8 @@ def corpus_synthesis_prompt(topic: str, source_sections: dict[str, str], style: 
     return f"""You are synthesizing a mixed-source topic corpus.
 
 TOPIC: {topic}
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 SOURCE MATERIAL:
 {body}

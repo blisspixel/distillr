@@ -7,8 +7,11 @@ do not collapse into hundreds of indistinguishable ``insights.md`` notes.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,6 +27,7 @@ __all__ = [
     "artifact_filename",
     "artifact_identity",
     "artifact_path",
+    "atomic_write_text",
     "base_frontmatter",
     "dump_frontmatter",
     "extract_frontmatter",
@@ -41,6 +45,30 @@ __all__ = [
     "write_markdown_artifact",
     "write_text_artifact",
 ]
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    """Write ``content`` to ``path`` atomically and durably.
+
+    Creates a uniquely-named temp file in the destination directory via
+    ``mkstemp`` (O_EXCL, so a pre-placed symlink at a predictable ``.tmp`` name
+    cannot redirect the write), fsyncs it, then ``os.replace``s it onto the final
+    name (atomic on the same filesystem -- no torn reads, no concurrent-writer
+    collision). The temp file is removed if anything fails before the rename.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        Path(tmp).replace(path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            Path(tmp).unlink()
+        raise
+
 
 _ARTIFACT_SUFFIXES = {
     "brief": "Brief",

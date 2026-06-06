@@ -27,7 +27,11 @@ Design notes:
 
 from __future__ import annotations
 
-from distill.prompts.shared import ANTI_HALLUCINATION_RULES, FORMATTING_RULES
+from distill.prompts.shared import (
+    ANTI_HALLUCINATION_RULES,
+    DERIVED_CONTENT_RULES,
+    FORMATTING_RULES,
+)
 
 __all__ = ["EXTRACTION_PROMPT_ID", "concept_extraction_prompt"]
 
@@ -94,6 +98,8 @@ QUALITY RULES:
 - {ANTI_HALLUCINATION_RULES}
 - {FORMATTING_RULES}
 - If the insight contains no named concepts or entities (rare), return an empty array: [].
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 INSIGHT TO EXTRACT FROM:
 
