@@ -15,8 +15,33 @@ from distill.ingestors.youtube.discovery import (
     discover_videos,
     enrich_videos,
     get_video_info,
+    is_youtube_url,
     resolve_channel_name,
 )
+
+
+def test_is_youtube_url_accepts_youtube_hosts():
+    assert is_youtube_url("https://www.youtube.com/watch?v=abc")
+    assert is_youtube_url("https://youtu.be/abc")
+    assert is_youtube_url("https://m.youtube.com/watch?v=abc")
+    assert is_youtube_url("http://music.youtube.com/watch?v=abc")
+
+
+def test_is_youtube_url_rejects_non_youtube_and_internal():
+    # SSRF guard: yt-dlp does its own networking, so non-YouTube hosts (incl.
+    # cloud metadata / internal) must be rejected before reaching it.
+    assert not is_youtube_url("http://169.254.169.254/latest/meta-data/")
+    assert not is_youtube_url("http://127.0.0.1:8080/")
+    assert not is_youtube_url("https://evil.example.com/watch?v=abc")
+    assert not is_youtube_url("https://notyoutube.com/")
+    assert not is_youtube_url("file:///etc/passwd")
+    assert not is_youtube_url("https://youtube.com.evil.com/")
+
+
+def test_get_video_info_refuses_non_youtube_url_without_fetching():
+    with patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL") as mock_ydl:
+        assert get_video_info("http://169.254.169.254/") is None
+        mock_ydl.assert_not_called()
 
 
 def _recent(days_ago: int = 1) -> str:

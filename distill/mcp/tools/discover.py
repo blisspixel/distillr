@@ -13,6 +13,18 @@ from distill.pipeline.costs import CostTracker, save_run_log
 
 __all__: list[str] = []
 
+# Each unit of `limit` triggers transcript downloads and several LLM calls, so a
+# prompt-injected agent passing limit=100000 would run up unbounded cloud spend.
+# Clamp to a sane ceiling (mirrors site_batch's bounded-cost discipline).
+_MAX_LIMIT = 25
+
+
+def _clamp_limit(limit: int) -> int:
+    try:
+        return max(1, min(int(limit), _MAX_LIMIT))
+    except (TypeError, ValueError):
+        return 5
+
 
 @_server.mcp.tool()
 def learn_topic(
@@ -41,6 +53,7 @@ def learn_topic(
     if not config.xai_api_key:
         return "Error: XAI_API_KEY not configured."
 
+    limit = _clamp_limit(limit)
     topic_name = topic or topic_from_query(query)
     tracker = CostTracker()
 
@@ -132,6 +145,7 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
 
     config = _server._config()
     tracker = CostTracker()
+    limit = _clamp_limit(limit)
 
     candidates = search_youtube_results(query, days=days, limit=max(limit * 2, 12))
     if not candidates:
@@ -200,6 +214,7 @@ async def discover(  # noqa: C901
     if not config.xai_api_key:
         return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
 
+    limit = _clamp_limit(limit)
     topic_name = topic or topic_from_query(goal)
     tracker = CostTracker()
     results: dict = {"topic": topic_name, "videos": [], "papers": []}

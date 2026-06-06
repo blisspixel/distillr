@@ -9,6 +9,7 @@ import yt_dlp
 from rich.console import Console
 
 from distill.config import DistillConfig
+from distill.ingestors.youtube.discovery import is_youtube_url
 
 console = Console()
 
@@ -19,6 +20,11 @@ __all__ = [
 
 def get_transcript(video_url: str, video_id: str, output_path: Path, config: DistillConfig) -> bool:
     """Get transcript for a video. Returns True if successful."""
+    # yt-dlp does its own networking; pin to YouTube hosts so an attacker URL
+    # can't drive an SSRF through the caption/scribe download.
+    if not is_youtube_url(video_url):
+        console.print(f"    [red]Refusing non-YouTube URL: {video_url}[/red]")
+        return False
     # Try YouTube captions first (free, instant)
     transcript = _try_youtube_captions(video_url, video_id)
     if transcript:

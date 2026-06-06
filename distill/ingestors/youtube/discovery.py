@@ -1,6 +1,7 @@
 """Video discovery - list channel videos and search results via yt-dlp."""
 
 import logging
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -158,8 +159,35 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     return videos
 
 
+_YOUTUBE_HOSTS = frozenset(
+    {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
+)
+
+
+def is_youtube_url(url: str) -> bool:
+    """True if ``url`` is an http(s) URL on a YouTube host.
+
+    yt-dlp does its own networking, so an attacker-supplied video/channel URL
+    would otherwise let it fetch an arbitrary host -- including internal or
+    cloud-metadata addresses (the SSRF guards on the urllib/requests paths do
+    not apply to yt-dlp). URLs handed to yt-dlp are therefore pinned to YouTube
+    hosts.
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return False
+    host = (parsed.hostname or "").lower()
+    return host in _YOUTUBE_HOSTS or host.endswith(".youtube.com")
+
+
 def get_video_info(video_url: str) -> VideoInfo | None:
     """Get metadata for a single video URL."""
+    if not is_youtube_url(video_url):
+        console.print(f"[red]Refusing non-YouTube URL: {video_url}[/red]")
+        return None
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -260,6 +288,8 @@ def resolve_channel_name(channel_url: str) -> str:
         name = channel_url.split("/@")[1].split("/")[0].split("?")[0]
         return name
 
+    if not is_youtube_url(channel_url):
+        return "unknown"
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True}) as ydl:
             info = ydl.extract_info(channel_url, download=False)

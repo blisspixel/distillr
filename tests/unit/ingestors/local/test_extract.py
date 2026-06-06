@@ -14,6 +14,16 @@ def _write(path: Path, content: str) -> Path:
     return path
 
 
+def test_extract_local_document_rejects_oversized_file(tmp_path, monkeypatch):
+    # DoS guard: refuse a file over the byte cap before reading it into memory.
+    from distill.ingestors.local import extract as ex
+
+    monkeypatch.setattr(ex, "_MAX_FILE_BYTES", 16)
+    big = _write(tmp_path / "big.txt", "a" * 64)
+    with pytest.raises(LocalExtractionError, match="cap"):
+        extract_local_document(big)
+
+
 def test_markdown(tmp_path: Path):
     p = _write(tmp_path / "My_Article.md", "# Heading\n\nBody text about RoPE.")
     doc = extract_local_document(p)

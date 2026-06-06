@@ -28,6 +28,12 @@ _TEXT_EXTS = frozenset({".txt", ".text", ".rst", ""})
 # document does not blow the analysis prompt's context budget.
 _DEFAULT_MAX_CHARS = 100_000
 
+# Hard byte/page caps so a hostile or accidentally-huge local file can't exhaust
+# memory: the whole file is read into RAM before the char cap applies, so bound
+# the read itself. Mirrors the arXiv extractor's page limit for PDFs.
+_MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MB
+_PDF_PAGE_LIMIT = 50
+
 
 class LocalExtractionError(RuntimeError):
     """Raised when a local file cannot be read or yields no usable text."""
@@ -62,6 +68,7 @@ def extract_local_document(path: Path, *, max_chars: int = _DEFAULT_MAX_CHARS) -
             f"Refusing to ingest dotfile {path.name!r} (config/secret files are "
             "not research content). Give it a supported extension to ingest it."
         )
+    _check_size(path)
     title = _title_from_name(path)
 
     if ext in _PDF_EXTS:
@@ -86,16 +93,34 @@ def extract_local_document(path: Path, *, max_chars: int = _DEFAULT_MAX_CHARS) -
     return LocalDocument(text=text, kind=kind, title=title)
 
 
+def _check_size(path: Path) -> None:
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise LocalExtractionError(f"Could not stat {path.name}: {exc}") from exc
+    if size > _MAX_FILE_BYTES:
+        raise LocalExtractionError(
+            f"{path.name} is {size} bytes, over the {_MAX_FILE_BYTES}-byte ingest cap."
+        )
+
+
 def _title_from_name(path: Path) -> str:
     stem = path.stem.replace("_", " ").replace("-", " ").strip()
     return stem or path.name
 
 
 def _read_text(path: Path) -> str:
+    # Bounded read: the st_size pre-check covers regular files, but a FIFO /
+    # /proc / symlinked path can report a small size and stream unbounded bytes,
+    # so cap the read itself too.
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        with path.open("rb") as fh:
+            raw = fh.read(_MAX_FILE_BYTES + 1)
     except OSError as exc:
         raise LocalExtractionError(f"Could not read {path.name}: {exc}") from exc
+    if len(raw) > _MAX_FILE_BYTES:
+        raise LocalExtractionError(f"{path.name} exceeds the {_MAX_FILE_BYTES}-byte ingest cap.")
+    return raw.decode("utf-8", errors="replace")
 
 
 def _extract_pdf(path: Path) -> str:
@@ -105,7 +130,7 @@ def _extract_pdf(path: Path) -> str:
         raise LocalExtractionError("pypdf is required to read PDF files.") from exc
     try:
         reader = PdfReader(str(path))
-        parts = [(page.extract_text() or "").strip() for page in reader.pages]
+        parts = [(page.extract_text() or "").strip() for page in reader.pages[:_PDF_PAGE_LIMIT]]
     except Exception as exc:
         raise LocalExtractionError(f"Could not extract PDF text from {path.name}: {exc}") from exc
     return "\n\n".join(part for part in parts if part)
