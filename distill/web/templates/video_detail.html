@@ -13,8 +13,8 @@
   {{ meta.get('upload_date', '')|format_date }}
   &middot; {{ meta.get('duration', 0)|duration }}
   &middot; {{ channel }}
-  {% if meta.get('url') %}
-  &middot; <a href="{{ meta.url }}" target="_blank">Watch on YouTube</a>
+  {% if meta.get('url', '').startswith(('http://', 'https://')) %}
+  &middot; <a href="{{ meta.url }}" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>
   {% endif %}
   {% if meta.get('analysis_mode') %}
   &middot; <span class="badge badge-gray">{{ meta.analysis_mode }}</span>

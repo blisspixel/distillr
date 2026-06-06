@@ -45,7 +45,13 @@ def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[dic
             continue
         meta_file = vid_dir / "metadata.json"
         if meta_file.exists():
-            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            # Degrade on a corrupt metadata.json (e.g. interrupted run) instead
+            # of crashing the MCP resources/tools that read this, matching every
+            # sibling reader (web routes, dashboard_data).
+            try:
+                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
             meta["_dir"] = str(vid_dir)
             meta["has_transcript"] = artifact_exists(vid_dir, "transcript", extension="txt")
             meta["has_insights"] = artifact_exists(vid_dir, "insights")

@@ -258,8 +258,11 @@ def _is_arxiv_pdf_url(url: str) -> bool:
         parsed = urllib.parse.urlparse(url)
     except ValueError:
         return False
+    # Accept http and https: arXiv's Atom feed serves pdf links as http://, and
+    # rejecting those silently degraded extraction to abstract-only. The host
+    # allow-list (not the scheme) is what bounds SSRF; http redirects to https.
     return (
-        parsed.scheme == "https"
+        parsed.scheme in {"http", "https"}
         and (parsed.hostname or "").lower() in _ARXIV_PDF_HOSTS
         and parsed.path.startswith("/pdf/")
     )
