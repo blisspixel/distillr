@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.16 - 2026-06-06
+
+**Deep adversarial bug-hunt sweep (max-effort) across frontmatter parsing, cost/eval math, ranking robustness, and doctor false alarms — found by a fan-out of subagents over the deterministic core and the previously shallow-covered subsystems.**
+
+- **Frontmatter was corrupted by any value or body containing `---`.** `extract_frontmatter`/`strip_frontmatter` used `content.split("---", 2)`, which truncated the block at the first `---` *inside a value* (an em-dash-style title, a URL) — dropping every field after it — and mis-stripped a body that opened with a `---` line. Both now use real fence detection (opening line exactly `---`, closing line exactly `---`).
+- **A non-finite LLM score silently corrupted rerank ordering.** `json.loads` accepts `NaN`/`Infinity` and `float(nan)` preserves them; a `"final_score": NaN` then broke every rerank `sorted()` (NaN comparisons are all False) and `detect_score_cliff` with no error. `extract_json` now rejects non-finite JSON constants so the caller falls back instead of ranking wrong.
+- **`distill eval --threshold > 1.0` crashed with `min([])`.** When no model clears the bar — including the anchor against its own super-unit bar — `summarize` ran `min()` over an empty list. It now recommends nothing (tentatively) instead of crashing after a paid run.
+- **Scan/short runs corrupted the calibrated per-video cost (~8x under-projection).** A `scan` pass is ~8x cheaper than a full 2-pass analysis, and Shorts add cost to the numerator without entering the `full_videos` denominator; both polluted the per-video rate, so `discover`'s "calibrated" spend estimate could badly under-project a real ingest. Calibration now uses only pure full-analysis video runs.
+- **Deep Research Max could be priced at the standard rate.** `get_pricing`'s prefix match returned the first insertion-order match, so the broad `deep-research` alias could shadow a dated `deep-research-max-*` variant ($2.50 vs $5). Prefix matching is now longest-first, with a `deep-research-max` alias key.
+- **`distill discover` crashed on malformed rerank output.** Unlike the video/paper rerankers (which fall back to a heuristic), `discover_rerank` had no guard: a non-dict entry or a null/non-numeric score raised an unhandled traceback. Non-dict entries are skipped at the source, and the call site surfaces a clean error instead of a traceback.
+- **`distill topic-watch` undercounted a run's changes.** The run diffed against a `Library` loaded *before* ingestion, so a channel discovered and saved during the run was invisible to that run's change summary/history (self-healed next run). The diff now reads a fresh library.
+- **`distill doctor` reported a valid key as "rejected" on transient errors.** Key validation caught every exception as `invalid`, so a valid key during an offline/timeout/rate-limit/5xx moment showed "rejected by provider". Only a real auth rejection (401/403) is now `invalid`; transient failures report a soft `unknown` ("could not verify") that does not read as a dead key.
+
 ## 0.9.15 - 2026-06-06
 
 **Second multi-agent bug-hunt sweep — the capture layer (ingestors) and the MCP + web surfaces.**
