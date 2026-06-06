@@ -128,7 +128,7 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     )
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
-        lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", outputs=[])]),
+        lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", steps=[])]),
     )
     assert run_research_brief(["ai"], "ctx", "demo", config) is None
 
@@ -139,20 +139,20 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
         lambda **_kwargs: FakeClient(
-            [SimpleNamespace(status="completed", outputs=[])], store_name=""
+            [SimpleNamespace(status="completed", steps=[])], store_name=""
         ),
     )
     assert run_research_brief(["ai"], "ctx", "demo", config) is None
 
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
-        lambda **_kwargs: FakeClient([SimpleNamespace(status="failed", error="bad", outputs=[])]),
+        lambda **_kwargs: FakeClient([SimpleNamespace(status="failed", steps=[])]),
     )
     assert run_research_brief(["ai"], "ctx", "demo", config) is None
 
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
-        lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", outputs=[])]),
+        lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", steps=[])]),
     )
     assert run_research_brief(["ai"], "ctx", "demo", config) is None
 
@@ -160,8 +160,16 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
         "distill.pipeline.report.brief.genai.Client",
         lambda **_kwargs: FakeClient(
             [
-                SimpleNamespace(status="running", outputs=[]),
-                SimpleNamespace(status="completed", outputs=[SimpleNamespace(text="brief body")]),
+                SimpleNamespace(status="in_progress", steps=[]),
+                SimpleNamespace(
+                    status="completed",
+                    steps=[
+                        SimpleNamespace(
+                            type="model_output",
+                            content=[SimpleNamespace(type="text", text="brief body")],
+                        )
+                    ],
+                ),
             ]
         ),
     )

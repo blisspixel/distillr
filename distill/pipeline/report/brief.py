@@ -28,6 +28,7 @@ from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
 from distill.pipeline.costs import CostTracker
+from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.file_search import delete_store
 
 __all__ = [
@@ -232,23 +233,11 @@ def run_research_brief(
             tracker.record_gemini_query(DEEP_RESEARCH_MODEL)
         console.print(f"  [dim]Job ID: {interaction_id}[/dim]")
 
-        poll = 0
-        while True:
-            interaction = client.interactions.get(interaction_id)
-            status = interaction.status
-            poll += 1
-            if status == "completed":
-                console.print(f"\n[green]Research complete ({poll * 15}s elapsed)[/green]")
-                break
-            if status == "failed":
-                err = getattr(interaction, "error", "Unknown error")
-                console.print(f"\n[red]Research failed: {err}[/red]")
-                return None
-            if poll % 4 == 0:
-                console.print(f"  [dim]Still researching... ({poll * 15}s, status: {status})[/dim]")
-            time.sleep(15)
+        completed = await_interaction(client, interaction_id, console, label="Research")
+        if completed is None:
+            return None
 
-        result_text = interaction.outputs[-1].text if interaction.outputs else ""
+        result_text = interaction_text(completed)
         if not result_text:
             console.print("[red]Research completed but no output received[/red]")
             return None
