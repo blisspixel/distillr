@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.17 - 2026-06-06
+
+**Third bug-hunt wave (report phases, claims/synthesis, local ingest) plus an adversarial self-review of every prior fix.**
+
+- **Concepts rollback could clobber the wrong note on a slug collision.** Distinct concepts can share a slug (e.g. "gpt 4" and "gpt-4" → `gpt_4`); both the base `<slug>.md` and the bumped `<slug>__2.md` carry the same `slug:` frontmatter, so `distill concepts rollback` restored one concept's snapshot over the other's note. Rollback now refuses when the restored `normalized_name` doesn't match the live note's, instead of silently corrupting it.
+- **Single-channel reports silently discarded the gathered synthesis material.** It was stored under the `creator_consensus` id, but single-channel reports write the `creator_accuracy` section, so the lookup missed and the (paid) synthesis was never injected. Stored under both ids now.
+- **`_clean_section_output` deleted legitimate "(N words)" parentheticals from report prose.** Two unanchored regexes stripped any `(<number> words)` anywhere in the body (e.g. "short (200 words) and dense"); only the model's trailing self-annotation is stripped now.
+- **QA rewrites were silently skipped on title drift.** The QA→fix join matched titles by exact string, so a model echoing "1. Executive Briefing" or "&" vs "and" left a FAILed section un-rewritten. Matching is normalized now, and the FAIL parser resets per header and only honors the section's own `**Score**` line (so a stray "FAIL" in prose can't fail a passed section).
+- **`distill resynthesize --style X --two-pass` (and the MCP `synthesize`) silently ignored the register.** `--style` is now threaded into the two-pass claim-synthesis prompt instead of being a no-op.
+- **`total_claims` double-counted on `--refresh`.** The append-only `claims.jsonl` re-appends on refresh; the summary now counts distinct `claim_id`.
+- **`read_claims` crashed on a non-object JSONL line.** A line that is valid JSON but not an object (`42`, `[1,2]` from a truncated append) raised `TypeError`, violating the documented "one bad line cannot block synthesis" contract; both `read_claims` and `already_extracted_source_ids` now skip such lines.
+- **`distill ingest .env` captured a secrets file into the library.** Extensionless dotfiles (config/secret files) are now refused by the local extractor instead of read in via the plain-text route.
+- **Providers now fast-fail google-genai 4xx too.** `is_permanent_error` also reads the `.code` attribute (the google-genai exception shape), matching the doctor's auth check, so a permanent Gemini error isn't retried.
+
+An adversarial self-review of all ~25 fixes from 0.9.14-0.9.16 confirmed each is correct with no regressions.
+
 ## 0.9.16 - 2026-06-06
 
 **Deep adversarial bug-hunt sweep (max-effort) across frontmatter parsing, cost/eval math, ranking robustness, and doctor false alarms — found by a fan-out of subagents over the deterministic core and the previously shallow-covered subsystems.**
