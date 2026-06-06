@@ -30,7 +30,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from distill.library.paths import find_artifact, strip_frontmatter
+from distill.library.paths import atomic_write_text, find_artifact, strip_frontmatter
 
 __all__ = [
     "MCP_TOOLS",
@@ -335,11 +335,8 @@ def _list_topics(topics_dir: Path) -> list[Path]:
 
 
 def _atomic_write(path: Path, content: str) -> None:
-    """Write ``content`` to ``path`` via a temp file + ``os.replace``."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(content, encoding="utf-8")
-    tmp.replace(path)
+    """Write ``content`` to ``path`` atomically and durably (see paths helper)."""
+    atomic_write_text(path, content)
 
 
 def write_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> Path | None:

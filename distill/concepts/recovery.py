@@ -34,7 +34,7 @@ from typing import Any
 
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.concepts.records import ConceptKind
-from distill.library.paths import extract_frontmatter, strip_frontmatter
+from distill.library.paths import atomic_write_text, extract_frontmatter, strip_frontmatter
 
 __all__ = [
     "FieldChange",
@@ -452,11 +452,8 @@ def _update_rollup(topic_dir: Path, fields: dict[str, Any]) -> Path:
 
 
 def _atomic_write(path: Path, content: str) -> None:
-    """Write ``content`` to ``path`` via a temp file + ``os.replace``."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(content, encoding="utf-8")
-    tmp.replace(path)
+    """Write ``content`` to ``path`` atomically and durably (see paths helper)."""
+    atomic_write_text(path, content)
 
 
 def rollback(

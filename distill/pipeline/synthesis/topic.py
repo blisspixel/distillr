@@ -46,7 +46,7 @@ def synthesize_channel(
     context_file = channel_dir / "channel_context.md"
     channel_context = context_file.read_text(encoding="utf-8") if context_file.exists() else ""
 
-    all_insights = ""
+    insight_parts: list[str] = []
     insight_files = [
         (video_dir, path)
         for video_dir in sorted(videos_dir.iterdir())
@@ -72,8 +72,9 @@ def synthesize_channel(
             except (json.JSONDecodeError, OSError):
                 pass
         link = emit_wiki_link(title, source_id, "insights")
-        all_insights += f"\n\n---\nSource: {link}\n{f.read_text(encoding='utf-8')}"
+        insight_parts.append(f"\n\n---\nSource: {link}\n{f.read_text(encoding='utf-8')}")
 
+    all_insights = "".join(insight_parts)
     console.print(f"  [cyan]Synthesizing {len(insight_files)} videos for {channel_name}...[/cyan]")
 
     try:

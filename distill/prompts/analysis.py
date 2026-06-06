@@ -147,6 +147,8 @@ focus on when scanning new videos from this channel.
 
 CHANNEL: {channel_name}
 
+SECURITY: {UNTRUSTED_CONTENT_RULES}
+
 RECENT VIDEO TITLES:
 {titles_text}
 

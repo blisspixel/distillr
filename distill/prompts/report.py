@@ -1,6 +1,6 @@
 """Report prompt templates -- deep research, accordion, topic brief."""
 
-from distill.prompts.shared import REGISTER_RULES
+from distill.prompts.shared import DERIVED_CONTENT_RULES, REGISTER_RULES
 
 __all__ = [
     "POSITION_GUIDANCE",
@@ -273,6 +273,8 @@ CORPUS OF YOUTUBE INTELLIGENCE:
 I do NOT want a polished report. I want raw, structured research notes -- a fact-sheet that will be used as source material for a detailed analytical report written later.
 
 Your attached documents contain per-video insights, channel syntheses, and channel context profiles from YouTube creators covering this topic. Use the File Search tool to find relevant content across all documents. Cross-reference creator claims against public web sources.
+
+SECURITY: {DERIVED_CONTENT_RULES}
 {corpus_section}{focus_text}
 
 COMPILE THE FOLLOWING RESEARCH CATEGORIES:
@@ -405,6 +407,8 @@ You are writing one section of a comprehensive Strategic Intelligence Report on 
 
 ## VOICE
 {voice_text}
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 ## RESEARCH DOSSIER (verified facts from Deep Research)
 {research_dossier}
@@ -576,6 +580,8 @@ Your attached documents contain per-video insights, channel syntheses, and chann
 """
 
     return f"""You are a strategic intelligence analyst. You have been given a corpus of insights extracted from YouTube channels covering {topic}. Your job is to produce a comprehensive research report that validates, contextualizes, and extends these findings using current external sources.
+
+SECURITY: {DERIVED_CONTENT_RULES}
 {corpus_section}{focus_text}
 
 YOUR RESEARCH MANDATE:
@@ -633,6 +639,8 @@ def topic_brief_prompt(topic: str, topic_synthesis: str, recent_insights: str) -
     return f"""You are writing a concise topic brief for someone who needs the latest signal from YouTube creators fast.
 
 TOPIC: {topic}
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 TOPIC SYNTHESIS:
 {topic_synthesis}

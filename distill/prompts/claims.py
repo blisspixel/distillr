@@ -19,7 +19,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from distill.prompts.shared import ANTI_HALLUCINATION_RULES, FORMATTING_RULES, REGISTER_RULES
+from distill.prompts.shared import (
+    ANTI_HALLUCINATION_RULES,
+    DERIVED_CONTENT_RULES,
+    FORMATTING_RULES,
+    REGISTER_RULES,
+)
 
 if TYPE_CHECKING:
     from distill.claims.records import Claim
@@ -91,6 +96,8 @@ QUALITY RULES:
 - {FORMATTING_RULES}
 - If the insight asserts no substantive claims (rare), return an empty array: [].
 
+SECURITY: {DERIVED_CONTENT_RULES}
+
 INSIGHT TO EXTRACT FROM:
 
 {insight_content}
@@ -133,6 +140,8 @@ def claim_synthesis_prompt(topic: str, claims: Sequence[Claim], style: str = "")
     return f"""You are writing a cross-source synthesis for the topic "{topic}" from a structured set of extracted claims.
 
 Each claim below is tagged with a handle [C<n>], its rhetorical role, a confidence score for that role, and its source. Synthesize ACROSS sources -- do not summarize source by source.
+
+SECURITY: {DERIVED_CONTENT_RULES}
 
 CLAIM SET:
 

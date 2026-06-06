@@ -11,12 +11,22 @@ from hypothesis import strategies as st
 from distill.library.paths import (
     ProvenanceFields,
     apply_frontmatter,
+    atomic_write_text,
     base_frontmatter,
     dump_frontmatter,
     extract_frontmatter,
     provenance_frontmatter,
     strip_frontmatter,
 )
+
+
+def test_atomic_write_text_writes_overwrites_and_leaves_no_temp(tmp_path) -> None:
+    target = tmp_path / "sub" / "note.md"
+    atomic_write_text(target, "hello")
+    assert target.read_text(encoding="utf-8") == "hello"
+    atomic_write_text(target, "world")  # overwrite
+    assert target.read_text(encoding="utf-8") == "world"
+    assert not list(target.parent.glob("*.tmp"))  # no temp residue
 
 
 def test_apply_frontmatter_keeps_list_field_as_list_when_not_resupplied() -> None:
