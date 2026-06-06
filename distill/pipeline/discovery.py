@@ -269,6 +269,10 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
 
     ranked: list[RankedDiscoverItem] = []
     for entry in items:
+        # The LLM can return non-dict entries (e.g. [null] or bare strings);
+        # skip them rather than crashing on entry.get.
+        if not isinstance(entry, dict):
+            continue
         kind = str(entry.get("kind", "")).strip()
         identifier = str(entry.get("identifier", "")).strip()
         if kind == "paper":

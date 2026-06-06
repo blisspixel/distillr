@@ -342,15 +342,35 @@ def apply_frontmatter(content: str, frontmatter: Mapping[str, Any]) -> str:
     return dump_frontmatter(merged) + "\n\n" + body.rstrip() + "\n"
 
 
+def _split_frontmatter(content: str) -> tuple[str | None, str]:
+    """Split content into ``(frontmatter_block, body)``.
+
+    A frontmatter block exists only when the first line is exactly ``---`` and a
+    later line is exactly ``---`` (the closing fence). This fence-based detection
+    -- rather than ``content.split("---", 2)`` -- means a body that opens with a
+    ``---`` horizontal rule, or a frontmatter *value* that contains ``---`` (an
+    em-dash-style title, a URL), is no longer misparsed. The old split silently
+    dropped the body or truncated the block mid-value, losing every field after
+    the embedded ``---``. Returns ``(None, content)`` when there is no fence.
+    """
+    if not content.startswith("---"):
+        return None, content
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return None, content
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "".join(lines[1:i]), "".join(lines[i + 1 :])
+    return None, content
+
+
 def extract_frontmatter(content: str) -> dict[str, str]:
     """Extract simple scalar YAML frontmatter without adding a YAML dependency."""
-    if not content.startswith("---"):
-        return {}
-    parts = content.split("---", 2)
-    if len(parts) < 3:
+    block, _ = _split_frontmatter(content)
+    if block is None:
         return {}
     data: dict[str, str] = {}
-    for line in parts[1].splitlines():
+    for line in block.splitlines():
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
@@ -362,11 +382,10 @@ def extract_frontmatter(content: str) -> dict[str, str]:
 
 
 def strip_frontmatter(content: str) -> str:
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            return parts[2].strip()
-    return content
+    block, body = _split_frontmatter(content)
+    if block is None:
+        return content
+    return body.strip()
 
 
 def dump_frontmatter(frontmatter: Mapping[str, Any]) -> str:

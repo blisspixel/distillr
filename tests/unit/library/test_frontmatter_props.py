@@ -14,7 +14,25 @@ from distill.library.paths import (
     dump_frontmatter,
     extract_frontmatter,
     provenance_frontmatter,
+    strip_frontmatter,
 )
+
+
+def test_extract_frontmatter_value_with_triple_dash_not_truncated() -> None:
+    # A value containing '---' previously truncated the block at content.split
+    # ("---", 2), dropping every field after it. Fence detection fixes this.
+    content = '---\ntitle: "Part 1 --- Part 2"\ntopic: ai\n---\n\nbody'
+    fm = extract_frontmatter(content)
+    assert fm["title"] == "Part 1 --- Part 2"
+    assert fm["topic"] == "ai"
+
+
+def test_strip_frontmatter_not_fooled_by_dashes_on_first_line() -> None:
+    # The opening fence must be a line that is exactly '---'. A first line like
+    # "--- inline ---" is body, not frontmatter, and must not be stripped.
+    content = "--- inline ---\nactual body"
+    assert strip_frontmatter(content) == content
+
 
 # ---------------------------------------------------------------------------
 # Hypothesis strategies

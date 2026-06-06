@@ -18,6 +18,27 @@ from distill.cli import app
 runner = CliRunner()
 
 
+def test_doctor_key_auth_rejected_distinguishes_auth_from_transient() -> None:
+    # Only a 401/403 means the key is dead. Transient errors (timeout, 5xx,
+    # offline) must NOT be classified as a rejection -- doing so falsely told
+    # users with valid keys that the provider rejected them.
+    from distill.commands._logic import _doctor_key_auth_rejected
+
+    auth = RuntimeError("unauthorized")
+    auth.status_code = 401  # type: ignore[attr-defined]
+    assert _doctor_key_auth_rejected(auth) is True
+
+    forbidden = RuntimeError("forbidden")  # google-genai shape uses .code
+    forbidden.code = 403  # type: ignore[attr-defined]
+    assert _doctor_key_auth_rejected(forbidden) is True
+
+    transient = RuntimeError("service unavailable")
+    transient.status_code = 503  # type: ignore[attr-defined]
+    assert _doctor_key_auth_rejected(transient) is False
+
+    assert _doctor_key_auth_rejected(RuntimeError("offline, no status")) is False
+
+
 @pytest.fixture
 def mock_config(tmp_path):
     from distill.config import DistillConfig

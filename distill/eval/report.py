@@ -102,9 +102,15 @@ def summarize(
         bar = threshold * anchor_summary.mean_composite
         # Only models that produced valid output on at least one fixture are eligible.
         clearing = [s for s in summaries if s.rows > 0 and s.mean_composite >= bar]
-        rec = min(clearing, key=lambda s: (s.total_cost, -s.mean_composite))
-        recommended = rec.model
-        confidence, reason = _confidence(rec, anchor_summary, bar)
+        if clearing:
+            rec = min(clearing, key=lambda s: (s.total_cost, -s.mean_composite))
+            recommended = rec.model
+            confidence, reason = _confidence(rec, anchor_summary, bar)
+        else:
+            # No model clears the bar -- possible when --threshold > 1.0, where
+            # even the anchor fails its own bar. Recommend nothing rather than
+            # crashing on min([]).
+            reason = f"no model clears the bar ({bar:.2f}) at threshold {threshold:g}"
 
     return EvalSummary(
         workload=workload,

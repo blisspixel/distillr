@@ -21,6 +21,17 @@ def _rows(model: str, composites: list[float], cost_each: float, winrate: float 
     ]
 
 
+def test_summarize_no_crash_when_threshold_clears_nothing():
+    # threshold > 1.0 means even the anchor cannot clear its own bar; summarize
+    # must not crash on min([]). It recommends nothing, tentatively.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
+    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55)
+    summary = summarize(rows, anchor="grok-4.3", threshold=1.5)
+    assert summary.recommended is None
+    assert summary.confidence == "tentative"
+    assert "clears the bar" in summary.confidence_reason
+
+
 def test_recommends_cheapest_clearing_with_high_confidence():
     rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)  # anchor (no winrate)
     rows += _rows("qwen3.5:27b", [0.90, 0.90, 0.90], 0.0, 0.55)
