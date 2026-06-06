@@ -202,21 +202,23 @@ def run_research_brief(
         config={"display_name": f"distill-briefing-{name}-{int(time.time())}"}
     )
     store_name: str = store.name or ""
-    if not store_name:
-        console.print("[red]Failed to create File Search store[/red]")
-        return None
-    console.print(f"  [dim]Created store: {store_name}[/dim]")
-
-    uploaded = _upload_files(client, store_name, files)
-    console.print(f"  [green]Indexed {uploaded}/{len(files)} documents[/green]")
-
-    prompt = compose_prompt(context)
-
-    console.print("\n[cyan]Submitting to Gemini Deep Research...[/cyan]")
-    console.print(f"  Agent: {DEEP_RESEARCH_MODEL}")
-    console.print(f"  Grounded on {uploaded} docs. Expect 5-15 minutes.\n")
-
+    # The store is a paid remote resource; everything from here is inside the
+    # try so the finally deletes it even if upload or submission raises.
     try:
+        if not store_name:
+            console.print("[red]Failed to create File Search store[/red]")
+            return None
+        console.print(f"  [dim]Created store: {store_name}[/dim]")
+
+        uploaded = _upload_files(client, store_name, files)
+        console.print(f"  [green]Indexed {uploaded}/{len(files)} documents[/green]")
+
+        prompt = compose_prompt(context)
+
+        console.print("\n[cyan]Submitting to Gemini Deep Research...[/cyan]")
+        console.print(f"  Agent: {DEEP_RESEARCH_MODEL}")
+        console.print(f"  Grounded on {uploaded} docs. Expect 5-15 minutes.\n")
+
         interaction = client.interactions.create(
             input=prompt,
             agent=DEEP_RESEARCH_MODEL,

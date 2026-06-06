@@ -158,3 +158,18 @@ def test_await_interaction_fails_closed_on_unknown_status():
     console, _buf = _console()
     result = await_interaction(client, "job-1", console, label="Research")
     assert result is None
+
+
+def test_await_interaction_times_out_when_status_never_advances():
+    # A job stuck in an in-flight status must not poll a paid run forever --
+    # the loop is bounded by max_polls and reports a timeout.
+    class _StuckClient:
+        def __init__(self) -> None:
+            self.interactions = SimpleNamespace(
+                get=lambda _id: SimpleNamespace(status="in_progress", steps=[])
+            )
+
+    console, buf = _console()
+    result = await_interaction(_StuckClient(), "job-1", console, label="Research", max_polls=3)
+    assert result is None
+    assert "timed out" in buf.getvalue()
