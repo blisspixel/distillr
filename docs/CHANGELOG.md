@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.22 - 2026-06-06
+
+**LLM trust-boundary hardening (the prompt-injection half of the second security review) plus durability/perf hygiene.**
+
+- **Indirect prompt injection in second-hop prompts.** The 0.8.7 injection guard only covered the first-hop per-source extraction prompts; the synthesis, report, claim/concept extraction, and rerank prompts -- which combine already-stored, untrusted-derived insights -- had no such frame, so a directive a single poisoned source carried into its insight could steer a corpus-level synthesis, the final report, or candidate ranking. An untrusted-content frame (`DERIVED_CONTENT_RULES`) is threaded into all of them now: channel/topic/site/site-topic/paper-topic/corpus synthesis, dossier/section/deep-research/topic-brief reports, claim and concept extraction + claim synthesis, the three discovery rerank prompts, and the auto-watch-instruction generator (built from untrusted video titles). The local multi-pass analyzer's per-category prompt -- a first-hop prompt that was missing the existing guard -- is fixed too.
+- **Atomic-write durability + temp safety.** The concept-rollback and CLAUDE.md writers used a fixed `<name>.tmp` temp file with no fsync -- a predictable name a pre-placed symlink could redirect, and a crash between rename and flush could leave a truncated file. A shared `atomic_write_text` uses a unique `mkstemp` temp (O_EXCL, defeating the symlink redirect), fsyncs before `os.replace`, and cleans up on failure now.
+- **Quadratic synthesis assembly.** Channel synthesis built its combined-insights string with repeated `+=` (O(n^2) in corpus size); it accumulates into a list and joins once now, matching the other corpus builders.
+
+The remaining second-review items are accepted as low real-world severity (they need a local attacker with write access to the library, or a hostile/compromised reputable upstream): broad symlink-refusal on every writer, MCP error-text path disclosure, system-temp upload-file location, and the `safe_urlopen` reputable-host read cap. These are documented rather than churned.
+
 ## 0.9.21 - 2026-06-06
 
 **Second security review (DoS, prompt-injection, MCP exposure, file-handling). This release fixes the concrete exploitable issues; the LLM-trust-boundary prompt hardening follows in 0.9.22.**
