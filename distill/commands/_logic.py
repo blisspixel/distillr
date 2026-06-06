@@ -4766,6 +4766,71 @@ def check_retired_models(config: DistillConfig) -> list[str]:
     return warnings
 
 
+def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str]:
+    """Live-validate one provider's API key with a minimal request.
+
+    Returns ``(status, detail)`` where ``status`` is one of:
+
+    - ``"ok"`` -- the key is present and accepted by the provider
+    - ``"invalid"`` -- the key is present but the provider rejected it
+      (revoked, expired, wrong project); ``detail`` carries the error
+    - ``"missing"`` -- a required key (xai) is unset
+    - ``"not_set"`` -- an optional key (gemini/openai) is unset
+
+    On ``"ok"``, ``detail`` is the human label shown next to the key.
+
+    Both the human and ``--json`` doctor paths call this so they cannot drift.
+    Presence alone is not health -- a revoked key is *present* but dead -- and
+    it was exactly a presence-only ``--json`` check disagreeing with the live
+    human check that let a dead key report as healthy.
+    """
+    if provider == "xai":
+        if not config.xai_api_key:
+            return ("missing", "")
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(
+                api_key=config.xai_api_key.get_secret_value(),
+                base_url="https://api.x.ai/v1",
+            )
+            client.chat.completions.create(
+                model=config.xai_model_for("analysis"),
+                messages=[{"role": "user", "content": "hi"}],
+                max_completion_tokens=5,
+            )
+            return ("ok", config.xai_model_for("analysis"))
+        except Exception as e:
+            return ("invalid", str(e))
+    if provider == "gemini":
+        if not config.gemini_api_key:
+            return ("not_set", "")
+        try:
+            from google import genai
+
+            client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
+            client.models.generate_content(model="gemini-3.5-flash", contents="hi")
+            return ("ok", "Deep Research")
+        except Exception as e:
+            return ("invalid", str(e))
+    if provider == "openai":
+        if not config.openai_api_key:
+            return ("not_set", "")
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=config.openai_api_key.get_secret_value())
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": "hi"}],
+                max_tokens=5,
+            )
+            return ("ok", "optional")
+        except Exception as e:
+            return ("invalid", str(e))
+    raise ValueError(f"unknown provider: {provider}")
+
+
 @app.command(rich_help_panel="Maintain")
 def doctor(  # noqa: C901 — legacy, will refactor
     ctx: typer.Context,
@@ -4949,10 +5014,21 @@ def doctor(  # noqa: C901 — legacy, will refactor
         checks: dict[str, str] = {}
         warnings_list: list[str] = []
 
-        # API keys
-        checks["xai_api_key"] = "set" if config.xai_api_key else "missing"
-        checks["gemini_api_key"] = "set" if config.gemini_api_key else "not_set"
-        checks["openai_api_key"] = "set" if config.openai_api_key else "not_set"
+        # API keys -- live-validated, not presence-only. A revoked/expired key
+        # is present but dead; reporting it as "set" is a false-green that the
+        # human doctor path (which makes a live call) would never produce.
+        xai_status, xai_detail = _doctor_validate_key("xai", config)
+        gem_status, gem_detail = _doctor_validate_key("gemini", config)
+        oai_status, oai_detail = _doctor_validate_key("openai", config)
+        checks["xai_api_key"] = xai_status  # ok | invalid | missing
+        checks["gemini_api_key"] = gem_status  # ok | invalid | not_set
+        checks["openai_api_key"] = oai_status  # ok | invalid | not_set
+        if xai_status == "invalid":
+            warnings_list.append(f"XAI_API_KEY rejected by provider: {xai_detail[:80]}")
+        if gem_status == "invalid":
+            warnings_list.append(f"GEMINI_API_KEY rejected by provider: {gem_detail[:80]}")
+        if oai_status == "invalid":
+            warnings_list.append(f"OPENAI_API_KEY rejected by provider: {oai_detail[:80]}")
 
         # yt-dlp
         try:
@@ -5036,60 +5112,35 @@ def doctor(  # noqa: C901 — legacy, will refactor
     console.print("  [bold]API Keys[/bold]")
     console.print(f"  [dim]{'-' * 50}[/dim]")
 
-    # XAI/Grok -- required
-    if config.xai_api_key:
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(
-                api_key=config.xai_api_key.get_secret_value(), base_url="https://api.x.ai/v1"
-            )
-            client.chat.completions.create(
-                model=config.xai_model_for("analysis"),
-                messages=[{"role": "user", "content": "hi"}],
-                max_completion_tokens=5,
-            )
-            console.print(
-                f"  [green]OK[/green]  XAI_API_KEY       [dim]{config.xai_model_for('analysis')}[/dim]"
-            )
-        except Exception as e:
-            console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{e!s:.60}[/red]")
-    else:
+    # XAI/Grok -- required. Live-validated via the shared helper so this human
+    # view and the --json view can never disagree about a key's health.
+    xai_status, xai_detail = _doctor_validate_key("xai", config)
+    if xai_status == "ok":
+        console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{xai_detail}[/dim]")
+    elif xai_status == "missing":
         console.print("  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]")
+    else:
+        console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{xai_detail:.60}[/red]")
 
     # Gemini -- needed for reports
-    if config.gemini_api_key:
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
-            client.models.generate_content(model="gemini-3.5-flash", contents="hi")
-            console.print("  [green]OK[/green]  GEMINI_API_KEY    [dim]Deep Research[/dim]")
-        except Exception as e:
-            err = str(e)[:60]
-            console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{err}[/red]")
-    else:
+    gem_status, gem_detail = _doctor_validate_key("gemini", config)
+    if gem_status == "ok":
+        console.print("  [green]OK[/green]  GEMINI_API_KEY    [dim]Deep Research[/dim]")
+    elif gem_status == "not_set":
         console.print(
             "  [yellow]--[/yellow]  GEMINI_API_KEY    [dim]not set (needed for reports)[/dim]"
         )
+    else:
+        console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{gem_detail:.60}[/red]")
 
     # OpenAI -- optional
-    if config.openai_api_key:
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(api_key=config.openai_api_key.get_secret_value())
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": "hi"}],
-                max_tokens=5,
-            )
-            console.print("  [green]OK[/green]  OPENAI_API_KEY    [dim]optional[/dim]")
-        except Exception as e:
-            err = str(e)[:60]
-            console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{err}[/red]")
-    else:
+    oai_status, oai_detail = _doctor_validate_key("openai", config)
+    if oai_status == "ok":
+        console.print("  [green]OK[/green]  OPENAI_API_KEY    [dim]optional[/dim]")
+    elif oai_status == "not_set":
         console.print("  [dim]--  OPENAI_API_KEY    not set (optional)[/dim]")
+    else:
+        console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{oai_detail:.60}[/red]")
 
     # Tools
     console.print()
