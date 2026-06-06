@@ -75,6 +75,14 @@ def test_unknown_model_falls_back_to_default(caplog: Any) -> None:
     assert DEFAULT_MODEL in caplog.text
 
 
+def test_deep_research_max_variant_not_shadowed_by_standard_alias() -> None:
+    """A dated Max variant prices at the Max rate, not the cheaper standard
+    'deep-research' alias (longest-prefix-wins + the 'deep-research-max' key)."""
+    max_rate = get_pricing("deep-research-max-preview-09-2026")["per_query"]
+    std_rate = get_pricing("deep-research-preview-04-2026")["per_query"]
+    assert max_rate > std_rate
+
+
 def test_per_query_pricing_gemini_deep_research() -> None:
     """gemini-deep-research uses per-query pricing, ignoring token counts."""
     cost = compute_cost("gemini-deep-research", 10_000, 5_000)

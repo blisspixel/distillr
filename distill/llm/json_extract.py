@@ -65,10 +65,23 @@ def extract_json(text: str) -> dict[str, Any] | list[Any] | None:
     return None
 
 
+def _reject_non_finite(_token: str) -> float:
+    """Reject the non-standard JSON constants NaN/Infinity/-Infinity.
+
+    ``json.loads`` accepts these by default and ``float`` preserves them, so an
+    LLM that emits ``"final_score": NaN`` would poison every rerank ``sorted()``
+    (NaN comparisons are all False, breaking the sort) and ``detect_score_cliff``
+    without any error. Treating them as a parse failure makes the caller fall
+    back (heuristic ranking / "no ranked items") instead of silently ranking
+    wrong.
+    """
+    raise ValueError("non-finite JSON constant not allowed")
+
+
 def _try_parse(text: str) -> dict[str, Any] | list[Any] | None:
     """Try to parse text as JSON. Returns None on failure."""
     try:
-        result: Any = json.loads(text)
+        result: Any = json.loads(text, parse_constant=_reject_non_finite)
         if isinstance(result, dict):
             return result  # type: ignore[reportUnknownVariableType]
         if isinstance(result, list):

@@ -29,7 +29,7 @@ def doctor() -> str:
     ):
         status, detail = _doctor_validate_key(provider, config)
         entry: dict = {"check": label, "status": status}
-        if status == "invalid":
+        if status in ("invalid", "unknown"):
             entry["detail"] = detail[:120]
         checks.append(entry)
 
@@ -88,8 +88,9 @@ def doctor() -> str:
             )
 
     # "not_set" = an optional key (gemini/openai) is absent -- not a failure.
-    # "missing" (required xai absent) and "invalid" (present but rejected) flip
-    # the overall status to warning.
+    # "missing" (required xai absent), "invalid" (present but auth-rejected), and
+    # "unknown" (present but unverifiable -- transient/offline) flip the overall
+    # status to warning. "unknown" is a soft signal, not a confirmed rejection.
     all_ok = all(c["status"] in ("ok", "optional", "not_set") for c in checks)
     return json.dumps(
         {

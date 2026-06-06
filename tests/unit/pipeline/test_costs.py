@@ -13,6 +13,31 @@ from distill.pipeline.costs import (
 )
 
 
+def test_scan_run_excluded_from_video_calibration():
+    # The per-video calibration rate must come only from pure full-analysis
+    # runs. A scan pass is ~8x cheaper and a mixed full+shorts run skews the
+    # numerator/denominator, so both must be excluded (returns None).
+    from distill.pipeline.costs import _classify_clean_run
+
+    scan = {"actual_cost": 0.01, "full_videos": 5, "by_call_type": {"scan": {"calls": 5}}}
+    assert _classify_clean_run(scan) is None
+
+    full = {
+        "actual_cost": 0.15,
+        "full_videos": 5,
+        "by_call_type": {"pass1": {"calls": 5}, "pass2": {"calls": 5}},
+    }
+    assert _classify_clean_run(full) == ("video", 0.15, 5)
+
+    mixed = {
+        "actual_cost": 0.10,
+        "full_videos": 2,
+        "shorts": 5,
+        "by_call_type": {"pass1": {"calls": 2}},
+    }
+    assert _classify_clean_run(mixed) is None
+
+
 def test_cost_tracker_summary_and_formatting():
     tracker = CostTracker()
     tracker.record(

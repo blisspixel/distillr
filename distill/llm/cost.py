@@ -68,6 +68,10 @@ PRICING: dict[str, dict[str, float]] = {
     GEMINI_DEEP_RESEARCH_MODEL: _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research": _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research-preview-04-2026": _GEMINI_DEEP_RESEARCH_PRICING,
+    # Broad "deep-research-max" alias so any dated Max variant prices at the Max
+    # rate via prefix match (with longest-prefix-wins in get_pricing), not the
+    # cheaper standard "deep-research" alias.
+    "deep-research-max": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-max-preview-04-2026": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
     # Anthropic (stub pricing for when users configure it)
@@ -129,8 +133,11 @@ def get_pricing(model: str) -> dict[str, float]:
     """
     if model in PRICING:
         return PRICING[model]
-    # Prefix matching for versioned model names
-    for key in PRICING:
+    # Prefix matching for versioned model names. Longest key first so the most
+    # specific prefix wins -- otherwise a broad alias like "deep-research" would
+    # shadow "deep-research-max-..." ($5) and silently price it at the standard
+    # $2.50 rate.
+    for key in sorted(PRICING, key=len, reverse=True):
         if model.startswith(key):
             return PRICING[key]
     logger.warning(

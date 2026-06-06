@@ -386,7 +386,17 @@ def _classify_clean_run(row: dict) -> tuple[str, float, int] | None:
     if has_paper and not has_site and not has_video:
         n = int(by_type.get("paper", {}).get("calls", 0))
         return ("paper", cost, n) if n else None
-    if has_video and not has_paper and not has_site:
+    # The per-video rate calibrates only on pure full-analysis video runs. A
+    # scan/short pass is ~8x cheaper than a full 2-pass analysis, and Shorts add
+    # cost to the numerator without entering the full_videos denominator -- so a
+    # scan-only or mixed run would skew the calibrated rate (badly under- or
+    # over-projecting real ingests). Exclude them; the cold-start default
+    # (video_full) already carries the right number until clean runs accrue.
+    has_full_video = "pass1" in by_type or "pass2" in by_type
+    has_scan_or_short = (
+        "scan" in by_type or "short" in by_type or int(row.get("shorts", 0) or 0) > 0
+    )
+    if has_full_video and not has_paper and not has_site and not has_scan_or_short:
         n = int(row.get("full_videos", 0)) or int(by_type.get("pass1", {}).get("calls", 0))
         return ("video", cost, n) if n else None
     if has_site and not has_paper and not has_video:

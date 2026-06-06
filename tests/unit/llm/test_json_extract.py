@@ -12,6 +12,17 @@ from hypothesis import strategies as st
 from distill.llm.json_extract import extract_json
 
 
+def test_extract_json_rejects_non_finite_constants() -> None:
+    # json.loads accepts NaN/Infinity by default and float() preserves them; a
+    # NaN score would poison rerank sorts and the score-cliff silently. These
+    # must be treated as a parse failure so the caller falls back.
+    assert extract_json('{"score": NaN}') is None
+    assert extract_json('{"score": Infinity}') is None
+    assert extract_json('[{"final_score": -Infinity}]') is None
+    # Finite numbers still parse.
+    assert extract_json('{"score": 0.9}') == {"score": 0.9}
+
+
 class TestDirectParse:
     """Strategy 1: text is already valid JSON."""
 

@@ -4787,14 +4787,34 @@ def check_retired_models(config: DistillConfig) -> list[str]:
     return warnings
 
 
+def _doctor_key_auth_rejected(exc: Exception) -> bool:
+    """True if ``exc`` is a provider auth rejection (HTTP 401/403).
+
+    Tells a genuine bad-key rejection apart from a transient failure
+    (offline / timeout / rate-limit / provider 5xx): only the former means the
+    key is dead. Handles the openai (``status_code``), google-genai (``code``),
+    and httpx (``response.status_code``) exception shapes.
+    """
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        status = getattr(exc, "code", None)
+    if status is None:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status in (401, 403)
+
+
 def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str]:
     """Live-validate one provider's API key with a minimal request.
 
     Returns ``(status, detail)`` where ``status`` is one of:
 
     - ``"ok"`` -- the key is present and accepted by the provider
-    - ``"invalid"`` -- the key is present but the provider rejected it
-      (revoked, expired, wrong project); ``detail`` carries the error
+    - ``"invalid"`` -- the key is present but the provider rejected it with an
+      auth error (401/403: revoked, expired, wrong project)
+    - ``"unknown"`` -- the key is present but could not be verified due to a
+      transient error (offline, timeout, rate limit, provider 5xx); ``detail``
+      carries the error. This is NOT a key failure and must not be reported as
+      "rejected" -- doing so was a false alarm on every flaky-network run.
     - ``"missing"`` -- a required key (xai) is unset
     - ``"not_set"`` -- an optional key (gemini/openai) is unset
 
@@ -4822,7 +4842,7 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str
             )
             return ("ok", config.xai_model_for("analysis"))
         except Exception as e:
-            return ("invalid", str(e))
+            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
     if provider == "gemini":
         if not config.gemini_api_key:
             return ("not_set", "")
@@ -4833,7 +4853,7 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str
             client.models.generate_content(model="gemini-3.5-flash", contents="hi")
             return ("ok", "Deep Research")
         except Exception as e:
-            return ("invalid", str(e))
+            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
     if provider == "openai":
         if not config.openai_api_key:
             return ("not_set", "")
@@ -4848,7 +4868,7 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str
             )
             return ("ok", "optional")
         except Exception as e:
-            return ("invalid", str(e))
+            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
     raise ValueError(f"unknown provider: {provider}")
 
 
@@ -5140,6 +5160,10 @@ def doctor(  # noqa: C901 — legacy, will refactor
         console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{xai_detail}[/dim]")
     elif xai_status == "missing":
         console.print("  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]")
+    elif xai_status == "unknown":
+        console.print(
+            f"  [yellow]--[/yellow]  XAI_API_KEY       [yellow]could not verify: {xai_detail:.45}[/yellow]"
+        )
     else:
         console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{xai_detail:.60}[/red]")
 
@@ -5151,6 +5175,10 @@ def doctor(  # noqa: C901 — legacy, will refactor
         console.print(
             "  [yellow]--[/yellow]  GEMINI_API_KEY    [dim]not set (needed for reports)[/dim]"
         )
+    elif gem_status == "unknown":
+        console.print(
+            f"  [yellow]--[/yellow]  GEMINI_API_KEY    [yellow]could not verify: {gem_detail:.45}[/yellow]"
+        )
     else:
         console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{gem_detail:.60}[/red]")
 
@@ -5160,6 +5188,10 @@ def doctor(  # noqa: C901 — legacy, will refactor
         console.print("  [green]OK[/green]  OPENAI_API_KEY    [dim]optional[/dim]")
     elif oai_status == "not_set":
         console.print("  [dim]--  OPENAI_API_KEY    not set (optional)[/dim]")
+    elif oai_status == "unknown":
+        console.print(
+            f"  [yellow]--[/yellow]  OPENAI_API_KEY    [yellow]could not verify: {oai_detail:.45}[/yellow]"
+        )
     else:
         console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{oai_detail:.60}[/red]")
 
@@ -6222,7 +6254,10 @@ def topic_watch_run(  # noqa: C901 — legacy, will refactor
         )
         change_details = _collect_topic_change_details(
             config,
-            lib,
+            # Reload: _run_learning_command builds its own Library and may have
+            # saved a newly-discovered channel to disk this run; the outer lib
+            # (loaded before the run) would miss it and undercount the diff.
+            Library(config),
             entry.topic,
             previous_run_at,
         )
@@ -8220,7 +8255,13 @@ def discover(  # noqa: C901 — legacy, will refactor
         raise typer.Exit(1)
 
     console.print("\n[dim]Reranking against goal...[/dim]")
-    ranked = _discover_rerank(goal, papers, videos, sites, config, tracker)
+    try:
+        ranked = _discover_rerank(goal, papers, videos, sites, config, tracker)
+    except (TypeError, ValueError) as exc:
+        # Malformed rerank output (e.g. a null/non-numeric score) must not crash
+        # discover with a traceback; surface a clean error like the empty case.
+        console.print(f"[red]Rerank produced malformed output: {exc}[/red]")
+        raise typer.Exit(1) from exc
     if not ranked:
         console.print("[red]Rerank produced no ranked items.[/red]")
         raise typer.Exit(1)
