@@ -134,8 +134,10 @@ def judge_pairwise(
 ) -> PairwiseResult | None:
     """Candidate-vs-anchor win-rate, averaged over both orderings (debiased).
 
-    Returns ``None`` if neither ordering yields a parseable verdict (the row then
-    has no judge signal and scores deterministic-only). Cost-tracked.
+    Returns ``None`` unless BOTH orderings yield a parseable verdict -- a single
+    ordering is position-biased, so a half-result is reported as no judge signal
+    (the row scores deterministic-only) rather than as a debiased win-rate.
+    Cost-tracked.
     """
     # Route to the judge model's own provider (a gemini judge must hit the gemini
     # endpoint, not the default xAI one) and force the judge model id.
@@ -146,15 +148,19 @@ def judge_pairwise(
     w1, r1 = _one_comparison(rc, source_excerpt, candidate_output, anchor_output, tracker)
     w2, r2 = _one_comparison(rc, source_excerpt, anchor_output, candidate_output, tracker)
 
-    scores: list[float] = []
-    if w1 is not None:
-        scores.append(1.0 if w1 == "A" else 0.0 if w1 == "B" else 0.5)
-    if w2 is not None:
-        scores.append(1.0 if w2 == "B" else 0.0 if w2 == "A" else 0.5)
-    if not scores:
-        logger.warning("eval pairwise judge returned no parseable verdict; deterministic-only")
+    # Both orderings must parse for a debiased win-rate. A single ordering
+    # carries the judge's full A/B position bias, so a half-result is treated as
+    # no signal (deterministic-only) rather than reported as if it were
+    # debiased -- the win-rate's whole purpose is to cancel that bias.
+    if w1 is None or w2 is None:
+        logger.warning(
+            "eval pairwise judge: only %d/2 orderings parsed; no debiased verdict",
+            (w1 is not None) + (w2 is not None),
+        )
         return None
+    scores = [
+        1.0 if w1 == "A" else 0.0 if w1 == "B" else 0.5,
+        1.0 if w2 == "B" else 0.0 if w2 == "A" else 0.5,
+    ]
     rationale = next((r for r in (r1, r2) if r), "")
-    return PairwiseResult(
-        win_rate=sum(scores) / len(scores), comparisons=len(scores), rationale=rationale
-    )
+    return PairwiseResult(win_rate=sum(scores) / len(scores), comparisons=2, rationale=rationale)

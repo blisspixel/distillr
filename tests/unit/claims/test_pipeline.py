@@ -77,6 +77,21 @@ def test_run_claims_skips_already_extracted(tmp_path: Path, rc: RouterConfig) ->
     assert summary2.total_claims == 1
 
 
+def test_run_claims_does_not_reextract_zero_claim_source(tmp_path: Path, rc: RouterConfig) -> None:
+    # A source that yields zero claims has no claims.jsonl row, but the
+    # extracted-sources ledger records it, so the next run does not re-issue a
+    # (wasted) LLM call for it.
+    _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
+    side = _responses([])  # extraction returns zero claims
+    with patch("distill.claims.extract.llm_call", side_effect=side) as mock_llm:
+        s1 = run_claims(tmp_path, tmp_path, rc=rc, now_iso="2026-05-30T00:00:00Z")
+        assert mock_llm.call_count == 1
+        assert s1.claims_added == 0
+        s2 = run_claims(tmp_path, tmp_path, rc=rc, now_iso="2026-05-30T00:00:00Z")
+        assert mock_llm.call_count == 1  # not re-extracted
+    assert s2.insights_extracted == 0
+
+
 def test_run_claims_refresh_reextracts(tmp_path: Path, rc: RouterConfig) -> None:
     _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
     side = _responses(

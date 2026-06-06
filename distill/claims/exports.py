@@ -13,6 +13,7 @@ Stored under ``<topic_dir>/.claims/claims.jsonl`` (dot-prefixed so the shared
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -23,12 +24,47 @@ __all__ = [
     "append_claims",
     "claims_jsonl_path",
     "read_claims",
+    "read_extracted_sources",
+    "record_extracted_sources",
 ]
 
 
 def claims_jsonl_path(topic_dir: Path) -> Path:
     """Return the path to the per-topic ``claims.jsonl`` append-only store."""
     return topic_dir / ".claims" / "claims.jsonl"
+
+
+def _extracted_sources_path(topic_dir: Path) -> Path:
+    return topic_dir / ".claims" / "extracted_sources.json"
+
+
+def read_extracted_sources(topic_dir: Path) -> set[str]:
+    """Return the ledger of source_ids whose insight has been extracted.
+
+    This ledger records *every* successfully-processed insight, including ones
+    that yielded zero claims -- which ``claims.jsonl`` cannot express. Without
+    it, a no-claim source has no row, so it is re-extracted (a wasted LLM call)
+    on every subsequent run. Missing/unreadable ledger -> empty set.
+    """
+    path = _extracted_sources_path(topic_dir)
+    if not path.exists():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {str(s) for s in data} if isinstance(data, list) else set()
+
+
+def record_extracted_sources(topic_dir: Path, source_ids: Iterable[str]) -> None:
+    """Merge ``source_ids`` into the extracted-sources ledger (idempotent)."""
+    new = {str(s) for s in source_ids}
+    if not new:
+        return
+    merged = read_extracted_sources(topic_dir) | new
+    path = _extracted_sources_path(topic_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(merged), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def append_claims(topic_dir: Path, claims: list[Claim]) -> Path:
