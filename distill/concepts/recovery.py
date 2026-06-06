@@ -476,6 +476,21 @@ def rollback(
         live_path = topic_dir / sub / f"{slug}.md"
 
     current_content = live_path.read_text(encoding="utf-8") if live_path.is_file() else None
+    if current_content is not None:
+        # Guard against slug collisions. Distinct concepts can share a slug
+        # (e.g. "gpt-4" and "gpt 4" both slugify to "gpt_4"); the base
+        # <slug>.md and a bumped <slug>__2.md both carry slug="gpt_4" and land
+        # in one shared .history/<slug>/ dir. note_path_for_slug always returns
+        # the base note, so a snapshot belonging to the bumped concept would
+        # otherwise silently overwrite the base concept. Refuse on mismatch.
+        live_id = parse_note_fields(current_content).get("normalized_name")
+        restored_id = restored_fields.get("normalized_name")
+        if live_id and restored_id and live_id != restored_id:
+            raise ValueError(
+                f"Slug '{slug}' is shared by multiple concepts "
+                f"('{live_id}' vs restored '{restored_id}'); cannot safely roll "
+                f"back by slug alone -- resolve the collision manually."
+            )
     if current_content == restored_content:
         return RollbackResult(
             slug=slug,

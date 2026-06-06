@@ -56,6 +56,44 @@ def _concept(
     )
 
 
+def test_rollback_refuses_on_slug_collision(tmp_path: Path) -> None:
+    # "gpt 4" and "gpt-4" are distinct concepts that both slugify to "gpt_4".
+    # Rolling back the slug to the bumped concept's snapshot must NOT clobber
+    # the base concept's note -- it must refuse on the identity mismatch.
+    td = tmp_path / "topics" / "tkg"
+    td.mkdir(parents=True)
+    base = _concept(
+        name="GPT 4",
+        normalized="gpt 4",
+        sources=[("A", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:00:00Z",
+    )
+    write_playbook(td, base, now_iso="2026-05-28T07:00:00Z")
+    bumped_v1 = _concept(
+        name="GPT-4",
+        normalized="gpt-4",
+        sources=[("B", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:30:00Z",
+    )
+    write_playbook(td, bumped_v1, now_iso="2026-05-28T07:30:00Z")
+    bumped_v2 = _concept(
+        name="GPT-4",
+        normalized="gpt-4",
+        sources=[("B", Polarity.HELPFUL), ("C", Polarity.HELPFUL)],
+        helpful=(2, 2),
+        harmful=(0, 0),
+        last_seen="2026-05-29T09:00:00Z",
+    )
+    write_playbook(td, bumped_v2, now_iso="2026-05-29T09:00:00Z")
+
+    with pytest.raises(ValueError, match="shared by multiple concepts"):
+        recovery.rollback(td, "gpt_4", "2026-05-29T09:00:00Z", now_iso="2026-05-29T10:00:00Z")
+
+
 @pytest.fixture
 def history_topic(tmp_path: Path) -> Path:
     """Build a three-version history for ``rotational_embedding``.

@@ -27,6 +27,14 @@ def test_plain_text_and_no_extension(tmp_path: Path):
     assert extract_local_document(_write(tmp_path / "README", "hi")).kind == "text"
 
 
+def test_rejects_extensionless_dotfile(tmp_path: Path):
+    # A config/secret dotfile (.env) must not be captured into the library via
+    # the extensionless text route.
+    p = _write(tmp_path / ".env", "SECRET=abc123")
+    with pytest.raises(LocalExtractionError, match="dotfile"):
+        extract_local_document(p)
+
+
 def test_html_strips_script_and_style(tmp_path: Path):
     p = _write(
         tmp_path / "page.html",

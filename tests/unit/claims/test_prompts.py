@@ -64,3 +64,11 @@ def test_synthesis_prompt_surfaces_confidence():
     claims = [_claim("Shaky claim.", ClaimRole.CONCLUSION, role_confidence=0.2)]
     prompt = claim_synthesis_prompt("ai", claims)
     assert "conf 0.20" in prompt
+
+
+def test_synthesis_prompt_applies_style_emphasis():
+    # --style must reach the two-pass claim synthesis prompt, not be a silent
+    # no-op as it was before.
+    claims = [_claim("Rotary embeddings improve generalization.", ClaimRole.RESULT)]
+    assert "EMPHASIS:" not in claim_synthesis_prompt("ai", claims)
+    assert "EMPHASIS:" in claim_synthesis_prompt("ai", claims, style="exec")

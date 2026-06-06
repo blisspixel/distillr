@@ -118,5 +118,9 @@ def run_claims(
         append_claims(topic_dir, new_claims)
         summary.claims_added = len(new_claims)
 
-    summary.total_claims = len(read_claims(topic_dir))
+    # Count distinct claims, not raw rows: claims.jsonl is append-only, so a
+    # --refresh re-appends a source's claims and len(read_claims) would double-
+    # count them. Dedup by claim_id (stable hash of normalized text) for an
+    # honest total.
+    summary.total_claims = len({c.claim_id for c in read_claims(topic_dir)})
     return summary

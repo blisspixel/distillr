@@ -32,6 +32,7 @@ def synthesize_corpus_from_claims(
     config: DistillConfig,
     tracker: CostTracker | None = None,
     *,
+    style: str = "",
     now_iso: str | None = None,
 ) -> str:
     """Two-pass corpus synthesis: extract claims, then synthesize over the set.
@@ -62,7 +63,7 @@ def synthesize_corpus_from_claims(
     response = llm_call(
         rc,
         workload_tag="synthesis",
-        prompt=claim_synthesis_prompt(topic, claims),
+        prompt=claim_synthesis_prompt(topic, claims, style=style),
         call_type="corpus_synthesis_two_pass",
     )
     synthesis = response.text
@@ -152,7 +153,9 @@ def synthesize_corpus(
     # extracted (e.g. a topic with no insights yet), so the flag never silently
     # produces an empty synthesis where single-pass would have produced one.
     if two_pass:
-        result = synthesize_corpus_from_claims(topic, config, tracker=tracker, now_iso=now_iso)
+        result = synthesize_corpus_from_claims(
+            topic, config, tracker=tracker, style=style, now_iso=now_iso
+        )
         if result:
             return result
         logger.info("Two-pass produced no claims for %s; falling back to single-pass", topic)

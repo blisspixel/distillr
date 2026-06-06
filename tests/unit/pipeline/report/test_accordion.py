@@ -15,6 +15,7 @@ from distill.pipeline.report.accordion import (
     _get_research_path,
     _load_syntheses,
     _load_tagged_insights,
+    _normalize_qa_title,
     _parse_qa_failures,
     _run_dossier_phase,
     _run_qa_phase,
@@ -415,6 +416,31 @@ class TestWriteSections:
 
 
 class TestQaHelpers:
+    def test_parse_qa_failures_ignores_stray_fail_in_prose(self):
+        # A 'FAIL' mention in prose after a PASS must not fail the passed section.
+        qa = (
+            "### Executive Briefing\n"
+            "**Score**: PASS\n"
+            "A stricter rubric might **Score** this FAIL, but it is usable.\n"
+            "### Strategic Synthesis\n"
+            "**Score**: FAIL\n"
+        )
+        assert _parse_qa_failures(qa) == ["Strategic Synthesis"]
+
+    def test_parse_qa_failures_handles_bulleted_score(self):
+        qa = "### Executive Briefing\n- **Score**: FAIL\n"
+        assert _parse_qa_failures(qa) == ["Executive Briefing"]
+
+    def test_normalize_qa_title_absorbs_drift(self):
+        # Title drift (numbering, '&' vs 'and', case) must normalize equal so a
+        # failed section is matched and rewritten, not silently skipped.
+        assert _normalize_qa_title("1. Executive Briefing") == _normalize_qa_title(
+            "Executive Briefing"
+        )
+        assert _normalize_qa_title("Creator Consensus & Contrarian Views") == _normalize_qa_title(
+            "Creator Consensus and Contrarian Views"
+        )
+
     def test_parse_qa_failures_extracts_failed_sections(self):
         qa = """### Executive Briefing
 **Score**: FAIL

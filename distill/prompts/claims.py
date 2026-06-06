@@ -113,7 +113,7 @@ def _format_claim_for_synthesis(claim: Claim, index: int) -> str:
     return "\n".join(bits)
 
 
-def claim_synthesis_prompt(topic: str, claims: Sequence[Claim]) -> str:
+def claim_synthesis_prompt(topic: str, claims: Sequence[Claim], style: str = "") -> str:
     """Build the second-pass synthesis prompt over an extracted claim set.
 
     The claim set is rendered as a numbered, role-tagged list so the model can
@@ -127,6 +127,8 @@ def claim_synthesis_prompt(topic: str, claims: Sequence[Claim]) -> str:
             ``claims.jsonl``). Ordering is the caller's responsibility; the
             prompt does not assume any particular order.
     """
+    from distill.prompts.synthesis import _emphasis_block
+
     claim_block = "\n".join(_format_claim_for_synthesis(c, i) for i, c in enumerate(claims, 1))
     return f"""You are writing a cross-source synthesis for the topic "{topic}" from a structured set of extracted claims.
 
@@ -146,7 +148,7 @@ Write a synthesis that:
 CONTRACT:
 - Cross-source claims and comparisons, an explicit comparison of competing results where the claims support one, named disagreements, and the corpus's shared blind spots. Honor this at a PhD-reviewer level of rigor.
 - {ANTI_HALLUCINATION_RULES}
-- {REGISTER_RULES}
+- {REGISTER_RULES}{_emphasis_block(style)}
 - {FORMATTING_RULES}
 
 Write the synthesis in Markdown. Begin with the synthesis itself -- no preamble."""
