@@ -767,6 +767,23 @@ def _run_topic_workflow(
             preview=preview,
             yes=True,
         )
+    elif preview:
+        # Videos-only preview must NOT ingest. _run_learning_command always
+        # processes (real spend); route to the dry-run preview path instead,
+        # mirroring latest_cmd. Without this, `topic preview --papers 0` (and
+        # `topic create --preview --papers 0`) fully ingested before the
+        # "preview only" notice below ever ran.
+        _preview_learning_selection(
+            str(resolved["goal"]),
+            days=int(resolved["days"]),
+            limit=int(resolved["videos"]),
+            sort="relevance",
+            per_channel_cap=max(2, min(int(resolved["videos"]), 3)),
+            shorts=bool(resolved["shorts"]),
+            rerank=True,
+            header="Topic Preview",
+            table_title="Topic Preview Learning Set",
+        )
     else:
         _run_learning_command(
             str(resolved["goal"]),
@@ -781,7 +798,7 @@ def _run_topic_workflow(
             report=False,
             test=test,
             generate_brief=False,
-            header="Topic Create" if not preview else "Topic Preview",
+            header="Topic Create",
         )
 
     if preview:
@@ -2213,7 +2230,9 @@ def video(
 def channel_cmd(  # noqa: C901 — legacy, will refactor
     url: str = typer.Argument(help="YouTube channel URL"),
     topic: str = typer.Option("ai", "--topic", "-t", help="Topic to file under"),
-    months: int = typer.Option(None, "--months", "-m", help="Lookback window (default: 3)"),
+    months: int = typer.Option(
+        None, "--months", "-m", help="Lookback window in months (default: 1)"
+    ),
     report: bool = typer.Option(
         False, "--report", "-r", help="Also generate a full report after processing"
     ),
@@ -2237,7 +2256,7 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required")
 
-    lookback = months or config.distill_default_months
+    lookback = months if months is not None else config.distill_default_months
     name = resolve_channel_name(url)
     console.print(f"\n[bold]Channel: {name}[/bold]")
     console.print(f"[dim]Topic: {topic} | Lookback: {lookback} months[/dim]\n")
@@ -3612,7 +3631,7 @@ def run(  # noqa: C901 — legacy, will refactor
     lib = Library(config)
     if topic:
         topic, channel = _resolve_topic_for_channel(lib, topic, channel)
-    lookback = months or config.distill_default_months
+    lookback = months if months is not None else config.distill_default_months
 
     if not topic and not all_topics:
         console.print("[red]Specify a topic or use --all[/red]")
@@ -4359,7 +4378,9 @@ def costs(  # noqa: C901 — legacy, will refactor
             console.print("[dim]No cost entries found.[/dim]")
         return
 
-    recent = entries[-last:]
+    # `entries[-0:]` is the whole list, so guard explicitly: --last 0 (or a
+    # negative) shows nothing rather than every run.
+    recent = entries[-last:] if last > 0 else []
     total_cost = sum(e.get("actual_cost", 0) for e in recent)
 
     if json_mode:

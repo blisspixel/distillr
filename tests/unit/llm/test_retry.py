@@ -2,11 +2,41 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-from distill.llm.retry import PERMANENT_ERRORS, compute_delay, retry_with_backoff
+from distill.llm.retry import (
+    PERMANENT_ERRORS,
+    compute_delay,
+    is_permanent_error,
+    retry_with_backoff,
+)
+
+
+class TestIsPermanentError:
+    """is_permanent_error classifies HTTP statuses across SDK exception shapes."""
+
+    def test_status_code_attribute_permanent(self) -> None:
+        exc = RuntimeError("unauthorized")
+        exc.status_code = 401  # type: ignore[attr-defined]
+        assert is_permanent_error(exc) is True
+
+    def test_nested_response_status_permanent(self) -> None:
+        # httpx-style: status lives on exc.response.status_code.
+        exc = RuntimeError("not found")
+        exc.response = SimpleNamespace(status_code=404)  # type: ignore[attr-defined]
+        assert is_permanent_error(exc) is True
+
+    def test_transient_status_is_not_permanent(self) -> None:
+        exc = RuntimeError("server error")
+        exc.status_code = 503  # type: ignore[attr-defined]
+        assert is_permanent_error(exc) is False
+
+    def test_no_status_is_not_permanent(self) -> None:
+        # Unknown error shape -> fall back to retrying (return False).
+        assert is_permanent_error(RuntimeError("boom")) is False
 
 
 class TestComputeDelay:
