@@ -27,6 +27,8 @@ def is_permanent_error(exc: Exception) -> bool:
     """
     status: object = getattr(exc, "status_code", None)
     if status is None:
+        status = getattr(exc, "code", None)  # google-genai APIError shape
+    if status is None:
         response: object = getattr(exc, "response", None)
         status = getattr(response, "status_code", None)
     return status in PERMANENT_ERRORS

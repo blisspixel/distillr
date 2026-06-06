@@ -520,6 +520,12 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
 
     qa_by_section = _extract_section_feedback(qa_result)
 
+    # Match on normalized titles so cosmetic drift in the QA output (list
+    # numbering, '&' vs 'and', case, trailing verdict) does not cause a failed
+    # section to be silently skipped instead of rewritten.
+    failed_norm = {_normalize_qa_title(t) for t in failed_sections}
+    feedback_norm = {_normalize_qa_title(k): v for k, v in qa_by_section.items()}
+
     rewrote = 0
     section_lookup = {s["id"]: s for s in REPORT_SECTIONS}
     for s in get_active_sections():
@@ -527,15 +533,15 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
 
     for i, section in enumerate(written_sections):
         title = section["title"]
-        if title not in failed_sections:
+        if _normalize_qa_title(title) not in failed_norm:
             continue
 
         section_def = section_lookup.get(section["id"])
         if not section_def:
             continue
 
-        feedback = qa_by_section.get(
-            title,
+        feedback = feedback_norm.get(
+            _normalize_qa_title(title),
             "Section failed QA review. Improve specificity, add confidence labels, and ground all claims in the research.",
         )
 
@@ -585,18 +591,46 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
     return written_sections, rewrote
 
 
+def _normalize_qa_title(title: str) -> str:
+    """Normalize a section title for matching QA output to written sections.
+
+    QA models echo titles imperfectly -- leading list numbering, '&' vs 'and',
+    a trailing verdict, case differences. Matching on a normalized key keeps a
+    failed section from being silently skipped (never rewritten) on cosmetic
+    drift between the QA output and the canonical section title.
+    """
+    import re
+
+    s = re.sub(r"^\s*\d+[.)]\s*", "", title.strip().lower())
+    s = s.replace("&", " and ")
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return s.strip()
+
+
 def _parse_qa_failures(qa_result: str) -> list[str]:
     """Extract section titles that scored FAIL from QA output."""
+    import re
+
     failed = []
-    lines = qa_result.split("\n")
     current_section = None
 
-    for line in lines:
+    for line in qa_result.split("\n"):
         stripped = line.strip()
-        if stripped.startswith("### ") and stripped != "### OVERALL":
-            current_section = stripped[4:].strip()
-        elif "**Score**" in stripped and "FAIL" in stripped.upper() and current_section:
-            failed.append(current_section)
+        if stripped.startswith("### "):
+            # Reset on every header so a stray 'FAIL' in prose after a PASS is
+            # not mis-attributed to the previous section.
+            header = stripped[4:].strip()
+            current_section = None if header == "OVERALL" else header
+            continue
+        if current_section is None:
+            continue
+        # Only the section's own score line decides the verdict, not a "FAIL"
+        # mention buried in prose. Strip a real leading list marker only (not
+        # the '**' of **Score** itself), then require the line to be the score.
+        marker = re.sub(r"^(?:[-*+]\s+|\d+[.)]\s+)", "", stripped)
+        if marker.startswith("**Score**"):
+            if "FAIL" in marker.upper():
+                failed.append(current_section)
             current_section = None
 
     return failed
@@ -688,6 +722,11 @@ def _gather_tagged_materials(
     syntheses = _load_syntheses(topic, config, scope, channel_name)
     if syntheses:
         tagged["creator_consensus"] = syntheses
+        # Single-channel reports swap the creator_consensus section for
+        # creator_accuracy (SINGLE_CHANNEL_REPLACEMENT). Store under both ids so
+        # the gathered synthesis reaches whichever section is actually written,
+        # instead of being silently dropped on single-channel runs.
+        tagged["creator_accuracy"] = syntheses
 
     vendor_insights = _load_tagged_insights(
         topic,
@@ -842,10 +881,12 @@ def _clean_section_output(content: str) -> str:
     """Strip word counts, numbered citations, and meta-commentary from LLM output."""
     import re
 
+    # Only strip a self-annotation the model appends at the very end. The
+    # earlier unanchored variants also deleted legitimate inline parentheticals
+    # like "short (200 words) and dense" from report prose, so they are gone --
+    # an end-anchored strip is enough for the model's trailing count.
     content = re.sub(r"\n*\(Word count:?\s*[\d,]+\)\s*$", "", content, flags=re.IGNORECASE)
     content = re.sub(r"\n*\([\d,]+\s*words?\)\s*$", "", content, flags=re.IGNORECASE)
-    content = re.sub(r"\s*\(Word count:?\s*[\d,]+\)", "", content, flags=re.IGNORECASE)
-    content = re.sub(r"\s*\([\d,]+\s*words?\)", "", content, flags=re.IGNORECASE)
     content = re.sub(r"\s*\[cite:\s*[\d,\s]+\]", "", content)
     return content.strip()
 

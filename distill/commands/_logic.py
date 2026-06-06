@@ -6996,7 +6996,7 @@ def resynthesize(
     if two_pass:
         console.print(f"  Two-pass corpus synthesis for [bold]{topic}[/bold] (claims)...")
         try:
-            synthesize_corpus(topic, config, tracker=tracker, two_pass=True)
+            synthesize_corpus(topic, config, tracker=tracker, style=style, two_pass=True)
             corpus_synth = find_artifact(
                 config.topic_dir(topic), "corpus_synthesis", identity=topic
             )

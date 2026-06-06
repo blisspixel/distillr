@@ -61,7 +61,10 @@ def read_claims(topic_dir: Path) -> list[Claim]:
             continue
         try:
             claims.append(Claim.from_jsonl_row(json.loads(line)))
-        except (KeyError, ValueError, json.JSONDecodeError):
+        except (KeyError, ValueError, TypeError, json.JSONDecodeError):
+            # TypeError covers a line that is valid JSON but not an object
+            # (e.g. `42` or `[1,2]` from a truncated/edited append), where
+            # from_jsonl_row's row["..."] would otherwise raise.
             continue
     return claims
 
@@ -88,4 +91,8 @@ def already_extracted_source_ids(topic_dir: Path) -> set[str]:
     Used by the pipeline to skip insights whose claims were already extracted,
     keeping refresh cheap (no LLM call for unchanged sources).
     """
-    return {row["source_id"] for row in _read_rows(topic_dir) if "source_id" in row}
+    return {
+        row["source_id"]
+        for row in _read_rows(topic_dir)
+        if isinstance(row, dict) and "source_id" in row
+    }

@@ -27,6 +27,27 @@ def _claim(source_id: str, text: str, role: ClaimRole = ClaimRole.RESULT) -> Cla
     )
 
 
+def test_read_claims_skips_non_object_lines(tmp_path: Path) -> None:
+    # A line that is valid JSON but not an object (42, [1,2]) must be skipped,
+    # not crash read_claims/already_extracted_source_ids with a TypeError.
+    import json
+
+    path = claims_jsonl_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    good = _claim("S1", "A real claim about RoPE.")
+    lines = [
+        '{"not": "a claim"}',  # dict missing required keys -> KeyError, skipped
+        "42",  # scalar -> TypeError, skipped
+        "[1, 2, 3]",  # array -> TypeError, skipped
+        "{ broken json",  # JSONDecodeError, skipped
+        json.dumps(good.to_jsonl_row(), ensure_ascii=False),
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert [c.source_id for c in read_claims(tmp_path)] == ["S1"]
+    assert already_extracted_source_ids(tmp_path) == {"S1"}
+
+
 def test_path_is_under_dot_claims(tmp_path: Path) -> None:
     p = claims_jsonl_path(tmp_path)
     assert p.parent.name == ".claims"

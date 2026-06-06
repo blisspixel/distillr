@@ -54,6 +54,14 @@ def extract_local_document(path: Path, *, max_chars: int = _DEFAULT_MAX_CHARS) -
         raise LocalExtractionError(f"Not a file: {path}")
 
     ext = path.suffix.lower()
+    # Refuse extensionless dotfiles (.env, .netrc, ...): these are config/secret
+    # files, not research content, and the extensionless "" text route would
+    # otherwise capture their contents into the library.
+    if not ext and path.name.startswith("."):
+        raise LocalExtractionError(
+            f"Refusing to ingest dotfile {path.name!r} (config/secret files are "
+            "not research content). Give it a supported extension to ingest it."
+        )
     title = _title_from_name(path)
 
     if ext in _PDF_EXTS:
