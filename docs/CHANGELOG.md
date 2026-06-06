@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.20 - 2026-06-06
+
+**Closed the DNS-rebinding residual documented in the 0.9.19 security pass.**
+
+- **SSRF — DNS-rebinding TOCTOU.** The SSRF guard resolved the host to a public IP, then the HTTP client resolved it *again* to connect, so an attacker controlling DNS with a low TTL could rebind to an internal address between the check and the fetch. The Python fetch paths now pin the connection to the validated IP: `safe_urlopen` and the requests-based attachment download resolve+validate once (`resolve_public_ip`) and pin via `pin_host_to_ip`, while TLS/SNI/certificate verification still use the original host (HTTPS unaffected). The X-video download stays host-pinned to `*.twimg.com` (a rebind would need control of Twitter's DNS); the in-browser scraper (Chromium) is bounded by its public-web route policy rather than IP pinning.
+
 ## 0.9.19 - 2026-06-06
 
 **Security hardening pass — a multi-agent audit across SSRF, path traversal, XSS, injection, deserialization, secrets, and ReDoS. Five real issues fixed; the rest of the surface verified clean.**
