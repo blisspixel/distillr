@@ -6,14 +6,17 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
+from distill.ingestors.x import media
 from distill.ingestors.x.media import download_video
 
 
 class _FakeStream:
     def __init__(self, chunks: list[bytes]) -> None:
         self._chunks = chunks
-        self.headers_seen: dict[str, str] | None = None
-        self.url_seen: str | None = None
+        self.is_redirect = False
+        self.headers: dict[str, str] = {}
 
     def __enter__(self) -> _FakeStream:
         return self
@@ -33,16 +36,15 @@ def test_download_video_writes_chunks_and_creates_parent(tmp_path: Path) -> None
     chunks = [b"abc", b"def", b"ghi"]
 
     def _fake_stream(method: str, url: str, **kwargs: Any) -> _FakeStream:
-        stream = _FakeStream(chunks)
-        stream.url_seen = url
-        stream.headers_seen = kwargs.get("headers")
-        return stream
+        return _FakeStream(chunks)
 
-    with patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream):
+    with (
+        patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream),
+        patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+    ):
         out = download_video("https://video.twimg.com/test.mp4", dest)
 
     assert out == dest
-    assert dest.exists()
     assert dest.read_bytes() == b"abcdefghi"
     assert dest.parent.exists()
 
@@ -55,8 +57,43 @@ def test_download_video_sends_referer_header(tmp_path: Path) -> None:
         captured["headers"] = kwargs.get("headers", {})
         return _FakeStream([b"x"])
 
-    with patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream):
+    with (
+        patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream),
+        patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+    ):
         download_video("https://video.twimg.com/test.mp4", dest)
 
     assert captured["headers"].get("Referer") == "https://platform.twitter.com/"
     assert "User-Agent" in captured["headers"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://169.254.169.254/x.mp4",  # cloud metadata
+        "http://127.0.0.1/x.mp4",  # loopback
+        "https://evil.example.com/x.mp4",  # arbitrary non-twimg host
+        "file:///etc/passwd",  # non-http scheme
+    ],
+)
+def test_download_video_rejects_non_twimg_url(tmp_path: Path, url: str) -> None:
+    # SSRF guard: the video URL comes from attacker-influenced syndication JSON,
+    # so anything not on *.twimg.com must be refused without any fetch. (Host
+    # pinning short-circuits before any DNS lookup.)
+    with patch("distill.ingestors.x.media.httpx.stream") as mock_stream:
+        with pytest.raises(ValueError, match="refusing non-allowlisted"):
+            download_video(url, tmp_path / "media.mp4")
+        mock_stream.assert_not_called()
+
+
+def test_download_video_enforces_size_cap(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(media, "_MAX_VIDEO_BYTES", 4)
+    with (
+        patch(
+            "distill.ingestors.x.media.httpx.stream",
+            side_effect=lambda *a, **k: _FakeStream([b"aa", b"bb", b"cc"]),
+        ),
+        patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        pytest.raises(ValueError, match="exceeds"),
+    ):
+        download_video("https://video.twimg.com/big.mp4", tmp_path / "media.mp4")
