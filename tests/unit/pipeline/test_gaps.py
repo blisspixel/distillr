@@ -5,11 +5,34 @@ from __future__ import annotations
 from pathlib import Path
 
 from distill.config import DistillConfig
-from distill.pipeline.gaps import gap_discovery_goal, topic_gap_summary, topic_source_inventory
+from distill.pipeline.gaps import (
+    gap_discovery_goal,
+    topic_gap_summary,
+    topic_source_inventory,
+    video_list,
+)
 
 
 def _cfg(tmp_path: Path) -> DistillConfig:
     return DistillConfig(distill_output_dir=tmp_path / "lib")
+
+
+def test_video_list_degrades_on_corrupt_metadata(tmp_path: Path):
+    # A corrupt metadata.json (e.g. interrupted run) must not crash video_list
+    # and the MCP resources/tools built on it -- the bad entry is skipped.
+    cfg = _cfg(tmp_path)
+    good = cfg.video_dir("tkg", "Chan", "good")
+    good.mkdir(parents=True, exist_ok=True)
+    (good / "metadata.json").write_text(
+        '{"title": "Good", "upload_date": "20260401"}', encoding="utf-8"
+    )
+    bad = cfg.video_dir("tkg", "Chan", "bad")
+    bad.mkdir(parents=True, exist_ok=True)
+    (bad / "metadata.json").write_text("{ not valid json", encoding="utf-8")
+
+    result = video_list(cfg, "tkg", "Chan")
+
+    assert [v.get("title") for v in result] == ["Good"]
 
 
 def test_inventory_and_gaps_on_empty_topic(tmp_path: Path):

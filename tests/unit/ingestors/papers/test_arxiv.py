@@ -37,6 +37,16 @@ class FakePdfResponse:
         yield from self._chunks
 
 
+def test_is_arxiv_pdf_url_accepts_http_and_https():
+    arxiv = importlib.import_module("distill.ingestors.papers.arxiv")
+    # arXiv's Atom feed serves pdf links as http://; both schemes must pass.
+    assert arxiv._is_arxiv_pdf_url("http://arxiv.org/pdf/2602.12670v1") is True
+    assert arxiv._is_arxiv_pdf_url("https://arxiv.org/pdf/2602.12670v1.pdf") is True
+    # Host allow-list still bounds it; non-arxiv hosts and non-pdf paths fail.
+    assert arxiv._is_arxiv_pdf_url("https://evil.example.com/pdf/x") is False
+    assert arxiv._is_arxiv_pdf_url("https://arxiv.org/abs/2602.12670v1") is False
+
+
 def test_parse_arxiv_id_supports_abs_and_pdf():
     paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
     assert paper_ingest.parse_arxiv_id("https://arxiv.org/abs/2602.12670") == "2602.12670"

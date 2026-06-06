@@ -84,15 +84,14 @@ def _tweet_markdown(tweet: TweetRecord, transcript_text: str) -> str:
         lines += [f"- {url}" for url in tweet.photo_urls]
     if tweet.has_video:
         duration_s = tweet.video_duration_ms / 1000.0
-        lines += [
-            "",
-            "## Attached video",
-            "",
-            f"- Source: {tweet.video_url}",
-            f"- Poster: {tweet.video_poster}" if tweet.video_poster else "",
-            f"- Duration: {duration_s:.1f}s",
-        ]
-        lines = [line for line in lines if line is not None and line != ""]
+        # Append the video block directly. (Previously this filtered every ""
+        # out of the whole document to drop the optional poster line, which
+        # collapsed all paragraph separators and produced malformed Markdown
+        # for any tweet with a video.)
+        lines += ["", "## Attached video", "", f"- Source: {tweet.video_url}"]
+        if tweet.video_poster:
+            lines.append(f"- Poster: {tweet.video_poster}")
+        lines.append(f"- Duration: {duration_s:.1f}s")
     if transcript_text:
         lines += ["", "## Video transcript (whisper-transcribed)", "", transcript_text]
     return "\n".join(lines) + "\n"

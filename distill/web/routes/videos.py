@@ -3,7 +3,7 @@
 import contextlib
 import json
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from distill.library.paths import find_artifact
 
@@ -15,7 +15,12 @@ async def video_detail(request: Request, topic: str, channel: str, slug: str):
     config = request.app.state.config
     templates = request.app.state.templates
 
-    vid_dir = config.videos_dir(topic, channel) / slug
+    # slug is a raw URL path param; confine it under the channel's videos/ dir
+    # so a percent-encoded "../" cannot read arbitrary filesystem locations.
+    base = config.videos_dir(topic, channel).resolve()
+    vid_dir = (base / slug).resolve()
+    if vid_dir != base and base not in vid_dir.parents:
+        raise HTTPException(status_code=404)
     meta = {}
     meta_path = vid_dir / "metadata.json"
     with contextlib.suppress(OSError, json.JSONDecodeError):

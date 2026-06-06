@@ -157,6 +157,23 @@ def test_tweet_markdown_includes_video_metadata() -> None:
     assert "https://video.twimg.com/x.mp4" in md
 
 
+def test_tweet_markdown_video_preserves_blank_line_structure() -> None:
+    # A video tweet must keep its Markdown paragraph separators; a stray filter
+    # used to strip every blank line, jamming the headers together.
+    md = _tweet_markdown(
+        _tweet(
+            text="hello",
+            video_url="https://video.twimg.com/x.mp4",
+            video_duration_ms=60000,
+        ),
+        "",
+    )
+    assert "\n\n## Tweet\n" in md
+    assert "\n\n## Attached video\n" in md
+    # The title line must stand alone, not be glued to the Source line.
+    assert "Source:" not in md.split("\n", 1)[0]
+
+
 def test_tweet_markdown_includes_transcript_when_present() -> None:
     md = _tweet_markdown(_tweet(video_url="x"), "transcript text body")
     assert "## Video transcript" in md
