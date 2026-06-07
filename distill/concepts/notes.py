@@ -22,7 +22,7 @@ graph stays consistent with the rest of the corpus.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,8 @@ __all__ = [
     "entity_dir_for_topic",
     "history_path_for",
     "note_path_for",
+    "read_extracted_sources",
+    "record_extracted_sources",
     "render_playbook",
     "write_playbook",
 ]
@@ -350,7 +352,16 @@ def read_mentions(topic_dir: Path) -> list[dict[str, Any]]:
         line = line.strip()
         if not line:
             continue
-        rows.append(json.loads(line))
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        # Keep only object rows. A valid-JSON-but-non-dict line (``[]``, a bare
+        # string) would otherwise crash downstream: ``from_jsonl_row`` does
+        # ``row["name"]`` (TypeError on a list) and ``already_extracted_source_ids``
+        # does ``"source_id" in row`` (a substring test on a string -> TypeError).
+        if isinstance(row, dict):
+            rows.append(row)
     return rows
 
 
@@ -362,3 +373,38 @@ def already_extracted_source_ids(topic_dir: Path) -> set[str]:
     refresh cheap.
     """
     return {row["source_id"] for row in read_mentions(topic_dir) if "source_id" in row}
+
+
+def _extracted_sources_path(topic_dir: Path) -> Path:
+    return topic_dir / ".concepts" / "extracted_sources.json"
+
+
+def read_extracted_sources(topic_dir: Path) -> set[str]:
+    """Ledger of source_ids whose insight has been extracted, incl. zero-mention ones.
+
+    ``mentions.jsonl`` only records sources that produced at least one mention, so
+    a successful *empty* extraction (the prompt explicitly allows ``[]`` for an
+    insight with no substantive concepts) leaves no row -- and the insight is then
+    re-extracted, a wasted paid LLM call, on every subsequent non-refresh run.
+    This ledger records every successfully-processed source so empty results stay
+    idempotent. Missing/unreadable ledger -> empty set.
+    """
+    path = _extracted_sources_path(topic_dir)
+    if not path.exists():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {str(s) for s in data} if isinstance(data, list) else set()
+
+
+def record_extracted_sources(topic_dir: Path, source_ids: Iterable[str]) -> None:
+    """Merge ``source_ids`` into the extracted-sources ledger (idempotent)."""
+    new = {str(s) for s in source_ids}
+    if not new:
+        return
+    merged = read_extracted_sources(topic_dir) | new
+    path = _extracted_sources_path(topic_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(merged), ensure_ascii=False, indent=2), encoding="utf-8")

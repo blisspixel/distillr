@@ -20,6 +20,7 @@ latest claim per ``claim_id`` if it needs strict dedup. For the default
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +40,20 @@ from distill.pipeline.costs import CostTracker
 logger = logging.getLogger(__name__)
 
 __all__ = ["ClaimsSummary", "run_claims"]
+
+# Cap on insights extracted in a single run. Two-pass synthesis runs one paid LLM
+# call per pending insight, and it is reachable from the MCP ``synthesize`` tool
+# (``two_pass=true``), so a prompt-injected agent could induce one tool call that
+# fans out into thousands of calls on a large topic. A per-call ceiling bounds
+# that amplification; because every processed source is recorded in the
+# extracted-sources ledger, the remainder simply extracts on the next run rather
+# than being dropped. ``DISTILL_CLAIMS_MAX_INSIGHTS`` overrides it (0 = unlimited).
+_DEFAULT_MAX_INSIGHTS_PER_RUN = 250
+
+
+def _max_insights_per_run() -> int:
+    raw = os.environ.get("DISTILL_CLAIMS_MAX_INSIGHTS", "").strip()
+    return int(raw) if raw.isdigit() else _DEFAULT_MAX_INSIGHTS_PER_RUN
 
 
 @dataclass
@@ -108,6 +123,19 @@ def run_claims(
         else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
     )
     pending = [r for r in refs if r.source_id not in seen]
+    # Bound per-run spend: process at most _max_insights_per_run() insights, the
+    # rest fall to the next run (they stay pending via the extracted-sources
+    # ledger, so nothing is lost -- only batched).
+    cap = _max_insights_per_run()
+    if cap and len(pending) > cap:
+        logger.warning(
+            "Claim extraction capping at %d of %d pending insights for %s "
+            "(set DISTILL_CLAIMS_MAX_INSIGHTS=0 to disable); the rest extract next run.",
+            cap,
+            len(pending),
+            topic,
+        )
+        pending = pending[:cap]
     summary.insights_extracted = len(pending)
 
     new_claims = []

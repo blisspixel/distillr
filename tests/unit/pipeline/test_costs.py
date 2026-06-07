@@ -398,6 +398,31 @@ def test_load_cost_calibration_derives_per_paper_rate(tmp_path):
     assert cal.samples["video"] == 0
 
 
+def test_load_cost_calibration_skips_malformed_rows(tmp_path):
+    # A JSON-valid but schema-invalid row (string actual_cost, non-dict
+    # by_call_type, list/scalar line) or a syntactically-invalid line must not
+    # crash calibration: the bad rows are skipped and the clean rows still price.
+    from distill.pipeline.costs import load_cost_calibration
+
+    ops = tmp_path / ".distill"
+    ops.mkdir(parents=True, exist_ok=True)
+    lines = [
+        json.dumps({"command": "papers", "actual_cost": "nan", "by_call_type": {"paper": {}}}),
+        json.dumps({"command": "papers", "actual_cost": 0.10, "by_call_type": "paper"}),
+        json.dumps(["unexpected", "list", "row"]),
+        json.dumps(42),
+        "{not valid json",
+        json.dumps(_paper_row(0.10, 4)),
+        json.dumps(_paper_row(0.10, 6)),
+    ]
+    (ops / "cost_log.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    cal = load_cost_calibration(tmp_path)
+    assert round(cal.per_paper, 4) == 0.02  # $0.20 over 10 clean papers
+    assert cal.samples["paper"] == 10
+    assert cal.any_calibrated is True
+
+
 def test_load_cost_calibration_derives_per_video_from_full_videos(tmp_path):
     from distill.pipeline.costs import load_cost_calibration
 

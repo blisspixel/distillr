@@ -166,6 +166,21 @@ class OllamaProvider:
 
     _MIN_NUM_CTX: int = 4096
 
+    @staticmethod
+    def _num_ctx_ceiling() -> int:
+        """Operator ceiling on ``num_ctx`` from ``OLLAMA_MAX_NUM_CTX`` (0 = off).
+
+        ``_adaptive_num_ctx`` already caps at the model's advertised window, but
+        that window can be enormous (262144) and the request scales with prompt
+        length -- which includes attacker-influenced ingested text (a 120K-char
+        scraped page is ~40K tokens). On a fixed-VRAM box a large prompt can size
+        the KV cache past available memory. This env knob lets an operator bound
+        num_ctx to a VRAM-safe value; unset (the default) preserves the
+        send-it-whole behavior so quality is never silently degraded.
+        """
+        raw = os.environ.get("OLLAMA_MAX_NUM_CTX", "").strip()
+        return int(raw) if raw.isdigit() else 0
+
     async def _adaptive_num_ctx(self, model: str, prompt: str, max_tokens: int) -> int:
         """Context size for this call: prompt + output + headroom, capped at model max.
 
@@ -179,6 +194,10 @@ class OllamaProvider:
             model_max = 0
         if model_max:
             needed = min(needed, model_max)
+        ceiling = self._num_ctx_ceiling()
+        if ceiling:
+            # Never drop below the floor even if the operator sets a tiny ceiling.
+            needed = min(needed, max(ceiling, self._MIN_NUM_CTX))
         return max(self._MIN_NUM_CTX, needed)
 
     async def get_context_window(self, model: str) -> int:

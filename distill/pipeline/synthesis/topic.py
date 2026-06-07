@@ -67,8 +67,9 @@ def synthesize_channel(
         if meta_file.exists():
             try:
                 meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                title = meta.get("title", title)
-                source_id = meta.get("video_id", source_id)
+                if isinstance(meta, dict):
+                    title = meta.get("title", title)
+                    source_id = meta.get("video_id", source_id)
             except (json.JSONDecodeError, OSError):
                 pass
         link = emit_wiki_link(title, source_id, "insights")

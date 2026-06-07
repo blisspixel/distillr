@@ -61,9 +61,14 @@ def _read_jsonl(path: Path) -> list[dict]:
         if not line:
             continue
         try:
-            rows.append(json.loads(line))
+            obj = json.loads(line)
         except json.JSONDecodeError:
             continue
+        # Keep only object rows. A hand-edited or corrupted export line that is
+        # valid JSON but a list/scalar (``[]``, ``true``) would otherwise crash
+        # find_contested's ``r.get(...)`` with AttributeError.
+        if isinstance(obj, dict):
+            rows.append(obj)
     return rows
 
 
@@ -76,16 +81,27 @@ def find_contested(topic_dir: Path) -> list[ContestedConcept]:
     """
     rows = _read_jsonl(concepts_jsonl_path(topic_dir)) + _read_jsonl(entities_jsonl_path(topic_dir))
     contested = [r for r in rows if r.get("contested")]
-    contested.sort(key=lambda r: (-r.get("source_count", 0), r.get("slug", "")))
+    # Sort defensively: a malformed row with a non-numeric ``source_count`` must
+    # not raise a TypeError from the unary-negate sort key.
+    contested.sort(key=lambda r: (-_as_int(r.get("source_count")), str(r.get("slug", ""))))
     return [
         ContestedConcept(
-            name=r.get("name", ""),
-            slug=r.get("slug", ""),
-            kind=r.get("kind", ""),
-            topic=r.get("topic", ""),
-            source_count=r.get("source_count", 0),
-            helpful_count=r.get("helpful_count", 0),
-            harmful_count=r.get("harmful_count", 0),
+            name=str(r.get("name", "")),
+            slug=str(r.get("slug", "")),
+            kind=str(r.get("kind", "")),
+            topic=str(r.get("topic", "")),
+            source_count=_as_int(r.get("source_count")),
+            helpful_count=_as_int(r.get("helpful_count")),
+            harmful_count=_as_int(r.get("harmful_count")),
         )
         for r in contested
     ]
+
+
+def _as_int(value: object) -> int:
+    """Coerce a JSONL scalar to int, defaulting to 0 on anything non-numeric."""
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    return 0

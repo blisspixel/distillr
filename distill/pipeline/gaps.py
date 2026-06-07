@@ -52,6 +52,8 @@ def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[dic
                 meta = json.loads(meta_file.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
+            if not isinstance(meta, dict):
+                continue  # valid JSON but not an object -> not usable metadata
             meta["_dir"] = str(vid_dir)
             meta["has_transcript"] = artifact_exists(vid_dir, "transcript", extension="txt")
             meta["has_insights"] = artifact_exists(vid_dir, "insights")

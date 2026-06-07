@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.23 - 2026-06-07
+
+**Third security/robustness pass: CI/CD supply-chain hardening, transport integrity, resource ceilings, and a sweep of parse-don't-crash fixes on untrusted/corruptible local state.**
+
+- **Unpinned GitHub Actions (High, supply chain).** The release (`publish.yml`) and CI workflows referenced actions by mutable tags (`actions/checkout@v6`, `pypa/gh-action-pypi-publish@release/v1`, ...). The publish job holds `id-token: write` for PyPI trusted publishing, so a retagged/compromised action there could mint the OIDC token and ship a malicious release. Every action is pinned to an immutable commit SHA (with a `# vN` comment) now, and `.github/dependabot.yml` is restored (github-actions + uv, weekly) so the pins stay current as reviewable PRs instead of rotting.
+- **arXiv PDF cleartext fetch (Medium).** `_is_arxiv_pdf_url` accepted `http://` and the URL was fetched as-is; since `requests` does not enforce HSTS, the first hop was plaintext and an on-path attacker could return arbitrary PDF bytes (parsed by pypdf, written to the corpus, fed to the LLM). `http://arxiv.org/...` links and redirect `Location`s are upgraded to `https://` before every request now; the host allow-list still bounds SSRF.
+- **Ollama VRAM exhaustion (Medium, DoS).** Adaptive `num_ctx` scaled with prompt length (which includes attacker-influenced scraped text) and was capped only by the model's advertised window. An optional `OLLAMA_MAX_NUM_CTX` ceiling lets an operator bound the KV-cache allocation on a fixed-VRAM box; unset (default) preserves send-it-whole behavior.
+- **Two-pass synthesis spend amplification (Medium, DoS).** The MCP-reachable `synthesize(two_pass=true)` path ran one LLM call per insight with no ceiling, so a prompt-injected agent could fan one tool call into thousands of calls. A per-run cap (`DISTILL_CLAIMS_MAX_INSIGHTS`, default 250) bounds it; the remainder defers to the next run via the extracted-sources ledger, so nothing is dropped.
+- **Empty concept extractions re-billed (Low).** The concepts pipeline derived "already processed" only from `mentions.jsonl`, which has no row for a valid empty (`[]`) extraction, so those sources were re-extracted (a wasted paid call) on every run. An extracted-sources ledger (mirroring the claims pipeline) makes empty results idempotent.
+- **Parse-don't-crash sweep (Low/availability).** A corrupted or hand-edited local JSONL/JSON file (a valid-JSON-but-non-object line, or an ill-typed field) could crash a command with `AttributeError`/`TypeError`. Hardened: cost-log calibration, the `distill eval` cache, `distill health`'s contested-concept scan, the concept mentions reader, the dashboard cost/run-history readers, and the `metadata.json` readers (gap analysis, topic synthesis, dashboard). Frontmatter round-trip now survives a deeply-nested array (`RecursionError`) instead of aborting the artifact write.
+- **`--rigor` help corrected.** The flag filters on the rerank `final_score` it is calibrated to, not goal-fit; the help text and a comment said "goal-fit" (the implementation was already correct).
+- Branch-coverage floor raised 79 -> 80.
+
 ## 0.9.22 - 2026-06-06
 
 **LLM trust-boundary hardening (the prompt-injection half of the second security review) plus durability/perf hygiene.**

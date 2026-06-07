@@ -234,13 +234,16 @@ def test_load_latest_payload_and_site_section_state(config):
 
 def test_cost_helpers_handle_missing_and_invalid_data(tmp_path):
     log_file = tmp_path / "cost_log.jsonl"
+    # Mix in valid-JSON-but-non-object lines ([], a scalar): these must be
+    # skipped, not kept, or sum_recent_cost's entry.get(...) crashes the dashboard.
     log_file.write_text(
-        '\n{"actual_cost": 1.25}\nnot-json\n{"actual_cost": "bad"}\n',
+        '\n{"actual_cost": 1.25}\nnot-json\n[]\n42\n{"actual_cost": "bad"}\n',
         encoding="utf-8",
     )
 
     recent = load_recent_cost_runs(log_file, limit=5)
     assert len(recent) == 2
+    assert all(isinstance(r, dict) for r in recent)
     assert load_all_cost_runs(tmp_path / "missing.jsonl") == []
     assert sum_recent_cost(recent) == 1.25
 

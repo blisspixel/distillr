@@ -12,7 +12,6 @@ import logging
 import re
 import time
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
@@ -268,11 +267,31 @@ def _is_arxiv_pdf_url(url: str) -> bool:
     )
 
 
+def _https_arxiv_url(url: str) -> str:
+    """Upgrade an allow-listed arXiv ``http://`` URL to ``https://``.
+
+    arXiv's Atom feed serves pdf links (and some redirect ``Location`` headers)
+    as ``http://``. ``requests`` does not enforce HSTS, so fetching that URL as
+    written makes a cleartext first hop an on-path attacker could intercept and
+    answer with arbitrary PDF bytes (which then feed analysis/the corpus). The
+    host allow-list bounds SSRF; forcing https before the request bounds that
+    transport tampering. Leaves non-http schemes untouched.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "http":
+        return parsed._replace(scheme="https").geturl()
+    return url
+
+
 def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
     current_url = pdf_url
     for _ in range(_PDF_MAX_REDIRECTS + 1):
         if not _is_arxiv_pdf_url(current_url):
             return b""
+        # Never fetch arXiv PDFs over cleartext: upgrade http -> https before the
+        # request and on every redirect hop. The validator accepts http so a
+        # feed-provided http link still routes here, but the wire is always TLS.
+        current_url = _https_arxiv_url(current_url)
         with requests.get(
             current_url,
             timeout=60,
