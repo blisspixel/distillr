@@ -8,7 +8,7 @@ on:
 
 # Pin uv for reproducibility. The lockfile guarantees identical dependency
 # resolution; pinning uv guarantees the resolver/installer itself is identical
-# across runs. Bumped via Dependabot's github-actions / uv updates.
+# across runs. Bumped manually when a new uv release is adopted.
 env:
   UV_VERSION: "0.11.11"
 
