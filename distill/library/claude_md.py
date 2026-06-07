@@ -25,7 +25,6 @@ Design discipline (foundational layer, same as the rest of ``distill.library``):
 
 from __future__ import annotations
 
-import contextlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -163,6 +162,30 @@ def topic_summary_line(topic_dir: Path, topic: str, *, max_len: int = 200) -> st
 # ---- concept / entity names ------------------------------------------------
 
 
+def _score_named_row(line: str) -> tuple[int, str] | None:
+    """Parse one rollup JSONL line into ``(source_count, name)`` or ``None``.
+
+    Skips blank lines, malformed JSON, valid-JSON-but-non-object rows (which would
+    otherwise crash ``.get(...)``), and rows with no usable name.
+    """
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        row = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(row, dict):
+        return None
+    name = str(row.get("name") or row.get("normalized_name") or "").strip()
+    if not name:
+        return None
+    try:
+        return (int(row.get("source_count", 0) or 0), name)
+    except (ValueError, TypeError):
+        return None
+
+
 def top_named_things(jsonl_path: Path, limit: int) -> list[str]:
     """Top concept/entity display names from a rollup, by ``source_count`` desc.
 
@@ -172,23 +195,11 @@ def top_named_things(jsonl_path: Path, limit: int) -> list[str]:
     """
     if limit <= 0 or not jsonl_path.exists():
         return []
-    scored: list[tuple[int, str]] = []
     try:
         lines = jsonl_path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        name = str(row.get("name") or row.get("normalized_name") or "").strip()
-        if name:
-            with contextlib.suppress(ValueError, TypeError):
-                scored.append((int(row.get("source_count", 0) or 0), name))
+    scored = [s for s in (_score_named_row(line) for line in lines) if s is not None]
     scored.sort(key=lambda r: (-r[0], r[1].lower()))
     out: list[str] = []
     seen: set[str] = set()

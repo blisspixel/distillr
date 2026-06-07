@@ -42,6 +42,8 @@ from distill.concepts.normalize import (
 from distill.concepts.notes import (
     already_extracted_source_ids,
     append_mentions,
+    read_extracted_sources,
+    record_extracted_sources,
     write_playbook,
 )
 from distill.concepts.records import ConceptMention, utcnow_iso
@@ -139,12 +141,21 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
         return summary
 
     timestamp = now_iso or utcnow_iso()
-    seen = set() if refresh else already_extracted_source_ids(topic_dir)
+    # Skip insights already extracted. Union the mention rows with the
+    # extracted-sources ledger so a source that produced zero mentions (no row in
+    # mentions.jsonl, but a valid empty extraction) is still recognized as done
+    # and not re-extracted -- and re-billed -- on every subsequent run.
+    seen = (
+        set()
+        if refresh
+        else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
+    )
 
     pending = [r for r in refs if r.source_id not in seen]
     summary.insights_extracted = len(pending)
 
     new_rows: list[dict] = []
+    processed: list[str] = []
     extraction_provenance: dict[str, str] = {}
     for ref in pending:
         try:
@@ -162,12 +173,16 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
             continue
         for mention in result.mentions:
             new_rows.append(mention.to_jsonl_row())
+        # Record every successfully-processed source -- even a zero-mention one --
+        # so it is not re-extracted on the next run.
+        processed.append(ref.source_id)
         if not extraction_provenance:
             extraction_provenance = result.provenance
 
     if new_rows:
         append_mentions(topic_dir, new_rows)
         summary.mentions_added = len(new_rows)
+    record_extracted_sources(topic_dir, processed)
 
     # Refresh path always rebuilds; otherwise only rebuild when new mentions
     # arrived. Without this short-circuit, a second run on an unchanged

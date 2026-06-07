@@ -149,13 +149,18 @@ def _analyze(
     key = _hash("analysis", model, fixture.id, _src_hash(fixture))
     cached = _load_json(cache_dir, key)
     if cached is not None:
-        return _Analysis(
-            output=cached["output"],
-            cost=float(cached.get("cost", 0.0)),
-            input_tokens=int(cached.get("input_tokens", 0)),
-            output_tokens=int(cached.get("output_tokens", 0)),
-            cached=True,
-        )
+        try:
+            return _Analysis(
+                output=cached["output"],
+                cost=float(cached.get("cost", 0.0)),
+                input_tokens=int(cached.get("input_tokens", 0)),
+                output_tokens=int(cached.get("output_tokens", 0)),
+                cached=True,
+            )
+        except (KeyError, TypeError, ValueError):
+            # Malformed cache entry (missing/ill-typed fields): ignore it and
+            # recompute rather than crashing the sweep on a poisoned/corrupt row.
+            logger.warning("Ignoring malformed eval cache entry for %s/%s", model, fixture.id)
     row_tracker = CostTracker()
     rc = RouterConfig(provider=provider_for_model(model), model=model)
     local = _is_local(model)  # local inference is free; keep it off the cost ledger
@@ -213,8 +218,11 @@ def _pairwise(
     key = _hash("pairwise", model, fixture.id, _src_hash(fixture), anchor, judge_model)
     cached = _load_json(cache_dir, key)
     if cached is not None:
-        wr = cached.get("win_rate")
-        return (float(wr) if wr is not None else None), cached.get("rationale", "")
+        try:
+            wr = cached.get("win_rate")
+            return (float(wr) if wr is not None else None), str(cached.get("rationale", ""))
+        except (TypeError, ValueError):
+            logger.warning("Ignoring malformed eval pairwise cache for %s/%s", model, fixture.id)
     try:
         result = judge_pairwise(
             fixture.source_text,
@@ -320,9 +328,12 @@ def _load_json(cache_dir: Path | None, key: str) -> dict | None:
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    # Only object-shaped entries are usable cache rows; a valid-JSON list/scalar
+    # would crash callers that do ``cached[...]`` / ``cached.get(...)``.
+    return data if isinstance(data, dict) else None
 
 
 def _save_json(cache_dir: Path | None, key: str, payload: dict) -> None:

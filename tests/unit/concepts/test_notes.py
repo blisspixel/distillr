@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from distill.concepts.notes import (
     already_extracted_source_ids,
     append_mentions,
@@ -336,9 +334,14 @@ class TestMentionsJsonl:
         path.write_text('{"source_id":"A"}\n\n  \n{"source_id":"B"}\n', encoding="utf-8")
         assert [r["source_id"] for r in read_mentions(tmp_path)] == ["A", "B"]
 
-    def test_append_invalid_json_raises_on_read(self, tmp_path: Path) -> None:
+    def test_read_skips_malformed_and_non_object_rows(self, tmp_path: Path) -> None:
+        # A corrupt/hand-edited mentions.jsonl must not crash the pipeline:
+        # malformed JSON and valid-JSON-but-non-object lines are skipped, so a
+        # later from_jsonl_row / "source_id" in row can't raise on a bad row.
         path = mentions_jsonl_path(tmp_path)
         path.parent.mkdir(parents=True)
-        path.write_text("not json\n", encoding="utf-8")
-        with pytest.raises(json.JSONDecodeError):
-            read_mentions(tmp_path)
+        path.write_text(
+            'not json\n[]\n"bare-string"\n{"source_id":"A"}\n',
+            encoding="utf-8",
+        )
+        assert [r["source_id"] for r in read_mentions(tmp_path)] == ["A"]

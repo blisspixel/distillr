@@ -8060,7 +8060,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         "balanced",
         "--rigor",
         help="Quality bar for the reranked shortlist: strict | balanced | loose. "
-        "Drops candidates whose goal-fit score is below the level's threshold.",
+        "Drops candidates whose rerank score is below the level's threshold.",
     ),
     preview: bool = typer.Option(
         False, "--preview", help="Show the goal-ranked plan without ingesting"
@@ -8284,7 +8284,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         )
         return
 
-    # --rigor: drop candidates below the level's goal-fit threshold.
+    # --rigor: drop candidates below the level's rerank-score (final_score) threshold.
     from distill.pipeline.discovery import rigor_threshold
 
     threshold = rigor_threshold(rigor)

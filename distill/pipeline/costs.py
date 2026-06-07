@@ -433,7 +433,17 @@ def load_cost_calibration(
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
-        classified = _classify_clean_run(row)
+        # A JSON-valid but schema-invalid row (string ``actual_cost``, non-dict
+        # ``by_call_type``, non-numeric ``calls``) would otherwise raise
+        # TypeError/ValueError/AttributeError out of the classifier and abort
+        # every discover estimate. Skip the bad row like a syntactically-invalid
+        # one -- the cost log is best-effort calibration, not a hard input.
+        if not isinstance(row, dict):
+            continue
+        try:
+            classified = _classify_clean_run(row)
+        except (TypeError, ValueError, AttributeError):
+            continue
         if classified is None:
             continue
         kind, run_cost, n = classified

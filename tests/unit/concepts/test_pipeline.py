@@ -210,6 +210,29 @@ class TestRunConcepts:
         # No notes were rewritten (content unchanged) so no .history entry
         assert not (topic_dir / ".history").exists()
 
+    def test_empty_extractions_are_not_rebilled(self, tmp_path: Path, rc: RouterConfig) -> None:
+        # A source whose extraction yields [] (no substantive concepts) writes no
+        # mentions.jsonl row. Without the extracted-sources ledger it would be
+        # re-extracted -- and re-billed -- on every subsequent run. The ledger
+        # records it as processed so the second run does zero LLM calls.
+        topic_dir = self._seed_corpus(tmp_path)
+
+        # Empty queue -> _llm_responses_for_corpus returns "[]" for all 4 sources.
+        with patch("distill.concepts.extract.llm_call", side_effect=_llm_responses_for_corpus()):
+            first = run_concepts(
+                "tkg", topic_dir, rc=rc, threshold=1, now_iso="2026-05-15T10:00:00Z"
+            )
+        assert first.insights_extracted == 4
+        assert first.mentions_added == 0
+        assert (topic_dir / ".concepts" / "extracted_sources.json").is_file()
+
+        with patch("distill.concepts.extract.llm_call") as mock_llm:
+            second = run_concepts(
+                "tkg", topic_dir, rc=rc, threshold=1, now_iso="2026-05-15T11:00:00Z"
+            )
+        assert second.insights_extracted == 0
+        assert mock_llm.call_count == 0
+
     def test_refresh_re_extracts_all_sources(self, tmp_path: Path, rc: RouterConfig) -> None:
         topic_dir = self._seed_corpus(tmp_path)
         responses = [

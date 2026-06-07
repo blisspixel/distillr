@@ -240,6 +240,29 @@ def test_fetch_paper_pdf_text_revalidates_redirect(monkeypatch):
     ]
 
 
+def test_fetch_paper_pdf_text_upgrades_http_to_https(monkeypatch):
+    # An http:// arXiv PDF link (arXiv's Atom feed serves some as http) must be
+    # fetched over TLS, never cleartext: the wire URL passed to requests.get is
+    # forced to https before the first hop so an on-path attacker cannot inject
+    # PDF bytes. The host allow-list still bounds SSRF.
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return FakePdfResponse()
+
+    monkeypatch.setattr("distill.ingestors.papers.arxiv.requests.get", fake_get)
+    monkeypatch.setattr(
+        "distill.ingestors.papers.arxiv.PdfReader",
+        lambda stream: SimpleNamespace(pages=[]),
+    )
+
+    paper_ingest.fetch_paper_pdf_text("http://arxiv.org/pdf/2602.12670v1")
+
+    assert calls == ["https://arxiv.org/pdf/2602.12670v1"]
+
+
 def test_fetch_paper_pdf_text_returns_empty_on_errors(monkeypatch):
     paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
     monkeypatch.setattr(

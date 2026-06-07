@@ -191,13 +191,16 @@ def sanitize_path_component(value: str) -> str:
     return cleaned or "untitled"
 
 
-def sanitize_topic(value: str) -> str:
+def sanitize_topic(value: object) -> str:
     """Sanitize a topic so it is always a single safe directory component.
 
     Untrusted callers (MCP tools, CLI flags) can pass values like ``../../etc``
-    or ``/tmp/x``. This collapses path separators, rejects traversal-only
-    segments, and falls back to ``"untitled"`` rather than letting the path
-    join escape the topics root.
+    or ``/tmp/x`` -- and, since the value crosses an untrusted boundary, a
+    non-string (e.g. an MCP client sending a number). ``value`` is typed
+    ``object`` so the runtime guard below is a real defense, not dead code:
+    this collapses path separators, rejects traversal-only segments, and falls
+    back to ``"untitled"`` rather than letting the path join escape the topics
+    root.
     """
     if not isinstance(value, str):
         return "untitled"
@@ -375,6 +378,13 @@ def _parse_scalar_or_list(value: str) -> str | list[str]:
     try:
         parsed = json.loads(s)
     except (ValueError, TypeError):
+        return value
+    except RecursionError:
+        # A deeply nested array (e.g. attacker-influenced LLM frontmatter like
+        # "[[[[...]]]]") overflows json.loads's recursion. This is carried-forward
+        # *existing* frontmatter, not a re-supplied field, so treating an
+        # unparseable value as an opaque scalar keeps the artifact write alive
+        # instead of aborting the ingestion/report on a hostile note.
         return value
     return [str(item) for item in parsed] if isinstance(parsed, list) else value
 

@@ -13,6 +13,35 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
 
 
+def test_find_contested_tolerates_malformed_rows(tmp_path: Path) -> None:
+    # A hand-edited/corrupted export with valid-JSON-but-non-object lines, or a
+    # contested row with a non-numeric source_count, must not crash distill health.
+    from distill.concepts.exports import concepts_jsonl_path
+
+    path = concepts_jsonl_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(
+            [
+                json.dumps([]),  # non-object line
+                json.dumps(True),  # scalar line
+                "{not valid json",  # syntactically invalid
+                json.dumps({"name": "Bad", "slug": "bad", "contested": True, "source_count": "5"}),
+                json.dumps({"name": "Good", "slug": "good", "contested": True, "source_count": 3}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    contested = find_contested(tmp_path)
+    names = {c.name for c in contested}
+    assert names == {"Bad", "Good"}
+    # Non-numeric source_count coerces to 0 rather than raising in the sort key.
+    bad = next(c for c in contested if c.name == "Bad")
+    assert bad.source_count == 0
+
+
 def _row(name: str, *, contested: bool, kind: str = "technique", source_count: int = 5) -> dict:
     return {
         "name": name,

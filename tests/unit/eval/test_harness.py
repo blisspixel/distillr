@@ -69,6 +69,29 @@ def test_cache_hit_skips_reanalysis(tmp_path, monkeypatch):
     assert all(r.cached for r in second)
 
 
+def test_malformed_cache_entry_recomputes(tmp_path, monkeypatch):
+    # A corrupt-but-valid-JSON cache row (wrong shape) must be ignored and the
+    # row recomputed, not crash the sweep with KeyError/TypeError.
+    monkeypatch.setattr(
+        harness_mod,
+        "judge_pairwise",
+        lambda *a, **k: PairwiseResult(win_rate=0.5, comparisons=2, rationale=""),
+    )
+    calls: list = []
+    fake = _fake_analyze_factory(calls)
+    run_model_eval("paper", ["grok-4.3"], anchor="grok-4.3", cache_dir=tmp_path, analyze=fake)
+    assert len(calls) == 3
+    # Poison every cached analysis row: valid JSON, missing the "output" field.
+    for p in tmp_path.glob("*.json"):
+        p.write_text('{"unexpected": "shape"}', encoding="utf-8")
+    calls.clear()
+    rows = run_model_eval(
+        "paper", ["grok-4.3"], anchor="grok-4.3", cache_dir=tmp_path, analyze=fake
+    )
+    assert len(calls) == 3  # recomputed, did not serve the poisoned cache
+    assert all(not r.cached for r in rows)
+
+
 def test_estimate_is_fixture_aware_and_modest():
     fixtures = load_fixtures("paper")
     est = estimate_eval_cost(

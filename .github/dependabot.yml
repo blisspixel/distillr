@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Keep GitHub Actions current. Actions are pinned to immutable commit SHAs
+  # (see ci.yml / publish.yml); Dependabot rewrites the SHA and the trailing
+  # version comment on each release, so pinning stays maintainable instead of
+  # rotting. Without this, a pinned SHA silently ages and never gets security
+  # fixes.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Python dependencies resolved through the committed uv.lock.
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

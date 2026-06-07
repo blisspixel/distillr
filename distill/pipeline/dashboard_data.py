@@ -34,6 +34,21 @@ def strip_frontmatter(content: str) -> str:
     return content
 
 
+def read_json_dict(path: Path) -> dict:
+    """Read a JSON-object file, returning ``{}`` on missing/corrupt/non-object content.
+
+    Dashboard readers consume best-effort local ``metadata.json`` / ``*.json``
+    files that can be truncated or hand-edited. A valid-JSON-but-non-object
+    payload (a list or scalar) would otherwise crash a later ``.get(...)`` and
+    take the whole dashboard down, so it is normalized to an empty mapping here.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 __all__ = [
     "build_site_section_state",
     "collect_corpus_health_warnings",
@@ -75,9 +90,14 @@ def load_recent_cost_runs(log_file: Path, limit: int = 5) -> list[dict]:
             if not line:
                 continue
             try:
-                entries.append(json.loads(line))
+                entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            # Only dict rows are usable; a valid-JSON-but-non-object line would
+            # crash consumers like ``sum_recent_cost`` (``entry.get(...)``) and
+            # take the whole dashboard down on one corrupt cost_log.jsonl line.
+            if isinstance(entry, dict):
+                entries.append(entry)
     except OSError:
         return []
     return entries[-limit:]
@@ -91,10 +111,7 @@ def load_latest_run_payload(log_dir: Path) -> dict:
     latest = log_dir / "latest_run.json"
     if not latest.exists():
         return {}
-    try:
-        return json.loads(latest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return read_json_dict(latest)
 
 
 def sum_recent_cost(entries: list[dict]) -> float:
@@ -449,13 +466,8 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
             for video_dir in videos_dir.iterdir():
                 if not video_dir.is_dir():
                     continue
-                metadata = {}
                 meta_path = video_dir / "metadata.json"
-                if meta_path.exists():
-                    try:
-                        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
-                        metadata = {}
+                metadata = read_json_dict(meta_path) if meta_path.exists() else {}
                 title = str(metadata.get("title") or video_dir.name)
                 dur = int(metadata.get("duration") or 0)
 
@@ -511,13 +523,8 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                 for page_dir in pages_dir.iterdir():
                     if not page_dir.is_dir():
                         continue
-                    metadata = {}
                     meta_path = page_dir / "metadata.json"
-                    if meta_path.exists():
-                        try:
-                            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-                        except (OSError, json.JSONDecodeError):
-                            metadata = {}
+                    metadata = read_json_dict(meta_path) if meta_path.exists() else {}
                     title = str(metadata.get("title") or page_dir.name)
                     insights_path = find_artifact(page_dir, "insights")
                     if insights_path.exists():
@@ -540,13 +547,8 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
             for paper_dir in papers_dir.iterdir():
                 if not paper_dir.is_dir():
                     continue
-                metadata = {}
                 meta_path = paper_dir / "metadata.json"
-                if meta_path.exists():
-                    try:
-                        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
-                        metadata = {}
+                metadata = read_json_dict(meta_path) if meta_path.exists() else {}
                 title = str(metadata.get("title") or paper_dir.name)
                 insights_path = find_artifact(paper_dir, "insights")
                 if insights_path.exists():
@@ -583,8 +585,11 @@ def load_topic_change_history(config: DistillConfig, topic: str) -> list[dict]:
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if not isinstance(payload, dict):
+                continue
             generated_at = parse_run_datetime(str(payload.get("generated_at", "")))
-            counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+            counts_raw = payload.get("counts")
+            counts = counts_raw if isinstance(counts_raw, dict) else {}
             if generated_at is None:
                 continue
             records.append(
@@ -736,10 +741,7 @@ def collect_topic_changes(  # noqa: C901 — legacy, will refactor
 def _load_site_manifest(path: Path) -> dict:
     if not path.exists():
         return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return read_json_dict(path)
 
 
 def build_site_section_state(pages) -> list[dict]:
@@ -786,16 +788,10 @@ def dashboard_snapshot(config: DistillConfig) -> dict:
                     continue
                 total_videos += 1
                 meta_path = d / "metadata.json"
-                try:
-                    if meta_path.exists():
-                        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                        if meta.get("analysis_mode") == "scan":
-                            scan_videos += 1
-                        else:
-                            full_videos += 1
-                    else:
-                        full_videos += 1
-                except (OSError, json.JSONDecodeError):
+                meta = read_json_dict(meta_path) if meta_path.exists() else {}
+                if meta.get("analysis_mode") == "scan":
+                    scan_videos += 1
+                else:
                     full_videos += 1
 
     site_count, page_count = count_site_corpus(config, topics)
