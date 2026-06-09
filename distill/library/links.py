@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from distill.library.paths import atomic_write_text
 from distill.library.wikilinks import WIKI_LINK_PATTERN
 
 __all__ = [
@@ -140,7 +141,7 @@ def fix_broken_links(library_dir: Path, broken: list[BrokenLink]) -> int:
             fixed_count += 1
 
         try:
-            file_path.write_text(content, encoding="utf-8")
+            atomic_write_text(file_path, content)
         except OSError:
             logger.warning("Could not write fixed file: %s", file_path)
             # Undo the count for this file's fixes

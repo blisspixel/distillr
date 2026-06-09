@@ -38,7 +38,7 @@ __all__ = [
 
 
 CLAIM_EXTRACTION_PROMPT_ID = "claims.extract.v1"
-CLAIM_SYNTHESIS_PROMPT_ID = "claims.synthesis.v1"
+CLAIM_SYNTHESIS_PROMPT_ID = "claims.synthesis.v3"
 
 
 def claim_extraction_prompt(insight_content: str, topic: str) -> str:
@@ -137,9 +137,10 @@ def claim_synthesis_prompt(topic: str, claims: Sequence[Claim], style: str = "")
     from distill.prompts.synthesis import _emphasis_block
 
     claim_block = "\n".join(_format_claim_for_synthesis(c, i) for i, c in enumerate(claims, 1))
-    return f"""You are writing a cross-source synthesis for the topic "{topic}" from a structured set of extracted claims.
+    source_count = len({c.source_id for c in claims})
+    return f"""You are doing graduate-level synthesis for the topic "{topic}" over a structured set of {len(claims)} extracted claims drawn from {source_count} sources.
 
-Each claim below is tagged with a handle [C<n>], its rhetorical role, a confidence score for that role, and its source. Synthesize ACROSS sources -- do not summarize source by source.
+The goal is analysis that makes the reader smarter than reading any single source would. Each claim below is tagged with a handle [C<n>], its rhetorical role, a confidence score for that role, and its source. Synthesize ACROSS sources; do not summarize source by source.
 
 SECURITY: {DERIVED_CONTENT_RULES}
 
@@ -147,17 +148,72 @@ CLAIM SET:
 
 {claim_block}
 
-YOUR TASK:
-Write a synthesis that:
-1. CLUSTERS claims by what they assert. Group method claims with related method claims, result claims with comparable result claims. Lead each cluster with what the corpus collectively establishes.
-2. NAMES contradictions explicitly. When two sources make claims that conflict (opposing results on the same dataset/metric, a method one source advocates and another critiques), state the disagreement, cite both claims by handle, and -- where the claims provide enough to judge -- say which is better supported and why. Do not paper over conflicts.
-3. CITES per claim. Every assertion in your synthesis must cite the claim handle(s) it rests on, e.g. "(C3, C7)". A reader must be able to trace each statement back to its source claims.
-4. SURFACES uncertainty. Claims with low role_confidence, single-source results, and stated limitations are signal, not noise. Flag them as the corpus's soft spots rather than dropping them or presenting them as settled.
+================================================================
+OUTPUT STRUCTURE: every section has concrete requirements.
+Do NOT produce paragraph summaries under topic headings.
+Cite the claim handle(s) every assertion rests on, e.g. "(C3, C7)".
+================================================================
 
-CONTRACT:
-- Cross-source claims and comparisons, an explicit comparison of competing results where the claims support one, named disagreements, and the corpus's shared blind spots. Honor this at a PhD-reviewer level of rigor.
-- {ANTI_HALLUCINATION_RULES}
+## Cross-Source Findings
+
+What the corpus collectively establishes when claims are read together. Cluster related claims and lead each finding with the established point. Each finding MUST cite its handles and say whether it looks independently corroborated (separate sources, separate evidence), widely repeated from a likely shared origin, or single-source.
+
+ANTI-PATTERN (do NOT produce): "C1, C5, and C9 all discuss context layers." That is enumeration, not synthesis.
+
+VALID: "Three sources (C1, C8, C14) report the same failure mode under load but reach it from different stacks (SQL, graph, KV), so the pattern looks independently corroborated rather than echoed (C1, C8, C14)."
+
+## Disagreements
+
+Where claims actually conflict on the same question. Each entry MUST name the conflicting handles, the specific point of disagreement (a number, a method choice, a definition), WHY they differ (different data, goals, or assumptions), and which side is better supported as stated, or "unresolved".
+
+ANTI-PATTERN: "C2 emphasizes speed; C6 emphasizes governance." That is different emphasis, not disagreement.
+
+VALID: "C4 claims rules must stay in the system of record; C11 advocates a central context layer that re-encodes them. The conflict is real and traces to different scale assumptions (single-team vs cross-platform). Unresolved on the evidence here (C4, C11)."
+
+Do not paper over contradictions; a named, unresolved contradiction is more useful than a smoothed-over consensus.
+
+## Comparison Matrix
+
+A markdown table with one row per distinct source. Required columns:
+
+| Source | Position / approach | Evidence or basis (data, metric, demo) | Limitation or open edge |
+
+Fill every row from that source's own claims. This is the structural backbone; it is not optional.
+
+## What This Corpus Says That No Single Source Says
+
+The synthesis payoff: second-order insights that follow only from combining clusters and are asserted by no single claim. After reading all {len(claims)} claims, what do you now know that no one source states? This is THE central section; if it is generic or just restates a cluster, the synthesis has failed. If the corpus is too disjoint to support such a claim, say so in one honest sentence.
+
+## Thesis and White Space
+
+The defensible position this corpus supports and the territory it leaves open. This is the top of the ladder; it must go beyond the section above.
+- THESIS: one or two falsifiable claims the corpus as a whole supports (a position someone could disagree with and test, not a summary), each citing the handles it rests on.
+- WHITE SPACE: what the corpus collectively does NOT address, assumes away, or never tests, stated as concrete unoccupied territory (a question no source asks, a regime no source evaluates, an approach no source tries). Name the absence and cite the handles that circle it.
+- WHAT WOULD FALSIFY THE THESIS: the specific result or evidence that would overturn each thesis claim.
+
+If the claim set is too thin or disjoint to support a defensible thesis, say so in one honest sentence rather than inventing one.
+
+## Open Questions Worth Settling
+
+Specific, testable questions raised by the cross-source analysis. Each entry MUST state the question concretely (not "more research is needed"), specify what evidence would resolve it, and note which source(s), if any, are closest to answering it.
+
+VALID: "Whether graph or relational storage wins for agent memory at scale is open. A head-to-head latency/recall benchmark on one workload would settle it; C8 builds the closest harness but reports no numbers."
+
+## Soft Spots
+
+The corpus's weak foundations: low role_confidence claims, single-source results, and stated limitations. Surface them by handle as caveats on the findings above rather than dropping them or presenting them as settled.
+
+================================================================
+HARD RULES
+================================================================
+
+- Every assertion cites the handle(s) it rests on. No bare claims.
+- "Be specific" means name the source, the number, the dataset, the metric. Do not abstract.
+- No section may be filled with paragraph summaries under a heading. Every section has structured output (findings with cites, table rows, disagreements with both sides).
+- If a section has nothing honest to say at this corpus size, write one sentence saying so. Padding is worse than brevity.
+- If your output could plausibly come from reading any one source in the set, the synthesis has failed.
+- {ANTI_HALLUCINATION_RULES} Do not invent handles, sources, datasets, or numbers not present in the claim set above.
 - {REGISTER_RULES}{_emphasis_block(style)}
 - {FORMATTING_RULES}
 
-Write the synthesis in Markdown. Begin with the synthesis itself -- no preamble."""
+Write the synthesis in Markdown. Begin with the synthesis itself; no preamble."""

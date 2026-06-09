@@ -7,14 +7,14 @@ How Distill works under the hood. Read this if you're contributing, debugging, o
 ```
   Discover (optional)         Source inputs                Capture               Per-item analysis         Synthesis               Report / briefing / synthesis
  ┌──────────────────┐       ┌──────────────────┐     ┌────────────────┐     ┌──────────────────────┐    ┌────────────────┐   ┌─────────────────────────────────┐
- │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ Grok 4.1 Fast        │    │ Per-channel    │   │ distill report                  │
+ │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ grok-4.3             │    │ Per-channel    │   │ distill report                  │
  │   goal → queries │──────▶│ YouTube search   │ ──▶ │ YouTube cap.   │ ──▶ │  2-pass full video   │─┐  │ synthesis      │   │  Gemini DR + Grok 4-phase       │
  │   goal rerank    │       │ arXiv search     │     │ Playwright     │     │  1-pass Short        │ │  │ Per-topic      │   │                                 │
- │   cross-source   │       │ Website seeds    │     │ pypdf (papers) │     │ Grok 4.20 Reasoning  │ │─▶│ synthesis      │─▶ │ distill research-brief          │
+ │   cross-source   │       │ Website seeds    │     │ pypdf (papers) │     │ grok-4.3 (1M ctx)    │ │─▶│ synthesis      │─▶ │ distill research-brief          │
  │   shortlist      │       │ Single URL/paper │     │ Scribe (fall.) │     │  per-page / per-paper│ │  │ Mixed-source   │   │  Gemini Deep Research (grounded)│
  └──────────────────┘       └──────────────────┘     └────────────────┘     └──────────────────────┘─┘  │ corpus synth.  │   │                                 │
          │                          │                       │                          │                 └────────────────┘   │ distill synthesize              │
-         │                          ▼                       ▼                          ▼                                      │  Grok 4.20 single large-context │
+         │                          ▼                       ▼                          ▼                                      │  grok-4.3 single-call corpus    │
          │                  library/topics/<topic>/…  <slug>_Transcript.txt /                                              └─────────────────────────────────┘
          │                  (all artifacts as         <slug>_Content.md / <slug>_Paper.md                                                   │
          │                   frontmatter markdown)    + metadata.json +                                                                        ▼
@@ -93,7 +93,7 @@ Upload all insights and syntheses to a File Search store, then ask Deep Research
 
 Citations must reference primary sources (not Wikipedia, not numbered `[cite: N]` formats). Creator estimates are explicitly tagged as such, never promoted to confirmed facts.
 
-### Phase 2: Section writing (Grok 4.1 Fast Reasoning)
+### Phase 2: Section writing (grok-4.3)
 
 Sections are written sequentially, adapting to scope (single-channel vs multi-channel section lists). Each section receives:
 
@@ -113,7 +113,7 @@ A 3-consecutive-failure circuit breaker prevents wasting API calls if something 
 
 Sections get merged with header metadata, a table of contents, and section dividers. Any surviving numbered citation artifacts and word-count metadata are stripped.
 
-### Phase 4: QA review (Grok 4.1 Fast Reasoning)
+### Phase 4: QA review (grok-4.3)
 
 Read research + assembled report together. Score each section (PASS / FLAG / FAIL) checking for:
 
@@ -206,6 +206,14 @@ The DOCX export renders these as color-coded badges for quick scanning.
 
 State tracking is built in. `--refresh` is the expected workflow — run on a cadence, process only what's new, let per-channel/topic synthesis update from the delta. Avoids re-processing items that haven't changed.
 
+### Claim-based synthesis is a compiled view, not a hand-edited document
+
+`distill resynthesize --two-pass` (and the MCP `synthesize` `two_pass` arg) splits corpus synthesis into two stages: a claim-extraction pass writes atomic claims from each per-source `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl`, then a synthesis pass clusters those claims, names contradictions, and writes `_Synthesis.md` with per-claim citations (`[C7]`).
+
+This keeps the [charter invariant](invariants.md) load-bearing rather than incidental: the per-source `_Insights.md` (and the raw `_Content` / `_Paper` / `_Transcript` beside them) are the source of truth; `claims.jsonl` is a derived, disposable index over them; and each `_Synthesis.md` is a *view compiled from that index*, re-extractable from the Markdown at any time. The consequence is that a synthesis cannot silently drift from its evidence — you never hand-edit `_Synthesis.md`; if it is wrong or stale you fix or re-extract the claims and regenerate, so the prose can't diverge from what the sources say (the "confident misinformation" failure mode a hand-maintained wiki is prone to). Append-only-then-regenerate is also concurrency-safe: appending claim rows and regenerating a view never hits the multi-writer conflict that editing one shared Markdown file in place would.
+
+Single-pass synthesis stays the default until the 1.0 golden-eval gate validates two-pass quality. See [`../ROADMAP.md`](../ROADMAP.md) for the surrounding milestones (0.9.0 two-pass, the 0.9.2 audit contradictions map, 0.10 stale-detection).
+
 ### Security hardening
 
 - All `urllib.request.urlopen` calls route through `distill.net.safe_urlopen`, which rejects non-`https` schemes.
@@ -221,7 +229,7 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 
 **Just-in-time hydration over preloading.** `distill discover` pulls papers + videos *against a goal* and reranks before ingesting; `distill papers` expands and reranks before per-paper analysis; channel watches load only delta videos since the last run. The system never asks "load everything for this topic and let the model figure it out" — it asks "what's the smallest sufficient set for this query?" This is the "Select" pillar.
 
-**Workload-tuned model routing trades fidelity against context budget.** Bulk videos go to Grok 4.1 Fast Reasoning (cheap, fast, good enough on transcripts); messy mid-length artifacts (papers, sites, multi-topic syntheses) go to Grok 4.20 Reasoning where the larger working memory and higher fidelity matter; report Phase 1 goes to Gemini Deep Research for web-grounded retrieval. Each model gets the workload its effective context window handles best, not the largest claimed window.
+**Workload-tuned model routing trades fidelity against context budget.** Routing is by workload tag, not a single hard-coded model: analysis, synthesis, site/paper, and report-section workloads each resolve through `distill/llm/router.py`. On the cloud floor those tags currently all resolve to `grok-4.3` (1M-token window; the cheaper grok-4-fast tiers retired 2026-05-15 and now redirect to it), while report Phase 1 routes to Gemini Deep Research for web-grounded retrieval. Keeping the tags distinct even when they collapse to one cloud model is deliberate: the routing seam is where a local model or a different provider can take a specific workload — bulk transcripts on a local 4090-class model, harder mid-length synthesis on cloud — so each workload gets the model whose effective context window and cost fit it best, not the largest claimed window. The cross-provider, cost-aware version of that choice is what `distill eval` measures (see [`../ROADMAP.md`](../ROADMAP.md), "Looking beyond 1.0").
 
 **Confidence labels and source tagging keep provenance in-band.** `[Confirmed]` / `[Reported]` / `[Estimated]` / `[Speculated]` / `[Analysis]` aren't decorative — they're how downstream prompts (synthesis, report, briefing) avoid laundering uncertainty across handoffs. This is the "Provenance" criterion from Vishnyakova's production-grade context-engineering rubric.
 

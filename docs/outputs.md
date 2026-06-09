@@ -123,7 +123,7 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 ## Research briefings and deep syntheses
 
 - **`output/briefing-{name}.md`** — Output of `distill research-brief` (Gemini Deep Research, web-augmented, multi-topic)
-- **`output/synthesis-{name}.md`** — Output of `distill synthesize` (Grok 4.20 single call, corpus-only, multi-topic)
+- **`output/synthesis-{name}.md`** — Output of `distill synthesize` (grok-4.3 single call, corpus-only, multi-topic)
 
 ## Package Latest (agent handoff)
 
@@ -169,7 +169,7 @@ source_id: 2604.11544v1
 url: https://arxiv.org/abs/2604.11544v1
 tags: ["distill/tkg", "source/arxiv"]
 synthesis_scope: "single-paper"
-analyzed_by: grok-4.20-0309-reasoning
+analyzed_by: grok-4.3
 source_mode: full_pdf
 ---
 

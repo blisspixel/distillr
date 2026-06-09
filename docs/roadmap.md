@@ -48,16 +48,12 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 1. Make "Stay Current" a first-class workflow
 
-- [x] Recurring topic-watch objects with daily or weekly cadence
-- [x] Topic-watch ranking modes (freshness, balanced, popularity)
-- [x] "What changed" outputs between topic-watch runs so recurring monitoring is more useful than rerunning `latest`
 - [~] Proactive freshness alerts after catch-up or scheduled refresh. CLI-native watch-alert digests persist to `library/watch_alerts.md`, and the same alert stream is exposed via MCP at `distill://watch-alerts`. Outbound channels (email, Slack) are still pending.
 - [ ] Unified watch model that blends creator monitoring and topic discovery when needed, while keeping the distinction legible in the UX
 - [~] Trend radar and evolution timelines so users can see trajectory over time, not just the latest snapshot
 
 ### 2. Build a real dashboard and cost surface
 
-- [x] `distill` with no args is a dashboard for tracked topics, tracked channels, recent runs, failures, and outputs
 - [~] Projected next-run cost by workflow, not just historical spend
 - [~] Rolling cost by topic and source type so users can see where spend is going
 - [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place
@@ -70,8 +66,6 @@ be moved to `CHANGELOG.md` on next release).
 
 - [~] Make the command model more intent-first around staying current, learning fast, and reporting
 - [~] Intent-first aliases or a lightweight wizard for recurring jobs such as monitor, ramp-up, and report
-- [x] Checked-in seed-file example for site batches (`configs/example_seeds.json`; user-local `configs/*_seeds.json` are git-ignored)
-- [x] Multi-topic, context-shaped briefings and syntheses (`distill research-brief` + `distill synthesize`) with a TEMPLATE context file so user context files stay local
 - [ ] Make source-set inputs feel first-class instead of relying on one-off command choreography
 - [ ] First-class research profiles for "prefer these channels + these trusted domains + this goal file" workflows so recurring analyst use cases (for example Microsoft-only research) do not require rebuilding the same command and seed setup by hand
 - [ ] Clarify corpus outputs and how to inspect or export them for downstream use
@@ -81,8 +75,6 @@ be moved to `CHANGELOG.md` on next release).
 
 - [ ] Live cost ticker during runs (estimated from token counts)
 - [ ] Total content stats in discovery ("Found 88 videos + 12 Shorts, ~47 hours of content")
-- [x] `distill diff <topic>` — show what changed since the last watch run or fallback window (new videos, pages, papers, refreshed outputs)
-- [x] Trend detection across recorded topic change windows (`distill trends`)
 - [~] Research history — track how findings evolve over time, diff between runs
 - [ ] Multi-pass escalation on demand so catch-up can stay cheap by default and selectively deepen only the highest-signal items
 - [ ] Persist creator voice / bias cards so synthesis can account for recurring framing, reliability, and drift over time
@@ -90,8 +82,6 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 5. Finish website productization
 
-- [x] Generic website distillation — single URL or curated URL list input, browser-first crawl, per-page insights, site/topic synthesis, Deep Research report assembly
-- [x] Model policy by workload — keep cheap bulk-video defaults while using premium Grok models for website/page distillation where higher fidelity matters
 - [ ] Website UX polish — checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
 - [ ] Trusted-site discovery for docs-heavy research workflows — given allowlisted domains (for example `learn.microsoft.com`, `microsoft.com`), enumerate candidate pages from TOCs, landing pages, sitemaps, and shallow section crawls before the LLM rerank so users do not have to hand-curate every page seed
 - [ ] Better crawl boundary controls — keep site batches close to the intended section or branch by default
@@ -102,11 +92,7 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 6. Papers as a first-class source type
 
-- [x] arXiv discovery with ranking by topic fit. `distill papers` now expands the user query into up to six arXiv search variants, dedupes by `paper_id`, LLM-reranks with `RankedPaper` (relevance / depth / novelty / credibility), and supports `--preview` before ingestion. Multi-word phrase-match brittleness was fixed (2 words phrase, 3+ AND-joined).
 - [ ] Semantic Scholar and Google Scholar integration for recency + citation-weighted ranking signals beyond arXiv.
-- [x] Paper ingestion pipeline — PDF/text extraction (pypdf, 100K char cap, surrogate-sanitized), paper-specific analysis via Grok 4.20, per-paper insights, paper-level and mixed-source corpus synthesis
-- [x] Paper-specific storage and metadata conventions that match the existing corpus model
-- [x] Paper-first workflows for "learn this research area fast" — `distill papers <query> --topic <name> --limit N` pulls LLM-ranked arXiv papers, extracts full PDF text, runs structured analysis, and produces per-topic paper synthesis without forcing YouTube- or website-shaped commands
 - [ ] **Chunk-and-rerank paper analysis (effective-context-aware).** Today the full PDF (truncated at 100K chars) is dumped into a single Grok prompt, which is exactly the "Dump Truck" anti-pattern that LongBench v2 / RULER / ∞Bench / STRING benchmarks show degrades sharply when relevant evidence sits mid-document. Replace with: section-aware chunker (use PDF headings; fall back to page+window slicing); per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"); small-window analysis loop assembling `<paper-slug>_Insights.md` from focused passes. Outcome: better fidelity on long papers without higher token spend; per-prompt token counts as a first-class telemetry surface.
 - [ ] **Lift the 100K char cap once chunking is in place.** The cap was a defensive band-aid for the dump-truck pattern; once analysis runs over chunks, full long papers can be processed without prompt blowups.
 
@@ -120,40 +106,29 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Insights quality check — heuristic validation (all expected sections present? suspiciously short?)
 - [~] Transcript validation — flag suspiciously short transcripts (<500 chars for a 30-minute video) as likely failed captions
 - [ ] Structured logging — proper log levels, log to file for post-run review, debug mode flag
-- [ ] **`distill audit` — one bundled health surface with a report artifact and action menu** (0.9.2). Today the pieces are scattered and console-only: `distill health` walks stale syntheses / thin artifacts / contested concepts, `distill doctor --links` runs the broken-backlink check separately, and `research_gaps(topic)` (MCP) computes coverage gaps but isn't wired in. Compose them into a single `distill audit <topic|all>` that (a) runs all of the above plus artifact-level stale-detection, (b) writes the result to a `<topic>_Audit.md` artifact instead of only printing, and (c) offers a phase-2 action menu (apply link/style fixes, draft missing concept-note stubs, hand gaps to gap-driven `discover`). `--report-only` for scheduled runs. This is the Karpathy "monthly health check" pattern; near-zero new capability, high packaging value against GUI-heavy competitors.
+- [ ] **`distill audit` — one bundled health surface with a report artifact and action menu** (the self-maintaining-audit milestone). Today the pieces are scattered and console-only: `distill health` walks stale syntheses / thin artifacts / contested concepts, `distill doctor --links` runs the broken-backlink check separately, and `research_gaps(topic)` (MCP) computes coverage gaps but isn't wired in. Compose them into a single `distill audit <topic|all>` that (a) runs all of the above plus artifact-level stale-detection, (b) writes the result to a `<topic>_Audit.md` artifact instead of only printing, and (c) offers a phase-2 action menu (apply link/style fixes, draft missing concept-note stubs, hand gaps to gap-driven `discover`). `--report-only` for scheduled runs. This is the Karpathy "monthly health check" pattern; near-zero new capability, high packaging value against GUI-heavy competitors.
 - [ ] **Output->input loop (`distill ask`)** (0.10, gated on the run-time verify hook). Every output today (`report`, `research-brief`, `synthesize`) is terminal — nothing re-ingests it, and there's no lightweight query verb. Add `distill ask "<q>" --topic <t>`: query the corpus via the `find_insights` path, write a provenance-stamped `_Answer.md` with `[[backlinks]]`, and `--save` to re-ingest a liked answer as a first-class source so the corpus compounds with use. Re-ingest **must** run the verify hook first (refuse/quarantine unsupported load-bearing claims) — this is what prevents the "answer quietly builds on a mistake" failure the pattern is prone to. MCP `ask` tool for parity.
 
 ### 8. Expand cross-source intelligence
 
 - [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; deeper cross-source reasoning and dedup are still pending.
-- [x] **Goal-aware cross-source discovery** — `distill discover "<goal>"` (or `--goal-file`) generates paper + video queries from a natural-language goal, fans out, and runs a unified goal-aware rerank *across source types* before ingestion. Closes the front-door gap between "I have a keyword" and "I have a research goal."
-- [x] Extend discover to include curated website seeds alongside papers + videos so official docs and hand-picked web sources can compete in the same goal-aware rerank. General web search is still intentionally out of scope for discover; website input stays seed-driven.
 - [ ] Trusted-domain website discovery inside `discover` — let the app expand "prefer Microsoft docs / vendor docs / official learn pages" into real page candidates from allowlisted domains, then rerank those page candidates with videos/papers in the same pool
 - [ ] `distill watch` integration for goal files — re-run discover against a saved goal on a cadence so goal-driven topics refresh the same way keyword topics do.
 - [ ] Multi-topic channels — same channel filed under multiple topics with shared transcripts
-- [x] MCP-powered research-gap discovery so external agents can ask Distill what is missing and trigger follow-on ingestion
-- [x] **Gap-driven discovery — close the loop from `research_gaps` to `discover`** (shipped 0.8.11). `research_gaps(topic)` already computes the inverse of goal-driven discovery (what the corpus is thin on, plus `next_actions`), but the signal dead-ends in MCP output. Wire it forward: a `discover --from-gaps <topic>` mode that turns the gap findings into auto-generated discover queries ("12 sources on synthesis depth, 0 on error propagation — preview candidates?"), and surface the same path as the "ingest these" branch of 0.9.2's `distill audit` action menu. Corpus-gap-driven discovery is the complement to today's goal-driven front door.
 - [ ] More source types — podcasts, RSS feeds, conference talks (same pipeline, different discovery)
 
 ### 9. Ongoing operation and access
 
 - [ ] Scheduled refresh — cron/task-scheduler integration for hands-off weekly updates
-- [ ] **Scheduled audit** (0.10, depends on 0.9.2) — the same scheduler runs `distill audit --report-only` on a cadence (the video's "monthly health check" automation), landing a dated audit artifact so corpus drift, contradictions, and gaps surface without manual prompting.
+- [ ] **Scheduled audit** (0.10, depends on the self-maintaining audit) — the same scheduler runs `distill audit --report-only` on a cadence (the video's "monthly health check" automation), landing a dated audit artifact so corpus drift, contradictions, and gaps surface without manual prompting.
 - [ ] Native notification integrations for daily briefings, weekly digests, and important-change alerts
 - [ ] Web UI — browse the library, read insights, compare channels in a browser
 
 ### 9b. Engineering foundation — reproducible toolchain and quality gates
 
-The build harness, not the corpus. The shaping decisions and the adopted/adapted/declined rationale live in [`../ROADMAP.md`](../ROADMAP.md#083--reproducible-toolchain-and-engineering-baseline) and its "Engineering standards" subsection; this is the itemized backlog.
+The build harness, not the corpus. The adopted/adapted/declined rationale lives in [`../ROADMAP.md`](../ROADMAP.md#engineering-standards-adopted-adapted-declined); the shipped toolchain releases (0.8.3 and the harden series) are in [`CHANGELOG.md`](CHANGELOG.md). This is the itemized backlog of what remains.
 
-- [x] **Full `uv` migration** (0.8.3) — committed `uv.lock`, `uv sync --frozen` in CI, `build-backend = "uv_build"`, `[dependency-groups]` dev tooling (replacing the `.[dev]` extra); `publish.yml` builds with `uv build`, keeping its tag-ancestry / version-match / CI-success gates. Editable-install workflow preserved. Motivated by the 0.8.2 release where an unpinned `typer` floated to 0.26 and broke CI on unchanged code.
-- [x] **Dependabot** (0.8.3) — `.github/dependabot.yml`, weekly grouped patch/minor with majors flagged; every bump runs full CI against the lock before merge.
-- [x] **Python 3.12–3.14 support matrix** (0.8.3) — `requires-python = ">=3.12"` (floor up from 3.10, EOL Oct 2026), classifiers updated, CI matrix `[3.12, 3.13, 3.14]`, ruff/Pyright target `py312`/`3.12`. Deliberately not 3.14-only: distillr is a published library.
-- [x] **Enforce existing contracts in CI** (0.8.3) — add `lint-imports` (import-linter contracts already in `pyproject.toml`) and `pip-audit` as blocking lanes; `xfail_strict = true` + `--strict-markers` in pytest config.
 - [~] **Branch coverage ratchet** (0.8.3 → 1.0) — `[tool.coverage.run] branch = true`, `--cov-fail-under` set to the measured branch baseline (floor 79) and ratcheted up-only toward the 1.0 flat ≥95% gate.
-- [x] **`pre-commit` identical to CI** (0.8.3) — lint/type/security/test hooks run via `uv run --frozen` (locked versions); Pyright + import-linter added, full pytest on pre-push.
-- [x] **SBOM on release** (0.8.3) — CycloneDX / `uv export` software bill of materials attached as a build artifact.
-- [x] **PEP 740 build-provenance attestations** (0.8.3) — emit signed attestations over the existing OIDC trusted-publishing channel so the source-to-wheel chain is cryptographically verifiable. The cheap slice of the Sigstore/SLSA supply-chain ask; full SLSA L3 generators and container scanning (trivy) are out of scope (distillr ships a wheel, not an image).
 - [ ] **Full Pyright-strict ratchet** (1.0) — complete the per-package climb 0.8.3 begins (`distill/llm/` already strict-blocking); no `# type: ignore` without an inline reason.
 - [ ] **Parse, don't validate — strict domain types at every boundary** (1.0) — parse every external input (MCP tool arguments, frontmatter, adapter/local-file ingest, LLM structured outputs) once at the boundary into a rich domain type (`strict=True, extra='forbid'` Pydantic model, `NewType`, or frozen dataclass); core logic never sees raw primitives.
 - [ ] **Verification depth on the deterministic core** (1.0, "formally contracted where it matters") — Design by Contract via `deal` on the merge/normalize/recovery invariants (idempotent + order-independent merge, round-tripping rollback, non-inverting intervals; `deal` also generates Hypothesis tests from the contracts); mutation testing (`mutmut`) of `concepts/` + `library/` + `llm/retry` on a cadence to prove test efficacy; a Hypothesis state machine over the playbook lifecycle (append -> merge -> notes -> snapshot -> rollback -> re-merge); and fault-injection at the external boundaries (malformed LLM JSON, truncated transcripts, network/yt-dlp failures) proving clean degradation and that no-silent-error-swallowing holds under turbulence. Scoped to the pure-Python core + boundaries, not blanket. distillr's concurrency is asyncio IO, so the discipline is async-safety, not free-threaded shared-memory rules.
@@ -181,10 +156,7 @@ as compounding debt.
 
 *Tier 1 — Obsidian-native output (low-effort, immediate ecosystem lift)*
 
-- [x] Wiki-style cross-linking in synthesis, brief, report, and research-brief outputs: when an artifact cites a paper/video/page, emit `[[<slug>_Insights|Paper Title]]` instead of a plain citation. Prompt-level change; file paths are already known at generation time.
-- [x] Standardized YAML frontmatter across generated Markdown artifacts: `type`, `topic`, `source`, `date`, `authors`, `tags`, `confidence`. Concept/entity-specific tags such as `#technique/tkg` and contested/corpus-consensus labels continue in Tier 2.
-- [x] `distill open --vault` (or equivalent hint in `distill dashboard`): launch the user's default markdown editor pointed at `library/`, so the free graph view and backlinks come with zero install steps.
-- [x] Stable slug/link discipline: enforce one canonical URL per artifact so renames don't break backlinks. Link-check pass available via `distill doctor --links`.
+_All four Tier-1 items shipped — wiki-style cross-linking, standardized YAML frontmatter, `distill open --vault`, and stable slug/link discipline (`distill doctor --links`). See [`CHANGELOG.md`](CHANGELOG.md)._
 
 *Tier 2 — LLM-maintained concept layer (Karpathy + ACE)*
 

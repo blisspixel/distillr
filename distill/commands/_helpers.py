@@ -36,6 +36,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.config import DistillConfig
+from distill.library.intent import load_intent
 from distill.pipeline.costs import CostTracker, save_run_log
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
@@ -344,6 +345,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
     step_label = labels.get(effective_mode, "analyzing")
     try:
         _an_label = f"    {eta.progress_str(step_label)}" if eta else f"    [dim]{step_label}[/dim]"
+        _intent = load_intent(config.topic_dir(topic))
         with console.status(_an_label, spinner="dots"):
             if effective_mode == "short":
                 insights = analyze_short(
@@ -353,6 +355,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     transcript,
                     config,
                     tracker=tracker,
+                    intent=_intent,
                 )
             elif effective_mode == "scan":
                 insights = analyze_scan(
@@ -363,6 +366,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     config,
                     tracker=tracker,
                     custom_instructions=custom_instructions,
+                    intent=_intent,
                 )
             else:
                 insights = analyze_video(
@@ -373,6 +377,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     config,
                     tracker=tracker,
                     custom_instructions=custom_instructions,
+                    intent=_intent,
                 )
         meta = {
             "video_id": video.video_id,

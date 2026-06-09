@@ -14,6 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.24 - 2026-06-09
+
+**Adaptive, goal-aware analysis on any topic: the per-source persona is no longer hardcoded. Plus the synthesis thesis rung, provider-error UX, and the completion of the atomic-write pass.** Design: [`docs/design/agentic-distill-master-plan.md`](design/agentic-distill-master-plan.md) and [`docs/design/agentic-deep-synthesis.md`](design/agentic-deep-synthesis.md).
+
+### Added
+
+- **Adaptive analysis lenses (the headline).** Per-source insights were produced with one fixed persona -- a "pre-sales architect advising enterprise customers" baked into the 2-pass video prompt -- so *every* video got `Vendor Watch` / `Business Value Signals` / `Customer Conversation Starters` sections even on a research, physics, or music corpus. Analysis now selects a lens (`research` | `practitioner` | `competitive` | `academic` | `general`) and emits sections that fit the subject matter. The old enterprise framing is the `competitive` lens, preserved exactly; `general` is the neutral default. The lens (and the goal) thread into the video `pass2`, paper, site-page, scan, and shorts prompts. New `distill/prompts/lenses.py`.
+- **`CorpusIntent` -- first-class, persisted corpus intent.** A topic's goal, lens, audience, rigor, quality bar, and budget are parsed once into a frozen `CorpusIntent` and persisted at `topics/<topic>/intent.json`. `discover` infers the lens from the goal (or takes `--lens`), saves it, and **every later ingest into that topic inherits the lens automatically** -- videos, papers, and sites, via the CLI and the MCP papers tool. New `distill/library/intent.py`; new `--lens` flag on `discover`.
+- **Thesis / white-space synthesis rung.** Cross-paper synthesis and the two-pass corpus synthesis now end with a `## Thesis and White Space` section: the defensible, falsifiable claim the corpus as a whole supports, the unoccupied territory it leaves open, and what evidence would overturn the thesis. This is the top of the Facts -> Patterns -> Insights -> Thesis ladder. Prompt ids bumped (`claims.synthesis.v3`, `synthesis.paper.v3`; analysis prompts to `*.v2`).
+- **Opt-in local fallback on credit/auth failure.** Set `DISTILL_FALLBACK_PROVIDER` (+ `DISTILL_FALLBACK_MODEL`, e.g. `ollama` / `qwen3.5:27b`) and a credit-exhaustion / auth failure on the primary cloud provider retries once on the local model instead of aborting the run.
+
+### Fixed / Hardened
+
+- **Clean provider-error messages.** A known operational failure -- credits exhausted, spending limit, bad API key, rate limit -- now prints a one-line message with the next step instead of a raw `openai`/SDK traceback. (Previously an out-of-credits 403 mid-`discover` dumped a full stack trace.) New `distill/llm/errors.py`; rendered at the CLI boundary.
+- Completed the atomic durable write pass across the primary corpus paths and critical local state. `write_text_artifact` / `write_markdown_artifact` (every `_Insights.md`, `_Paper.md`, transcript, synthesis, report, brief, local/X ingest) now route through `atomic_write_text` (unique mkstemp + O_EXCL, fsync before replace), as do `Library`/`ChannelState` saves, migration rewrites, and the broken-links fixer. Finishes the durability + pre-placed-symlink resistance work started in 0.9.22.
+- Removed leftover one-off migration script `tmp/fix_patches.py`.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), full test suite green with branch coverage >= 80%.
+
 ## 0.9.23 - 2026-06-07
 
 **Third security/robustness pass: CI/CD supply-chain hardening, transport integrity, resource ceilings, and a sweep of parse-don't-crash fixes on untrusted/corruptible local state.**

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from distill.config import DistillConfig
-from distill.library.paths import sanitize_topic
+from distill.library.paths import atomic_write_text, sanitize_topic
 
 __all__ = [
     "ChannelInfo",
@@ -86,8 +86,7 @@ class Library:
         return {"topics": {}, "watchlist": [], "topic_watchlist": []}
 
     def _save(self):
-        self.library_file.parent.mkdir(parents=True, exist_ok=True)
-        self.library_file.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        atomic_write_text(self.library_file, json.dumps(self._data, indent=2, ensure_ascii=False))
 
     def add_channel(self, topic: str, url: str, name: str):
         """Add a channel to a topic."""
@@ -406,8 +405,7 @@ class ChannelState:
         return {"processed_videos": {}, "last_refresh": None}
 
     def _save(self):
-        self.state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.state_file.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        atomic_write_text(self.state_file, json.dumps(self._data, indent=2, ensure_ascii=False))
 
     def is_processed(self, video_id: str) -> bool:
         return video_id in self._data["processed_videos"]

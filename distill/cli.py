@@ -100,5 +100,20 @@ __all__ = ["app", "main"]
 
 
 def main() -> None:
-    """Entry point for the ``distill`` CLI command."""
-    app()
+    """Entry point for the ``distill`` CLI command.
+
+    Wraps the Typer app so that *expected* provider failures (credits exhausted,
+    bad key, rate limit) print a clean one-line message instead of a full
+    traceback. Unrecognized errors propagate unchanged.
+    """
+    from distill.llm.errors import describe_provider_error
+
+    app.pretty_exceptions_enable = False
+    try:
+        app()
+    except Exception as exc:
+        message = describe_provider_error(exc)
+        if message is None:
+            raise
+        console.print(f"\n[red]{message}[/red]")
+        raise SystemExit(1) from exc

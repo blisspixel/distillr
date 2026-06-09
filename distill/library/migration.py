@@ -14,7 +14,11 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from distill.library.paths import _ARTIFACT_SUFFIXES, _LEGACY_NAMES
+from distill.library.paths import (
+    _ARTIFACT_SUFFIXES,
+    _LEGACY_NAMES,
+    atomic_write_text,
+)
 
 __all__ = [
     "FrontmatterFieldAction",
@@ -336,7 +340,7 @@ def apply_frontmatter_field_migration(
             continue
 
         try:
-            action.path.write_text(opening + new_fm + rest, encoding="utf-8")
+            atomic_write_text(action.path, opening + new_fm + rest)
             files_rewritten += 1
         except OSError as exc:
             errors.append(f"Write failed {action.path}: {exc}")
@@ -375,7 +379,7 @@ def _update_wiki_links(library_dir: Path, stem_remap: dict[str, str]) -> int:
 
         if new_content != content:
             try:
-                md_file.write_text(new_content, encoding="utf-8")
+                atomic_write_text(md_file, new_content)
                 updated_count += file_updates
             except OSError:
                 logger.warning("Could not write updated links: %s", md_file)

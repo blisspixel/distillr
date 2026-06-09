@@ -8,6 +8,7 @@ from rich.console import Console
 
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage, build_page_document
+from distill.library.intent import CorpusIntent
 from distill.library.paths import (
     ProvenanceFields,
     base_frontmatter,
@@ -38,16 +39,23 @@ def analyze_site_page(
     config: DistillConfig,
     tracker: CostTracker | None = None,
     router_config: RouterConfig | None = None,
+    *,
+    intent: CorpusIntent | None = None,
 ) -> str:
     """Analyze a site page. ``router_config`` lets a caller (e.g. the eval
-    harness) force a specific model/provider; defaults to the configured routing."""
+    harness) force a specific model/provider; defaults to the configured routing.
+    ``intent`` selects the analysis lens and goal focus; ``None`` keeps neutral."""
     rc = router_config or RouterConfig()
+    goal = intent.goal if intent else ""
+    lens = intent.lens if intent else ""
     prompt = site_page_insight_prompt(
         page.title,
         page.url,
         page.site_name,
         page.page_type,
         build_page_document(page),
+        goal=goal,
+        lens=lens,
     )
     response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="site_page")
     result = response.text
@@ -77,7 +85,8 @@ def analyze_site_page(
         f"model: {response.model}\n"
         f"model_version: {response.model}\n"
         f"temperature: 0.0\n"
-        f'prompt_id: "analysis.site_page.v1"\n'
+        f'prompt_id: "analysis.site_page.v2"\n'
+        f"lens: {lens or 'general'}\n"
         "---\n\n"
         f"{result}\n"
     )

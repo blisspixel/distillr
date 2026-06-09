@@ -468,14 +468,14 @@ class TestLearnCommand:
         monkeypatch.setattr(
             _cli_impl,
             "analyze_video",
-            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+            lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nInsight"
             ),
         )
         monkeypatch.setattr(
             _cli_impl,
             "analyze_short",
-            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+            lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nShort"
             ),
         )
@@ -590,7 +590,9 @@ class TestLearnCommand:
         monkeypatch.setattr(
             _cli_impl,
             "analyze_video",
-            lambda title, upload_date, channel_name, transcript, config, tracker=None: "# Insight",
+            lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
+                "# Insight"
+            ),
         )
         monkeypatch.setattr(
             _cli_impl,
@@ -764,14 +766,14 @@ class TestLearnCommand:
         monkeypatch.setattr(
             _cli_impl,
             "analyze_video",
-            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+            lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nInsight"
             ),
         )
         monkeypatch.setattr(
             _cli_impl,
             "analyze_short",
-            lambda title, upload_date, channel_name, transcript, config, tracker=None: (
+            lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nShort"
             ),
         )
@@ -1469,7 +1471,7 @@ class TestWatchCommands:
         monkeypatch.setattr(
             _cli_impl,
             "analyze_paper",
-            lambda paper, config, tracker=None: ("# Insight", "# Paper doc"),
+            lambda paper, config, tracker=None, intent=None: ("# Insight", "# Paper doc"),
         )
         monkeypatch.setattr(
             _cli_impl, "synthesize_papers", lambda topic, config, tracker=None: "paper synthesis"
@@ -1501,7 +1503,7 @@ class TestWatchCommands:
         monkeypatch.setattr(
             _cli_impl,
             "analyze_paper",
-            lambda paper, config, tracker=None: ("# Insight", "# Paper doc"),
+            lambda paper, config, tracker=None, intent=None: ("# Insight", "# Paper doc"),
         )
         monkeypatch.setattr(
             _cli_impl,

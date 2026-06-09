@@ -3,6 +3,7 @@
 from rich.console import Console
 
 from distill.config import DistillConfig
+from distill.library.intent import CorpusIntent
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
@@ -14,6 +15,7 @@ from distill.prompts.analysis import (
     scan_insight_prompt,
     shorts_insight_prompt,
 )
+from distill.prompts.lenses import DEFAULT_LENS
 
 __all__ = [
     "analyze_scan",
@@ -26,6 +28,13 @@ __all__ = [
 console = Console()
 
 
+def _intent_goal_lens(intent: CorpusIntent | None) -> tuple[str, str]:
+    """Resolve (goal, lens) from an optional intent, defaulting to neutral."""
+    if intent is None:
+        return "", DEFAULT_LENS
+    return intent.goal, intent.lens
+
+
 def analyze_video(
     title: str,
     upload_date: str,
@@ -35,16 +44,20 @@ def analyze_video(
     tracker: CostTracker | None = None,
     custom_instructions: str = "",
     router_config: RouterConfig | None = None,
+    *,
+    intent: CorpusIntent | None = None,
 ) -> str:
     """Run 2-pass analysis on a video transcript. Returns insights markdown.
 
     ``router_config`` lets a caller (e.g. the eval harness) force a specific
-    model/provider; defaults to the configured routing.
+    model/provider; defaults to the configured routing. ``intent`` selects the
+    analysis lens and goal focus; ``None`` keeps the neutral default.
     """
     rc = router_config or RouterConfig()
+    goal, lens = _intent_goal_lens(intent)
 
     prompt1 = pass1_extraction_prompt(
-        title, upload_date, channel_name, transcript, custom_instructions
+        title, upload_date, channel_name, transcript, custom_instructions, goal=goal
     )
     response1 = llm_call(rc, workload_tag="analysis", prompt=prompt1, call_type="pass1")
     pass1 = response1.text
@@ -58,7 +71,7 @@ def analyze_video(
             )
         )
 
-    prompt2 = pass2_synthesis_prompt(title, upload_date, channel_name, pass1)
+    prompt2 = pass2_synthesis_prompt(title, upload_date, channel_name, pass1, goal=goal, lens=lens)
     response2 = llm_call(rc, workload_tag="analysis", prompt=prompt2, call_type="pass2")
     pass2 = response2.text
     if tracker:
@@ -81,7 +94,8 @@ analyzed_by: {model}
 model: {model}
 model_version: {model}
 temperature: 0.0
-prompt_id: "analysis.pass2.v1"
+prompt_id: "analysis.pass2.v2"
+lens: {lens}
 ---
 
 {pass2}
@@ -95,11 +109,14 @@ def analyze_short(
     transcript: str,
     config: DistillConfig,
     tracker: CostTracker | None = None,
+    *,
+    intent: CorpusIntent | None = None,
 ) -> str:
     """Single-pass analysis for YouTube Shorts. Returns insights markdown."""
     rc = RouterConfig()
+    goal, _ = _intent_goal_lens(intent)
 
-    prompt = shorts_insight_prompt(title, upload_date, channel_name, transcript)
+    prompt = shorts_insight_prompt(title, upload_date, channel_name, transcript, goal=goal)
     response = llm_call(
         rc, workload_tag="analysis", prompt=prompt, max_tokens=2048, call_type="short"
     )
@@ -124,7 +141,7 @@ content_type: short
 model: {response.model}
 model_version: {response.model}
 temperature: 0.0
-prompt_id: "analysis.short.v1"
+prompt_id: "analysis.short.v2"
 ---
 
 {result}
@@ -139,11 +156,16 @@ def analyze_scan(
     config: DistillConfig,
     tracker: CostTracker | None = None,
     custom_instructions: str = "",
+    *,
+    intent: CorpusIntent | None = None,
 ) -> str:
     """Single-pass scan analysis for any video. Lightweight triage."""
     rc = RouterConfig()
+    goal, _ = _intent_goal_lens(intent)
 
-    prompt = scan_insight_prompt(title, upload_date, channel_name, transcript, custom_instructions)
+    prompt = scan_insight_prompt(
+        title, upload_date, channel_name, transcript, custom_instructions, goal=goal
+    )
     response = llm_call(
         rc, workload_tag="analysis", prompt=prompt, max_tokens=2048, call_type="scan"
     )
@@ -168,7 +190,7 @@ analysis_mode: scan
 model: {response.model}
 model_version: {response.model}
 temperature: 0.0
-prompt_id: "analysis.scan.v1"
+prompt_id: "analysis.scan.v2"
 ---
 
 {result}

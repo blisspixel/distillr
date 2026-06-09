@@ -49,6 +49,7 @@ Flags:
 - `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
 - `--ingest-attachments` — for selected site seeds, pull PDF text and supported embedded-video transcripts into the page corpus
 - `--rigor strict|balanced|loose` — quality bar on the rerank score; drops candidates below the level's goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits. Default `balanced`.
+- `--lens research|practitioner|competitive|academic|general` — the analytical lens each per-source insight is written through. Default: inferred from the goal (e.g. a goal mentioning "research" / "prior art" picks `research`; "vendor" / "enterprise" picks `competitive`). The lens is persisted as the topic's intent (`topics/<topic>/intent.json`), so later `papers` / `latest` / `discover` runs into the same topic inherit it. `competitive` reproduces the pre-0.9.24 enterprise pre-sales sections.
 - `--preview` — show the ranked plan without ingesting. Prints a metadata-aware spend estimate as a range (e.g. `~$0.42 (est; $0.29-$0.63)`) and **saves the exact shortlist under an id**; preview-only spend lands in `cost_log.jsonl` as `discover_preview`.
 - `--from-preview <id>` — ingest the exact set a previous `--preview` saved, by its id. Skips query-generation and the rerank entirely, so you commit to precisely what you saw. (Mutually exclusive with `--preview` / `--from-gaps`.)
 - `--from-gaps` — derive the goal from an existing topic's coverage gaps instead of a written goal (requires `--topic`).
@@ -322,7 +323,7 @@ When the 4-phase report is the wrong shape (multi-topic literature review, stake
 distill research-brief -t topic-a,topic-b \
   --context-file private/product-decision.md --name q2-review
 
-# Multi-topic Grok 4.20 single-call synthesis (corpus-only, no web augmentation)
+# Multi-topic grok-4.3 single-call synthesis (corpus-only, no web augmentation)
 distill synthesize -t topic-a,topic-b \
   --context-file private/lit-review.md --name ai-lit
 
@@ -334,7 +335,7 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 |---|---|---|---|
 | `distill report <topic>` | Gemini Deep Research + Grok 4-phase pipeline | Strategic intelligence report on one topic, 30–50 pages | ~$2–4 |
 | `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | ~$3–5 |
-| `distill synthesize --topic ... --context-file ...` | Grok 4.20 single call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | ~$0.50 |
+| `distill synthesize --topic ... --context-file ...` | grok-4.3 single call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | ~$0.50 |
 
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).
 

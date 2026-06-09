@@ -37,7 +37,31 @@ def test_extraction_prompt_has_topic_and_schema():
 
 def test_prompt_ids_are_versioned():
     assert CLAIM_EXTRACTION_PROMPT_ID == "claims.extract.v1"
-    assert CLAIM_SYNTHESIS_PROMPT_ID == "claims.synthesis.v1"
+    # v3 adds the thesis / white-space rung.
+    assert CLAIM_SYNTHESIS_PROMPT_ID == "claims.synthesis.v3"
+
+
+def test_synthesis_prompt_has_thesis_rung():
+    claims = [_claim("Rotary embeddings improve generalization.", ClaimRole.RESULT)]
+    prompt = claim_synthesis_prompt("ai", claims)
+    assert "Thesis and White Space" in prompt
+    assert "WHITE SPACE" in prompt
+    assert "FALSIFY" in prompt
+
+
+def test_synthesis_prompt_demands_rigor_sections():
+    # v2 ports the paper-grade structure onto the claim synthesis: a comparison
+    # matrix, the "no single source" payoff, and open questions with resolution
+    # criteria. These are the sections that make the output deeper than a recap.
+    claims = [_claim("Rotary embeddings improve generalization.", ClaimRole.RESULT)]
+    prompt = claim_synthesis_prompt("ai", claims)
+    assert "Comparison Matrix" in prompt
+    assert "What This Corpus Says That No Single Source Says" in prompt
+    assert "Open Questions Worth Settling" in prompt
+    # The matrix is a real table contract, one row per source.
+    assert "| Source |" in prompt
+    # Anti-enumeration guardrail is present so the model does not just list claims.
+    assert "ANTI-PATTERN" in prompt
 
 
 def test_synthesis_prompt_embeds_claims_with_handles():

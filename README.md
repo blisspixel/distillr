@@ -154,7 +154,7 @@ url: "https://arxiv.org/abs/2604.11544v1"
 authors: ["Alice Example", "Bob Example"]
 tags: ["distill/tkg", "source/arxiv", "cs.AI"]
 synthesis_scope: "single-paper"
-analyzed_by: grok-4.20-0309-reasoning
+analyzed_by: grok-4.3
 source_mode: full_pdf
 ---
 
@@ -180,7 +180,7 @@ source_mode: full_pdf
 
 </details>
 
-For **multi-topic** literature reviews, stakeholder briefings, or agent grounding, `distill research-brief` (Gemini Deep Research, web-augmented) and `distill synthesize` (Grok 4.20 single-call, corpus-only) take a user-written context file that shapes the output. See [`docs/usage.md#research-briefings-and-deep-synthesis`](docs/usage.md#research-briefings-and-deep-synthesis).
+For **multi-topic** literature reviews, stakeholder briefings, or agent grounding, `distill research-brief` (Gemini Deep Research, web-augmented) and `distill synthesize` (grok-4.3 single-call, corpus-only) take a user-written context file that shapes the output. See [`docs/usage.md#research-briefings-and-deep-synthesis`](docs/usage.md#research-briefings-and-deep-synthesis).
 
 ## Dashboard
 
@@ -229,16 +229,6 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 - [`ROADMAP.md`](ROADMAP.md) — what's next
 
 Feature work is interleaved with recurring **bug-hunt + harden passes** — see the [release rhythm](ROADMAP.md#path-to-10) note in the roadmap.
-
-**Recent: 0.9.20–0.9.23 Security/robustness hardening (shipped 2026-06-06/07).** A two-round adversarial security review plus a parse-don't-crash sweep: yt-dlp SSRF pinning, a dashboard markdown-exfil-beacon fix + CSP, ingest/MCP/syndication DoS ceilings, DNS-rebind SSRF hardening, second-hop indirect-prompt-injection framing, atomic-write durability, all GitHub Actions pinned to commit SHAs, arXiv HTTPS-only fetch, an Ollama VRAM ceiling, a two-pass-synthesis spend cap, and hardening so a corrupt/hand-edited local JSONL can't crash a command. Branch-coverage floor raised to 80. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
-
-**Recent: 0.8.7 Security hardening (shipped 2026-05-30).** Indirect-prompt-injection resistance threaded into every per-source analysis prompt (ingested sources are treated as untrusted data, not instructions), and the local dashboard's rendered HTML is now sanitized (`nh3`) to close a stored-XSS vector — see the [Security posture](ROADMAP.md#security-posture) section for the threat model and what's deliberately out of scope. Recent work also includes **0.8.4 Agent-discoverable library** (auto-generated per-topic and library-root `CLAUDE.md`; `distill claude-md --all` backfills — see [`ROADMAP.md`](ROADMAP.md#084--agent-discoverable-library)) and **0.8.5–0.8.6** (Gemini model refresh + cost-tracking completeness).
-
-**Recent: 0.9.1–0.9.4 Discovery-loop close-out (shipped 2026-06-01).** The pre-run spend estimate now scales per-video cost by duration and self-calibrates against `cost_log.jsonl` history, reporting an honest range (0.9.1); `discover --preview` saves the exact ranked shortlist under an id so `discover --from-preview <id>` ingests precisely what you previewed (0.9.2); on a fresh topic `discover` leads with a size-then-approve menu — Excellent / Including good / Everything worthwhile, each with its own spend — instead of silently auto-ingesting (0.9.3); and `--rigor` now works across `discover`/`papers`/`latest` on per-command calibrated thresholds (0.9.4). See [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
-
-**Also recent: 0.9.6–0.9.7 `distill eval`** — a cost × quality model-selection harness: sweep candidate models over frozen fixtures and get a *deterministic* recommendation for the cheapest model that clears your quality bar, with a **pairwise order-randomized judge** (advisory, bias-cancelled) setting a confidence flag, verbosity-resistant scoring, 3 fixtures/workload, and a drift-tracking results log. The way to decide if a free local model can replace the grok-4.3 cloud floor. See [`docs/usage.md`](docs/usage.md#evaluate-models-cost--quality).
-
-**Next: source breadth + audio capability** — the five-adapter set (podcasts, GitHub repos, generic audio/video files, Substack, X hardening — see [`ROADMAP.md`](ROADMAP.md#091--source-breadth-and-audio-capability)). Then the self-maintaining audit (`distill audit` bundles the health/link/gap checks into one report + action menu), and 0.10 (operational polish + run-time verify hook + the `distill ask` output->input loop + sub-agent-friendly MCP tools).
 
 ## Contributing
 

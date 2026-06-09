@@ -123,6 +123,12 @@ class RouterConfig(BaseSettings):
     # Model override (CLI --model or DISTILL_MODEL env var)
     model: str = ""
 
+    # Opt-in fallback: on a credit/auth failure from the primary provider, retry
+    # once on this provider+model (e.g. a local Ollama model) instead of crashing.
+    # Both must be set; empty disables the fallback.
+    fallback_provider: str = ""
+    fallback_model: str = ""
+
     PREMIUM_WORKLOADS: tuple[str, ...] = ("site", "report")
 
     @model_validator(mode="before")
@@ -159,18 +165,12 @@ class RouterConfig(BaseSettings):
     def _default_ops_dir_to_library(self) -> RouterConfig:
         """Fall back to ``<library_dir>/.distill`` when ops_dir is unset.
 
-        Without this, a bare ``RouterConfig()`` produced by the many pipeline
-        call sites would leave ``ops_dir=""``. That value then propagates into
-        the agent provider, where ``Path("")`` resolves relative to the
-        current working directory and task files (which include full prompts /
-        transcripts / synthesis context) would be written next to the user's
-        shell. Anchoring the default to the library directory keeps those
-        files inside the user's existing library boundary.
-
-        We read the library path from the env var ``DISTILL_OUTPUT_DIR``
-        directly rather than importing ``distill.config``; the test suite
-        enforces that ``distill.llm`` stays decoupled from the rest of
-        the codebase.
+        A bare ``RouterConfig()`` would otherwise leave ``ops_dir=""``, which
+        the agent provider resolves relative to the cwd and writes task files
+        (full prompts / transcripts) next to the user's shell. Anchoring to the
+        library keeps those inside the library boundary. The library path is
+        read from ``DISTILL_OUTPUT_DIR`` directly (not ``distill.config``) so
+        ``distill.llm`` stays decoupled per the import contract.
         """
         if self.ops_dir:
             return self
@@ -328,7 +328,25 @@ def _resolve_reasoning_effort(config: RouterConfig, workload_tag: str) -> str | 
     return "medium"
 
 
-def call(
+def _fallback_target(
+    config: RouterConfig, failed_provider: str, exc: Exception
+) -> tuple[str, str] | None:
+    """Return (provider, model) to fall back to on a credit/auth failure, else None.
+
+    Only fires when a distinct fallback provider AND model are configured.
+    """
+    from distill.llm.errors import is_credit_or_auth_error
+
+    if not config.fallback_provider or not config.fallback_model:
+        return None
+    if config.fallback_provider == failed_provider:
+        return None
+    if not is_credit_or_auth_error(exc):
+        return None
+    return config.fallback_provider, config.fallback_model
+
+
+def call(  # noqa: C901 — the credit/auth fallback adds one branch; keeping it inline keeps the hot path readable
     config: RouterConfig,
     workload_tag: str,
     prompt: str,
@@ -341,7 +359,7 @@ def call(
     ops_dir: str = "",
     run_id: str = "",
 ) -> LLM_Response:
-    """Dispatch an LLM call through the configured provider."""
+    """Dispatch an LLM call through the configured provider, with optional local fallback."""
     config.validate_config(workload_tag)
 
     if workload_tag not in WORKLOAD_TAGS:
@@ -351,22 +369,15 @@ def call(
         )
 
     provider_name, model_id = config.resolve(workload_tag)
-    provider = _get_provider(provider_name, config)
-
-    reasoning_effort: str | None = None
-    if provider_name == "xai" and model_id.startswith("grok-4.3"):
-        reasoning_effort = _resolve_reasoning_effort(config, workload_tag)
-
-    provider_type = "local" if provider_name in LOCAL_PROVIDERS else "cloud"
     effective_ops_dir = ops_dir or config.ops_dir
-    start_time = time.monotonic()
-    outcome = "success"
-    error_type = ""
-    response: LLM_Response | None = None
 
-    try:
+    def _attempt(p_name: str, m_id: str) -> LLM_Response:
+        provider = _get_provider(p_name, config)
+        reasoning_effort: str | None = None
+        if p_name == "xai" and m_id.startswith("grok-4.3"):
+            reasoning_effort = _resolve_reasoning_effort(config, workload_tag)
         coro = provider.call(
-            model_id,
+            m_id,
             prompt,
             max_tokens=max_tokens,
             timeout=timeout,
@@ -376,55 +387,76 @@ def call(
             reasoning_effort=reasoning_effort,
         )
         try:
-            response = asyncio.run(coro)
+            return asyncio.run(coro)
         except RuntimeError as rt_err:
             if "cannot be called from a running event loop" in str(rt_err):
                 loop = asyncio.get_event_loop()
-                response = loop.run_until_complete(coro)
-            else:
-                raise
-    except Exception as exc:
-        outcome = "error"
-        error_type = type(exc).__name__
-        elapsed = time.monotonic() - start_time
+                return loop.run_until_complete(coro)
+            raise
+
+    def _record(
+        p_name: str,
+        m_id: str,
+        resp: LLM_Response | None,
+        outcome: str,
+        error_type: str,
+        elapsed: float,
+    ) -> None:
+        provider_type = "local" if p_name in LOCAL_PROVIDERS else "cloud"
+        tps = 0.0
+        if resp is not None and provider_type == "local" and elapsed > 0:
+            tps = resp.output_tokens / elapsed
         _emit_telemetry(
             ops_dir=effective_ops_dir,
-            model=model_id,
+            model=resp.model if resp is not None else m_id,
             workload_tag=workload_tag,
-            input_tokens=0,
-            output_tokens=0,
+            input_tokens=resp.input_tokens if resp is not None else 0,
+            output_tokens=resp.output_tokens if resp is not None else 0,
             elapsed_seconds=round(elapsed, 3),
             outcome=outcome,
             error_type=error_type,
             call_type=call_type,
             run_id=run_id,
             provider_type=provider_type,
-            provider_name=provider_name,
-            tokens_per_second=0.0,
+            provider_name=p_name,
+            tokens_per_second=round(tps, 2),
         )
-        raise
 
-    elapsed = time.monotonic() - start_time
-    tokens_per_second = 0.0
-    if provider_type == "local" and elapsed > 0:
-        tokens_per_second = response.output_tokens / elapsed
+    start_time = time.monotonic()
+    try:
+        response = _attempt(provider_name, model_id)
+    except Exception as exc:
+        _record(
+            provider_name,
+            model_id,
+            None,
+            "error",
+            type(exc).__name__,
+            time.monotonic() - start_time,
+        )
+        target = _fallback_target(config, provider_name, exc)
+        if target is None:
+            raise
+        fb_provider, fb_model = target
+        logger.warning(
+            "Primary provider '%s' failed (%s); falling back to '%s' / '%s'.",
+            provider_name,
+            type(exc).__name__,
+            fb_provider,
+            fb_model,
+        )
+        fb_start = time.monotonic()
+        try:
+            response = _attempt(fb_provider, fb_model)
+        except Exception:
+            _record(
+                fb_provider, fb_model, None, "error", "FallbackFailed", time.monotonic() - fb_start
+            )
+            raise exc from None  # surface the original (credit/auth) error
+        _record(fb_provider, fb_model, response, "success", "", time.monotonic() - fb_start)
+        return response
 
-    _emit_telemetry(
-        ops_dir=effective_ops_dir,
-        model=response.model,
-        workload_tag=workload_tag,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        elapsed_seconds=round(elapsed, 3),
-        outcome=outcome,
-        error_type=error_type,
-        call_type=call_type,
-        run_id=run_id,
-        provider_type=provider_type,
-        provider_name=provider_name,
-        tokens_per_second=round(tokens_per_second, 2),
-    )
-
+    _record(provider_name, model_id, response, "success", "", time.monotonic() - start_time)
     return response
 
 

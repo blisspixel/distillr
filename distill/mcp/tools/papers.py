@@ -52,11 +52,15 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
 
     selected = found[:limit]
 
+    from distill.library.intent import load_intent
+
+    intent = load_intent(config.topic_dir(topic))
+
     for i, paper in enumerate(selected):
         if ctx:
             await ctx.report_progress(progress=i, total=len(selected))
         try:
-            insights, document = analyze_paper(paper, config, tracker=tracker)
+            insights, document = analyze_paper(paper, config, tracker=tracker, intent=intent)
             _write_paper_artifacts(topic, paper, config, insights, document)
             results.append({"title": paper.title, "status": "ok"})
         except Exception as e:

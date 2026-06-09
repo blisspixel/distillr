@@ -65,7 +65,7 @@ def test_two_pass_runs_claim_synthesis(config: DistillConfig) -> None:
     fm = extract_frontmatter(corpus_md.read_text(encoding="utf-8"))
     # Frontmatter values round-trip as strings.
     assert str(fm.get("two_pass")).lower() == "true"
-    assert fm.get("prompt_id") == "claims.synthesis.v1"
+    assert fm.get("prompt_id") == "claims.synthesis.v3"
 
 
 def test_two_pass_falls_back_when_no_claims(config: DistillConfig) -> None:

@@ -343,8 +343,7 @@ def write_text_artifact(
     encoding: str = "utf-8",
 ) -> Path:
     path = artifact_path(directory, artifact_type, identity=identity, extension=extension)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding=encoding)
+    atomic_write_text(path, content)
     return path
 
 

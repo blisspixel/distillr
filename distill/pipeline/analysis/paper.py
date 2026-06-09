@@ -10,6 +10,7 @@ from distill.ingestors.papers.arxiv import (
     build_paper_document,
     fetch_paper_pdf_text,
 )
+from distill.library.intent import CorpusIntent
 from distill.library.paths import (
     ProvenanceFields,
     base_frontmatter,
@@ -36,6 +37,8 @@ def analyze_paper(
     config: DistillConfig,
     tracker: CostTracker | None = None,
     router_config: RouterConfig | None = None,
+    *,
+    intent: CorpusIntent | None = None,
 ) -> tuple[str, str]:
     """Run per-paper analysis and return (insights_md, paper_document).
 
@@ -45,12 +48,15 @@ def analyze_paper(
     writing to the paper artifact so outputs match what was analyzed.
 
     ``router_config`` lets a caller (e.g. the eval harness) force a specific
-    model/provider; defaults to the configured routing.
+    model/provider; defaults to the configured routing. ``intent`` selects the
+    analysis lens and goal focus; ``None`` keeps the neutral default.
     """
     rc = router_config or RouterConfig()
+    goal = intent.goal if intent else ""
+    lens = intent.lens if intent else ""
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
-    prompt = paper_insight_prompt(paper.title, paper.paper_id, document)
+    prompt = paper_insight_prompt(paper.title, paper.paper_id, document, goal=goal, lens=lens)
 
     # Check if content needs chunking based on context window
     content_tokens = estimate_tokens(document)
@@ -70,7 +76,7 @@ def analyze_paper(
         )
         # For now, process first chunk only (multi-pass assembly comes in Phase 4)
         document = chunks[0].text
-        prompt = paper_insight_prompt(paper.title, paper.paper_id, document)
+        prompt = paper_insight_prompt(paper.title, paper.paper_id, document, goal=goal, lens=lens)
     else:
         logger.debug(
             "Chunking decision: content_tokens=%d, window=%d, threshold=%d, decision=PASSTHROUGH",
@@ -103,7 +109,8 @@ def analyze_paper(
         f"model: {response.model}\n"
         f"model_version: {response.model}\n"
         f"temperature: 0.0\n"
-        f'prompt_id: "analysis.paper.v1"\n'
+        f'prompt_id: "analysis.paper.v2"\n'
+        f"lens: {lens or 'general'}\n"
         "---\n\n"
         f"{result}\n"
     )
@@ -164,7 +171,7 @@ def synthesize_papers(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.paper.v2",
+                prompt_id="synthesis.paper.v3",
             ),
         ),
     )

@@ -99,6 +99,7 @@ from distill.ingestors.youtube.discovery import (
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
 from distill.library.export import markdown_to_docx
+from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
 from distill.library.paths import (
     artifact_exists,
     base_frontmatter,
@@ -623,6 +624,18 @@ def _default(
 def get_config() -> DistillConfig:
     load_dotenv()
     return DistillConfig()
+
+
+def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
+    """Load the persisted CorpusIntent for a topic, if any.
+
+    Returns ``None`` when the topic has no saved intent so analysis falls back to
+    the neutral default lens. A topic created via ``discover`` saves its intent,
+    so subsequent ingests into that topic inherit the same lens automatically.
+    """
+    if not topic:
+        return None
+    return load_intent(config.topic_dir(topic))
 
 
 def get_model_override(ctx: typer.Context | None = None) -> str:
@@ -2811,10 +2824,10 @@ def synthesize_cmd(
         help="Max output tokens (default 32768 ≈ 120KB of output).",
     ),
 ):
-    """Run a single-call Grok 4.20 deep synthesis across one or more topics.
+    """Run a single-call grok-4.3 deep synthesis across one or more topics.
 
     Best for academic/technical corpus synthesis where the corpus is the ground
-    truth and web augmentation would add noise. Grok 4.20's 2M-token context
+    truth and web augmentation would add noise. grok-4.3's 1M-token context
     swallows the full corpus in one call, producing a long-form synthesis
     without the consulting-report compression bias that Deep Research imposes.
 
@@ -3784,6 +3797,7 @@ def run(  # noqa: C901 — legacy, will refactor
                 label = "Quick insight (Short)" if is_short else "Analyzing"
                 console.print(f"    {label}...")
                 try:
+                    _intent = _resolve_intent(config, t)
                     if is_short:
                         insights = analyze_short(
                             video.title,
@@ -3792,6 +3806,7 @@ def run(  # noqa: C901 — legacy, will refactor
                             transcript,
                             config,
                             tracker=tracker,
+                            intent=_intent,
                         )
                     else:
                         insights = analyze_video(
@@ -3801,6 +3816,7 @@ def run(  # noqa: C901 — legacy, will refactor
                             transcript,
                             config,
                             tracker=tracker,
+                            intent=_intent,
                         )
                     analysis_mode = "short" if is_short else "full"
                     insights_file = write_markdown_artifact(
@@ -7132,13 +7148,14 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
         console.print(f"    {label}: {title[:60]}...")
 
         try:
+            _intent = _resolve_intent(config, topic)
             if is_short:
                 insights = analyze_short(
-                    title, upload_date, ch_name, transcript, config, tracker=tracker
+                    title, upload_date, ch_name, transcript, config, tracker=tracker, intent=_intent
                 )
             else:
                 insights = analyze_video(
-                    title, upload_date, ch_name, transcript, config, tracker=tracker
+                    title, upload_date, ch_name, transcript, config, tracker=tracker, intent=_intent
                 )
             source_id = meta.get("video_id", vid_dir.name)
             analysis_mode = "short" if is_short else "full"
@@ -7394,7 +7411,9 @@ def _process_site_seed(  # noqa: C901 — legacy, will refactor
             console.print("    [dim]unchanged page — reusing existing insights[/dim]")
             continue
         try:
-            insights = analyze_site_page(page_obj, config, tracker=tracker)
+            insights = analyze_site_page(
+                page_obj, config, tracker=tracker, intent=_resolve_intent(config, seed.topic)
+            )
             insights_path = write_markdown_artifact(
                 page_dir,
                 "insights",
@@ -7516,7 +7535,9 @@ def paper(
     console.print(f"\n[bold]{paper_record.title}[/bold]")
     if paper_record.authors:
         console.print(f"[dim]{', '.join(paper_record.authors[:6])}[/dim]")
-    insights, document = analyze_paper(paper_record, config, tracker=tracker)
+    insights, document = analyze_paper(
+        paper_record, config, tracker=tracker, intent=_resolve_intent(config, topic)
+    )
     paper_dir = _write_paper_artifacts(topic, paper_record, config, insights, document)
     summary.add_output(find_artifact(paper_dir, "paper"))
     summary.add_output(find_artifact(paper_dir, "insights"))
@@ -7686,7 +7707,9 @@ def papers(  # noqa: C901 — legacy, will refactor
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
     for idx, record in enumerate(records, 1):
         console.print(f"  [{idx}/{len(records)}] [bold]{record.title}[/bold]")
-        insights, document = analyze_paper(record, config, tracker=tracker)
+        insights, document = analyze_paper(
+            record, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
+        )
         paper_dir = _write_paper_artifacts(topic_name, record, config, insights, document)
         summary.add_output(find_artifact(paper_dir, "paper"))
         summary.add_output(find_artifact(paper_dir, "insights"))
@@ -7875,7 +7898,9 @@ def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers)
         if paper is None:
             continue
         console.print(f"  [{idx}/{len(ranked_papers)}] [bold]{paper.title}[/bold]")
-        insights, document = analyze_paper(paper, config, tracker=tracker)
+        insights, document = analyze_paper(
+            paper, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
+        )
         paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
         summary.add_output(find_artifact(paper_dir, "paper"))
         summary.add_output(find_artifact(paper_dir, "insights"))
@@ -8062,6 +8087,13 @@ def discover(  # noqa: C901 — legacy, will refactor
         help="Quality bar for the reranked shortlist: strict | balanced | loose. "
         "Drops candidates whose rerank score is below the level's threshold.",
     ),
+    lens: str = typer.Option(
+        "",
+        "--lens",
+        help="Analysis lens for per-source insights: research | practitioner | competitive | "
+        "academic | general. Default: inferred from the goal. Persisted as the topic's intent so "
+        "later ingests inherit it.",
+    ),
     preview: bool = typer.Option(
         False, "--preview", help="Show the goal-ranked plan without ingesting"
     ),
@@ -8154,6 +8186,10 @@ def discover(  # noqa: C901 — legacy, will refactor
         if goal_line:
             console.print(f"[dim]Goal: {goal_line}[/dim]")
         console.print()
+        if snapshot.goal:
+            save_intent(
+                config.topic_dir(replay_topic), make_intent(snapshot.goal, lens=lens, rigor=rigor)
+            )
         _discover_ingest_set(
             topic_name=replay_topic,
             config=config,
@@ -8179,6 +8215,10 @@ def discover(  # noqa: C901 — legacy, will refactor
         console.print()
 
     topic_name = topic or _topic_from_query(goal[:80])
+    if not preview:
+        # Persist the corpus intent so analysis (this run and later ingests into
+        # this topic) reads sources through the goal-inferred lens.
+        save_intent(config.topic_dir(topic_name), make_intent(goal, lens=lens, rigor=rigor))
     effective_site_limit = site_limit if site_seeds is not None else 0
     if paper_limit <= 0 and video_limit <= 0 and effective_site_limit <= 0:
         console.print(

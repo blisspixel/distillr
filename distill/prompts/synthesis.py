@@ -1,5 +1,6 @@
 """Synthesis prompt templates -- channel, topic, site, paper, corpus synthesis."""
 
+from distill.prompts.lenses import focus_directive
 from distill.prompts.shared import (
     DERIVED_CONTENT_RULES,
     REGISTER_RULES,
@@ -136,11 +137,19 @@ def site_page_insight_prompt(
     site_name: str,
     page_type: str,
     content: str,
+    *,
+    goal: str = "",
+    lens: str = "",
 ) -> str:
-    """Single-page website insight extraction prompt."""
+    """Single-page website insight extraction prompt.
+
+    ``goal``/``lens`` (when set) prepend an analyst-stance + goal-focus directive
+    so the extraction fits the corpus intent instead of a fixed framing.
+    """
+    directive = focus_directive(goal=goal, lens=lens)
     return f"""You are analyzing a scraped website page for strategic intelligence extraction.
 
-TITLE: "{title}"
+{directive}TITLE: "{title}"
 URL: {url}
 SITE: {site_name}
 PAGE TYPE: {page_type}
@@ -226,11 +235,18 @@ Create a cross-site synthesis with these sections:
 Be concrete and keep attribution clear."""
 
 
-def paper_insight_prompt(title: str, paper_id: str, content: str) -> str:
-    """Analyze a technical paper using metadata and abstract content."""
+def paper_insight_prompt(
+    title: str, paper_id: str, content: str, *, goal: str = "", lens: str = ""
+) -> str:
+    """Analyze a technical paper using metadata and abstract content.
+
+    ``goal``/``lens`` (when set) prepend an analyst-stance + goal-focus directive
+    so the read fits the corpus intent.
+    """
+    directive = focus_directive(goal=goal, lens=lens)
     return f"""You are analyzing a technical paper for a fast-moving research corpus.
 
-TITLE: {title}
+{directive}TITLE: {title}
 PAPER ID: {paper_id}
 
 Create a paper insight document with these sections:
@@ -341,6 +357,15 @@ VALID: "Twelve of fifteen papers evaluate only on synthetic networks with <=20 n
 The actual synthesis pay-off. After reading all {paper_count} papers, what do you know that you would not know from reading any one of them? This is THE central section -- if it is empty or generic, the synthesis has failed.
 
 If the corpus genuinely lacks a synthesis claim (e.g., the papers are too disjoint), write one honest sentence saying so. Do not pad with restated single-paper conclusions.
+
+## Thesis and White Space
+
+The defensible position this corpus supports and the territory it leaves open. This is the top of the ladder: it must go beyond the section above.
+- THESIS: one or two falsifiable claims the corpus as a whole supports (a position someone could disagree with and test, not a summary). Cite the arXiv IDs each rests on.
+- WHITE SPACE: what the corpus collectively does NOT address, assumes away, or never tests, stated as concrete unoccupied territory (a question no paper asks, a regime no paper evaluates, an approach no paper tries). Name the absence and the papers that circle it.
+- WHAT WOULD FALSIFY THE THESIS: the specific result or evidence that would overturn each thesis claim.
+
+If the corpus is too thin or disjoint to support a defensible thesis, say so in one honest sentence rather than inventing one.
 
 ## Open Questions That Would Be Worth Settling
 

@@ -1,5 +1,6 @@
 """Video analysis prompt templates -- extraction, synthesis, shorts, scan, channel context."""
 
+from distill.prompts.lenses import focus_directive, video_sections
 from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
 
 __all__ = [
@@ -18,8 +19,14 @@ def pass1_extraction_prompt(
     channel_name: str,
     transcript: str,
     custom_instructions: str = "",
+    *,
+    goal: str = "",
 ) -> str:
-    """Pass 1: Extract facts, claims, opinions, predictions from a video."""
+    """Pass 1: Extract facts, claims, opinions, predictions from a video.
+
+    ``goal`` (when set) biases extraction toward the corpus goal without dropping
+    other substance; the lens shapes the pass-2 synthesis, not this raw pass.
+    """
     custom_block = ""
     if custom_instructions:
         custom_block = f"""
@@ -27,13 +34,13 @@ CUSTOM ANALYSIS INSTRUCTIONS (from channel owner -- follow these closely):
 {custom_instructions}
 
 """
+    goal_block = focus_directive(goal=goal) if goal else ""
     return f"""You are analyzing a YouTube video transcript for strategic intelligence extraction.
 
 VIDEO: "{title}"
 CHANNEL: {channel_name}
 DATE: {upload_date}
-{custom_block}
-TASK: Extract EVERYTHING of substance from this transcript. Be exhaustively thorough and specific. If the creator spends significant time on a topic, it must appear in your extraction.
+{custom_block}{goal_block}TASK: Extract EVERYTHING of substance from this transcript. Be exhaustively thorough and specific. If the creator spends significant time on a topic, it must appear in your extraction.
 
 Extract the following categories:
 
@@ -68,14 +75,26 @@ TRANSCRIPT:
 
 
 def pass2_synthesis_prompt(
-    title: str, upload_date: str, channel_name: str, pass1_output: str
+    title: str,
+    upload_date: str,
+    channel_name: str,
+    pass1_output: str,
+    *,
+    goal: str = "",
+    lens: str = "",
 ) -> str:
-    """Pass 2: Synthesize extraction into strategic insights."""
-    return f"""You are a strategic intelligence analyst who reads YouTube content to stay current on fast-moving technology spaces. Your audience is a pre-sales architect advising enterprise customers on AI strategy.
+    """Pass 2: Synthesize extraction into structured insights for the corpus lens.
 
-You've just reviewed the extracted facts from a YouTube video. Now synthesize these into a structured insight document that preserves the creator's full analytical contribution.
+    The section set is selected by ``lens`` (``general`` by default). The old
+    fixed enterprise framing is the ``competitive`` lens; other lenses drop the
+    sales sections for ones that fit the subject matter. ``goal`` adds a focus
+    directive so the synthesis leads with goal-relevant signal.
+    """
+    directive = focus_directive(goal=goal, lens=lens)
+    sections = video_sections(lens)
+    return f"""You are analyzing the extracted facts from a YouTube video into a structured insight document that preserves the creator's full analytical contribution.
 
-VIDEO: "{title}"
+{directive}VIDEO: "{title}"
 CHANNEL: {channel_name}
 DATE: {upload_date}
 
@@ -84,39 +103,12 @@ EXTRACTED FACTS:
 
 Generate a structured insight document with these sections:
 
-## Summary
-2-4 sentences: What is this video about, what is the creator's core argument or thesis, and why does it matter? Capture the main analytical contribution, not just the topic.
+{sections}
 
-## Key Announcements
-Bullet list of what was announced/revealed/disclosed. For each:
-- What it is (specific)
-- Status (GA, Preview, Announced, Rumored, Disclosed, Reported)
-- Why it matters for enterprise customers
-
-If the video has no announcements (e.g., it's an opinion/analysis piece), write "None identified."
-
-## Technical Insights
-What architects and engineers need to know. Architecture patterns, evaluation results, model capabilities, infrastructure decisions, security considerations. Include specific numbers and benchmarks mentioned.
-
-## Business Value Signals
-ROI stories, cost frameworks, adoption patterns, competitive advantages, market dynamics. What would resonate in a customer conversation about strategy.
-
-## Vendor Watch
-How does this shift the competitive landscape? What are vendors/labs/orgs emphasizing or de-emphasizing? Any positioning changes.
-IMPORTANT: Only discuss vendors and products that were ACTUALLY MENTIONED in the video. Do not inject vendors or cloud services that the creator did not discuss.
-
-## Creator's Take
-What is the creator's analytical position? Capture their full argument, not just a one-line summary. Include:
-- Their core thesis and the reasoning behind it
-- What frameworks or models they present (enumerate all parts if they present a multi-part framework)
-- What they're bullish/bearish on and why
-- What predictions they make
-- What advice or call to action they give
-All clearly attributed as the creator's opinion.
-
-## Customer Conversation Starters
-3-5 specific talking points you could bring into a customer meeting. These should be grounded in what the video actually covered — specific findings, data points, or frameworks the creator presented.
-CRITICAL: Only reference products, services, benchmarks, and facts that appear in the extracted content. Do NOT fabricate vendor recommendations or inject cloud services not discussed in the video. Frame around the insight, not a sales pitch."""
+Rules:
+- Be concrete and specific; preserve names, numbers, dates, and the full logic of any multi-part argument.
+- Only reference products, services, benchmarks, and facts that appear in the extracted content. Do not invent or inject anything not present above.
+- Clearly attribute the creator's opinions, predictions, and advice as theirs."""
 
 
 def channel_context_prompt(channel_name: str, video_titles: list[str]) -> str:
@@ -173,15 +165,23 @@ Write ONLY the instruction text, nothing else. No preamble, \
 no quotes, no explanation."""
 
 
-def shorts_insight_prompt(title: str, upload_date: str, channel_name: str, transcript: str) -> str:
+def shorts_insight_prompt(
+    title: str,
+    upload_date: str,
+    channel_name: str,
+    transcript: str,
+    *,
+    goal: str = "",
+) -> str:
     """Single-pass analysis for YouTube Shorts (<60s). Lighter weight than 2-pass."""
+    goal_block = focus_directive(goal=goal) if goal else ""
     return f"""You are extracting quick intelligence from a YouTube Short (under 60 seconds). These are rapid-fire content — breaking news reactions, hot takes, quick announcements, opinion drops.
 
 VIDEO: "{title}"
 CHANNEL: {channel_name}
 DATE: {upload_date}
 
-Extract a concise insight document. This is short-form content so match the weight — no filler, just signal.
+{goal_block}Extract a concise insight document. This is short-form content so match the weight — no filler, just signal.
 
 ## Quick Take
 1-2 sentences: What is this Short about and what's the key signal?
@@ -215,6 +215,8 @@ def scan_insight_prompt(
     channel_name: str,
     transcript: str,
     custom_instructions: str = "",
+    *,
+    goal: str = "",
 ) -> str:
     """Single-pass scan analysis for any video. Lightweight triage."""
     custom_block = ""
@@ -224,6 +226,7 @@ def scan_insight_prompt(
 CUSTOM ANALYSIS INSTRUCTIONS (from channel owner -- follow these closely):
 {custom_instructions}
 """
+    goal_block = f"\n{focus_directive(goal=goal)}" if goal else ""
 
     return f"""You are performing a rapid scan of a YouTube video transcript for intelligence triage.
 
@@ -232,7 +235,7 @@ CHANNEL: {channel_name}
 DATE: {upload_date}
 
 This is a SCAN -- extract the signal fast. Do not be exhaustive. Focus on what matters.
-{custom_block}
+{custom_block}{goal_block}
 ## Summary
 2-3 sentences: What is this video about and what is the core takeaway?
 
