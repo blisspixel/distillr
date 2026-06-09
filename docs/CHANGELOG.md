@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.25 - 2026-06-09
+
+**Every ingest entry point is now lens-aware.** 0.9.24 shipped adaptive lenses but only `discover` set the lens; `papers` / `latest` fell back to the neutral default unless a prior `discover` had saved an intent. This closes that gap.
+
+### Added
+
+- **`--lens` on `papers` and `latest`.** Pick the analysis lens directly on the two keyword-driven entry points; the choice persists as the topic's intent (preserving any goal/audience already saved by `discover`), so subsequent ingests inherit it.
+- **`distill intent` command group.** `intent set <topic> [--lens --goal --audience --rigor --budget]` configures a topic's `CorpusIntent` once (merging with any existing intent; the lens is inferred from `--goal` when `--lens` is omitted); `intent show <topic>` prints it; `intent clear <topic>` reverts to the neutral default. Because every analyze path already reads the saved intent, setting it once makes all later ingests (CLI + MCP) use the lens, with no re-ingest required.
+
 ## 0.9.24 - 2026-06-09
 
 **Adaptive, goal-aware analysis on any topic: the per-source persona is no longer hardcoded. Plus the synthesis thesis rung, provider-error UX, and the completion of the atomic-write pass.** Design: [`docs/design/agentic-distill-master-plan.md`](design/agentic-distill-master-plan.md) and [`docs/design/agentic-deep-synthesis.md`](design/agentic-deep-synthesis.md).

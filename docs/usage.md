@@ -7,6 +7,7 @@ Full command reference. For the short version, see the README.
 ## Table of Contents
 
 - [Goal-aware discovery (cross-source)](#goal-aware-discovery-cross-source)
+- [Analysis lens (per-topic intent)](#analysis-lens-per-topic-intent)
 - [YouTube: Stay current on a topic](#youtube-stay-current-on-a-topic)
 - [YouTube: Ramp up fast](#youtube-ramp-up-fast)
 - [YouTube: Channel watch and catch-up](#youtube-channel-watch-and-catch-up)
@@ -59,6 +60,26 @@ Flags:
 Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, and curated site seeds are ranked in the same pool — a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are seed-driven: `discover` does not web-search for pages, it reranks the exact URLs you provide in `--site-seeds` and ingests the selected ones in exact-page mode.
 
 The pre-run spend estimate scales per-video cost by duration and **self-calibrates** against your `cost_log.jsonl` history (per-source rates from clean single-source runs, falling back to defaults when history is thin), so it sharpens as you use the tool. Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
+
+## Analysis lens (per-topic intent)
+
+Every per-source insight is written through an **analysis lens** that fits what the corpus is for, instead of one fixed persona. The lenses are `research`, `practitioner`, `competitive`, `academic`, and `general` (the neutral default). `competitive` is the enterprise pre-sales framing (Vendor Watch, Business Value Signals, Customer Conversation Starters); the others drop the sales sections for ones that match the subject matter.
+
+The lens lives in a per-topic **intent** (`topics/<topic>/intent.json`). Set it once and every later ingest into that topic — `discover`, `papers`, `latest`, and the MCP tools — reads sources through it.
+
+```bash
+# Set it explicitly (no re-ingest needed; applies to future ingests)
+distill intent set agentic-harness --lens research
+distill intent show agentic-harness
+distill intent clear agentic-harness          # revert to neutral 'general'
+
+# Or set it inline on any entry point (persists for the topic)
+distill discover --goal-file private/goal.md --topic agentic-harness   # lens inferred from the goal
+distill papers "agent memory systems" --topic memory --lens research
+distill latest "Fabric best practices" --topic fabric --lens practitioner
+```
+
+`discover` infers the lens from the goal when `--lens` is omitted (a goal mentioning "research" / "prior art" → `research`; "vendor" / "enterprise" → `competitive`). `intent set --goal "..."` does the same inference. Existing insights already on disk keep their original lens until re-analyzed; a `distill resynthesize <topic> --two-pass` refreshes the cross-source synthesis (and adds the thesis rung) cheaply.
 
 ## YouTube: Stay current on a topic
 

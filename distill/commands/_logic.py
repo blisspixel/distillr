@@ -99,7 +99,13 @@ from distill.ingestors.youtube.discovery import (
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
 from distill.library.export import markdown_to_docx
-from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
+from distill.library.intent import (
+    CorpusIntent,
+    intent_path,
+    load_intent,
+    make_intent,
+    save_intent,
+)
 from distill.library.paths import (
     artifact_exists,
     base_frontmatter,
@@ -586,6 +592,85 @@ topic_app = typer.Typer(
 app.add_typer(topic_app, name="topic")
 
 
+intent_app = typer.Typer(
+    help=(
+        "Inspect and set a topic's analysis intent (goal, lens, audience, rigor).\n\n"
+        "The lens shapes how every per-source insight is written; setting it once makes "
+        "all later ingests into the topic (papers, latest, discover, MCP) read sources "
+        "through it.\n\n"
+        "  distill intent set <topic> --lens research\n"
+        "  distill intent show <topic>\n"
+    ),
+    rich_markup_mode="rich",
+)
+app.add_typer(intent_app, name="intent", rich_help_panel="Library")
+
+
+@intent_app.command("set")
+def intent_set(
+    topic: str = typer.Argument(help="Topic to configure"),
+    lens: str = typer.Option(
+        "", "--lens", help="research | practitioner | competitive | academic | general"
+    ),
+    goal: str = typer.Option(
+        "", "--goal", help="Research goal; the lens is inferred from it when --lens is omitted"
+    ),
+    audience: str = typer.Option("", "--audience", help="Who reads the output (shapes register)"),
+    rigor: str = typer.Option("", "--rigor", help="loose | balanced | strict"),
+    budget: float | None = typer.Option(None, "--budget", help="Per-run budget ceiling in USD"),
+) -> None:
+    """Set or update the analysis intent for a topic (merges with any existing intent)."""
+    config = get_config()
+    topic_dir = config.topic_dir(topic)
+    existing = load_intent(topic_dir)
+    merged = make_intent(
+        goal or (existing.goal if existing else ""),
+        lens=lens or (existing.lens if existing else ""),
+        audience=audience or (existing.audience if existing else ""),
+        rigor=rigor or (existing.rigor if existing else ""),
+        budget_usd=budget if budget is not None else (existing.budget_usd if existing else None),
+    )
+    path = save_intent(topic_dir, merged)
+    console.print(
+        f"  Intent for [bold]{topic}[/bold]: lens=[cyan]{merged.lens}[/cyan] rigor={merged.rigor}"
+    )
+    if merged.goal:
+        console.print(f"  [dim]Goal: {merged.goal[:100]}[/dim]")
+    console.print(f"  [dim]Saved {path}[/dim]")
+
+
+@intent_app.command("show")
+def intent_show(topic: str = typer.Argument(help="Topic to inspect")) -> None:
+    """Show a topic's saved analysis intent."""
+    config = get_config()
+    intent = load_intent(config.topic_dir(topic))
+    if intent is None:
+        console.print(
+            f"  No saved intent for [bold]{topic}[/bold]; analysis uses the neutral 'general' lens."
+        )
+        return
+    console.print(f"  [bold]{topic}[/bold] intent:")
+    console.print(f"    lens:       {intent.lens}")
+    console.print(f"    rigor:      {intent.rigor}")
+    console.print(f"    audience:   {intent.audience or '[unset]'}")
+    budget_str = intent.budget_usd if intent.budget_usd is not None else "[unset]"
+    console.print(f"    budget_usd: {budget_str}")
+    if intent.goal:
+        console.print(f"    goal:       {intent.goal}")
+
+
+@intent_app.command("clear")
+def intent_clear(topic: str = typer.Argument(help="Topic whose intent to remove")) -> None:
+    """Remove a topic's saved intent (revert analysis to the neutral default)."""
+    config = get_config()
+    path = intent_path(config.topic_dir(topic))
+    if path.exists():
+        path.unlink()
+        console.print(f"  Cleared intent for [bold]{topic}[/bold].")
+    else:
+        console.print(f"  No saved intent for [bold]{topic}[/bold].")
+
+
 @app.callback()
 def _default(
     ctx: typer.Context,
@@ -636,6 +721,26 @@ def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
     if not topic:
         return None
     return load_intent(config.topic_dir(topic))
+
+
+def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:
+    """Persist an explicit ``--lens`` choice as the topic's intent.
+
+    Preserves any goal/audience/rigor/budget already saved (e.g. from a prior
+    ``discover``); only the lens is overridden, with ``fallback_goal`` used when
+    the topic has no saved goal yet.
+    """
+    existing = load_intent(config.topic_dir(topic_name))
+    save_intent(
+        config.topic_dir(topic_name),
+        make_intent(
+            goal=existing.goal if existing and existing.goal else fallback_goal,
+            lens=lens,
+            audience=existing.audience if existing else "",
+            rigor=existing.rigor if existing else "",
+            budget_usd=existing.budget_usd if existing else None,
+        ),
+    )
 
 
 def get_model_override(ctx: typer.Context | None = None) -> str:
@@ -2541,6 +2646,13 @@ def latest_cmd(
         help="Quality bar on the rerank score: strict | balanced | loose | off (default off). "
         "Drops candidates below the per-source threshold before the channel cap; needs --rerank.",
     ),
+    lens: str = typer.Option(
+        "",
+        "--lens",
+        help="Analysis lens for per-source insights: research | practitioner | competitive | "
+        "academic | general. Persists as the topic's intent so later ingests inherit it. "
+        "Default: the topic's saved intent, else neutral 'general'.",
+    ),
     top_by_date: bool = typer.Option(
         False,
         "--top-by-date",
@@ -2583,6 +2695,8 @@ def latest_cmd(
     # not quietly spend tokens on ranking/search variants it will ignore.
     effective_rerank = rerank and not top_by_date
     effective_expand = not top_by_date
+    if lens:
+        _persist_lens(get_config(), topic or _topic_from_query(query), query, lens)
     if preview:
         config, tracker, _selected = _preview_learning_selection(
             query,
@@ -7605,6 +7719,13 @@ def papers(  # noqa: C901 — legacy, will refactor
         help="Quality bar on the rerank score: strict | balanced | loose | off (default off). "
         "Drops candidates below the per-source threshold before the --limit cap; needs --rerank.",
     ),
+    lens: str = typer.Option(
+        "",
+        "--lens",
+        help="Analysis lens for per-source insights: research | practitioner | competitive | "
+        "academic | general. Persists as the topic's intent so later ingests inherit it. "
+        "Default: the topic's saved intent, else neutral 'general'.",
+    ),
     preview: bool = typer.Option(
         False,
         "--preview",
@@ -7632,6 +7753,8 @@ def papers(  # noqa: C901 — legacy, will refactor
     _require_api_key(config.xai_api_key, "XAI_API_KEY required for paper analysis")
     tracker = CostTracker()
     topic_name = topic or _topic_from_query(query)
+    if lens:
+        _persist_lens(config, topic_name, query, lens)
     summary = RunSummary(command="papers")
     summary.set_metadata(topic=topic_name, workflow="papers", source_type="paper")
 
