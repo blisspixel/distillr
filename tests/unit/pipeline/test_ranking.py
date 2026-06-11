@@ -385,6 +385,28 @@ def test_rerank_papers_uses_llm_response_when_available(tmp_path, monkeypatch):
     assert ranked[0].rationale == "best fit"
 
 
+def test_llm_reranks_pin_temperature_for_reproducible_previews(tmp_path, monkeypatch):
+    """A preview and its re-run must rank identically; both rerank calls pin
+    temperature=0.0 (the discover rerank already does)."""
+    from distill.llm.router import LLM_Response
+    from distill.pipeline.ranking import rerank_papers
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    captured: list[float] = []
+
+    def fake_llm_call(rc, **kwargs):
+        captured.append(kwargs["temperature"])
+        return LLM_Response(text="{}", input_tokens=1, output_tokens=1, model="grok-4.3")
+
+    monkeypatch.setattr("distill.pipeline.ranking.llm_call", fake_llm_call)
+
+    videos = [VideoInfo("v1", "One", _recent(3), 1200, "https://youtube.com/watch?v=v1")]
+    rerank_videos("query", videos, config, top_n=1, use_llm=True)
+    rerank_papers("query", [_paper("p1", "One")], config, top_n=1, use_llm=True)
+
+    assert captured == [0.0, 0.0]
+
+
 def test_rerank_papers_falls_back_when_llm_errors(tmp_path, monkeypatch):
     from distill.pipeline.ranking import rerank_papers
 

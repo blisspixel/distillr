@@ -12,7 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **1.0 verification depth** — Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
-- Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
+- Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
+- Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
+
+## 0.9.27 - 2026-06-11
+
+**Discovery determinism: corpus-aware dedup + reproducible plans (master-plan P6, dogfood finding F5).** `discover` and `papers` no longer re-suggest items the topic already contains, and every discovery-plan LLM call is temperature-pinned so a preview and its re-run agree.
+
+### Added
+
+- **Corpus-aware dedup on `discover` and `papers`.** Searched candidates already in the topic are dropped *before* the rerank, so rerank slots and tokens go to new material and gap-driven re-discovery (`--from-gaps`) converges instead of re-suggesting the corpus back at the user (the documented dogfood failure: rerank shortlists kept including ingested videos). Identity comes from each per-source `_Insights.md` (`paper_id` / `video_id` / `page_id` / `source_id`); arXiv ids match version-insensitively, so an ingested v1 still blocks the v2 search hit. When every search hit is already ingested the run ends as a clean "Corpus is current" no-op (exit 0, no rerank spend), not an error. Curated site seeds are deliberately *not* filtered -- they are a user-provided signal of intent, and the site pipeline already reuses unchanged page insights. New `distill/library/ingested.py`; pure `filter_ingested_candidates` in `distill/pipeline/discovery.py`.
+- **Reproducible discovery plans.** `discover`'s query generation and the shared papers/videos rerank calls now pin `temperature=0.0` (the cross-source discover rerank already did), completing the plan-reproducibility half of master-plan P6: same goal + same candidate pool -> same queries, same ranking.
+
+### Docs
+
+- Refreshed the stale roadmap section-12 checkboxes against shipped reality (commit-by-ID, rigor calibration, metadata-aware cost estimator, preview-as-default, register styles, and the anti-slop guard were all already live); recorded the P6 status in the agentic master plan.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (1954 passed) with branch coverage 81%.
 
 ## 0.9.26 - 2026-06-10
 

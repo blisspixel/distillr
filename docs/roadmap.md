@@ -223,53 +223,33 @@ ingest selections were not always legible enough. The pieces shipped in 0.2.0
 deeper design questions that surfaced in those sessions and deserve their own
 write-ups before implementation.
 
-- [ ] **Rerank determinism: preview → ingest commit-by-ID.** Previewing the
-  goal-ranked shortlist and then running the real ingest can produce a different
-  shortlist (LLM rerank is non-deterministic). For research-quality work, the
-  user should be able to commit to *the exact set they previewed*. Two design
-  options to evaluate: (a) cache the previewed shortlist by hash of (goal,
-  model, candidates) under `library/.preview_cache/<id>.json` and add
-  `--from-preview <id>` so the ingest replays the exact selection; (b) make
-  the rerank deterministic via temperature=0 + a stable seed. (a) is more
-  honest about the LLM rerank being a judgment call rather than a lookup; (b)
-  is cheaper to implement but doesn't address the seed-drift between model
-  releases. Likely answer: ship (a) and use (b) as a fallback when no preview
-  cache exists.
-- [ ] **Calibration: unify or differentiate the discover and latest rerank
-  prompts.** A real session showed `discover --preview` ranking 0/33 candidate
-  videos as worth ingesting on a topic, while `latest --preview` on the same
-  topic surfaced 5 strong picks (including expert lectures by authors of the
-  top-ranked papers in the same session). Both commands run the same Grok
-  model with similar inputs; the divergence is in prompt calibration. Audit
-  the two rerank prompts side by side, decide whether the divergence is
-  intentional (discover = rigor-tuned, latest = relevance-tuned) or
-  accidental, and either unify them or expose a `--rigor strict|balanced|loose`
-  knob that callers can tune per source type. Without this, the "unified front
-  door" promise of `discover` doesn't hold for any topic where strong videos
-  exist but the rigor bar excludes them.
-- [ ] **Real cost estimator that reads candidate metadata.** Today's pre-run
-  estimate is a flat `$0.05/paper` × N rate that misses 2–3× actual on short
-  papers and undershoots on long ones. Build an estimator that reads candidate
-  metadata before the run: arXiv abstract length and PDF page count for papers,
-  `yt-dlp --print duration` for videos, page count and content-length headers
-  for sites. Calibrate against historical `cost_log.jsonl` rows so the estimate
-  improves over time. Surface as the spend half of the unified preview-and-
-  approval prompt described in `ROADMAP.md` "What's next" item 6.
-- [ ] **Preview-as-primary-flow UX.** Today `--preview` is a flag the user adds
-  to a command they're about to run anyway. The mental model that surfaces
-  during real research is the opposite: probe the candidate pool, see the
-  quality cliff, decide a sizing, see the cost, *then* commit. Reshape so the
-  default flow on a fresh topic is: `distill discover "<goal>"` → goal-ranked
-  table with cliff-detected sizing options ("3 excellent / 5 including good /
-  7 including OK") and per-option spend → typed approval → ingest. Depends on
-  the rerank-determinism work above (commit-by-ID) and the real cost estimator;
-  builds on `ROADMAP.md` item 6.
-- [ ] **Page-level candidate identity for website-heavy discover runs.** In the
-  Agent365 session, multiple official Microsoft pages previewed under the same
-  collection label, which made it harder to decide what would actually be
-  ingested. Preview rows for sites should show the real page title (or a
-  synthesized title from URL + section), the hostname, freshness when known,
-  and enough URL/section context that "approve this" is a meaningful action.
+- [x] **Rerank determinism: preview → ingest commit-by-ID.** Shipped as both
+  design options: (a) the preview cache (`library/.preview_cache/<id>.json` +
+  `--from-preview <id>` replays the exact previewed selection), and (b)
+  temperature=0 pinned on the discover rerank, query generation, and the shared
+  papers/videos rerank calls (completed 0.9.27). 0.9.27 also added the
+  corpus-aware half of determinism (master-plan P6): `discover` and `papers`
+  drop candidates the topic already contains before the rerank, so re-runs and
+  gap-driven discovery converge instead of re-suggesting ingested items.
+- [x] **Calibration: unify or differentiate the discover and latest rerank
+  prompts.** Shipped as deliberate differentiation: per-source rigor threshold
+  tables (`RIGOR_THRESHOLDS` / `PAPER_RIGOR_THRESHOLDS` /
+  `VIDEO_RIGOR_THRESHOLDS` in `distill/pipeline/discovery.py`, with the
+  documented 0/33-videos case as the calibration rationale) plus the `--rigor
+  strict|balanced|loose` knob on `discover` and `--rigor ...|off` on
+  `papers` / `latest`.
+- [x] **Real cost estimator that reads candidate metadata.** Shipped:
+  `estimate_discover_items` scales by per-video duration and paper/site counts,
+  and self-calibrates against historical `cost_log.jsonl` rows
+  (`load_cost_calibration`); surfaced in the preview and sizing-menu flows.
+- [x] **Preview-as-primary-flow UX.** Shipped: a fresh topic defaults to the
+  size-then-approve menu (cliff-detected "excellent / including good /
+  everything worthwhile" cuts with per-option spend), and `--preview` saves a
+  replayable snapshot id.
+- [~] **Page-level candidate identity for website-heavy discover runs.** Partly
+  shipped: preview rows for site seeds now show the seed label or a
+  host+path-derived title plus the hostname (`_site_candidate_title`).
+  Remaining: freshness hints and section context when known.
 - [ ] **Trusted-site discovery for official-doc workflows.** The current
   `--site-seeds` support works, but it still makes the user curate every page
   manually. Add a constrained discovery mode where the user supplies trusted
@@ -283,7 +263,8 @@ write-ups before implementation.
   should show current phase, current item, completed/failed counts by source
   type, and explicit reasons when a source stalls or skips (for example
   transcript rate limiting, empty crawl, reuse of unchanged site insights).
-- [ ] **Synthesis register styles, with PhD-level as the new default.** Today
+- [x] **Synthesis register styles, with PhD-level as the new default.** Shipped
+  (the 0.9 register-styles release; see CHANGELOG). Original write-up: Today
   `distill synthesize` is a single-call Grok 4.20 corpus-only pass with a
   prompt calibrated for an executive-briefing register. The pattern that
   surfaced during the CTC research session — produce thorough per-source
@@ -306,7 +287,7 @@ write-ups before implementation.
   trade-off from `roadmap.md` item 6 (chunk-and-rerank): chunking handles
   "input is too long for one prompt"; deep synthesis handles "every claim
   needs to be visible at once for cross-document reasoning."
-- [ ] **Anti-AI-slop register guard** (0.9.0, companion to the register styles
+- [x] **Anti-AI-slop register guard** — shipped (0.9 series, companion to the register styles
   above). `prompts/shared.py` carries `ANTI_HALLUCINATION_RULES`,
   `PROVENANCE_RULES`, and a one-line `FORMATTING_RULES` (no em-dashes) — rules
   about *correctness*, not *prose register*. The human-read outputs (briefings,

@@ -156,7 +156,11 @@ critiques, re-synth keyed by content hash so loops are affordable and a converge
 re-run is near-free.
 **Why it generalizes:** "agentic IaC" is meaningless without plan/apply
 reproducibility and a real no-op steady state.
-**Phase:** 2.
+**Phase:** 2. **Status:** (a) corpus-aware dedup and (b) reproducible plans
+shipped in 0.9.27 (`discover`/`papers` drop already-ingested candidates before
+the rerank; query-gen + every rerank call pinned to temperature=0, on top of
+the earlier preview cache / `--from-preview`). (c) cached LLM intermediates
+remains.
 
 ### P7 — Robustness & graceful degradation
 **Problem:** F6. Loud, lossy failure.

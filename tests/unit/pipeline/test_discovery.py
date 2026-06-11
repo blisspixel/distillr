@@ -190,6 +190,85 @@ def test_discover_rerank_maps_ranked_items_and_sorts_by_score(config, monkeypatc
     assert tracker.entries[0].call_type == "discover_rerank"
 
 
+def test_discover_generate_queries_pins_temperature_for_reproducible_plans(config, monkeypatch):
+    captured = {}
+
+    def fake_llm_call(rc, **kwargs):
+        captured.update(kwargs)
+        return LLM_Response(
+            text='{"paper_queries":["a"],"video_queries":["b"]}',
+            input_tokens=1,
+            output_tokens=1,
+            model="grok-4.3",
+        )
+
+    monkeypatch.setattr(discover, "llm_call", fake_llm_call)
+
+    discover.discover_generate_queries(
+        "goal", config, None, paper_count=1, video_count=1, dedupe_query_strings=lambda x: x
+    )
+
+    assert captured["temperature"] == 0.0
+
+
+# ---- corpus-aware dedup (filter_ingested_candidates) ------------------------
+
+
+def _paper(paper_id: str) -> PaperRecord:
+    return PaperRecord(paper_id=paper_id, title=f"T {paper_id}", abstract="a")
+
+
+def _video(video_id: str) -> VideoInfo:
+    return VideoInfo(video_id, f"V {video_id}", "20260101", 600, f"https://yt/{video_id}")
+
+
+def test_filter_ingested_empty_set_is_passthrough():
+    papers = [_paper("2601.00001")]
+    videos = [_video("v1")]
+
+    kept_papers, kept_videos, excluded = discover.filter_ingested_candidates(
+        papers, videos, ingested=frozenset()
+    )
+
+    assert kept_papers is papers
+    assert kept_videos is videos
+    assert excluded == 0
+
+
+def test_filter_ingested_drops_exact_paper_and_video_matches():
+    papers = [_paper("2601.00001v1"), _paper("2601.00002v1")]
+    videos = [_video("v1"), _video("v2")]
+
+    kept_papers, kept_videos, excluded = discover.filter_ingested_candidates(
+        papers, videos, ingested=frozenset({"2601.00001v1", "v1"})
+    )
+
+    assert [p.paper_id for p in kept_papers] == ["2601.00002v1"]
+    assert [v.video_id for v in kept_videos] == ["v2"]
+    assert excluded == 2
+
+
+def test_filter_ingested_paper_match_is_version_insensitive():
+    # Corpus holds v1 (walk stores raw + version-stripped); the search now
+    # returns v2 of the same paper -- still a duplicate.
+    kept_papers, _, excluded = discover.filter_ingested_candidates(
+        [_paper("2601.00001v2")], [], ingested=frozenset({"2601.00001v1", "2601.00001"})
+    )
+
+    assert kept_papers == []
+    assert excluded == 1
+
+
+def test_filter_ingested_video_ids_match_case_sensitively():
+    # YouTube ids are case-sensitive: a different-case id is a different video.
+    _, kept_videos, excluded = discover.filter_ingested_candidates(
+        [], [_video("AbC123"), _video("abc123")], ingested=frozenset({"AbC123"})
+    )
+
+    assert [v.video_id for v in kept_videos] == ["abc123"]
+    assert excluded == 1
+
+
 def test_discover_rerank_returns_empty_for_non_list_payload(config, monkeypatch):
     monkeypatch.setattr(
         discover,

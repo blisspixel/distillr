@@ -7823,6 +7823,26 @@ def papers(  # noqa: C901 — legacy, will refactor
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
         raise typer.Exit(1)
 
+    # Corpus-aware dedup: skip papers the topic already has (version-insensitive,
+    # so an ingested v1 blocks the v2 search hit) before paying for the rerank.
+    from distill.library.ingested import ingested_source_ids
+    from distill.pipeline.discovery import filter_ingested_candidates
+
+    candidates, _, excluded_ingested = filter_ingested_candidates(
+        candidates, [], ingested=ingested_source_ids(config.topic_dir(topic_name))
+    )
+    if excluded_ingested:
+        console.print(
+            f"[dim]Excluded {excluded_ingested} paper(s) already in '{topic_name}'.[/dim]"
+        )
+    if not candidates:
+        # Every search hit is already ingested -- a converged corpus, not an error.
+        console.print(
+            f"[green]Corpus is current: every paper found is already in '{topic_name}'.[/green]"
+        )
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        return
+
     console.print(
         f"[dim]Found {len(candidates)} candidate paper(s) across {len(queries)} search(es)[/dim]\n"
     )
@@ -8444,7 +8464,33 @@ def discover(  # noqa: C901 — legacy, will refactor
             f"[dim]Found {len(videos)} unique videos across {len(video_queries)} search(es)[/dim]"
         )
 
+    # Corpus-aware dedup: drop searched candidates the topic already contains so
+    # rerank slots and ingest spend go to new material, and gap-driven re-runs
+    # converge instead of re-suggesting the corpus. Curated site seeds are kept
+    # (user-provided intent; the site pipeline reuses unchanged page insights).
+    from distill.library.ingested import ingested_source_ids
+    from distill.pipeline.discovery import filter_ingested_candidates
+
+    papers, videos, excluded_ingested = filter_ingested_candidates(
+        papers, videos, ingested=ingested_source_ids(config.topic_dir(topic_name))
+    )
+    if excluded_ingested:
+        console.print(
+            f"[dim]Excluded {excluded_ingested} candidate(s) already in '{topic_name}'.[/dim]"
+        )
+
     if not papers and not videos and not sites:
+        if excluded_ingested:
+            # A converged corpus is a clean no-op, not an error: every candidate
+            # the search surfaced is already ingested.
+            console.print(
+                f"[green]Corpus is current: every candidate found is already in "
+                f"'{topic_name}'.[/green]"
+            )
+            display_summary(
+                summary, cost_tracker=tracker, console=console, log_dir=config.library_dir
+            )
+            return
         console.print("[red]No candidates found. Broaden the goal or widen --days.[/red]")
         raise typer.Exit(1)
 

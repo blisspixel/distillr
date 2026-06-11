@@ -57,6 +57,7 @@ __all__ = [
     "discover_generate_queries",
     "discover_rerank",
     "display_ranked_discover",
+    "filter_ingested_candidates",
 ]
 
 
@@ -113,7 +114,12 @@ def discover_generate_queries(
         goal, paper_count=paper_count, video_count=video_count
     )
     response = llm_call(
-        rc, workload_tag="rerank", prompt=prompt, max_tokens=768, call_type="discover_plan"
+        rc,
+        workload_tag="rerank",
+        prompt=prompt,
+        max_tokens=768,
+        call_type="discover_plan",
+        temperature=0.0,  # deterministic queries so re-previews search the same pool
     )
     if tracker:
         tracker.record(
@@ -178,6 +184,35 @@ def discover_fetch_videos(
         return []
     enriched = enrich_videos(raw, max_videos=min(len(raw), 20))
     return filter_recent_candidates(enriched, effective_days, hours=None)
+
+
+def filter_ingested_candidates(
+    papers: list[PaperRecord],
+    videos: list[VideoInfo],
+    *,
+    ingested: frozenset[str],
+) -> tuple[list[PaperRecord], list[VideoInfo], int]:
+    """Drop searched candidates whose identity is already in the topic's corpus.
+
+    Returns the kept papers, kept videos, and how many candidates were
+    excluded. Papers match on ``paper_id`` raw or version-stripped (a v1
+    ingest still blocks the v2 search hit); videos match on ``video_id``
+    exactly. Curated site seeds are deliberately *not* filtered -- they are a
+    user-provided signal of intent, and the site pipeline already reuses
+    unchanged page insights. Pure: no IO.
+    """
+    if not ingested:
+        return papers, videos, 0
+    from distill.library.ingested import normalize_arxiv_id
+
+    kept_papers = [
+        p
+        for p in papers
+        if p.paper_id not in ingested and normalize_arxiv_id(p.paper_id) not in ingested
+    ]
+    kept_videos = [v for v in videos if v.video_id not in ingested]
+    excluded = (len(papers) - len(kept_papers)) + (len(videos) - len(kept_videos))
+    return kept_papers, kept_videos, excluded
 
 
 def discover_rerank(  # noqa: C901 — legacy, will refactor

@@ -87,7 +87,12 @@ def _llm_rerank(
     prompt = search_rerank_prompt(query, videos, skeptical=skeptical)
     rc = RouterConfig()
     response = llm_call(
-        rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="search_rerank"
+        rc,
+        workload_tag="rerank",
+        prompt=prompt,
+        max_tokens=4096,
+        call_type="search_rerank",
+        temperature=0.0,  # deterministic rerank so a preview and its re-run agree
     )
     if tracker:
         tracker.record(
@@ -505,7 +510,12 @@ def _llm_rerank_papers(
     prompt = paper_rerank_prompt(query, papers)
     rc = RouterConfig()
     response = llm_call(
-        rc, workload_tag="rerank", prompt=prompt, max_tokens=4096, call_type="paper_rerank"
+        rc,
+        workload_tag="rerank",
+        prompt=prompt,
+        max_tokens=4096,
+        call_type="paper_rerank",
+        temperature=0.0,  # deterministic rerank so a preview and its re-run agree
     )
     if tracker:
         tracker.record(
