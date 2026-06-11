@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.11.1 - 2026-06-11
+
+**Podcasts as a first-class source -- RSS-first, publisher-transcripts-preferred.** The largest single content surface for primary practitioner audio, on the durable path (the open feed, not platform apps that churn with anti-bot countermeasures).
+
+### Added
+
+- **`distill ingest <feed-url>`** (auto-detected for `.rss`/`.xml`/feed-shaped paths, or forced with `--rss`; `--episodes N` for the latest N) parses RSS 2.0 with defusedxml (same untrusted-XML hygiene as the arXiv parser; size-capped fetches through the SSRF-hardened opener) into `library/topics/<topic>/podcasts/<show>/<episode>/`.
+- **The transcript ladder prefers free text over paid audio**: a Podcasting-2.0 `<podcast:transcript>` tag is fetched first (VTT/SRT caption files normalized to plain text); only when absent does the enclosure download (250MB cap) and route through the existing local-first Whisper ladder, with a vocabulary hint derived deterministically from the episode's own title and notes -- no extra LLM call.
+- **Conversation-shaped analysis** (`analysis.podcast.v1`): speaker-attributed claims, frameworks/walkthroughs, opinions vs facts, verbatim quotes, and a transcript-quality confidence note. Verify-gated against the episode receipt + transcript like every other emit path; rolled into `distill audit` automatically.
+- URL-shaped feed/episode identifiers slugify via host / short digest instead of degenerating to an `_https` tail (caught in live validation).
+
+### Validated live ($0.008 across two runs)
+
+- `distill ingest https://podnews.net/rss --topic podcast-validation`: real feed parse, **publisher transcript fetched (zero transcription spend)**, conversation insight for $0.004, verify sidecar 1/1 supported, clean artifact tree.
+
 ## 0.11.0 - 2026-06-11
 
 **Source breadth begins: GitHub repositories as a first-class source.** For any OSS tool the repo itself is the primary source, not the marketing page -- and the open-source field stops at concatenation (Repomix, Gitingest pack files into prompts); structured repo *understanding* existed only in closed products (DeepWiki, Copilot Spaces). Confirmed white space, now occupied.

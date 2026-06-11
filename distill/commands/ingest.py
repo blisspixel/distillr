@@ -18,8 +18,10 @@ from rich.console import Console
 from distill.commands._logic import get_config
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
+from distill.ingestors.podcasts import PodcastFetchError, looks_like_feed_url
 from distill.ingestors.x.syndication import parse_tweet_url
 from distill.pipeline.analysis.local import ingest_local_file
+from distill.pipeline.analysis.podcast import ingest_podcast
 from distill.pipeline.analysis.repo import ingest_repo
 from distill.pipeline.analysis.tweet import ingest_tweet
 from distill.pipeline.costs import CostTracker
@@ -48,6 +50,16 @@ def ingest_cmd(
         "--no-analyze",
         help="Skip insight extraction (just capture raw + transcript).",
     ),
+    rss: bool = typer.Option(
+        False,
+        "--rss",
+        help="Treat the URL as a podcast RSS feed (auto-detected for .rss/.xml/feed paths).",
+    ),
+    episodes: int = typer.Option(
+        1,
+        "--episodes",
+        help="For podcast feeds: how many of the latest episodes to ingest (default 1).",
+    ),
 ):
     """Ingest a single URL or local file into the library, picking the right adapter."""
     config = get_config()
@@ -69,11 +81,22 @@ def ingest_cmd(
     if host == "github.com":
         _ingest_github(url, topic, config, tracker, analyze=not no_analyze)
         return
+    if rss or looks_like_feed_url(url):
+        _ingest_podcast_feed(
+            url,
+            topic,
+            config,
+            tracker,
+            episodes=episodes,
+            transcribe=not no_transcribe,
+            analyze=not no_analyze,
+        )
+        return
 
     console.print(
         f"[yellow]No dedicated adapter for host {host!r} yet.[/yellow] "
         "Use `distill site` for arbitrary websites, `distill latest`/`distill video` "
-        "for YouTube, or `distill paper` for arXiv."
+        "for YouTube, `distill paper` for arXiv, or pass --rss for a podcast feed."
     )
     raise typer.Exit(2)
 
@@ -128,6 +151,40 @@ def _ingest_tweet_url(
         console.print(
             f"  [green]Insights[/green]   {result.insights_path.relative_to(config.library_dir)}"
         )
+    for note in result.skipped_reasons:
+        console.print(f"  [yellow]skipped[/yellow]    {note}")
+    _spend_line(tracker)
+
+
+def _ingest_podcast_feed(
+    url: str,
+    topic: str,
+    config,
+    tracker: CostTracker,
+    *,
+    episodes: int,
+    transcribe: bool,
+    analyze: bool,
+):
+    try:
+        result = ingest_podcast(
+            url,
+            topic=topic,
+            config=config,
+            episodes=episodes,
+            transcribe=transcribe,
+            analyze=analyze,
+            tracker=tracker,
+        )
+    except PodcastFetchError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(2) from None
+    console.print("")
+    console.print(f"  [green]Show[/green]      {result.feed_title}")
+    for path in result.episode_paths:
+        console.print(f"  [green]Episode[/green]   {path.relative_to(config.library_dir)}")
+    for path in result.insight_paths:
+        console.print(f"  [green]Insights[/green]  {path.relative_to(config.library_dir)}")
     for note in result.skipped_reasons:
         console.print(f"  [yellow]skipped[/yellow]    {note}")
     _spend_line(tracker)
