@@ -179,3 +179,28 @@ def test_yes_bypasses_sizing_menu_on_fresh_topic(mock_config, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "How much of this should I ingest?" not in result.output
     assert captured["yes"] is True
+
+
+def test_topic_create_drives_real_discover_wiring(mock_config, monkeypatch):
+    """`topic create` (mixed sources) must run the REAL discover() end to end.
+
+    Regression for the OptionInfo-leak bug: topic_create dispatches to discover as
+    a plain function via _invoke_command. The original test mocked discover itself,
+    which hid a broken dispatch that made every mixed-source `topic create` exit on
+    discover's from_preview/from_gaps guard. Here we mock ONLY the external boundary
+    (query-gen, fan-out, rerank, final ingest) so the real command-to-command wiring
+    is exercised -- this fails if discover's guards see leaked sentinels again.
+    """
+    _patch_discover_pipeline(monkeypatch)
+    captured = {}
+    monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: captured.update(k))
+
+    result = runner.invoke(
+        cli.app,
+        ["topic", "create", "compose music", "--topic", "wired", "--videos", "2", "--papers", "2"],
+    )
+
+    assert result.exit_code == 0, result.output
+    # The real discover() ran (no from_preview guard misfire) and reached ingestion
+    # through the topic_create -> _invoke_command -> discover wiring.
+    assert captured["topic_name"] == "wired"

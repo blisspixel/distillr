@@ -912,6 +912,45 @@ class TestTopicCommands:
         assert profile["videos"] == 10
         assert profile["papers"] == 10
 
+    def test_invoke_command_resolves_typer_option_defaults(self):
+        # Regression: calling a typer command as a plain function leaks its
+        # typer.Option/Argument sentinels (which are truthy) into any parameter the
+        # caller omits, so guards like `if channel:` or `sort not in {...}` misfire.
+        # This is what broke every mixed-source `topic create` (the discover
+        # from_preview/from_gaps guard) and `distill ingest <paper-query>` (the
+        # papers sort/rigor guard). _invoke_command must resolve omitted params to
+        # their real defaults instead.
+        import typer
+
+        captured = {}
+
+        def fake_command(
+            goal: str = typer.Argument(""),
+            topic: str = typer.Option("", "--topic"),
+            rigor: str = typer.Option("balanced", "--rigor"),
+            from_gaps: bool = typer.Option(False, "--from-gaps"),
+            from_preview: str = typer.Option("", "--from-preview"),
+        ):
+            captured.update(
+                goal=goal,
+                topic=topic,
+                rigor=rigor,
+                from_gaps=from_gaps,
+                from_preview=from_preview,
+            )
+
+        _cli_impl._invoke_command(fake_command, goal="g", topic="t")
+
+        # Caller-supplied values pass through unchanged.
+        assert captured["goal"] == "g"
+        assert captured["topic"] == "t"
+        # Omitted params resolve to real defaults, not truthy OptionInfo sentinels.
+        assert captured["rigor"] == "balanced"
+        assert captured["from_gaps"] is False
+        assert captured["from_preview"] == ""
+        assert not any(isinstance(v, typer.models.OptionInfo) for v in captured.values())
+        assert not any(isinstance(v, typer.models.ArgumentInfo) for v in captured.values())
+
     def test_topic_create_videos_only_uses_learning_pipeline(self, mock_config, monkeypatch):
         captured = {}
 

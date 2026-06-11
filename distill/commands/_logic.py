@@ -848,6 +848,33 @@ def _resolve_topic_workflow_config(
     }
 
 
+def _invoke_command(fn, **overrides):
+    """Call a typer command as a plain Python function from another command.
+
+    Typer command parameters default to ``typer.Option(...)`` / ``typer.Argument(...)``
+    sentinel objects, which are truthy. Calling such a function directly and omitting
+    any parameter leaks that sentinel into the body, so guards like ``if channel:`` or
+    ``sort not in {...}`` misfire. This resolves every unspecified parameter to its real
+    default (the sentinel's ``.default``) so internal dispatch behaves like the CLI.
+    """
+    import inspect
+
+    kwargs = dict(overrides)  # always honor the caller's explicit values
+    for name, param in inspect.signature(fn).parameters.items():
+        if name in kwargs or param.kind in (
+            inspect.Parameter.VAR_KEYWORD,
+            inspect.Parameter.VAR_POSITIONAL,
+        ):
+            continue
+        default = param.default
+        if isinstance(default, (typer.models.OptionInfo, typer.models.ArgumentInfo)):
+            kwargs[name] = default.default
+        elif default is not inspect.Parameter.empty:
+            kwargs[name] = default
+        # A required param with no default is left out; fn raises if truly missing.
+    return fn(**kwargs)
+
+
 def _run_topic_workflow(
     *,
     goal: str,
@@ -874,7 +901,8 @@ def _run_topic_workflow(
     topic_name = str(resolved["topic"])
 
     if bool(resolved["mixed_sources"]):
-        discover(
+        _invoke_command(
+            discover,
             goal=str(resolved["goal"]),
             goal_file=None,
             topic=topic_name,
@@ -939,7 +967,7 @@ def _run_topic_workflow(
     if brief:
         _generate_and_export_topic_brief(topic_name, config, CostTracker())
     if report_after:
-        report(topic=topic_name, test=test)
+        _invoke_command(report, topic=topic_name, test=test)
     return topic_name
 
 
@@ -1142,7 +1170,7 @@ def topic_brief(
         raise typer.Exit(1)
     _generate_and_export_topic_brief(topic, config, CostTracker())
     if report_after:
-        report(topic=topic, test=test)
+        _invoke_command(report, topic=topic, test=test)
 
 
 @topic_app.command("report")
@@ -6531,7 +6559,7 @@ def monitor(
 def ramp_up(
     target: str = typer.Argument(help="YouTube query, website URL, or website seed file"),
     topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
-    source: str = typer.Option("auto", "--source", help="auto, youtube, or website"),
+    source: str = typer.Option("auto", "--source", help="auto, youtube, website, or paper"),
     report: bool = typer.Option(False, "--report", help="Generate a report after processing"),
     days: int = typer.Option(14, "--days", "-d", help="YouTube lookback window in days"),
     limit: int = typer.Option(10, "--limit", "-n", help="YouTube best-pick count"),
@@ -6583,7 +6611,9 @@ def ramp_up(
         if "arxiv.org" in target.lower() or re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", target):
             paper(target=target, topic=topic or "papers")
         else:
-            papers(query=target, topic=topic or _topic_from_query(target), limit=limit)
+            _invoke_command(
+                papers, query=target, topic=topic or _topic_from_query(target), limit=limit
+            )
         return
 
     if resolved_source == "website":
@@ -6602,7 +6632,8 @@ def ramp_up(
         )
         return
 
-    site_batch_cmd(
+    _invoke_command(
+        site_batch_cmd,
         path=Path(target),
         topic=topic or "",
         scrape_only=scrape_only,

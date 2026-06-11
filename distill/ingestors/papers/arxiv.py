@@ -340,6 +340,11 @@ def _parse_arxiv_feed(payload: str) -> list[PaperRecord]:
     for entry in root.findall("atom:entry", ATOM_NS):
         entry_id = _entry_text(entry, "atom:id").split("/")[-1]
         title = _clean_space(_entry_text(entry, "atom:title"))
+        # Skip malformed/error entries (e.g. arXiv's API error feed) that carry no
+        # real paper id or title; without this they become ghost records with an
+        # empty paper_id, which collide on slug and contaminate the corpus.
+        if not entry_id or not title:
+            continue
         abstract = _clean_space(_entry_text(entry, "atom:summary"))
         authors = [
             _clean_space(author.findtext("atom:name", default="", namespaces=ATOM_NS))

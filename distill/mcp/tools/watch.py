@@ -156,7 +156,10 @@ def watch_add(
                 "name": name,
                 "topic": topic,
                 "days": days,
-                "instructions": instructions or "(auto-generated)" if instructions else "(none)",
+                # Show the resolved instructions (user-provided or auto-generated),
+                # else "(none)". The prior `a or b if a else c` form left the middle
+                # branch unreachable; this is the behavior its test already pinned.
+                "instructions": instructions if instructions else "(none)",
             },
             indent=2,
         )

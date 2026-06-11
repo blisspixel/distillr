@@ -66,6 +66,35 @@ def test_search_arxiv_papers_parses_feed(monkeypatch):
     assert papers[0].authors == ["Alice", "Bob"]
 
 
+def test_parse_feed_skips_entries_without_id_or_title(monkeypatch):
+    # arXiv error/partial feeds can carry entries with no real id or title; those
+    # must not become ghost PaperRecords with an empty paper_id.
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    feed = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2602.12670v1</id>
+    <title> Good Paper </title>
+    <summary> ok </summary>
+  </entry>
+  <entry>
+    <title> Missing Id </title>
+    <summary> no id element </summary>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2602.99999v1</id>
+    <summary> no title element </summary>
+  </entry>
+</feed>"""
+    monkeypatch.setattr("distill.ingestors.papers.arxiv._fetch_text", lambda url: feed)
+
+    papers = paper_ingest.search_arxiv_papers("anything", limit=10)
+
+    assert len(papers) == 1
+    assert papers[0].paper_id == "2602.12670v1"
+    assert papers[0].title == "Good Paper"
+
+
 def test_search_arxiv_alias_uses_max_results(monkeypatch):
     paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
     calls = []

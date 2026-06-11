@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening (rerank determinism, rigor knob, real cost estimator, preview-as-primary UX, synthesis register styles). See ROADMAP section 12.
 
+## 0.9.26 - 2026-06-10
+
+**Harden pass: the README's headline command was broken on every invocation, plus the test gap that hid it.** A QA run surfaced that `distill topic create --videos N --papers N` -- the first command in the README -- errored every time, while the full suite was green. Root cause and the wiring-test blind spot are both fixed.
+
+### Fixed / Hardened
+
+- **`topic create` / `topic update` (mixed sources) errored on every run.** These dispatch to the `discover` command by calling it as a plain Python function. Any parameter the caller omitted kept its `typer.Option(...)`/`typer.Argument(...)` sentinel (which is truthy), so `discover`'s own `from_preview`/`from_gaps` guard misfired and aborted with a nonsensical "`--from-preview` can't combine with `--preview`" message -- with no `--from-preview` passed. The same defect silently broke three sibling paths: `topic ... --report` (ran over the entire library with the legacy method), `ramp-up <non-arxiv query> --source paper` (exited on the `papers` sort/rigor guard), and `ramp-up <seed-file>` (leaked `concepts_flag`). New `_invoke_command(fn, **overrides)` helper resolves every omitted parameter to its real default before dispatch; all five internal command-to-command call sites route through it.
+- **Closed the wiring-test gap that let it ship.** The test "covering" `topic create` monkeypatched `discover` itself, so the broken dispatch was invisible. New integration test runs the real `topic create -> discover` chain, mocking only the external arxiv/youtube/LLM boundary; it fails if the sentinel leak returns. Added a direct unit test for `_invoke_command` resolving Typer defaults.
+- **arXiv feed parser created ghost records.** A malformed/partial Atom entry with no `id` or `title` became a `PaperRecord` with an empty `paper_id` (empty slug, collision risk). Such entries are now skipped.
+- **MCP `watch_add` dead branch.** The response built `instructions` via `a or b if a else c`, whose middle branch was unreachable by operator precedence. Simplified to the behavior its test already pins (resolved instructions, else `(none)`).
+- **`ramp-up --source` help** listed "auto, youtube, or website" but the command also accepts `paper`; corrected.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (1935 passed) with branch coverage 81%.
+
 ## 0.9.25 - 2026-06-09
 
 **Every ingest entry point is now lens-aware.** 0.9.24 shipped adaptive lenses but only `discover` set the lens; `papers` / `latest` fell back to the neutral default unless a prior `discover` had saved an intent. This closes that gap.
