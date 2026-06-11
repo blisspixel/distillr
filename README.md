@@ -212,7 +212,7 @@ Distillr is built for two parallel agent-integration paths:
 { "mcpServers": { "distill": { "command": "distill-mcp" } } }
 ```
 
-Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
+Distill exposes 21 tools (a deliberately small surface, shrinking toward workflow-shaped tools — the JIT read layer returns ranked `path`/`preview`/`score` tuples with `read_insight` drill-down, never full payloads by default), plus 12 resources and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
 
 **Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard — so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 

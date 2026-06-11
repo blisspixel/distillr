@@ -197,7 +197,10 @@ commands that already own each step:
 - the assess/critique step → inside the planned `audit`.
 So "more agentic" shows up in the tools people already use, with no new command.
 **Why:** the core capture → analyze → synthesize flow self-corrects; the surface
-stays the same size.
+stays the same size. The 2026 "loop engineering" framing makes the boundary
+crisp: distill is the loopable primitive + persistent state layer (idempotent,
+convergent, verify-gated, report-emitting); the loop *runner* is the layer above
+(cron, an agent harness, OpenSteward) and stays out of this repo.
 **Phase:** 4 — and only the parts that earn their keep; the goal-file + `discover`
 already cover the common case.
 

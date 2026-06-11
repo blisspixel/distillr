@@ -13,7 +13,6 @@ import json
 from pathlib import Path
 
 from distill.concepts import recovery
-from distill.concepts.contradictions import find_contested
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.library.paths import strip_frontmatter
 from distill.mcp import server as _server
@@ -143,23 +142,11 @@ def read_concept(path: str) -> str:
     return json.dumps({"path": path, "content": strip_frontmatter(raw)}, indent=2)
 
 
-@_server.mcp.tool()
-def list_contested(topic: str, limit: int = 20) -> str:
-    """List contested concepts and entities for a topic (both polarities present).
-
-    Args:
-        topic: Topic name.
-        limit: Max rows.
-    """
-    config = _server._config()
-    topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
-        return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
-    items = find_contested(topic_dir)[:limit]
-    return json.dumps(
-        {"contested": [c.to_dict() for c in items], "count": len(items), "topic": topic},
-        indent=2,
-    )
+# NOTE: there is deliberately no separate list-contested tool. Contested-only
+# retrieval is `find_concepts(topic, contested_only=True)` -- the dedicated
+# wrapper was removed in 0.9.30 because every always-loaded tool schema costs
+# the consuming agent context before any work happens, and a strict duplicate
+# bought nothing.
 
 
 @_server.mcp.tool()

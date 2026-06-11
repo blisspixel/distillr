@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.9.30 - 2026-06-11
+
+**Agent-legible corpus, slice 2: MCP surface truth-up.** An audit of the 22-tool surface against 2026 token-efficiency norms found the just-in-time read layer already shipped and correct (`find_insights` returns ranked path/preview/score tuples; `read_insight(path, section?)` drills down; `generate_report` truncates) -- the roadmap's section-11 fears were stale. What the audit did find got fixed.
+
+### Changed
+
+- **Removed the `list_contested` MCP tool** (22 -> 21 tools). It was a strict duplicate of `find_concepts(topic, contested_only=True)`, and every always-loaded tool schema costs the consuming agent ~0.5-1K tokens of context before any work happens. Migration: call `find_concepts` with `contested_only=True`; rows carry the same name/kind/counts plus the note path.
+- Docs truth-up: `docs/mcp.md` and the roadmap's agent-legible/section-11 items now state shipped reality (paths-not-payloads is the default response shape today, not a plan); README MCP description updated.
+- **"Loop-ready" named as a roadmap theme.** The contract every command must meet to run unattended in a nightly loop: non-interactive flags, convergent re-runs (the 0.9.27 exit-0 no-op), clean failure exits, resumability, report artifacts. Distillr is the loopable primitive + persistent state layer, never the loop runner; the verify hook (0.10) precedes any autonomous-loop behavior because a loop without a verify gate scales slop, not work.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (1969 passed) with branch coverage 81%; MCP server import smoke with the tool removed.
+
 ## 0.9.29 - 2026-06-11
 
 **Agent-legible corpus, slice 1: the corpus now orients every major harness, ships a canonical skill and a real example corpus -- and the library index stopped under-reporting legacy topics.** First slice of the agent-legible pass on the reordered spine; the MCP paths-not-payloads consolidation is the next slice.

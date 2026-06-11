@@ -30,7 +30,7 @@ Then ask Claude things like:
 
 ## Tools
 
-22 tools, grouped by role.
+21 tools, grouped by role. (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
 
 **Discover & ingest**
 
@@ -60,7 +60,6 @@ Then ask Claude things like:
 | `read_insight` | Read a specific insight artifact (drill-down after `find_insights`) |
 | `find_concepts` | Find concept/entity notes in a topic's playbook layer |
 | `read_concept` | Read a specific concept/entity note |
-| `list_contested` | List concepts flagged `[contested]` (incompatible source claims) |
 | `research_gaps` | Inspect a topic corpus for thin coverage, stale recency, and missing artifacts |
 | `concept_history` | List a concept/entity note's `.history` snapshots with per-step change summaries |
 | `concept_diff` | Structured diff of a concept note across versions (source/interval/contested deltas + body diff) |

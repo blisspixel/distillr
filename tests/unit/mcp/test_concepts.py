@@ -1,4 +1,4 @@
-"""MCP tool tests for find_concepts, read_concept, list_contested."""
+"""MCP tool tests for find_concepts, read_concept, concept_history/diff."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from distill.mcp.tools.concepts import (
     concept_diff,
     concept_history,
     find_concepts,
-    list_contested,
     read_concept,
 )
 
@@ -276,18 +275,23 @@ class TestReadConcept:
         assert "library root readme" not in result.get("content", "")
 
 
-class TestListContested:
-    def test_missing_topic_error(self, mock_config: DistillConfig) -> None:
-        with patch("distill.mcp.server._config", return_value=mock_config):
-            result = json.loads(list_contested("ghost"))
-        assert result["status"] == "error"
+class TestContestedRetrieval:
+    """Contested-only retrieval lives on find_concepts; the duplicate
+    list_contested tool was removed in 0.9.30 (every always-loaded tool schema
+    costs the consuming agent context)."""
 
-    def test_returns_contested_only(self, mock_config: DistillConfig) -> None:
+    def test_contested_only_filter(self, mock_config: DistillConfig) -> None:
         _seed_topic(mock_config)
         with patch("distill.mcp.server._config", return_value=mock_config):
-            result = json.loads(list_contested("tkg"))
+            result = json.loads(find_concepts("tkg", contested_only=True))
         assert result["count"] == 1
-        assert result["contested"][0]["name"] == "Disputed Method"
+        assert result["results"][0]["name"] == "Disputed Method"
+        assert result["results"][0]["contested"] is True
+
+    def test_list_contested_tool_is_gone(self) -> None:
+        import distill.mcp.tools.concepts as mod
+
+        assert not hasattr(mod, "list_contested")
 
 
 def _build_history(topic_dir: Path) -> None:
