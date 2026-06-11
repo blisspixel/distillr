@@ -1,0 +1,280 @@
+"""Write-time claim grounding -- the deterministic first cut of the verify hook.
+
+Anthropic's agent loop is gather -> act -> *verify*; distill gathers (discover)
+and acts (analyze + synthesize), and this module is the verify leg at write
+time: before an ``_Insights.md`` is committed to the library, its load-bearing
+numeric claims are checked against the source receipt sitting in the same
+directory, and the result lands in a ``_Verify.json`` sidecar.
+
+Scope of this tier is deliberate (the dogfood corpus in
+``library/topics/claim-verification/`` settled the design):
+
+- **Numbers, percents, money, and years only.** These are the highest-precision
+  claim class to check deterministically, and the measured hard class when
+  hallucinated (QuanTemp: conflicting numerical claims peak at 47.33 F1).
+  Named entities defer to the small-local-entailment-checker tier, which layers
+  on top of this one and never replaces it.
+- **Pure string/arithmetic checking.** Per the invariants: LLM proposes, Python
+  decides -- no LLM-as-judge-of-record. A number the analysis model wrote that
+  does not appear in (or round from) the source text is flagged, full stop.
+- A flag means "support not found", not "false": the sidecar carries the
+  context line so a human or the audit surface can adjudicate.
+
+Modes (``DISTILL_VERIFY``): ``warn`` (default -- flag to console, write anyway),
+``off`` (skip the check). ``strict`` (refuse the write) lands with the CLI flag
+and checker tier in the next 0.10 slice.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import re
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+from distill.library.paths import artifact_path, atomic_write_text, strip_frontmatter
+
+__all__ = [
+    "NumericClaim",
+    "VerifyReport",
+    "extract_numeric_claims",
+    "resolve_verify_mode",
+    "run_verify_hook",
+    "verify_insight",
+    "write_verify_sidecar",
+]
+
+VERIFY_SCHEMA_VERSION = 1
+
+# Claim-side token shapes, most specific first. Small bare integers (<= 3
+# digits, no decimal/percent/currency) are deliberately not claims: list
+# numbers, rankings, and "3 methods" would drown the signal.
+_CLAIM_TOKEN_RE = re.compile(
+    r"""
+    (?<![\w.])
+    (?:
+        \$\d[\d,]*(?:\.\d+)?            # money: $200, $1,250.50
+      | \d{1,3}(?:,\d{3})+(?:\.\d+)?%?  # separated integer: 15,514 / 1,000.5%
+      | \d+\.\d+%?                      # decimal: 72.6 / 0.878 / 47.33%
+      | \d+%                            # integer percent: 80%
+      | (?:19|20)\d{2}                  # year: 1998, 2026
+    )
+    (?![\w%])(?!\.\d)                   # boundary: a sentence period is fine,
+    """,  # a continued number/word is not
+    re.VERBOSE,
+)
+
+# Source-side tokens are broader: any digit run (plus comma/space-separated
+# thousands) so a claim can match however the source typeset it. PDF extraction
+# often renders 15,514 as "15 514".
+_SOURCE_TOKEN_RE = re.compile(r"\d{1,3}(?:[ ,]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
+
+# Insight tokens that look numeric but are identifiers, not claims.
+_ARXIV_ID_RE = re.compile(r"^\d{4}\.\d{4,5}$")
+
+# Strip these spans from insight lines before scanning: URLs and markdown link
+# targets carry digits (arxiv.org/abs/2604.11544) that are not prose claims.
+_URL_RE = re.compile(r"https?://\S+|\]\([^)]*\)")
+
+_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+
+
+@dataclass(frozen=True)
+class NumericClaim:
+    """One load-bearing numeric token found in an insight body."""
+
+    token: str  # as written: "72.6", "15,514", "47.33%", "$200", "2026"
+    kind: str  # "money" | "integer" | "decimal" | "percent" | "year"
+    context: str  # the (trimmed) line it appeared on
+
+
+@dataclass(frozen=True)
+class VerifyReport:
+    """Outcome of grounding one insight against its source receipt."""
+
+    checked: int
+    unsupported: tuple[NumericClaim, ...]
+    mode: str
+
+    @property
+    def supported(self) -> int:
+        return self.checked - len(self.unsupported)
+
+    @property
+    def ok(self) -> bool:
+        return not self.unsupported
+
+
+def _classify(token: str) -> str:
+    if token.startswith("$"):
+        return "money"
+    if token.endswith("%"):
+        return "percent"
+    if "." in token:
+        return "decimal"
+    if "," in token:
+        return "integer"
+    return "year" if re.fullmatch(r"(?:19|20)\d{2}", token) else "integer"
+
+
+def _canonical(token: str) -> str:
+    """Normalize a token to a bare digit string: ``$15,514.50%`` -> ``15514.50``."""
+    return token.strip("$%").replace(",", "").replace(" ", "")
+
+
+def extract_numeric_claims(insight_text: str) -> list[NumericClaim]:
+    """Pull the checkable numeric claims out of an insight's markdown body.
+
+    Frontmatter, fenced code blocks, URLs/markdown link targets, and
+    arXiv-shaped identifiers are excluded; everything else that matches the
+    claim shapes above is a claim the source must support.
+    """
+    body = strip_frontmatter(insight_text)
+    claims: list[NumericClaim] = []
+    in_fence = False
+    for raw_line in body.splitlines():
+        if _FENCE_RE.match(raw_line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        line = _URL_RE.sub(" ", raw_line)
+        for match in _CLAIM_TOKEN_RE.finditer(line):
+            token = match.group(0)
+            if _ARXIV_ID_RE.fullmatch(_canonical(token)):
+                continue
+            claims.append(
+                NumericClaim(token=token, kind=_classify(token), context=raw_line.strip())
+            )
+    return claims
+
+
+def _source_values(source_text: str) -> tuple[set[str], list[float]]:
+    """Every numeric token in the source, as canonical strings and as floats."""
+    strings: set[str] = set()
+    values: list[float] = []
+    for match in _SOURCE_TOKEN_RE.finditer(source_text):
+        canon = _canonical(match.group(0))
+        if canon in strings:
+            continue
+        strings.add(canon)
+        try:
+            values.append(float(canon))
+        except ValueError:  # pragma: no cover - canon is digits by construction
+            continue
+    return strings, values
+
+
+def _is_supported(claim: NumericClaim, strings: set[str], values: list[float]) -> bool:
+    canon = _canonical(claim.token)
+    if canon in strings:
+        return True
+    # Rounding support: the model may legitimately round "0.878" to "0.88".
+    # A claim with d decimals is supported by any source value within half a
+    # unit in the last place. Integers/years get no tolerance: a year or count
+    # that differs is wrong, not rounded.
+    if "." not in canon:
+        return False
+    decimals = len(canon.split(".", 1)[1])
+    try:
+        target = float(canon)
+    except ValueError:  # pragma: no cover - canon is digits by construction
+        return False
+    tolerance = 0.5 * (10**-decimals) + 1e-12
+    return any(abs(value - target) <= tolerance for value in values)
+
+
+def verify_insight(insight_text: str, source_text: str, *, mode: str = "warn") -> VerifyReport:
+    """Ground every numeric claim in *insight_text* against *source_text*.
+
+    Pure: no IO. Dedups identical tokens (one flag per distinct unsupported
+    token, first context line wins) so a repeated number doesn't multi-count.
+    """
+    claims = extract_numeric_claims(insight_text)
+    strings, values = _source_values(source_text)
+    unsupported: list[NumericClaim] = []
+    seen: set[str] = set()
+    for claim in claims:
+        canon = _canonical(claim.token)
+        if canon in seen:
+            continue
+        if not _is_supported(claim, strings, values):
+            seen.add(canon)
+            unsupported.append(claim)
+    return VerifyReport(checked=len(claims), unsupported=tuple(unsupported), mode=mode)
+
+
+def resolve_verify_mode(raw: str) -> str:
+    """Normalize the configured verify mode; unknown values degrade to ``warn``.
+
+    A typo'd env var must not abort an ingest run (clean degradation), and
+    quietly skipping verification would be worse than over-checking -- so the
+    safe fallback is ``warn``. ``strict`` maps to ``warn`` until the
+    refuse-the-write semantics land with the CLI flag.
+    """
+    mode = (raw or "").strip().lower()
+    if mode == "off":
+        return "off"
+    return "warn"
+
+
+def run_verify_hook(
+    directory: Path,
+    insight_text: str,
+    source_text: str,
+    *,
+    mode: str,
+    identity: str | None = None,
+    insight_name: str = "",
+    source_name: str = "",
+) -> tuple[VerifyReport, Path] | None:
+    """Verify one insight against its receipt and write the sidecar.
+
+    The single entry point analysis emit paths call. Returns ``None`` when the
+    mode is ``off`` or there is no source text to check against (nothing to
+    ground means nothing to claim about grounding); otherwise returns the
+    report and the sidecar path. Never raises on IO problems -- a verification
+    bookkeeping failure must not kill an ingest run -- but the report is still
+    returned so callers can surface flags.
+    """
+    if mode == "off" or not source_text.strip():
+        return None
+    report = verify_insight(insight_text, source_text, mode=mode)
+    path = artifact_path(directory, "verify", identity=identity, extension="json")
+    with contextlib.suppress(OSError):
+        path = write_verify_sidecar(
+            directory,
+            report,
+            identity=identity,
+            insight_name=insight_name,
+            source_name=source_name,
+        )
+    return report, path
+
+
+def write_verify_sidecar(
+    directory: Path,
+    report: VerifyReport,
+    *,
+    identity: str | None = None,
+    insight_name: str = "",
+    source_name: str = "",
+) -> Path:
+    """Write the ``<stem>_Verify.json`` sidecar next to the insight artifact."""
+    path = artifact_path(directory, "verify", identity=identity, extension="json")
+    payload = {
+        "schema_version": VERIFY_SCHEMA_VERSION,
+        "mode": report.mode,
+        "checked": report.checked,
+        "supported": report.supported,
+        "unsupported": [
+            {"token": c.token, "kind": c.kind, "context": c.context} for c in report.unsupported
+        ],
+        "insight": insight_name,
+        "source": source_name,
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
+    return path

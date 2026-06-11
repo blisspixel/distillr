@@ -7656,6 +7656,27 @@ def _write_paper_artifacts(
             "legacy_filename": "insights.md",
         },
     )
+
+    # Write-time verify hook: ground the insight's numeric claims against the
+    # paper text receipt; flags land in the _Verify.json sidecar.
+    from distill.library.paths import artifact_filename
+    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    verified = run_verify_hook(
+        paper_dir,
+        insights,
+        paper_doc,
+        mode=resolve_verify_mode(config.distill_verify),
+        insight_name=artifact_filename(paper_dir.name, "insights"),
+        source_name=artifact_filename(paper_dir.name, "paper"),
+    )
+    if verified is not None and not verified[0].ok:
+        report, sidecar = verified
+        console.print(
+            f"    [yellow]verify: {len(report.unsupported)}/{report.checked} numeric "
+            f"claim(s) lack source support -- see {sidecar.name}[/yellow]"
+        )
+
     return paper_dir
 
 

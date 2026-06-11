@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.10.0 - 2026-06-11
+
+**The verified corpus begins: a write-time claim-grounding hook on analysis emits (deterministic tier).** First slice of the 0.10 milestone; design grounded in the claim-verification dogfood corpus (`examples/`). Anthropic's agent loop is gather -> act -> *verify* -- distill now has the third leg: before an insight is committed to the library, its load-bearing numeric claims are checked against the source receipt in the same directory.
+
+### Added
+
+- **`distill/pipeline/verify.py` -- the deterministic grounding engine.** Extracts the high-precision claim classes from insight bodies -- decimals, percents, comma-separated integers, money, years; small bare integers deliberately excluded (list numbers and "3 methods" would drown the signal); frontmatter, code fences, URLs, and arXiv-shaped identifiers skipped -- and checks each against the source text with comma/space-thousands and percent-sign normalization plus half-ULP rounding tolerance (a model may round 0.878 to 0.88; years and counts get no tolerance). Pure string/arithmetic checking: LLM proposes, Python decides -- no LLM-as-judge-of-record. A flag means "support not found", not "false"; the sidecar carries the context line for adjudication.
+- **`<stem>_Verify.json` sidecars** beside every checked insight -- including positive evidence (checked/supported counts) so the upcoming audit surface can distinguish "verified clean" from "never checked".
+- **Wired into the paper and video emit paths** (the two largest source volumes). A console flag line surfaces unsupported claims at ingest time: `verify: 2/14 numeric claim(s) lack source support`. Site/tweet/local emits follow in 0.10.x.
+- **`DISTILL_VERIFY=warn|off`** (default `warn`: flag and write anyway). `strict` -- refuse the write -- lands with the `--verify` CLI flag in the next slice; until then the value degrades to `warn` rather than silently skipping verification. Unknown values also degrade to `warn` (a typo'd env var must not abort an ingest or disable checking).
+
+### Docs
+
+- **Example-corpus content policy codified** (`examples/README.md`): example corpora never include captured source content -- no paper full texts, no transcripts, no page bodies. What ships is distill's own analysis plus metadata and `url` receipts; captured artifacts live on the user's disk, where they belong.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2000 passed) with branch coverage 81.3%.
+
 ## 0.9.31 - 2026-06-11
 
 **Fixed the dogfooded narrow-console preview rendering.**

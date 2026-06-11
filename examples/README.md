@@ -25,11 +25,14 @@ Six arXiv papers, ingested and analyzed for **$0.19** in 2m38s on the
   agents pick up when they enter the directory.
 - `intent.json` — the persisted goal/lens that shaped the analysis.
 
-**One omission, for licensing:** a real run also writes each paper's full
-extracted text alongside the insights (`<slug>_Paper.md`, ~50–100 KB each).
-arXiv full texts aren't freely redistributable, so those receipts are omitted
-here — every insight's frontmatter carries the arXiv `url` to fetch them
-yourself, and a real run keeps them on your disk next to the analysis.
+**Content policy (the rule, not an exception):** example corpora in this repo
+**never include captured source content** — no paper full texts, no video
+transcripts, no scraped page bodies. Other people's work doesn't get
+redistributed here. What ships is distill's own analytical writing
+(insights, synthesis) plus bibliographic metadata and the `url` receipts to
+fetch every source yourself; a real run keeps the captured artifacts
+(`<slug>_Paper.md`, `<slug>_Transcript.txt`, `<slug>_Content.md`) on **your**
+disk next to the analysis, which is exactly where they belong.
 
 This corpus is also a working input: its findings (adapted small-NLI checkers
 approach GPT-4o on grounding; claim decomposition is non-optional; numerical

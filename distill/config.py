@@ -53,6 +53,10 @@ class DistillConfig(BaseSettings):
     xai_site_model: str = "grok-4.3"
     accordion_section_delay: int = 3
     accordion_section_model: str = "grok-4.3"
+    # Write-time claim-grounding hook (DISTILL_VERIFY): "warn" flags numeric
+    # claims the source receipt doesn't support and writes anyway; "off" skips
+    # the check. ("strict" -- refuse the write -- lands with the CLI flag.)
+    distill_verify: str = "warn"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
