@@ -36,14 +36,18 @@ def claude_md_cmd(
         autocompletion=_complete_topics,
     ),
     all_topics: bool = typer.Option(
-        False, "--all", help="Regenerate CLAUDE.md for every topic in the library."
+        False,
+        "--all",
+        help="Regenerate CLAUDE.md + AGENTS.md for every topic in the library.",
     ),
 ):
-    """Regenerate per-topic and library-root CLAUDE.md orientation files.
+    """Regenerate per-topic and library-root CLAUDE.md + AGENTS.md orientation files.
 
-    `CLAUDE.md` is the file coding agents (Claude Code, Cursor, others)
-    auto-load when they enter a directory; distillr writes one per topic and one
-    at the library root so an agent that `cd`s in gets immediate orientation.
+    Coding agents auto-load an orientation file when they enter a directory,
+    but the convention split by vendor: Claude Code reads `CLAUDE.md`; Codex,
+    Cursor, Gemini CLI and the cross-vendor AGENTS.md standard read
+    `AGENTS.md`. distillr writes identical content under both names, per topic
+    and at the library root, so any agent that `cd`s in gets oriented.
     """
     config = _logic.get_config()
     library_dir = config.library_dir
@@ -62,7 +66,8 @@ def claude_md_cmd(
                     written += 1
         lib = claude_md.write_library_claude_md(library_dir, now_iso=now_iso)
         console.print(
-            f"[green]Regenerated {written} topic CLAUDE.md file(s)[/green] + the library index."
+            f"[green]Regenerated {written} topic CLAUDE.md + AGENTS.md pair(s)[/green] "
+            "+ the library index."
         )
         console.print(f"  [dim]Library index: {lib}[/dim]")
         return

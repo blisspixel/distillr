@@ -1,16 +1,21 @@
-"""Generate agent-orientation ``CLAUDE.md`` files for the library and topics.
+"""Generate agent-orientation ``CLAUDE.md`` + ``AGENTS.md`` for the library and topics.
 
-Distillr is positioned as the persistent memory layer for AI agent workflows.
-The MCP server makes the corpus queryable for agents that speak MCP, but a large
-fraction of real agent traffic (Claude Code, Cursor, Codex CLI, generic coding
-agents) auto-loads ``CLAUDE.md`` from the working directory as its default
-context-discovery mechanism. An agent that ``cd``s into a topic directory should
-get immediate orientation instead of having to enumerate files.
+Distillr is the persistent research corpus for AI agent workflows. The MCP
+server makes the corpus queryable for agents that speak MCP, but a large
+fraction of real agent traffic auto-loads an orientation file from the working
+directory — and the convention split by vendor: Claude Code reads ``CLAUDE.md``;
+Codex, Cursor, Gemini CLI and the 30+ tools on the cross-vendor AGENTS.md
+standard read ``AGENTS.md`` (and ignore ``CLAUDE.md``). An agent that ``cd``s
+into a topic directory should get immediate orientation regardless of harness,
+so every write emits the same rendered content under **both** filenames.
+(Identical copies rather than an ``@AGENTS.md`` import shim: copies are
+self-contained in tools that don't follow imports, and the files are
+regenerated, never hand-maintained, so duplication costs nothing.)
 
 This module writes those orientation files:
 
-- ``library/topics/<topic>/CLAUDE.md`` summarizes one topic's corpus.
-- ``library/CLAUDE.md`` indexes every topic, one line each.
+- ``library/topics/<topic>/CLAUDE.md`` + ``AGENTS.md`` summarize one topic's corpus.
+- ``library/CLAUDE.md`` + ``AGENTS.md`` index every topic, one line each.
 
 Design discipline (foundational layer, same as the rest of ``distill.library``):
 
@@ -60,7 +65,14 @@ MCP_TOOLS: tuple[tuple[str, str], ...] = (
     ("concept_diff(topic, slug, ts_a='', ts_b='')", "structured diff of a note across versions"),
 )
 
-_INSIGHTS_GLOB = "*_Insights.md"
+# Insight artifact filename patterns, modern and legacy. Modern writes use
+# ``<slug>_Insights.md``; pre-0.7 libraries used bare ``insights.md`` and scan
+# artifacts used lowercase ``*_insights.md`` (which ``rglob`` matches
+# case-insensitively on Windows but not on Linux -- list it explicitly so
+# counts agree across platforms). Counting dedups by parent directory, so the
+# overlapping patterns cannot double-count a source.
+_INSIGHT_GLOBS: tuple[str, ...] = ("*_Insights.md", "*_insights.md", "insights.md")
+_SKIP_TOP_DIRS = frozenset({"concepts", "entities"})
 _CONCEPTS_JSONL = "concepts.jsonl"
 _ENTITIES_JSONL = "entities.jsonl"
 
@@ -92,28 +104,41 @@ _GENERATED_NOTE = (
 
 
 def count_topic_sources(topic_dir: Path) -> dict[str, int]:
-    """Count ingested sources by scanning for ``_Insights.md`` artifacts.
+    """Count ingested sources by scanning for insight artifacts.
 
-    Buckets by the top-level source directory each insight lives under:
-    ``papers/`` -> papers, ``channels/`` -> videos, ``sites/`` -> pages;
-    anything else counts toward ``other``. ``total`` is the sum. Pure
-    filesystem scan, tolerant of a missing topic directory (returns zeros).
+    One source per directory holding an insight file -- modern
+    ``<slug>_Insights.md`` or the pre-0.7 legacy names (the class the
+    dogfooded "0 sources" index bug hid: legacy-layout topics with real
+    corpora showed empty in the library index). Buckets by the top-level
+    source directory: ``papers/`` -> papers, ``channels/`` -> videos,
+    ``sites/`` -> pages; anything else counts toward ``other``.
+    Derived-artifact subtrees (``concepts/``, ``entities/``, any dot-prefixed
+    directory such as ``.history``) are skipped, matching
+    ``distill.library.insights.discover_insights``. Pure filesystem scan,
+    tolerant of a missing topic directory (returns zeros).
     """
     counts = {"papers": 0, "videos": 0, "pages": 0, "other": 0, "total": 0}
     if not topic_dir.is_dir():
         return counts
-    for insight in topic_dir.rglob(_INSIGHTS_GLOB):
-        parts = insight.relative_to(topic_dir).parts
-        top = parts[0] if parts else ""
-        if top == "papers":
-            counts["papers"] += 1
-        elif top == "channels":
-            counts["videos"] += 1
-        elif top == "sites":
-            counts["pages"] += 1
-        else:
-            counts["other"] += 1
-        counts["total"] += 1
+    seen_dirs: set[Path] = set()
+    for pattern in _INSIGHT_GLOBS:
+        for insight in topic_dir.rglob(pattern):
+            rel_parts = insight.relative_to(topic_dir).parts
+            top = rel_parts[0] if len(rel_parts) > 1 else ""
+            if top in _SKIP_TOP_DIRS or top.startswith("."):
+                continue
+            if insight.parent in seen_dirs:
+                continue
+            seen_dirs.add(insight.parent)
+            if top == "papers":
+                counts["papers"] += 1
+            elif top == "channels":
+                counts["videos"] += 1
+            elif top == "sites":
+                counts["pages"] += 1
+            else:
+                counts["other"] += 1
+            counts["total"] += 1
     return counts
 
 
@@ -314,8 +339,8 @@ def render_library_claude_md(topics_dir: Path, *, now_iso: str) -> str:
         lines.append(f"- **[[{topic}]]** (`topics/{topic}/`, {_sources_phrase(counts)}){tail}")
     lines += [
         "",
-        "Each topic directory has its own `CLAUDE.md` with orientation and example "
-        "queries. Last refreshed: " + now_iso + ".",
+        "Each topic directory has its own `CLAUDE.md` / `AGENTS.md` (identical content) "
+        "with orientation and example queries. Last refreshed: " + now_iso + ".",
         "",
         _GENERATED_NOTE,
         "",
@@ -351,24 +376,32 @@ def _atomic_write(path: Path, content: str) -> None:
 
 
 def write_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> Path | None:
-    """Write ``<topic_dir>/CLAUDE.md``. Returns ``None`` for an empty topic.
+    """Write ``<topic_dir>/CLAUDE.md`` + ``AGENTS.md``. Returns ``None`` for an empty topic.
 
     A topic with no synthesis and no analyzed sources is skipped (no orphan
-    orientation file). Otherwise the file is rendered from existing artifacts
-    and atomically replaced.
+    orientation files). Otherwise the same rendered content is atomically
+    written under both filenames (see module docstring for why identical
+    copies). Returns the ``CLAUDE.md`` path for caller compatibility.
     """
     has_synth = find_artifact(topic_dir, "topic_synthesis", identity=topic).exists()
     if not has_synth and count_topic_sources(topic_dir)["total"] == 0:
         return None
+    content = render_topic_claude_md(topic_dir, topic, now_iso=now_iso)
     path = topic_dir / "CLAUDE.md"
-    _atomic_write(path, render_topic_claude_md(topic_dir, topic, now_iso=now_iso))
+    _atomic_write(path, content)
+    _atomic_write(topic_dir / "AGENTS.md", content)
     return path
 
 
 def write_library_claude_md(library_dir: Path, *, now_iso: str) -> Path:
-    """Write ``<library_dir>/CLAUDE.md`` indexing every topic. Always writes."""
+    """Write ``<library_dir>/CLAUDE.md`` + ``AGENTS.md`` indexing every topic. Always writes.
+
+    Returns the ``CLAUDE.md`` path for caller compatibility.
+    """
+    content = render_library_claude_md(library_dir / "topics", now_iso=now_iso)
     path = library_dir / "CLAUDE.md"
-    _atomic_write(path, render_library_claude_md(library_dir / "topics", now_iso=now_iso))
+    _atomic_write(path, content)
+    _atomic_write(library_dir / "AGENTS.md", content)
     return path
 
 

@@ -134,7 +134,7 @@ See [`docs/outputs.md`](docs/outputs.md) for what every artifact contains.
 
 ## Sample output
 
-*The excerpts below are synthetic examples: the file shapes, frontmatter fields, and section structure are exactly what distill writes, but the papers, authors, and numbers are invented for illustration. For a provenance-first tool that distinction matters, so it is stated.*
+*The excerpts below are synthetic examples: the file shapes, frontmatter fields, and section structure are exactly what distill writes, but the papers, authors, and numbers are invented for illustration. For a provenance-first tool that distinction matters, so it is stated. A **real, unedited example corpus** (6 papers on claim verification, $0.19 of analysis) ships in [`examples/`](examples/README.md).*
 
 A cross-paper `<topic>_Paper_Synthesis.md` (excerpt):
 
@@ -214,7 +214,9 @@ Distillr is built for two parallel agent-integration paths:
 
 Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
 
-**Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. From 0.8.4 forward, every topic directory ships an auto-generated `CLAUDE.md` orientation file that agents which auto-load it (Claude Code, Cursor, others) pick up automatically. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
+**Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard — so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
+
+There's also a canonical **Agent Skill** at [`skills/distill-corpus/SKILL.md`](skills/distill-corpus/SKILL.md) — one vendor-neutral file teaching an agent how to read the corpus and drive the CLI (drop it into `~/.claude/skills/` or `~/.agents/skills/`).
 
 ## Cost
 

@@ -1,0 +1,8 @@
+{
+  "goal": "Design a write-time claim verification hook for an LLM research pipeline: grounding extracted claims (numbers, named entities, dates) against source documents, claim decomposition, small local entailment checkers and hallucination detection models, citation faithfulness evaluation",
+  "lens": "research",
+  "audience": "",
+  "rigor": "balanced",
+  "quality_bar": "",
+  "budget_usd": null
+}

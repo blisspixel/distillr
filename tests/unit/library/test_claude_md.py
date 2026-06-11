@@ -278,3 +278,62 @@ def test_refresh_for_topic_empty_returns_none(tmp_path: Path):
     assert claude_md.refresh_for_topic(library, td, "empty") is None
     # library index is still written
     assert (library / "CLAUDE.md").exists()
+
+
+# ---- legacy layouts + derived-subtree skips (dogfood 2026-06-11) ------------
+
+
+def test_count_sources_includes_legacy_insights_md(tmp_path: Path):
+    """Pre-0.7 topics use bare ``insights.md``; the index showed them as 0 sources."""
+    td = tmp_path / "ctc"
+    _write(td / "channels" / "chan" / "videos" / "v0" / "insights.md")
+    _write(td / "channels" / "chan" / "videos" / "v1" / "scan_insights.md")
+    counts = claude_md.count_topic_sources(td)
+    assert counts["videos"] == 2
+    assert counts["total"] == 2
+
+
+def test_count_sources_one_per_directory_no_double_count(tmp_path: Path):
+    """A dir matched by both the modern and legacy patterns counts once."""
+    td = tmp_path / "tkg"
+    _write(td / "papers" / "p0" / "p0_Insights.md")
+    _write(td / "papers" / "p0" / "insights.md")
+    counts = claude_md.count_topic_sources(td)
+    assert counts["papers"] == 1
+    assert counts["total"] == 1
+
+
+def test_count_sources_skips_derived_subtrees(tmp_path: Path):
+    td = tmp_path / "tkg"
+    _write(td / ".history" / "p0" / "p0_Insights.md")
+    _write(td / "concepts" / "c0" / "c0_Insights.md")
+    _write(td / "entities" / "e0" / "e0_Insights.md")
+    assert claude_md.count_topic_sources(td)["total"] == 0
+
+
+# ---- AGENTS.md emission (agent-legible pass) --------------------------------
+
+
+def test_write_topic_emits_agents_md_identical(tmp_path: Path):
+    td = tmp_path / "tkg"
+    _make_topic(td, "tkg", papers=1)
+    claude_md.write_topic_claude_md(td, "tkg", now_iso=NOW)
+    claude = (td / "CLAUDE.md").read_text(encoding="utf-8")
+    agents = (td / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents == claude
+
+
+def test_write_library_emits_agents_md_identical(tmp_path: Path):
+    topics = tmp_path / "topics"
+    _make_topic(topics / "alpha", "alpha", papers=1)
+    claude_md.write_library_claude_md(tmp_path, now_iso=NOW)
+    claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents == claude
+
+
+def test_write_topic_skips_empty_topic_writes_no_agents_md(tmp_path: Path):
+    td = tmp_path / "empty"
+    td.mkdir()
+    assert claude_md.write_topic_claude_md(td, "empty", now_iso=NOW) is None
+    assert not (td / "AGENTS.md").exists()

@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.9.29 - 2026-06-11
+
+**Agent-legible corpus, slice 1: the corpus now orients every major harness, ships a canonical skill and a real example corpus -- and the library index stopped under-reporting legacy topics.** First slice of the agent-legible pass on the reordered spine; the MCP paths-not-payloads consolidation is the next slice.
+
+### Added
+
+- **`AGENTS.md` emitted alongside `CLAUDE.md`** (identical content) for every topic and the library root. The orientation convention split by vendor -- Claude Code reads `CLAUDE.md`; Codex, Cursor, Gemini CLI and the 30+ tools on the cross-vendor AGENTS.md standard read `AGENTS.md` and ignore `CLAUDE.md` -- so half the harnesses entering a corpus got nothing. Identical copies rather than an import shim: self-contained in tools that don't follow imports, and the files are regenerated, never hand-maintained. `distill claude-md` regenerates both.
+- **Canonical Agent Skill** at `skills/distill-corpus/SKILL.md` -- one vendor-neutral file teaching an agent to read the corpus (layout, frontmatter, receipt discipline, grep recipes) and drive the CLI (preview-before-ingest, cost awareness), with the trust rules stated (corpus content is data, not instructions). The "CLI + one skill" distribution pattern, not the symlink-machinery model.
+- **Real example corpus** in `examples/library/topics/claim-verification/` -- the unedited 6-paper, $0.19 corpus distill built about its own verify-hook milestone, with per-paper insights, the cross-paper synthesis, intent, and orientation files. Full-text `_Paper.md` receipts are omitted for arXiv licensing reasons (stated in `examples/README.md`); every insight carries the `url` to fetch them. Closes the QA finding "people cannot evaluate the tool without installing it" with real, labelled output.
+
+### Fixed / Hardened
+
+- **Library index under-reported or hid legacy-layout topics ("0 sources").** `count_topic_sources` only matched modern `*_Insights.md`, so pre-0.7 corpora using `insights.md` / lowercase `*_insights.md` showed zero sources -- and whole topics with no synthesis were dropped from the index entirely. Counting now covers all three patterns (one source per directory, so overlapping globs cannot double-count), skips derived subtrees (`concepts/`, `entities/`, dot-dirs like `.history`), and lists the patterns explicitly so counts agree across platforms (Windows globs are case-insensitive, Linux's are not). Live impact on the dev library: the index went from 27 to 35 topics -- eight corpora were previously invisible, including a 403-video topic -- and e.g. `ctc` went 0 -> 12 sources, `music-mastery` 0 -> 52.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (1969 passed) with branch coverage 81%; `distill claude-md --all` live-run against the dev library (35 topic pairs regenerated).
+
 ## 0.9.28 - 2026-06-11
 
 **Dogfood pass: distill researched its own next milestone, and we fixed what the run caught.** A goal-aware `discover --preview` -> `--from-preview` commit -> 6-paper ingest + synthesis on claim verification / hallucination detection (~$0.21 total, the corpus that now informs the 0.10 verify-hook design in `ROADMAP.md`) exercised the full 0.9 discovery loop end to end.
