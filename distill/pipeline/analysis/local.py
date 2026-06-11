@@ -14,10 +14,13 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from rich.console import Console
+
 from distill.config import DistillConfig
 from distill.ingestors.local import extract_local_document
 from distill.library.paths import (
     ProvenanceFields,
+    artifact_path,
     base_frontmatter,
     slugify_title,
     tags_for,
@@ -29,6 +32,7 @@ from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_prompt
 
+console = Console()
 logger = logging.getLogger(__name__)
 
 __all__ = ["LocalIngestResult", "ingest_local_file"]
@@ -83,26 +87,43 @@ def ingest_local_file(
                     call_type="local",
                 )
             )
-        insights_path = write_markdown_artifact(
+        # Write-time verify hook: ground numeric claims against the extracted
+        # document text *before* committing; strict mode refuses the write.
+        from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+        outcome = run_verify_hook(
             local_dir,
-            "insights",
             response.text,
+            doc.text,
+            mode=resolve_verify_mode(config.distill_verify),
             identity=slug,
-            frontmatter=base_frontmatter(
-                artifact_type="insights",
-                title=doc.title,
-                topic=topic,
-                source="local",
-                source_id=path.name,
-                tags=tags_for(topic, "local"),
-                provenance=ProvenanceFields(
-                    model=response.model,
-                    model_version=response.model,
-                    temperature=0.0,
-                    prompt_id="analysis.local.v1",
-                ),
-            ),
+            insight_name=artifact_path(local_dir, "insights", identity=slug).name,
+            source_name=document_path.name,
         )
+        if outcome is not None and not outcome.report.ok:
+            style = "red" if outcome.refused else "yellow"
+            console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
+        if outcome is None or not outcome.refused:
+            insights_path = write_markdown_artifact(
+                local_dir,
+                "insights",
+                response.text,
+                identity=slug,
+                frontmatter=base_frontmatter(
+                    artifact_type="insights",
+                    title=doc.title,
+                    topic=topic,
+                    source="local",
+                    source_id=path.name,
+                    tags=tags_for(topic, "local"),
+                    provenance=ProvenanceFields(
+                        model=response.model,
+                        model_version=response.model,
+                        temperature=0.0,
+                        prompt_id="analysis.local.v1",
+                    ),
+                ),
+            )
 
     return LocalIngestResult(
         document_path=document_path,

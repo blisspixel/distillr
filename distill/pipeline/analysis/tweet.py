@@ -21,6 +21,7 @@ from distill.ingestors.x.media import download_video
 from distill.ingestors.x.syndication import TweetRecord, fetch_tweet
 from distill.library.paths import (
     ProvenanceFields,
+    artifact_path,
     base_frontmatter,
     sanitize_path_component,
     slugify_title,
@@ -256,6 +257,42 @@ def analyze_tweet(
     return apply_frontmatter(body, frontmatter)
 
 
+def _verified_insights_write(
+    post_dir: Path,
+    insights_text: str,
+    tweet_md: str,
+    *,
+    config: DistillConfig,
+    identity: str,
+    source_name: str,
+    skipped: list[str],
+) -> Path | None:
+    """Run the write-time verify hook, then write the insight unless refused.
+
+    The receipt is the tweet markdown itself (post text + inline transcript);
+    under strict mode an insight with unsupported numeric claims is not
+    written and the refusal joins the run's skip reasons.
+    """
+    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    outcome = run_verify_hook(
+        post_dir,
+        insights_text,
+        tweet_md,
+        mode=resolve_verify_mode(config.distill_verify),
+        identity=identity,
+        insight_name=artifact_path(post_dir, "insights", identity=identity).name,
+        source_name=source_name,
+    )
+    if outcome is not None and not outcome.report.ok:
+        style = "red" if outcome.refused else "yellow"
+        console.print(f"        [{style}]{outcome.summary_line}[/{style}]")
+    if outcome is not None and outcome.refused:
+        skipped.append(outcome.summary_line)
+        return None
+    return write_markdown_artifact(post_dir, "insights", insights_text, identity=identity)
+
+
 def ingest_tweet(
     url_or_id: str,
     topic: str,
@@ -389,11 +426,14 @@ def ingest_tweet(
         insights_text = apply_frontmatter(
             insights_text, {"topic": topic, "tags": tags_for(topic, "x")}
         )
-        insights_path = write_markdown_artifact(
+        insights_path = _verified_insights_write(
             post_dir,
-            "insights",
             insights_text,
+            tweet_md,
+            config=config,
             identity=identity,
+            source_name=tweet_path.name,
+            skipped=skipped,
         )
 
     return IngestedTweet(

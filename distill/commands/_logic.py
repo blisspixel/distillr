@@ -711,6 +711,25 @@ def get_config() -> DistillConfig:
     return DistillConfig()
 
 
+def _apply_verify_override(verify: str) -> None:
+    """Apply a per-run ``--verify`` override (process-scoped env set).
+
+    ``get_config()`` builds a fresh ``DistillConfig`` per call (including
+    inside the injected learning flows), so the override is applied where
+    every instantiation reads it: the process environment. ``load_dotenv``
+    never overwrites existing env vars, so the flag wins over ``.env``.
+    Unlike a typo'd env var (which degrades to ``warn``), a typo'd *flag* is
+    an interactive mistake the user can fix immediately -- it errors loudly.
+    """
+    if not verify:
+        return
+    value = verify.strip().lower()
+    if value not in {"warn", "strict", "off"}:
+        console.print(f"[red]Unknown --verify '{verify}'.[/red] Choose: warn, strict, off.")
+        raise typer.Exit(1)
+    os.environ["DISTILL_VERIFY"] = value
+
+
 def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
     """Load the persisted CorpusIntent for a topic, if any.
 
@@ -2681,6 +2700,12 @@ def latest_cmd(
         "academic | general. Persists as the topic's intent so later ingests inherit it. "
         "Default: the topic's saved intent, else neutral 'general'.",
     ),
+    verify: str = typer.Option(
+        "",
+        "--verify",
+        help="Claim-grounding mode for this run: warn | strict | off "
+        "(default: the DISTILL_VERIFY setting, else warn).",
+    ),
     top_by_date: bool = typer.Option(
         False,
         "--top-by-date",
@@ -2718,6 +2743,7 @@ def latest_cmd(
             f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS_WITH_OFF)}."
         )
         raise typer.Exit(1)
+    _apply_verify_override(verify)
     # --top-by-date is the user saying "I want the N most recent uploads, period."
     # Force-disable LLM rerank and query expansion so chronological mode does
     # not quietly spend tokens on ranking/search variants it will ignore.
@@ -7559,6 +7585,26 @@ def _process_site_seed(  # noqa: C901 — legacy, will refactor
             insights = analyze_site_page(
                 page_obj, config, tracker=tracker, intent=_resolve_intent(config, seed.topic)
             )
+
+            # Write-time verify hook: ground numeric claims against the page
+            # content receipt *before* committing; strict mode refuses.
+            from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+            outcome = run_verify_hook(
+                page_dir,
+                insights,
+                page_document,
+                mode=resolve_verify_mode(config.distill_verify),
+                insight_name=insights_path.name,
+                source_name=content_path.name,
+            )
+            if outcome is not None and not outcome.report.ok:
+                style = "red" if outcome.refused else "yellow"
+                console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
+            if outcome is not None and outcome.refused:
+                summary.add_issue("verify", outcome.summary_line, context=page_obj.url)
+                continue
+
             insights_path = write_markdown_artifact(
                 page_dir,
                 "insights",
@@ -7645,6 +7691,25 @@ def _write_paper_artifacts(
         },
     )
     write_markdown_artifact(paper_dir, "paper", paper_doc, frontmatter=paper_frontmatter)
+    # Write-time verify hook: ground the insight's numeric claims against the
+    # paper text receipt *before* committing it; strict mode refuses the write.
+    from distill.library.paths import artifact_filename
+    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    outcome = run_verify_hook(
+        paper_dir,
+        insights,
+        paper_doc,
+        mode=resolve_verify_mode(config.distill_verify),
+        insight_name=artifact_filename(paper_dir.name, "insights"),
+        source_name=artifact_filename(paper_dir.name, "paper"),
+    )
+    if outcome is not None and not outcome.report.ok:
+        style = "red" if outcome.refused else "yellow"
+        console.print(f"    [{style}]{outcome.summary_line}[/{style}]")
+    if outcome is not None and outcome.refused:
+        return paper_dir
+
     write_markdown_artifact(
         paper_dir,
         "insights",
@@ -7656,27 +7721,6 @@ def _write_paper_artifacts(
             "legacy_filename": "insights.md",
         },
     )
-
-    # Write-time verify hook: ground the insight's numeric claims against the
-    # paper text receipt; flags land in the _Verify.json sidecar.
-    from distill.library.paths import artifact_filename
-    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
-
-    verified = run_verify_hook(
-        paper_dir,
-        insights,
-        paper_doc,
-        mode=resolve_verify_mode(config.distill_verify),
-        insight_name=artifact_filename(paper_dir.name, "insights"),
-        source_name=artifact_filename(paper_dir.name, "paper"),
-    )
-    if verified is not None and not verified[0].ok:
-        report, sidecar = verified
-        console.print(
-            f"    [yellow]verify: {len(report.unsupported)}/{report.checked} numeric "
-            f"claim(s) lack source support -- see {sidecar.name}[/yellow]"
-        )
-
     return paper_dir
 
 
@@ -7778,6 +7822,12 @@ def papers(  # noqa: C901 — legacy, will refactor
         "academic | general. Persists as the topic's intent so later ingests inherit it. "
         "Default: the topic's saved intent, else neutral 'general'.",
     ),
+    verify: str = typer.Option(
+        "",
+        "--verify",
+        help="Claim-grounding mode for this run: warn | strict | off "
+        "(default: the DISTILL_VERIFY setting, else warn).",
+    ),
     preview: bool = typer.Option(
         False,
         "--preview",
@@ -7800,6 +7850,7 @@ def papers(  # noqa: C901 — legacy, will refactor
             f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS_WITH_OFF)}."
         )
         raise typer.Exit(1)
+    _apply_verify_override(verify)
 
     config = get_config()
     _require_api_key(config.xai_api_key, "XAI_API_KEY required for paper analysis")
@@ -8289,6 +8340,12 @@ def discover(  # noqa: C901 — legacy, will refactor
         "academic | general. Default: inferred from the goal. Persisted as the topic's intent so "
         "later ingests inherit it.",
     ),
+    verify: str = typer.Option(
+        "",
+        "--verify",
+        help="Claim-grounding mode for this run: warn | strict | off "
+        "(default: the DISTILL_VERIFY setting, else warn).",
+    ),
     preview: bool = typer.Option(
         False, "--preview", help="Show the goal-ranked plan without ingesting"
     ),
@@ -8325,6 +8382,7 @@ def discover(  # noqa: C901 — legacy, will refactor
     if rigor not in RIGOR_LEVELS:
         console.print(f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS)}.")
         raise typer.Exit(1)
+    _apply_verify_override(verify)
     if papers_only and videos_only:
         console.print(
             "[red]--papers-only and --videos-only are mutually exclusive. "

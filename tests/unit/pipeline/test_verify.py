@@ -115,8 +115,9 @@ class TestModeResolution:
         assert resolve_verify_mode("") == "warn"
         assert resolve_verify_mode("bogus") == "warn"
 
-    def test_strict_degrades_to_warn_until_implemented(self):
-        assert resolve_verify_mode("strict") == "warn"
+    def test_strict_is_honored(self):
+        assert resolve_verify_mode("strict") == "strict"
+        assert resolve_verify_mode(" STRICT ") == "strict"
 
 
 # ---- sidecar + hook ----------------------------------------------------------
@@ -142,20 +143,34 @@ class TestSidecarAndHook:
     def test_hook_empty_source_writes_nothing(self, tmp_path):
         assert run_verify_hook(tmp_path, "x 99.9", "   ", mode="warn") is None
 
-    def test_hook_warn_mode_returns_report_and_writes_sidecar(self, tmp_path):
-        result = run_verify_hook(tmp_path, "Scores 99.9.", "has 72.6", mode="warn")
-        assert result is not None
-        report, sidecar = result
-        assert not report.ok
-        assert sidecar.exists()
+    def test_hook_warn_mode_returns_outcome_and_writes_sidecar(self, tmp_path):
+        outcome = run_verify_hook(tmp_path, "Scores 99.9.", "has 72.6", mode="warn")
+        assert outcome is not None
+        assert not outcome.report.ok
+        assert outcome.sidecar.exists()
+        assert not outcome.refused  # warn never refuses
+        assert "lack source support" in outcome.summary_line
 
     def test_hook_clean_insight_still_writes_positive_sidecar(self, tmp_path):
-        result = run_verify_hook(tmp_path, "Scores 72.6 MRR.", "scores 72.6", mode="warn")
-        assert result is not None
-        report, sidecar = result
-        assert report.ok
-        data = json.loads(sidecar.read_text(encoding="utf-8"))
+        outcome = run_verify_hook(tmp_path, "Scores 72.6 MRR.", "scores 72.6", mode="warn")
+        assert outcome is not None
+        assert outcome.report.ok
+        data = json.loads(outcome.sidecar.read_text(encoding="utf-8"))
         assert data["unsupported"] == []
+
+    def test_hook_strict_with_flags_refuses(self, tmp_path):
+        outcome = run_verify_hook(
+            tmp_path, "Scores 99.9.", "has 72.6", mode="strict", insight_name="x_Insights.md"
+        )
+        assert outcome is not None
+        assert outcome.refused
+        assert "refused x_Insights.md" in outcome.summary_line
+        assert outcome.sidecar.exists()  # the sidecar records why
+
+    def test_hook_strict_clean_does_not_refuse(self, tmp_path):
+        outcome = run_verify_hook(tmp_path, "Scores 72.6.", "has 72.6", mode="strict")
+        assert outcome is not None
+        assert not outcome.refused
 
 
 # ---- wiring: paper emit path -------------------------------------------------
@@ -202,6 +217,99 @@ def test_paper_write_verify_off_skips_sidecar(tmp_path, monkeypatch):
     )
 
     assert list(paper_dir.glob("*_Verify.json")) == []
+
+
+def test_paper_write_strict_refuses_insight_but_keeps_receipt(tmp_path):
+    """Strict mode: the unsupported insight is NOT committed; the paper doc
+    (the receipt) and the sidecar (the why) still are."""
+    from distill import _cli_impl
+    from distill.config import DistillConfig
+    from distill.ingestors.papers.arxiv import PaperRecord
+
+    config = DistillConfig(
+        xai_api_key="t", distill_output_dir=tmp_path / "library", distill_verify="strict"
+    )
+    record = PaperRecord(paper_id="2601.00003v1", title="T3", abstract="a")
+
+    paper_dir = _cli_impl._write_paper_artifacts(
+        "tkg", record, config, insights="- Reaches 99.9 MRR.", document="reaches 72.6 MRR."
+    )
+
+    assert list(paper_dir.glob("*_Insights.md")) == []
+    assert list(paper_dir.glob("*_Paper.md"))  # receipt kept
+    sidecars = list(paper_dir.glob("*_Verify.json"))
+    assert len(sidecars) == 1
+    assert json.loads(sidecars[0].read_text(encoding="utf-8"))["mode"] == "strict"
+
+
+def test_paper_write_strict_clean_insight_is_written(tmp_path):
+    from distill import _cli_impl
+    from distill.config import DistillConfig
+    from distill.ingestors.papers.arxiv import PaperRecord
+
+    config = DistillConfig(
+        xai_api_key="t", distill_output_dir=tmp_path / "library", distill_verify="strict"
+    )
+    record = PaperRecord(paper_id="2601.00004v1", title="T4", abstract="a")
+
+    paper_dir = _cli_impl._write_paper_artifacts(
+        "tkg", record, config, insights="- Reaches 72.6 MRR.", document="reaches 72.6 MRR."
+    )
+
+    assert list(paper_dir.glob("*_Insights.md"))
+
+
+def test_local_ingest_strict_refuses_insight(tmp_path, monkeypatch):
+    """The local-file emit path honors strict refusal end to end."""
+    from distill.config import DistillConfig
+    from distill.llm.router import LLM_Response
+    from distill.pipeline.analysis import local as local_mod
+
+    monkeypatch.setattr(
+        local_mod,
+        "llm_call",
+        lambda rc, **kwargs: LLM_Response(
+            text="### Claims\n- The benchmark hits 99.9 accuracy.",
+            input_tokens=1,
+            output_tokens=1,
+            model="grok-4.3",
+        ),
+    )
+    config = DistillConfig(
+        xai_api_key="t", distill_output_dir=tmp_path / "library", distill_verify="strict"
+    )
+    doc = tmp_path / "notes.md"
+    doc.write_text("The benchmark hits 72.6 accuracy.", encoding="utf-8")
+
+    result = local_mod.ingest_local_file(doc, topic="tkg", config=config)
+
+    assert result.insights_path is None
+    local_dirs = list((config.library_dir / "topics" / "tkg" / "local").iterdir())
+    assert len(local_dirs) == 1
+    assert list(local_dirs[0].glob("*_Verify.json"))
+    assert list(local_dirs[0].glob("*_Content.md"))  # receipt kept
+
+
+def test_apply_verify_override_sets_env_and_rejects_typos(monkeypatch):
+    import typer
+
+    from distill import _cli_impl
+
+    monkeypatch.delenv("DISTILL_VERIFY", raising=False)
+    _cli_impl._apply_verify_override("STRICT")
+    import os
+
+    assert os.environ["DISTILL_VERIFY"] == "strict"
+    monkeypatch.delenv("DISTILL_VERIFY", raising=False)
+
+    _cli_impl._apply_verify_override("")  # no-op
+    assert "DISTILL_VERIFY" not in os.environ
+
+    try:
+        _cli_impl._apply_verify_override("bogus")
+        raise AssertionError("expected typer.Exit")
+    except typer.Exit:
+        pass
 
 
 def test_numeric_claim_is_frozen():

@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.10.1 - 2026-06-11
+
+**The deterministic verify tier is complete: every analysis emit path is grounded, and strict mode can refuse the write.**
+
+### Added
+
+- **Verify coverage on the remaining emit paths.** Site pages (grounded against the page content receipt), X posts (against the tweet markdown including the inline transcript), and local files (against the extracted document text) now run the same hook papers and videos got in 0.10.0. Every `_Insights.md` distill writes is now checked before it is committed.
+- **`strict` mode is real.** The hook runs *before* the artifact write on every path; under `DISTILL_VERIFY=strict` an insight with unsupported numeric claims is refused -- the receipt artifact and the `_Verify.json` sidecar (recording exactly why) are still written, the refusal lands in the run summary/skip reasons per path, and videos are not marked processed so a re-run retries them. Warn (the default) flags and writes; a flag means "support not found", not "false".
+- **`--verify warn|strict|off` on `papers`, `discover`, and `latest`.** Implemented as a process-scoped override of `DISTILL_VERIFY` so it reaches every nested flow without parameter threading; a typo'd *flag* errors loudly (an interactive mistake), while a typo'd *env var* still degrades safely to `warn` (an unattended loop must not abort or silently skip checking).
+- A shared `VerifyOutcome` (report + sidecar + refusal semantics + ready-made console line) so all five emit paths flag identically.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2006 passed) with branch coverage 81.3%; `--verify` flag smoke on the CLI surface.
+
 ## 0.10.0 - 2026-06-11
 
 **The verified corpus begins: a write-time claim-grounding hook on analysis emits (deterministic tier).** First slice of the 0.10 milestone; design grounded in the claim-verification dogfood corpus (`examples/`). Anthropic's agent loop is gather -> act -> *verify* -- distill now has the third leg: before an insight is committed to the library, its load-bearing numeric claims are checked against the source receipt in the same directory.

@@ -379,6 +379,36 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     custom_instructions=custom_instructions,
                     intent=_intent,
                 )
+        # Write-time verify hook: ground the insight's numeric claims against
+        # the transcript receipt *before* committing it; strict mode refuses.
+        from distill.library.paths import artifact_path as _artifact_path
+        from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+        outcome = run_verify_hook(
+            vid_dir,
+            insights,
+            transcript,
+            mode=resolve_verify_mode(config.distill_verify),
+            insight_name=_artifact_path(vid_dir, "insights").name,
+            source_name=transcript_file.name,
+        )
+        if outcome is not None and not outcome.report.ok:
+            style = "red" if outcome.refused else "yellow"
+            console.print(f"    [{style}]{outcome.summary_line}[/{style}]")
+        if outcome is not None and outcome.refused:
+            summary.add_result(
+                VideoResult(
+                    video.video_id,
+                    video.title,
+                    False,
+                    error=f"verify strict: {len(outcome.report.unsupported)} unsupported claim(s)",
+                    duration=video.duration,
+                )
+            )
+            if eta:
+                eta.tick(vid_start)
+            return False
+
         meta = {
             "video_id": video.video_id,
             "title": video.title,
@@ -410,25 +440,6 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 },
             ),
         )
-        # Write-time verify hook: ground the insight's numeric claims against
-        # the transcript receipt; flags land in the _Verify.json sidecar.
-        from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
-
-        verified = run_verify_hook(
-            vid_dir,
-            insights,
-            transcript,
-            mode=resolve_verify_mode(config.distill_verify),
-            insight_name=insights_file.name,
-            source_name=transcript_file.name,
-        )
-        if verified is not None and not verified[0].ok:
-            v_report, v_sidecar = verified
-            console.print(
-                f"    [yellow]verify: {len(v_report.unsupported)}/{v_report.checked} numeric "
-                f"claim(s) lack source support -- see {v_sidecar.name}[/yellow]"
-            )
-
         size = f"{transcript_bytes:,}b" if transcript_bytes else ""
         console.print(f"    [{_ACCENT}]done[/{_ACCENT}]  [dim]{size}[/dim]")
         if state is not None:

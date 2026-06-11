@@ -20,9 +20,10 @@ Scope of this tier is deliberate (the dogfood corpus in
 - A flag means "support not found", not "false": the sidecar carries the
   context line so a human or the audit surface can adjudicate.
 
-Modes (``DISTILL_VERIFY``): ``warn`` (default -- flag to console, write anyway),
-``off`` (skip the check). ``strict`` (refuse the write) lands with the CLI flag
-and checker tier in the next 0.10 slice.
+Modes (``DISTILL_VERIFY`` or ``--verify`` on the ingest commands): ``warn``
+(default -- flag to console, write anyway), ``strict`` (refuse to write an
+insight with unsupported claims; the sidecar still records why), ``off``
+(skip the check).
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ from distill.library.paths import artifact_path, atomic_write_text, strip_frontm
 
 __all__ = [
     "NumericClaim",
+    "VerifyOutcome",
     "VerifyReport",
     "extract_numeric_claims",
     "resolve_verify_mode",
@@ -211,13 +213,44 @@ def resolve_verify_mode(raw: str) -> str:
 
     A typo'd env var must not abort an ingest run (clean degradation), and
     quietly skipping verification would be worse than over-checking -- so the
-    safe fallback is ``warn``. ``strict`` maps to ``warn`` until the
-    refuse-the-write semantics land with the CLI flag.
+    safe fallback is ``warn``.
     """
     mode = (raw or "").strip().lower()
-    if mode == "off":
-        return "off"
+    if mode in {"off", "strict"}:
+        return mode
     return "warn"
+
+
+@dataclass(frozen=True)
+class VerifyOutcome:
+    """A completed verification pass: the report, its sidecar, and what to do.
+
+    ``refused`` is the strict-mode signal: the caller must not write the
+    insight artifact (the sidecar still exists, recording exactly why).
+    ``summary_line`` is the ready-made console message so every emit path
+    flags identically.
+    """
+
+    report: VerifyReport
+    sidecar: Path
+    insight_name: str = ""
+
+    @property
+    def refused(self) -> bool:
+        return self.report.mode == "strict" and not self.report.ok
+
+    @property
+    def summary_line(self) -> str:
+        n, total = len(self.report.unsupported), self.report.checked
+        if self.refused:
+            name = self.insight_name or "insight"
+            return (
+                f"verify strict: refused {name} -- {n}/{total} unsupported "
+                f"numeric claim(s); see {self.sidecar.name}"
+            )
+        return (
+            f"verify: {n}/{total} numeric claim(s) lack source support -- see {self.sidecar.name}"
+        )
 
 
 def run_verify_hook(
@@ -229,15 +262,16 @@ def run_verify_hook(
     identity: str | None = None,
     insight_name: str = "",
     source_name: str = "",
-) -> tuple[VerifyReport, Path] | None:
+) -> VerifyOutcome | None:
     """Verify one insight against its receipt and write the sidecar.
 
-    The single entry point analysis emit paths call. Returns ``None`` when the
-    mode is ``off`` or there is no source text to check against (nothing to
-    ground means nothing to claim about grounding); otherwise returns the
-    report and the sidecar path. Never raises on IO problems -- a verification
-    bookkeeping failure must not kill an ingest run -- but the report is still
-    returned so callers can surface flags.
+    The single entry point analysis emit paths call, *before* writing the
+    insight artifact (strict mode must be able to refuse the write). Returns
+    ``None`` when the mode is ``off`` or there is no source text to check
+    against (nothing to ground means nothing to claim about grounding).
+    Never raises on sidecar IO problems -- verification bookkeeping must not
+    kill an ingest run -- but the outcome is still returned so callers can
+    surface flags and honor refusal.
     """
     if mode == "off" or not source_text.strip():
         return None
@@ -251,7 +285,7 @@ def run_verify_hook(
             insight_name=insight_name,
             source_name=source_name,
         )
-    return report, path
+    return VerifyOutcome(report=report, sidecar=path, insight_name=insight_name)
 
 
 def write_verify_sidecar(
