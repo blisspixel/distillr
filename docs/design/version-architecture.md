@@ -1,6 +1,6 @@
 # Version architecture: 0.x -> 1.0 -> 2.0 -> 3.0
 
-Status: design / north star. The near-term spine (releases, milestones,
+Status: design / vision. The near-term spine (releases, milestones,
 quality gates) lives in [`../../ROADMAP.md`](../../ROADMAP.md) and stays the
 operational source of truth; this document is the longer horizon -- what each
 major version *promises*, in what order, and where the detail for each piece

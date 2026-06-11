@@ -1,6 +1,6 @@
 # Distill: agentic & exceptional on any topic — master refinement plan
 
-Status: design / RFC. The north-star plan for turning distill from a linear,
+Status: design / RFC. The vision plan for turning distill from a linear,
 single-shot, fixed-persona pipeline into a **goal-driven, adaptive** research
 system that produces better output on *any* topic — research, competitive intel,
 academic, or hobby.
@@ -32,7 +32,7 @@ Be precise about the word "agentic" — most of this doc is still plan, not buil
 So today's honest claim: **same core process, materially better and more
 goal-aware outputs — not an autonomous loop.**
 
-## The one-line goal (north star, not today's state)
+## The one-line goal (the vision, not today's state)
 
 A user declares an *intent* and distill **reconciles a corpus toward it** —
 discovering, analyzing, verifying, synthesizing, re-searching until it is good
