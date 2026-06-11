@@ -88,7 +88,14 @@ so refreshes, audits, and the orchestrator all read the same desired state.
 **Why it generalizes:** the intent is the *only* thing that should differ between a
 physics corpus and a competitive-intel corpus. Make it explicit and everything
 downstream can adapt.
-**Phase:** 1 (foundation; everything else reads it).
+**Phase:** 1 (foundation; everything else reads it). Shipped 0.9.24/0.9.25.
+**Follow-up (with the P4 loop work): intent-driven source-mix policy.** Today the
+papers/videos/sites mix per goal is emergent — whatever search returns, shaped by
+the rerank's complementarity score. `CorpusIntent` already knows the lens and
+rigor, so `discover` could derive a deliberate mix policy from it: a research goal
+weights papers + expert lectures; a "current social view" goal weights X + recent
+YouTube; a vendor evaluation weights official docs. A refinement *inside*
+`discover` (per-source quota weighting before the rerank slice), no new surface.
 
 ### P2 — Adaptive analysis lens (kill the hardcoded persona)
 **Problem:** F1. One sales persona for all topics.
