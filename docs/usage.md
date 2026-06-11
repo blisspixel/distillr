@@ -458,12 +458,38 @@ distill status                                      # quick library overview
 distill doctor                                      # check API keys + system health
 distill doctor --update                             # upgrade yt-dlp via pip
 distill costs                                       # cost history across runs
-distill health ai                                   # audit stale syntheses + thin artifacts
+distill health ai                                   # fast console view: stale syntheses + thin artifacts
+distill audit ai                                    # full trust report -> ai_Audit.md + action menu
+distill audit all --report-only                     # every topic, no prompts (for scheduled runs)
 
 # Maintenance
 distill migrate                                     # rename legacy ID-based video dirs
 distill cleanup                                     # delete orphaned Gemini File Search stores
 ```
+
+### Claim verification (the verify hook)
+
+Every analysis emit (papers, videos, site pages, X posts, local files) grounds
+the insight's numeric claims (decimals, percents, counts with separators,
+money, years) against the source receipt in the same directory before the
+artifact is committed, writing a `<stem>_Verify.json` sidecar either way --
+positive evidence ("checked 11, supported 11") as well as flags. A flag means
+*support not found*, not *false*: the sidecar carries the context line so you
+(or `distill audit`) can adjudicate.
+
+Modes, via the `DISTILL_VERIFY` env var or `--verify` on `papers` / `discover`
+/ `latest`:
+
+```bash
+distill papers "..." --topic t --verify strict      # refuse to write a flagged insight
+DISTILL_VERIFY=off distill latest "..."             # skip the check for this run
+# default: warn -- flag to console, write anyway
+```
+
+Strict mode keeps the receipt and the sidecar, records the refusal in the run
+summary, and leaves videos unprocessed so a re-run retries them. The
+deterministic tier checks numbers only; named-entity/prose claims await the
+local entailment-checker tier ([roadmap](../ROADMAP.md)).
 
 ### yt-dlp staleness preflight
 

@@ -138,6 +138,11 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 - **`library/library_Latest_Changes.md`** — Library-level rollup
 - **`library/library_Watch_Alerts.md`** — Digest of notable changes
 
+## Verification sidecars and audit reports (0.10)
+
+- **`<stem>_Verify.json`** — written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from "never checked".
+- **`library/topics/<topic>/<topic>_Audit.md`** — written by `distill audit`: verification-coverage rollup, stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
+
 ## Standard YAML frontmatter
 
 Every generated Markdown artifact starts with a YAML block intended for Markdown knowledge-base tools, Dataview-style database plugins, importers, and AI assistants:
