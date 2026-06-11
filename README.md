@@ -48,7 +48,9 @@ Three kinds of tools orbit this space, and distill is deliberately none of them:
 
 The short version: those are **report and search layers**; distill is the **corpus layer underneath repeated research** — capture, per-source insights, cross-source synthesis, refresh, receipts. And plain Markdown is the substrate, not the moat: anyone can write Markdown. The moat is the acquisition-and-maintenance loop that fills it and keeps it current.
 
-That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base — you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Nothing is locked in anything.
+That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base — you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Reports and briefs also export to Word for stakeholder delivery (`distill export <topic> --what report`). Nothing is locked in anything.
+
+One honest scoping note: distill is a terminal tool for people comfortable installing a Python CLI and setting two API keys (or running a local model). If you want a one-click app, this isn't that — and the corpus it builds is plain files precisely so the tools you already use can be the interface.
 
 ## What you get
 
