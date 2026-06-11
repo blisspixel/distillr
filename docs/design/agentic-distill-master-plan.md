@@ -1,21 +1,43 @@
 # Distill: agentic & exceptional on any topic — master refinement plan
 
 Status: design / RFC. The north-star plan for turning distill from a linear,
-single-shot, fixed-persona pipeline into a **goal-driven, adaptive,
-self-verifying, convergent** research system that produces exceptional output on
-*any* topic — research, competitive intel, academic, or hobby.
+single-shot, fixed-persona pipeline into a **goal-driven, adaptive** research
+system that produces better output on *any* topic — research, competitive intel,
+academic, or hobby.
 
 Companion spec: [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) is the
 detailed design for Pillar 3 (the synthesis loop); this doc is the whole-pipeline
 plan that contains it. Anchored to [`../invariants.md`](../invariants.md) and the
 [`../../ROADMAP.md`](../../ROADMAP.md).
 
-## The one-line goal
+## Status: shipped vs. planned (read this first)
 
-A user declares an *intent* ("build me a corpus that does X, for this audience, at
-this rigor") and distill **reconciles a corpus toward that intent on its own** —
-discovering, analyzing, verifying, synthesizing, and re-searching until the corpus
-is good enough, then keeping it that way. Agentic IaC for knowledge.
+Be precise about the word "agentic" — most of this doc is still plan, not built.
+
+- **Shipped (0.9.24 / 0.9.25), and it improves the *core* pipeline in place — no
+  new workflow commands:**
+  - **Better analyze output** — per-source insights are written through a lens
+    that fits the topic (`research`/`practitioner`/`competitive`/`academic`/
+    `general`) instead of one hardcoded enterprise persona (Pillar 2).
+  - **Goal-aware end-to-end** — a persisted `CorpusIntent` flows into analysis,
+    so the pipeline is no longer goal-blind after discovery (Pillar 1).
+  - **Deeper synthesize output** — the thesis / white-space rung (Pillar 3).
+  - **Graceful failure** — clean provider errors + opt-in local fallback (Pillar 7).
+- **NOT built — still plan:** the self-correcting *loop* (verify → find gaps →
+  re-search → re-synthesize → converge). Today each pipeline step still runs a
+  single, smarter, goal-shaped pass. "Agentic" in the autonomous-loop sense is
+  Pillars 4-6/8 below, and when built it lands as **flags on the existing
+  commands** (`discover` / `synthesize` / `audit`), not new verbs.
+
+So today's honest claim: **same core process, materially better and more
+goal-aware outputs — not an autonomous loop.**
+
+## The one-line goal (north star, not today's state)
+
+A user declares an *intent* and distill **reconciles a corpus toward it** —
+discovering, analyzing, verifying, synthesizing, re-searching until it is good
+enough, then keeping it that way. The self-correcting half of this is the planned
+work above, not what ships today.
 
 ## What's actually wrong today (grounded in the 2026-06-09 dogfood)
 
@@ -148,18 +170,25 @@ instead of restarting; partial state is detected, not re-paid.
 degrade, not detonate.
 **Phase:** 2 (the error + fallback fix is small and was just demonstrated).
 
-### P8 — The orchestrator: declarative topic recipe (the capstone)
-**Problem:** the above are pieces; the user asked for an *agentic IaC flow*.
-**Change:** A declarative **topic recipe** (`<topic>.recipe.yml`: the
-`CorpusIntent` + sources + cadence) plus `distill steward <recipe>` (≈ `apply`)
-that reconciles the corpus to the recipe end-to-end: discover-loop → analyze
-(lens-aware) → verify → deepen (thesis) → audit. `--dry-run` prints the plan/diff
-(the IaC `plan` verb); a scheduled `steward` is the "leave it running" mode. The
-recipe is a portable, shareable artifact (the roadmap's "shareable goal-files"
-idea, realized).
-**Why it generalizes:** one declarative command that takes any intent to an
-exceptional, maintained corpus — that *is* the product reframe.
-**Phase:** 4 (composes 1-3).
+### P8 — The agentic flow lives in the existing commands (NOT a new command)
+**Problem:** the pieces above should make the *core* process more agentic. They
+must NOT become a new top-level verb or orchestration layer. distill's value is a
+small surface; a `distill steward` / `distill apply` / `distill deepen` command
+would be scope creep (and "steward" also collides with the separate OpenSteward
+project — distill stewards a *corpus*, that's all).
+**Change:** Nothing new to learn. The goal-file already *is* the declarative
+recipe, and `discover --goal-file` already runs it; `discover --from-gaps` already
+loops on coverage gaps. The reconcile / verify / thesis behavior folds into the
+commands that already own each step:
+- discovery loop → inside `discover` (it already re-ranks against the goal and can
+  gap-fill),
+- verify + thesis rung → inside `synthesize` / `resynthesize`,
+- the assess/critique step → inside the planned `audit`.
+So "more agentic" shows up in the tools people already use, with no new command.
+**Why:** the core capture → analyze → synthesize flow self-corrects; the surface
+stays the same size.
+**Phase:** 4 — and only the parts that earn their keep; the goal-file + `discover`
+already cover the common case.
 
 ## Phased build order (each phase shippable, dependency-ordered)
 
@@ -171,8 +200,9 @@ exceptional, maintained corpus — that *is* the product reframe.
   + P7 robustness. Makes the corpus trustworthy and runs survivable.
 - **Phase 3 — Agentic loops:** P4 reconcile engine → discovery loop + synthesis
   loop. Distill now self-drives to convergence.
-- **Phase 4 — The steward:** P8 declarative recipe + `distill steward`. The
-  capstone that ties intent → maintained corpus into one agentic command.
+- **Phase 4 — Fold the loop into existing commands:** discovery loop inside
+  `discover`, verify + thesis inside `synthesize`/`resynthesize`, the assess step
+  inside `audit`. No new command; the core process just self-corrects.
 
 ## Invariant compliance (must not break the charter)
 
@@ -194,8 +224,8 @@ exceptional, maintained corpus — that *is* the product reframe.
   space. (P3)
 - Every load-bearing number in a synthesis is grounded to a receipt or flagged.
   (P5)
-- Re-running `steward` on a converged corpus is a near-free no-op; re-running with
-  a new source ingests only the delta. (P4/P6)
+- Re-running `discover` / `synthesize` on a converged corpus is a near-free no-op;
+  re-running with a new source ingests only the delta. (P4/P6)
 - A provider outage degrades to local or a clean message, never a traceback, and
   resumes. (P7)
 - One declarative recipe takes any intent from empty to an exceptional, maintained

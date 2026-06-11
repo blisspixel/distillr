@@ -153,18 +153,23 @@ Framing for the roadmap: this is the milestone that turns distill from a
 verify loop Anthropic's Agent SDK formalizes, applied to research synthesis. It
 deserves to be named as the thing those four items add up to, not scattered.
 
-## Surface
+## Surface — no new command
 
-- **`distill deepen <topic>`** — run the reconciliation loop to convergence.
-  Flags: `--max-iterations`, `--budget <usd>`, `--rigor`, `--style`,
-  `--dry-run` (show the plan/diff without applying — the IaC `plan` verb),
-  `--no-discover` (verify + re-synthesize only, no new ingest).
-- **Artifacts**: `<topic>_Facts.md` (or keep `claims.jsonl` + a rendered view),
-  `<topic>_Synthesis.md` (patterns + insights, today's output), and a new
-  `<topic>_Thesis.md` (the top rung). Plus a `<topic>_Deepen_Ledger.md` run
-  ledger: queries issued, sources ingested, claims verified/flagged, thesis
-  deltas per iteration. The ledger is the IaC "apply log."
-- **MCP parity**: a `deepen` tool and a `thesis(topic)` read tool.
+This is an *enhancement to the existing commands*, not a new verb. The thesis rung
+already ships inside `synthesize` / `resynthesize` (0.9.24). The reconciliation
+loop, when built, lives in the commands that already own each step:
+
+- the **discovery loop** (verify gaps → gap-fill) inside `discover` (it already
+  re-ranks against the goal and has `--from-gaps`),
+- **verify + re-synthesize** inside `synthesize` / `resynthesize` (e.g. a
+  `--verify`/`--deepen` flag and an iteration/budget bound), rather than a separate
+  `distill deepen`,
+- the **assess/critique** step inside the planned `audit`.
+- **Artifacts**: the thesis rung is already a section in the corpus synthesis; a
+  separate `<topic>_Thesis.md` and a run ledger are optional, only if the loop is
+  actually built.
+
+The point is that "more agentic" must not grow distill's command surface.
 
 ## Build plan (phased, each shippable)
 
