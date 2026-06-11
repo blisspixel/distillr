@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.11.0 - 2026-06-11
+
+**Source breadth begins: GitHub repositories as a first-class source.** For any OSS tool the repo itself is the primary source, not the marketing page -- and the open-source field stops at concatenation (Repomix, Gitingest pack files into prompts); structured repo *understanding* existed only in closed products (DeepWiki, Copilot Spaces). Confirmed white space, now occupied.
+
+### Added
+
+- **`distill ingest <github-url>`** routes github.com to the new adapter: three REST calls against the fixed `api.github.com` base through the SSRF-hardened fetcher (metadata, README base64, five most recent releases; `GITHUB_TOKEN` lifts rate limits when present, never required) into `library/topics/<topic>/repos/<slug>/` -- a `Repo.md` receipt (verifiable metadata block, releases, README) plus a structured `_Insights.md`: what it does and how, maturity/activity signals grounded in the metadata (never estimated), when to use it and when not, and the limits its own README admits. Full adapter-contract compliance: deterministic public-input capture, conventional artifacts with provenance (`prompt_id: analysis.github_repo.v1`), cost-tracked (`repo_analysis`), untrusted-content rules in the prompt.
+- **Verify-gated like every other emit path** -- numeric claims in the repo insight are grounded against the receipt before commit (strict refusal honored), and `distill audit` rolls repo insights into the coverage report automatically.
+
+### Validated live ($0.01)
+
+- `distill ingest https://github.com/vectara/hallucination-leaderboard --topic claim-verification` (fittingly: the home of the HHEM checker the entailment tier will use): real API capture at 3,274 stars, analysis for $0.01, **14/14 numeric claims grounded** in the receipt, and the audit immediately counted the new source (9 insights, 3 verified clean).
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2033 passed) with branch coverage 81.3%.
+
 ## 0.10.2 - 2026-06-11
 
 **`distill audit` -- the trust surface. One deterministic, free run; one report artifact; an action menu.** Completes the packaging half of the 0.10 milestone (the entailment-checker tier remains).
