@@ -17,7 +17,7 @@ pip install distillr
 distill papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
-That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this:
+That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this (illustrative run; see the labelled sample-output note below):
 
 ```
 Papers: temporal knowledge graph
@@ -44,8 +44,11 @@ Three kinds of tools orbit this space, and distill is deliberately none of them:
 - **Deep Research oracles** (ChatGPT, Gemini, Perplexity) are excellent at one-shot answers — and the work evaporates after each session. No corpus, no receipts you can re-check, nothing that compounds. Distill is the engine under that pattern: every run leaves transcripts, extracted paper text, per-source insights, and cross-source synthesis on disk, refreshable on a cadence.
 - **Grounded notebooks** (NotebookLM) keep a persistent corpus, but in a silo: you find and feed the sources by hand, and the corpus exports to Google Docs/Sheets only. Distill *finds* the sources against your goal, and the corpus is plain files you own.
 - **LLM-wiki maintainers** (the post-Karpathy wave of agent-curated Markdown vaults) assume you already have the content and tidy it. Distill is the acquisition half they leave out — goal-aware discovery across papers, videos, sites, and X, transcript-grade capture, and provenance on every claim — producing exactly the kind of vault those tools maintain.
+- **Academic literature tools** (Elicit, Semantic Scholar, scite, Consensus) are stronger for pure paper search, citation graphs, and systematic review. Distill treats papers as one source type inside a broader corpus that also holds talks, vendor docs, and posts.
 
-The premise behind all of it: **the corpus is the product.** That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base — you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Nothing is locked in anything.
+The short version: those are **report and search layers**; distill is the **corpus layer underneath repeated research** — capture, per-source insights, cross-source synthesis, refresh, receipts. And plain Markdown is the substrate, not the moat: anyone can write Markdown. The moat is the acquisition-and-maintenance loop that fills it and keeps it current.
+
+That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base — you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Nothing is locked in anything.
 
 ## What you get
 
@@ -128,6 +131,8 @@ You build a topic library over time. Ingest once, refresh on a cadence, generate
 See [`docs/outputs.md`](docs/outputs.md) for what every artifact contains.
 
 ## Sample output
+
+*The excerpts below are synthetic examples: the file shapes, frontmatter fields, and section structure are exactly what distill writes, but the papers, authors, and numbers are invented for illustration. For a provenance-first tool that distinction matters, so it is stated.*
 
 A cross-paper `<topic>_Paper_Synthesis.md` (excerpt):
 
@@ -214,6 +219,12 @@ Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/
 On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor — xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The only cheaper path is running analysis on a **local model** (Ollama/LM Studio) — `distill eval --models grok-4.3,<local-model>` measures the cost × quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
+
+## Reliability and trust boundaries
+
+What's enforced (every release clears the same CI gate): ~1,950 tests at 81% **branch** coverage (floor ratchets up-only toward the 1.0 ≥95% gate), ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries — contributors never burn API spend; live integration tests are marked and opt-in.
+
+Trust boundaries, stated plainly: everything ingested (transcripts, pages, PDFs, tweets) is treated as **untrusted input** — injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root. Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures — failures degrade with messages, not corrupted corpora. Analysis output is LLM-generated and can err; provenance fields on every artifact exist so you can check receipts, and a write-time claim-verification gate is the next major milestone ([roadmap](ROADMAP.md#0100--verified-corpus-run-time-verify--self-maintaining-audit)). Full posture: [`docs/SECURITY.md`](docs/SECURITY.md) and the [security section of the roadmap](ROADMAP.md#security-posture).
 
 ## Docs
 

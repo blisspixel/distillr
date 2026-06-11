@@ -4,11 +4,12 @@ High-level direction. Shipped work lives in [`docs/CHANGELOG.md`](docs/CHANGELOG
 
 ## Current shape
 
-Distill is a source-to-intelligence platform covering three source types:
+Distill is a source-to-intelligence platform covering four source types, labelled by maturity:
 
-- **YouTube** — channels, topic searches, videos, Shorts
-- **Websites** — vendor sites, research hubs, curated URL sets
-- **arXiv papers** — phrase-matched search, full-PDF extraction, cross-paper synthesis
+- **YouTube** (stable) — channels, topic searches, videos, Shorts
+- **Websites** (stable) — vendor sites, research hubs, curated URL sets
+- **arXiv papers** (stable) — phrase-matched search, full-PDF extraction, cross-paper synthesis
+- **X posts** (beta) — `distill ingest <tweet-url>` via the public syndication endpoint, with local-first Whisper transcription for native video; thread expansion and consolidated cost plumbing land with the 0.11 breadth pass
 
 `distill discover` is the goal-aware front door across papers, videos, and curated website seed files. The next refinement for docs-heavy research is app-native trusted-site discovery on allowlisted domains, so workflows like "prefer Microsoft docs + Microsoft channels" do not require hand-curated page seeds.
 
@@ -86,6 +87,7 @@ The corpus already *is* the interface — plain Markdown, stable filenames, fron
 - **One canonical SKILL.md.** A single vendor-neutral skill ("how to query and curate a distillr corpus: grep these directories, read this frontmatter, run these `distill` commands") published in the repo for users to drop into `~/.claude/skills/` / `~/.agents/skills`. This is the "CLI + skill" distribution pattern the ecosystem converged on — not the symlink-machinery model, which stays rejected.
 - **MCP surface consolidation (the §11 just-in-time item, promoted).** Collapse the 22-tool surface toward a few workflow-shaped tools whose default response is ranked `(path, preview, score)` tuples with a `read_insight(path, section?)` drill-down — paths-not-payloads. Full-body returns stay available on explicit request. Deprioritize the 12 resources / 4 prompts (no evidence mainstream clients use either). The MCP server's job: the corpus from claude.ai web/mobile and hosted agents; the files' job: everything local.
 - **Positioning refresh.** README/docs language moves from "memory layer" to "verifiable research corpus / the production CLI for the LLM-wiki pattern"; state the NotebookLM contrast (their corpus exports to Docs/Sheets only; ours *is* files) and cite the Anthropic/Letta/Karpathy convergence rather than arguing it.
+- **Proof artifacts (pulled forward from the 1.0 presentation pass).** External QA's unanimous top finding: nobody can evaluate the tool without installing it. Ship the cheap proof slice now — a small public example corpus (a real, labelled `library/topics/<example>/` tree in the repo or a release asset), 3–4 screenshots/GIFs (terminal run, dashboard, a synthesis open in Obsidian), and one terminal recording of a `discover --preview -> ingest` run. Demo provenance must be unambiguous: every sample is labelled real-or-synthetic. The full README hero/screenshot polish stays in 1.0; this is the minimum evidence layer.
 
 Why this comes first: it is the cheapest milestone on the spine, it is the distribution channel for everything after it, and it is time-sensitive — the pattern is famous now, the clones are weeks from adding pipelines, and the framing ("the rigorous one") is still unclaimed.
 

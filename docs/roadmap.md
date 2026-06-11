@@ -6,11 +6,12 @@ Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md) (the 0.1.0 entry covers the
 
 ## Current Direction
 
-Distill is a source-to-intelligence platform with three active source types:
+Distill is a source-to-intelligence platform with four source types (three stable, one beta):
 
-- YouTube for staying current on channels and topics
-- Websites for vendor, lab, and research-corpus distillation
-- arXiv papers, using the same capture -> analyze -> synthesize -> report pipeline
+- YouTube for staying current on channels and topics (stable)
+- Websites for vendor, lab, and research-corpus distillation (stable)
+- arXiv papers, using the same capture -> analyze -> synthesize -> report pipeline (stable)
+- X posts via `distill ingest <tweet-url>` (beta: syndication-endpoint capture + Whisper transcription shipped; thread expansion and cost-plumbing consolidation land with the breadth pass)
 
 Current UX priorities:
 
@@ -72,6 +73,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Make the command model more intent-first around staying current, learning fast, and reporting
 - [~] Intent-first aliases or a lightweight wizard for recurring jobs such as monitor, ramp-up, and report
 - [ ] Make source-set inputs feel first-class instead of relying on one-off command choreography
+- [ ] **Zero-key tour / demo path** (from external QA 2026-06-11): a documented first-run that works before any API key — e.g. `--preview` against bundled example seeds plus the public example corpus from the proof-artifacts pass — so evaluation doesn't require setup. Constraint: no new verb (keep-surface-small); this is docs + bundled fixtures + existing flags, not a `demo` command.
 - [ ] First-class research profiles for "prefer these channels + these trusted domains + this goal file" workflows so recurring analyst use cases (for example Microsoft-only research) do not require rebuilding the same command and seed setup by hand
 - [ ] Clarify corpus outputs and how to inspect or export them for downstream use
 - [~] Export / handoff presets for downstream agent roles and RAG pipelines (for example zipped MD/JSON bundles with clean metadata, confidence tags, and structured fields that consuming agents can act on without parsing prose)
@@ -133,6 +135,7 @@ be moved to `CHANGELOG.md` on next release).
 
 The build harness, not the corpus. The adopted/adapted/declined rationale lives in [`../ROADMAP.md`](../ROADMAP.md#engineering-standards-adopted-adapted-declined); the shipped toolchain releases (0.8.3 and the harden series) are in [`CHANGELOG.md`](CHANGELOG.md). This is the itemized backlog of what remains.
 
+- [ ] **Finish the `_logic.py` decomposition, with removal criteria** (next structural harden pass). `distill/commands/_logic.py` is still the center of gravity — one ~8k-line module holding the full implementation of every CLI command, with `_cli_impl` as a compatibility alias. External code QA (2026-06-11) called it the largest maintainability risk visible from the code surface, and it is the original 0.7 code-health item left unfinished. Target: command modules that call workflow services; the shims are acceptable only during migration, so define the removal criteria up front (every command in its own `commands/<verb>.py`, `_logic.py` deleted, import-linter contract keeping command modules from importing each other) and ratchet toward them one command group per pass.
 - [~] **Branch coverage ratchet** (0.8.3 → 1.0) — `[tool.coverage.run] branch = true`, `--cov-fail-under` set to the measured branch baseline (floor 79) and ratcheted up-only toward the 1.0 flat ≥95% gate.
 - [ ] **Full Pyright-strict ratchet** (1.0) — complete the per-package climb 0.8.3 begins (`distill/llm/` already strict-blocking); no `# type: ignore` without an inline reason.
 - [ ] **Parse, don't validate — strict domain types at every boundary** (1.0) — parse every external input (MCP tool arguments, frontmatter, adapter/local-file ingest, LLM structured outputs) once at the boundary into a rich domain type (`strict=True, extra='forbid'` Pydantic model, `NewType`, or frozen dataclass); core logic never sees raw primitives.
