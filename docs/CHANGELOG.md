@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
+- **Agent-legible corpus pass (0.9 series)** — emit AGENTS.md alongside the per-topic CLAUDE.md, one canonical SKILL.md teaching agents the CLI, MCP surface consolidated to a few workflow-shaped paths-not-payloads tools, positioning refresh ("verifiable research corpus", not "memory layer"). See the reordered spine in [`ROADMAP.md`](../ROADMAP.md#milestones-at-a-glance) (2026-06-11 research sweep).
 - **1.0 verification depth** — Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.

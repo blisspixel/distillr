@@ -34,14 +34,17 @@ structured intelligence without duplicating ingestion work. The priorities below
 build toward that: tighter outputs, cleaner handoffs, and interoperability with
 orchestration layers.
 
-**Competitive context (May 2026).** The "local-first LLM Wiki" space exploded
-post-Karpathy (April 2026). SwarmVault (~400★, desktop app + RAG), obsidian-wiki
-(~1,000★, skill-based agent integration), and Lacuna-wiki (MCP-first, DuckDB) are
-the closest tools. Distillr's differentiators are goal-aware multi-source discovery,
-structured per-item insights + cross-source synthesis, and strict no-database
-pure-Markdown discipline. The biggest risk is getting out-marketed on ease-of-agent-
-integration; the biggest opportunity is doubling down on researcher rigor that
-GUI/RAG-heavy tools can't match. See [`../ROADMAP.md#competitive-landscape-may-2026`](../ROADMAP.md#competitive-landscape-may-2026) for the full analysis.
+**Competitive context (June 2026).** The "local-first LLM Wiki" space saturated
+within weeks of Karpathy's April gist (35k-star official Obsidian skills, an
+11k-star desktop wiki app); the vault-maintenance fight is not distillr's to win.
+What stayed uncrowded — verified in a June 2026 primary-source sweep — is the
+acquisition front-half (goal-aware multi-source discovery, transcript-grade
+pipelines) and *verified* trust (claim grounding against receipts, contradiction
+surfacing). The plain-files-over-RAG architecture itself is now
+mainstream-endorsed (Anthropic, Letta's pivot, Karpathy). The spine was
+reordered accordingly: agent legibility promoted out of 1.0 polish, the verify
+hook pulled forward to 0.10, breadth behind the trust gate at 0.11. See
+[`../ROADMAP.md#competitive-landscape-june-2026`](../ROADMAP.md#competitive-landscape-june-2026) for the full analysis.
 
 Legend: `[ ]` not started, `[~]` partial / in progress, `[x]` shipped (item will
 be moved to `CHANGELOG.md` on next release).
@@ -92,7 +95,7 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 6. Papers as a first-class source type
 
-- [ ] Semantic Scholar and Google Scholar integration for recency + citation-weighted ranking signals beyond arXiv.
+- [ ] OpenAlex (CC0, free dumps) and/or Ai2 Asta Scientific Corpus MCP integration for recency + citation-weighted ranking signals beyond arXiv. (Previously scoped as Semantic Scholar + Google Scholar; the classic Semantic Scholar API has been changelog-silent since late 2024 with restrictive keys, so OpenAlex/Asta are the durable paths.)
 - [ ] **Chunk-and-rerank paper analysis (effective-context-aware).** Today the full PDF (truncated at 100K chars) is dumped into a single Grok prompt, which is exactly the "Dump Truck" anti-pattern that LongBench v2 / RULER / ∞Bench / STRING benchmarks show degrades sharply when relevant evidence sits mid-document. Replace with: section-aware chunker (use PDF headings; fall back to page+window slicing); per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"); small-window analysis loop assembling `<paper-slug>_Insights.md` from focused passes. Outcome: better fidelity on long papers without higher token spend; per-prompt token counts as a first-class telemetry surface.
 - [ ] **Lift the 100K char cap once chunking is in place.** The cap was a defensive band-aid for the dump-truck pattern; once analysis runs over chunks, full long papers can be processed without prompt blowups.
 
@@ -107,7 +110,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Transcript validation — flag suspiciously short transcripts (<500 chars for a 30-minute video) as likely failed captions
 - [ ] Structured logging — proper log levels, log to file for post-run review, debug mode flag
 - [ ] **`distill audit` — one bundled health surface with a report artifact and action menu** (the self-maintaining-audit milestone). Today the pieces are scattered and console-only: `distill health` walks stale syntheses / thin artifacts / contested concepts, `distill doctor --links` runs the broken-backlink check separately, and `research_gaps(topic)` (MCP) computes coverage gaps but isn't wired in. Compose them into a single `distill audit <topic|all>` that (a) runs all of the above plus artifact-level stale-detection, (b) writes the result to a `<topic>_Audit.md` artifact instead of only printing, and (c) offers a phase-2 action menu (apply link/style fixes, draft missing concept-note stubs, hand gaps to gap-driven `discover`). `--report-only` for scheduled runs. This is the Karpathy "monthly health check" pattern; near-zero new capability, high packaging value against GUI-heavy competitors.
-- [ ] **Output->input loop (`distill ask`)** (0.10, gated on the run-time verify hook). Every output today (`report`, `research-brief`, `synthesize`) is terminal — nothing re-ingests it, and there's no lightweight query verb. Add `distill ask "<q>" --topic <t>`: query the corpus via the `find_insights` path, write a provenance-stamped `_Answer.md` with `[[backlinks]]`, and `--save` to re-ingest a liked answer as a first-class source so the corpus compounds with use. Re-ingest **must** run the verify hook first (refuse/quarantine unsupported load-bearing claims) — this is what prevents the "answer quietly builds on a mistake" failure the pattern is prone to. MCP `ask` tool for parity.
+- [ ] **Output->input loop (`distill ask`)** (0.12, gated on the 0.10 run-time verify hook). Every output today (`report`, `research-brief`, `synthesize`) is terminal — nothing re-ingests it, and there's no lightweight query verb. Add `distill ask "<q>" --topic <t>`: query the corpus via the `find_insights` path, write a provenance-stamped `_Answer.md` with `[[backlinks]]`, and `--save` to re-ingest a liked answer as a first-class source so the corpus compounds with use. Re-ingest **must** run the verify hook first (refuse/quarantine unsupported load-bearing claims) — this is what prevents the "answer quietly builds on a mistake" failure the pattern is prone to. MCP `ask` tool for parity.
 
 ### 8. Expand cross-source intelligence
 
@@ -120,7 +123,7 @@ be moved to `CHANGELOG.md` on next release).
 ### 9. Ongoing operation and access
 
 - [ ] Scheduled refresh — cron/task-scheduler integration for hands-off weekly updates
-- [ ] **Scheduled audit** (0.10, depends on the self-maintaining audit) — the same scheduler runs `distill audit --report-only` on a cadence (the video's "monthly health check" automation), landing a dated audit artifact so corpus drift, contradictions, and gaps surface without manual prompting.
+- [ ] **Scheduled audit** (0.12, depends on the 0.10 self-maintaining audit) — the same scheduler runs `distill audit --report-only` on a cadence (the video's "monthly health check" automation), landing a dated audit artifact so corpus drift, contradictions, and gaps surface without manual prompting.
 - [ ] Native notification integrations for daily briefings, weekly digests, and important-change alerts
 - [ ] Web UI — browse the library, read insights, compare channels in a browser
 
@@ -204,7 +207,7 @@ Items below are concrete plumbing work that protects output quality and
 controls token spend as the corpus grows. See [`architecture.md#context-engineering-principles`](architecture.md#context-engineering-principles)
 for the principles these items derive from.
 
-- [ ] **Just-in-time MCP context (paths-not-payloads).** Today `distill-mcp` returns full markdown files; a 50KB synthesis artifact blows the consuming agent's window for what may be a one-line lookup. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. Add `find_insights(topic, query)` returning ranked `(path, one_line_preview, score)` tuples; add `read_insight(path, section?)` for drill-down. Existing tools that return full bodies stay (for explicit "give me the file" calls) but stop being the default response shape.
+- [ ] **Just-in-time MCP context (paths-not-payloads)** — *promoted into the agent-legible 0.9 pass (see `../ROADMAP.md`), bundled with consolidating the 22-tool surface down to a few workflow-shaped tools.* Today `distill-mcp` returns full markdown files; a 50KB synthesis artifact blows the consuming agent's window for what may be a one-line lookup. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. Add `find_insights(topic, query)` returning ranked `(path, one_line_preview, score)` tuples; add `read_insight(path, section?)` for drill-down. Existing tools that return full bodies stay (for explicit "give me the file" calls) but stop being the default response shape. At ~500-1,000 schema tokens per always-loaded tool, the consolidation matters as much as the response shape.
 - [ ] **Compaction in the 4-phase report pipeline.** Phase 2 (section writing) and Phase 4 (QA) currently carry full prior-section context forward to enforce no-repeat. Switch to high-recall-then-precision compaction (the Anthropic pattern) and OpenAI-style opaque continuation items where the API supports them. Goal: significant token-spend reduction on long reports with no loss of cross-section coherence. Measure via the per-prompt token telemetry from section 2.
 - [ ] **Effective-context regression tests.** Add a small fixture suite that runs paper-analysis / synthesis / report prompts against representative long inputs and asserts the output covers known mid-document evidence (a "lost-in-the-middle" smoke test). Wire into CI so regressions surface in PRs rather than user reports.
 - [ ] **Tool-result clearing in iterative loops.** Long-running watch and discover loops accumulate tool-call results that are no longer relevant. Implement Anthropic's "clear stale tool results" pattern as a baseline compaction step before each new LLM call in those loops.
