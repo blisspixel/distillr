@@ -65,7 +65,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
 - [ ] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem
-- [x] **Preview-table rendering at narrow widths** (dogfood 2026-06-11; fixed 0.9.31): below 110 columns the goal-ranked discover view renders as a stacked per-item list (title/rationale wrap at word boundaries, untrusted text markup-escaped) instead of a 7-column table that character-folds mid-word. Wide consoles keep the table.
+- [x] **Preview-table rendering at narrow widths** — fixed 0.9.31 (stacked layout below 110 columns); detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [ ] **Library `CLAUDE.md` source counts wrong for legacy-layout topics** (dogfood 2026-06-11): topics with synthesis text show "0 sources" in the auto-generated library index (e.g. older video-only topics), so an agent reading the index would skip non-empty corpora. Audit the counter against both layouts — this surface is the agent-discoverability front door, promoted in the agent-legible pass.
 - [ ] **Per-prompt token telemetry.** Log prompt-input length, output length, and elapsed time *per call* (not just per run) to `library/cost_log.jsonl` — needed to make context-engineering improvements (chunked paper analysis, report-pipeline compaction) measurable. Surface a "biggest prompts" view in `distill costs` so prompt budget regressions are visible.
 
@@ -116,7 +116,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Insights quality check — heuristic validation (all expected sections present? suspiciously short?)
 - [~] Transcript validation — flag suspiciously short transcripts (<500 chars for a 30-minute video) as likely failed captions
 - [ ] Structured logging — proper log levels, log to file for post-run review, debug mode flag
-- [x] **`distill audit` — one bundled health surface with a report artifact and action menu** (shipped 0.10.2, including the verify-sidecar coverage rollup; scheduled cadence lands in 0.12). Original spec: Today the pieces are scattered and console-only: `distill health` walks stale syntheses / thin artifacts / contested concepts, `distill doctor --links` runs the broken-backlink check separately, and `research_gaps(topic)` (MCP) computes coverage gaps but isn't wired in. Compose them into a single `distill audit <topic|all>` that (a) runs all of the above plus artifact-level stale-detection, (b) writes the result to a `<topic>_Audit.md` artifact instead of only printing, and (c) offers a phase-2 action menu (apply link/style fixes, draft missing concept-note stubs, hand gaps to gap-driven `discover`). `--report-only` for scheduled runs. This is the Karpathy "monthly health check" pattern; near-zero new capability, high packaging value against GUI-heavy competitors.
+- [x] **`distill audit`** — shipped 0.10.2 with the verify-sidecar coverage rollup, report artifact, and spend-safe action menu; detail in [`CHANGELOG.md`](CHANGELOG.md). Scheduled cadence lands in 0.12.
 - [ ] **Output->input loop (`distill ask`)** (0.12, gated on the 0.10 run-time verify hook). Every output today (`report`, `research-brief`, `synthesize`) is terminal — nothing re-ingests it, and there's no lightweight query verb. Add `distill ask "<q>" --topic <t>`: query the corpus via the `find_insights` path, write a provenance-stamped `_Answer.md` with `[[backlinks]]`, and `--save` to re-ingest a liked answer as a first-class source so the corpus compounds with use. Re-ingest **must** run the verify hook first (refuse/quarantine unsupported load-bearing claims) — this is what prevents the "answer quietly builds on a mistake" failure the pattern is prone to. MCP `ask` tool for parity.
 
 ### 8. Expand cross-source intelligence
@@ -234,29 +234,12 @@ ingest selections were not always legible enough. The pieces shipped in 0.2.0
 deeper design questions that surfaced in those sessions and deserve their own
 write-ups before implementation.
 
-- [x] **Rerank determinism: preview → ingest commit-by-ID.** Shipped as both
-  design options: (a) the preview cache (`library/.preview_cache/<id>.json` +
-  `--from-preview <id>` replays the exact previewed selection), and (b)
-  temperature=0 pinned on the discover rerank, query generation, and the shared
-  papers/videos rerank calls (completed 0.9.27). 0.9.27 also added the
-  corpus-aware half of determinism (master-plan P6): `discover` and `papers`
-  drop candidates the topic already contains before the rerank, so re-runs and
-  gap-driven discovery converge instead of re-suggesting ingested items.
-- [x] **Calibration: unify or differentiate the discover and latest rerank
-  prompts.** Shipped as deliberate differentiation: per-source rigor threshold
-  tables (`RIGOR_THRESHOLDS` / `PAPER_RIGOR_THRESHOLDS` /
-  `VIDEO_RIGOR_THRESHOLDS` in `distill/pipeline/discovery.py`, with the
-  documented 0/33-videos case as the calibration rationale) plus the `--rigor
-  strict|balanced|loose` knob on `discover` and `--rigor ...|off` on
-  `papers` / `latest`.
-- [x] **Real cost estimator that reads candidate metadata.** Shipped:
-  `estimate_discover_items` scales by per-video duration and paper/site counts,
-  and self-calibrates against historical `cost_log.jsonl` rows
-  (`load_cost_calibration`); surfaced in the preview and sizing-menu flows.
-- [x] **Preview-as-primary-flow UX.** Shipped: a fresh topic defaults to the
-  size-then-approve menu (cliff-detected "excellent / including good /
-  everything worthwhile" cuts with per-option spend), and `--preview` saves a
-  replayable snapshot id.
+_Shipped from this section (detail in [`CHANGELOG.md`](CHANGELOG.md)): rerank
+determinism / commit-by-ID + corpus-aware dedup (0.9.27 and prior); per-source
+rigor calibration with the `--rigor` knob; the metadata-aware self-calibrating
+cost estimator; preview-as-default sizing; synthesis register styles with PhD
+default; the anti-AI-slop register guard._
+
 - [~] **Page-level candidate identity for website-heavy discover runs.** Partly
   shipped: preview rows for site seeds now show the seed label or a
   host+path-derived title plus the hostname (`_site_candidate_title`).
@@ -274,38 +257,3 @@ write-ups before implementation.
   should show current phase, current item, completed/failed counts by source
   type, and explicit reasons when a source stalls or skips (for example
   transcript rate limiting, empty crawl, reuse of unchanged site insights).
-- [x] **Synthesis register styles, with PhD-level as the new default.** Shipped
-  (the 0.9 register-styles release; see CHANGELOG). Original write-up: Today
-  `distill synthesize` is a single-call Grok 4.20 corpus-only pass with a
-  prompt calibrated for an executive-briefing register. The pattern that
-  surfaced during the CTC research session — produce thorough per-source
-  analyses first, then load *all* of them into one Grok 4.20 prompt and ask
-  for graduate-level cross-document analysis (open questions, methodological
-  tensions, citation-style claim attribution, evidence map, open-vs-settled
-  scoreboard) — should be the *default* `distill synthesize` output, since
-  it's what the corpus is actually built for. Demote the executive-briefing
-  variant to an explicit opt-in (`--style exec` or `distill synth-exec`).
-  Plan: (a) extract synthesis register prompts into a `--style` registry
-  (`phd` default, `exec` for one-page briefing, `pop` for accessible
-  explainer, room for more — `landscape`, `disagreements-only`, etc.); (b)
-  context-budget preflight that enumerates what fits in Grok 4.20's ~256K
-  window (typically 5–25 papers' worth of insights at 7–10 KB each), warns
-  on overflow, and lets the user choose to drop low-confidence items rather
-  than truncate; (c) per-claim source attribution in the PhD output so
-  readers can trace each finding to a specific `_Insights.md` artifact; (d) distinct
-  artifact filenames (`synthesis_phd.md` / `synthesis_exec.md` / etc.) so
-  styles coexist and can be compared side by side. This is the opposite
-  trade-off from `roadmap.md` item 6 (chunk-and-rerank): chunking handles
-  "input is too long for one prompt"; deep synthesis handles "every claim
-  needs to be visible at once for cross-document reasoning."
-- [x] **Anti-AI-slop register guard** — shipped (0.9 series, companion to the register styles
-  above). `prompts/shared.py` carries `ANTI_HALLUCINATION_RULES`,
-  `PROVENANCE_RULES`, and a one-line `FORMATTING_RULES` (no em-dashes) — rules
-  about *correctness*, not *prose register*. The human-read outputs (briefings,
-  reports, the synthesis register styles) benefit from an explicit
-  `REGISTER_RULES` constant grounded in the Wikipedia "signs of AI writing"
-  list: no filler superlatives, no "delve / it's worth noting / in conclusion"
-  scaffolding, consistent UK/US spelling, no hedge-stacking. Thread it into the
-  synthesis/report/brief prompts. Anti-hallucination keeps the corpus correct;
-  this keeps the prose publishable. Prompt-layer constant + wiring, no new
-  dependency.

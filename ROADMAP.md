@@ -55,6 +55,8 @@ Distillr should not chase that crowd — the vault-maintenance fight is lost to 
 
 ## Path to 1.0
 
+The longer horizon — what 1.0, 2.0, and 3.0 each *promise*, the maybe-later parking lot, and the design-doc ledger — lives in [`docs/design/version-architecture.md`](docs/design/version-architecture.md); this section remains the operational spine to 1.0.
+
 The goal of 1.0 is a stable, MCP-first research tool that an external agent can drive without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar — each one unblocks the next. Four themes run through every version:
 
 - **MCP-first.** Every workflow has a clean tool surface for agents, not just a CLI for humans. CLI commands are thin wrappers over the same library calls the MCP server uses.
