@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.10.2 - 2026-06-11
+
+**`distill audit` -- the trust surface. One deterministic, free run; one report artifact; an action menu.** Completes the packaging half of the 0.10 milestone (the entailment-checker tier remains).
+
+### Added
+
+- **`distill audit <topic|all> [--report-only]`** composes the signals distill already produces into one run that writes `<topic>_Audit.md` (standard frontmatter; a corpus artifact agents can read): the **verification coverage rollup** from the 0.10 `_Verify.json` sidecars -- verified clean / flagged (with the claim, kind, and context line) / never checked, per insight; stale-synthesis and thin-artifact warnings; contested concepts; broken wiki-links (one library-wide scan, bucketed per topic); and coverage gaps with suggested next actions including the gap-driven `discover --from-gaps` command. No model calls anywhere -- an audit run is free.
+- **Action menu (interactive runs only):** fix broken links and regenerate orientation files execute directly (deterministic, free); gap-fill discovery is *printed as a command, never auto-run* -- the audit must not spend money on its own. `--report-only` is the scheduled/loop-friendly path. `distill health` remains the fast console-only view.
+- New `audit` artifact type; `distill/pipeline/audit.py` (pure assembly + render) and `distill/commands/audit.py` (own module -- the command layer keeps shrinking away from `_logic.py`).
+
+### Validated live (total spend $0.29)
+
+- A real 2-paper ingest into the claim-verification corpus exercised the 0.10.1 verify hook against actual grok-4.3 output: 16 numeric claims extracted across the two insights, **16/16 grounded in the source PDFs** -- clean sidecars, zero false positives on this run.
+- `distill audit claim-verification --report-only` then ran free and produced the report exactly as designed: 8 insights, 2 verified clean (the hook-era pair), 6 correctly reported as never-checked (pre-hook), links clean, coverage gaps with the gap-driven discover command suggested.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2013 passed) with branch coverage 81%.
+
 ## 0.10.1 - 2026-06-11
 
 **The deterministic verify tier is complete: every analysis emit path is grounded, and strict mode can refuse the write.**

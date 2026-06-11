@@ -71,6 +71,7 @@ def atomic_write_text(path: Path, content: str) -> None:
 
 
 _ARTIFACT_SUFFIXES = {
+    "audit": "Audit",
     "brief": "Brief",
     "content": "Content",
     "corpus_synthesis": "Corpus_Synthesis",
@@ -94,6 +95,7 @@ _ARTIFACT_SUFFIXES = {
 }
 
 _LEGACY_NAMES = {
+    "audit": "audit.md",
     "brief": "brief.md",
     "content": "content.md",
     "corpus_synthesis": "corpus_synthesis.md",
