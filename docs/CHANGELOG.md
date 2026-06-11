@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.9.31 - 2026-06-11
+
+**Fixed the dogfooded narrow-console preview rendering.**
+
+### Fixed / Hardened
+
+- **Goal-ranked discover view no longer character-folds mid-word at common console widths.** The 7-column table starved its columns below ~110 columns and rich folded words apart ("fact-checkin g numerical") -- in exactly the view a spend-approval decision reads. Below the threshold the shortlist now renders as a stacked per-item list (title and rationale wrap at word boundaries across the full width); wide consoles keep the table. Interpolated titles/rationales are markup-escaped in the stacked path -- they are untrusted-derived text, and a stray `[...]` must render literally rather than parse as rich markup.
+- Screenshots/GIF/recording proof artifacts deliberately deferred to the 1.0 presentation pass (capture the finished thing, not a moving target); the text-first README plus the real example corpus is the interim stance.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (1971 passed) with branch coverage 81%.
+
 ## 0.9.30 - 2026-06-11
 
 **Agent-legible corpus, slice 2: MCP surface truth-up.** An audit of the 22-tool surface against 2026 token-efficiency norms found the just-in-time read layer already shipped and correct (`find_insights` returns ranked path/preview/score tuples; `read_insight(path, section?)` drills down; `generate_report` truncates) -- the roadmap's section-11 fears were stale. What the audit did find got fixed.

@@ -395,7 +395,42 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
     return sorted(ranked, key=lambda x: x.final_score, reverse=True)
 
 
-def display_ranked_discover(items: list[RankedDiscoverItem], title: str) -> None:
+# Below this console width the 7-column table degrades into mid-word folds
+# ("fact-checkin g numerical" -- the dogfooded 2026-06-11 finding), exactly in
+# the view a spend-approval decision reads. Use a stacked per-row layout there.
+STACKED_LAYOUT_WIDTH = 110
+
+
+def display_ranked_discover(
+    items: list[RankedDiscoverItem], title: str, *, console_width: int | None = None
+) -> None:
+    """Render the goal-ranked shortlist, adapting the layout to console width.
+
+    Wide consoles get the familiar table. Narrow consoles get a stacked
+    per-item list whose long fields (title, rationale) wrap at word
+    boundaries across the full width instead of character-folding inside
+    starved table columns. ``console_width`` overrides detection for tests.
+    """
+    from rich.markup import escape
+
+    width = console_width if console_width is not None else console.size.width
+    if width < STACKED_LAYOUT_WIDTH:
+        console.print(f"[bold]{escape(title)}[/bold]\n")
+        for idx, item in enumerate(items, 1):
+            # escape(): titles/rationales are untrusted-derived text; a stray
+            # ``[...]`` must render literally, not parse as rich markup.
+            console.print(
+                f"  {idx}. \\[{item.kind}] [bold]{escape(item.title)}[/bold] "
+                f"({item.final_score:.2f})"
+            )
+            meta = " | ".join(part for part in (item.subtitle, item.date) if part and part != "-")
+            if meta:
+                console.print(f"     [dim]{escape(meta)}[/dim]")
+            if item.rationale:
+                console.print(f"     [dim]{escape(item.rationale)}[/dim]")
+        console.print()
+        return
+
     table = Table(title=title, box=box.SIMPLE_HEAVY)
     table.add_column("#", justify="right")
     table.add_column("Type")

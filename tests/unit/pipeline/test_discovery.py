@@ -259,6 +259,59 @@ def test_filter_ingested_paper_match_is_version_insensitive():
     assert excluded == 1
 
 
+def _ranked_item(rationale: str) -> "discover.RankedDiscoverItem":
+    paper = _paper("2601.00001")
+    return discover.RankedDiscoverItem(
+        kind="paper",
+        identifier=paper.paper_id,
+        title="A benchmark for fact-checking numerical claims",
+        subtitle="Alice, Bob",
+        date="2026-01-01",
+        final_score=0.85,
+        goal_fit=0.85,
+        depth_score=0.8,
+        complementarity_score=0.7,
+        rationale=rationale,
+        paper=paper,
+    )
+
+
+def test_display_ranked_discover_stacks_on_narrow_console(monkeypatch):
+    """Dogfood 2026-06-11: at narrow widths the 7-column table character-folded
+    mid-word ("fact-checkin g numerical") in the exact view a spend approval
+    reads. Narrow consoles get a stacked layout that wraps at word boundaries."""
+    from rich.console import Console as RichConsole
+
+    recorder = RichConsole(record=True, width=80)
+    monkeypatch.setattr(discover, "console", recorder)
+    items = [
+        _ranked_item(
+            "New benchmark for fact-checking numerical claims with temporal and "
+            "statistical metadata, targeting grounding of numbers and dates."
+        )
+    ]
+
+    discover.display_ranked_discover(items, "Goal-Ranked Corpus Plan", console_width=80)
+
+    out = recorder.export_text()
+    assert "1. [paper]" in out
+    # Words survive intact on their line instead of character-folding.
+    assert any("numerical" in line for line in out.splitlines())
+    assert "Why" not in out  # no starved table chrome
+
+
+def test_display_ranked_discover_keeps_table_on_wide_console(monkeypatch):
+    from rich.console import Console as RichConsole
+
+    recorder = RichConsole(record=True, width=200)
+    monkeypatch.setattr(discover, "console", recorder)
+
+    discover.display_ranked_discover([_ranked_item("solid fit")], "Plan", console_width=200)
+
+    out = recorder.export_text()
+    assert "Why" in out and "Score" in out  # table headers present
+
+
 def test_filter_ingested_video_ids_match_case_sensitively():
     # YouTube ids are case-sensitive: a different-case id is a different video.
     _, kept_videos, excluded = discover.filter_ingested_candidates(
