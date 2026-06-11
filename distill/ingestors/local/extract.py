@@ -181,3 +181,8 @@ def _html_to_text(html: str) -> str:
     except Exception as exc:
         raise LocalExtractionError(f"Could not parse HTML: {exc}") from exc
     return parser.text()
+
+
+def html_to_text(html: str) -> str:
+    """Public HTML-to-text reduction (also used by the newsletter adapter)."""
+    return _html_to_text(html)

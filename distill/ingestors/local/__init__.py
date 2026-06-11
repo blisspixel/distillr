@@ -4,10 +4,12 @@ from distill.ingestors.local.extract import (
     LocalDocument,
     LocalExtractionError,
     extract_local_document,
+    html_to_text,
 )
 
 __all__ = [
     "LocalDocument",
     "LocalExtractionError",
     "extract_local_document",
+    "html_to_text",
 ]

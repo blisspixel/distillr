@@ -41,6 +41,7 @@ _MAX_FEED_BYTES = 5_000_000
 _MAX_TRANSCRIPT_BYTES = 5_000_000
 _MAX_AUDIO_BYTES = 250_000_000
 _ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
+_CONTENT_NS = "{http://purl.org/rss/1.0/modules/content/}"
 # The Podcasting 2.0 namespace appears with both schemes in the wild.
 _PODCAST_NSES = (
     "{https://podcastindex.org/namespace/1.0}",
@@ -54,6 +55,8 @@ class PodcastFetchError(RuntimeError):
 
 @dataclass(frozen=True)
 class PodcastEpisode:
+    """One RSS item -- a podcast episode or (when no enclosure) a newsletter post."""
+
     title: str
     guid: str
     published: str  # RFC 2822 as published; may be ""
@@ -63,6 +66,8 @@ class PodcastEpisode:
     description: str
     transcript_url: str = ""
     transcript_type: str = ""
+    link: str = ""
+    content_html: str = ""  # full post body (content:encoded), newsletter feeds
 
     def published_dt(self) -> datetime | None:
         try:
@@ -125,9 +130,10 @@ def _episode_from_item(item) -> PodcastEpisode | None:
     if not title and not audio_url:
         return None  # an item with neither a title nor audio is not an episode
     description = _text(item, "description") or _text(item, f"{_ITUNES_NS}summary")
+    link = _text(item, "link")
     return PodcastEpisode(
         title=title or "(untitled episode)",
-        guid=_text(item, "guid") or audio_url,
+        guid=_text(item, "guid") or audio_url or link,
         published=_text(item, "pubDate"),
         audio_url=audio_url,
         audio_type=enclosure.get("type", "") if enclosure is not None else "",
@@ -135,6 +141,8 @@ def _episode_from_item(item) -> PodcastEpisode | None:
         description=re.sub(r"<[^>]+>", " ", description)[:4000].strip(),
         transcript_url=transcript_url,
         transcript_type=transcript_type,
+        link=link,
+        content_html=_text(item, f"{_CONTENT_NS}encoded"),
     )
 
 

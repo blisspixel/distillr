@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.11.2 - 2026-06-11
+
+**The 0.11 breadth milestone completes: local media files and newsletters.** All five adapters from the source-breadth spec are now live (X, GitHub repos, podcasts, generic media, Substack/newsletters), every one on the adapter contract and behind the verify gate.
+
+### Added
+
+- **Local audio/video ingest**: `distill ingest <path>` for `.mp3/.m4a/.wav/.opus/.flac/.ogg/.aac/.mp4/.webm/.mov/.mkv` routes through the local-first Whisper ladder (vocabulary hint derived from the filename) into `media/<slug>/` -- transcript receipt + a "raw media" insight (`analysis.media.v1`) that first establishes what kind of recording it is (talk, interview, meeting, memo) before extracting, since a local file arrives with no metadata beyond its name. Covers conference talks distributed as files, downloaded recordings, voice memos.
+- **Newsletter ingest (Substack-class)**: the feed dispatcher now routes by substance from a single fetch -- items with substantial `content:encoded` bodies are a newsletter **even when narration audio is attached**; audio-only items are a podcast. Full post HTML is reduced to text with the stdlib extractor (script/style dropped -- no page scraping needed, the feed carries the whole post), into `newsletters/<publication>/<post>/` with a `_Content.md` receipt and a page-prompt insight (`analysis.newsletter.v1`).
+- Both paths verify-gated (strict refusal honored, receipts always kept) and audit-counted; clean degradation on transcription failure ($0 spent, reasons recorded).
+
+### Validated live ($0.005)
+
+- The first live run against a narrated Substack (One Useful Thing) **mis-routed to the podcast path and tried to transcribe its own narration audio** -- it degraded exactly as designed ($0.0000 spent, skip reasons recorded), the routing heuristic was fixed (substantial post bodies win over enclosures) with a regression test, and the re-run captured post + verified insight for $0.005.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2064 passed) with branch coverage 81.3%.
+
 ## 0.11.1 - 2026-06-11
 
 **Podcasts as a first-class source -- RSS-first, publisher-transcripts-preferred.** The largest single content surface for primary practitioner audio, on the durable path (the open feed, not platform apps that churn with anti-bot countermeasures).

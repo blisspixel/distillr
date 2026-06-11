@@ -119,9 +119,15 @@ def ingest_podcast(
     transcribe: bool = True,
     analyze: bool = True,
     tracker: CostTracker | None = None,
+    feed: PodcastFeed | None = None,
 ) -> PodcastIngestResult:
-    """Ingest the latest *episodes* of an RSS podcast feed into *topic*."""
-    feed = fetch_feed(feed_url)
+    """Ingest the latest *episodes* of an RSS podcast feed into *topic*.
+
+    ``feed`` accepts a pre-fetched parse so the dispatcher can route
+    podcast-vs-newsletter from one fetch.
+    """
+    if feed is None:
+        feed = fetch_feed(feed_url)
     result = PodcastIngestResult(feed_title=feed.title or feed_url)
     if not feed.episodes:
         result.skipped_reasons.append("Feed parsed but contains no episodes.")

@@ -18,9 +18,11 @@ from rich.console import Console
 from distill.commands._logic import get_config
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
-from distill.ingestors.podcasts import PodcastFetchError, looks_like_feed_url
+from distill.ingestors.podcasts import PodcastFetchError, fetch_feed, looks_like_feed_url
 from distill.ingestors.x.syndication import parse_tweet_url
 from distill.pipeline.analysis.local import ingest_local_file
+from distill.pipeline.analysis.media import ingest_media_file, is_media_file
+from distill.pipeline.analysis.newsletter import feed_is_newsletter, ingest_newsletter
 from distill.pipeline.analysis.podcast import ingest_podcast
 from distill.pipeline.analysis.repo import ingest_repo
 from distill.pipeline.analysis.tweet import ingest_tweet
@@ -66,10 +68,14 @@ def ingest_cmd(
     tracker = CostTracker()
 
     # Local file path takes precedence: if the target exists on disk, ingest it
-    # through the local-file pipeline rather than treating it as a URL.
+    # through the media pipeline (audio/video -> transcript -> insight) or the
+    # local-document pipeline, rather than treating it as a URL.
     local_path = Path(url).expanduser()
     if local_path.is_file():
-        _ingest_local(local_path, topic, config, tracker, analyze=not no_analyze)
+        if is_media_file(local_path):
+            _ingest_media(local_path, topic, config, tracker, analyze=not no_analyze)
+        else:
+            _ingest_local(local_path, topic, config, tracker, analyze=not no_analyze)
         return
 
     host = _host(url)
@@ -82,7 +88,7 @@ def ingest_cmd(
         _ingest_github(url, topic, config, tracker, analyze=not no_analyze)
         return
     if rss or looks_like_feed_url(url):
-        _ingest_podcast_feed(
+        _ingest_feed(
             url,
             topic,
             config,
@@ -156,7 +162,25 @@ def _ingest_tweet_url(
     _spend_line(tracker)
 
 
-def _ingest_podcast_feed(
+def _ingest_media(local_path: Path, topic: str, config, tracker: CostTracker, *, analyze: bool):
+    result = ingest_media_file(
+        local_path, topic=topic, config=config, analyze=analyze, tracker=tracker
+    )
+    console.print("")
+    if result.transcript_path:
+        console.print(
+            f"  [green]Transcript[/green] {result.transcript_path.relative_to(config.library_dir)}"
+        )
+    if result.insights_path:
+        console.print(
+            f"  [green]Insights[/green]   {result.insights_path.relative_to(config.library_dir)}"
+        )
+    for note in result.skipped_reasons:
+        console.print(f"  [yellow]skipped[/yellow]    {note}")
+    _spend_line(tracker)
+
+
+def _ingest_feed(
     url: str,
     topic: str,
     config,
@@ -166,7 +190,33 @@ def _ingest_podcast_feed(
     transcribe: bool,
     analyze: bool,
 ):
+    """One fetch, then route: enclosures mean a podcast, post bodies a newsletter."""
     try:
+        feed = fetch_feed(url)
+        if feed_is_newsletter(feed):
+            nl = ingest_newsletter(
+                url,
+                topic=topic,
+                config=config,
+                posts=episodes,
+                analyze=analyze,
+                tracker=tracker,
+                feed=feed,
+            )
+            console.print("")
+            console.print(f"  [green]Publication[/green] {nl.feed_title}")
+            for path in nl.content_paths:
+                console.print(
+                    f"  [green]Post[/green]        {path.relative_to(config.library_dir)}"
+                )
+            for path in nl.insight_paths:
+                console.print(
+                    f"  [green]Insights[/green]    {path.relative_to(config.library_dir)}"
+                )
+            for note in nl.skipped_reasons:
+                console.print(f"  [yellow]skipped[/yellow]      {note}")
+            _spend_line(tracker)
+            return
         result = ingest_podcast(
             url,
             topic=topic,
@@ -175,6 +225,7 @@ def _ingest_podcast_feed(
             transcribe=transcribe,
             analyze=analyze,
             tracker=tracker,
+            feed=feed,
         )
     except PodcastFetchError as exc:
         console.print(f"[red]{exc}[/red]")
