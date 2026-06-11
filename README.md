@@ -10,7 +10,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-> Turn YouTube, websites, and arXiv papers into a durable, AI-ready research corpus — all plain Markdown on your disk, with stable filenames, YAML metadata, and source receipts.
+> Distill helps you get insights on the topics you care about — and keep them current. Point it at a research goal; it finds the papers, videos, sites, and posts worth reading, analyzes each into structured insights with source receipts, and synthesizes across them into a durable plain-Markdown corpus on your disk. You browse it in Obsidian, your agents read it as files or query it over MCP, and it refreshes on a cadence instead of going stale.
 
 ```bash
 pip install distillr
@@ -37,11 +37,15 @@ Topic: tkg | Selected papers: 20
   tkg_Corpus_Synthesis.md 10.5 KB
 ```
 
-## Why not just ask Deep Research?
+## Where distill sits
 
-ChatGPT, Gemini Deep Research, and Perplexity are excellent oracles: ask a question, get an answer. Distill is an engine. It automates the tedious ingestion layer, keeps the raw transcripts and paper text next to the analysis, and turns each run into a permanent local corpus that future tools can reuse.
+Three kinds of tools orbit this space, and distill is deliberately none of them:
 
-That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base. You can verify the receipts, refresh the corpus over time, query it through MCP from Claude Desktop / Cursor / other agents, and open the same Markdown folder in Obsidian, Logseq, VS Code, Notion import, or plain filesystem search.
+- **Deep Research oracles** (ChatGPT, Gemini, Perplexity) are excellent at one-shot answers — and the work evaporates after each session. No corpus, no receipts you can re-check, nothing that compounds. Distill is the engine under that pattern: every run leaves transcripts, extracted paper text, per-source insights, and cross-source synthesis on disk, refreshable on a cadence.
+- **Grounded notebooks** (NotebookLM) keep a persistent corpus, but in a silo: you find and feed the sources by hand, and the corpus exports to Google Docs/Sheets only. Distill *finds* the sources against your goal, and the corpus is plain files you own.
+- **LLM-wiki maintainers** (the post-Karpathy wave of agent-curated Markdown vaults) assume you already have the content and tidy it. Distill is the acquisition half they leave out — goal-aware discovery across papers, videos, sites, and X, transcript-grade capture, and provenance on every claim — producing exactly the kind of vault those tools maintain.
+
+The premise behind all of it: **the corpus is the product.** That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base — you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Nothing is locked in anything.
 
 ## What you get
 

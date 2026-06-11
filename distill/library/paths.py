@@ -347,6 +347,34 @@ def write_text_artifact(
     return path
 
 
+# A line that is exactly a bold-wrapped ATX heading (``**## Title**``). Models
+# sometimes emphasize the heading lines a prompt asked for; the result renders
+# as literal ``**##`` text instead of a heading in Obsidian and on GitHub.
+_BOLD_WRAPPED_HEADING_RE = re.compile(r"^(\s*)\*\*(#{1,6} .+?)\*\*\s*$")
+
+
+def normalize_markdown_headings(content: str) -> str:
+    """Unwrap bold-wrapped ATX headings (``**## Title**`` -> ``## Title``).
+
+    Only whole lines that are a bold-wrapped heading are rewritten -- legitimate
+    bold prose never starts with ``#``, and bold *inside* a heading
+    (``## **Title**``) is valid markdown and untouched. Lines inside fenced
+    code blocks are left alone.
+    """
+    lines = content.split("\n")
+    in_fence = False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = _BOLD_WRAPPED_HEADING_RE.match(line)
+        if match:
+            lines[i] = f"{match.group(1)}{match.group(2)}"
+    return "\n".join(lines)
+
+
 def write_markdown_artifact(
     directory: Path,
     artifact_type: str,
@@ -355,6 +383,7 @@ def write_markdown_artifact(
     identity: str | None = None,
     frontmatter: Mapping[str, Any] | None = None,
 ) -> Path:
+    content = normalize_markdown_headings(content)
     if frontmatter:
         content = apply_frontmatter(content, frontmatter)
     return write_text_artifact(directory, artifact_type, content, identity=identity)

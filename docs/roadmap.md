@@ -63,6 +63,8 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
 - [ ] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem
+- [ ] **Preview-table rendering at narrow widths** (dogfood 2026-06-11): the goal-ranked discover table wraps mid-word at common console widths ("fact-checkin g numerical"), making the shortlist hard to scan. Cap/fold the rationale column properly or fall back to a stacked per-row layout under a width threshold.
+- [ ] **Library `CLAUDE.md` source counts wrong for legacy-layout topics** (dogfood 2026-06-11): topics with synthesis text show "0 sources" in the auto-generated library index (e.g. older video-only topics), so an agent reading the index would skip non-empty corpora. Audit the counter against both layouts — this surface is the agent-discoverability front door, promoted in the agent-legible pass.
 - [ ] **Per-prompt token telemetry.** Log prompt-input length, output length, and elapsed time *per call* (not just per run) to `library/cost_log.jsonl` — needed to make context-engineering improvements (chunked paper analysis, report-pipeline compaction) measurable. Surface a "biggest prompts" view in `distill costs` so prompt budget regressions are visible.
 
 ### 3. Productize the core workflow

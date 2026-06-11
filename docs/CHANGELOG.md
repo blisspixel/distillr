@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.9.28 - 2026-06-11
+
+**Dogfood pass: distill researched its own next milestone, and we fixed what the run caught.** A goal-aware `discover --preview` -> `--from-preview` commit -> 6-paper ingest + synthesis on claim verification / hallucination detection (~$0.21 total, the corpus that now informs the 0.10 verify-hook design in `ROADMAP.md`) exercised the full 0.9 discovery loop end to end.
+
+### Fixed / Hardened
+
+- **Bold-wrapped headings normalized on the markdown-artifact funnel.** grok-4.3 emitted every synthesis section heading as `**## Cross-Paper Claims**`, which renders as literal bold text instead of a heading in Obsidian and on GitHub. `write_markdown_artifact` now unwraps whole-line bold-wrapped ATX headings deterministically at write time (fence-aware; bold *inside* a heading and bold prose are untouched). New `normalize_markdown_headings` in `distill/library/paths.py`.
+- Filed from the same run (docs/roadmap.md section 2): preview/costs tables wrap mid-word at common console widths; the library `CLAUDE.md` index reports "0 sources" for legacy-layout topics.
+
+### Docs
+
+- **README positioning pass.** New lead value prop (goal -> corpus -> agents, stay-current) and "Where distill sits" replacing "Why not just ask Deep Research?": deliberately none of Deep Research oracles (work evaporates), grounded notebooks (silo, Docs/Sheets-only export), or LLM-wiki maintainers (no acquisition half). The corpus is the product.
+- 0.10 verify-hook design notes grounded in the dogfood corpus (adapted-NLI ~ GPT-4o on grounding; numerical/conflicting claims the measured hard class; QuanTemp as the natural eval fixture).
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (1963 passed) with branch coverage 81%.
+
 ## 0.9.27 - 2026-06-11
 
 **Discovery determinism: corpus-aware dedup + reproducible plans (master-plan P6, dogfood finding F5).** `discover` and `papers` no longer re-suggest items the topic already contains, and every discovery-plan LLM call is temperature-pinned so a preview and its re-run agree.
