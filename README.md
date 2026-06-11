@@ -65,6 +65,8 @@ Plus an MCP server so AI assistants and agent systems can query the library dire
 
 ## Quick start
 
+Distill runs on Linux, macOS, and Windows (Python 3.12+); local models run on consumer GPUs via Ollama or LM Studio.
+
 ```bash
 pip install distillr
 playwright install chromium     # for YouTube search + website capture
@@ -216,7 +218,9 @@ Distill exposes 22 tools, 12 resources, and 4 prompts. See [`docs/mcp.md`](docs/
 
 ## Cost
 
-On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor — xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The only cheaper path is running analysis on a **local model** (Ollama/LM Studio) — `distill eval --models grok-4.3,<local-model>` measures the cost × quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it.
+On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor — xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The only cheaper path is running analysis on a **local model** (Ollama/LM Studio) — `distill eval --models grok-4.3,<local-model>` measures the cost × quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it. The estimator's goal is **accuracy**, not safe padding — a padded estimate discourages runs you'd happily pay for, so calibration error is tracked and shrunk over time.
+
+Providers are adapters behind a workload router: grok + gemini are the calibrated cloud defaults, Ollama/LM Studio the local route, and **Anthropic and OpenAI adapters ship in-tree** (wireable, opt-in). Broader backends (AWS Bedrock, Microsoft Foundry) and **plan-quota compute** — routing batch analysis through agent CLIs your existing subscriptions already license (Claude, Codex, Gemini, and others), eval-gated for quality — are committed on the [roadmap](ROADMAP.md#looking-beyond-10).
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

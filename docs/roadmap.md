@@ -59,6 +59,7 @@ be moved to `CHANGELOG.md` on next release).
 ### 2. Build a real dashboard and cost surface
 
 - [~] Projected next-run cost by workflow, not just historical spend
+- [ ] **Estimator calibration accountability** — accuracy is the goal, not safe padding: track estimate-vs-actual error per workflow from `cost_log.jsonl`, surface the error trend in `distill costs`, and shrink the bias as history accrues. A padded estimate discourages legitimate runs just as an undershoot surprises.
 - [~] Rolling cost by topic and source type so users can see where spend is going
 - [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place
 - [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
