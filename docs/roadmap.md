@@ -109,19 +109,18 @@ be moved to `CHANGELOG.md` on next release).
 ### 7. Strengthen corpus quality and reuse
 
 - [ ] Stale detection — flag insights generated with old prompt versions, suggest re-analysis
-- [ ] Auto-reanalysis triggers when prompts, models, or quality heuristics change materially
+- [x] Auto-reanalysis trigger — shipped 0.12.6: the audit action menu prints per-artifact re-analysis commands resolved from each stale artifact's frontmatter (spend printed, never auto-run); detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [ ] Duplicate detection — catch same video under multiple slugs (re-uploads, title changes)
-- [ ] Semantic deduplication across videos, pages, and papers so near-duplicates do not pollute synthesis.
-  Note: source-origin attribution is handled in synthesis/report prompts without collapsing repeated claims; any future dedup work should stay artifact-preserving.
+- [x] Semantic deduplication — shipped 0.12.4 (shingle-Jaccard near-duplicate groups in the audit, artifact-preserving, embedding-free); detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [~] Insights quality check — heuristic validation (all expected sections present? suspiciously short?)
 - [~] Transcript validation — flag suspiciously short transcripts (<500 chars for a 30-minute video) as likely failed captions
 - [ ] Structured logging — proper log levels, log to file for post-run review, debug mode flag
-- [x] **`distill audit`** — shipped 0.10.2 with the verify-sidecar coverage rollup, report artifact, and spend-safe action menu; detail in [`CHANGELOG.md`](CHANGELOG.md). Scheduled cadence lands in 0.12.
-- [ ] **Output->input loop (`distill ask`)** (0.12, gated on the 0.10 run-time verify hook). Every output today (`report`, `research-brief`, `synthesize`) is terminal — nothing re-ingests it, and there's no lightweight query verb. Add `distill ask "<q>" --topic <t>`: query the corpus via the `find_insights` path, write a provenance-stamped `_Answer.md` with `[[backlinks]]`, and `--save` to re-ingest a liked answer as a first-class source so the corpus compounds with use. Re-ingest **must** run the verify hook first (refuse/quarantine unsupported load-bearing claims) — this is what prevents the "answer quietly builds on a mistake" failure the pattern is prone to. MCP `ask` tool for parity.
+- [x] **`distill audit`** — shipped 0.10.2 with the verify-sidecar coverage rollup, report artifact, and spend-safe action menu; grown through 0.12.x (staleness, near-duplicates, re-analysis commands); scheduling recipes shipped 0.12.1. Detail in [`CHANGELOG.md`](CHANGELOG.md).
+- [x] **Output->input loop (`distill ask`)** — shipped 0.12.0 with strict-by-definition `--save` promotion and the MCP `ask` tool; design in [`design/ask-loop.md`](design/ask-loop.md), detail in [`CHANGELOG.md`](CHANGELOG.md).
 
 ### 8. Expand cross-source intelligence
 
-- [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; deeper cross-source reasoning and dedup are still pending.
+- [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; near-duplicate detection shipped 0.12.4 (audit-surfaced), deeper cross-source reasoning still pending.
 - [ ] Trusted-domain website discovery inside `discover` — let the app expand "prefer Microsoft docs / vendor docs / official learn pages" into real page candidates from allowlisted domains, then rerank those page candidates with videos/papers in the same pool
 - [ ] `distill watch` integration for goal files — re-run discover against a saved goal on a cadence so goal-driven topics refresh the same way keyword topics do.
 - [ ] Multi-topic channels — same channel filed under multiple topics with shared transcripts
@@ -129,8 +128,7 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 9. Ongoing operation and access
 
-- [ ] Scheduled refresh — cron/task-scheduler integration for hands-off weekly updates
-- [ ] **Scheduled audit** (0.12, depends on the 0.10 self-maintaining audit) — the same scheduler runs `distill audit --report-only` on a cadence (the video's "monthly health check" automation), landing a dated audit artifact so corpus drift, contradictions, and gaps surface without manual prompting.
+- [x] Scheduled refresh + scheduled audit — recipes shipped 0.12.1 (`docs/usage.md` "Running on a schedule": Task Scheduler + cron lines for `catch-up`, `audit all --report-only`, gap-fill previews); the scheduler stays external by design. Remaining: the goal-file refresh hook for `distill watch` (see §8).
 - [ ] Native notification integrations for daily briefings, weekly digests, and important-change alerts
 - [ ] Web UI — browse the library, read insights, compare channels in a browser
 

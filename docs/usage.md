@@ -457,9 +457,12 @@ distill open --what report ai                       # open the report
 distill status                                      # quick library overview
 distill doctor                                      # check API keys + system health
 distill doctor --update                             # upgrade yt-dlp via pip
-distill costs                                       # cost history across runs
+distill costs                                       # cost history + estimator accuracy (estimate vs actual)
 distill health ai                                   # fast console view: stale syntheses + thin artifacts
 distill audit ai                                    # full trust report -> ai_Audit.md + action menu
+                                                    #   (verify coverage, prompt staleness, near-duplicates,
+                                                    #    contested concepts, links, gaps; stale artifacts get
+                                                    #    per-artifact re-analysis commands -- printed, never run)
 distill audit all --report-only                     # every topic, no prompts (for scheduled runs)
 
 # Maintenance

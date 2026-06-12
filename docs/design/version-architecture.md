@@ -16,26 +16,25 @@ ships when its promise is true and tested, and not before.
 ### 0.x (now) -- "The loop works"
 
 The promise being built: one tool takes a research goal to a verified,
-agent-legible, self-auditing local corpus. Most of it is already true:
+agent-legible, self-auditing local corpus. As of 2026-06-12 it is
+substantially true -- **0.11's and 0.12's named scope both shipped**:
 goal-aware convergent discovery, lens-aware analysis, write-time claim
-grounding on every emit path, `distill audit`, six source types
-(YouTube, websites, arXiv, X, GitHub repos, podcasts), CLAUDE.md/AGENTS.md/
-SKILL.md/MCP agent surfaces. Remaining before the 1.0 gate opens, in
-dependency order:
+grounding on every emit path, eight source types, the full audit trust
+surface (verification coverage, prompt staleness, near-duplicates,
+contested concepts, links, gaps, with re-analysis commands), the
+`ask`/`--save` compounding loop, read-only MCP with sub-agent summary
+tools, estimator accountability, and the CLAUDE.md/AGENTS.md/SKILL.md
+agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
 
-1. **Finish 0.11 breadth** -- generic audio/video files (falls out of the
-   local-file dispatcher + Whisper layer), Substack/newsletter (RSS + the
-   existing site scraper + per-post extraction). Each lands behind the verify
-   gate on the adapter contract.
-2. **0.12 compounding corpus** -- `distill ask` + verified `--save` re-ingest;
-   scheduled refresh + scheduled audit; semantic dedup; artifact-level
-   stale-detection; budget guardrails + estimator-accuracy accountability;
-   MCP write-side gating (`DISTILL_MCP_READ_ONLY`); sub-agent summary tools.
-3. **Parallel track, any time it fits: the entailment tier** -- HHEM-class
+1. **0.12 margins** -- the goal-file refresh hook for `distill watch`, the
+   stale flag riding synthesis frontmatter + dashboard, per-call MCP spend
+   caps + an ingest-domain allowlist, live per-item progress for long runs.
+2. **Parallel track, any time it fits: the entailment tier** -- HHEM-class
    local checker for named entities and prose claims, layered on (never
-   replacing) the deterministic tier; verify on synthesis emits. Needs its own
-   design doc before build (see ledger).
-4. **Harden passes interleaved** per the established rhythm, plus the
+   replacing) the deterministic tier; verify on synthesis emits. Needs its
+   own design doc before build (see ledger), plus a machine with the model
+   pulled for live validation.
+3. **Harden passes interleaved** per the established rhythm, plus the
    `_logic.py` decomposition ratchet (one command group per pass, removal
    criteria already defined).
 
@@ -127,7 +126,7 @@ speculatively. Current state:
 | Synthesis depth / thesis loop | [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) | Live; thesis rung shipped, loop pending |
 | Version horizon (this doc) | `version-architecture.md` | Live |
 | Entailment verification tier | -- | **To write at slice start** (checker choice is pre-researched: HHEM-2.1-Open default, Granite via Ollama option, Auto-GDA adaptation path, QuanTemp eval fixture) |
-| `distill ask` + re-ingest gating | -- | To write at 0.12 start (spec skeleton in ROADMAP) |
+| `distill ask` + re-ingest gating | [`ask-loop.md`](ask-loop.md) | Live; shipped 0.12.0 |
 | Provider-adapter + plan-quota contract | -- | To write at the post-1.0 milestone start (commitments + caveats in ROADMAP) |
 | Recipe format / corpus interop | -- | 3.0-era; do not write yet |
 

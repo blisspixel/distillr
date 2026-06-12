@@ -52,8 +52,16 @@ respect the user's budget. Every run is cost-tracked (`distill costs`).
   previewed set (the preview prints the id).
 - `distill papers "<query>" --topic <t> --limit N` / `distill latest "<query>"
   --limit N` - single-source ingest with the same preview/rigor flags.
+- `distill ingest <url-or-path> --topic <t>` - one source by URL or file:
+  X posts, GitHub repos, podcast/newsletter feeds, local documents and media.
+- `distill ask "<question>" --topic <t>` - answer grounded ONLY in the corpus,
+  every claim cited as a `[[wiki-link]]`; `--save` promotes a verified answer
+  back into the corpus (refused if any claim lacks source support).
+- `distill audit <t> --report-only` - free trust report: verification
+  coverage, prompt staleness, near-duplicates, contested concepts, links, gaps.
 - `distill claude-md --all` - regenerate every orientation file.
-- `distill doctor` - health and API-key check; `distill costs` - spend history.
+- `distill doctor` - health and API-key check; `distill costs` - spend history
+  (including estimator accuracy once runs accrue).
 
 ## Rules
 

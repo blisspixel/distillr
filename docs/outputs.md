@@ -141,7 +141,12 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 ## Verification sidecars and audit reports (0.10)
 
 - **`<stem>_Verify.json`** — written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from "never checked".
-- **`library/topics/<topic>/<topic>_Audit.md`** — written by `distill audit`: verification-coverage rollup, stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
+- **`library/topics/<topic>/<topic>_Audit.md`** — written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
+
+## Answers (`distill ask`, 0.12)
+
+- **`library/topics/<topic>/answers/<slug>_Answer.md`** — one question, one grounded answer: every claim cites its source as a `[[wiki-link]]`, full provenance (`prompt_id: "ask.v1"`, model), plus a `_Verify.json` sidecar grounding the answer's numbers against the retrieved excerpts. "The corpus does not cover this" is a valid answer body.
+- **`answers/<slug>/<slug>_Insights.md`** — only with `--save` and only when the answer passes the strict verify gate: the promoted answer as a first-class insight (`synthesis_scope: "derived-answer"`, `source: "distill-answer"`) that synthesis, concepts, audit, and future answers build on, verification record attached.
 
 ## Standard YAML frontmatter
 
