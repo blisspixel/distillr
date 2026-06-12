@@ -80,6 +80,10 @@ class RunSummary:
     start_time: float = field(default_factory=time.time)
     command: str = ""
     metadata: dict[str, str] = field(default_factory=dict)
+    # Pre-run estimate (USD) when the flow showed one before committing spend;
+    # logged beside actual_cost so `distill costs` can hold the estimator
+    # accountable (accuracy is the promise, this is the receipt).
+    estimated_cost: float | None = None
 
     def add_result(self, result: VideoResult) -> None:
         self.results.append(result)
@@ -273,6 +277,7 @@ def display_summary(  # noqa: C901 — legacy, will refactor
                 log_dir=log_dir,
                 command=summary.command,
                 tracker=cost_tracker,
+                estimated_cost=summary.estimated_cost,
                 full_videos=summary.full_count,
                 shorts=summary.shorts_count,
                 elapsed_seconds=summary.elapsed,

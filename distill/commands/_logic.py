@@ -4567,6 +4567,10 @@ def costs(  # noqa: C901 — legacy, will refactor
     recent = entries[-last:] if last > 0 else []
     total_cost = sum(e.get("actual_cost", 0) for e in recent)
 
+    from distill.pipeline.costs import estimator_accuracy
+
+    accuracy = estimator_accuracy(entries)
+
     if json_mode:
         # Compute local/cloud split from telemetry
         local_cloud = _compute_local_cloud_stats(config)
@@ -4579,6 +4583,7 @@ def costs(  # noqa: C901 — legacy, will refactor
                 "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
                 "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                 "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+                "estimator_accuracy": accuracy,
             }
         )
         import sys
@@ -4628,6 +4633,17 @@ def costs(  # noqa: C901 — legacy, will refactor
 
     console.print(table)
     console.print(f"\n[bold]Total across {len(recent)} runs: ${total_cost:.4f}[/bold]")
+
+    # Estimator accountability: the estimator promises accuracy, not padding --
+    # this line is what makes that promise checkable run over run.
+    if accuracy:
+        bias = accuracy["median_signed_pct_error"]
+        direction = "overestimates" if bias > 0 else "underestimates"
+        console.print(
+            f"[bold]Estimator accuracy[/bold] ({accuracy['runs_compared']} runs with estimates): "
+            f"median error {accuracy['median_abs_pct_error']:.0f}%, typically {direction} "
+            f"by {abs(bias):.0f}% (last 10 runs: {accuracy['recent10_median_abs_pct_error']:.0f}%)"
+        )
 
     # Local vs Cloud split from telemetry
     _costs_local_cloud_section(config)
@@ -8092,6 +8108,8 @@ def _discover_sizing_flow(
 
     chosen = options[idx - 1]
     est = chosen.estimate
+    # The accepted menu option's spend is the estimate of record for this run.
+    summary.estimated_cost = est.expected
     snapshot = save_preview(
         preview_cache_dir(config.library_dir),
         goal=goal,
@@ -8652,6 +8670,9 @@ def discover(  # noqa: C901 — legacy, will refactor
         f"  [dim]Top {cliff} sit above the score cliff (the clearly-excellent set). "
         f"Estimated ingest cost: {estimate.format()}.[/dim]"
     )
+    # Record the shown estimate so the run log carries estimated-vs-actual and
+    # `distill costs` can report estimator accuracy.
+    summary.estimated_cost = estimate.expected
 
     if preview:
         from distill.pipeline.preview_cache import preview_cache_dir, save_preview

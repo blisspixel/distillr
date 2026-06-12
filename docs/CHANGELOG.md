@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.3 - 2026-06-12
+
+**Estimator accountability -- "accuracy, not padding" is now checkable.** The 0.12 spec's last cheap promise, and it exposed a real gap: `save_run_log` had accepted `estimated_cost` since the calibration work, but **no caller ever passed it** -- "logs actual vs estimated" was only half true.
+
+### Added / Fixed
+
+- The estimate of record now flows into the run log: `RunSummary.estimated_cost` is set at both points where a discover flow shows a number and the user commits spend against it (the score-cliff line and the accepted sizing-menu option), and lands beside `actual_cost` in `cost_log.jsonl`. An end-to-end test pins the plumbing so the gap can't silently reopen.
+- **`distill costs` reports estimator accuracy** once comparable runs exist: median absolute error, signed bias ("typically overestimates by N%" -- the calibration fix differs by direction), and a last-10-runs trend. Median, not mean, so one anomalous run can't swamp the signal; preview rows excluded. Also in the `--json` envelope as `estimator_accuracy`.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2102 passed) with branch coverage 81.5%.
+
 ## 0.12.2 - 2026-06-12
 
 **Artifact-level stale-detection + the prompt-version registry.** The "confident misinformation" guard from the 0.12 spec: insights produced by outdated prompts now surface in the audit.

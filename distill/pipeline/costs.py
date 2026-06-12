@@ -37,6 +37,7 @@ __all__ = [
     "estimate_discover_items",
     "estimate_run_cost",
     "estimate_stage_cost",
+    "estimator_accuracy",
     "load_cost_calibration",
     "report_deep_research_estimate",
     "save_run_log",
@@ -272,6 +273,45 @@ def save_run_log(
 
     with log_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def estimator_accuracy(entries: list[dict]) -> dict | None:
+    """Estimate-vs-actual accuracy across runs that recorded both numbers.
+
+    The estimator's stated goal is accuracy, not safe padding -- this is the
+    accountability surface that makes that claim checkable. Median (not mean)
+    so one anomalous run can't swamp the signal; signed error kept separate
+    from absolute error so systematic bias (always-high vs always-low) is
+    visible, since the calibration fix differs. Preview rows are excluded
+    (no real spend to compare). Returns ``None`` when no run carries both.
+    """
+    signed_pct: list[float] = []
+    for row in entries:
+        if str(row.get("command", "")).endswith("_preview"):
+            continue
+        est = row.get("estimated_cost")
+        act = row.get("actual_cost")
+        if not isinstance(est, int | float) or not isinstance(act, int | float):
+            continue
+        if est <= 0 or act <= 0:
+            continue
+        signed_pct.append((est - act) / act * 100.0)
+    if not signed_pct:
+        return None
+    recent = signed_pct[-10:]
+    return {
+        "runs_compared": len(signed_pct),
+        "median_abs_pct_error": round(_median([abs(x) for x in signed_pct]), 1),
+        "median_signed_pct_error": round(_median(signed_pct), 1),  # + = overestimates
+        "recent10_median_abs_pct_error": round(_median([abs(x) for x in recent]), 1),
+    }
 
 
 def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) -> str:
