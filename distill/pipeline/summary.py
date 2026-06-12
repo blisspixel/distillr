@@ -212,6 +212,11 @@ class ETATracker:
 
 _ACCENT = "rgb(100,149,237)"
 
+# Per-item ingest stages whose failures are safely retryable by re-running the
+# same command: ingest re-runs are convergent (already-ingested sources skip),
+# so "re-run" IS the resume mechanism -- no checkpoint file needed.
+_RETRYABLE_INGEST_STAGES = frozenset({"paper-analysis", "site-ingest", "video-analysis"})
+
 
 def display_estimate(
     full_videos: int = 0,
@@ -363,6 +368,13 @@ def display_summary(  # noqa: C901 — legacy, will refactor
             con.print(
                 f"    [dim]![/dim] {issue.stage}{context}{detail_suffix}  [dim]{issue.message}[/dim]"
             )
+
+    if any(issue.stage in _RETRYABLE_INGEST_STAGES for issue in summary.issues):
+        con.print()
+        con.print(
+            "  [dim]Re-run the same command to retry the failed source(s) -- "
+            "already-ingested sources are skipped.[/dim]"
+        )
 
     con.print()
 

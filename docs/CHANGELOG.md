@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.10 - 2026-06-12
+
+**Per-item failure isolation -- the last named 0.12 margin.** Long mixed-source runs already printed `[i/N]` per-item progress; the missing half was that one crashed source killed everything after it. The dogfood library carried the scar: a topic with five papers newer than its last synthesis, from a run that died mid-loop.
+
+### Added
+
+- **One failed source no longer kills the run**: the paper loops (discover + `distill papers`), the site-seed loop, and the per-video channel sweep each isolate per-item failures -- a structured run issue is recorded (`paper-analysis` / `site-ingest` / `video-analysis` stage, exception type preserved), the loop continues, and synthesis still covers everything that landed.
+- **The resume hint**: when a run ends with retryable per-item failures, the summary prints "Re-run the same command to retry the failed source(s) -- already-ingested sources are skipped" -- true because ingest re-runs are convergent (0.9.27), so re-run *is* the resume mechanism; no checkpoint file needed.
+- **The spend cap stays a hard stop**: `BudgetExceededError` re-raises through every per-item catch -- swallowing it as a per-item issue would defeat the 0.12.9 MCP per-call budget.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.12.9 - 2026-06-12
 
 **MCP write-side guardrails -- the last 0.12 trust margin.** Read-only mode (0.12.1) is the recommended posture; this closes the gap for deployments that do expose the write tools (the June 2026 panel's enterprise finding: spend-and-ingest tools callable by any connected agent are budget-burn and corpus-poisoning surface).

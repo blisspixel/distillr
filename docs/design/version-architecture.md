@@ -27,12 +27,12 @@ commands), the
 tools, estimator accountability, and the CLAUDE.md/AGENTS.md/SKILL.md
 agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
 
-1. **0.12 margins** -- live per-item progress for long runs, and the
-   dev-library review items (library-level hygiene rollup;
-   orientation-emission completeness as an adapter-contract question).
-   The goal-file refresh hook shipped 0.12.7; the synthesis stale-flag
-   shipped 0.12.8; MCP per-call spend caps + the ingest-domain allowlist
-   shipped 0.12.9.
+1. **0.12 margins -- all named margins closed as of 0.12.10** (goal-file
+   refresh hook 0.12.7, synthesis stale-flag 0.12.8, MCP spend caps +
+   ingest allowlist 0.12.9, per-item failure isolation + resume hint
+   0.12.10). Still open from the dev-library review: the library-level
+   hygiene rollup, and orientation-emission completeness as an
+   adapter-contract question.
 2. **Parallel track, any time it fits: the entailment tier** -- HHEM-class
    local checker for named entities and prose claims, layered on (never
    replacing) the deterministic tier; verify on synthesis emits. Needs its

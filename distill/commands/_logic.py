@@ -125,7 +125,7 @@ from distill.pipeline.analysis.video import (
     analyze_video,
     generate_channel_context,
 )
-from distill.pipeline.costs import CostTracker, estimate_run_cost
+from distill.pipeline.costs import BudgetExceededError, CostTracker, estimate_run_cost
 from distill.pipeline.dashboard_data import _load_site_manifest as _load_site_manifest
 from distill.pipeline.dashboard_data import build_site_section_state as _build_site_section_state
 from distill.pipeline.dashboard_data import (
@@ -7989,10 +7989,23 @@ def papers(  # noqa: C901 — legacy, will refactor
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
     for idx, record in enumerate(records, 1):
         console.print(f"  [{idx}/{len(records)}] [bold]{record.title}[/bold]")
-        insights, document = analyze_paper(
-            record, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
-        )
-        paper_dir = _write_paper_artifacts(topic_name, record, config, insights, document)
+        try:
+            insights, document = analyze_paper(
+                record, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
+            )
+            paper_dir = _write_paper_artifacts(topic_name, record, config, insights, document)
+        except BudgetExceededError:
+            raise  # the spend cap is a hard stop, never a per-item issue
+        except Exception as exc:
+            console.print(f"  [red]failed: {exc}[/red]")
+            cli_shared.record_exception_issue(
+                summary,
+                stage="paper-analysis",
+                exc=exc,
+                context=record.title,
+                details={"topic": topic_name, "paper_id": getattr(record, "paper_id", "")},
+            )
+            continue
         summary.add_output(find_artifact(paper_dir, "paper"))
         summary.add_output(find_artifact(paper_dir, "insights"))
 
@@ -8175,17 +8188,37 @@ def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_si
 
 
 def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers) -> None:
-    """Analyze and write the ranked papers, then refresh the paper synthesis."""
+    """Analyze and write the ranked papers, then refresh the paper synthesis.
+
+    One failed paper must not kill the run: the failure is recorded as a run
+    issue and the loop continues, so the synthesis still covers everything
+    that landed and a convergent re-run retries only the failures. (The
+    dogfood library carried the scar of the old behavior: a topic with five
+    papers newer than its last synthesis, from a run that died mid-loop.)
+    """
     console.print(f"\n[bold]Ingesting {len(ranked_papers)} paper(s)[/bold]")
     for idx, item in enumerate(ranked_papers, 1):
         paper = item.paper
         if paper is None:
             continue
         console.print(f"  [{idx}/{len(ranked_papers)}] [bold]{paper.title}[/bold]")
-        insights, document = analyze_paper(
-            paper, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
-        )
-        paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
+        try:
+            insights, document = analyze_paper(
+                paper, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
+            )
+            paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
+        except BudgetExceededError:
+            raise  # the spend cap is a hard stop, never a per-item issue
+        except Exception as exc:
+            console.print(f"  [red]failed: {exc}[/red]")
+            cli_shared.record_exception_issue(
+                summary,
+                stage="paper-analysis",
+                exc=exc,
+                context=paper.title,
+                details={"topic": topic_name, "paper_id": getattr(paper, "paper_id", "")},
+            )
+            continue
         summary.add_output(find_artifact(paper_dir, "paper"))
         summary.add_output(find_artifact(paper_dir, "insights"))
     if synthesize_papers(topic_name, config, tracker=tracker):
@@ -8233,14 +8266,26 @@ def _discover_ingest_sites(
             max_pages=1,
             same_section_only=seed.same_section_only,
         )
-        _process_site_seed(
-            adjusted_seed,
-            config,
-            tracker,
-            summary,
-            scrape_only=False,
-            ingest_attachments=ingest_attachments,
-        )
+        try:
+            _process_site_seed(
+                adjusted_seed,
+                config,
+                tracker,
+                summary,
+                scrape_only=False,
+                ingest_attachments=ingest_attachments,
+            )
+        except BudgetExceededError:
+            raise  # the spend cap is a hard stop, never a per-item issue
+        except Exception as exc:
+            console.print(f"  [red]failed: {exc}[/red]")
+            cli_shared.record_exception_issue(
+                summary,
+                stage="site-ingest",
+                exc=exc,
+                context=seed.url,
+                details={"topic": topic_name, "site": seed.site_name or ""},
+            )
     # When videos were also ingested, they own the topic_synthesis artifact
     # (written by synthesize_topic). Running the website topic synthesis here
     # would overwrite it and drop the video story from the user-facing

@@ -14,7 +14,7 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.summary import ETATracker, RunSummary, display_estimate, display_summary
 
 
@@ -262,16 +262,31 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
             console.print(
                 f"  [dim]{cli_shared.format_date(video.upload_date)} | {cli_shared.duration_str(video.duration)}[/dim]{eta_hint}"
             )
-            process_video(
-                topic_name,
-                channel_name,
-                video,
-                config,
-                tracker,
-                summary,
-                state=state,
-                eta=eta,
-            )
+            try:
+                process_video(
+                    topic_name,
+                    channel_name,
+                    video,
+                    config,
+                    tracker,
+                    summary,
+                    state=state,
+                    eta=eta,
+                )
+            except BudgetExceededError:
+                raise  # the spend cap is a hard stop, never a per-item issue
+            except Exception as exc:
+                # One crashed video must not kill the channel sweep: record it,
+                # move on; state.json leaves it unprocessed so a re-run retries
+                # exactly this item.
+                console.print(f"  [red]failed: {exc}[/red]")
+                cli_shared.record_exception_issue(
+                    summary,
+                    stage="video-analysis",
+                    exc=exc,
+                    context=video.title,
+                    details={"topic": topic_name, "channel": channel_name},
+                )
 
         console.print(f"\nSynthesizing {channel_name}...")
         try:
