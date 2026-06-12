@@ -460,9 +460,10 @@ distill doctor --update                             # upgrade yt-dlp via pip
 distill costs                                       # cost history + estimator accuracy (estimate vs actual)
 distill health ai                                   # fast console view: stale syntheses + thin artifacts
 distill audit ai                                    # full trust report -> ai_Audit.md + action menu
-                                                    #   (verify coverage, prompt staleness, near-duplicates,
-                                                    #    contested concepts, links, gaps; stale artifacts get
-                                                    #    per-artifact re-analysis commands -- printed, never run)
+                                                    #   (verify coverage, prompt staleness, synthesis freshness,
+                                                    #    near-duplicates, contested concepts, links, gaps; stale
+                                                    #    artifacts/syntheses get re-analysis commands -- printed,
+                                                    #    never run)
 distill audit all --report-only                     # every topic, no prompts (for scheduled runs)
 
 # Maintenance

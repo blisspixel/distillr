@@ -108,8 +108,10 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 7. Strengthen corpus quality and reuse
 
-- [ ] Stale detection — flag insights generated with old prompt versions, suggest re-analysis
+- [x] Stale detection — shipped 0.12.2: the prompt-version registry + per-topic staleness rollup in the audit (current / stale / no-provenance / unknown-family); detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [x] Auto-reanalysis trigger — shipped 0.12.6: the audit action menu prints per-artifact re-analysis commands resolved from each stale artifact's frontmatter (spend printed, never auto-run); detail in [`CHANGELOG.md`](CHANGELOG.md).
+- [x] Synthesis stale-flag — shipped 0.12.8: source-relative freshness (synthesis older than the sources it synthesizes, shadowed legacy syntheses) in the audit, the dashboard health list, and the generated CLAUDE.md/AGENTS.md; detail in [`CHANGELOG.md`](CHANGELOG.md).
+- [ ] Library-level hygiene rollup — `distill audit all` ends with one library-wide view: empty topics, unlabeled test detritus, orientation-less directories (dev-library review 2026-06-12: 11 of 53 topics were validation leftovers indistinguishable from production corpora).
 - [ ] Duplicate detection — catch same video under multiple slugs (re-uploads, title changes)
 - [x] Semantic deduplication — shipped 0.12.4 (shingle-Jaccard near-duplicate groups in the audit, artifact-preserving, embedding-free); detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [~] Insights quality check — heuristic validation (all expected sections present? suspiciously short?)

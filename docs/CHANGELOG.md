@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.8 - 2026-06-12
+
+**The synthesis stale-flag -- what the dogfood library taught.** Planned by reviewing all 53 real topics in the dev library: the worst trust hazard found was syntheses that read with the confidence of fresh prose while predating the sources under them, plus whole topics invisible to agents because one emit path never refreshed orientation files.
+
+### Added
+
+- **Synthesis freshness detection** (`distill/library/freshness.py`, foundational layer): each topic-level synthesis (topic/corpus/paper) is compared against the sources it actually synthesizes -- frontmatter `generated_at` first, mtime only as legacy fallback (cloud-sync tools rewrite mtimes wholesale), a 1-hour tolerance so same-run ordering can't false-positive, and per-kind source scoping so a paper synthesis isn't "staled" by a newer video (caught live on the dogfood library). Also flags **shadowed legacy syntheses** -- a superseded `paper_synthesis.md` lingering beside its modern `<topic>_Paper_Synthesis.md` (two confident syntheses, one wrong by age; found on a real topic).
+- **Surfaced everywhere the prose is trusted**: a "Synthesis freshness" section in `distill audit` (+ findings counted, console summary, action-menu entry printing `distill corpus <topic>` -- spend printed, never run), stale-synthesis warnings leading the dashboard/home-screen corpus-health list, and a **warning line in the generated per-topic CLAUDE.md/AGENTS.md** so agents that auto-load orientation see the hazard before reading the synthesis.
+- Validated live on the dev library, free: flagged a real case (a paper synthesis generated 6/8 with five papers ingested 6/9 and never re-synthesized) and a real shadowed-legacy pair.
+
+### Fixed
+
+- **Paper-only flows now refresh orientation files.** `synthesize_papers` never called the CLAUDE.md/AGENTS.md refresh hook its topic/corpus siblings call, so topics built by `distill papers` or discover's paper branch were invisible to agents and the library index under-counted (35 of 46 eligible topics on the dev library; three freshly-ingested topics had no orientation at all). One regen healed the index to 46.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.12.7 - 2026-06-12
 
 **The goal-file watch hook -- goal-driven topics refresh on the cadence.**

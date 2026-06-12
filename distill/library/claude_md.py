@@ -34,6 +34,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import atomic_write_text, find_artifact, strip_frontmatter
 
 __all__ = [
@@ -292,6 +293,13 @@ def render_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> str:
         lines.append(
             f"- **Topic synthesis:** [[{synth.stem}]] (`{synth.name}`) -- "
             "cross-source claims, comparisons, and named disagreements."
+        )
+    freshness = collect_synthesis_freshness(topic_dir, topic)
+    for item in freshness.stale:
+        lines.append(
+            f"- **Warning -- stale synthesis:** `{item['synthesis']}` predates "
+            f"{item['behind']} newer source(s) by {item['gap_days']}d; prefer the "
+            f"per-source insights, or regenerate with `distill corpus {topic}`."
         )
     if has_concepts:
         lines.append(

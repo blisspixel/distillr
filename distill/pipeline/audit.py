@@ -21,6 +21,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from distill.library.freshness import SynthesisFreshness, collect_synthesis_freshness
 from distill.library.insights import discover_insights
 from distill.library.links import BrokenLink
 from distill.library.paths import base_frontmatter, tags_for, write_markdown_artifact
@@ -29,8 +30,10 @@ from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 __all__ = [
     "AuditReport",
     "StalenessRollup",
+    "SynthesisFreshness",
     "VerifyRollup",
     "collect_staleness",
+    "collect_synthesis_freshness",
     "collect_verify_rollup",
     "frontmatter_field",
     "reanalysis_commands",
@@ -84,6 +87,7 @@ class AuditReport:
     verify: VerifyRollup
     staleness: StalenessRollup = field(default_factory=StalenessRollup)
     near_duplicates: list = field(default_factory=list)  # list[DuplicateGroup]
+    freshness: SynthesisFreshness = field(default_factory=SynthesisFreshness)
 
     @property
     def issue_count(self) -> int:
@@ -95,6 +99,8 @@ class AuditReport:
             + len(self.verify.flagged)
             + len(self.staleness.stale)
             + len(self.near_duplicates)
+            + len(self.freshness.stale)
+            + len(self.freshness.shadowed_legacy)
         )
 
 
@@ -281,6 +287,29 @@ def _verify_section(report: AuditReport) -> list[str]:
     return lines
 
 
+def _freshness_section(report: AuditReport) -> list[str]:
+    f = report.freshness
+    lines = ["## Synthesis freshness (stale prose reads as confidently as fresh prose)", ""]
+    if not f.checked:
+        return [*lines, "- No topic-level synthesis artifacts yet (see coverage gaps)."]
+    if not f.stale and not f.shadowed_legacy:
+        return [*lines, f"- All {f.checked} synthesis artifact(s) current with their sources."]
+    for item in f.stale:
+        lines.append(
+            f"- `{item['synthesis']}` predates {item['behind']} newer source(s) "
+            f"by {item['gap_days']}d -- regenerate with `distill corpus {report.topic}` "
+            "(paper syntheses also regenerate on the topic's next `distill papers` run)."
+        )
+    if f.shadowed_legacy:
+        lines += ["", "### Shadowed legacy syntheses (superseded file still on disk)", ""]
+        lines += [
+            f"- `{item['legacy']}` is superseded by `{item['active']}` -- "
+            "delete the legacy file so readers cannot pick up the stale copy."
+            for item in f.shadowed_legacy
+        ]
+    return lines
+
+
 def _duplicates_section(report: AuditReport) -> list[str]:
     lines = ["## Near-duplicate insights (artifact-preserving -- surfaced, never merged)", ""]
     if not report.near_duplicates:
@@ -361,6 +390,7 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
     for section in (
         _verify_section,
         _staleness_section,
+        _freshness_section,
         _duplicates_section,
         _health_section,
         _contested_section,

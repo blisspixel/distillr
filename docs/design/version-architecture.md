@@ -20,15 +20,18 @@ agent-legible, self-auditing local corpus. As of 2026-06-12 it is
 substantially true -- **0.11's and 0.12's named scope both shipped**:
 goal-aware convergent discovery, lens-aware analysis, write-time claim
 grounding on every emit path, eight source types, the full audit trust
-surface (verification coverage, prompt staleness, near-duplicates,
-contested concepts, links, gaps, with re-analysis commands), the
+surface (verification coverage, prompt staleness, synthesis freshness,
+near-duplicates, contested concepts, links, gaps, with re-analysis
+commands), the
 `ask`/`--save` compounding loop, read-only MCP with sub-agent summary
 tools, estimator accountability, and the CLAUDE.md/AGENTS.md/SKILL.md
 agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
 
-1. **0.12 margins** -- the goal-file refresh hook for `distill watch`, the
-   stale flag riding synthesis frontmatter + dashboard, per-call MCP spend
-   caps + an ingest-domain allowlist, live per-item progress for long runs.
+1. **0.12 margins** -- per-call MCP spend caps + an ingest-domain
+   allowlist, live per-item progress for long runs, and the dev-library
+   review items (library-level hygiene rollup; orientation-emission
+   completeness as an adapter-contract question). The goal-file refresh
+   hook shipped 0.12.7; the synthesis stale-flag shipped 0.12.8.
 2. **Parallel track, any time it fits: the entailment tier** -- HHEM-class
    local checker for named entities and prose claims, layered on (never
    replacing) the deterministic tier; verify on synthesis emits. Needs its

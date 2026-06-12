@@ -176,4 +176,12 @@ def synthesize_papers(
             ),
         ),
     )
+
+    try:
+        from distill.library import claude_md
+
+        claude_md.refresh_for_topic(config.library_dir, config.topic_dir(topic), topic)
+    except Exception as exc:
+        logger.debug("CLAUDE.md refresh skipped for %s: %s", topic, exc)
+
     return synthesis

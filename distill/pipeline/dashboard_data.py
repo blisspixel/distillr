@@ -7,6 +7,7 @@ from pathlib import Path
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import site_section_key
 from distill.library import Library
+from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
 from distill.pipeline.costs import estimate_stage_cost, report_deep_research_estimate
 
@@ -69,6 +70,7 @@ __all__ = [
     "load_topic_change_history",
     "parse_run_datetime",
     "source_cost_rollups",
+    "stale_synthesis_warnings",
     "sum_recent_cost",
     "topic_cost_rollups",
     "topic_recent_costs",
@@ -764,6 +766,27 @@ def build_site_section_state(pages) -> list[dict]:
     return section_state
 
 
+def stale_synthesis_warnings(config: DistillConfig, topics: list[str], *, limit: int = 4) -> list:
+    """Syntheses generated before sources that now sit under them.
+
+    The source-relative complement to ``collect_corpus_health_warnings``'s
+    90-day wall-clock check: a synthesis can be a week old and still stale if
+    sources landed yesterday. Frontmatter-timestamped (mtime only as legacy
+    fallback), so cloud-sync mtime rewrites cannot fake or mask staleness.
+    """
+    warnings: list[str] = []
+    for topic in topics:
+        freshness = collect_synthesis_freshness(config.topic_dir(topic), topic)
+        for item in freshness.stale:
+            warnings.append(
+                f"{topic} {item['synthesis']} predates {item['behind']} newer source(s) "
+                f"by {item['gap_days']}d -- regenerate with `distill corpus {topic}`"
+            )
+            if len(warnings) >= limit:
+                return warnings
+    return warnings
+
+
 # ── Main snapshot ───────────────────────────────────────────────────
 
 
@@ -811,7 +834,12 @@ def dashboard_snapshot(config: DistillConfig) -> dict:
     topic_changes = collect_topic_changes(config, lib, topics, topic_watchlist, limit=6)
     topic_trends = {topic: topic_trend_label(config, topic) for topic in topics}
     stale_watches = collect_stale_topic_watches(topic_watchlist)
-    corpus_warnings = collect_corpus_health_warnings(config, lib, topics, limit=8)
+    # Stale syntheses lead: confident prose missing newer sources outranks
+    # wall-clock age and thin-artifact noise.
+    corpus_warnings = (
+        stale_synthesis_warnings(config, topics, limit=4)
+        + collect_corpus_health_warnings(config, lib, topics, limit=8)
+    )[:8]
     next_sweep_cost = estimated_topic_watch_sweep(topic_watchlist)
     topic_spend = topic_cost_rollups(all_cost_entries, days=30, limit=4)
     source_spend = source_cost_rollups(all_cost_entries, days=30)

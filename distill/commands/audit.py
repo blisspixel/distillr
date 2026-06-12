@@ -22,6 +22,7 @@ from distill.commands._logic import _complete_topics
 from distill.pipeline.audit import (
     AuditReport,
     collect_staleness,
+    collect_synthesis_freshness,
     collect_verify_rollup,
     write_audit_artifact,
 )
@@ -66,6 +67,7 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         verify=collect_verify_rollup(topic_dir),
         staleness=collect_staleness(topic_dir),
         near_duplicates=collect_near_duplicates(topic_dir),
+        freshness=collect_synthesis_freshness(topic_dir, topic),
     )
 
 
@@ -112,6 +114,7 @@ def audit_cmd(
             f"[bold]{t}[/bold]: {report.issue_count} finding(s) -- "
             f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
             f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
+            f"{len(report.freshness.stale)} stale synthesis/es, "
             f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
             f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
         )
@@ -169,11 +172,23 @@ def _act_stale(config, topics, reports, link_result, now_iso):
                 console.print(f"  [cyan]{line}[/cyan]")
 
 
+def _act_freshness(config, topics, reports, link_result, now_iso):
+    for r in reports:
+        if r.freshness.stale:
+            console.print(f"  [cyan]distill corpus {r.topic}[/cyan]")
+        for item in r.freshness.shadowed_legacy:
+            legacy_path = config.topic_dir(r.topic) / item["legacy"]
+            console.print(
+                f"  [dim]superseded by {item['active']}; remove by hand:[/dim] {legacy_path}"
+            )
+
+
 _ACTIONS = {
     "fix-links": _act_fix_links,
     "orientation": _act_orientation,
     "gaps": _act_gaps,
     "stale": _act_stale,
+    "freshness": _act_freshness,
 }
 
 
@@ -189,6 +204,13 @@ def _action_menu(config, topics: list[str], reports: list[AuditReport], link_res
     if any(r.staleness.stale for r in reports):
         options.append(
             ("stale", "Show re-analysis commands for stale artifacts (costs money; not auto-run)")
+        )
+    if any(r.freshness.stale or r.freshness.shadowed_legacy for r in reports):
+        options.append(
+            (
+                "freshness",
+                "Show re-synthesis commands for stale syntheses (costs money; not auto-run)",
+            )
         )
 
     console.print("\n[bold]Actions[/bold]")

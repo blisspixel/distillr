@@ -141,7 +141,7 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 ## Verification sidecars and audit reports (0.10)
 
 - **`<stem>_Verify.json`** — written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from "never checked".
-- **`library/topics/<topic>/<topic>_Audit.md`** — written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
+- **`library/topics/<topic>/<topic>_Audit.md`** — written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), synthesis-freshness rollup (a synthesis older than the sources it synthesizes, and shadowed legacy syntheses lingering beside their modern replacements — the same warning also rides the dashboard health list and the topic's generated CLAUDE.md/AGENTS.md), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
 
 ## Answers (`distill ask`, 0.12)
 

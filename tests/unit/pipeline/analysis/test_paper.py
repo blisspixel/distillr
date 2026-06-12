@@ -58,3 +58,26 @@ def test_synthesize_papers_writes_output(tmp_path):
     assert output.name == "papers_Paper_Synthesis.md"
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "paper synthesis"
     assert 'type: "paper-synthesis"' in output.read_text(encoding="utf-8")
+
+
+def test_synthesize_papers_refreshes_orientation(tmp_path):
+    """Paper-only flows must leave the topic agent-visible.
+
+    The dogfood library caught this: topics built by `distill papers` /
+    discover's paper branch had a fresh _Paper_Synthesis.md but no
+    CLAUDE.md/AGENTS.md and never appeared in the library index.
+    """
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    paper_dir = config.paper_dir("papers", "Agent Memory Systems", "2602.12670")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "insights.md").write_text("# Insight", encoding="utf-8")
+
+    with patch("distill.pipeline.analysis.paper.llm_call", _fake_llm_call("paper synthesis")):
+        synthesize_papers("papers", config)
+
+    topic_dir = config.topic_dir("papers")
+    assert (topic_dir / "CLAUDE.md").exists()
+    assert (topic_dir / "AGENTS.md").exists()
+    library_index = config.library_dir / "CLAUDE.md"
+    assert library_index.exists()
+    assert "[[papers]]" in library_index.read_text(encoding="utf-8")
