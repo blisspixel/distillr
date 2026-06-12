@@ -48,6 +48,7 @@ _CHUNK_CHARS = 1_500  # HHEM input budget, with headroom for the claim text
 _TOP_K_CHUNKS = 3  # per-claim evidence candidates by lexical overlap
 
 _HHEM_MODEL_ID = "vectara/hallucination_evaluation_model"
+_HHEM_REVISION = "8e4a2e6e96c708cc76c2344f7e4757df2515292c"  # pinned for safety (bandit B615) and reproducibility
 
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _URL_RE = re.compile(r"https?://\S+|\]\([^)]*\)")
@@ -214,7 +215,7 @@ class HHEMChecker:
         from transformers import AutoModelForSequenceClassification
 
         self._model = AutoModelForSequenceClassification.from_pretrained(
-            _HHEM_MODEL_ID, trust_remote_code=True
+            _HHEM_MODEL_ID, revision=_HHEM_REVISION, trust_remote_code=True
         )
 
     def score(self, evidence: str, claim: str) -> float:
