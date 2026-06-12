@@ -73,6 +73,22 @@ Plus an MCP server so AI assistants and agent systems can query the library dire
 
 ## Quick start
 
+**One-line install**
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.ps1 | iex"
+```
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.sh | bash
+```
+
+After the installer finishes, open a **new** terminal and run `distill doctor`.
+
+---
+
 **Distill runs on Windows, macOS, and Linux** (Python 3.12+). Local models run on consumer GPUs via Ollama or LM Studio.
 
 ### Recommended (virtual environment or pipx)
