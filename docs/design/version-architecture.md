@@ -33,11 +33,12 @@ agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
    resilience 0.12.11, library-level hygiene rollup 0.12.12).
    Orientation-emission completeness lives on as an adapter-contract
    review question, not a build item.
-2. **Parallel track, any time it fits: the entailment tier** -- HHEM-class
-   local checker for named entities and prose claims, layered on (never
-   replacing) the deterministic tier; verify on synthesis emits. Needs its
-   own design doc before build (see ledger), plus a machine with the model
-   pulled for live validation.
+2. **The entailment tier -- shipped 0.13.0** ([`entailment-tier.md`](entailment-tier.md)):
+   HHEM-2.1-Open behind the `distillr[entailment]` extra, prose claims
+   scored against receipts, sidecar schema v2, strict refuses on prose
+   flags, verify on the paper-synthesis emit. Remaining 0.13.x: corpus/
+   topic synthesis receipts (0.13.1), live HHEM calibration on the dev
+   box, Auto-GDA adaptation as a later upgrade path.
 3. **Harden passes interleaved** per the established rhythm, plus the
    `_logic.py` decomposition ratchet (one command group per pass, removal
    criteria already defined).
@@ -129,7 +130,7 @@ speculatively. Current state:
 | Whole-pipeline agentic plan (P1-P8) | [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) | Live; P1-P3/P6/P7 shipped, P4/P5 partial (deterministic verify shipped) |
 | Synthesis depth / thesis loop | [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) | Live; thesis rung shipped, loop pending |
 | Version horizon (this doc) | `version-architecture.md` | Live |
-| Entailment verification tier | -- | **To write at slice start** (checker choice is pre-researched: HHEM-2.1-Open default, Granite via Ollama option, Auto-GDA adaptation path, QuanTemp eval fixture) |
+| Entailment verification tier | [`entailment-tier.md`](entailment-tier.md) | **Design accepted 2026-06-12**; implementation targets 0.13.0 (HHEM-2.1-Open default behind a `distillr[entailment]` extra, sidecar schema v2 additive, verify-on-synthesis rides along) |
 | `distill ask` + re-ingest gating | [`ask-loop.md`](ask-loop.md) | Live; shipped 0.12.0 |
 | Provider-adapter + plan-quota contract | -- | To write at the post-1.0 milestone start (commitments + caveats in ROADMAP) |
 | Recipe format / corpus interop | -- | 3.0-era; do not write yet |

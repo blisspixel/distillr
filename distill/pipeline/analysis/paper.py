@@ -146,6 +146,26 @@ def synthesize_papers(
         call_type="paper_synthesis",
     )
     synthesis = response.text
+
+    # Verify the synthesis against its own inputs: cross-paper synthesis is
+    # the artifact most prone to attribution swaps. The receipt is the set of
+    # per-paper insights the prompt was built from; both verify tiers apply.
+    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    outcome = run_verify_hook(
+        config.topic_dir(topic),
+        synthesis,
+        "\n\n".join(paper_summaries.values()),
+        mode=resolve_verify_mode(config.distill_verify),
+        identity=f"{topic}-paper-synthesis",
+        insight_name=f"{topic} paper synthesis",
+        source_name="per-paper insights",
+    )
+    if outcome is not None and not outcome.report.ok:
+        logger.warning(outcome.summary_line)
+    if outcome is not None and outcome.refused:
+        logger.warning("paper synthesis for %s not written (verify strict)", topic)
+        return ""
     if tracker:
         tracker.record(
             TokenUsage(

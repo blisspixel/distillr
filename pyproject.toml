@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.12.13"
+version = "0.13.0"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = "MIT"
@@ -47,6 +47,16 @@ dependencies = [
     "requests>=2.32.0",
     "httpx>=0.28.0",
     "defusedxml>=0.7.1",
+]
+
+# The entailment verify tier (docs/design/entailment-tier.md): a local
+# ~110M-param cross-encoder (HHEM-2.1-Open) scoring prose claims against
+# source receipts. Optional because transformers+torch is a heavy install;
+# absent means the deterministic tier stands alone, exactly as before.
+[project.optional-dependencies]
+entailment = [
+    "transformers>=4.44",
+    "torch>=2.3",
 ]
 
 [project.scripts]

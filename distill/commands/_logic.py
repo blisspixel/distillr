@@ -5532,6 +5532,26 @@ def doctor(  # noqa: C901 — legacy, will refactor
         )
     console.print(f"  [dim]Provider routing: {routing}[/dim]")
 
+    # Verification: the entailment tier (optional extra). The deterministic
+    # numeric tier is always on; this shows whether prose claims also get
+    # checked (docs/design/entailment-tier.md).
+    console.print()
+    console.print("  [bold]Verification[/bold]")
+    console.print(f"  [dim]{'-' * 50}[/dim]")
+    console.print("  [green]OK[/green]  numeric tier      [dim]deterministic, always on[/dim]")
+    from distill.pipeline.verify_entailment import entailment_available
+
+    if entailment_available():
+        console.print(
+            "  [green]OK[/green]  entailment tier   "
+            "[dim]transformers installed; HHEM loads on first verified write[/dim]"
+        )
+    else:
+        console.print(
+            "  [dim]--  entailment tier   not installed "
+            r"(pip install distillr\[entailment] to check prose claims locally)[/dim]"
+        )
+
     # Library
     console.print()
     console.print("  [bold]Library[/bold]")

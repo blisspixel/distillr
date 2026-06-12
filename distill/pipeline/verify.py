@@ -36,6 +36,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from distill.library.paths import artifact_path, atomic_write_text, strip_frontmatter
+from distill.pipeline.verify_entailment import (
+    EntailmentChecker,
+    EntailmentReport,
+    evaluate_entailment,
+    load_default_checker,
+)
 
 __all__ = [
     "NumericClaim",
@@ -48,7 +54,24 @@ __all__ = [
     "write_verify_sidecar",
 ]
 
-VERIFY_SCHEMA_VERSION = 1
+# v2 adds the additive "entailment" block (0.13.0); v1 sidecars stay valid and
+# readers treat a missing block as "entailment not run".
+VERIFY_SCHEMA_VERSION = 2
+
+# The entailment checker loads once per process (the model is ~110M params);
+# None-after-attempt means the optional extra is absent and the deterministic
+# tier stands alone, exactly as before the tier existed.
+_checker_loaded = False
+_checker: EntailmentChecker | None = None
+
+
+def _entailment_checker() -> EntailmentChecker | None:
+    global _checker_loaded, _checker
+    if not _checker_loaded:
+        _checker = load_default_checker()
+        _checker_loaded = True
+    return _checker
+
 
 # Claim-side token shapes, most specific first. Small bare integers (<= 3
 # digits, no decimal/percent/currency) are deliberately not claims: list
@@ -234,22 +257,31 @@ class VerifyOutcome:
     report: VerifyReport
     sidecar: Path
     insight_name: str = ""
+    entailment: EntailmentReport | None = None
+
+    @property
+    def _entailment_flags(self) -> int:
+        return len(self.entailment.flagged) if self.entailment else 0
 
     @property
     def refused(self) -> bool:
-        return self.report.mode == "strict" and not self.report.ok
+        if self.report.mode != "strict":
+            return False
+        return not self.report.ok or self._entailment_flags > 0
 
     @property
     def summary_line(self) -> str:
         n, total = len(self.report.unsupported), self.report.checked
+        ent = f" + {self._entailment_flags} prose claim(s)" if self._entailment_flags else ""
         if self.refused:
             name = self.insight_name or "insight"
             return (
                 f"verify strict: refused {name} -- {n}/{total} unsupported "
-                f"numeric claim(s); see {self.sidecar.name}"
+                f"numeric claim(s){ent}; see {self.sidecar.name}"
             )
         return (
-            f"verify: {n}/{total} numeric claim(s) lack source support -- see {self.sidecar.name}"
+            f"verify: {n}/{total} numeric claim(s){ent} lack source support -- "
+            f"see {self.sidecar.name}"
         )
 
 
@@ -276,6 +308,15 @@ def run_verify_hook(
     if mode == "off" or not source_text.strip():
         return None
     report = verify_insight(insight_text, source_text, mode=mode)
+    entailment: EntailmentReport | None = None
+    checker = _entailment_checker()
+    if checker is not None:
+        try:
+            entailment = evaluate_entailment(insight_text, source_text, checker)
+        except Exception:
+            # The optional tier must never kill an ingest run; the
+            # deterministic report stands and the sidecar records no block.
+            entailment = None
     path = artifact_path(directory, "verify", identity=identity, extension="json")
     with contextlib.suppress(OSError):
         path = write_verify_sidecar(
@@ -284,8 +325,11 @@ def run_verify_hook(
             identity=identity,
             insight_name=insight_name,
             source_name=source_name,
+            entailment=entailment,
         )
-    return VerifyOutcome(report=report, sidecar=path, insight_name=insight_name)
+    return VerifyOutcome(
+        report=report, sidecar=path, insight_name=insight_name, entailment=entailment
+    )
 
 
 def write_verify_sidecar(
@@ -295,6 +339,7 @@ def write_verify_sidecar(
     identity: str | None = None,
     insight_name: str = "",
     source_name: str = "",
+    entailment: EntailmentReport | None = None,
 ) -> Path:
     """Write the ``<stem>_Verify.json`` sidecar next to the insight artifact."""
     path = artifact_path(directory, "verify", identity=identity, extension="json")
@@ -310,5 +355,13 @@ def write_verify_sidecar(
         "source": source_name,
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if entailment is not None:
+        payload["entailment"] = {
+            "checked": entailment.checked,
+            "supported": entailment.supported,
+            "flagged": list(entailment.flagged),
+            "model": entailment.model,
+            "threshold": entailment.threshold,
+        }
     atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
     return path

@@ -107,6 +107,39 @@ class AuditReport:
         )
 
 
+def _sidecar_flags(data: dict, artifact_path: str) -> list[dict]:
+    """All flagged claims in one sidecar: numeric tier + the additive
+    entailment block (schema v2; a missing block means the tier wasn't run,
+    so v1 sidecars stay valid)."""
+    flags: list[dict] = []
+    unsupported = data.get("unsupported")
+    if isinstance(unsupported, list):
+        flags += [
+            {
+                "insight": artifact_path,
+                "token": str(item.get("token", "")),
+                "kind": str(item.get("kind", "")),
+                "context": str(item.get("context", ""))[:200],
+            }
+            for item in unsupported
+            if isinstance(item, dict)
+        ]
+    ent = data.get("entailment")
+    ent_flagged = ent.get("flagged") if isinstance(ent, dict) else None
+    if isinstance(ent_flagged, list):
+        flags += [
+            {
+                "insight": artifact_path,
+                "token": str(item.get("claim", ""))[:80],
+                "kind": "entailment",
+                "context": str(item.get("best_chunk_preview", ""))[:200],
+            }
+            for item in ent_flagged
+            if isinstance(item, dict)
+        ]
+    return flags
+
+
 def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     """Roll up ``_Verify.json`` sidecars across a topic's insight directories.
 
@@ -129,20 +162,11 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
         if not isinstance(data, dict):
             continue
         checked += 1
-        unsupported = data.get("unsupported") or []
-        if not isinstance(unsupported, list) or not unsupported:
+        flags = _sidecar_flags(data, ref.artifact_path)
+        if flags:
+            flagged += flags
+        else:
             clean += 1
-            continue
-        for item in unsupported:
-            if isinstance(item, dict):
-                flagged.append(
-                    {
-                        "insight": ref.artifact_path,
-                        "token": str(item.get("token", "")),
-                        "kind": str(item.get("kind", "")),
-                        "context": str(item.get("context", ""))[:200],
-                    }
-                )
     return VerifyRollup(insights_total=len(insights), checked=checked, clean=clean, flagged=flagged)
 
 

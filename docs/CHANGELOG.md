@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.13.0 - 2026-06-12
+
+**The entailment tier -- prose claims checked locally.** The last substantive 0.10 item: the deterministic tier's named limitation classes (derived arithmetic, context-blind support, prose claims with no checkable tokens) get their checker. Design in [`docs/design/entailment-tier.md`](design/entailment-tier.md), settled by the claim-verification dogfood corpus's own promoted answer.
+
+### Added
+
+- **`distill/pipeline/verify_entailment.py`**: deterministic claim extraction (the bullet/sentence is the unit -- decomposition measurably improves matching), ~1,500-char evidence windows with overlap, top-K lexical pairing (no embeddings, per the no-database invariant), and an `EntailmentChecker` protocol scored claim-by-claim -- max over chunks, flag below threshold (`DISTILL_ENTAILMENT_THRESHOLD`, default 0.5). A flag means "support not found", not "false", same contract as the numeric tier. Per the invariants this is a classifier, not an LLM-as-judge-of-record.
+- **HHEM-2.1-Open as the default checker** behind the new optional extra: `pip install distillr[entailment]` (transformers + torch; ~110M params, Apache 2.0, CPU-feasible, CUDA-accelerated where available). Absent extra = tier silently skipped, deterministic tier stands alone exactly as before; `distill doctor` gains a Verification section showing both tiers' status. The checker loads once per process and a checker crash can never kill an ingest run.
+- **Sidecar schema v2 (additive)**: `_Verify.json` gains an `entailment` block (checked/supported/flagged with claim, score, best-chunk preview, model, threshold); v1 sidecars stay valid. `--verify strict` now refuses a write on prose flags too; the audit's verify rollup counts entailment flags as findings (`kind: "entailment"`).
+- **Verify on synthesis emits (first path)**: the cross-paper synthesis -- the artifact most prone to attribution swaps -- is now verified against its own inputs (the per-paper insights) before writing, with a distinct sidecar identity (`<topic>-paper-synthesis`); strict mode refuses the write and keeps the previous synthesis. Corpus/topic synthesis paths follow in 0.13.1 (their receipts assemble differently).
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor. All tier logic tested with a mock checker -- CI installs no model; live HHEM validation on the dev box follows as the model download completes.
+
 ## 0.12.13 - 2026-06-12
 
 **Harden pass over the 0.12.7-0.12.12 surface** (the codified rhythm: a bug-hunt release after a run of feature releases). Two independent adversarial reviews over everything this series added; every claim verified against the code before acting -- two reported HIGHs were false alarms on verification (the freshness identity convention matches what the writers stamp; the captionless-to-ladder flow is by design), and the real defect class was fixed everywhere it appeared.

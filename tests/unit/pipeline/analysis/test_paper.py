@@ -60,6 +60,30 @@ def test_synthesize_papers_writes_output(tmp_path):
     assert 'type: "paper-synthesis"' in output.read_text(encoding="utf-8")
 
 
+def test_synthesize_papers_writes_verify_sidecar(tmp_path):
+    """0.13.0: the synthesis is verified against its own inputs (the per-paper
+    insights), with a distinct sidecar identity so the three topic-level
+    syntheses can't collide."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    paper_dir = config.paper_dir("papers", "Agent Memory Systems", "2602.12670")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "insights.md").write_text("# Insight\nMRR reached 72.6 here.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.analysis.paper.llm_call",
+        _fake_llm_call("The synthesis claims an MRR of 99.9 nowhere in sources."),
+    ):
+        result = synthesize_papers("papers", config)
+
+    assert result  # warn mode: flagged but written
+    sidecar = config.topic_dir("papers") / "papers_paper_synthesis_Verify.json"
+    assert sidecar.exists()
+    import json as _json
+
+    data = _json.loads(sidecar.read_text(encoding="utf-8"))
+    assert any(c["token"] == "99.9" for c in data["unsupported"])
+
+
 def test_synthesize_papers_refreshes_orientation(tmp_path):
     """Paper-only flows must leave the topic agent-visible.
 
