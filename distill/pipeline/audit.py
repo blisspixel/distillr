@@ -32,6 +32,8 @@ __all__ = [
     "VerifyRollup",
     "collect_staleness",
     "collect_verify_rollup",
+    "frontmatter_field",
+    "reanalysis_commands",
     "render_audit_md",
     "write_audit_artifact",
 ]
@@ -135,18 +137,19 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     return VerifyRollup(insights_total=len(insights), checked=checked, clean=clean, flagged=flagged)
 
 
-_PROMPT_ID_LINE_RE = re.compile(r'^prompt_id:\s*"?([^"\r\n]+?)"?\s*$', re.MULTILINE)
-
-
-def _frontmatter_prompt_id(text: str) -> str:
-    """Pull ``prompt_id`` out of an artifact's frontmatter block, or ''."""
+def frontmatter_field(text: str, name: str) -> str:
+    """Pull one scalar field out of an artifact's frontmatter block, or ''."""
     if not text.startswith("---"):
         return ""
     end = text.find("---", 3)
     if end == -1:
         return ""
-    match = _PROMPT_ID_LINE_RE.search(text[:end])
+    match = re.search(rf'^{re.escape(name)}:\s*"?([^"\r\n]+?)"?\s*$', text[:end], re.MULTILINE)
     return match.group(1).strip() if match else ""
+
+
+def _frontmatter_prompt_id(text: str) -> str:
+    return frontmatter_field(text, "prompt_id")
 
 
 def collect_staleness(topic_dir: Path) -> StalenessRollup:
@@ -186,6 +189,41 @@ def collect_staleness(topic_dir: Path) -> StalenessRollup:
         unknown_family=unknown_family,
         no_provenance=no_provenance,
     )
+
+
+_INGESTABLE_HOSTS = ("x.com", "twitter.com", "github.com")
+
+
+def reanalysis_commands(library_dir: Path, topic: str, stale: list[dict]) -> list[str]:
+    """Concrete re-analysis lines for stale artifacts (printed, never run).
+
+    Re-ingesting a source re-runs analysis on the *current* prompt -- that is
+    the artifact-level trigger the 0.12 spec asks for (no blanket re-runs).
+    Where the recorded ``url`` routes through ``distill ingest`` (X, GitHub,
+    feeds), the exact command is printed; arXiv papers re-ingest via
+    ``distill papers``; anything else gets the artifact named so the operator
+    re-runs its original verb.
+    """
+    lines: list[str] = []
+    for item in stale:
+        rel = str(item.get("insight", ""))
+        try:
+            text = (library_dir / rel).read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+        url = frontmatter_field(text, "url")
+        source = frontmatter_field(text, "source")
+        recorded = item.get("recorded", "?")
+        if source == "arxiv" and url:
+            arxiv_id = url.rstrip("/").rsplit("/", 1)[-1]
+            lines.append(f'distill papers "{arxiv_id}" --topic {topic} --limit 1  # was {recorded}')
+        elif url and (
+            any(h in url for h in _INGESTABLE_HOSTS) or url.lower().endswith((".rss", ".xml"))
+        ):
+            lines.append(f"distill ingest {url} --topic {topic}  # was {recorded}")
+        else:
+            lines.append(f"# {rel} (was {recorded}) -- re-run its original ingest verb")
+    return lines
 
 
 def _staleness_section(report: AuditReport) -> list[str]:

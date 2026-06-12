@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.6 - 2026-06-12
+
+**The auto-reanalysis trigger -- staleness becomes actionable.**
+
+### Added
+
+- The `distill audit` action menu gains **"Show re-analysis commands for stale artifacts"** (spend printed, never auto-run, like every paid action in the menu). Each stale artifact resolves to a concrete command from its own frontmatter: X/GitHub/feed sources print the exact `distill ingest <url> --topic <t>` line, arXiv papers print `distill papers "<id>" --limit 1`, and sources without a routable URL are named with their original verb noted -- re-ingesting re-runs analysis on the *current* prompt, which is the artifact-level trigger the 0.12 spec asks for (no blanket re-runs). `frontmatter_field` extracted as the shared scalar reader. Action menu decomposed into a handler dispatch to hold the complexity cap.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2118 passed) with branch coverage 81.4%.
+
 ## 0.12.5 - 2026-06-12
 
 **The sub-agent MCP surface -- 0.12's last named headline.** The Agent SDK sub-agent pattern ("answer X over corpus Y within bounded context") gets its query primitive; with read-only mode and paths-not-payloads already shipped, the agent story is now complete end to end.

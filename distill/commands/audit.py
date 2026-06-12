@@ -136,6 +136,47 @@ def _bucket_broken_links(broken_links: list) -> dict[str, list]:
     return by_topic
 
 
+def _act_fix_links(config, topics, reports, link_result, now_iso):
+    from distill.library.links import fix_broken_links
+
+    fixed = fix_broken_links(config.library_dir, link_result.broken_links)
+    console.print(f"[green]Fixed {fixed} link(s).[/green]")
+
+
+def _act_orientation(config, topics, reports, link_result, now_iso):
+    from distill.library import claude_md
+
+    for t in topics:
+        claude_md.write_topic_claude_md(config.topic_dir(t), t, now_iso=now_iso)
+    claude_md.write_library_claude_md(config.library_dir, now_iso=now_iso)
+    console.print("[green]Orientation files regenerated.[/green]")
+
+
+def _act_gaps(config, topics, reports, link_result, now_iso):
+    for r in reports:
+        if r.gaps:
+            console.print(
+                f"  [cyan]distill discover --from-gaps --topic {r.topic} --preview[/cyan]"
+            )
+
+
+def _act_stale(config, topics, reports, link_result, now_iso):
+    from distill.pipeline.audit import reanalysis_commands
+
+    for r in reports:
+        if r.staleness.stale:
+            for line in reanalysis_commands(config.library_dir, r.topic, r.staleness.stale):
+                console.print(f"  [cyan]{line}[/cyan]")
+
+
+_ACTIONS = {
+    "fix-links": _act_fix_links,
+    "orientation": _act_orientation,
+    "gaps": _act_gaps,
+    "stale": _act_stale,
+}
+
+
 def _action_menu(config, topics: list[str], reports: list[AuditReport], link_result, now_iso: str):
     """Phase 2: only safe, free actions execute directly; anything that would
     spend money is printed as a command, never run."""
@@ -145,6 +186,10 @@ def _action_menu(config, topics: list[str], reports: list[AuditReport], link_res
     options.append(("orientation", "Regenerate CLAUDE.md / AGENTS.md orientation files"))
     if any(r.gaps for r in reports):
         options.append(("gaps", "Show the gap-fill discover commands (costs money; not auto-run)"))
+    if any(r.staleness.stale for r in reports):
+        options.append(
+            ("stale", "Show re-analysis commands for stale artifacts (costs money; not auto-run)")
+        )
 
     console.print("\n[bold]Actions[/bold]")
     for i, (_, label) in enumerate(options, 1):
@@ -154,25 +199,9 @@ def _action_menu(config, topics: list[str], reports: list[AuditReport], link_res
     selected = (
         options[int(choice) - 1][0] if choice.isdigit() and 0 < int(choice) <= len(options) else "q"
     )
-
-    if selected == "fix-links":
-        from distill.library.links import fix_broken_links
-
-        fixed = fix_broken_links(config.library_dir, link_result.broken_links)
-        console.print(f"[green]Fixed {fixed} link(s).[/green]")
-    elif selected == "orientation":
-        from distill.library import claude_md
-
-        for t in topics:
-            claude_md.write_topic_claude_md(config.topic_dir(t), t, now_iso=now_iso)
-        claude_md.write_library_claude_md(config.library_dir, now_iso=now_iso)
-        console.print("[green]Orientation files regenerated.[/green]")
-    elif selected == "gaps":
-        for r in reports:
-            if r.gaps:
-                console.print(
-                    f"  [cyan]distill discover --from-gaps --topic {r.topic} --preview[/cyan]"
-                )
+    handler = _ACTIONS.get(selected)
+    if handler is not None:
+        handler(config, topics, reports, link_result, now_iso)
 
 
 def register(app: typer.Typer) -> None:

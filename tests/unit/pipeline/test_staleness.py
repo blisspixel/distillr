@@ -60,6 +60,43 @@ class TestCollectStaleness:
         rollup = collect_staleness(tmp_path / "empty")
         assert rollup == StalenessRollup()
 
+    def test_reanalysis_commands_route_by_source(self, tmp_path):
+        from distill.pipeline.audit import reanalysis_commands
+
+        lib = tmp_path
+        # GitHub-sourced insight: exact ingest command.
+        d1 = lib / "topics" / "t" / "repos" / "r"
+        d1.mkdir(parents=True)
+        (d1 / "r_Insights.md").write_text(
+            '---\nsource: "github"\nurl: "https://github.com/o/r"\n'
+            'prompt_id: "analysis.github_repo.v1"\n---\n\nbody',
+            encoding="utf-8",
+        )
+        # arXiv-sourced insight: papers command with the id.
+        d2 = lib / "topics" / "t" / "papers" / "p"
+        d2.mkdir(parents=True)
+        (d2 / "p_Insights.md").write_text(
+            '---\nsource: "arxiv"\nurl: "https://arxiv.org/abs/2604.11544v1"\n---\n\nbody',
+            encoding="utf-8",
+        )
+        # No URL: named with a fallback note.
+        d3 = lib / "topics" / "t" / "media" / "m"
+        d3.mkdir(parents=True)
+        (d3 / "m_Insights.md").write_text('---\nsource: "media"\n---\n\nbody', encoding="utf-8")
+
+        stale = [
+            {"insight": "topics/t/repos/r/r_Insights.md", "recorded": "analysis.github_repo.v1"},
+            {"insight": "topics/t/papers/p/p_Insights.md", "recorded": "synthesis.paper.v2"},
+            {"insight": "topics/t/media/m/m_Insights.md", "recorded": "analysis.media.v1"},
+        ]
+        lines = reanalysis_commands(lib, "t", stale)
+
+        assert lines[0] == (
+            "distill ingest https://github.com/o/r --topic t  # was analysis.github_repo.v1"
+        )
+        assert lines[1].startswith('distill papers "2604.11544v1" --topic t --limit 1')
+        assert lines[2].startswith("# topics/t/media/m/m_Insights.md")
+
     def test_stale_counts_in_audit_render(self, tmp_path):
         from distill.pipeline.audit import AuditReport, VerifyRollup, render_audit_md
 
