@@ -30,7 +30,7 @@ Then ask Claude things like:
 
 ## Tools
 
-22 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
+24 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
 
 **Discover & ingest**
 
@@ -56,6 +56,8 @@ Then ask Claude things like:
 
 | Tool | What it does |
 |---|---|
+| `find_insights_summary` | Token-bounded, query-focused brief over a topic's matching insights (cached by corpus revision -- repeats are free; spend-gated in read-only mode) |
+| `list_topic_summary` | Free one-paragraph topic orientation for sub-agents choosing where to query |
 | `ask` | Answer a question grounded only in a topic's corpus, with cited sources (promotion via --save is CLI-only) |
 | `find_insights` | Ranked `(path, preview, score)` matches for a topic + query — paths, not payloads |
 | `read_insight` | Read a specific insight artifact (drill-down after `find_insights`) |

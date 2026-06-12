@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.5 - 2026-06-12
+
+**The sub-agent MCP surface -- 0.12's last named headline.** The Agent SDK sub-agent pattern ("answer X over corpus Y within bounded context") gets its query primitive; with read-only mode and paths-not-payloads already shipped, the agent story is now complete end to end.
+
+### Added
+
+- **`find_insights_summary(topic, query, max_tokens=4000)`**: the existing lexical rank selects the slice (top 8, bodies capped), one compression call produces a brief *organized around the query* with bracketed source-stem citations for `read_insight` drill-down -- and the result is **cached by corpus revision** (a hash of the matched files' identity + mtime + size), so repeated sub-agent calls cost nothing until the underlying slice actually changes. The roadmap called cache amortization non-optional; validated live: $0.022 first call over 7 sources, **$0.000 second call**. Spends, so it's gated under `DISTILL_MCP_READ_ONLY`.
+- **`list_topic_summary(topic)`**: free, deterministic one-paragraph orientation (newest synthesis artifact's first prose paragraph + insight count) for a sub-agent choosing which topic to query before spending anything. Available in read-only mode.
+- 24 MCP tools total; both documented in `docs/mcp.md`.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2117 passed) with branch coverage 81.6%.
+
 ## 0.12.4 - 2026-06-12
 
 **Semantic dedup -- near-duplicate insights surfaced, never merged.** The last substantial 0.12 algorithm item, deterministic and embedding-free.

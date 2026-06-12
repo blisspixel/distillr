@@ -151,6 +151,7 @@ import distill.mcp.tools.gaps as _tools_gaps  # noqa: E402, F401
 import distill.mcp.tools.papers as _tools_papers  # noqa: E402, F401
 import distill.mcp.tools.reports as _tools_reports  # noqa: E402, F401
 import distill.mcp.tools.sites as _tools_sites  # noqa: E402, F401
+import distill.mcp.tools.summaries as _tools_summaries  # noqa: E402, F401
 import distill.mcp.tools.synthesis as _tools_synthesis  # noqa: E402, F401
 import distill.mcp.tools.topics as _tools_topics  # noqa: E402, F401
 import distill.mcp.tools.watch as _tools_watch  # noqa: E402, F401
