@@ -1,6 +1,6 @@
 # Distill
 
-*Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI is `distill`.*
+*Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI command is `distill` (plus `distill-mcp`).*
 
 [![CI](https://github.com/blisspixel/distillr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/distillr/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/distillr.svg)](https://pypi.org/project/distillr/)
@@ -73,13 +73,49 @@ Plus an MCP server so AI assistants and agent systems can query the library dire
 
 ## Quick start
 
-Distill runs on Linux, macOS, and Windows (Python 3.12+); local models run on consumer GPUs via Ollama or LM Studio.
+**Distill runs on Windows, macOS, and Linux** (Python 3.12+). Local models run on consumer GPUs via Ollama or LM Studio.
+
+### Recommended (virtual environment or pipx)
+
+This is the cleanest way on all platforms and avoids common PATH problems.
+
+```bash
+# 1. Create a virtual environment
+python -m venv .venv          # some systems: python3 -m venv .venv
+
+# 2. Activate the environment
+#   Windows (PowerShell):   .\.venv\Scripts\Activate.ps1
+#   macOS / Linux:          source .venv/bin/activate
+
+# 3. Install
+pip install -e .              # from a source checkout, or: pip install distillr
+
+# 4. Browser support (for YouTube + web capture)
+playwright install chromium
+
+# 5. Verify
+distill doctor
+```
+
+**Even simpler alternative: pipx** (great for CLI tools):
+
+```bash
+pipx install distillr
+playwright install chromium
+distill doctor
+```
+
+### Fast path (bare pip)
 
 ```bash
 pip install distillr
-playwright install chromium     # for YouTube search + website capture
-distill doctor                  # verify API keys + system health
+playwright install chromium
+distill doctor
 ```
+
+**Windows note (common gotcha):** If you use a system Python (e.g. under `C:\Program Files\Python...`) without admin rights, bare `pip` installs to your user directory. The CLI (`distill.exe`) may land in a Scripts folder that is not on `PATH`. Use the venv or pipx method above, or add `%APPDATA%\Python\Python312\Scripts` (adjust version) to your user PATH and restart the terminal.
+
+The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Set two keys in `.env` (copy from `.env.example`).
 
 The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Set two keys in `.env` in your working directory (copy from `.env.example`):
 
