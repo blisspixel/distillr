@@ -11,6 +11,7 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
+@_server.write_tool("generate_report")
 def generate_report(topic: str, channel: str | None = None) -> str:
     """Generate a deep research report for a topic (long-running).
 
@@ -57,6 +58,7 @@ def generate_report(topic: str, channel: str | None = None) -> str:
 
 
 @_server.mcp.tool()
+@_server.write_tool("resynthesize_topic")
 def resynthesize_topic(topic: str, channel: str | None = None) -> str:
     """Regenerate synthesis from existing insights without re-analysis.
 

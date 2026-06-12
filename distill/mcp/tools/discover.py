@@ -27,6 +27,7 @@ def _clamp_limit(limit: int) -> int:
 
 
 @_server.mcp.tool()
+@_server.write_tool("learn_topic")
 def learn_topic(
     query: str,
     topic: str | None = None,
@@ -191,6 +192,7 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
 
 
 @_server.mcp.tool()
+@_server.write_tool("discover")
 async def discover(  # noqa: C901
     goal: str,
     topic: str | None = None,

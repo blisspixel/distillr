@@ -37,6 +37,7 @@ def _resolve_seed_file(library_dir: Path, seed_file: str) -> Path | None:
 
 
 @_server.mcp.tool()
+@_server.write_tool("site_batch")
 async def site_batch(  # noqa: C901
     topic: str,
     urls: list[str] | None = None,

@@ -13,6 +13,7 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
+@_server.write_tool("synthesize")
 async def synthesize(  # noqa: C901
     topic: str,
     force: bool = False,

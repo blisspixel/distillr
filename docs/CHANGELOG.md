@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.12.1 - 2026-06-12
+
+**MCP read-only posture + scheduling recipes -- the loop-enabling pair.**
+
+### Added
+
+- **`DISTILL_MCP_READ_ONLY=1`** serves only the read surface: all twelve spend/ingest/mutation tools (`papers`, `discover`, `learn_topic`, `site_batch`, `process_video_url`, `synthesize`, `generate_report`, `resynthesize_topic`, `ask`, `catch_up`, `watch_add`, `watch_remove`) refuse with a clear message *before any body executes*, via a signature-preserving `write_tool` decorator stacked under the registration -- FastMCP's schema introspection is unaffected, and the read surface (find/read/concepts/gaps/costs/doctor) is untouched. Closes the June panel's enterprise finding (budget-burn and corpus-poisoning by tool call); "read-only MCP, CLI ingest by a named operator" is now the documented agent-facing posture. Remaining for deployments that expose write tools: per-call spend caps and an ingest-domain allowlist.
+- **"Running on a schedule" recipes** (`docs/usage.md`): Windows Task Scheduler and cron lines for weekly `catch-up`, `audit all --report-only`, and gap-fill `--preview` runs -- the gap-fill is preview-on-purpose so scheduled jobs surface candidate spend and a human (or budgeted agent) commits it. Honors the boundary: distill is the loopable primitive; the scheduler stays external.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2089 passed) with branch coverage 81.4%.
+
 ## 0.12.0 - 2026-06-12
 
 **The compounding corpus begins: `distill ask` -- the output->input loop, verify-gated.** The half of the Karpathy-pattern loop distill lacked: ask the corpus a question, like the answer, and the answer *becomes corpus* -- safely. Design: [`docs/design/ask-loop.md`](design/ask-loop.md) (written at slice start per the working rhythm).

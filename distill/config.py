@@ -71,9 +71,13 @@ class DistillConfig(BaseSettings):
     accordion_section_delay: int = 3
     accordion_section_model: str = "grok-4.3"
     # Write-time claim-grounding hook (DISTILL_VERIFY): "warn" flags numeric
-    # claims the source receipt doesn't support and writes anyway; "off" skips
-    # the check. ("strict" -- refuse the write -- lands with the CLI flag.)
+    # claims the source receipt doesn't support and writes anyway; "strict"
+    # refuses the write; "off" skips the check.
     distill_verify: str = "warn"
+    # MCP posture (DISTILL_MCP_READ_ONLY): serve only the read surface --
+    # write-side tools (spend/ingest/mutation) refuse with a clear message.
+    # The recommended setting for agent-facing deployments.
+    distill_mcp_read_only: bool = False
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

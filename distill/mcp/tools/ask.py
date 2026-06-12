@@ -17,6 +17,7 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
+@_server.write_tool("ask")
 def ask(topic: str, question: str) -> str:
     """Answer a question from a topic's corpus, grounded-only with citations.
 

@@ -17,6 +17,7 @@ _MAX_PAPERS = 25
 
 
 @_server.mcp.tool()
+@_server.write_tool("papers")
 async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) -> str:
     """Search arXiv, download, and analyze papers for a topic.
 

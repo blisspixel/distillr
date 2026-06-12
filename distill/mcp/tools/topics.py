@@ -12,6 +12,7 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
+@_server.write_tool("process_video_url")
 def process_video_url(url: str, topic: str = "ai") -> str:
     """Transcribe and analyze a single YouTube video.
 

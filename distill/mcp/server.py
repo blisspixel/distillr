@@ -37,6 +37,65 @@ def _config() -> DistillConfig:
     return DistillConfig()
 
 
+def _refuse_if_read_only(action: str) -> str | None:
+    """Gate for write-side tools: spend, ingest, or corpus mutation.
+
+    With ``DISTILL_MCP_READ_ONLY`` set, any connected agent gets the full read
+    surface but cannot burn budget or poison the corpus by tool call -- the
+    recommended posture for agent-facing deployments (ingest happens via the
+    CLI by a named operator). Returns the refusal JSON, or ``None`` to
+    proceed.
+    """
+    if not _config().distill_mcp_read_only:
+        return None
+    import json
+
+    return json.dumps(
+        {
+            "status": "read_only",
+            "error": f"This MCP server is read-only (DISTILL_MCP_READ_ONLY); "
+            f"'{action}' spends money or mutates the corpus and is disabled. "
+            "Use the read tools (find_insights, read_insight, find_concepts, "
+            "research_gaps, ...) or run the action via the distill CLI.",
+        },
+        indent=2,
+    )
+
+
+def write_tool(action: str):
+    """Decorator marking an MCP tool as write-side (spend, ingest, or mutation).
+
+    Stacks *under* ``@mcp.tool()`` so the registered callable carries the
+    read-only gate. ``functools.wraps`` preserves the signature FastMCP
+    introspects for the schema.
+    """
+    import functools
+    import inspect
+
+    def deco(fn):
+        if inspect.iscoroutinefunction(fn):
+
+            @functools.wraps(fn)
+            async def async_wrapper(*args, **kwargs):
+                refusal = _refuse_if_read_only(action)
+                if refusal is not None:
+                    return refusal
+                return await fn(*args, **kwargs)
+
+            return async_wrapper
+
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            refusal = _refuse_if_read_only(action)
+            if refusal is not None:
+                return refusal
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
 def _lib(config: DistillConfig | None = None) -> Library:
     return Library(config or _config())
 

@@ -13,6 +13,7 @@ __all__: list[str] = []
 
 
 @_server.mcp.tool()
+@_server.write_tool("catch_up")
 def catch_up(  # noqa: C901 — legacy, will refactor
     channel: str | None = None,
     topic: str | None = None,
@@ -116,6 +117,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
 
 
 @_server.mcp.tool()
+@_server.write_tool("watch_add")
 def watch_add(
     url: str,
     topic: str = "watch",
@@ -167,6 +169,7 @@ def watch_add(
 
 
 @_server.mcp.tool()
+@_server.write_tool("watch_remove")
 def watch_remove(name: str) -> str:
     """Remove a channel from the watch list.
 

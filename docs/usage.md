@@ -467,6 +467,44 @@ distill migrate                                     # rename legacy ID-based vid
 distill cleanup                                     # delete orphaned Gemini File Search stores
 ```
 
+### Running on a schedule (loop-ready)
+
+Distill is the loopable primitive; the scheduler is whatever you already run.
+Every command is safe unattended: non-interactive flags, convergent re-runs
+(a converged corpus exits 0 as a no-op), clean failure messages, report
+artifacts instead of console-only output.
+
+Windows Task Scheduler (weekly refresh + audit):
+
+```powershell
+schtasks /Create /SC WEEKLY /D MON /ST 06:00 /TN "distill-refresh" `
+  /TR "distill catch-up"
+schtasks /Create /SC WEEKLY /D MON /ST 06:30 /TN "distill-audit" `
+  /TR "distill audit all --report-only"
+```
+
+cron (Linux/macOS):
+
+```cron
+0 6 * * 1   distill catch-up
+30 6 * * 1  distill audit all --report-only
+0 7 * * 1   distill discover --from-gaps --topic <topic> --preview
+```
+
+The gap-fill line is `--preview` on purpose: scheduled jobs surface candidate
+spend; a human (or a budgeted agent) commits it with `--from-preview <id>`.
+Audit reports land as dated `<topic>_Audit.md` artifacts, so drift,
+contradictions, and verification coverage surface without manual prompting.
+
+### Read-only MCP for agent deployments
+
+Set `DISTILL_MCP_READ_ONLY=1` in the MCP server's environment to serve only
+the read surface: connected agents can search, read, and inspect gaps, but
+every spend/ingest/mutation tool (`papers`, `discover`, `site_batch`,
+`synthesize`, `ask`, watch management, reports) refuses with a clear message
+pointing at the CLI. The recommended posture when agents you don't fully
+control can reach the server: ingest happens via the CLI by a named operator.
+
 ### Ask the corpus (`distill ask`)
 
 ```bash
