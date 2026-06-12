@@ -1,4 +1,4 @@
-# Easy one-line installer for distillr (Windows PowerShell)
+﻿# Easy one-line installer for distillr (Windows PowerShell)
 # Usage (recommended):
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.ps1 | iex"
 
