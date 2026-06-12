@@ -6,10 +6,15 @@ from distill.library.paths import sanitize_path_component, slugify_title
 
 class TestDefaultLibraryDir:
     def test_source_checkout_uses_repo_library(self, tmp_path, monkeypatch):
-        """With a pyproject.toml one level up (a source checkout), use <repo>/library."""
+        """With distillr's own pyproject.toml one level up (a source checkout),
+        use <repo>/library. The marker must be distillr's -- a stray or foreign
+        pyproject no longer claims checkout status (downstream-reported misfire;
+        see tests/unit/test_default_library_dir.py)."""
         pkg = tmp_path / "repo" / "distill"
         pkg.mkdir(parents=True)
-        (tmp_path / "repo" / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        (tmp_path / "repo" / "pyproject.toml").write_text(
+            '[project]\nname = "distillr"\n', encoding="utf-8"
+        )
         monkeypatch.setattr("distill.config.__file__", str(pkg / "config.py"))
         assert _default_library_dir() == tmp_path / "repo" / "library"
 

@@ -467,6 +467,26 @@ distill migrate                                     # rename legacy ID-based vid
 distill cleanup                                     # delete orphaned Gemini File Search stores
 ```
 
+### Ask the corpus (`distill ask`)
+
+```bash
+distill ask "which entailment checker should we use?" --topic claim-verification
+distill ask "..." --topic t --save     # promote a verified answer into the corpus
+```
+
+Answers are grounded ONLY in the topic's artifacts (top-matching insights via
+the same retrieval `find_insights` uses), with every claim citing its source
+as a `[[wiki-link]]`; "the corpus does not cover this" is a valid answer.
+Each answer is written to `answers/<slug>_Answer.md` with provenance and a
+`_Verify.json` sidecar grounding its numbers against the retrieved excerpts.
+
+`--save` is the compounding step: a **clean** answer is re-ingested as a
+first-class insight (`synthesis_scope: derived-answer`) that synthesis,
+concepts, and future answers build on. Promotion is strict by definition --
+any unsupported load-bearing claim refuses the save (the answer and sidecar
+remain, so you can see why). MCP parity: an `ask` tool (read-only; promotion
+stays CLI-only).
+
 ### Claim verification (the verify hook)
 
 Every analysis emit (papers, videos, site pages, X posts, local files) grounds

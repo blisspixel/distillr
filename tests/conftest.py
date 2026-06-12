@@ -4,8 +4,18 @@ import json
 from datetime import datetime, timedelta
 
 import pytest
+from hypothesis import settings as _hypothesis_settings
 
 from distill.config import DistillConfig
+
+# Hypothesis's default 200ms per-example deadline measures wall clock, which
+# under coverage instrumentation on a loaded machine (OneDrive sync, parallel
+# live runs) fails *random* property tests that pass in isolation -- three
+# full-suite runs on 2026-06-11/12 each dropped a different llm/library
+# property test with DeadlineExceeded. These suites test correctness, not
+# latency; disable the deadline rather than rerolling.
+_hypothesis_settings.register_profile("distill", deadline=None)
+_hypothesis_settings.load_profile("distill")
 
 
 def _recent(days_ago: int = 1) -> str:

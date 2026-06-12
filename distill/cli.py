@@ -88,6 +88,7 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
 
 # Register commands defined in dedicated modules (kept out of the 7k-line
 # _logic.py). The import side-effect attaches the command to ``app``.
+from distill.commands.ask import register as _register_ask
 from distill.commands.audit import register as _register_audit
 from distill.commands.claude_md import register as _register_claude_md
 from distill.commands.concepts import register as _register_concepts_recovery
@@ -97,6 +98,7 @@ _register_ingest(app)
 _register_concepts_recovery(concepts_app)
 _register_claude_md(app)
 _register_audit(app)
+_register_ask(app)
 
 __all__ = ["app", "main"]
 

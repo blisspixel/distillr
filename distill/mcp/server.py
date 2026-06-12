@@ -82,6 +82,7 @@ _topic_gap_summary = topic_gap_summary
 # The submodules import ``mcp`` from this module and decorate their handlers.
 import distill.mcp.prompts as _prompts  # noqa: E402, F401, I001
 import distill.mcp.resources as _resources  # noqa: E402, F401
+import distill.mcp.tools.ask as _tools_ask  # noqa: E402, F401
 import distill.mcp.tools.concepts as _tools_concepts  # noqa: E402, F401
 import distill.mcp.tools.costs as _tools_costs  # noqa: E402, F401
 import distill.mcp.tools.discover as _tools_discover  # noqa: E402, F401

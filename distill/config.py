@@ -5,18 +5,35 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
 
-def _default_library_dir() -> Path:
+def _default_library_dir(package_parent: Path | None = None) -> Path:
     """Return an absolute default library directory.
 
-    From a source checkout (a ``pyproject.toml`` sits one level up), keep the
-    convenient ``<repo>/library`` so development data stays beside the code.
-    When pip-installed, ``<package>/..`` is ``site-packages`` -- a bad home for
-    user data (wiped on every reinstall/upgrade, may need admin write) -- so
-    default to ``~/.distill/library`` instead. Override with DISTILL_OUTPUT_DIR.
+    From a source checkout (distillr's own ``pyproject.toml`` sits one level
+    up), keep the convenient ``<repo>/library`` so development data stays
+    beside the code. When pip-installed, ``<package>/..`` is
+    ``site-packages`` -- a bad home for user data (wiped on every
+    reinstall/upgrade, may need admin write) -- so default to
+    ``~/.distill/library`` instead. Override with DISTILL_OUTPUT_DIR.
+
+    Two guards harden the checkout heuristic (a downstream integration hit
+    the misfire live, 2026-06-12: a stray ``pyproject.toml`` in
+    ``site-packages`` -- some badly packaged wheels ship one -- made an
+    installed copy claim "source checkout" and the whole library landed
+    inside ``site-packages\\library``): the parent must not be a
+    ``site-packages``/``dist-packages`` tree, and the marker file must
+    actually be distillr's own pyproject.
     """
-    parent = Path(__file__).resolve().parent.parent
-    if (parent / "pyproject.toml").exists():
-        return parent / "library"
+    parent = (package_parent or Path(__file__).resolve().parent).parent
+    in_installed_tree = any(
+        part.lower() in {"site-packages", "dist-packages"} for part in parent.parts
+    )
+    marker = parent / "pyproject.toml"
+    if not in_installed_tree and marker.exists():
+        try:
+            if 'name = "distillr"' in marker.read_text(encoding="utf-8"):
+                return parent / "library"
+        except OSError:
+            pass
     return Path.home() / ".distill" / "library"
 
 

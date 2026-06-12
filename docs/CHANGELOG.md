@@ -16,6 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
 - Shared LLM-intermediate cache (`distill/llm/cache.py`) so agentic loops are affordable and a converged re-run is near-free (master-plan P6c).
 
+## 0.12.0 - 2026-06-12
+
+**The compounding corpus begins: `distill ask` -- the output->input loop, verify-gated.** The half of the Karpathy-pattern loop distill lacked: ask the corpus a question, like the answer, and the answer *becomes corpus* -- safely. Design: [`docs/design/ask-loop.md`](design/ask-loop.md) (written at slice start per the working rhythm).
+
+### Added
+
+- **`distill ask "<question>" --topic <t>`**: retrieval reuses the shipped lexical rank (top-6 artifacts, bodies capped -- no embeddings, no index; invariant 2 stands), answering is grounded-only under the second-hop untrusted-content rules with mandatory bracketed-stem citations, and "the corpus does not cover this" is a correct answer. Output: `answers/<slug>_Answer.md` with `[[wiki-link]]` receipts, full provenance (`ask.v1`), and a `_Verify.json` sidecar grounding the answer's numbers against the retrieved excerpts.
+- **`--save` -- the compounding step, strict by definition (invariant 8).** A clean answer is promoted to `answers/<slug>/<slug>_Insights.md` (`synthesis_scope: derived-answer`), which every existing walker -- synthesis, claims, concepts, audit, the CLAUDE.md counts -- picks up with zero changes, verification record attached. Any unsupported load-bearing claim, or a no-coverage answer body, refuses promotion with the reason stated; the Answer.md and sidecar remain inspectable. This is the guard against "the AI writes something slightly wrong, you save it back, and the next answer quietly builds on a mistake."
+- **MCP `ask` tool** (the one deliberate addition since the 0.9.30 consolidation; 22 tools): answer + cited stems + artifact path, paths-not-payloads. Promotion stays CLI-only until MCP write-gating ships -- agents do not mutate the corpus silently.
+- New `answer` artifact type; `distill/pipeline/ask.py` + `distill/commands/ask.py` (own module).
+
+### Fixed / Hardened
+
+- **Library-location heuristic could misfire into `site-packages` (downstream-reported, live).** A stray `pyproject.toml` in `site-packages` (some badly packaged wheels ship one) made an installed distillr claim "source checkout" and place the user's entire library inside `site-packages\library` -- wiped on upgrade, the exact bad home the docstring warns about. The checkout heuristic now requires the marker to be **distillr's own** pyproject AND refuses checkout-mode anywhere under `site-packages`/`dist-packages`; five regression tests cover the reported scenario. Existing misplaced libraries need a one-time move to `~/.distill/library` (or set `DISTILL_OUTPUT_DIR`).
+- **Hypothesis deadline flakes diagnosed and fixed.** Three consecutive full-suite runs each dropped a *different* property test that passed in isolation (`DeadlineExceeded`): Hypothesis's 200ms wall-clock per-example deadline was measuring coverage instrumentation plus machine load, not correctness. Suite-wide `deadline=None` profile in `tests/conftest.py`; the suite is deterministic again.
+
+### Validated live ($0.01)
+
+- The claim-verification corpus answered its own milestone's design question ("which local entailment checker should the hook use?") with citations into the synthesis and the Auto-GDA paper, passed the strict gate, and was **promoted as the corpus's first derived insight** -- `distill audit` immediately reported it (10 insights, 4 verified clean). The loop the product is named for, closed end to end.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2075 passed) with branch coverage 81.3%.
+
 ## 0.11.2 - 2026-06-11
 
 **The 0.11 breadth milestone completes: local media files and newsletters.** All five adapters from the source-breadth spec are now live (X, GitHub repos, podcasts, generic media, Substack/newsletters), every one on the adapter contract and behind the verify gate.
