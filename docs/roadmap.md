@@ -122,7 +122,7 @@ be moved to `CHANGELOG.md` on next release).
 
 - [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; near-duplicate detection shipped 0.12.4 (audit-surfaced), deeper cross-source reasoning still pending.
 - [ ] Trusted-domain website discovery inside `discover` — let the app expand "prefer Microsoft docs / vendor docs / official learn pages" into real page candidates from allowlisted domains, then rerank those page candidates with videos/papers in the same pool
-- [ ] `distill watch` integration for goal files — re-run discover against a saved goal on a cadence so goal-driven topics refresh the same way keyword topics do.
+- [x] Goal-file watch hook — shipped 0.12.7: goal-driven discover runs persist their goal<->topic association (`.distill/goals.json`, goal text + file + seeds), and `catch-up` surfaces each topic's exact `--preview` refresh command on the cadence; spend surfaced, never auto-committed. Detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [ ] Multi-topic channels — same channel filed under multiple topics with shared transcripts
 - [ ] More source types — podcasts, RSS feeds, conference talks (same pipeline, different discovery)
 

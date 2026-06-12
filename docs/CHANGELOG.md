@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.7 - 2026-06-12
+
+**The goal-file watch hook -- goal-driven topics refresh on the cadence.**
+
+### Added
+
+- **Persisted topic goals**: every goal-driven `distill discover` run (text or `--goal-file`, preview or ingest) saves the goal<->topic association to `library/.distill/goals.json` -- the goal *text* is persisted so a moved or deleted goal file doesn't break refresh, alongside the original file path and site-seed file for exact replay. Gap-derived goals are excluded (they refresh via `--from-gaps`).
+- **`distill catch-up` surfaces goal refreshes**: at the end of every run (the verb already in the scheduling recipes), each saved goal prints its exact refresh command -- `distill discover --goal-file ... --topic ... --preview` -- so goal-driven topics ride the same schedule as keyword topics. Spend surfaced, never auto-committed; re-runs are convergent (the corpus-aware rerank drops already-ingested candidates), so a refresh only shows what's new.
 ## 0.12.6 - 2026-06-12
 
 **The auto-reanalysis trigger -- staleness becomes actionable.**

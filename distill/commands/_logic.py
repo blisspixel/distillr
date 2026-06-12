@@ -7080,6 +7080,26 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         )
         console.print("  [dim]  distill costs                               Review spending[/dim]")
 
+    # Goal-driven topics refresh on the same cadence: surface the exact
+    # preview command per saved goal (spend surfaced, never auto-committed;
+    # re-runs are convergent, so a refresh only shows what's new).
+    _print_goal_refreshes(config, topic_filter=topic)
+
+
+def _print_goal_refreshes(config, *, topic_filter: str | None = None) -> list[str]:
+    """Print (and return) the refresh commands for persisted topic goals."""
+    from distill.pipeline.goals import goal_refresh_command, load_topic_goals
+
+    goals = load_topic_goals(config.library_dir)
+    if topic_filter:
+        goals = {t: e for t, e in goals.items() if t == topic_filter}
+    lines = [goal_refresh_command(t, e) for t, e in sorted(goals.items())]
+    if lines:
+        console.print("\n  [dim]Goal-driven topics — refresh against their saved goals:[/dim]")
+        for line in lines:
+            console.print(f"  [cyan]{line}[/cyan]")
+    return lines
+
 
 @app.command(rich_help_panel="Maintain")
 def resynthesize(
@@ -8490,6 +8510,20 @@ def discover(  # noqa: C901 — legacy, will refactor
         # Persist the corpus intent so analysis (this run and later ingests into
         # this topic) reads sources through the goal-inferred lens.
         save_intent(config.topic_dir(topic_name), make_intent(goal, lens=lens, rigor=rigor))
+    if not from_gaps:
+        # Persist the goal<->topic association so catch-up can surface the
+        # refresh command on a cadence (the goal-file watch hook). Gap-derived
+        # goals are synthetic and refresh via --from-gaps instead.
+        from distill.pipeline.goals import save_topic_goal
+
+        save_topic_goal(
+            config.library_dir,
+            topic_name,
+            goal,
+            goal_file=str(goal_file) if goal_file is not None else "",
+            site_seeds=str(site_seeds) if site_seeds is not None else "",
+            now_iso=datetime.now().isoformat(),
+        )
     effective_site_limit = site_limit if site_seeds is not None else 0
     if paper_limit <= 0 and video_limit <= 0 and effective_site_limit <= 0:
         console.print(
