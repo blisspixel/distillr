@@ -25,6 +25,7 @@ from distill.pipeline.audit import (
     collect_verify_rollup,
     write_audit_artifact,
 )
+from distill.pipeline.dedup import collect_near_duplicates
 
 __all__ = ["audit_cmd", "register"]
 
@@ -64,6 +65,7 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         next_actions=list(gap_summary.get("next_actions", [])),
         verify=collect_verify_rollup(topic_dir),
         staleness=collect_staleness(topic_dir),
+        near_duplicates=collect_near_duplicates(topic_dir),
     )
 
 
@@ -109,8 +111,8 @@ def audit_cmd(
         console.print(
             f"[bold]{t}[/bold]: {report.issue_count} finding(s) -- "
             f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
-            f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s) | "
-            f"{len(report.gaps)} gap(s), "
+            f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
+            f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
             f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
         )
         console.print(f"  [dim]{path}[/dim]")

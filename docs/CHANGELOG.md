@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.4 - 2026-06-12
+
+**Semantic dedup -- near-duplicate insights surfaced, never merged.** The last substantial 0.12 algorithm item, deterministic and embedding-free.
+
+### Added
+
+- **`distill/pipeline/dedup.py`**: token-shingle Jaccard over insight bodies (5-token shingles, 0.55 threshold, short stubs excluded) with union-find grouping so transitively-similar insights land in one group. No embeddings, no index -- explainable overlap ("these share 71% of their phrasing") in keeping with the no-database invariant. Quadratic at topic scale, which is fine at tens-to-hundreds of insights.
+- **`distill audit` near-duplicates section**: groups listed with overlap percentage and members, counted as findings, in the per-topic console summary. **Artifact-preserving by design** (per the roadmap note): the same announcement covered by a video, a newsletter, and a vendor page triple-weights one event in synthesis -- but three outlets repeating one press release is itself a signal, so the audit surfaces the group and the human (or the source-attributing synthesis prompt) decides what it means.
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2108 passed) with branch coverage 81.5%.
+
 ## 0.12.3 - 2026-06-12
 
 **Estimator accountability -- "accuracy, not padding" is now checkable.** The 0.12 spec's last cheap promise, and it exposed a real gap: `save_run_log` had accepted `estimated_cost` since the calibration work, but **no caller ever passed it** -- "logs actual vs estimated" was only half true.

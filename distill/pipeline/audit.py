@@ -81,6 +81,7 @@ class AuditReport:
     next_actions: list[str]
     verify: VerifyRollup
     staleness: StalenessRollup = field(default_factory=StalenessRollup)
+    near_duplicates: list = field(default_factory=list)  # list[DuplicateGroup]
 
     @property
     def issue_count(self) -> int:
@@ -91,6 +92,7 @@ class AuditReport:
             + len(self.gaps)
             + len(self.verify.flagged)
             + len(self.staleness.stale)
+            + len(self.near_duplicates)
         )
 
 
@@ -241,6 +243,23 @@ def _verify_section(report: AuditReport) -> list[str]:
     return lines
 
 
+def _duplicates_section(report: AuditReport) -> list[str]:
+    lines = ["## Near-duplicate insights (artifact-preserving -- surfaced, never merged)", ""]
+    if not report.near_duplicates:
+        return [*lines, "- No substantial body overlap between insights."]
+    lines.append(
+        "- Overlapping insights triple-weight one event in synthesis; three outlets "
+        "repeating one press release is itself a signal. Groups by shared phrasing:"
+    )
+    lines.append("")
+    for group in report.near_duplicates[:10]:
+        lines.append(f"- {group.similarity:.0%} overlap across {group.members} insight(s):")
+        lines += [f"  - `{p}`" for p in group.paths[:6]]
+    if len(report.near_duplicates) > 10:
+        lines.append(f"- ... and {len(report.near_duplicates) - 10} more groups")
+    return lines
+
+
 def _health_section(report: AuditReport) -> list[str]:
     lines = ["## Corpus health", ""]
     if report.health_warnings:
@@ -304,6 +323,7 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
     for section in (
         _verify_section,
         _staleness_section,
+        _duplicates_section,
         _health_section,
         _contested_section,
         _links_section,
