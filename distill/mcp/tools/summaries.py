@@ -32,7 +32,6 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
         query: The question the brief should be organized around.
         max_tokens: Approximate context budget for the brief (default 4000).
     """
-    from distill.pipeline.costs import CostTracker
     from distill.pipeline.summary_query import summarize_query
 
     config = _server._config()
@@ -42,7 +41,7 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
     max_tokens = max(500, min(int(max_tokens), 16_000))
 
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     result = summarize_query(config, topic, query, max_tokens=max_tokens, tracker=tracker)
     if result is None:
         return json.dumps(

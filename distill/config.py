@@ -78,6 +78,16 @@ class DistillConfig(BaseSettings):
     # write-side tools (spend/ingest/mutation) refuse with a clear message.
     # The recommended setting for agent-facing deployments.
     distill_mcp_read_only: bool = False
+    # For deployments that DO expose the write tools, two narrower guardrails:
+    # DISTILL_MCP_MAX_SPEND_PER_CALL caps each tool call's recorded spend in
+    # dollars (the call that crosses completes -- its spend already happened --
+    # then the run stops cleanly; overshoot is bounded by one model call).
+    # 0 or unset = no cap.
+    distill_mcp_max_spend_per_call: float = 0.0
+    # DISTILL_MCP_INGEST_ALLOWLIST: comma-separated hostnames; URL-taking
+    # ingest tools refuse any URL whose host is not on (or under) the list.
+    # Empty = no restriction.
+    distill_mcp_ingest_allowlist: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

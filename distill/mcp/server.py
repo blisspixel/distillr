@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 
 from distill.config import DistillConfig
 from distill.library import Library
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.gaps import topic_gap_summary, topic_source_inventory, video_list
 
 __all__ = ["main", "mcp"]
@@ -62,11 +62,43 @@ def _refuse_if_read_only(action: str) -> str | None:
     )
 
 
+def capped_tracker() -> CostTracker:
+    """A run tracker carrying the per-call MCP spend cap, when one is set.
+
+    ``DISTILL_MCP_MAX_SPEND_PER_CALL`` caps each tool call's *recorded* spend:
+    the call that crosses completes (its spend already happened and stays on
+    the ledger), then the run raises ``BudgetExceededError``, which
+    :func:`write_tool` turns into a structured response. Enforcement on actual
+    spend, never on an estimate.
+    """
+    cap = _config().distill_mcp_max_spend_per_call
+    return CostTracker(budget=cap if cap > 0 else None)
+
+
+def _budget_response(action: str, exc: BudgetExceededError) -> str:
+    import json
+
+    return json.dumps(
+        {
+            "status": "budget_exceeded",
+            "error": f"'{action}' stopped: {exc}. Artifacts written before the "
+            "stop are durable and verify-gated; re-running converges (already-"
+            "ingested sources are skipped). Raise DISTILL_MCP_MAX_SPEND_PER_CALL "
+            "or run the action via the distill CLI.",
+            "spent": round(exc.spent, 6),
+            "cap": exc.budget,
+        },
+        indent=2,
+    )
+
+
 def write_tool(action: str):
     """Decorator marking an MCP tool as write-side (spend, ingest, or mutation).
 
     Stacks *under* ``@mcp.tool()`` so the registered callable carries the
-    read-only gate. ``functools.wraps`` preserves the signature FastMCP
+    read-only gate and the per-call spend cap (a ``BudgetExceededError`` from
+    the tool's ``capped_tracker()`` becomes a structured response instead of a
+    protocol error). ``functools.wraps`` preserves the signature FastMCP
     introspects for the schema.
     """
     import functools
@@ -80,7 +112,10 @@ def write_tool(action: str):
                 refusal = _refuse_if_read_only(action)
                 if refusal is not None:
                     return refusal
-                return await fn(*args, **kwargs)
+                try:
+                    return await fn(*args, **kwargs)
+                except BudgetExceededError as exc:
+                    return _budget_response(action, exc)
 
             return async_wrapper
 
@@ -89,11 +124,45 @@ def write_tool(action: str):
             refusal = _refuse_if_read_only(action)
             if refusal is not None:
                 return refusal
-            return fn(*args, **kwargs)
+            try:
+                return fn(*args, **kwargs)
+            except BudgetExceededError as exc:
+                return _budget_response(action, exc)
 
         return wrapper
 
     return deco
+
+
+def refuse_if_host_not_allowed(url: str) -> str | None:
+    """Gate for URL-taking ingest tools: the ingest-domain allowlist.
+
+    With ``DISTILL_MCP_INGEST_ALLOWLIST`` set (comma-separated hostnames), a
+    URL whose host is not one of the entries or a subdomain of one is refused
+    -- the corpus-poisoning guard for deployments that expose write tools.
+    Returns the refusal JSON, or ``None`` to proceed.
+    """
+    allowlist = [
+        h.strip().lower() for h in _config().distill_mcp_ingest_allowlist.split(",") if h.strip()
+    ]
+    if not allowlist:
+        return None
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "").lower()
+    if host and any(host == entry or host.endswith("." + entry) for entry in allowlist):
+        return None
+    import json
+
+    return json.dumps(
+        {
+            "status": "domain_not_allowed",
+            "error": f"Host '{host or url}' is not on DISTILL_MCP_INGEST_ALLOWLIST; "
+            "this server only ingests from: " + ", ".join(allowlist) + ". "
+            "Ask the operator to extend the allowlist or ingest via the distill CLI.",
+        },
+        indent=2,
+    )
 
 
 def _lib(config: DistillConfig | None = None) -> Library:

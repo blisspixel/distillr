@@ -7,7 +7,7 @@ import json
 
 from distill.library.state import ChannelState
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -49,7 +49,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         if not watchlist:
             return f"No watched channels in topic '{topic}'."
 
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     summary = RunSummary(command="catch-up")
     results = []
     topics_touched: set[str] = set()
@@ -134,6 +134,9 @@ def watch_add(
     """
     from distill.ingestors.youtube.discovery import discover_videos, resolve_channel_name
 
+    refusal = _server.refuse_if_host_not_allowed(url)
+    if refusal is not None:
+        return refusal
     config = _server._config()
     lib = _server._lib(config)
     name = resolve_channel_name(url)

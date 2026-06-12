@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from mcp.server.fastmcp import Context
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -81,6 +81,11 @@ async def site_batch(  # noqa: C901
     if not page_urls:
         return json.dumps({"status": "error", "error": "No URLs to process."})
 
+    for url in page_urls:
+        refusal = _server.refuse_if_host_not_allowed(url)
+        if refusal is not None:
+            return refusal
+
     try:
         from distill.commands._logic import _process_site_seed
         from distill.ingestors.sites.scraper import SiteSeed
@@ -88,7 +93,7 @@ async def site_batch(  # noqa: C901
     except ImportError as e:
         return json.dumps({"status": "error", "error": f"Site dependencies missing: {e}"})
 
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     summary = RunSummary(command="site-batch")
     results = []
 

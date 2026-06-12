@@ -509,6 +509,20 @@ every spend/ingest/mutation tool (`papers`, `discover`, `site_batch`,
 pointing at the CLI. The recommended posture when agents you don't fully
 control can reach the server: ingest happens via the CLI by a named operator.
 
+For deployments that do expose the write tools, two narrower guardrails:
+
+- `DISTILL_MCP_MAX_SPEND_PER_CALL=0.50` caps each tool call's recorded spend
+  in dollars. Enforcement is on actual spend, not an estimate: the model call
+  that crosses the cap completes (its spend already happened and stays on the
+  ledger -- no off-ledger spend, ever), then the run stops with a structured
+  `budget_exceeded` response. Artifacts written before the stop are durable
+  and verify-gated, and a re-run converges (already-ingested sources skip).
+- `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines the
+  URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to
+  the listed hosts and their subdomains -- the corpus-poisoning guard. Hosts
+  match exactly or as subdomains (`www.youtube.com` passes `youtube.com`;
+  `evilyoutube.com` does not).
+
 ### Ask the corpus (`distill ask`)
 
 ```bash

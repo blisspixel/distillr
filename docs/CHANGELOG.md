@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.9 - 2026-06-12
+
+**MCP write-side guardrails -- the last 0.12 trust margin.** Read-only mode (0.12.1) is the recommended posture; this closes the gap for deployments that do expose the write tools (the June 2026 panel's enterprise finding: spend-and-ingest tools callable by any connected agent are budget-burn and corpus-poisoning surface).
+
+### Added
+
+- **Per-call spend caps** (`DISTILL_MCP_MAX_SPEND_PER_CALL`, dollars): every MCP write tool runs on a budget-carrying `CostTracker` -- enforcement is on *actual recorded spend*, never an estimate. The model call that crosses the cap completes (its spend already happened and stays on the ledger -- no off-ledger spend, ever), then the run raises and the `write_tool` decorator returns a structured `budget_exceeded` response with spent/cap. Artifacts written before the stop are durable and verify-gated; re-runs converge. Transcription and Deep Research spend count against the same budget.
+- **Ingest-domain allowlist** (`DISTILL_MCP_INGEST_ALLOWLIST`, comma-separated hosts): the URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) refuse any URL whose host is not a listed host or its subdomain -- suffix lookalikes (`evilyoutube.com` against `youtube.com`) are refused. Unset = unchanged behavior.
+- Both documented in `docs/mcp.md`, `docs/usage.md` (read-only section), `.env.example`, and the README; 19 new tests on the budget semantics, host matching, decorator catch (sync + async), and per-tool wiring.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.12.8 - 2026-06-12
 
 **The synthesis stale-flag -- what the dogfood library taught.** Planned by reviewing all 53 real topics in the dev library: the worst trust hazard found was syntheses that read with the confidence of fresh prose while predating the sources under them, plus whole topics invisible to agents because one emit path never refreshed orientation files.

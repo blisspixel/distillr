@@ -26,7 +26,6 @@ def ask(topic: str, question: str) -> str:
         question: The question to answer.
     """
     from distill.pipeline.ask import ask_corpus
-    from distill.pipeline.costs import CostTracker
 
     config = _server._config()
     if not config.xai_api_key:
@@ -34,7 +33,7 @@ def ask(topic: str, question: str) -> str:
     if not config.topic_dir(topic).exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
 
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     result = ask_corpus(question, topic=topic, config=config, save=False, tracker=tracker)
     if result.no_coverage:
         return json.dumps(

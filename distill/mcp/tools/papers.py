@@ -7,7 +7,7 @@ import json
 from mcp.server.fastmcp import Context
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -43,7 +43,7 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
     except ImportError as e:
         return json.dumps({"status": "error", "error": f"Paper dependencies missing: {e}"})
 
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     results = []
 
     try:

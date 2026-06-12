@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -26,7 +26,7 @@ def generate_report(topic: str, channel: str | None = None) -> str:
     from distill.pipeline.report.accordion import run_accordion_research
     from distill.pipeline.summary import RunSummary
 
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     summary = RunSummary(command="report")
     scope = "channel" if channel else "topic"
 
@@ -74,7 +74,7 @@ def resynthesize_topic(topic: str, channel: str | None = None) -> str:
         return "Error: XAI_API_KEY not configured."
 
     lib = _server._lib(config)
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     channels = lib.get_channels(topic)
     if channel:
         channels = [ch for ch in channels if ch.name == channel]

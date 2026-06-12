@@ -28,6 +28,7 @@ ACCORDION_GROK_ESTIMATE: float = 0.05
 __all__ = [
     "ACCORDION_GROK_ESTIMATE",
     "LLM_PRICING",
+    "BudgetExceededError",
     "CostCalibration",
     "CostEstimate",
     "CostTracker",
@@ -92,23 +93,52 @@ class TranscriptionUsage:
     cost: float = 0.0
 
 
+class BudgetExceededError(Exception):
+    """A run's recorded spend crossed its budget ceiling.
+
+    Raised *after* the crossing call is recorded -- its spend already happened
+    and must stay on the ledger (no off-ledger spend, ever). Callers catch
+    this to stop cleanly: artifacts written so far are durable and verify-
+    gated, and convergent re-runs pick up where the run stopped.
+    """
+
+    def __init__(self, spent: float, budget: float):
+        self.spent = spent
+        self.budget = budget
+        cap = f"${budget:.4f}" if budget < 0.01 else f"${budget:.2f}"
+        super().__init__(f"spend ${spent:.4f} exceeded the {cap} budget")
+
+
 @dataclass
 class CostTracker:
-    """Accumulates token usage and cost across a run."""
+    """Accumulates token usage and cost across a run.
+
+    With ``budget`` set, every record raises :class:`BudgetExceededError` once
+    total recorded cost crosses it. Enforcement is on *actual* recorded spend,
+    not an estimate -- the call that crosses completes and is recorded, then
+    the run stops; the overshoot is bounded by one call.
+    """
 
     entries: list[TokenUsage] = field(default_factory=list)
     gemini_queries: int = 0
     gemini_query_models: list[str] = field(default_factory=list)
     transcriptions: list[TranscriptionUsage] = field(default_factory=list)
+    budget: float | None = None
+
+    def _check_budget(self):
+        if self.budget is not None and self.total_cost > self.budget:
+            raise BudgetExceededError(self.total_cost, self.budget)
 
     def record(self, usage: TokenUsage):
         """Record a token usage entry."""
         self.entries.append(usage)
+        self._check_budget()
 
     def record_gemini_query(self, model: str = ""):
         """Record a Gemini Deep Research query (model-aware for per-query cost)."""
         self.gemini_queries += 1
         self.gemini_query_models.append(model)
+        self._check_budget()
 
     def record_transcription(self, provider: str, duration_s: float, *, model: str = ""):
         """Record a cloud transcription call's audio duration and estimated cost.
@@ -124,6 +154,7 @@ class CostTracker:
                 cost=transcription_cost(provider, duration_s),
             )
         )
+        self._check_budget()
 
     @property
     def total_input_tokens(self) -> int:

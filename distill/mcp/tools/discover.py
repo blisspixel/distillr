@@ -9,7 +9,7 @@ from mcp.server.fastmcp import Context
 
 from distill.library.state import ChannelState
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -56,7 +56,7 @@ def learn_topic(
 
     limit = _clamp_limit(limit)
     topic_name = topic or topic_from_query(query)
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
 
     # Search + rank
     candidates = search_youtube_results(query, days=days, limit=max(limit * 2, 12))
@@ -145,7 +145,7 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
     from distill.pipeline.ranking import rerank_videos
 
     config = _server._config()
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     limit = _clamp_limit(limit)
 
     candidates = search_youtube_results(query, days=days, limit=max(limit * 2, 12))
@@ -218,7 +218,7 @@ async def discover(  # noqa: C901
 
     limit = _clamp_limit(limit)
     topic_name = topic or topic_from_query(goal)
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     results: dict = {"topic": topic_name, "videos": [], "papers": []}
 
     # Stage 1: Search videos (unless papers_only)

@@ -7,7 +7,7 @@ import json
 from mcp.server.fastmcp import Context
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -49,7 +49,7 @@ async def synthesize(  # noqa: C901
         )
 
     lib = _server._lib(config)
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     channels = lib.get_channels(topic)
     results = []
     total_steps = len(channels) + 2  # channels + topic + corpus

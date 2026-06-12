@@ -6,7 +6,7 @@ import json
 
 from distill.library.paths import find_artifact
 from distill.mcp import server as _server
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
@@ -24,6 +24,9 @@ def process_video_url(url: str, topic: str = "ai") -> str:
     from distill.ingestors.youtube.discovery import get_video_info, resolve_channel_name
     from distill.pipeline.summary import RunSummary
 
+    refusal = _server.refuse_if_host_not_allowed(url)
+    if refusal is not None:
+        return refusal
     config = _server._config()
     if not config.xai_api_key:
         return "Error: XAI_API_KEY not configured."
@@ -33,7 +36,7 @@ def process_video_url(url: str, topic: str = "ai") -> str:
         return "Error: Could not get video info. Check the URL."
 
     channel_name = resolve_video_channel_name(url, info, resolve_channel_name)
-    tracker = CostTracker()
+    tracker = _server.capped_tracker()
     summary = RunSummary(command="video")
     lib = _server._lib(config)
     lib.add_channel(topic, info.channel_url or url, channel_name)

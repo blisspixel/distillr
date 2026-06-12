@@ -30,7 +30,7 @@ Then ask Claude things like:
 
 ## Tools
 
-24 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
+24 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). For deployments that *do* expose the write tools, two narrower guardrails: `DISTILL_MCP_MAX_SPEND_PER_CALL=<dollars>` caps each tool call's recorded spend (the call that crosses completes -- its spend already happened and stays on the ledger -- then the run stops with a structured `budget_exceeded` response; artifacts written before the stop are durable and re-runs converge), and `DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines the URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to the listed hosts and their subdomains. (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
 
 **Discover & ingest**
 
