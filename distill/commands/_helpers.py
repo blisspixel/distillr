@@ -304,7 +304,9 @@ def process_video(  # noqa: C901 — legacy, will refactor
     if not transcript_file.exists():
         _ts_label = f"    {eta.progress_str('transcript')}" if eta else "    [dim]transcript[/dim]"
         with console.status(_ts_label, spinner="dots"):
-            success = get_transcript(video.url, video.video_id, transcript_file, config)
+            success = get_transcript(
+                video.url, video.video_id, transcript_file, config, tracker=tracker
+            )
         if not success:
             console.print("    [red]no transcript[/red]")
             summary.add_result(

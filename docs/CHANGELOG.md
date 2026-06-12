@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.11 - 2026-06-12
+
+**YouTube-path resilience -- the 0.11 margin closed.** The flagship source's transcript path was one yt-dlp attempt with a blanket except, then a legacy external fallback; under YouTube's PO-token/SABR churn that degraded quietly.
+
+### Added
+
+- **Caption retry with backoff**: transient failures (network, HTTP 429/5xx, extractor churn) retry up to twice with backoff; the transient/permanent split is structural -- an exception is retryable, a clean download that lands no `.vtt` file means the video is captionless and a retry cannot change that. yt-dlp itself gets `retries` + `socket_timeout`.
+- **Local-first Whisper ladder for captionless videos**: bestaudio download (size-capped) then the same `transcribe_media` routing every other audio source uses (faster-whisper local -> Grok STT -> OpenAI Whisper), with a vocabulary hint from the video's own title and uploader -- closing the proper-noun mistranscription class for YouTube too. Cloud STT spend records to the run tracker; local is $0. The legacy scribe fallback is demoted to last resort.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.12.10 - 2026-06-12
 
 **Per-item failure isolation -- the last named 0.12 margin.** Long mixed-source runs already printed `[i/N]` per-item progress; the missing half was that one crashed source killed everything after it. The dogfood library carried the scar: a topic with five papers newer than its last synthesis, from a run that died mid-loop.

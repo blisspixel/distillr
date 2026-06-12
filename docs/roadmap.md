@@ -86,7 +86,7 @@ be moved to `CHANGELOG.md` on next release).
 - [~] Research history — track how findings evolve over time, diff between runs
 - [ ] Multi-pass escalation on demand so catch-up can stay cheap by default and selectively deepen only the highest-signal items
 - [ ] Persist creator voice / bias cards so synthesis can account for recurring framing, reliability, and drift over time
-- [ ] Retry / backoff / resume-friendly subtitle handling so transcript-rate-limit failures (`HTTP 429`, extractor churn) degrade gracefully during long mixed-source runs instead of leaving the user to infer what happened from sparse output
+- [x] Retry / backoff / resume-friendly subtitle handling — shipped 0.12.11: caption fetch retries transient failures with backoff (a clean download with no `.vtt` is permanent captionless, not retried), and captionless videos route through the local-first Whisper ladder (bestaudio download + `transcribe_media` with a title/uploader vocabulary hint) before the legacy scribe fallback; detail in [`CHANGELOG.md`](CHANGELOG.md).
 
 ### 5. Finish website productization
 

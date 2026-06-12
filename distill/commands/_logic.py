@@ -3932,7 +3932,9 @@ def run(  # noqa: C901 — legacy, will refactor
                     console.print("    [dim]Transcript already exists[/dim]")
                 else:
                     console.print("    Getting transcript...")
-                    success = get_transcript(video.url, video.video_id, transcript_file, config)
+                    success = get_transcript(
+                        video.url, video.video_id, transcript_file, config, tracker=tracker
+                    )
                     if not success:
                         console.print("    [red]Failed to get transcript, skipping[/red]")
                         summary.add_result(
