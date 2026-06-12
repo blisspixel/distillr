@@ -464,7 +464,9 @@ distill audit ai                                    # full trust report -> ai_Au
                                                     #    near-duplicates, contested concepts, links, gaps; stale
                                                     #    artifacts/syntheses get re-analysis commands -- printed,
                                                     #    never run)
-distill audit all --report-only                     # every topic, no prompts (for scheduled runs)
+distill audit all --report-only                     # every topic, no prompts (for scheduled runs);
+                                                    #   also writes Library_Audit.md: library-wide
+                                                    #   hygiene (empty/unreadable/unindexed topics)
 
 # Maintenance
 distill migrate                                     # rename legacy ID-based video dirs

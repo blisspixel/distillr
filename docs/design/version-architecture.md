@@ -27,12 +27,12 @@ commands), the
 tools, estimator accountability, and the CLAUDE.md/AGENTS.md/SKILL.md
 agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
 
-1. **0.12 margins -- all named margins closed as of 0.12.10** (goal-file
-   refresh hook 0.12.7, synthesis stale-flag 0.12.8, MCP spend caps +
-   ingest allowlist 0.12.9, per-item failure isolation + resume hint
-   0.12.10). Still open from the dev-library review: the library-level
-   hygiene rollup, and orientation-emission completeness as an
-   adapter-contract question.
+1. **0.12 margins -- all closed as of 0.12.12** (goal-file refresh hook
+   0.12.7, synthesis stale-flag 0.12.8, MCP spend caps + ingest allowlist
+   0.12.9, per-item failure isolation + resume hint 0.12.10, YouTube
+   resilience 0.12.11, library-level hygiene rollup 0.12.12).
+   Orientation-emission completeness lives on as an adapter-contract
+   review question, not a build item.
 2. **Parallel track, any time it fits: the entailment tier** -- HHEM-class
    local checker for named entities and prose claims, layered on (never
    replacing) the deterministic tier; verify on synthesis emits. Needs its

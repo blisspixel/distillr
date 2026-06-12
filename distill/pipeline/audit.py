@@ -29,15 +29,18 @@ from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 __all__ = [
     "AuditReport",
+    "LibraryHygiene",
     "StalenessRollup",
     "SynthesisFreshness",
     "VerifyRollup",
+    "collect_library_hygiene",
     "collect_staleness",
     "collect_synthesis_freshness",
     "collect_verify_rollup",
     "frontmatter_field",
     "reanalysis_commands",
     "render_audit_md",
+    "render_library_audit_md",
     "write_audit_artifact",
 ]
 
@@ -399,6 +402,129 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
     ):
         lines += section(report)
         lines.append("")
+    return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class LibraryHygiene:
+    """Library-wide topic-directory status, for the end of ``audit all``.
+
+    The dev-library review (2026-06-12) found 11 of 53 topics were unlabeled
+    test leftovers, one a broken reparse point, and several real corpora
+    invisible to agents -- all indistinguishable from production topics in
+    every existing view. Categories here are objective filesystem facts,
+    except ``test_named`` which is an explicitly-labelled naming heuristic.
+    """
+
+    healthy: int = 0
+    empty: list[str] = field(default_factory=list)  # no sources, no synthesis
+    unreadable: list[str] = field(default_factory=list)  # broken links/reparse points
+    unindexed: list[str] = field(default_factory=list)  # has sources, no CLAUDE.md
+    test_named: list[str] = field(default_factory=list)  # name suggests test/scratch
+
+    @property
+    def issue_count(self) -> int:
+        # test_named is informational, not a finding -- a deliberately named
+        # validation topic is not wrong, just worth listing for cleanup.
+        return len(self.empty) + len(self.unreadable) + len(self.unindexed)
+
+
+_TEST_NAME_RE = re.compile(r"(^|-)(test|tests|validate|validation|scratch|tmp|wwt)(-|\d|$)")
+
+
+def collect_library_hygiene(library_dir: Path) -> LibraryHygiene:
+    """Classify every topic directory by objective filesystem status."""
+    from distill.library.claude_md import count_topic_sources
+    from distill.library.freshness import collect_synthesis_freshness
+
+    topics_dir = library_dir / "topics"
+    if not topics_dir.is_dir():
+        return LibraryHygiene()
+    healthy = 0
+    empty: list[str] = []
+    unreadable: list[str] = []
+    unindexed: list[str] = []
+    test_named: list[str] = []
+    for child in sorted(topics_dir.iterdir(), key=lambda p: p.name.lower()):
+        name = child.name
+        if name.startswith("."):
+            continue
+        try:
+            if not child.is_dir():
+                continue
+            sources = count_topic_sources(child)["total"]
+            has_synth = collect_synthesis_freshness(child, name).checked > 0
+        except OSError:
+            unreadable.append(name)
+            continue
+        if _TEST_NAME_RE.search(name.lower()):
+            test_named.append(name)
+        if sources == 0 and not has_synth:
+            empty.append(name)
+        elif sources > 0 and not (child / "CLAUDE.md").exists():
+            unindexed.append(name)
+        else:
+            healthy += 1
+    return LibraryHygiene(
+        healthy=healthy,
+        empty=empty,
+        unreadable=unreadable,
+        unindexed=unindexed,
+        test_named=test_named,
+    )
+
+
+def render_library_audit_md(hygiene: LibraryHygiene, *, now_iso: str) -> str:
+    """Render the library-wide hygiene view. Pure."""
+    lines = [
+        "# Library audit",
+        "",
+        f"Generated {now_iso} by `distill audit all` (deterministic; no model calls). "
+        f"{hygiene.issue_count} hygiene finding(s) across the library.",
+        "",
+        "## Topic-directory hygiene",
+        "",
+        f"- Healthy topics: {hygiene.healthy}",
+    ]
+    if hygiene.empty:
+        lines += [
+            "",
+            "### Empty topic directories (no sources, no synthesis)",
+            "",
+            "Safe to delete -- nothing distill wrote lives there.",
+            "",
+        ]
+        lines += [f"- `topics/{t}/`" for t in hygiene.empty]
+    if hygiene.unreadable:
+        lines += [
+            "",
+            "### Unreadable topic directories (broken links / reparse points)",
+            "",
+        ]
+        lines += [f"- `topics/{t}/`" for t in hygiene.unreadable]
+    if hygiene.unindexed:
+        lines += [
+            "",
+            "### Topics with sources but no orientation files",
+            "",
+            "Invisible to agents that auto-load CLAUDE.md/AGENTS.md. "
+            "Regenerate with `distill claude-md --all`.",
+            "",
+        ]
+        lines += [f"- `topics/{t}/`" for t in hygiene.unindexed]
+    if hygiene.test_named:
+        lines += [
+            "",
+            "### Names suggesting test/validation topics (informational)",
+            "",
+            "Not findings -- listed so deliberate experiments are easy to sweep "
+            "when they stop earning their place beside production corpora.",
+            "",
+        ]
+        lines += [f"- `topics/{t}/`" for t in hygiene.test_named]
+    if hygiene.issue_count == 0 and not hygiene.test_named:
+        lines += ["", "- Every topic directory is readable, indexed, and non-empty."]
+    lines.append("")
     return "\n".join(lines)
 
 

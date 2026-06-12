@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.12 - 2026-06-12
+
+**The library-level hygiene rollup -- the dev-library review's last build item.** Every per-topic view treated all 53 dev-library topics as equals; 11 were unlabeled validation leftovers, 7 were empty, one was a broken reparse point -- invisible until the review.
+
+### Added
+
+- **`distill audit all` ends with the library-wide view**: a `Library_Audit.md` artifact at the library root plus a one-line console rollup. Objective findings: empty topic directories (listed as safe to delete -- nothing distill wrote lives there), unreadable directories (broken links/reparse points), and topics with sources but no orientation files (invisible to agents; the regen command is printed). Names suggesting test/validation topics are listed *informationally*, explicitly not findings -- a deliberate experiment is not wrong, just worth sweeping when it stops earning its place.
+- Validated live on the dev library, free: 46 healthy / 7 empty / 0 unindexed / 11 test-named -- matching the panel review that motivated the feature.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.12.11 - 2026-06-12
 
 **YouTube-path resilience -- the 0.11 margin closed.** The flagship source's transcript path was one yt-dlp attempt with a blanket except, then a legacy external fallback; under YouTube's PO-token/SABR churn that degraded quietly.

@@ -21,9 +21,11 @@ from distill.commands import _logic
 from distill.commands._logic import _complete_topics
 from distill.pipeline.audit import (
     AuditReport,
+    collect_library_hygiene,
     collect_staleness,
     collect_synthesis_freshness,
     collect_verify_rollup,
+    render_library_audit_md,
     write_audit_artifact,
 )
 from distill.pipeline.dedup import collect_near_duplicates
@@ -120,6 +122,9 @@ def audit_cmd(
         )
         console.print(f"  [dim]{path}[/dim]")
 
+    if topic == "all":
+        _write_library_audit(config, now_iso)
+
     total_findings = sum(r.issue_count for r in reports)
     if report_only or total_findings == 0:
         if total_findings == 0:
@@ -127,6 +132,22 @@ def audit_cmd(
         return
 
     _action_menu(config, topics, reports, link_result, now_iso)
+
+
+def _write_library_audit(config, now_iso: str) -> None:
+    """The library-wide hygiene view that ends every ``audit all`` run."""
+    from distill.library.paths import atomic_write_text
+
+    hygiene = collect_library_hygiene(config.library_dir)
+    path = config.library_dir / "Library_Audit.md"
+    atomic_write_text(path, render_library_audit_md(hygiene, now_iso=now_iso))
+    console.print(
+        f"\n[bold]Library[/bold]: {hygiene.healthy} healthy topic(s) | "
+        f"{len(hygiene.empty)} empty, {len(hygiene.unreadable)} unreadable, "
+        f"{len(hygiene.unindexed)} missing orientation | "
+        f"{len(hygiene.test_named)} test-named (informational)"
+    )
+    console.print(f"  [dim]{path}[/dim]")
 
 
 def _bucket_broken_links(broken_links: list) -> dict[str, list]:
