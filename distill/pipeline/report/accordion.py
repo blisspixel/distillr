@@ -29,6 +29,7 @@ from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.deep_research import _get_report_path
 from distill.pipeline.report.file_search import create_research_store, delete_store
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import (
     REPORT_SECTIONS,
     dossier_prompt,
@@ -96,7 +97,7 @@ def run_accordion_research(
                 model=DEEP_RESEARCH_MODEL,
                 model_version=DEEP_RESEARCH_MODEL,
                 temperature=0.0,
-                prompt_id="report.dossier.v1",
+                prompt_id=PROMPT_IDS["report.dossier"],
             ),
         ),
     )
@@ -192,7 +193,7 @@ def run_accordion_research(
                 model=section_model,
                 model_version=section_model,
                 temperature=0.5,
-                prompt_id="report.accordion.v1",
+                prompt_id=PROMPT_IDS["report.accordion"],
             ),
         ),
     )

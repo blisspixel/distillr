@@ -22,6 +22,7 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import paper_insight_prompt, paper_topic_synthesis_prompt
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,7 @@ def synthesize_papers(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.paper.v3",
+                prompt_id=PROMPT_IDS["synthesis.paper"],
             ),
         ),
     )

@@ -19,6 +19,7 @@ from distill.library.paths import (
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import (
     site_page_insight_prompt,
     site_synthesis_prompt,
@@ -149,7 +150,7 @@ def synthesize_site(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.site.v1",
+                prompt_id=PROMPT_IDS["synthesis.site"],
             ),
         ),
     )
@@ -214,7 +215,7 @@ def synthesize_site_topic(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.site_topic.v1",
+                prompt_id=PROMPT_IDS["synthesis.site_topic"],
             ),
         ),
     )

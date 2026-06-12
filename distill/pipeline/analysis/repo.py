@@ -30,12 +30,13 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.github import repo_insight_prompt
+from distill.prompts.registry import PROMPT_IDS
 
 console = Console()
 
 __all__ = ["RepoIngestResult", "ingest_repo"]
 
-PROMPT_ID = "analysis.github_repo.v1"
+PROMPT_ID = PROMPT_IDS["analysis.github_repo"]
 
 
 @dataclass(slots=True)

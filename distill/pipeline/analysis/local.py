@@ -30,6 +30,7 @@ from distill.library.paths import (
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_prompt
 
 console = Console()
@@ -120,7 +121,7 @@ def ingest_local_file(
                         model=response.model,
                         model_version=response.model,
                         temperature=0.0,
-                        prompt_id="analysis.local.v1",
+                        prompt_id=PROMPT_IDS["analysis.local"],
                     ),
                 ),
             )

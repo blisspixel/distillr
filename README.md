@@ -10,7 +10,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-> Distill helps you get insights on the topics you care about — and keep them current. Point it at a research goal; it finds the papers, videos, sites, and posts worth reading, analyzes each into structured insights with source receipts, and synthesizes across them into a durable plain-Markdown corpus on your disk. You browse it in Obsidian, your agents read it as files or query it over MCP, and it refreshes on a cadence instead of going stale.
+> Point distill at a research goal; it finds the papers, talks, repos, podcasts, and posts worth reading, analyzes each into structured insights with source receipts, verifies the claims against those receipts before writing, and synthesizes across them into a durable plain-Markdown corpus on your disk. You browse it in Obsidian, your agents read it as files or query it over MCP, you ask it questions and the cited answers can re-enter the corpus — and it refreshes on a cadence instead of going stale.
 
 ```bash
 pip install distillr
@@ -56,14 +56,20 @@ One honest scoping note: distill is a terminal tool for people comfortable insta
 
 One local `library/` directory of plain Markdown. No database, no cloud lock-in, no proprietary format. Files use globally descriptive names plus YAML frontmatter so knowledge-base tools, Dataview-style plugins, and AI coding assistants can understand them without guessing from generic `insights.md` tabs.
 
-Four source types, same pipeline shape (capture -> analyze -> synthesize -> report):
+Eight source types, same pipeline shape (capture -> analyze -> verify -> synthesize -> report), every one behind the same write-time verify gate:
 
-- **YouTube** — channels, topic searches, videos, Shorts
-- **Websites** — vendor sites, research hubs, curated URL sets (browser-first crawl with PDF/embedded-video ingestion)
-- **arXiv papers** — phrase-matched search, full-PDF extraction, structured per-paper insights, cross-paper synthesis
-- **X (Twitter) posts** — via `distill ingest <tweet-url>`; uses the public syndication embed endpoint (no anti-bot scraping). When a tweet has a native video attachment, the audio is transcribed via local-first Whisper (`faster-whisper` on GPU/CPU, OpenAI Whisper as cloud fallback) with a vocabulary hint derived from the source metadata to keep proper nouns intact.
+| Source | Entry point | Notes |
+|---|---|---|
+| YouTube | `distill latest`, `distill video`, `distill discover` | channels, topic searches, videos, Shorts |
+| Websites | `distill site`, `distill site-batch` | browser-first crawl; PDF/embedded-video ingestion |
+| arXiv papers | `distill papers` | query expansion, LLM rerank, full-PDF extraction, cross-paper synthesis |
+| X (Twitter) posts | `distill ingest <tweet-url>` | public syndication endpoint (no anti-bot scraping); attached video transcribed via local-first Whisper |
+| GitHub repos | `distill ingest <repo-url>` | metadata + README + releases into a structured maturity/when-to-use insight |
+| Podcasts | `distill ingest <rss-url>` | RSS-first; publisher transcripts preferred over paid audio transcription |
+| Newsletters (Substack-class) | `distill ingest <feed-url>` | full post text from the feed itself; routed by substance, narration audio ignored |
+| Local files | `distill ingest <path>` | PDF/Markdown/text/HTML documents, plus audio/video through the Whisper ladder |
 
-Plus an MCP server so AI assistants and agent systems can query the library directly.
+Plus an MCP server so AI assistants and agent systems can query the library directly, and `distill ask` to query it yourself — answers grounded only in your corpus, every claim cited, with `--save` promoting a verified answer back into the corpus so it compounds.
 
 ## Quick start
 
@@ -75,7 +81,7 @@ playwright install chromium     # for YouTube search + website capture
 distill doctor                  # verify API keys + system health
 ```
 
-Set two keys in `.env` (copy from `.env.example`):
+The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Set two keys in `.env` in your working directory (copy from `.env.example`):
 
 ```bash
 XAI_API_KEY=xai-...             # Grok models
@@ -108,6 +114,14 @@ distill papers "agent memory systems" --topic memory --limit 20 --preview
 
 # Distill a vendor/research site
 distill site-batch configs/example_seeds.json --topic example --seed-only
+
+# Ask the corpus a question -- grounded-only, every claim cited; --save promotes
+# a verified answer back into the corpus
+distill ask "which checker should the verify tier use?" --topic memory
+
+# Trust report: verification coverage, prompt staleness, contested concepts,
+# link integrity, coverage gaps -- free, no model calls
+distill audit memory --report-only
 ```
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
@@ -126,8 +140,13 @@ library/
        ├── papers/<paper>/
        │     ├── <paper-slug>_Paper.md
        │     └── <paper-slug>_Insights.md
+       ├── repos/<repo>/                    # GitHub:  _Repo.md + _Insights.md
+       ├── podcasts/<show>/<episode>/       # podcasts: _Episode.md + _Transcript.txt + _Insights.md
+       ├── newsletters/<pub>/<post>/        # newsletters: _Content.md + _Insights.md
+       ├── answers/                         # distill ask: _Answer.md (+ promoted insights)
        ├── <topic>_Topic_Synthesis.md      # cross-source
-       └── <topic>_Corpus_Synthesis.md     # mixed-source view
+       ├── <topic>_Corpus_Synthesis.md     # mixed-source view
+       └── <topic>_Audit.md                # trust report from `distill audit`
 ```
 
 You build a topic library over time. Ingest once, refresh on a cadence, generate a report or briefing when you need one. Older `insights.md`-style libraries are still readable, but new Markdown writes use the stable knowledge-base naming scheme.
@@ -214,7 +233,7 @@ Distillr is built for two parallel agent-integration paths:
 { "mcpServers": { "distill": { "command": "distill-mcp" } } }
 ```
 
-Distill exposes 21 tools (a deliberately small surface, shrinking toward workflow-shaped tools — the JIT read layer returns ranked `path`/`preview`/`score` tuples with `read_insight` drill-down, never full payloads by default), plus 12 resources and 4 prompts. See [`docs/mcp.md`](docs/mcp.md) for the list.
+Distill exposes 22 tools (a deliberately small surface, shrinking toward workflow-shaped tools — the JIT read layer returns ranked `path`/`preview`/`score` tuples with `read_insight` drill-down, never full payloads by default; `ask` answers questions grounded only in the corpus, with citations), plus 12 resources and 4 prompts. For agent-facing deployments, set **`DISTILL_MCP_READ_ONLY=1`**: agents keep the full read surface while every spend/ingest/mutation tool refuses with a clear message — they can't burn budget or poison the corpus by tool call; ingest happens via the CLI by a named operator. See [`docs/mcp.md`](docs/mcp.md) for the list.
 
 **Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard — so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
@@ -230,9 +249,11 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 
 ## Reliability and trust boundaries
 
-What's enforced (every release clears the same CI gate): ~1,950 tests at 81% **branch** coverage (floor ratchets up-only toward the 1.0 ≥95% gate), ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries — contributors never burn API spend; live integration tests are marked and opt-in.
+**What's enforced** (every release clears the same CI gate): ~2,100 tests at 81% **branch** coverage (floor ratchets up-only toward the 1.0 ≥95% gate), ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries — contributors never burn API spend; live integration tests are marked and opt-in.
 
-Trust boundaries, stated plainly: everything ingested (transcripts, pages, PDFs, tweets) is treated as **untrusted input** — injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root. Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures — failures degrade with messages, not corrupted corpora. Analysis output is LLM-generated and can err; provenance fields on every artifact exist so you can check receipts — and since 0.10, distill checks them itself: a **write-time verify hook** grounds every numeric claim in every insight (papers, videos, sites, posts, local files) against its source receipt before the artifact is committed (`--verify warn|strict|off`; strict refuses to write a flagged insight), and **`distill audit <topic>`** rolls verification coverage, health warnings, contested concepts, link integrity, and coverage gaps into a per-topic report artifact, free and deterministically. The entailment-checker tier for prose claims is the remaining piece ([roadmap](ROADMAP.md#0100--verified-corpus-run-time-verify--self-maintaining-audit)). Full posture: [`docs/SECURITY.md`](docs/SECURITY.md) and the [security section of the roadmap](ROADMAP.md#security-posture).
+**Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** — injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures — failures degrade with messages, not corrupted corpora.
+
+**What verification means here:** analysis output is LLM-generated and can err; provenance fields on every artifact exist so you can check receipts — and distill checks them itself. A **write-time verify hook** grounds every numeric claim in every insight, on every source type, against its source receipt before the artifact is committed (`--verify warn|strict|off`; strict refuses to write a flagged insight). Answers from `distill ask` only re-enter the corpus if they pass that gate. A **prompt-version registry** lets the audit flag artifacts produced by since-improved prompts instead of letting them age silently. **`distill audit <topic>`** rolls verification coverage, prompt staleness, health warnings, contested concepts, link integrity, and coverage gaps into a per-topic report artifact, free and deterministically. The entailment-checker tier for prose claims is the remaining piece ([roadmap](ROADMAP.md#0100--verified-corpus-run-time-verify--self-maintaining-audit)). Full posture: [`docs/SECURITY.md`](docs/SECURITY.md) and the [security section of the roadmap](ROADMAP.md#security-posture).
 
 ## Docs
 

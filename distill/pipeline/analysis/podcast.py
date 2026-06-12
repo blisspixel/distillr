@@ -42,12 +42,13 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.podcasts import podcast_insight_prompt
+from distill.prompts.registry import PROMPT_IDS
 
 console = Console()
 
 __all__ = ["PodcastIngestResult", "ingest_podcast"]
 
-PROMPT_ID = "analysis.podcast.v1"
+PROMPT_ID = PROMPT_IDS["analysis.podcast"]
 
 
 def _short_id(value: str) -> str:

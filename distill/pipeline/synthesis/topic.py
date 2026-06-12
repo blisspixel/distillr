@@ -17,6 +17,7 @@ from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import channel_synthesis_prompt, topic_synthesis_prompt
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,7 @@ def synthesize_channel(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.channel.v1",
+                prompt_id=PROMPT_IDS["synthesis.channel"],
             ),
         ),
     )
@@ -204,7 +205,7 @@ def synthesize_topic(
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="synthesis.topic.v1",
+                prompt_id=PROMPT_IDS["synthesis.topic"],
             ),
         ),
     )

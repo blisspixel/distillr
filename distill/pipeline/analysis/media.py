@@ -31,12 +31,13 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.media import media_insight_prompt
+from distill.prompts.registry import PROMPT_IDS
 
 console = Console()
 
 __all__ = ["MEDIA_EXTENSIONS", "MediaIngestResult", "ingest_media_file", "is_media_file"]
 
-PROMPT_ID = "analysis.media.v1"
+PROMPT_ID = PROMPT_IDS["analysis.media"]
 
 MEDIA_EXTENSIONS = frozenset(
     {".mp3", ".m4a", ".wav", ".opus", ".flac", ".ogg", ".aac", ".mp4", ".webm", ".mov", ".mkv"}

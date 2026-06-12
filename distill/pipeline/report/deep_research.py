@@ -18,6 +18,7 @@ from distill.library.paths import (
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.file_search import create_research_store, delete_store
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import deep_research_prompt
 
 __all__ = [
@@ -353,7 +354,7 @@ def _write_report_artifact(
                 model=DEEP_RESEARCH_MODEL,
                 model_version=DEEP_RESEARCH_MODEL,
                 temperature=0.0,
-                prompt_id="report.deep_research.v1",
+                prompt_id=PROMPT_IDS["report.deep_research"],
             ),
         ),
     )

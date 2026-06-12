@@ -18,6 +18,7 @@ from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import topic_brief_prompt
 
 __all__ = [
@@ -109,7 +110,7 @@ def generate_topic_brief(  # noqa: C901 — legacy, will refactor
                 model=response.model,
                 model_version=response.model,
                 temperature=0.0,
-                prompt_id="brief.topic.v1",
+                prompt_id=PROMPT_IDS["brief.topic"],
             ),
         ),
     )

@@ -32,13 +32,14 @@ from distill.library.paths import (
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import site_page_insight_prompt
 
 console = Console()
 
 __all__ = ["NewsletterIngestResult", "feed_is_newsletter", "ingest_newsletter"]
 
-PROMPT_ID = "analysis.newsletter.v1"
+PROMPT_ID = PROMPT_IDS["analysis.newsletter"]
 
 
 def _short_id(value: str) -> str:

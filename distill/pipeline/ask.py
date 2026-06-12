@@ -30,12 +30,13 @@ from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.search import search_corpus
 from distill.prompts.ask import ask_prompt
+from distill.prompts.registry import PROMPT_IDS
 
 console = Console()
 
 __all__ = ["AskResult", "ask_corpus"]
 
-PROMPT_ID = "ask.v1"
+PROMPT_ID = PROMPT_IDS["ask"]
 _TOP_K = 6
 _MAX_SOURCE_CHARS = 6_000
 

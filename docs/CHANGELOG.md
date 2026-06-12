@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.2 - 2026-06-12
+
+**Artifact-level stale-detection + the prompt-version registry.** The "confident misinformation" guard from the 0.12 spec: insights produced by outdated prompts now surface in the audit.
+
+### Added
+
+- **`distill/prompts/registry.py`** -- the single source of truth for prompt versions. All twenty prompt families (analysis, synthesis, claims/concepts, reports, ask) now stamp their `prompt_id` from one dict, and the staleness detector reads the same dict -- so the floor table *cannot* drift from what the writers stamp, the exact failure class this feature exists to detect. Bumping a prompt version is now a one-line change.
+- **`distill audit` staleness rollup**: every insight's recorded `prompt_id` is compared against the registry -- "on current prompts" / "stale (a newer prompt version exists; re-analysis would apply lessons learned since)" / "no provenance recorded (pre-0.7)" / "unknown family". Stale artifacts count as findings, list in the report with recorded-vs-current ids, and appear in the per-topic console summary. Deterministic and free, like the rest of the audit.
+- Registry self-consistency is itself tested: every entry must parse and its family key must match its id.
+
 ## [Unreleased]
 
 ### Planned

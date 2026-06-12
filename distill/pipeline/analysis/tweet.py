@@ -32,6 +32,7 @@ from distill.library.paths import (
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.x import tweet_insight_prompt, vocabulary_expansion_prompt
 
 __all__ = ["IngestedTweet", "analyze_tweet", "ingest_tweet"]
@@ -249,7 +250,7 @@ def analyze_tweet(
             model=response.model,
             model_version=response.model,
             temperature=0.0,
-            prompt_id="analysis.x_tweet.v1",
+            prompt_id=PROMPT_IDS["analysis.x_tweet"],
         ),
     )
     from distill.library.paths import apply_frontmatter

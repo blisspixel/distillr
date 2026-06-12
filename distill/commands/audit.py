@@ -19,7 +19,12 @@ from rich.console import Console
 
 from distill.commands import _logic
 from distill.commands._logic import _complete_topics
-from distill.pipeline.audit import AuditReport, collect_verify_rollup, write_audit_artifact
+from distill.pipeline.audit import (
+    AuditReport,
+    collect_staleness,
+    collect_verify_rollup,
+    write_audit_artifact,
+)
 
 __all__ = ["audit_cmd", "register"]
 
@@ -58,6 +63,7 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         gaps=list(gap_summary.get("gaps", [])),
         next_actions=list(gap_summary.get("next_actions", [])),
         verify=collect_verify_rollup(topic_dir),
+        staleness=collect_staleness(topic_dir),
     )
 
 
@@ -99,10 +105,12 @@ def audit_cmd(
         reports.append(report)
         path = write_audit_artifact(config.topic_dir(t), report, now_iso=now_iso)
         v = report.verify
+        s = report.staleness
         console.print(
             f"[bold]{t}[/bold]: {report.issue_count} finding(s) -- "
             f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
-            f"{v.never_checked} unchecked | {len(report.gaps)} gap(s), "
+            f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s) | "
+            f"{len(report.gaps)} gap(s), "
             f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
         )
         console.print(f"  [dim]{path}[/dim]")

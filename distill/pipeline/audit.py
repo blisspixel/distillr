@@ -17,16 +17,20 @@ layer, not here.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from distill.library.insights import discover_insights
 from distill.library.links import BrokenLink
 from distill.library.paths import base_frontmatter, tags_for, write_markdown_artifact
+from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 __all__ = [
     "AuditReport",
+    "StalenessRollup",
     "VerifyRollup",
+    "collect_staleness",
     "collect_verify_rollup",
     "render_audit_md",
     "write_audit_artifact",
@@ -48,6 +52,24 @@ class VerifyRollup:
 
 
 @dataclass(frozen=True)
+class StalenessRollup:
+    """Prompt-version drift across a topic's insights.
+
+    Frontmatter ``prompt_id`` (recorded since 0.7) compared against the
+    central registry (`distill.prompts.registry`) -- the same dict the
+    writers stamp from, so the floor table cannot itself drift. "Stale"
+    means a newer prompt version exists for that family: the artifact is not
+    wrong, but a re-analysis would apply lessons the prompt has learned
+    since.
+    """
+
+    current: int = 0
+    stale: list[dict] = field(default_factory=list)  # {insight, recorded, current}
+    unknown_family: int = 0  # prompt families the registry no longer knows
+    no_provenance: int = 0  # artifacts predating provenance stamping
+
+
+@dataclass(frozen=True)
 class AuditReport:
     """Everything one audit run found for one topic."""
 
@@ -58,6 +80,7 @@ class AuditReport:
     gaps: list[str]
     next_actions: list[str]
     verify: VerifyRollup
+    staleness: StalenessRollup = field(default_factory=StalenessRollup)
 
     @property
     def issue_count(self) -> int:
@@ -67,6 +90,7 @@ class AuditReport:
             + len(self.broken_links)
             + len(self.gaps)
             + len(self.verify.flagged)
+            + len(self.staleness.stale)
         )
 
 
@@ -107,6 +131,87 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
                     }
                 )
     return VerifyRollup(insights_total=len(insights), checked=checked, clean=clean, flagged=flagged)
+
+
+_PROMPT_ID_LINE_RE = re.compile(r'^prompt_id:\s*"?([^"\r\n]+?)"?\s*$', re.MULTILINE)
+
+
+def _frontmatter_prompt_id(text: str) -> str:
+    """Pull ``prompt_id`` out of an artifact's frontmatter block, or ''."""
+    if not text.startswith("---"):
+        return ""
+    end = text.find("---", 3)
+    if end == -1:
+        return ""
+    match = _PROMPT_ID_LINE_RE.search(text[:end])
+    return match.group(1).strip() if match else ""
+
+
+def collect_staleness(topic_dir: Path) -> StalenessRollup:
+    """Compare each insight's recorded ``prompt_id`` to the current registry."""
+    current = 0
+    stale: list[dict] = []
+    unknown_family = 0
+    no_provenance = 0
+    for ref in discover_insights(topic_dir):
+        try:
+            text = ref.path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        recorded = _frontmatter_prompt_id(text)
+        if not recorded:
+            no_provenance += 1
+            continue
+        parsed = parse_prompt_id(recorded)
+        if parsed is None:
+            unknown_family += 1
+            continue
+        family, version = parsed
+        current_id = PROMPT_IDS.get(family)
+        if current_id is None:
+            unknown_family += 1
+            continue
+        current_parsed = parse_prompt_id(current_id)
+        if current_parsed is not None and version < current_parsed[1]:
+            stale.append(
+                {"insight": ref.artifact_path, "recorded": recorded, "current": current_id}
+            )
+        else:
+            current += 1
+    return StalenessRollup(
+        current=current,
+        stale=stale,
+        unknown_family=unknown_family,
+        no_provenance=no_provenance,
+    )
+
+
+def _staleness_section(report: AuditReport) -> list[str]:
+    s = report.staleness
+    lines = [
+        "## Prompt staleness (analysis quality drift)",
+        "",
+        f"- On current prompts: {s.current} | stale: {len(s.stale)} | "
+        f"no provenance recorded: {s.no_provenance} | unknown family: {s.unknown_family}",
+    ]
+    if s.stale:
+        lines += [
+            "",
+            "### Stale artifacts (a newer prompt version exists; re-analysis would apply "
+            "lessons learned since)",
+            "",
+        ]
+        lines += [
+            f"- `{item['insight']}` -- recorded `{item['recorded']}`, current `{item['current']}`"
+            for item in s.stale[:15]
+        ]
+        if len(s.stale) > 15:
+            lines.append(f"- ... and {len(s.stale) - 15} more")
+    if s.no_provenance:
+        lines.append(
+            "- No-provenance artifacts predate prompt stamping; they age out as sources refresh."
+        )
+    return lines
 
 
 def _verify_section(report: AuditReport) -> list[str]:
@@ -198,6 +303,7 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
     ]
     for section in (
         _verify_section,
+        _staleness_section,
         _health_section,
         _contested_section,
         _links_section,
