@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 
 from mcp.server.fastmcp import Context
 
 from distill.library.state import ChannelState
 from distill.mcp import server as _server
-from distill.pipeline.costs import save_run_log
+from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
@@ -24,6 +23,56 @@ def _clamp_limit(limit: int) -> int:
         return max(1, min(int(limit), _MAX_LIMIT))
     except (TypeError, ValueError):
         return 5
+
+
+def _learn_one_channel(
+    topic_name: str,
+    channel_name: str,
+    videos: list,
+    config,
+    tracker,
+    summary,
+    *,
+    lib,
+    ensure_channel_context,
+    process_video,
+    synthesize_channel,
+) -> list[dict]:
+    """Process one channel's selected videos into result rows; budget aborts re-raise."""
+    from distill.pipeline.summary import ETATracker
+
+    channel_url = next((v.channel_url for v in videos if v.channel_url), "")
+    if channel_url:
+        lib.add_channel(topic_name, channel_url, channel_name)
+
+    state = ChannelState(config.channel_dir(topic_name, channel_name) / "state.json")
+    ensure_channel_context(topic_name, channel_name, videos, config, tracker)
+    eta = ETATracker(total=len(videos))
+
+    rows: list[dict] = []
+    for vid in videos:
+        if state.is_processed(vid.video_id):
+            rows.append({"title": vid.title, "status": "already_done"})
+            continue
+        success = process_video(
+            topic_name,
+            channel_name,
+            vid,
+            config,
+            tracker,
+            summary,
+            state=state,
+            eta=eta,
+        )
+        rows.append({"title": vid.title, "status": "ok" if success else "failed"})
+
+    try:
+        synthesize_channel(topic_name, channel_name, config, tracker=tracker)
+    except BudgetExceededError:
+        raise  # the per-call spend cap is a hard stop; write_tool answers
+    except Exception:
+        pass
+    return rows
 
 
 @_server.mcp.tool()
@@ -47,7 +96,7 @@ def learn_topic(
     from distill.ingestors.youtube.discovery import enrich_videos
     from distill.ingestors.youtube.discovery import search_videos as yt_search
     from distill.pipeline.ranking import rerank_videos
-    from distill.pipeline.summary import ETATracker, RunSummary
+    from distill.pipeline.summary import RunSummary
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
     config = _server._config()
@@ -89,35 +138,25 @@ def learn_topic(
     processed_videos = []
 
     for channel_name, videos in grouped.items():
-        channel_url = next((v.channel_url for v in videos if v.channel_url), "")
-        if channel_url:
-            lib.add_channel(topic_name, channel_url, channel_name)
+        processed_videos += _learn_one_channel(
+            topic_name,
+            channel_name,
+            videos,
+            config,
+            tracker,
+            summary,
+            lib=lib,
+            ensure_channel_context=ensure_channel_context,
+            process_video=process_video,
+            synthesize_channel=synthesize_channel,
+        )
 
-        state = ChannelState(config.channel_dir(topic_name, channel_name) / "state.json")
-        ensure_channel_context(topic_name, channel_name, videos, config, tracker)
-        eta = ETATracker(total=len(videos))
-
-        for vid in videos:
-            if state.is_processed(vid.video_id):
-                processed_videos.append({"title": vid.title, "status": "already_done"})
-                continue
-            success = process_video(
-                topic_name,
-                channel_name,
-                vid,
-                config,
-                tracker,
-                summary,
-                state=state,
-                eta=eta,
-            )
-            processed_videos.append({"title": vid.title, "status": "ok" if success else "failed"})
-
-        with contextlib.suppress(Exception):
-            synthesize_channel(topic_name, channel_name, config, tracker=tracker)
-
-    with contextlib.suppress(Exception):
+    try:
         synthesize_topic(topic_name, config, tracker=tracker)
+    except BudgetExceededError:
+        raise
+    except Exception:
+        pass
 
     save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps(
@@ -259,6 +298,8 @@ async def discover(  # noqa: C901
                             "score": round(item.final_score, 2),
                         }
                     )
+        except BudgetExceededError:
+            raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
             results["video_error"] = str(e)
 
@@ -282,6 +323,8 @@ async def discover(  # noqa: C901
                         "url": getattr(paper, "entry_id", "") or getattr(paper, "abs_url", ""),
                     }
                 )
+        except BudgetExceededError:
+            raise
         except Exception as e:
             results["paper_error"] = str(e)
 

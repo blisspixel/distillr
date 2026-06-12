@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.12.13 - 2026-06-12
+
+**Harden pass over the 0.12.7-0.12.12 surface** (the codified rhythm: a bug-hunt release after a run of feature releases). Two independent adversarial reviews over everything this series added; every claim verified against the code before acting -- two reported HIGHs were false alarms on verification (the freshness identity convention matches what the writers stamp; the captionless-to-ladder flow is by design), and the real defect class was fixed everywhere it appeared.
+
+### Fixed
+
+- **The spend cap could be swallowed inside MCP tool bodies.** Per-item `except Exception` loops and `contextlib.suppress(Exception)` blocks in six MCP tools (`papers`, `resynthesize_topic`, `generate_report`, `synthesize`, `site_batch`, `catch_up`, `discover`/`learn_topic` synthesis tails) caught `BudgetExceededError` and kept going -- and since each model call spends before recording, a capped run kept burning money item after item. Every such site now re-raises the budget abort so the `write_tool` decorator's structured `budget_exceeded` response is reachable and spend actually stops at the cap. Pinned by a test proving a capped `papers` call stops at the first budget hit.
+- **`goals.json` writes are now atomic** -- a crash mid-write previously left a corrupt file whose recovery path silently dropped every persisted goal.
+- **Printed goal-refresh commands quote paths containing whitespace** so the surfaced line is copy-paste correct.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.12.12 - 2026-06-12
 
 **The library-level hygiene rollup -- the dev-library review's last build item.** Every per-topic view treated all 53 dev-library topics as equals; 11 were unlabeled validation leftovers, 7 were empty, one was a broken reparse point -- invisible until the review.

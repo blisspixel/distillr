@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 
 from distill.library.state import ChannelState
 from distill.mcp import server as _server
-from distill.pipeline.costs import save_run_log
+from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
@@ -95,8 +94,12 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             )
             processed.append({"title": vid.title, "success": success})
 
-        with contextlib.suppress(Exception):
+        try:
             synthesize_channel(entry.topic, entry.name, config, tracker=tracker)
+        except BudgetExceededError:
+            raise  # the per-call spend cap is a hard stop; write_tool answers
+        except Exception:
+            pass
         topics_touched.add(entry.topic)
 
         results.append(
@@ -109,8 +112,12 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         )
 
     for t in topics_touched:
-        with contextlib.suppress(Exception):
+        try:
             synthesize_topic(t, config, tracker=tracker)
+        except BudgetExceededError:
+            raise
+        except Exception:
+            pass
 
     save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)

@@ -128,6 +128,43 @@ class TestIngestAllowlist:
         assert _server.refuse_if_host_not_allowed("not a url") is not None
 
 
+class TestBudgetPassthroughInToolLoops:
+    def test_papers_loop_reraises_budget_to_write_tool(self, tmp_path, monkeypatch):
+        """The 0.12.13 harden-pass bug: the per-paper loop's `except Exception`
+        swallowed BudgetExceededError, so a capped run kept burning spend paper
+        after paper. The loop must re-raise it so write_tool answers."""
+        import asyncio
+        from types import SimpleNamespace
+
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        import distill.pipeline.analysis.paper as paper_mod
+        from distill.mcp.tools.papers import papers
+
+        config = DistillConfig(
+            xai_api_key="t",
+            distill_output_dir=tmp_path / "lib",
+            distill_mcp_max_spend_per_call=0.5,
+        )
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        fake_papers = [SimpleNamespace(title=f"p{i}", paper_id=f"260{i}") for i in range(3)]
+        monkeypatch.setattr(
+            "distill.ingestors.papers.arxiv.search_arxiv", lambda q, max_results: fake_papers
+        )
+        calls = {"n": 0}
+
+        def exploding_analyze(paper, config, tracker=None, intent=None):
+            calls["n"] += 1
+            raise BudgetExceededError(0.61, 0.5)
+
+        monkeypatch.setattr(paper_mod, "analyze_paper", exploding_analyze)
+
+        result = json.loads(asyncio.run(papers("t", "query", limit=3)))
+
+        assert result["status"] == "budget_exceeded"
+        assert calls["n"] == 1  # the loop stopped at the cap; no further spend
+
+
 class TestToolWiring:
     def test_process_video_url_refuses_off_list_host(self, monkeypatch):
         monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)

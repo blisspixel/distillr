@@ -7,7 +7,7 @@ import json
 from mcp.server.fastmcp import Context
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import save_run_log
+from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
@@ -60,6 +60,8 @@ async def synthesize(  # noqa: C901
         try:
             synthesize_channel(topic, ch.name, config, tracker=tracker)
             results.append({"channel": ch.name, "status": "ok"})
+        except BudgetExceededError:
+            raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
             results.append({"channel": ch.name, "status": "error", "error": str(e)})
 
@@ -69,6 +71,8 @@ async def synthesize(  # noqa: C901
     try:
         synthesize_topic(topic, config, tracker=tracker, style=style)
         results.append({"scope": "topic", "status": "ok"})
+    except BudgetExceededError:
+        raise
     except Exception as e:
         results.append({"scope": "topic", "status": "error", "error": str(e)})
 
@@ -81,6 +85,8 @@ async def synthesize(  # noqa: C901
             results.append({"scope": "corpus", "status": "ok", "two_pass": two_pass})
         else:
             results.append({"scope": "corpus", "status": "skipped", "reason": "no mixed sources"})
+    except BudgetExceededError:
+        raise
     except Exception as e:
         results.append({"scope": "corpus", "status": "error", "error": str(e)})
 

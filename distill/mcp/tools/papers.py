@@ -7,13 +7,27 @@ import json
 from mcp.server.fastmcp import Context
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import save_run_log
+from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
 # Each paper triggers a download + an LLM analysis call, so cap how many a single
 # (possibly prompt-injected) MCP call can process to bound cloud spend.
 _MAX_PAPERS = 25
+
+
+def _analyze_one(paper, topic, config, tracker, intent, *, analyze_paper) -> dict:
+    """Analyze one paper into its result row; budget aborts re-raise."""
+    from distill.commands._logic import _write_paper_artifacts
+
+    try:
+        insights, document = analyze_paper(paper, config, tracker=tracker, intent=intent)
+        _write_paper_artifacts(topic, paper, config, insights, document)
+        return {"title": paper.title, "status": "ok"}
+    except BudgetExceededError:
+        raise  # the per-call spend cap is a hard stop; write_tool answers
+    except Exception as e:
+        return {"title": paper.title, "status": "error", "error": str(e)}
 
 
 @_server.mcp.tool()
@@ -36,7 +50,6 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
         limit = 5
 
     try:
-        from distill.commands._logic import _write_paper_artifacts
         from distill.ingestors.papers.arxiv import search_arxiv
         from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
         from distill.pipeline.synthesis.corpus import synthesize_corpus
@@ -60,12 +73,9 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
     for i, paper in enumerate(selected):
         if ctx:
             await ctx.report_progress(progress=i, total=len(selected))
-        try:
-            insights, document = analyze_paper(paper, config, tracker=tracker, intent=intent)
-            _write_paper_artifacts(topic, paper, config, insights, document)
-            results.append({"title": paper.title, "status": "ok"})
-        except Exception as e:
-            results.append({"title": paper.title, "status": "error", "error": str(e)})
+        results.append(
+            _analyze_one(paper, topic, config, tracker, intent, analyze_paper=analyze_paper)
+        )
 
     if ctx:
         await ctx.report_progress(progress=len(selected), total=len(selected))
@@ -73,6 +83,8 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
     try:
         synthesize_papers(topic, config, tracker=tracker)
         synthesize_corpus(topic, config, tracker=tracker)
+    except BudgetExceededError:
+        raise  # the per-call spend cap is a hard stop; write_tool answers
     except Exception:
         pass
 

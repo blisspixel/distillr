@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from distill.library.paths import atomic_write_text
+
 __all__ = ["goal_refresh_command", "load_topic_goals", "save_topic_goal"]
 
 _GOALS_FILENAME = "goals.json"
@@ -59,18 +61,31 @@ def save_topic_goal(
     }
     path = _goals_path(library_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(goals, indent=2), encoding="utf-8")
+    # Atomic: a crash mid-write must not corrupt the whole goals file -- the
+    # corrupt-file recovery path reads {} and would silently drop every goal.
+    atomic_write_text(path, json.dumps(goals, indent=2))
+
+
+def _quoted(path_str: str) -> str:
+    """Quote a path argument for the printed command when it needs it."""
+    if any(ch.isspace() for ch in path_str):
+        return '"' + path_str.replace('"', "'") + '"'
+    return path_str
 
 
 def goal_refresh_command(topic: str, entry: dict) -> str:
-    """The exact preview command that refreshes this topic against its goal."""
+    """The exact preview command that refreshes this topic against its goal.
+
+    Printed for an operator to run, never executed by distill itself; paths
+    with whitespace are quoted so the printed line is copy-paste correct.
+    """
     goal_file = str(entry.get("goal_file", "") or "")
     if goal_file:
-        cmd = f"distill discover --goal-file {goal_file} --topic {topic} --preview"
+        cmd = f"distill discover --goal-file {_quoted(goal_file)} --topic {topic} --preview"
     else:
         headline = str(entry.get("goal", "")).splitlines()[0][:120].replace('"', "'")
         cmd = f'distill discover "{headline}" --topic {topic} --preview'
     site_seeds = str(entry.get("site_seeds", "") or "")
     if site_seeds:
-        cmd += f" --site-seeds {site_seeds}"
+        cmd += f" --site-seeds {_quoted(site_seeds)}"
     return cmd

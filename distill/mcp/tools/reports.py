@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import save_run_log
+from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
@@ -38,6 +38,8 @@ def generate_report(topic: str, channel: str | None = None) -> str:
             channel_name=channel,
             tracker=tracker,
         )
+    except BudgetExceededError:
+        raise  # the per-call spend cap is a hard stop; write_tool answers
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -84,25 +86,46 @@ def resynthesize_topic(topic: str, channel: str | None = None) -> str:
         try:
             synthesize_channel(topic, ch.name, config, tracker=tracker)
             results.append({"channel": ch.name, "status": "ok"})
+        except BudgetExceededError:
+            raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
             results.append({"channel": ch.name, "status": "error", "error": str(e)})
 
     if not channel:
-        try:
-            synthesize_topic(topic, config, tracker=tracker)
-            results.append({"topic": topic, "status": "ok"})
-        except Exception as e:
-            results.append({"topic": topic, "status": "error", "error": str(e)})
-
-        try:
-            corpus = synthesize_corpus(topic, config, tracker=tracker)
-            if corpus:
-                results.append({"corpus": topic, "status": "ok"})
-            else:
-                results.append(
-                    {"corpus": topic, "status": "skipped", "reason": "no mixed-source material"}
-                )
-        except Exception as e:
-            results.append({"corpus": topic, "status": "error", "error": str(e)})
+        results += _resynthesize_topic_level(
+            topic,
+            config,
+            tracker,
+            synthesize_topic=synthesize_topic,
+            synthesize_corpus=synthesize_corpus,
+        )
 
     return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)
+
+
+def _resynthesize_topic_level(
+    topic: str, config, tracker, *, synthesize_topic, synthesize_corpus
+) -> list[dict]:
+    """Topic + corpus regeneration rows; budget aborts re-raise."""
+    results: list[dict] = []
+    try:
+        synthesize_topic(topic, config, tracker=tracker)
+        results.append({"topic": topic, "status": "ok"})
+    except BudgetExceededError:
+        raise  # the per-call spend cap is a hard stop; write_tool answers
+    except Exception as e:
+        results.append({"topic": topic, "status": "error", "error": str(e)})
+
+    try:
+        corpus = synthesize_corpus(topic, config, tracker=tracker)
+        if corpus:
+            results.append({"corpus": topic, "status": "ok"})
+        else:
+            results.append(
+                {"corpus": topic, "status": "skipped", "reason": "no mixed-source material"}
+            )
+    except BudgetExceededError:
+        raise
+    except Exception as e:
+        results.append({"corpus": topic, "status": "error", "error": str(e)})
+    return results

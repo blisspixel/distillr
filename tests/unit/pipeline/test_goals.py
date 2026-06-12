@@ -57,6 +57,19 @@ class TestRefreshCommand:
         )
         assert cmd == "distill discover \"multi 'quoted' line one\" --topic t --preview"
 
+    def test_paths_with_whitespace_are_quoted(self):
+        # The printed line must be copy-paste correct for an operator.
+        cmd = goal_refresh_command(
+            "t",
+            {"goal_file": "private/my goals.md", "site_seeds": "private/seed list.json"},
+        )
+        assert '--goal-file "private/my goals.md"' in cmd
+        assert '--site-seeds "private/seed list.json"' in cmd
+
+    def test_plain_paths_stay_unquoted(self):
+        cmd = goal_refresh_command("t", {"goal_file": "private/goal.md"})
+        assert "--goal-file private/goal.md " in cmd
+
 
 def test_catch_up_surfaces_goal_refreshes(tmp_path, monkeypatch):
     from distill.commands import _logic

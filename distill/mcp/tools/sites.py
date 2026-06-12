@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from mcp.server.fastmcp import Context
 
 from distill.mcp import server as _server
-from distill.pipeline.costs import save_run_log
+from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
@@ -111,6 +111,8 @@ async def site_batch(  # noqa: C901
                     "status": "ok" if page_count else "skipped",
                 }
             )
+        except BudgetExceededError:
+            raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
             results.append({"url": url, "status": "error", "error": str(e)})
 
