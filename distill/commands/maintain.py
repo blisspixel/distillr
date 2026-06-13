@@ -8,6 +8,8 @@ Pure relocation: no behavior change.
 
 from __future__ import annotations
 
+import os
+import webbrowser
 from pathlib import Path
 
 import typer
@@ -15,10 +17,12 @@ from rich import box
 from rich.table import Table
 
 from distill._console import console
-from distill.commands._helpers import get_config
+from distill.commands._helpers import _resolve_topic_for_channel, get_config
 from distill.config import DistillConfig
+from distill.library import Library
+from distill.library.paths import find_artifact
 
-__all__ = ["cleanup", "costs", "register"]
+__all__ = ["alerts", "cleanup", "costs", "open_cmd", "register"]
 
 
 def costs(  # noqa: C901 -- legacy, will refactor
@@ -323,7 +327,158 @@ def cleanup():
     console.print(f"[green]Deleted {deleted} store(s)[/green]")
 
 
+def open_cmd(  # noqa: C901 -- legacy, will refactor
+    topic: str = typer.Argument(None, help="Topic or channel name"),
+    channel: str | None = typer.Option(None, "--channel", "-c", help="Specific channel"),
+    what: str = typer.Option(
+        "output",
+        "--what",
+        "-w",
+        help="What to open: output, library, report, synthesis",
+    ),
+    vault: bool = typer.Option(
+        False,
+        "--vault",
+        help="Open library directory as an Obsidian vault",
+    ),
+    path: str = typer.Option(
+        "",
+        "--path",
+        help="Subdirectory within library/ to open (use with --vault)",
+    ),
+):
+    """Open output files or directories in your file explorer.
+
+    Examples:
+      distill open                    # Open the output/ directory
+      distill open ai                 # Open the ai topic directory
+      distill open NateBJones         # Open channel directory (auto-resolves topic)
+      distill open --what report ai   # Open the report
+      distill open --vault            # Open library as Obsidian vault
+      distill open --vault --path topics/ai-agents  # Open subdirectory
+    """
+    import subprocess
+
+    config = get_config()
+
+    # --- Vault mode ---
+    if vault:
+        library_dir = config.library_dir
+        if not library_dir.exists():
+            console.print(f"[red]Error: library directory does not exist: {library_dir}[/red]")
+            raise typer.Exit(1)
+
+        target = library_dir
+        if path:
+            target = library_dir / path
+            if not target.exists():
+                console.print(f"[red]Error: subdirectory not found: {target}[/red]")
+                # List available subdirectories
+                available = [
+                    d.relative_to(library_dir) for d in library_dir.iterdir() if d.is_dir()
+                ]
+                if available:
+                    console.print("\n  Available subdirectories:")
+                    for d in sorted(available):
+                        console.print(f"    • {d}")
+                raise typer.Exit(1)
+
+        # Check for DISTILL_VAULT_EDITOR env var
+        vault_editor = os.environ.get("DISTILL_VAULT_EDITOR")
+        if vault_editor:
+            import shutil
+
+            if not shutil.which(vault_editor):
+                console.print(
+                    f"[red]Error: DISTILL_VAULT_EDITOR program not found: {vault_editor}[/red]\n"
+                    f"  Ensure the program is installed and in your PATH."
+                )
+                raise typer.Exit(1)
+            console.print(f"Opening [bold]{target}[/bold] with {vault_editor}")
+            subprocess.run([vault_editor, str(target)])
+        else:
+            console.print(f"Opening [bold]{target}[/bold]")
+            webbrowser.open(str(target))
+        return
+
+    # --- Original open logic ---
+    if topic:
+        lib = Library(config)
+        topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+
+    if what == "output" and not topic:
+        target = config.library_dir.parent / "output"
+    elif what == "output" and topic:
+        target = config.topic_dir(topic)
+    elif what == "library":
+        target = config.library_dir
+    elif what == "report" and topic:
+        from distill.pipeline.report.deep_research import _get_report_path
+
+        scope = "channel" if channel else "topic"
+        target = _get_report_path(topic, config, scope, channel)
+    elif what == "synthesis" and topic and channel:
+        target = find_artifact(
+            config.channel_dir(topic, channel),
+            "synthesis",
+            identity=f"{topic}_{channel}",
+        )
+    elif what == "synthesis" and topic:
+        target = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
+    else:
+        target = config.library_dir.parent / "output"
+
+    if channel and what == "output":
+        target = config.channel_dir(topic, channel)
+
+    if not target.exists():
+        console.print(f"[yellow]Not found: {target}[/yellow]")
+        raise typer.Exit(1)
+
+    console.print(f"Opening [bold]{target}[/bold]")
+    startfile = getattr(os, "startfile", None)
+    if startfile is not None:
+        startfile(target)
+    else:
+        subprocess.run(["open" if os.uname().sysname == "Darwin" else "xdg-open", str(target)])
+
+
+def alerts(
+    ctx: typer.Context,
+) -> None:
+    """Show the current watch-alert digest."""
+    from distill.commands._json import JsonEnvelope
+    from distill.library.paths import find_artifact
+
+    config = get_config()
+    alert_path = find_artifact(config.library_dir, "watch_alerts", identity="library")
+
+    json_mode = ctx.obj.get("json", False) if ctx.obj else False
+
+    if alert_path.exists():
+        content = alert_path.read_text(encoding="utf-8")
+        if json_mode:
+            envelope = JsonEnvelope.success({"alerts": content})
+            import sys
+
+            sys.stdout.write(envelope.to_json() + "\n")
+        else:
+            from rich.markdown import Markdown
+
+            console.print(Markdown(content))
+    else:
+        if json_mode:
+            envelope = JsonEnvelope.success({"alerts": None, "message": "No watch alerts found."})
+            import sys
+
+            sys.stdout.write(envelope.to_json() + "\n")
+        else:
+            console.print("[dim]No watch alerts found.[/dim]")
+
+
 def register(app: typer.Typer) -> None:
     """Attach the maintenance commands to the app (called from distill.cli)."""
     app.command(rich_help_panel="Maintain")(costs)
     app.command(rich_help_panel="Maintain")(cleanup)
+    app.command(name="open", rich_help_panel="Maintain")(open_cmd)
+    app.command(rich_help_panel="Maintain")(alerts)

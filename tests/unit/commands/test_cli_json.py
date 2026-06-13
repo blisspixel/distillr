@@ -182,7 +182,7 @@ class TestJsonAlerts:
 
     def test_alerts_json_no_alerts(self, mock_config):
         """alerts --json with no alerts returns valid JSON."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "alerts"])
 
         assert result.exit_code == 0
@@ -195,7 +195,7 @@ class TestJsonAlerts:
         alerts_file = mock_config.library_dir / "watch_alerts.md"
         alerts_file.write_text("# Alerts\n- New video detected", encoding="utf-8")
 
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "alerts"])
 
         assert result.exit_code == 0
@@ -226,14 +226,14 @@ class TestExitCodes:
 
     def test_successful_alerts_returns_zero(self, mock_config):
         """Successful alerts command returns exit code 0."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["alerts"])
 
         assert result.exit_code == 0
 
     def test_successful_costs_returns_zero(self, mock_config):
         """Successful costs command returns exit code 0."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["costs"])
 
         assert result.exit_code == 0
@@ -247,7 +247,7 @@ class TestExitCodes:
 
     def test_successful_json_alerts_returns_zero(self, mock_config):
         """Successful alerts --json command returns exit code 0."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "alerts"])
 
         assert result.exit_code == 0

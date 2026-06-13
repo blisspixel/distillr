@@ -29,11 +29,11 @@ class TestOpenVault:
         monkeypatch.delenv("DISTILL_VAULT_EDITOR", raising=False)
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
-            patch("distill._cli_impl.webbrowser.open") as mock_open,
-            patch("distill._cli_impl.console"),
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.webbrowser.open") as mock_open,
+            patch("distill.commands.maintain.console"),
         ):
-            from distill._cli_impl import open_cmd
+            from distill.commands.maintain import open_cmd
 
             open_cmd(topic=None, channel=None, what="output", vault=True, path="")
 
@@ -52,12 +52,12 @@ class TestOpenVault:
         monkeypatch.setenv("DISTILL_VAULT_EDITOR", "obsidian")
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
             patch("shutil.which", return_value="/usr/bin/obsidian"),
             patch("subprocess.run") as mock_run,
-            patch("distill._cli_impl.console"),
+            patch("distill.commands.maintain.console"),
         ):
-            from distill._cli_impl import open_cmd
+            from distill.commands.maintain import open_cmd
 
             open_cmd(topic=None, channel=None, what="output", vault=True, path="")
 
@@ -75,10 +75,10 @@ class TestOpenVault:
         monkeypatch.delenv("DISTILL_VAULT_EDITOR", raising=False)
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
-            patch("distill._cli_impl.console"),
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.console"),
         ):
-            from distill._cli_impl import open_cmd
+            from distill.commands.maintain import open_cmd
 
             with pytest.raises(typer.Exit):
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="")
@@ -96,11 +96,11 @@ class TestOpenVault:
         monkeypatch.delenv("DISTILL_VAULT_EDITOR", raising=False)
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
-            patch("distill._cli_impl.webbrowser.open") as mock_open,
-            patch("distill._cli_impl.console"),
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.webbrowser.open") as mock_open,
+            patch("distill.commands.maintain.console"),
         ):
-            from distill._cli_impl import open_cmd
+            from distill.commands.maintain import open_cmd
 
             open_cmd(topic=None, channel=None, what="output", vault=True, path="topics/ai-agents")
 
@@ -119,10 +119,10 @@ class TestOpenVault:
         monkeypatch.delenv("DISTILL_VAULT_EDITOR", raising=False)
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
-            patch("distill._cli_impl.console"),
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.console"),
         ):
-            from distill._cli_impl import open_cmd
+            from distill.commands.maintain import open_cmd
 
             with pytest.raises(typer.Exit):
                 open_cmd(
@@ -140,11 +140,11 @@ class TestOpenVault:
         monkeypatch.setenv("DISTILL_VAULT_EDITOR", "nonexistent-editor")
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
             patch("shutil.which", return_value=None),
-            patch("distill._cli_impl.console"),
+            patch("distill.commands.maintain.console"),
         ):
-            from distill._cli_impl import open_cmd
+            from distill.commands.maintain import open_cmd
 
             with pytest.raises(typer.Exit):
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="")

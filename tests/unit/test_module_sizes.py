@@ -28,8 +28,9 @@ ALLOWLIST: dict[str, int] = {
     # videos command -> commands/view.py (slice 3): 9213 -> 9077;
     # show/package-latest/synthesis/findings -> view.py (slice 4): 9077 -> 8664;
     # app construction -> distill/_app.py (+ did-you-mean group): 8664 -> 8653;
-    # costs + cleanup -> commands/maintain.py (Maintain slice 1): 8653 -> 8353.
-    "distill/commands/_logic.py": 8353,
+    # costs + cleanup -> commands/maintain.py (Maintain slice 1): 8653 -> 8353;
+    # open + alerts -> commands/maintain.py (Maintain slice 2): 8353 -> 8202.
+    "distill/commands/_logic.py": 8202,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

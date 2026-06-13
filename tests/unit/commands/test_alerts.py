@@ -26,7 +26,7 @@ def mock_config(tmp_path):
 
 class TestAlertsCommand:
     def test_no_alerts(self, mock_config):
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["alerts"])
         assert result.exit_code == 0
 
@@ -35,12 +35,12 @@ class TestAlertsCommand:
         alerts_file = mock_config.library_dir / "watch_alerts.md"
         alerts_file.write_text("# Watch Alerts\n- New video on AI channel", encoding="utf-8")
 
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["alerts"])
         assert result.exit_code == 0
 
     def test_json_no_alerts(self, mock_config):
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "alerts"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
@@ -51,7 +51,7 @@ class TestAlertsCommand:
         alerts_file = mock_config.library_dir / "watch_alerts.md"
         alerts_file.write_text("# Alerts\n- Something new", encoding="utf-8")
 
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "alerts"])
         assert result.exit_code == 0
         parsed = json.loads(result.output)
