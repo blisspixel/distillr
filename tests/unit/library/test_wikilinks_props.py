@@ -119,11 +119,15 @@ valid_slugs = st.text(
 ).map(lambda s: slugify_title(s, ""))
 
 
-# Strategy for generating display titles
+# Strategy for generating display titles. A wiki-link display title is
+# inline (it lives inside `[[...]]` on one line) and the link checker scans
+# line by line, so use "Zs" (space separators) rather than the full "Z":
+# the latter also yields U+2028/U+2029, which str.splitlines() breaks on and
+# which would hide a link whose title embedded one.
 display_titles = st.text(
     alphabet=st.characters(
-        whitelist_categories=("L", "N", "Z"),
-        blacklist_characters="\n\r[]|",
+        whitelist_categories=("L", "N", "Zs"),
+        blacklist_characters="[]|",
     ),
     min_size=1,
     max_size=50,
