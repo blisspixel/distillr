@@ -327,6 +327,8 @@ Full cost model in [`docs/cost.md`](docs/cost.md).
 
 ## Docs
 
+Start at the [documentation index](docs/README.md), which groups everything below by task (get started / how-to / reference / explanation). The high-traffic entries:
+
 - [`docs/usage.md`](docs/usage.md) — full command reference
 - [`docs/invariants.md`](docs/invariants.md) — design charter: what distill is, is not, and the rules that don't bend
 - [`docs/architecture.md`](docs/architecture.md) — data flow, 4-phase report pipeline, model routing, security hardening

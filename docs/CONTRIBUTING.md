@@ -10,6 +10,12 @@ distillr uses [uv](https://docs.astral.sh/uv/) as its sole toolchain (package ma
 git clone https://github.com/blisspixel/distillr.git
 cd distillr
 uv sync                            # creates .venv from uv.lock; installs distill (editable) + dev tools
+uv run distill init                # guided setup: creates .env, validates your key, installs the browser
+```
+
+`distill init` replaces the old manual `cp .env.example .env` + `playwright install` + `distill doctor` dance; run it once and it does all three. To do it by hand instead:
+
+```bash
 uv run playwright install chromium
 cp .env.example .env               # then add API keys if you want to run live
 uv run distill doctor
@@ -24,7 +30,7 @@ You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test s
 ```bash
 uv run pytest -q                   # default — unit + contract tests, no network
 uv run pytest -m integration       # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
-uv run pytest --cov=distill --cov-fail-under=79   # branch coverage gate
+uv run pytest --cov=distill --cov-fail-under=80   # branch coverage gate
 ```
 
 ## Quality gates
@@ -33,7 +39,7 @@ CI enforces the following on every push. Before opening a PR, at least run:
 
 ```bash
 uv run pytest -q                                              # unit + contract tests pass
-uv run pytest --cov=distill --cov-fail-under=79               # branch coverage stays above the floor
+uv run pytest --cov=distill --cov-fail-under=80               # branch coverage stays above the floor
 uv run ruff check .                                           # lint clean
 uv run ruff format --check .                                  # formatting clean
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
@@ -112,7 +118,7 @@ Before pushing to main or tagging a release, run the full gate locally. CI catch
 
 ```bash
 # 1. Tests — including property-based tests (hypothesis)
-uv run pytest -q --cov=distill --cov-fail-under=79
+uv run pytest -q --cov=distill --cov-fail-under=80
 
 # 2. Lint — both check and format
 uv run ruff check .
