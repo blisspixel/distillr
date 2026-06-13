@@ -74,7 +74,7 @@ class TestJsonCosts:
 
     def test_costs_json_no_history(self, mock_config):
         """costs --json with no cost log returns valid JSON."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "costs"])
 
         assert result.exit_code == 0
@@ -98,7 +98,7 @@ class TestJsonCosts:
         }
         log_file.write_text(json.dumps(entry) + "\n", encoding="utf-8")
 
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "costs"])
 
         assert result.exit_code == 0
@@ -109,7 +109,7 @@ class TestJsonCosts:
 
     def test_costs_json_no_ansi(self, mock_config):
         """costs --json output contains no ANSI escape codes."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "costs"])
 
         assert "\x1b" not in result.output
@@ -254,7 +254,7 @@ class TestExitCodes:
 
     def test_successful_json_costs_returns_zero(self, mock_config):
         """Successful costs --json command returns exit code 0."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "costs"])
 
         assert result.exit_code == 0

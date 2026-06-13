@@ -94,6 +94,7 @@ from distill.commands.claude_md import register as _register_claude_md
 from distill.commands.concepts import register as _register_concepts_recovery
 from distill.commands.ingest import register as _register_ingest
 from distill.commands.init import register as _register_init
+from distill.commands.maintain import register as _register_maintain
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
 
@@ -104,6 +105,7 @@ _register_audit(app)
 _register_ask(app)
 _register_update(app)
 _register_init(app)
+_register_maintain(app)
 _register_view(app)
 
 __all__ = ["app", "main"]
