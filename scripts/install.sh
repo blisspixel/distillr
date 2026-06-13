@@ -12,6 +12,24 @@ echo "==> Installing $PACKAGE ..."
 
 # Prefer uv (the 2026 default for Python CLI tools): it manages its own Python,
 # so it works even when no suitable python3 is on PATH.
+#
+# If uv is missing AND there's no usable Python, bootstrap uv via its official
+# installer so the one-liner works on a clean machine -- no manual Python setup.
+if ! command -v uv >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+    echo "==> Neither uv nor Python found. Bootstrapping uv (manages its own Python)..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO- https://astral.sh/uv/install.sh | sh
+    else
+        echo "Error: need curl or wget to bootstrap uv."
+        echo "Install uv manually: https://docs.astral.sh/uv/getting-started/installation/"
+        exit 1
+    fi
+    # uv installs to ~/.local/bin (or $XDG_BIN_HOME); make it usable this session.
+    export PATH="$HOME/.local/bin:${XDG_BIN_HOME:-}:$PATH"
+fi
+
 if command -v uv >/dev/null 2>&1; then
     echo "==> Using uv to install $PACKAGE ..."
     uv tool install "$PACKAGE"

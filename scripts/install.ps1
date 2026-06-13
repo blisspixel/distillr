@@ -12,6 +12,18 @@ Write-Host ""
 
 # Prefer uv (the 2026 default for Python CLI tools): it manages its own Python,
 # so it works even when no suitable interpreter is on PATH.
+#
+# If uv is missing AND there's no usable Python, bootstrap uv via its official
+# installer so the one-liner works on a clean machine -- no manual Python setup.
+$haveUv = [bool](Get-Command uv -ErrorAction SilentlyContinue)
+$havePy = [bool]((Get-Command python -ErrorAction SilentlyContinue) -or (Get-Command py -ErrorAction SilentlyContinue))
+if (-not $haveUv -and -not $havePy) {
+    Write-Host "==> Neither uv nor Python found. Bootstrapping uv (manages its own Python)..." -ForegroundColor Yellow
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    # uv installs to %USERPROFILE%\.local\bin; make it usable this session.
+    $env:Path = "$env:USERPROFILE\.local\bin;" + $env:Path
+}
+
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-Host "==> Using uv to install $Package ..." -ForegroundColor Green
     uv tool install $Package
