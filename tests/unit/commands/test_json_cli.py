@@ -23,7 +23,7 @@ class TestJsonFlag:
         )
         config.library_dir.mkdir(parents=True, exist_ok=True)
 
-        with patch("distill._cli_impl.get_config", return_value=config):
+        with patch("distill.commands.maintain.get_config", return_value=config):
             result = runner.invoke(app, ["--json", "alerts"])
 
         assert result.exit_code == 0
@@ -49,7 +49,7 @@ class TestExitCodes:
         )
         config.library_dir.mkdir(parents=True, exist_ok=True)
 
-        with patch("distill._cli_impl.get_config", return_value=config):
+        with patch("distill.commands.maintain.get_config", return_value=config):
             result = runner.invoke(app, ["alerts"])
 
         assert result.exit_code == 0

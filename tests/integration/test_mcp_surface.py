@@ -178,7 +178,7 @@ class TestCliJsonIntegration:
         from distill.cli import app
 
         runner = CliRunner()
-        with patch("distill._cli_impl.get_config", return_value=corpus_config):
+        with patch("distill.commands.maintain.get_config", return_value=corpus_config):
             result = runner.invoke(app, ["--json", "costs"])
 
         assert result.exit_code == 0
@@ -197,7 +197,7 @@ class TestCliJsonIntegration:
         from distill.cli import app
 
         runner = CliRunner()
-        with patch("distill._cli_impl.get_config", return_value=corpus_config):
+        with patch("distill.commands.maintain.get_config", return_value=corpus_config):
             result = runner.invoke(app, ["--json", "alerts"])
 
         assert result.exit_code == 0
@@ -216,7 +216,7 @@ class TestCliJsonIntegration:
         runner = CliRunner()
         # Use a config with no API key to trigger an error in doctor
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
-        with patch("distill._cli_impl.get_config", return_value=config):
+        with patch("distill.commands.doctor.get_config", return_value=config):
             result = runner.invoke(app, ["--json", "doctor"])
 
         # Doctor should still succeed (it reports issues, doesn't fail)
@@ -231,7 +231,7 @@ class TestCliJsonIntegration:
         from distill.cli import app
 
         runner = CliRunner()
-        with patch("distill._cli_impl.get_config", return_value=corpus_config):
+        with patch("distill.commands.maintain.get_config", return_value=corpus_config):
             result = runner.invoke(app, ["--json", "costs"])
 
         # Check for any ANSI escape sequences

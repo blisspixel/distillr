@@ -41,6 +41,7 @@ def test_download_video_writes_chunks_and_creates_parent(tmp_path: Path) -> None
     with (
         patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream),
         patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
     ):
         out = download_video("https://video.twimg.com/test.mp4", dest)
 
@@ -60,11 +61,39 @@ def test_download_video_sends_referer_header(tmp_path: Path) -> None:
     with (
         patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream),
         patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
     ):
         download_video("https://video.twimg.com/test.mp4", dest)
 
     assert captured["headers"].get("Referer") == "https://platform.twitter.com/"
     assert "User-Agent" in captured["headers"]
+
+
+def test_download_video_pins_connection_to_resolved_ip(tmp_path: Path) -> None:
+    """The connection is pinned to the validated public IP -- a DNS rebind between
+    the is_public_web_url check and httpx's connect can't flip it to an internal
+    address. Regression guard for the missing pin the harden pass added."""
+    import contextlib
+
+    pinned: dict[str, str] = {}
+
+    @contextlib.contextmanager
+    def _fake_pin(host: str, ip: str):
+        pinned["host"], pinned["ip"] = host, ip
+        yield
+
+    with (
+        patch(
+            "distill.ingestors.x.media.httpx.stream",
+            side_effect=lambda *a, **k: _FakeStream([b"x"]),
+        ),
+        patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
+        patch("distill.ingestors.x.media.pin_host_to_ip", side_effect=_fake_pin),
+    ):
+        download_video("https://video.twimg.com/test.mp4", tmp_path / "m.mp4")
+
+    assert pinned == {"host": "video.twimg.com", "ip": "93.184.216.34"}
 
 
 @pytest.mark.parametrize(
@@ -94,6 +123,7 @@ def test_download_video_enforces_size_cap(tmp_path: Path, monkeypatch) -> None:
             side_effect=lambda *a, **k: _FakeStream([b"aa", b"bb", b"cc"]),
         ),
         patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
         pytest.raises(ValueError, match="exceeds"),
     ):
         download_video("https://video.twimg.com/big.mp4", tmp_path / "media.mp4")

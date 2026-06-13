@@ -129,9 +129,14 @@ def pin_host_to_ip(host: str, ip: str) -> Iterator[None]:
     so this is safe in practice -- it is not a general-purpose primitive.
     """
     real_getaddrinfo = socket.getaddrinfo
+    # Normalize the pin key so a differently-cased or trailing-dot FQDN form of
+    # the same host (Example.com, example.com.) still matches -- otherwise the
+    # pin would silently fail open and the host would resolve unpinned.
+    norm_host = host.casefold().rstrip(".")
 
     def _patched(h, *args, **kwargs):  # type: ignore[no-untyped-def]
-        return real_getaddrinfo(ip if h == host else h, *args, **kwargs)
+        h_norm = h.casefold().rstrip(".") if isinstance(h, str) else h
+        return real_getaddrinfo(ip if h_norm == norm_host else h, *args, **kwargs)
 
     socket.getaddrinfo = _patched
     try:
@@ -147,6 +152,14 @@ class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
     a request to ``http://169.254.169.254/`` or an RFC1918 address. This handler
     runs each redirect hop's URL through :func:`is_public_web_url` and refuses
     the redirect if it points anywhere non-public.
+
+    Residual (accepted): the caller's ``pin_host_to_ip`` pins only the *original*
+    host, so a redirect to a *different* public host is boolean-validated here but
+    then resolved fresh at connect -- a narrow DNS-rebind window on cross-host
+    redirect hops. Closing it fully would require pinning each new host from
+    inside this handler, which urllib's model doesn't cleanly allow; the per-hop
+    public-URL check bounds the exposure to attacker-controlled rebinding of a
+    host that also issues the redirect.
     """
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]

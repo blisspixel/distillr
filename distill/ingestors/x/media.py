@@ -7,7 +7,7 @@ from pathlib import Path
 
 import httpx
 
-from distill.ingestors.net import is_public_web_url
+from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
 
 __all__ = ["download_video"]
 
@@ -50,9 +50,20 @@ def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
     for _ in range(_MAX_REDIRECTS + 1):
         if not _is_allowed_video_url(current):
             raise ValueError(f"refusing non-allowlisted video URL: {current}")
-        with httpx.stream(
-            "GET", current, headers=_HEADERS, timeout=timeout, follow_redirects=False
-        ) as resp:
+        # Pin the connection to the validated public IP so a DNS rebind between
+        # the is_public_web_url check and httpx's connect can't flip the host to
+        # an internal address (pin_host_to_ip patches socket.getaddrinfo, which
+        # httpx's sync resolver goes through).
+        pinned_ip = resolve_public_ip(current)
+        if pinned_ip is None:
+            raise ValueError(f"refusing non-public video URL: {current}")
+        host = urllib.parse.urlparse(current).hostname or ""
+        with (
+            pin_host_to_ip(host, pinned_ip),
+            httpx.stream(
+                "GET", current, headers=_HEADERS, timeout=timeout, follow_redirects=False
+            ) as resp,
+        ):
             if resp.is_redirect:
                 current = urllib.parse.urljoin(current, resp.headers.get("location", ""))
                 continue

@@ -60,7 +60,8 @@ def test_synthesis_json_is_read_only_when_missing(mock_config, monkeypatch):
     # If --json triggered generation it would spend; assert it never calls synth.
     called = {"gen": False}
     monkeypatch.setattr(
-        _cli_impl, "synthesize_topic", lambda *a, **k: called.__setitem__("gen", True)
+        "distill.commands.view.synthesize_topic",
+        lambda *a, **k: called.__setitem__("gen", True),
     )
     mock_config.topic_dir("memory").mkdir(parents=True)
 

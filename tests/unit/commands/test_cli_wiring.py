@@ -350,14 +350,17 @@ class TestResearchCommand:
         )
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_reports = _reports.get_config  # `report` resolves get_config here
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _reports.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["report", "ai"])
             assert result.exit_code == 1
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _reports.get_config = original_reports
 
 
 class TestStatusCommand:
@@ -1347,13 +1350,16 @@ class TestDoctorCleanupAndMigrate:
         config = DistillConfig(gemini_api_key="", distill_output_dir=tmp_path / "library")
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_maintain = _maintain.get_config  # `cleanup` resolves get_config here
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _maintain.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["cleanup"])
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _maintain.get_config = original_maintain
 
         assert result.exit_code == 1
         assert "GEMINI_API_KEY required" in result.output
