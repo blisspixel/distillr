@@ -31,8 +31,9 @@ ALLOWLIST: dict[str, int] = {
     # costs + cleanup -> commands/maintain.py (Maintain slice 1): 8653 -> 8353;
     # open + alerts -> commands/maintain.py (Maintain slice 2): 8353 -> 8202;
     # doctor check helpers -> distill/doctor/checks.py (slice 1a): 8202 -> 8093
-    # (net of the re-import block the doctor command still needs).
-    "distill/commands/_logic.py": 8093,
+    # (net of the re-import block the doctor command still needs);
+    # doctor + health commands -> commands/doctor.py (slice 1b): 8093 -> 7346.
+    "distill/commands/_logic.py": 7346,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import doctor as _doctor
 from distill.commands import maintain as _maintain
 from distill.commands import view as _view
 from distill.commands._helpers import duration_str, format_date
@@ -39,12 +40,14 @@ def mock_config(tmp_path):
     original_impl = _cli_impl.get_config
     original_view = _view.get_config  # `library` moved to commands/view.py
     original_maintain = _maintain.get_config  # `costs`/`cleanup` moved to commands/maintain.py
+    original_doctor = _doctor.get_config  # `doctor`/`health` moved to commands/doctor.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
     _view.get_config = lambda: config
     _maintain.get_config = lambda: config
+    _doctor.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -54,6 +57,7 @@ def mock_config(tmp_path):
     _cli_impl.get_config = original_impl
     _view.get_config = original_view
     _maintain.get_config = original_maintain
+    _doctor.get_config = original_doctor
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -1256,13 +1260,16 @@ class TestDoctorCleanupAndMigrate:
         )
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_doctor = _doctor.get_config  # `doctor` resolves get_config here now
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _doctor.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["doctor"])
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _doctor.get_config = original_doctor
 
         assert result.exit_code == 0
         assert "NOT SET" in result.output
@@ -1311,13 +1318,16 @@ class TestDoctorCleanupAndMigrate:
 
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_doctor = _doctor.get_config  # `health` resolves get_config here now
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _doctor.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["health", "ai"])
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _doctor.get_config = original_doctor
 
         assert result.exit_code == 0
         assert "topic synthesis is stale" in result.output

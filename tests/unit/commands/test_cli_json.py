@@ -65,7 +65,7 @@ def _offline_key_validation():
             return ("ok", "grok-4.3")
         return ("not_set", "")
 
-    with patch("distill.commands._logic._doctor_validate_key", side_effect=_fake):
+    with patch("distill.commands.doctor._doctor_validate_key", side_effect=_fake):
         yield
 
 
@@ -120,7 +120,7 @@ class TestJsonDoctor:
 
     def test_doctor_json_output(self, mock_config):
         """doctor --json returns valid JSON with checks and warnings."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.doctor.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "doctor"])
 
         assert result.exit_code == 0
@@ -131,14 +131,14 @@ class TestJsonDoctor:
 
     def test_doctor_json_no_ansi(self, mock_config):
         """doctor --json output contains no ANSI escape codes."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.doctor.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "doctor"])
 
         assert "\x1b" not in result.output
 
     def test_doctor_json_has_api_key_status(self, mock_config):
         """doctor --json reports live-validated API key status, not presence."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.doctor.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "doctor"])
 
         parsed = json.loads(result.output)
@@ -164,8 +164,8 @@ class TestJsonDoctor:
             return ("not_set", "")
 
         with (
-            patch("distill._cli_impl.get_config", return_value=mock_config),
-            patch("distill.commands._logic._doctor_validate_key", side_effect=_fake),
+            patch("distill.commands.doctor.get_config", return_value=mock_config),
+            patch("distill.commands.doctor._doctor_validate_key", side_effect=_fake),
         ):
             result = runner.invoke(app, ["--json", "doctor"])
 
@@ -240,7 +240,7 @@ class TestExitCodes:
 
     def test_successful_doctor_returns_zero(self, mock_config):
         """Successful doctor command returns exit code 0."""
-        with patch("distill._cli_impl.get_config", return_value=mock_config):
+        with patch("distill.commands.doctor.get_config", return_value=mock_config):
             result = runner.invoke(app, ["--json", "doctor"])
 
         assert result.exit_code == 0

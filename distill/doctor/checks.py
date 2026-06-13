@@ -125,3 +125,42 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str
         except Exception as e:
             return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
     raise ValueError(f"unknown provider: {provider}")
+
+
+def _check_ollama_status() -> tuple[str, list[str]]:
+    """Check if Ollama server is running and list available models.
+
+    Returns (status, model_names) where status is "running" or "unavailable".
+    """
+    import asyncio
+
+    try:
+        from distill.llm.providers.ollama import OllamaProvider
+
+        provider = OllamaProvider()
+        try:
+            models_data = asyncio.run(provider.list_models())
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+            models_data = loop.run_until_complete(provider.list_models())
+        model_names = [m.get("name", "") for m in models_data if m.get("name")]
+        return ("running", model_names)
+    except (ConnectionError, Exception):
+        return ("unavailable", [])
+
+
+def _check_lmstudio_status() -> str:
+    """Check if LM Studio server is running. Returns 'running' or 'unavailable'."""
+    import httpx
+
+    try:
+        import os
+
+        url = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+        with httpx.Client(timeout=3) as client:
+            resp = client.get(f"{url}/models")
+            if resp.status_code == 200:
+                return "running"
+    except Exception:
+        pass
+    return "unavailable"
