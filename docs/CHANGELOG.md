@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.16.0 - 2026-06-13
+
+**Golden-corpus eval gate (blocking) -- a 1.0 quality-bar item.** The test-time complement to the run-time verify hook: verify grounds *production* output against receipts; this freezes what *good* extraction looks like and proves the scorer can still tell good from bad. Catches the regression class coverage/types/lint miss -- prompt drift, scoring changes, and silent degradation of section/concept extraction.
+
+### Added
+
+- **`distill/eval/golden.py`**: a hand-checked golden analysis for every one of the nine eval fixtures (paper/video/site), each carrying the workload's expected sections, every golden concept, and production artifact shape (headings + bullets, full depth).
+- **`tests/unit/eval/test_golden_gate.py`** (runs in the already-blocking suite, fully offline): every golden scores at/above a measured per-dimension floor (composite >= 0.90, structure/concept-coverage/formatting == 1.0, depth >= 0.75); a deliberately degraded output scores far below it (so a gate that rubber-stamps everything is itself caught); and the real per-workload prompt builders run under a mock LLM so a prompt-builder signature break surfaces in CI, not production. Freezes two contracts at once -- the scoring logic and the fixtures (golden drift forces a lockstep, reviewed update).
+
+Follow-up (noted, not in this release): a golden for the concept-playbook pipeline (which concepts cross threshold, which polarities), and the metamorphic-robustness pass on the same fixtures.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2253 passed) at 81.11% branch coverage.
+
 ## 0.15.0 - 2026-06-13
 
 **Install/update QOL: `distill update` + an update-available nudge.** Modern CLI tools upgrade in place and tell you when they're stale; distill now does both.

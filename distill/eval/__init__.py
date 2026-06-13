@@ -14,6 +14,7 @@ and only affects confidence (see ``docs/invariants.md``: LLM proposes, Python de
 from __future__ import annotations
 
 from distill.eval.fixtures import WORKLOADS, Fixture, load_fixtures
+from distill.eval.golden import GOLDEN_OUTPUTS, degraded_output
 from distill.eval.harness import (
     EvalRow,
     estimate_eval_cost,
@@ -40,6 +41,7 @@ from distill.eval.scoring import QualityScore, score_output
 __all__ = [
     "DEFAULT_JUDGE_MODEL",
     "DEFAULT_THRESHOLD",
+    "GOLDEN_OUTPUTS",
     "WORKLOADS",
     "EvalRow",
     "EvalSummary",
@@ -48,6 +50,7 @@ __all__ = [
     "PairwiseResult",
     "QualityScore",
     "console_lines",
+    "degraded_output",
     "estimate_eval_cost",
     "judge_pairwise",
     "judge_shares_family",
