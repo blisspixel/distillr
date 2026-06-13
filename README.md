@@ -85,7 +85,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/bli
 curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.sh | bash
 ```
 
-After the installer finishes, open a **new** terminal and run `distill doctor`.
+After the installer finishes, open a **new** terminal and run `distill init`. It is a guided, one-command setup: it creates your `.env`, helps you pick the cloud or local provider, validates your key against the provider, installs the Playwright browser if it is missing, and ends with a ready/not-ready verdict and the first command to try. (`distill doctor` remains the read-only diagnostic; `distill init` is the one that *sets things up*.) Both are no-TTY-safe, so a scripted or agent-driven setup never hangs.
 
 **Updating:** `distill update` upgrades to the latest release in place — it detects how you installed (uv tool / pipx / pip) and runs the right upgrade for you; `distill update --check` just reports whether a newer version exists. distill also prints a one-line nudge when a new release is published (cached daily, silence with `DISTILL_NO_UPDATE_CHECK=1`).
 

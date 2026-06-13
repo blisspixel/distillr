@@ -598,6 +598,22 @@ All CLI commands return stable exit codes for scripting and CI integration:
 | 4 | NETWORK_ERROR | API timeout, DNS failure, HTTP error |
 | 5 | NOT_FOUND | Requested topic, channel, or resource doesn't exist |
 
+## Setup (`distill init`)
+
+The guided first-run wizard. It creates a `.env` (and **never** overwrites an existing one without `--force`, so your keys are safe), helps you choose the cloud or local provider, live-validates your key against the provider, installs the Playwright browser if it's missing, and ends with a ready/not-ready verdict plus the first command to try.
+
+```bash
+distill init                       # interactive: pick provider, paste key, validate
+distill init --provider cloud      # skip the provider prompt
+distill init --provider local      # set DISTILL_PROVIDER=ollama, probe reachability
+distill init --yes                 # non-interactive: accept defaults, don't prompt
+distill init --no-browser          # skip the Chromium install step
+distill init --force               # recreate .env from the template (overwrites!)
+distill --json init                # machine-readable readiness verdict
+```
+
+`distill init` is no-TTY-safe: with no terminal and no `--yes`, it creates the env file and prints the manual next steps rather than blocking on a prompt, so a scripted or agent-driven setup never hangs. The exit code is `0` when the setup is ready to ingest and `1` when something still needs doing (the verdict lists exactly what). `distill doctor` remains the read-only diagnostic; `init` is the one that *sets things up*.
+
 ## Version
 
 ```bash
