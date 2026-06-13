@@ -8,6 +8,7 @@ re-exported here so that both old and new import paths work.
 
 import json
 import shutil
+import sys
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -60,6 +61,8 @@ __all__ = [
     "safe_console_text",
     "strip_frontmatter",
     "topic_from_query",
+    "tty_confirm",
+    "tty_prompt",
     "write_video_metadata",
 ]
 
@@ -69,6 +72,45 @@ __all__ = [
 SHORTS_THRESHOLD = 180
 
 console = Console()
+
+
+def _isatty() -> bool:
+    """Whether stdin is an interactive terminal. Indirected so it can be
+    forced in tests (CliRunner swaps ``sys.stdin`` for a non-TTY stream)."""
+    try:
+        return sys.stdin.isatty()
+    except (ValueError, OSError):  # closed/detached stdin
+        return False
+
+
+def tty_confirm(message: str, *, default: bool = False) -> bool:
+    """``typer.confirm`` that never blocks in a non-interactive context.
+
+    A loop runner or agent shell has no TTY on stdin; calling ``typer.confirm``
+    there raises an abort on EOF instead of degrading. This returns *default*
+    when stdin is not a TTY (and, when that default would block an action,
+    prints the flag to pass), so unattended runs fail predictably rather than
+    hanging or crashing. Pass ``--yes`` upstream to skip the gate entirely.
+    """
+    if not _isatty():
+        if not default:
+            console.print("[dim]Non-interactive (no TTY): pass --yes to proceed.[/dim]")
+        return default
+    return typer.confirm(message, default=default)
+
+
+def tty_prompt(message: str, *, default: str, non_tty_default: str | None = None) -> str:
+    """``typer.prompt`` with a safe non-interactive fallback.
+
+    Interactive menus (the audit action menu, discover sizing) must resolve
+    under a loop/agent rather than aborting on EOF. ``default`` is the
+    interactive default (what pressing enter selects); ``non_tty_default``, when
+    given, is what to return with no TTY -- use it where the interactive default
+    would *act* (e.g. spend) but the safe unattended choice is to cancel.
+    """
+    if not _isatty():
+        return non_tty_default if non_tty_default is not None else default
+    return typer.prompt(message, default=default)
 
 
 def format_date(date_str: str) -> str:

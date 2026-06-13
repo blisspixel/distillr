@@ -143,6 +143,8 @@ def test_fresh_topic_defaults_to_sizing_menu(mock_config, monkeypatch):
     _patch_discover_pipeline(monkeypatch)
     captured = {}
     monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: captured.update(k))
+    # The sizing menu is interactive; force the TTY path so CliRunner's input is read.
+    monkeypatch.setattr("distill.commands._helpers._isatty", lambda: True)
 
     # Fresh topic (no artifacts) -> menu; pick option 1 (the excellent/cliff cut).
     result = runner.invoke(cli.app, ["discover", "compose music", "--topic", "fresh"], input="1\n")
@@ -162,8 +164,28 @@ def test_fresh_topic_cancel_aborts(mock_config, monkeypatch):
         "_discover_ingest_set",
         lambda **k: called.__setitem__("ingest", True),
     )
+    # Interactive cancel: force the TTY path so the typed "n" is read.
+    monkeypatch.setattr("distill.commands._helpers._isatty", lambda: True)
 
     result = runner.invoke(cli.app, ["discover", "compose music", "--topic", "fresh"], input="n\n")
+    assert result.exit_code == 0
+    assert called["ingest"] is False
+    assert "Aborted" in result.output
+
+
+def test_fresh_topic_non_tty_does_not_ingest_without_yes(mock_config, monkeypatch):
+    """Loop-safety: a fresh-topic discover with no TTY and no --yes resolves the
+    sizing menu to its default but the ingest confirm declines, so nothing is
+    ingested and the run exits cleanly rather than hanging on the prompt."""
+    _patch_discover_pipeline(monkeypatch)
+    called = {"ingest": False}
+    monkeypatch.setattr(
+        _cli_impl,
+        "_discover_ingest_set",
+        lambda **k: called.__setitem__("ingest", True),
+    )
+    # No isatty override -> CliRunner's stdin reports non-TTY (the loop case).
+    result = runner.invoke(cli.app, ["discover", "compose music", "--topic", "fresh"])
     assert result.exit_code == 0
     assert called["ingest"] is False
     assert "Aborted" in result.output

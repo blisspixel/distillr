@@ -18,6 +18,7 @@ import typer
 from rich.console import Console
 
 from distill.commands import _logic
+from distill.commands._helpers import tty_confirm
 from distill.commands._logic import _complete_topics
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
@@ -221,7 +222,7 @@ def concept_rollback_cmd(
         )
         raise typer.Exit(1)
 
-    if not yes and not typer.confirm(
+    if not yes and not tty_confirm(
         f"Restore '{slug}' to its {snap.iso} snapshot? The current version is backed up first."
     ):
         console.print("[yellow]Aborted.[/yellow]")

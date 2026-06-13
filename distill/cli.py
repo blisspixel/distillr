@@ -110,6 +110,7 @@ def main() -> None:
     bad key, rate limit) print a clean one-line message instead of a full
     traceback. Unrecognized errors propagate unchanged.
     """
+    from distill.commands._json import map_exception_to_exit_code
     from distill.llm.errors import describe_provider_error
 
     app.pretty_exceptions_enable = False
@@ -120,4 +121,7 @@ def main() -> None:
         if message is None:
             raise
         console.print(f"\n[red]{message}[/red]")
-        raise SystemExit(1) from exc
+        # Map to the documented exit-code taxonomy (3=config/bad key,
+        # 4=network/timeout, ...) so an agent or loop can branch on the cause
+        # instead of seeing an undifferentiated 1.
+        raise SystemExit(int(map_exception_to_exit_code(exc))) from exc

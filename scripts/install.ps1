@@ -10,34 +10,43 @@ $Cli = "distill"
 Write-Host "==> Installing $Package ..." -ForegroundColor Cyan
 Write-Host ""
 
-# Ensure Python 3.12+
-$python = "python"
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-    $python = "py"
+# Prefer uv (the 2026 default for Python CLI tools): it manages its own Python,
+# so it works even when no suitable interpreter is on PATH.
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+    Write-Host "==> Using uv to install $Package ..." -ForegroundColor Green
+    uv tool install $Package
 }
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-    Write-Host "Error: Python 3.12+ is required." -ForegroundColor Red
-    Write-Host "Install from https://www.python.org/downloads/ or via the Microsoft Store." -ForegroundColor Yellow
-    exit 1
-}
+else {
+    # Fall back to pipx, which needs a Python 3.12+ interpreter present.
+    $python = "python"
+    if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
+        $python = "py"
+    }
+    if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
+        Write-Host "Error: need either 'uv' or Python 3.12+." -ForegroundColor Red
+        Write-Host "Install uv:     https://docs.astral.sh/uv/getting-started/installation/" -ForegroundColor Yellow
+        Write-Host "Install Python: https://www.python.org/downloads/" -ForegroundColor Yellow
+        exit 1
+    }
 
-$ver = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
-    Write-Host "Error: Python 3.12+ is required (found $ver)." -ForegroundColor Red
-    exit 1
-}
+    $ver = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+    if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
+        Write-Host "Error: Python 3.12+ is required (found $ver). Or install uv, which manages its own Python." -ForegroundColor Red
+        exit 1
+    }
 
-# Prefer pipx (best experience: isolated, automatic PATH shims, no activation)
-if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
-    Write-Host "==> pipx not found. Installing pipx (recommended for CLI tools)..." -ForegroundColor Yellow
-    & $python -m pip install --user pipx --quiet
-    & $python -m pipx ensurepath
-    # Refresh PATH for this session
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-}
+    # pipx: isolated, automatic PATH shims, no activation
+    if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+        Write-Host "==> pipx not found. Installing pipx (recommended for CLI tools)..." -ForegroundColor Yellow
+        & $python -m pip install --user pipx --quiet
+        & $python -m pipx ensurepath
+        # Refresh PATH for this session
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    }
 
-Write-Host "==> Using pipx to install $Package ..." -ForegroundColor Green
-pipx install $Package
+    Write-Host "==> Using pipx to install $Package ..." -ForegroundColor Green
+    pipx install $Package
+}
 
 Write-Host ""
 Write-Host "==> Installation complete!" -ForegroundColor Green
@@ -53,8 +62,11 @@ Write-Host "Quick test:"
 Write-Host "  $Cli --help"
 Write-Host "  $Cli doctor"
 Write-Host ""
+Write-Host "Optional: tab-completion for your shell"
+Write-Host "  $Cli --install-completion"
+Write-Host ""
 Write-Host "For development / editable install from source:"
 Write-Host "  git clone https://github.com/blisspixel/distillr.git"
 Write-Host "  cd distillr"
-Write-Host "  pipx install -e .   # or use the venv instructions in README"
+Write-Host "  uv tool install -e .   # or: pipx install -e . / venv instructions in README"
 Write-Host ""

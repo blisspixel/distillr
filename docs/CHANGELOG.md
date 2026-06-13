@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.13.2 - 2026-06-12
+
+**CLI agent-readiness pass.** Audited the CLI surface against current (June 2026) CLI-first best practices (clig.dev, Anthropic's agent-tool guidance, the uv-tool distribution shift) and closed the cheap, high-signal gaps for an agent-/loop-driven tool. (Larger items -- full `--json` coverage across the read surface and a dedicated stderr diagnostics stream -- are scoped as a follow-up.)
+
+### Added
+
+- **`distill --version` / `-V`** -- eager flag that prints the installed version and exits 0, before any config load (the one convention every agent and bug report starts from).
+- **No-TTY-safe prompts.** New `tty_confirm` / `tty_prompt` helpers back every interactive confirmation and menu (channel removal, directory rename, discover sizing + ingest, eval run, audit action menu, concept rollback): when stdin is not a terminal they resolve to the safe default instead of aborting on EOF, so a loop or agent shell never hangs or crashes on a prompt. Bare `distill` skips the screen-clear when stdout is piped.
+- **Top-level exit-code mapping.** `main()` now routes caught provider errors through the documented taxonomy (3=config/bad key, 4=network/timeout) instead of always exiting 1, so callers can branch on the cause.
+- **uv-first distribution.** README leads with `uv tool install distillr` (and `uvx --from distillr distill` to try it); both install scripts prefer `uv` when present and fall back to pipx. Shell-completion (`--install-completion`) and a "no telemetry" statement are now documented; the duplicated corpus-location paragraph in the README was removed.
+
+### Changed
+
+- `docs/usage.md` JSON section corrected to list the commands that actually support `--json` today and to state that diagnostics are suppressed (not yet redirected to stderr) under `--json`; added Version, unattended-operation, and shell-completion sections.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green with branch coverage above the 80% floor.
+
 ## 0.13.1 - 2026-06-12
 
 **Verify on every synthesis emit -- the second 0.10 item closed.** 0.13.0 gated the cross-paper synthesis; this extends the same write-time grounding to the remaining synthesis writers so no synthesis artifact reaches the corpus unchecked. The receipt is always the synthesis's own inputs (the prompt's evidence), the artifact most prone to attribution swaps.

@@ -18,6 +18,7 @@ import typer
 from rich.console import Console
 
 from distill.commands import _logic
+from distill.commands._helpers import tty_prompt
 from distill.commands._logic import _complete_topics
 from distill.pipeline.audit import (
     AuditReport,
@@ -238,7 +239,7 @@ def _action_menu(config, topics: list[str], reports: list[AuditReport], link_res
     for i, (_, label) in enumerate(options, 1):
         console.print(f"  {i}. {label}")
     console.print("  q. Done")
-    choice = typer.prompt("Choose", default="q").strip().lower()
+    choice = tty_prompt("Choose", default="q").strip().lower()
     selected = (
         options[int(choice) - 1][0] if choice.isdigit() and 0 < int(choice) <= len(options) else "q"
     )

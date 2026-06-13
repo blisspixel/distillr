@@ -91,9 +91,22 @@ After the installer finishes, open a **new** terminal and run `distill doctor`.
 
 **Distill runs on Windows, macOS, and Linux** (Python 3.12+). Local models run on consumer GPUs via Ollama or LM Studio.
 
-### Recommended (virtual environment or pipx)
+### Recommended: `uv tool` (the 2026 default for Python CLIs)
 
-This is the cleanest way on all platforms and avoids common PATH problems.
+[`uv`](https://docs.astral.sh/uv/) installs the CLI into an isolated, on-PATH environment in one command — no venv to activate, no PATH surgery:
+
+```bash
+uv tool install distillr     # installs the `distill` + `distill-mcp` commands
+distill --version            # confirm it's on PATH
+playwright install chromium  # browser support for YouTube + web capture
+distill doctor               # verify keys + environment
+```
+
+Want to try it before installing? `uvx --from distillr distill --help` runs the CLI in a throwaway environment (note: ingestion needs the one-time `playwright install chromium`, so `uv tool install` is the path for real runs).
+
+### Alternative (virtual environment or pipx)
+
+This is the cleanest way without uv and avoids common PATH problems.
 
 ```bash
 # 1. Create a virtual environment
@@ -131,8 +144,6 @@ distill doctor
 
 **Windows note (common gotcha):** If you use a system Python (e.g. under `C:\Program Files\Python...`) without admin rights, bare `pip` installs to your user directory. The CLI (`distill.exe`) may land in a Scripts folder that is not on `PATH`. Use the venv or pipx method above, or add `%APPDATA%\Python\Python312\Scripts` (adjust version) to your user PATH and restart the terminal.
 
-The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Set two keys in `.env` (copy from `.env.example`).
-
 The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Set two keys in `.env` in your working directory (copy from `.env.example`):
 
 ```bash
@@ -147,6 +158,10 @@ ollama pull qwen3.5:27b         # download recommended model for 24GB GPU
 echo "DISTILL_PROVIDER=ollama" >> .env
 distill doctor                  # verify local setup
 ```
+
+**Shell completions** (optional): `distill --install-completion` wires tab-completion for your shell (bash/zsh/fish/PowerShell), including live topic-name completion; `distill --show-completion` prints the script to inspect or source manually.
+
+**No telemetry.** Distill phones home for nothing — no analytics, no usage beacons. Your research, your keys, and your run history stay on your disk. The only outbound calls are the LLM/transcription APIs you configure and the public sources you ask it to fetch.
 
 Then try any of:
 

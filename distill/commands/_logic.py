@@ -13,6 +13,7 @@ decorated functions retain their Typer metadata (argument definitions, help text
 import json
 import os
 import re
+import sys
 import webbrowser
 import zipfile
 from datetime import datetime
@@ -64,6 +65,12 @@ from distill.cli_shared import (
 )
 from distill.cli_shared import (
     topic_from_query as _topic_from_query,
+)
+from distill.cli_shared import (
+    tty_confirm as _tty_confirm,
+)
+from distill.cli_shared import (
+    tty_prompt as _tty_prompt,
 )
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
@@ -671,12 +678,33 @@ def intent_clear(topic: str = typer.Argument(help="Topic whose intent to remove"
         console.print(f"  No saved intent for [bold]{topic}[/bold].")
 
 
+def _version_callback(value: bool) -> None:
+    """Eager ``--version`` handler: print the version to stdout and exit 0.
+
+    Eager so it works before any subcommand wiring or config load -- an agent
+    or bug report can read the version without a configured environment.
+    """
+    if value:
+        import typer as _typer
+
+        _typer.echo(_get_version())
+        raise _typer.Exit()
+
+
 @app.callback()
 def _default(
     ctx: typer.Context,
     debug: bool = typer.Option(False, "--debug", help="Enable DEBUG-level logging to console"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON to stdout"),
     model: str = typer.Option("", "--model", "-m", help="Override model for all workloads"),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Show the installed distill version and exit",
+        callback=_version_callback,
+        is_eager=True,
+    ),
 ):
     """Distill - YouTube channels to strategic intelligence."""
     from distill._logging import configure_logging
@@ -701,7 +729,11 @@ def _default(
     configure_logging(debug=debug, ops_dir=ops_dir)
 
     if ctx.invoked_subcommand is None:
-        console.clear()
+        # Only clear the screen for an interactive terminal; clearing when output
+        # is piped or captured (an agent shell, a loop) emits escape codes into
+        # the captured stream.
+        if sys.stdout.isatty():
+            console.clear()
         show_banner(console)
         _show_dashboard()
 
@@ -3080,7 +3112,7 @@ def remove(
     config = get_config()
     lib = Library(config)
 
-    if not yes and not typer.confirm(
+    if not yes and not _tty_confirm(
         f"Remove channel from '{topic}'? (library entry only, data stays on disk)"
     ):
         raise typer.Abort()
@@ -6082,7 +6114,7 @@ def migrate(  # noqa: C901 — legacy, will refactor
     if len(to_rename) > 10:
         console.print(f"  [dim]... and {len(to_rename) - 10} more[/dim]\n")
 
-    if not yes and not typer.confirm(f"Rename {len(to_rename)} directories?"):
+    if not yes and not _tty_confirm(f"Rename {len(to_rename)} directories?"):
         raise typer.Abort()
 
     renamed = 0
@@ -8149,7 +8181,9 @@ def _discover_sizing_flow(
         console.print(_sizing_option_line(i, opt))
     console.print("  [bold]n[/bold]. Cancel")
 
-    choice = typer.prompt("\nChoose a size", default="1").strip().lower()
+    # Interactive default is option 1; with no TTY, cancel instead -- proceeding
+    # would ingest (spend) unattended. A loop ingests via --yes (rigor path).
+    choice = _tty_prompt("\nChoose a size", default="1", non_tty_default="n").strip().lower()
     if choice in ("n", "no", "cancel", ""):
         console.print("[yellow]Aborted by user.[/yellow]")
         return
@@ -8206,7 +8240,7 @@ def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_si
     if ranked_sites:
         parts.append(f"{len(ranked_sites)} site seed(s)")
     ingest_summary = ", ".join(parts) if parts else "0 items"
-    return typer.confirm(f"\nIngest {ingest_summary} into topic '{topic_name}'?", default=False)
+    return _tty_confirm(f"\nIngest {ingest_summary} into topic '{topic_name}'?", default=False)
 
 
 def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers) -> None:
@@ -9147,7 +9181,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
             "conservative (favors the anchor). Pass --judge <neutral-model> for an unbiased "
             "head-to-head; the recommendation itself is deterministic and unaffected.[/dim]"
         )
-    if not yes and not typer.confirm("Run the eval?", default=True):
+    if not yes and not _tty_confirm("Run the eval?", default=True):
         console.print("[yellow]Aborted.[/yellow]")
         raise typer.Exit(0)
 

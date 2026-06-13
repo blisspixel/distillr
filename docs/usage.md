@@ -598,9 +598,17 @@ All CLI commands return stable exit codes for scripting and CI integration:
 | 4 | NETWORK_ERROR | API timeout, DNS failure, HTTP error |
 | 5 | NOT_FOUND | Requested topic, channel, or resource doesn't exist |
 
+## Version
+
+```bash
+distill --version       # or -V; prints the installed version and exits 0
+```
+
+Eager, so it works before any environment is configured — handy for bug reports and agent preflight.
+
 ## JSON Output
 
-Pass `--json` to any command for machine-readable output:
+Pass `--json` for machine-readable output on the commands that support it today — `doctor`, `health`, `alerts`, the dashboard view, and `concepts` export:
 
 ```bash
 distill --json alerts                # JSON alert digest
@@ -609,6 +617,25 @@ distill --json doctor                # JSON health check
 
 When `--json` is active:
 - stdout contains a single JSON object with `status`, `data`, and optionally `error` fields
-- stderr receives any diagnostic or progress messages
-- Rich formatting, progress bars, and color are suppressed
+- Rich formatting, progress bars, and color are suppressed (the console is quieted)
 - The `NO_COLOR` environment variable is also respected
+
+Broader `--json` coverage across the read surface (`library`, `topics`, `show`, `synthesis`, `costs`) and a dedicated stderr stream for diagnostics are in progress; until then, prefer the listed commands for scripted/agent use.
+
+## Unattended / agent operation
+
+Distill is built to run in a loop or under an agent with no human at the keyboard:
+
+- **`--yes` / `-y`** skips confirmation on every spend- or mutation-gated command.
+- **`audit --report-only`** writes the report artifact and sets the exit code from findings without prompting.
+- **No-TTY safety:** when stdin is not a terminal, interactive prompts resolve to their safe default instead of aborting on EOF — a confirmation with no safe default declines (and prints the `--yes` hint), and menu prompts take their listed default. Bare `distill` skips the screen-clear when stdout is piped.
+- **Exit codes** (above) distinguish config (3) and network (4) failures from generic runtime errors (1), so a loop can branch on the cause.
+
+## Shell completions
+
+```bash
+distill --install-completion    # install tab-completion for your shell
+distill --show-completion        # print the completion script to inspect/source
+```
+
+Completion covers commands, flags, and live topic-name arguments (bash, zsh, fish, PowerShell).
