@@ -16,7 +16,7 @@ from distill.library.paths import (
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import channel_synthesis_prompt, topic_synthesis_prompt
 
@@ -28,6 +28,36 @@ __all__ = [
 ]
 
 console = Console()
+
+
+def _video_link_header(video_dir) -> str:
+    """Wiki-link header for one video's insight, from its metadata.json (best
+    effort -- a missing or corrupt metadata file falls back to the dir name)."""
+    title = source_id = video_dir.name
+    meta_file = video_dir / "metadata.json"
+    if meta_file.exists():
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            if isinstance(meta, dict):
+                title = meta.get("title", title)
+                source_id = meta.get("video_id", source_id)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return emit_wiki_link(title, source_id, "insights")
+
+
+def _gather_video_insights(videos_dir) -> str:
+    """Concatenate every video insight under a channel, each with a source link."""
+    parts: list[str] = []
+    for video_dir in sorted(videos_dir.iterdir()):
+        if not video_dir.is_dir():
+            continue
+        path = find_artifact(video_dir, "insights")
+        if not path.exists():
+            continue
+        link = _video_link_header(video_dir)
+        parts.append(f"\n\n---\nSource: {link}\n{path.read_text(encoding='utf-8')}")
+    return "".join(parts)
 
 
 def synthesize_channel(
@@ -47,37 +77,12 @@ def synthesize_channel(
     context_file = channel_dir / "channel_context.md"
     channel_context = context_file.read_text(encoding="utf-8") if context_file.exists() else ""
 
-    insight_parts: list[str] = []
-    insight_files = [
-        (video_dir, path)
-        for video_dir in sorted(videos_dir.iterdir())
-        if video_dir.is_dir()
-        for path in [find_artifact(video_dir, "insights")]
-        if path.exists()
-    ]
-
-    if not insight_files:
+    all_insights = _gather_video_insights(videos_dir)
+    if not all_insights:
         console.print(f"  [yellow]No insights found for {channel_name}[/yellow]")
         return ""
 
-    for video_dir, f in insight_files:
-        # Build wiki-link reference for this source artifact
-        meta_file = video_dir / "metadata.json"
-        title = video_dir.name
-        source_id = video_dir.name
-        if meta_file.exists():
-            try:
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                if isinstance(meta, dict):
-                    title = meta.get("title", title)
-                    source_id = meta.get("video_id", source_id)
-            except (json.JSONDecodeError, OSError):
-                pass
-        link = emit_wiki_link(title, source_id, "insights")
-        insight_parts.append(f"\n\n---\nSource: {link}\n{f.read_text(encoding='utf-8')}")
-
-    all_insights = "".join(insight_parts)
-    console.print(f"  [cyan]Synthesizing {len(insight_files)} videos for {channel_name}...[/cyan]")
+    console.print(f"  [cyan]Synthesizing videos for {channel_name}...[/cyan]")
 
     try:
         rc = RouterConfig()
@@ -95,8 +100,32 @@ def synthesize_channel(
                     call_type="channel_synthesis",
                 )
             )
+    except BudgetExceededError:
+        # The spend cap is a hard stop, never a per-channel issue to swallow
+        # (the 0.12.13 defect class: each call spends before recording).
+        raise
     except Exception as e:
         console.print(f"  [red]Channel synthesis API error: {e}[/red]")
+        return ""
+
+    # Verify the synthesis against its own inputs (the per-video insights are
+    # the receipt); strict mode refuses the write and keeps any previous
+    # channel synthesis in place.
+    from distill.pipeline.verify import run_synthesis_verify
+
+    if run_synthesis_verify(
+        channel_dir,
+        synthesis,
+        all_insights,
+        verify_mode=config.distill_verify,
+        identity=f"{topic}_{channel_dir.name}",
+        insight_name=f"{channel_name} channel synthesis",
+        source_name="per-video insights",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
+    ):
+        console.print(
+            f"  [yellow]Channel synthesis for {channel_name} not written (verify strict)[/yellow]"
+        )
         return ""
 
     output_file = write_markdown_artifact(
@@ -125,6 +154,21 @@ def synthesize_channel(
     return synthesis
 
 
+def _gather_channel_syntheses(topic: str, channels_dir) -> dict[str, str]:
+    """Read every channel synthesis under a topic, each prefixed with its link."""
+    syntheses: dict[str, str] = {}
+    for channel_dir in sorted(channels_dir.iterdir()):
+        if not channel_dir.is_dir():
+            continue
+        identity = f"{topic}_{channel_dir.name}"
+        synth_file = find_artifact(channel_dir, "synthesis", identity=identity)
+        if not synth_file.exists():
+            continue
+        link = emit_wiki_link(f"Channel synthesis: {channel_dir.name}", identity, "synthesis")
+        syntheses[channel_dir.name] = f"Source: {link}\n" + synth_file.read_text(encoding="utf-8")
+    return syntheses
+
+
 def synthesize_topic(
     topic: str,
     config: DistillConfig,
@@ -142,21 +186,7 @@ def synthesize_topic(
     if not channels_dir.exists():
         return ""
 
-    channel_syntheses = {}
-    for channel_dir in sorted(channels_dir.iterdir()):
-        if not channel_dir.is_dir():
-            continue
-        synth_file = find_artifact(channel_dir, "synthesis", identity=f"{topic}_{channel_dir.name}")
-        if synth_file.exists():
-            # Emit wiki-link for the channel synthesis artifact
-            link = emit_wiki_link(
-                f"Channel synthesis: {channel_dir.name}",
-                f"{topic}_{channel_dir.name}",
-                "synthesis",
-            )
-            channel_syntheses[channel_dir.name] = f"Source: {link}\n" + synth_file.read_text(
-                encoding="utf-8"
-            )
+    channel_syntheses = _gather_channel_syntheses(topic, channels_dir)
 
     if len(channel_syntheses) < 2:
         console.print(
@@ -184,8 +214,30 @@ def synthesize_topic(
                     call_type="topic_synthesis",
                 )
             )
+    except BudgetExceededError:
+        # Hard stop -- swallowing it here would let a capped multi-channel
+        # sweep keep spending (the 0.12.13 defect class).
+        raise
     except Exception as e:
         console.print(f"  [red]Topic synthesis API error: {e}[/red]")
+        return ""
+
+    # Verify against the channel syntheses the prompt was built from; the
+    # sidecar identity is distinct from the artifact's so the three
+    # topic-level syntheses can't collide.
+    from distill.pipeline.verify import run_synthesis_verify
+
+    if run_synthesis_verify(
+        topic_dir,
+        synthesis,
+        "\n\n".join(channel_syntheses.values()),
+        verify_mode=config.distill_verify,
+        identity=f"{topic}-topic-synthesis",
+        insight_name=f"{topic} topic synthesis",
+        source_name="channel syntheses",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
+    ):
+        console.print(f"  [yellow]Topic synthesis for {topic} not written (verify strict)[/yellow]")
         return ""
 
     output_file = write_markdown_artifact(

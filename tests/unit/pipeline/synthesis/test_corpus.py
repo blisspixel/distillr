@@ -1,5 +1,6 @@
 """Tests for distill.corpus_analysis."""
 
+import json
 from unittest.mock import patch
 
 from distill.config import DistillConfig
@@ -78,3 +79,73 @@ def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesi
     assert "GAMMA_SITE_INSIGHT" in prompt
     # The collidable topic_synthesis file is no longer trusted as a source.
     assert "SITE_ONLY_ROLLUP" not in prompt
+
+
+def test_synthesize_corpus_writes_verify_sidecar(tmp_path):
+    """0.13.1: single-pass corpus synthesis is verified against its per-source
+    sections, under the distinct corpus-synthesis sidecar identity."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+    for name in ["CreatorOne", "CreatorTwo"]:
+        channel_dir = config.channel_dir(topic, name)
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text("A clean baseline of 30.", encoding="utf-8")
+    site_dir = config.site_dir(topic, "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "synthesis.md").write_text("Site notes, no figures.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.synthesis.corpus.llm_call",
+        _fake_llm_call("Corpus synthesis cites 64.2, found in no source."),
+    ):
+        result = synthesize_corpus(topic, config)
+
+    assert result
+    sidecar = config.topic_dir(topic) / "mixed_corpus_synthesis_Verify.json"
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert any(c["token"] == "64.2" for c in data["unsupported"])
+
+
+def test_synthesize_corpus_strict_refuses_flagged_write(tmp_path):
+    config = DistillConfig(
+        xai_api_key="test-key", distill_output_dir=tmp_path / "lib", distill_verify="strict"
+    )
+    topic = "mixed"
+    for name in ["CreatorOne", "CreatorTwo"]:
+        channel_dir = config.channel_dir(topic, name)
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text("No numbers here.", encoding="utf-8")
+    site_dir = config.site_dir(topic, "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "synthesis.md").write_text("Plain prose.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.synthesis.corpus.llm_call",
+        _fake_llm_call("Synthesis invents a 55.5 figure."),
+    ):
+        result = synthesize_corpus(topic, config)
+
+    assert result == ""
+    assert not find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic).exists()
+
+
+def test_two_pass_strict_refusal_does_not_fall_back(tmp_path):
+    """A two-pass strict refusal must surface as "" -- never trigger the paid
+    single-pass fallback over the same flagged corpus."""
+    config = DistillConfig(
+        xai_api_key="test-key", distill_output_dir=tmp_path / "lib", distill_verify="strict"
+    )
+    topic = "mixed"
+    # A channel synthesis on disk would let single-pass produce output, so if the
+    # function wrongly fell back we'd see a non-empty result.
+    channel_dir = config.channel_dir(topic, "CreatorOne")
+    channel_dir.mkdir(parents=True, exist_ok=True)
+    (channel_dir / "synthesis.md").write_text("Fallback content.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.synthesis.corpus.synthesize_corpus_from_claims", return_value=None
+    ):
+        result = synthesize_corpus(topic, config, two_pass=True)
+
+    assert result == ""

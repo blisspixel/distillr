@@ -133,6 +133,26 @@ def synthesize_site(
             )
         )
     site_dir = config.site_dir(topic, site_name)
+
+    # Verify against the per-page insights the prompt was built from; strict
+    # mode refuses the write and keeps any previous site synthesis in place.
+    from distill.pipeline.verify import run_synthesis_verify
+
+    if run_synthesis_verify(
+        site_dir,
+        synthesis,
+        "".join(parts),
+        verify_mode=config.distill_verify,
+        identity=f"{topic}_{site_dir.name}",
+        insight_name=f"{site_name} site synthesis",
+        source_name="per-page insights",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
+    ):
+        console.print(
+            f"  [yellow]Site synthesis for {site_name} not written (verify strict)[/yellow]"
+        )
+        return ""
+
     write_markdown_artifact(
         site_dir,
         "site_synthesis",
@@ -198,6 +218,25 @@ def synthesize_site_topic(
                 call_type="site_topic_synthesis",
             )
         )
+
+    # Verify against the per-site syntheses; this writer shares the
+    # topic_synthesis artifact identity with the video producer, so the
+    # sidecar identity matches (last writer wins, mirroring the artifact).
+    from distill.pipeline.verify import run_synthesis_verify
+
+    if run_synthesis_verify(
+        config.topic_dir(topic),
+        synthesis,
+        "\n\n".join(site_summaries.values()),
+        verify_mode=config.distill_verify,
+        identity=f"{topic}-topic-synthesis",
+        insight_name=f"{topic} topic synthesis (sites)",
+        source_name="site syntheses",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
+    ):
+        console.print(f"  [yellow]Topic synthesis for {topic} not written (verify strict)[/yellow]")
+        return ""
+
     write_markdown_artifact(
         config.topic_dir(topic),
         "topic_synthesis",

@@ -85,10 +85,15 @@ synthesis's inputs are its evidence). Same sidecar (distinct identity, e.g.
 don't collide), same modes; strict refuses the synthesis write and keeps the
 previous synthesis in place.
 
-Sequencing: 0.13.0 ships it on the **paper synthesis** path, where the
-receipt (the per-paper insights) is already in the function's hands; the
-corpus and topic synthesis paths assemble their receipts differently
-(claims-based two-pass vs channel sections) and follow in 0.13.1.
+Sequencing: 0.13.0 shipped it on the **paper synthesis** path, where the
+receipt (the per-paper insights) is already in the function's hands. 0.13.1
+completed the set — channel (per-video insights), topic (channel syntheses),
+corpus single-pass (per-source sections), corpus two-pass (the rendered claim
+set), site (per-page insights), and site-topic (site syntheses) — via a shared
+`run_synthesis_verify` helper. A two-pass strict refusal returns `None` (vs
+`""` = no claims) so it surfaces instead of falling through to a paid
+single-pass write, and `distill audit` counts synthesis sidecars separately
+from insight sidecars.
 
 ## Validation plan (free)
 

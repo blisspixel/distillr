@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.13.1 - 2026-06-12
+
+**Verify on every synthesis emit -- the second 0.10 item closed.** 0.13.0 gated the cross-paper synthesis; this extends the same write-time grounding to the remaining synthesis writers so no synthesis artifact reaches the corpus unchecked. The receipt is always the synthesis's own inputs (the prompt's evidence), the artifact most prone to attribution swaps.
+
+### Added
+
+- **Verify gate on channel, topic, corpus (single- and two-pass), site, and site-topic synthesis emits.** Each grounds the generated synthesis against the exact text the prompt was built from -- per-video insights (channel), channel syntheses (topic), per-source sections (corpus single-pass), the rendered claim set (corpus two-pass), per-page insights (site), site syntheses (site-topic). Both verify tiers apply; `--verify strict` refuses the write and keeps any previous synthesis in place. Sidecars carry distinct identities (`<topic>-paper-synthesis`, `<topic>-corpus-synthesis`, `<topic>-topic-synthesis`, and `<topic>_<sub>` for per-channel/per-site) so the topic-level syntheses can't collide.
+- **A two-pass strict refusal no longer falls back to single-pass.** `synthesize_corpus_from_claims` now returns `None` on refusal (distinct from `""` = no claims); the caller surfaces it as `""` instead of spending again on a single-pass synthesis over the same flagged corpus.
+- **`distill audit` counts synthesis sidecars separately.** The verify rollup sweeps each topic's synthesis artifacts by their writer-stamped sidecar identity and reports synthesis coverage (total / verified clean / never checked) apart from insight coverage; flagged synthesis claims join the shared findings list. Pre-0.13 syntheses show as never-checked and re-check on regeneration.
+- Shared `run_synthesis_verify` helper in `distill/pipeline/verify.py` so every synthesis writer runs an identical verify-and-refuse tail (the spend-records-before-the-gate ordering is preserved so a strict refusal never leaves a call off-ledger).
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` and the changed modules (0 errors), bandit (0 medium+), full suite green (2201 passed) at 81% branch coverage.
+
 ## 0.13.0 - 2026-06-12
 
 **The entailment tier -- prose claims checked locally.** The last substantive 0.10 item: the deterministic tier's named limitation classes (derived arithmetic, context-blind support, prose claims with no checkable tokens) get their checker. Design in [`docs/design/entailment-tier.md`](design/entailment-tier.md), settled by the claim-verification dogfood corpus's own promoted answer.

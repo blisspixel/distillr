@@ -31,6 +31,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,6 +50,7 @@ __all__ = [
     "VerifyReport",
     "extract_numeric_claims",
     "resolve_verify_mode",
+    "run_synthesis_verify",
     "run_verify_hook",
     "verify_insight",
     "write_verify_sidecar",
@@ -330,6 +332,42 @@ def run_verify_hook(
     return VerifyOutcome(
         report=report, sidecar=path, insight_name=insight_name, entailment=entailment
     )
+
+
+def run_synthesis_verify(
+    directory: Path,
+    synthesis: str,
+    receipt: str,
+    *,
+    verify_mode: str,
+    identity: str,
+    insight_name: str,
+    source_name: str,
+    notify: Callable[[str], None],
+) -> bool:
+    """Verify a synthesis against its own inputs and report via *notify*.
+
+    The shared tail every synthesis emit path runs (0.13.1): a synthesis is
+    grounded against the receipt it was built from (per-source insights or the
+    rendered claim set), the summary line is surfaced through *notify* (a
+    ``console.print`` or ``logger.warning`` -- callers differ), and the return
+    value is the strict-mode refusal signal: ``True`` means the caller must not
+    write the artifact (the sidecar still records exactly why).
+    """
+    outcome = run_verify_hook(
+        directory,
+        synthesis,
+        receipt,
+        mode=resolve_verify_mode(verify_mode),
+        identity=identity,
+        insight_name=insight_name,
+        source_name=source_name,
+    )
+    if outcome is None:
+        return False
+    if not outcome.report.ok:
+        notify(outcome.summary_line)
+    return outcome.refused
 
 
 def write_verify_sidecar(

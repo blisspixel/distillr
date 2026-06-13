@@ -24,7 +24,13 @@ from pathlib import Path
 from distill.library.freshness import SynthesisFreshness, collect_synthesis_freshness
 from distill.library.insights import discover_insights
 from distill.library.links import BrokenLink
-from distill.library.paths import base_frontmatter, tags_for, write_markdown_artifact
+from distill.library.paths import (
+    artifact_path,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 __all__ = [
@@ -47,16 +53,30 @@ __all__ = [
 
 @dataclass(frozen=True)
 class VerifyRollup:
-    """Verification coverage for a topic's insights, from ``_Verify.json`` sidecars."""
+    """Verification coverage for a topic's insights, from ``_Verify.json`` sidecars.
+
+    Synthesis artifacts are counted separately (0.13.1): they are verified
+    against their own inputs rather than a source receipt, and a synthesis
+    predating the synthesis-verify gate is expected, not alarming. Their
+    flags land in the shared ``flagged`` list so the audit treats a flagged
+    synthesis claim as a finding like any other.
+    """
 
     insights_total: int
     checked: int
     clean: int
     flagged: list[dict] = field(default_factory=list)  # {insight, token, kind, context}
+    synthesis_total: int = 0
+    synthesis_checked: int = 0
+    synthesis_clean: int = 0
 
     @property
     def never_checked(self) -> int:
         return self.insights_total - self.checked
+
+    @property
+    def synthesis_never_checked(self) -> int:
+        return self.synthesis_total - self.synthesis_checked
 
 
 @dataclass(frozen=True)
@@ -140,12 +160,63 @@ def _sidecar_flags(data: dict, artifact_path: str) -> list[dict]:
     return flags
 
 
+def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
+    """Every synthesis artifact a topic can carry, with its verify-sidecar
+    identity: ``(artifact_path, sidecar_dir-relative artifact label, identity)``.
+
+    Identities mirror exactly what the synthesis writers stamp (paper:
+    ``<topic>-paper-synthesis`` etc.; channel/site syntheses reuse their
+    artifact identity), so the audit reads the same sidecar the emit wrote.
+    """
+    topic = topic_dir.name
+    found: list[tuple[Path, str, str]] = []
+    topic_level = [
+        ("paper_synthesis", f"{topic}-paper-synthesis"),
+        ("corpus_synthesis", f"{topic}-corpus-synthesis"),
+        ("topic_synthesis", f"{topic}-topic-synthesis"),
+    ]
+    for artifact_type, sidecar_identity in topic_level:
+        path = find_artifact(topic_dir, artifact_type, identity=topic)
+        if path.exists():
+            found.append((topic_dir, path.name, sidecar_identity))
+    for parent, artifact_type in (("channels", "synthesis"), ("sites", "site_synthesis")):
+        parent_dir = topic_dir / parent
+        if not parent_dir.exists():
+            continue
+        for sub_dir in sorted(parent_dir.iterdir()):
+            if not sub_dir.is_dir():
+                continue
+            identity = f"{topic}_{sub_dir.name}"
+            path = find_artifact(sub_dir, artifact_type, identity=identity)
+            if path.exists():
+                found.append((sub_dir, f"{parent}/{sub_dir.name}/{path.name}", identity))
+    return found
+
+
+def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[dict]] | None:
+    """Read one ``_Verify.json`` sidecar. Returns ``(is_clean, flags)`` or
+    ``None`` when the file is absent/unreadable/not an object -- the caller
+    counts ``None`` as never-checked (parse-don't-crash over local state)."""
+    if not sidecar.exists():
+        return None
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    flags = _sidecar_flags(data, label)
+    return (not flags, flags)
+
+
 def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     """Roll up ``_Verify.json`` sidecars across a topic's insight directories.
 
     One sidecar per source directory (written beside the insight). Sidecars
     that fail to parse count as never-checked rather than crashing the audit
-    (parse-don't-crash over corruptible local state).
+    (parse-don't-crash over corruptible local state). Synthesis artifacts are
+    swept too (their sidecars are keyed by the writer's identity), counted
+    separately from insights.
     """
     insights = discover_insights(topic_dir)
     checked = 0
@@ -153,21 +224,37 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     flagged: list[dict] = []
     for ref in insights:
         sidecars = sorted(ref.path.parent.glob("*_Verify.json"))
-        if not sidecars:
-            continue
-        try:
-            data = json.loads(sidecars[0].read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
+        result = _read_sidecar(sidecars[0], ref.artifact_path) if sidecars else None
+        if result is None:
             continue
         checked += 1
-        flags = _sidecar_flags(data, ref.artifact_path)
-        if flags:
-            flagged += flags
-        else:
-            clean += 1
-    return VerifyRollup(insights_total=len(insights), checked=checked, clean=clean, flagged=flagged)
+        is_clean, flags = result
+        flagged += flags
+        clean += int(is_clean)
+
+    synthesis_total = 0
+    synthesis_checked = 0
+    synthesis_clean = 0
+    for sidecar_dir, label, identity in _synthesis_artifacts(topic_dir):
+        synthesis_total += 1
+        sidecar = artifact_path(sidecar_dir, "verify", identity=identity, extension="json")
+        result = _read_sidecar(sidecar, label)
+        if result is None:
+            continue
+        synthesis_checked += 1
+        is_clean, flags = result
+        flagged += flags
+        synthesis_clean += int(is_clean)
+
+    return VerifyRollup(
+        insights_total=len(insights),
+        checked=checked,
+        clean=clean,
+        flagged=flagged,
+        synthesis_total=synthesis_total,
+        synthesis_checked=synthesis_checked,
+        synthesis_clean=synthesis_clean,
+    )
 
 
 def frontmatter_field(text: str, name: str) -> str:
@@ -294,6 +381,13 @@ def _verify_section(report: AuditReport) -> list[str]:
         f"- Insights: {report.verify.insights_total} | verified clean: {report.verify.clean} | "
         f"flagged: {len(report.verify.flagged)} | never checked: {report.verify.never_checked}",
     ]
+    if report.verify.synthesis_total:
+        lines.append(
+            f"- Syntheses: {report.verify.synthesis_total} | verified clean: "
+            f"{report.verify.synthesis_clean} | never checked: "
+            f"{report.verify.synthesis_never_checked} (syntheses are verified against "
+            "their own inputs at write time; pre-0.13 syntheses re-check on regeneration)"
+        )
     if report.verify.never_checked:
         lines.append(
             "- Never-checked insights predate the verify hook (or used `--verify off`); "

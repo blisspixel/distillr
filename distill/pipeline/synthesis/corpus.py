@@ -35,7 +35,7 @@ def synthesize_corpus_from_claims(
     *,
     style: str = "",
     now_iso: str | None = None,
-) -> str:
+) -> str | None:
     """Two-pass corpus synthesis: extract claims, then synthesize over the set.
 
     Pass 1 runs ``run_claims`` to build/refresh the per-topic ``claims.jsonl``
@@ -43,14 +43,20 @@ def synthesize_corpus_from_claims(
     set to ``claim_synthesis_prompt`` so the model clusters claims, names
     contradictions, and cites each statement back to specific claims.
 
-    Returns the synthesis text, or ``""`` when no claims could be extracted
-    (the caller falls back to single-pass). Writes the same ``corpus_synthesis``
+    Returns the synthesis text, ``""`` when no claims could be extracted
+    (the caller falls back to single-pass), or ``None`` when verify strict
+    refused the write -- a refusal must not trigger the paid single-pass
+    fallback, it must surface. Writes the same ``corpus_synthesis``
     artifact as the single-pass path, tagged with the claim-synthesis prompt id
     and ``two_pass: true`` provenance.
     """
     from distill.claims.exports import read_claims
     from distill.claims.pipeline import run_claims
-    from distill.prompts.claims import CLAIM_SYNTHESIS_PROMPT_ID, claim_synthesis_prompt
+    from distill.prompts.claims import (
+        CLAIM_SYNTHESIS_PROMPT_ID,
+        claim_synthesis_prompt,
+        claims_receipt,
+    )
 
     topic_dir = config.topic_dir(topic)
     rc = RouterConfig()
@@ -77,6 +83,25 @@ def synthesize_corpus_from_claims(
                 call_type="corpus_synthesis_two_pass",
             )
         )
+
+    # Verify against the rendered claim set -- exactly the evidence the
+    # synthesis prompt embedded, so a number or assertion the model introduced
+    # beyond the claims is flagged. Strict refuses the write and keeps any
+    # previous corpus synthesis in place.
+    from distill.pipeline.verify import run_synthesis_verify
+
+    if run_synthesis_verify(
+        topic_dir,
+        synthesis,
+        claims_receipt(claims),
+        verify_mode=config.distill_verify,
+        identity=f"{topic}-corpus-synthesis",
+        insight_name=f"{topic} corpus synthesis (two-pass)",
+        source_name="extracted claim set",
+        notify=logger.warning,
+    ):
+        logger.warning("corpus synthesis for %s not written (verify strict)", topic)
+        return None
 
     write_markdown_artifact(
         topic_dir,
@@ -157,6 +182,10 @@ def synthesize_corpus(
         result = synthesize_corpus_from_claims(
             topic, config, tracker=tracker, style=style, now_iso=now_iso
         )
+        if result is None:
+            # Verify strict refused the two-pass write. Falling back would
+            # spend again on a synthesis built from the same flagged corpus.
+            return ""
         if result:
             return result
         logger.info("Two-pass produced no claims for %s; falling back to single-pass", topic)
@@ -221,6 +250,25 @@ def synthesize_corpus(
                 call_type="corpus_synthesis",
             )
         )
+
+    # Verify against the per-source sections the prompt was built from; the
+    # corpus synthesis bridges source types, so an attribution swap here is
+    # exactly the class the hook exists to catch.
+    from distill.pipeline.verify import run_synthesis_verify
+
+    if run_synthesis_verify(
+        topic_dir,
+        synthesis,
+        "\n\n".join(source_sections.values()),
+        verify_mode=config.distill_verify,
+        identity=f"{topic}-corpus-synthesis",
+        insight_name=f"{topic} corpus synthesis",
+        source_name="per-source syntheses",
+        notify=logger.warning,
+    ):
+        logger.warning("corpus synthesis for %s not written (verify strict)", topic)
+        return ""
+
     write_markdown_artifact(
         topic_dir,
         "corpus_synthesis",

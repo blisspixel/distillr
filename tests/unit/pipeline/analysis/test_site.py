@@ -1,5 +1,6 @@
 """Tests for distill.site_analysis."""
 
+import json
 from unittest.mock import patch
 
 from distill.config import DistillConfig
@@ -93,3 +94,44 @@ def test_synthesize_site_topic_returns_empty_without_sites(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
 
     assert synthesize_site_topic("web", config) == ""
+
+
+def test_synthesize_site_writes_verify_sidecar(tmp_path):
+    """0.13.1: site synthesis is verified against its per-page insights."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    page_dir = config.site_page_dir("web", "example.com", "Agent Overview", "page1")
+    page_dir.mkdir(parents=True, exist_ok=True)
+    (page_dir / "insights.md").write_text("# Insight\nObserved 12 items.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.analysis.site.llm_call",
+        _fake_llm_call("Site synthesis cites 99.1, in no page."),
+    ):
+        result = synthesize_site("web", "example.com", config)
+
+    assert result
+    sidecar = config.site_dir("web", "example.com") / "web_example_com_Verify.json"
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert any(c["token"] == "99.1" for c in data["unsupported"])
+
+
+def test_synthesize_site_topic_writes_verify_sidecar(tmp_path):
+    """0.13.1: site-topic synthesis is verified against its site syntheses; it
+    shares the topic_synthesis sidecar identity with the video producer."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    site_dir = config.site_dir("web", "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "synthesis.md").write_text("Site synthesis, baseline 20.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.analysis.site.llm_call",
+        _fake_llm_call("Topic synthesis asserts 73.3, unsupported."),
+    ):
+        result = synthesize_site_topic("web", config)
+
+    assert result
+    sidecar = config.topic_dir("web") / "web_topic_synthesis_Verify.json"
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert any(c["token"] == "73.3" for c in data["unsupported"])

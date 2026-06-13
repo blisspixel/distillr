@@ -1,5 +1,6 @@
 """Tests for distill.synthesis."""
 
+import json
 from unittest.mock import patch
 
 from distill.config import DistillConfig
@@ -126,3 +127,67 @@ def test_synthesize_channel_records_tracker(tmp_path):
 
     assert len(tracker.entries) == 1
     assert tracker.entries[0].call_type == "channel_synthesis"
+
+
+def test_synthesize_channel_writes_verify_sidecar(tmp_path):
+    """0.13.1: channel synthesis is verified against its per-video insights."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    channel_dir = config.channel_dir("ai", "Creator")
+    (channel_dir / "videos" / "v1").mkdir(parents=True, exist_ok=True)
+    (channel_dir / "videos" / "v1" / "insights.md").write_text(
+        "# Insight\nThe reported figure was 50.", encoding="utf-8"
+    )
+
+    with patch(
+        "distill.pipeline.synthesis.topic.llm_call",
+        _fake_llm_call("Synthesis claims 91.7, found in no source."),
+    ):
+        result = synthesize_channel("ai", "Creator", config)
+
+    assert result  # warn mode writes anyway
+    sidecar = channel_dir / "ai_Creator_Verify.json"
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert any(c["token"] == "91.7" for c in data["unsupported"])
+
+
+def test_synthesize_topic_writes_verify_sidecar(tmp_path):
+    """0.13.1: topic synthesis is verified against its channel syntheses, under a
+    distinct sidecar identity so the three topic-level syntheses can't collide."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    for name in ["CreatorOne", "CreatorTwo"]:
+        channel_dir = config.channel_dir("ai", name)
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text("Baseline of 40 here.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.synthesis.topic.llm_call",
+        _fake_llm_call("Topic synthesis asserts 88.8, unsupported."),
+    ):
+        result = synthesize_topic("ai", config)
+
+    assert result
+    sidecar = config.topic_dir("ai") / "ai_topic_synthesis_Verify.json"
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert any(c["token"] == "88.8" for c in data["unsupported"])
+
+
+def test_synthesize_topic_strict_refuses_flagged_write(tmp_path):
+    """strict mode refuses the write and keeps any prior synthesis in place."""
+    config = DistillConfig(
+        xai_api_key="test-key", distill_output_dir=tmp_path / "lib", distill_verify="strict"
+    )
+    for name in ["CreatorOne", "CreatorTwo"]:
+        channel_dir = config.channel_dir("ai", name)
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text("No numbers worth claiming.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.synthesis.topic.llm_call",
+        _fake_llm_call("A synthesis with an invented 77.7 metric."),
+    ):
+        result = synthesize_topic("ai", config)
+
+    assert result == ""
+    assert not find_artifact(config.topic_dir("ai"), "topic_synthesis", identity="ai").exists()

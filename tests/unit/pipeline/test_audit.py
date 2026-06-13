@@ -62,6 +62,39 @@ class TestVerifyRollup:
         rollup = collect_verify_rollup(tmp_path / "nope")
         assert rollup.insights_total == 0
 
+    def test_synthesis_sidecars_counted_separately(self, tmp_path: Path):
+        """0.13.1: synthesis artifacts are swept by their writer-stamped sidecar
+        identity, counted apart from insights, and their flags join the list."""
+        topic = tmp_path / "t"
+        _seed_insight(topic, "papers/p1", sidecar={"checked": 1, "unsupported": []})
+
+        # A clean paper synthesis (sidecar identity t-paper-synthesis -> file stem
+        # t_paper_synthesis) and a flagged corpus synthesis.
+        topic.mkdir(parents=True, exist_ok=True)
+        (topic / "t_Paper_Synthesis.md").write_text("syn", encoding="utf-8")
+        (topic / "t_paper_synthesis_Verify.json").write_text(
+            json.dumps({"checked": 2, "unsupported": []}), encoding="utf-8"
+        )
+        (topic / "t_Corpus_Synthesis.md").write_text("syn", encoding="utf-8")
+        (topic / "t_corpus_synthesis_Verify.json").write_text(
+            json.dumps(
+                {"checked": 1, "unsupported": [{"token": "9.9", "kind": "decimal", "context": "l"}]}
+            ),
+            encoding="utf-8",
+        )
+        # A topic synthesis with no sidecar (never checked).
+        (topic / "t_Topic_Synthesis.md").write_text("syn", encoding="utf-8")
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.insights_total == 1
+        assert rollup.synthesis_total == 3
+        assert rollup.synthesis_checked == 2
+        assert rollup.synthesis_clean == 1
+        assert rollup.synthesis_never_checked == 1
+        # The corpus-synthesis flag is in the shared list, labelled by artifact.
+        assert any(f["token"] == "9.9" for f in rollup.flagged)
+
 
 def _report(**overrides) -> AuditReport:
     base = {

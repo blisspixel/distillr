@@ -34,6 +34,7 @@ __all__ = [
     "CLAIM_SYNTHESIS_PROMPT_ID",
     "claim_extraction_prompt",
     "claim_synthesis_prompt",
+    "claims_receipt",
 ]
 
 
@@ -105,6 +106,16 @@ INSIGHT TO EXTRACT FROM:
 OUTPUT THE JSON ARRAY ONLY:"""
 
 
+def claims_receipt(claims: Sequence[Claim]) -> str:
+    """The claim set rendered exactly as the synthesis prompt embeds it.
+
+    The verify hook grounds the two-pass synthesis against this text, so it
+    must be the same evidence the model saw -- handles, roles, datasets,
+    metrics, and source ids included.
+    """
+    return "\n".join(_format_claim_for_synthesis(c, i) for i, c in enumerate(claims, 1))
+
+
 def _format_claim_for_synthesis(claim: Claim, index: int) -> str:
     """Render one claim as a compact, citable line for the synthesis prompt."""
     role = claim.rhetorical_role.value
@@ -136,7 +147,7 @@ def claim_synthesis_prompt(topic: str, claims: Sequence[Claim], style: str = "")
     """
     from distill.prompts.synthesis import _emphasis_block
 
-    claim_block = "\n".join(_format_claim_for_synthesis(c, i) for i, c in enumerate(claims, 1))
+    claim_block = claims_receipt(claims)
     source_count = len({c.source_id for c in claims})
     return f"""You are doing graduate-level synthesis for the topic "{topic}" over a structured set of {len(claims)} extracted claims drawn from {source_count} sources.
 
