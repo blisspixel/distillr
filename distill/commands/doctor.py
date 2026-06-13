@@ -266,6 +266,12 @@ def doctor(  # noqa: C901 — legacy, will refactor
         lmstudio_status = _check_lmstudio_status()
         recommendations = _recommend(profile)
 
+        # Browser capture readiness (the #1 silent ingest failure for YouTube/web).
+        # Reuses init's cheap executable-path probe rather than launching a browser.
+        from distill.commands.init import chromium_status
+
+        checks["browser"] = chromium_status()  # installed | missing | unknown
+
         local_inference = {
             "gpu_type": profile.gpu_type,
             "gpu_name": profile.gpu_name,
@@ -285,8 +291,19 @@ def doctor(  # noqa: C901 — legacy, will refactor
             ],
         }
 
+        # Top-level readiness verdict: can this environment analyze a source at
+        # all? Provider-ready = a working cloud key OR a running local server.
+        # Browser is reported separately (papers / local-file ingest need no
+        # browser), so a missing browser does not by itself mean "not ready".
+        ready = (
+            checks["xai_api_key"] == "ok"
+            or ollama_status == "running"
+            or lmstudio_status == "running"
+        )
+
         envelope = JsonEnvelope.success(
             {
+                "ready": ready,
                 "checks": checks,
                 "warnings": warnings_list,
                 "local_inference": local_inference,
@@ -675,7 +692,12 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
         console.print("  [dim]Add XAI_API_KEY to .env to also use cloud models.[/dim]")
     else:
         console.print(
-            "  [dim]Add XAI_API_KEY to .env for cloud, or `ollama pull qwen3.5:27b` to run local.[/dim]"
+            "  Not set up yet:  [cyan]distill init[/cyan]  "
+            "[dim](guided: writes .env, validates your key, installs the browser)[/dim]"
+        )
+        console.print(
+            "  [dim]Or by hand: add XAI_API_KEY to .env for cloud, "
+            "or `ollama pull qwen3.5:27b` to run local.[/dim]"
         )
 
 

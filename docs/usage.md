@@ -632,8 +632,10 @@ Pass `--json` for machine-readable output. The read surface is covered —
 distill --json library               # topic + channel inventory
 distill --json synthesis <topic>     # the synthesis document + provenance
 distill --json show <topic> 1        # a video's insights (or --what transcript)
-distill --json doctor                # health check
+distill --json doctor                # health check + readiness verdict
 ```
+
+`distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. An agent can gate on `ready` in one read; a not-ready environment is fixed with `distill init`.
 
 When `--json` is active:
 - **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` — nothing else, so it always parses

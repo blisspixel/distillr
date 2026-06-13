@@ -176,6 +176,42 @@ class TestJsonDoctor:
         assert checks["xai_api_key"] == "ok"
         assert any("GEMINI_API_KEY" in w for w in parsed["data"]["warnings"])
 
+    def test_doctor_json_ready_verdict_and_browser(self, mock_config):
+        """--json doctor carries a top-level `ready` verdict and a browser check."""
+
+        def _ok(provider, config):
+            return ("ok", "grok-4.3") if provider == "xai" else ("not_set", "")
+
+        with (
+            patch("distill.commands.doctor.get_config", return_value=mock_config),
+            patch("distill.commands.doctor._doctor_validate_key", side_effect=_ok),
+            patch("distill.commands.init.chromium_status", return_value="installed"),
+        ):
+            result = runner.invoke(app, ["--json", "doctor"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)["data"]
+        assert data["ready"] is True  # a working cloud key
+        assert data["checks"]["browser"] == "installed"
+
+    def test_doctor_json_not_ready_without_provider(self, mock_config):
+        """`ready` is False with no validating cloud key and no local server."""
+
+        def _missing(provider, config):
+            return ("missing", "") if provider == "xai" else ("not_set", "")
+
+        with (
+            patch("distill.commands.doctor.get_config", return_value=mock_config),
+            patch("distill.commands.doctor._doctor_validate_key", side_effect=_missing),
+            patch("distill.commands.init.chromium_status", return_value="missing"),
+            patch("distill.commands.doctor._check_ollama_status", return_value=("unavailable", [])),
+            patch("distill.commands.doctor._check_lmstudio_status", return_value="unavailable"),
+        ):
+            result = runner.invoke(app, ["--json", "doctor"])
+
+        data = json.loads(result.output)["data"]
+        assert data["ready"] is False
+
 
 class TestJsonAlerts:
     """Test distill alerts --json produces valid JSON."""
