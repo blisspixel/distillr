@@ -22,8 +22,8 @@ import time
 from pathlib import Path
 
 from google import genai
-from rich.console import Console
 
+from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
@@ -36,8 +36,6 @@ __all__ = [
     "gather_topic_files",
     "run_research_brief",
 ]
-
-console = Console()
 
 DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 MAX_DOC_CHARS = 500_000

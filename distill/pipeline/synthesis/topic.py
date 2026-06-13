@@ -3,8 +3,7 @@
 import json
 import logging
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import (
     ProvenanceFields,
@@ -26,8 +25,6 @@ __all__ = [
     "synthesize_channel",
     "synthesize_topic",
 ]
-
-console = Console()
 
 
 def _video_link_header(video_dir) -> str:

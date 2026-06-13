@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import yt_dlp
-from rich.console import Console
 
-console = Console()
+from distill._console import console
 
 __all__ = [
     "VideoInfo",

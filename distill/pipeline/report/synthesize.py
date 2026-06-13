@@ -14,8 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
@@ -26,8 +25,6 @@ __all__ = [
     "compose_synthesis_prompt",
     "run_synthesis",
 ]
-
-console = Console()
 
 
 def compose_synthesis_prompt(context: str, corpus_sections: list[tuple[str, str]]) -> str:

@@ -16,8 +16,7 @@ import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.local import html_to_text
 from distill.ingestors.podcasts import PodcastFeed, fetch_feed
@@ -34,8 +33,6 @@ from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import site_page_insight_prompt
-
-console = Console()
 
 __all__ = ["NewsletterIngestResult", "feed_is_newsletter", "ingest_newsletter"]
 

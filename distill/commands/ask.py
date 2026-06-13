@@ -9,17 +9,15 @@ lacks source support (invariant 8).
 from __future__ import annotations
 
 import typer
-from rich.console import Console
 from rich.markdown import Markdown
 
+from distill._console import console
 from distill.commands import _logic
 from distill.commands._logic import _complete_topics
 from distill.pipeline.ask import ask_corpus
 from distill.pipeline.costs import CostTracker, save_run_log
 
 __all__ = ["ask_cmd", "register"]
-
-console = Console()
 
 
 def ask_cmd(

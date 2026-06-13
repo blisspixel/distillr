@@ -13,8 +13,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import typer
-from rich.console import Console
 
+from distill._console import console
 from distill.commands._logic import get_config
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
@@ -29,8 +29,6 @@ from distill.pipeline.analysis.tweet import ingest_tweet
 from distill.pipeline.costs import CostTracker
 
 __all__ = ["ingest_cmd", "register"]
-
-console = Console()
 
 
 def _host(url: str) -> str:

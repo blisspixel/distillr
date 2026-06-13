@@ -21,12 +21,10 @@ import time
 from pathlib import Path
 
 import yt_dlp
-from rich.console import Console
 
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import is_youtube_url
-
-console = Console()
 
 __all__ = [
     "get_transcript",

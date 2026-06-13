@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage, build_page_document
 from distill.library.intent import CorpusIntent
@@ -31,8 +30,6 @@ __all__ = [
     "synthesize_site",
     "synthesize_site_topic",
 ]
-
-console = Console()
 
 
 def analyze_site_page(

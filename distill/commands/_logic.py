@@ -75,6 +75,8 @@ from distill.cli_shared import (
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
+from distill.commands._json import emit_json as _emit_json
+from distill.commands._json import json_mode_active as _json_mode_active
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import (
     PaperRecord,
@@ -712,8 +714,16 @@ def _default(
     ctx.ensure_object(dict)
     ctx.obj["json"] = json_output
     ctx.obj["model"] = model
-    # Always reset console.quiet based on current invocation
-    console.quiet = json_output
+    # In --json mode, redirect all human/progress/diagnostic output to stderr so
+    # stdout carries only the JSON envelope (commands write that envelope
+    # directly to stdout). Called every invocation so a reused process resets
+    # the stream rather than leaking a prior redirect. Supersedes the old
+    # console.quiet approach, which dropped diagnostics entirely.
+    from distill._console import set_json_mode
+    from distill.commands._json import set_json_active
+
+    set_json_mode(json_output)
+    set_json_active(json_output)
 
     # Set model override as env var so pipeline functions pick it up
     # without needing ctx passed through every layer
@@ -3123,6 +3133,116 @@ def remove(
         console.print(f"[yellow]Not found in {topic}[/yellow]")
 
 
+def _library_payload(config, lib, topics: list[str]) -> dict:
+    """Structured library inventory for ``--json`` (topics -> channels + artifacts)."""
+    result = []
+    for topic in topics:
+        channels = []
+        for ch in lib.get_channels(topic):
+            channel_dir = config.channel_dir(topic, ch.name)
+            state = ChannelState(channel_dir / "state.json")
+            artifacts = [
+                name
+                for name, present in (
+                    (
+                        "synthesis",
+                        artifact_exists(channel_dir, "synthesis", identity=f"{topic}_{ch.name}"),
+                    ),
+                    (
+                        "report",
+                        artifact_exists(channel_dir, "report", identity=f"{topic}_{ch.name}"),
+                    ),
+                )
+                if present
+            ]
+            channels.append(
+                {
+                    "name": ch.name,
+                    "videos": state.get_processed_count(),
+                    "last_refresh": state.get_last_refresh() or None,
+                    "artifacts": artifacts,
+                }
+            )
+        topic_dir = config.topic_dir(topic)
+        topic_artifacts = [
+            name
+            for name, present in (
+                ("topic_synthesis", artifact_exists(topic_dir, "topic_synthesis", identity=topic)),
+                ("report", artifact_exists(topic_dir, "report", identity=topic)),
+            )
+            if present
+        ]
+        result.append({"topic": topic, "channels": channels, "topic_artifacts": topic_artifacts})
+    return {"topics": result, "count": len(result)}
+
+
+def _videos_payload(config, channels, topic: str, limit: int) -> dict:
+    """Structured per-channel video inventory for ``--json``."""
+    out_channels = []
+    for ch in channels:
+        videos_dir = config.videos_dir(topic, ch.name)
+        if not videos_dir.exists():
+            continue
+        vids = []
+        for vid_dir in sorted(videos_dir.iterdir()):
+            if not vid_dir.is_dir():
+                continue
+            meta_file = vid_dir / "metadata.json"
+            if not meta_file.exists():
+                continue
+            try:
+                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            vids.append(
+                {
+                    "video_id": meta.get("video_id"),
+                    "title": meta.get("title"),
+                    "upload_date": meta.get("upload_date"),
+                    "duration": meta.get("duration"),
+                    "url": meta.get("url"),
+                    "has_transcript": artifact_exists(vid_dir, "transcript", extension="txt"),
+                    "has_insights": artifact_exists(vid_dir, "insights"),
+                }
+            )
+        vids.sort(key=lambda v: v.get("upload_date") or "", reverse=True)
+        out_channels.append({"channel": ch.name, "total": len(vids), "videos": vids[:limit]})
+    return {"topic": topic, "channels": out_channels, "count": len(out_channels)}
+
+
+def _show_payload(vid_dir, video: dict, what: str) -> dict:
+    """Structured payload for ``show --json`` (insights / transcript / metadata)."""
+    meta = {k: v for k, v in video.items() if not k.startswith("_")}
+    base = {"title": video.get("title"), "what": what, "metadata": meta}
+    if what == "metadata":
+        return {**base, "found": True, "content": None}
+    if what == "transcript":
+        path = find_artifact(vid_dir, "transcript", extension="txt")
+    else:
+        path = find_artifact(vid_dir, "insights")
+    exists = path.exists()
+    return {
+        **base,
+        "path": str(path),
+        "found": exists,
+        "content": path.read_text(encoding="utf-8") if exists else None,
+    }
+
+
+def _emit_content_json(label: str, file_path) -> None:
+    """Emit a read-artifact's content as a ``--json`` envelope (read-only: never
+    triggers generation, so an agent querying with --json can't cause spend)."""
+    exists = file_path.exists()
+    _emit_json(
+        {
+            "label": label,
+            "path": str(file_path),
+            "found": exists,
+            "content": file_path.read_text(encoding="utf-8") if exists else None,
+        }
+    )
+
+
 @app.command(name="library", rich_help_panel="Library")
 def library_cmd():
     """Show what's in your library."""
@@ -3130,6 +3250,9 @@ def library_cmd():
     lib = Library(config)
 
     topics = lib.get_topics()
+    if _json_mode_active():
+        _emit_json(_library_payload(config, lib, topics))
+        return
     if not topics:
         console.print(
             Panel(
@@ -3216,7 +3339,14 @@ def videos(  # noqa: C901 — legacy, will refactor
         channels = [ch for ch in channels if ch.name == channel]
 
     if not channels:
+        if _json_mode_active():
+            _emit_json({"topic": topic, "channels": [], "count": 0})
+            return
         console.print(f"[yellow]No channels found for topic '{topic}'[/yellow]")
+        return
+
+    if _json_mode_active():
+        _emit_json(_videos_payload(config, channels, topic, limit))
         return
 
     for ch in channels:
@@ -3358,6 +3488,10 @@ def show(  # noqa: C901 — legacy, will refactor
 
     video = vid_list[index - 1]
     vid_dir = video["_dir"]
+
+    if _json_mode_active():
+        _emit_json(_show_payload(vid_dir, video, what))
+        return
 
     title = video.get("title", "Unknown")
     date = _format_date(video.get("upload_date", ""))
@@ -3566,6 +3700,11 @@ def synthesis(  # noqa: C901 — legacy, will refactor
                 )
                 label = f"Channel Synthesis: {channels[0].name}"
 
+    # --json is read-only: emit what exists, never auto-generate (that spends).
+    if _json_mode_active():
+        _emit_content_json(label, file_path)
+        return
+
     if not file_path.exists():
         # Check if there are any processed videos at all
         lib = Library(config)
@@ -3650,6 +3789,10 @@ def findings(
     else:
         file_path = find_artifact(config.topic_dir(topic), "report", identity=topic)
         label = f"Report: {topic}"
+
+    if _json_mode_active():
+        _emit_content_json(label, file_path)
+        return
 
     if not file_path.exists():
         console.print(f"[yellow]No report yet. Run 'distill report {topic}' first.[/yellow]")

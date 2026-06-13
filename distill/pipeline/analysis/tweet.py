@@ -13,8 +13,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.transcribe import TranscriptionError, transcribe_media
 from distill.ingestors.x.media import download_video
@@ -36,8 +35,6 @@ from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.x import tweet_insight_prompt, vocabulary_expansion_prompt
 
 __all__ = ["IngestedTweet", "analyze_tweet", "ingest_tweet"]
-
-console = Console()
 
 
 @dataclass(slots=True)

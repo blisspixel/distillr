@@ -14,8 +14,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.local import extract_local_document
 from distill.library.paths import (
@@ -33,7 +32,6 @@ from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_prompt
 
-console = Console()
 logger = logging.getLogger(__name__)
 
 __all__ = ["LocalIngestResult", "ingest_local_file"]

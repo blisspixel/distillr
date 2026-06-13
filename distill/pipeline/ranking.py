@@ -6,8 +6,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
@@ -23,8 +22,6 @@ __all__ = [
     "rerank_papers",
     "rerank_videos",
 ]
-
-console = Console()
 
 
 @dataclass

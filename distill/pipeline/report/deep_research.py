@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from google import genai
-from rich.console import Console
 
+from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import (
     ProvenanceFields,
@@ -24,8 +24,6 @@ from distill.prompts.report import deep_research_prompt
 __all__ = [
     "run_deep_research",
 ]
-
-console = Console()
 
 DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 MAX_CORPUS_CHARS = 350_000

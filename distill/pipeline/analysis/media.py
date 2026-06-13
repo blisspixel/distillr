@@ -14,8 +14,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.transcribe import TranscriptionError, transcribe_media
 from distill.library.paths import (
@@ -32,8 +31,6 @@ from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.media import media_insight_prompt
 from distill.prompts.registry import PROMPT_IDS
-
-console = Console()
 
 __all__ = ["MEDIA_EXTENSIONS", "MediaIngestResult", "ingest_media_file", "is_media_file"]
 

@@ -8,12 +8,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
 
-from rich.console import Console
-
+from distill._console import console
 from distill.ingestors.net import NetworkError, safe_urlopen
 from distill.ingestors.youtube.discovery import VideoInfo
-
-console = Console()
 
 __all__ = [
     "parse_search_results_html",

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.14.0 - 2026-06-12
+
+**Agent-grade `--json` and stdout discipline.** The two P0 items from the CLI audit: a clean machine-readable read surface and a strict stdout/stderr split, so an agent can loop distill and parse it reliably.
+
+### Added
+
+- **One shared console (`distill/_console.py`).** Every module — commands, pipeline, ingestors, concepts, library — now prints through a single `Console` object instead of ~27 independent ones. Foundational module (no upward imports), so the consolidation respects the layering contracts.
+- **`--json` redirects all human output to stderr.** With one shared console, `--json` flips it to stderr (via Rich's dynamic `stderr` flag, so no captured-stream pinning) and commands write their JSON envelope straight to stdout. Result: stdout carries *exactly one* JSON object and always parses, while progress/diagnostics/errors still surface on stderr — the documented contract, now actually true. Resets per invocation so a reused process (test runner, MCP server) never leaks the redirect.
+- **`--json` on the read surface.** `library`, `videos`, `show` (insights/transcript/metadata), `synthesis`, and `findings` now emit structured envelopes instead of nothing (`costs`/`doctor`/`health`/`alerts` already did). Shared `emit_json` / `json_mode_active` helpers in `distill/commands/_json.py`. `--json` is **read-only**: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation, so an agent can't cause spend by inspecting.
+
+### Changed
+
+- `docs/usage.md` JSON section rewritten to match the now-accurate behavior (stderr split, read-only, the covered command list).
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` (0 errors), bandit (0 medium+), full suite green (2216 passed) at 81% branch coverage.
+
 ## 0.13.2 - 2026-06-12
 
 **CLI agent-readiness pass.** Audited the CLI surface against current (June 2026) CLI-first best practices (clig.dev, Anthropic's agent-tool guidance, the uv-tool distribution shift) and closed the cheap, high-signal gaps for an agent-/loop-driven tool. (Larger items -- full `--json` coverage across the read surface and a dedicated stderr diagnostics stream -- are scoped as a follow-up.)

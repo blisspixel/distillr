@@ -1,7 +1,5 @@
 """Per-video analysis via the LLM router."""
 
-from rich.console import Console
-
 from distill.config import DistillConfig
 from distill.library.intent import CorpusIntent
 from distill.llm import call as llm_call
@@ -24,8 +22,6 @@ __all__ = [
     "generate_channel_context",
     "generate_watch_instructions",
 ]
-
-console = Console()
 
 
 def _intent_goal_lens(intent: CorpusIntent | None) -> tuple[str, str]:

@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from google import genai
-from rich.console import Console
 
+from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 
@@ -20,8 +20,6 @@ __all__ = [
     "delete_store",
     "list_stores",
 ]
-
-console = Console()
 
 
 def _operation_ref(operation: Any) -> Any:

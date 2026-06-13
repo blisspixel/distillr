@@ -9,14 +9,11 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
-from rich.console import Console
 
 __all__ = [
     "export_report",
     "markdown_to_docx",
 ]
-
-console = Console()
 
 
 def markdown_to_docx(

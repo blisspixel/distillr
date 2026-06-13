@@ -9,9 +9,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 from rich import box
-from rich.console import Console
 from rich.table import Table
 
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
@@ -28,8 +28,6 @@ from distill.prompts.discover import discover_query_generation_prompt, discover_
 
 # Constants duplicated from commands._helpers to avoid upward dependency.
 SHORTS_THRESHOLD = 180
-
-console = Console()
 logger = logging.getLogger(__name__)
 
 

@@ -17,8 +17,7 @@ import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.podcasts import (
     PodcastEpisode,
@@ -43,8 +42,6 @@ from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.podcasts import podcast_insight_prompt
 from distill.prompts.registry import PROMPT_IDS
-
-console = Console()
 
 __all__ = ["PodcastIngestResult", "ingest_podcast"]
 

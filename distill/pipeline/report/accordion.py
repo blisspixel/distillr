@@ -8,8 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from google import genai
-from rich.console import Console
 
+from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import (
     ProvenanceFields,
@@ -44,8 +44,6 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "run_accordion_research",
 ]
-
-console = Console()
 
 # Gemini Deep Research (the April-2026 successor to deep-research-pro-preview-12-2025).
 # Standard variant, not the pricier deep-research-max-preview-04-2026.

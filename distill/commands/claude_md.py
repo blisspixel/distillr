@@ -14,15 +14,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import typer
-from rich.console import Console
 
+from distill._console import console
 from distill.commands import _logic
 from distill.commands._logic import _complete_topics
 from distill.library import claude_md
 
 __all__ = ["claude_md_cmd", "register"]
-
-console = Console()
 
 
 def _now_iso() -> str:

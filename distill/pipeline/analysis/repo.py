@@ -14,8 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.github import RepoRecord, fetch_repo, parse_github_url
 from distill.library.paths import (
@@ -31,8 +30,6 @@ from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.github import repo_insight_prompt
 from distill.prompts.registry import PROMPT_IDS
-
-console = Console()
 
 __all__ = ["RepoIngestResult", "ingest_repo"]
 

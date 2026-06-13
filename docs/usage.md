@@ -608,19 +608,24 @@ Eager, so it works before any environment is configured — handy for bug report
 
 ## JSON Output
 
-Pass `--json` for machine-readable output on the commands that support it today — `doctor`, `health`, `alerts`, the dashboard view, and `concepts` export:
+Pass `--json` for machine-readable output. The read surface is covered —
+`library`, `videos`, `show`, `synthesis`, `findings`, `costs`, `doctor`,
+`health`, `alerts`, the dashboard view, and `concepts` export:
 
 ```bash
-distill --json alerts                # JSON alert digest
-distill --json doctor                # JSON health check
+distill --json library               # topic + channel inventory
+distill --json synthesis <topic>     # the synthesis document + provenance
+distill --json show <topic> 1        # a video's insights (or --what transcript)
+distill --json doctor                # health check
 ```
 
 When `--json` is active:
-- stdout contains a single JSON object with `status`, `data`, and optionally `error` fields
-- Rich formatting, progress bars, and color are suppressed (the console is quieted)
-- The `NO_COLOR` environment variable is also respected
+- **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` — nothing else, so it always parses
+- **stderr** carries all human/progress/diagnostic output (the shared console is redirected there), so it never corrupts the JSON on stdout
+- `--json` is **read-only**: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation
+- Rich formatting and color are suppressed on stdout; `NO_COLOR` is respected
 
-Broader `--json` coverage across the read surface (`library`, `topics`, `show`, `synthesis`, `costs`) and a dedicated stderr stream for diagnostics are in progress; until then, prefer the listed commands for scripted/agent use.
+Exit codes still apply (e.g. 3 for config errors), so a caller can branch on both the envelope and the code.
 
 ## Unattended / agent operation
 

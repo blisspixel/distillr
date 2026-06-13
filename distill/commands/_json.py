@@ -12,7 +12,20 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
 
-__all__ = ["ExitCode", "JsonEnvelope", "handle_cli_error"]
+__all__ = [
+    "ExitCode",
+    "JsonEnvelope",
+    "emit_json",
+    "handle_cli_error",
+    "json_mode_active",
+    "set_json_active",
+]
+
+# Per-invocation flag: set by the app callback from the global ``--json`` option
+# and read by read commands that don't take a ``ctx`` parameter. A module flag
+# (not the ambient Click context, which isn't reliably retrievable inside a
+# Typer command body) reset every invocation by the callback.
+_json_active = False
 
 
 class ExitCode(IntEnum):
@@ -60,6 +73,29 @@ class JsonEnvelope:
     def fail(cls, error: str, data: Any = None) -> JsonEnvelope:
         """Create an error envelope."""
         return cls(status="error", data=data, error=error)
+
+
+def set_json_active(enabled: bool) -> None:
+    """Record whether ``--json`` is active for this invocation (called by the
+    app callback). Resets every run, so a reused process never leaks state."""
+    global _json_active
+    _json_active = enabled
+
+
+def json_mode_active() -> bool:
+    """Whether the global ``--json`` flag is set on this invocation."""
+    return _json_active
+
+
+def emit_json(data: Any = None, *, error: str | None = None) -> None:
+    """Write one JSON envelope to **stdout** (not the console).
+
+    Always stdout regardless of the console's ``--json`` stderr redirect, so the
+    machine-readable payload is the only thing on stdout while diagnostics go to
+    stderr. Pass ``error`` for a failure envelope.
+    """
+    envelope = JsonEnvelope.fail(error, data) if error is not None else JsonEnvelope.success(data)
+    sys.stdout.write(envelope.to_json() + "\n")
 
 
 def map_exception_to_exit_code(exc: BaseException) -> ExitCode:

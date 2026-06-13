@@ -14,8 +14,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rich.console import Console
-
+from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import (
     ProvenanceFields,
@@ -31,8 +30,6 @@ from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.search import search_corpus
 from distill.prompts.ask import ask_prompt
 from distill.prompts.registry import PROMPT_IDS
-
-console = Console()
 
 __all__ = ["AskResult", "ask_corpus"]
 

@@ -48,6 +48,7 @@ __all__ = [
     "console",
     "duration_str",
     "ensure_channel_context",
+    "err_console",
     "format_date",
     "output_path",
     "print_markdown_safely",
@@ -71,7 +72,12 @@ __all__ = [
 # Anything under 3 minutes is too thin for 2-pass deep analysis.
 SHORTS_THRESHOLD = 180
 
-console = Console()
+# The one shared human-output console, imported (not constructed) so every
+# module prints through the same object -- this is what lets --json redirect all
+# human output to stderr at once. Re-exported here for the legacy
+# ``cli_shared.console`` / ``_helpers.console`` import paths and monkeypatch
+# targets.
+from distill._console import console, err_console  # noqa: E402
 
 
 def _isatty() -> bool:
