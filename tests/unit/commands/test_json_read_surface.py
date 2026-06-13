@@ -22,6 +22,9 @@ runner = CliRunner()
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    # `library` moved to commands/view.py (decomposition); it resolves get_config
+    # from its own module namespace, so patch there too.
+    monkeypatch.setattr("distill.commands.view.get_config", lambda: config)
     return config
 
 

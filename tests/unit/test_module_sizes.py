@@ -23,8 +23,9 @@ HARD_CAP = 1000
 ALLOWLIST: dict[str, int] = {
     # Decomposition in progress (how-we-build.md remediation #1); ratchet down
     # with each extracted slice. get_config (slice 0): 9373 -> 9368;
-    # _resolve_topic_for_channel + _file_link (slice 1): 9368 -> 9331.
-    "distill/commands/_logic.py": 9331,
+    # _resolve_topic_for_channel + _file_link (slice 1): 9368 -> 9331;
+    # library command -> commands/view.py (slice 2): 9331 -> 9213.
+    "distill/commands/_logic.py": 9213,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
