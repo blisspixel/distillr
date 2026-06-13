@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from distill import _cli_impl, cli
 from distill.commands import doctor as _doctor
 from distill.commands import maintain as _maintain
+from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
 from distill.commands import view as _view
 from distill.commands._helpers import duration_str, format_date
@@ -43,6 +44,7 @@ def mock_config(tmp_path):
     original_maintain = _maintain.get_config  # `costs`/`cleanup` moved to commands/maintain.py
     original_doctor = _doctor.get_config  # `doctor`/`health` moved to commands/doctor.py
     original_reprocess = _reprocess.get_config  # resynthesize/reanalyze moved here
+    original_reports = _reports.get_config  # report/export moved to commands/reports.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -51,6 +53,7 @@ def mock_config(tmp_path):
     _maintain.get_config = lambda: config
     _doctor.get_config = lambda: config
     _reprocess.get_config = lambda: config
+    _reports.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -62,6 +65,7 @@ def mock_config(tmp_path):
     _maintain.get_config = original_maintain
     _doctor.get_config = original_doctor
     _reprocess.get_config = original_reprocess
+    _reports.get_config = original_reports
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -1152,7 +1156,7 @@ class TestExportOpenCostsAndStatus:
             captured["title"] = title
             docx_path.write_text("docx", encoding="utf-8")
 
-        monkeypatch.setattr(_cli_impl, "markdown_to_docx", fake_markdown_to_docx)
+        monkeypatch.setattr(_reports, "markdown_to_docx", fake_markdown_to_docx)
 
         result = runner.invoke(cli.app, ["export", "ai"])
 

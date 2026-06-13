@@ -97,6 +97,7 @@ from distill.commands.eval import register as _register_eval
 from distill.commands.ingest import register as _register_ingest
 from distill.commands.init import register as _register_init
 from distill.commands.maintain import register as _register_maintain
+from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
@@ -112,6 +113,7 @@ _register_maintain(app)
 _register_doctor(app)
 _register_eval(app)
 _register_reprocess(app)
+_register_reports(app)
 _register_view(app)
 
 __all__ = ["app", "main"]
