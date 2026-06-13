@@ -30,6 +30,7 @@ from rich.table import Table
 
 import distill.cli_shared as cli_shared
 import distill.pipeline.discovery as _discover_support
+from distill._app import app
 from distill.banner import show_banner
 from distill.cli_shared import (
     SHORTS_THRESHOLD,
@@ -571,20 +572,9 @@ def _display_ranked_discover(items: list[_RankedDiscoverItem], title: str) -> No
     _discover_support.display_ranked_discover(items, title)
 
 
-app = typer.Typer(
-    help=(
-        "Distill source material into usable intelligence.\n\n"
-        "Pick a starting point:\n"
-        '  Build a topic corpus?   distill topic create "Microsoft Fabric best practices" --videos 10 --papers 10\n'
-        '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'
-        "  Have one website URL?  distill site https://example.com/page --topic scratch --seed-only\n"
-        "  Have one paper URL?    distill paper https://arxiv.org/abs/2602.12670 --topic papers\n"
-        '  Need the latest on a topic?  distill latest "Microsoft AI news" --topic microsoft-news\n'
-        '  Want recurring updates?      distill monitor "Microsoft AI news" --topic microsoft-news\n'
-    ),
-    invoke_without_command=True,
-    rich_markup_mode="rich",
-)
+# `app` (the top-level Typer instance + its did-you-mean group class) is defined
+# in distill._app and imported at the top of this module, so the hundreds of
+# `@app.command` decorators below attach to that same instance.
 
 topic_app = typer.Typer(
     help=(
