@@ -32,8 +32,9 @@ ALLOWLIST: dict[str, int] = {
     # open + alerts -> commands/maintain.py (Maintain slice 2): 8353 -> 8202;
     # doctor check helpers -> distill/doctor/checks.py (slice 1a): 8202 -> 8093
     # (net of the re-import block the doctor command still needs);
-    # doctor + health commands -> commands/doctor.py (slice 1b): 8093 -> 7346.
-    "distill/commands/_logic.py": 7346,
+    # doctor + health commands -> commands/doctor.py (slice 1b): 8093 -> 7346;
+    # status -> commands/maintain.py (Maintain slice 3): 7346 -> 7201.
+    "distill/commands/_logic.py": 7201,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
