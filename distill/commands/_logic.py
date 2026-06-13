@@ -14,7 +14,6 @@ import json
 import os
 import re
 import sys
-import webbrowser
 import zipfile
 from datetime import datetime
 from hashlib import sha1
@@ -3818,45 +3817,6 @@ def export(
     console.print(f"[green]Exported: {docx_path}[/green]")
     console.print(f"[dim]{docx_path.stat().st_size / 1024:.1f} KB[/dim]")
     console.print(f"\n  [dim]distill open {topic}  to open the output folder[/dim]")
-
-
-@app.command(rich_help_panel="Maintain")
-def dashboard(
-    web: bool = typer.Option(False, "--web", help="Render the dashboard as a local HTML page"),
-    open_browser: bool = typer.Option(
-        True, "--open/--no-open", help="Open the generated HTML dashboard in your browser"
-    ),
-):
-    """Show the dashboard in terminal or generate a lightweight local web view."""
-    config = get_config()
-    if not web:
-        show_banner(console)
-        _show_dashboard()
-        return
-
-    snapshot = _dashboard_snapshot(config)
-    version = _get_version()
-    html = _render_dashboard_html(version, snapshot)
-    html_path = _output_path(config, "dashboard.html")
-    html_path.write_text(html, encoding="utf-8")
-    console.print(f"[green]Dashboard written: {html_path}[/green]")
-    if open_browser:
-        webbrowser.open(html_path.resolve().as_uri())
-        console.print("[dim]Opened in your default browser[/dim]")
-    else:
-        console.print("[dim]Use --open to launch it in your browser[/dim]")
-
-
-@app.command(rich_help_panel="View")
-def serve(
-    port: int = typer.Option(8899, "--port", "-p", help="Port to serve on"),
-    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
-    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open browser on start"),
-):
-    """Launch a local web dashboard for browsing your library."""
-    from distill.web.server import run_server
-
-    run_server(get_config(), host=host, port=port, open_browser=open_browser)
 
 
 # ─── Status & Doctor ──────────────────────────────────────────────────

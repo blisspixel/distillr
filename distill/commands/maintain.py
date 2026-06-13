@@ -19,10 +19,22 @@ from rich import box
 from rich.table import Table
 
 from distill._console import console
+from distill.banner import show_banner
+from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import require_api_key as _require_api_key
 from distill.commands._helpers import _resolve_topic_for_channel, get_config
 from distill.commands._helpers import tty_confirm as _tty_confirm
-from distill.commands._logic import _complete_topics  # completion helper, still owned by _logic
+
+# Completion helper and the home-screen/dashboard renderers are still owned by
+# _logic (the bare `distill` home screen uses them); imported back here for the
+# commands that moved.
+from distill.commands._logic import (
+    _complete_topics,
+    _dashboard_snapshot,
+    _get_version,
+    _render_dashboard_html,
+    _show_dashboard,
+)
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
@@ -37,9 +49,11 @@ __all__ = [
     "cleanup",
     "corpus",
     "costs",
+    "dashboard",
     "migrate",
     "open_cmd",
     "register",
+    "serve",
     "status",
 ]
 
@@ -736,6 +750,43 @@ def corpus(
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
+def dashboard(
+    web: bool = typer.Option(False, "--web", help="Render the dashboard as a local HTML page"),
+    open_browser: bool = typer.Option(
+        True, "--open/--no-open", help="Open the generated HTML dashboard in your browser"
+    ),
+):
+    """Show the dashboard in terminal or generate a lightweight local web view."""
+    config = get_config()
+    if not web:
+        show_banner(console)
+        _show_dashboard()
+        return
+
+    snapshot = _dashboard_snapshot(config)
+    version = _get_version()
+    html = _render_dashboard_html(version, snapshot)
+    html_path = _output_path(config, "dashboard.html")
+    html_path.write_text(html, encoding="utf-8")
+    console.print(f"[green]Dashboard written: {html_path}[/green]")
+    if open_browser:
+        webbrowser.open(html_path.resolve().as_uri())
+        console.print("[dim]Opened in your default browser[/dim]")
+    else:
+        console.print("[dim]Use --open to launch it in your browser[/dim]")
+
+
+def serve(
+    port: int = typer.Option(8899, "--port", "-p", help="Port to serve on"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open browser on start"),
+):
+    """Launch a local web dashboard for browsing your library."""
+    from distill.web.server import run_server
+
+    run_server(get_config(), host=host, port=port, open_browser=open_browser)
+
+
 def register(app: typer.Typer) -> None:
     """Attach the maintenance commands to the app (called from distill.cli)."""
     app.command(rich_help_panel="Maintain")(costs)
@@ -745,3 +796,5 @@ def register(app: typer.Typer) -> None:
     app.command(rich_help_panel="Maintain")(status)
     app.command(rich_help_panel="Maintain")(migrate)
     app.command(rich_help_panel="Maintain")(corpus)
+    app.command(rich_help_panel="Maintain")(dashboard)
+    app.command(rich_help_panel="View")(serve)
