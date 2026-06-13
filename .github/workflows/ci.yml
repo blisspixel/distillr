@@ -35,10 +35,13 @@ jobs:
         run: uv sync --frozen
 
       - name: Run tests with branch coverage
-        # Branch coverage (stricter than line); --cov-fail-under is the
-        # ratcheted floor. 0.8.4 baseline ~80% branch, floor set just under at
-        # 79 for matrix headroom; ratchet up-only toward the 1.0 target of 95.
-        # Raise it as coverage improves, never lower it.
+        # Branch coverage (stricter than line). --cov-fail-under is a manually
+        # ratcheted floor: measured is ~81% (2026-06), floor held at 80 for a
+        # small headroom against per-run branch-selection jitter. Ratchet up-only
+        # toward the 1.0 target of 95 -- raise as coverage improves on a
+        # coverage-improving PR; lowering it requires explicit review. (A fixed
+        # floor beats a stored-baseline "must-not-decrease" gate here, which
+        # would flake on normal branch-coverage jitter.)
         run: uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=80
 
   test-os:

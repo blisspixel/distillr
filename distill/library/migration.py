@@ -235,8 +235,12 @@ _CONFIDENCE_LINE_RE = re.compile(
 )
 
 
-def _split_frontmatter(text: str) -> tuple[str, str, str] | None:
+def _partition_frontmatter(text: str) -> tuple[str, str, str] | None:
     """Split ``---\\n...\\n---\\n<body>`` into (opening, frontmatter, rest).
+
+    Named distinctly from ``library.paths._split_frontmatter`` (which returns a
+    2-tuple ``(block_or_none, body)``): this is a different function with a
+    different contract -- a 3-way partition that returns ``None`` when absent.
 
     Returns ``None`` if the file does not start with a frontmatter block.
     ``opening`` is the leading ``---\\n``; ``frontmatter`` is the lines
@@ -271,7 +275,7 @@ def scan_confidence_field(library_dir: Path) -> list[FrontmatterFieldAction]:
             text = md_path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        split = _split_frontmatter(text)
+        split = _partition_frontmatter(text)
         if split is None:
             continue
         _, fm_block, _ = split
@@ -311,7 +315,7 @@ def apply_frontmatter_field_migration(
             errors.append(f"Read failed {action.path}: {exc}")
             continue
 
-        split = _split_frontmatter(text)
+        split = _partition_frontmatter(text)
         if split is None:
             files_skipped += 1
             continue
