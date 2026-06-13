@@ -20,6 +20,7 @@ from pathlib import Path
 from distill import _bootstrap  # noqa: F401  -- imported for stdio side effect
 
 import typer
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.markdown import Markdown
 
@@ -50,6 +51,7 @@ __all__ = [
     "ensure_channel_context",
     "err_console",
     "format_date",
+    "get_config",
     "output_path",
     "print_markdown_safely",
     "print_text_safely",
@@ -78,6 +80,18 @@ SHORTS_THRESHOLD = 180
 # ``cli_shared.console`` / ``_helpers.console`` import paths and monkeypatch
 # targets.
 from distill._console import console, err_console  # noqa: E402
+
+
+def get_config() -> DistillConfig:
+    """Load ``.env`` and build the runtime config.
+
+    The cross-command config accessor. Lives here (a foundation helpers module
+    with no upward imports) rather than in the `_logic` monolith so command
+    modules can obtain config without importing `_logic` -- the enabler for
+    decomposing `_logic.py` without import cycles (how-we-build.md remediation #1).
+    """
+    load_dotenv()
+    return DistillConfig()
 
 
 def _isatty() -> bool:

@@ -23,7 +23,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import typer
-from dotenv import load_dotenv
 from rich import box
 from rich.columns import Columns
 from rich.panel import Panel
@@ -75,6 +74,7 @@ from distill.cli_shared import (
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
+from distill.commands._helpers import get_config
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
 from distill.config import DistillConfig
@@ -746,11 +746,6 @@ def _default(
             console.clear()
         show_banner(console)
         _show_dashboard()
-
-
-def get_config() -> DistillConfig:
-    load_dotenv()
-    return DistillConfig()
 
 
 def _apply_verify_override(verify: str) -> None:
