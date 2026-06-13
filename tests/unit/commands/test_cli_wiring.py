@@ -2067,7 +2067,7 @@ class TestWatchCommands:
         (topic_dir / "topic_synthesis.md").write_text("# Topic", encoding="utf-8")
 
         monkeypatch.setattr(
-            _cli_impl,
+            _maintain,
             "synthesize_corpus",
             lambda topic, config, tracker=None: (
                 (mock_config.topic_dir(topic) / "corpus_synthesis.md").write_text(

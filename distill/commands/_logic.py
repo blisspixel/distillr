@@ -3997,80 +3997,6 @@ def concepts(
 # ─── Migration ───────────────────────────────────────────────────────
 
 
-@app.command(rich_help_panel="Maintain")
-def migrate(  # noqa: C901 — legacy, will refactor
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
-):
-    """Rename video directories from IDs to human-readable slugs.
-
-    Renames directories like 'abc123xyz' to 'gpt-5-4-production-db-safety_abc123xy'.
-    Safe to run multiple times -- already-migrated directories are skipped.
-    """
-    from distill.library.paths import slugify_title
-
-    config = get_config()
-    lib = Library(config)
-    topics = lib.get_topics()
-
-    if not topics:
-        console.print("[dim]Library is empty, nothing to migrate[/dim]")
-        return
-
-    # Scan for directories that need migration
-    to_rename = []
-    for topic in topics:
-        for ch in lib.get_channels(topic):
-            videos_dir = config.videos_dir(topic, ch.name)
-            if not videos_dir.exists():
-                continue
-            for vid_dir in sorted(videos_dir.iterdir()):
-                if not vid_dir.is_dir():
-                    continue
-                meta_file = vid_dir / "metadata.json"
-                if not meta_file.exists():
-                    continue
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                video_id = meta.get("video_id", "")
-                title = meta.get("title", "")
-                if not title or not video_id:
-                    continue
-                new_name = slugify_title(title, video_id)
-                if vid_dir.name != new_name:
-                    to_rename.append((vid_dir, vid_dir.parent / new_name, title))
-
-    if not to_rename:
-        console.print("[green]All video directories already use readable names[/green]")
-        return
-
-    console.print(f"[bold]Found {len(to_rename)} directories to rename:[/bold]\n")
-    for old, new, title in to_rename[:10]:
-        console.print(f"  [dim]{old.name}[/dim]")
-        console.print(f"  [green]->[/green] [bold]{new.name}[/bold]  ({title[:60]})")
-        console.print()
-    if len(to_rename) > 10:
-        console.print(f"  [dim]... and {len(to_rename) - 10} more[/dim]\n")
-
-    if not yes and not _tty_confirm(f"Rename {len(to_rename)} directories?"):
-        raise typer.Abort()
-
-    renamed = 0
-    errors = 0
-    for old, new, _title in to_rename:
-        try:
-            if new.exists():
-                console.print(f"  [yellow]Skipping {old.name} -- target already exists[/yellow]")
-                continue
-            old.rename(new)
-            renamed += 1
-        except Exception as e:
-            console.print(f"  [red]Failed to rename {old.name}: {e}[/red]")
-            errors += 1
-
-    console.print(f"\n[bold green]Migrated {renamed} directories[/bold green]")
-    if errors:
-        console.print(f"[red]{errors} errors[/red]")
-
-
 # ─── Topic Watch ────────────────────────────────────────────────────
 
 topic_watch_app = typer.Typer(
@@ -5787,31 +5713,6 @@ def paper(
         summary.add_output(
             find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic)
         )
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-
-
-@app.command(rich_help_panel="Maintain")
-def corpus(
-    topic: str = typer.Argument(
-        help="Topic to synthesize as a mixed-source corpus", autocompletion=_complete_topics
-    ),
-):
-    """Build a mixed-source corpus synthesis for a topic."""
-    config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
-    tracker = CostTracker()
-    summary = RunSummary(command="corpus")
-    summary.set_metadata(topic=topic, workflow="corpus", source_type="mixed")
-
-    result = synthesize_corpus(topic, config, tracker=tracker)
-    if not result:
-        summary.add_issue(
-            "corpus-synthesis", "No source material found for corpus synthesis", context=topic
-        )
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        raise typer.Exit(1)
-
-    summary.add_output(find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic))
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
