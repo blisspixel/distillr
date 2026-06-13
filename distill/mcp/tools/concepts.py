@@ -16,7 +16,11 @@ from distill.concepts import recovery
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.library.paths import strip_frontmatter
 from distill.mcp import server as _server
-from distill.mcp.tools.find import _resolve_within_library
+
+# NOTE: `_resolve_within_library` is imported lazily inside the function that
+# uses it, not at module top. find -> server -> tools.concepts -> find is an
+# import cycle; a module-top import here makes the package import-order-fragile
+# (find-first leaves find half-initialized). The deferred import breaks it.
 
 __all__: list[str] = []
 
@@ -97,6 +101,8 @@ def read_concept(path: str) -> str:
     Args:
         path: Relative path from library root (e.g. ``topics/tkg/concepts/rotational_embedding.md``).
     """
+    from distill.mcp.tools.find import _resolve_within_library
+
     config = _server._config()
     full_path = _resolve_within_library(config.library_dir, path)
 
