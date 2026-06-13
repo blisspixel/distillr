@@ -22,7 +22,7 @@ def test_doctor_key_auth_rejected_distinguishes_auth_from_transient() -> None:
     # Only a 401/403 means the key is dead. Transient errors (timeout, 5xx,
     # offline) must NOT be classified as a rejection -- doing so falsely told
     # users with valid keys that the provider rejected them.
-    from distill.commands._logic import _doctor_key_auth_rejected
+    from distill.doctor.checks import _doctor_key_auth_rejected
 
     auth = RuntimeError("unauthorized")
     auth.status_code = 401  # type: ignore[attr-defined]

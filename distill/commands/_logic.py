@@ -78,6 +78,11 @@ from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import _file_link, _resolve_topic_for_channel, get_config
 from distill.commands._json import emit_json as _emit_json
 from distill.config import DistillConfig
+
+# Doctor check/probe helpers live in distill.doctor.checks; the two used by the
+# doctor command (still in this module) are re-imported so it finds them in this
+# namespace. init + the MCP doctor tool import from distill.doctor.checks directly.
+from distill.doctor.checks import _doctor_validate_key, check_retired_models
 from distill.ingestors.papers.arxiv import (
     PaperRecord,
     build_paper_document,
@@ -4005,120 +4010,6 @@ def status(  # noqa: C901 — legacy, will refactor
             console.print("  [dim]all up to date[/dim]")
 
     console.print()
-
-
-def check_retired_models(config: DistillConfig) -> list[str]:
-    """Check all model config fields against the retired-model registry.
-
-    Returns a list of warning strings for any configured model that is retired.
-    Each warning includes the field name, model name, retirement date, and replacement.
-    """
-    from distill.llm.router import RETIRED_MODELS, RETIREMENT_DATE
-
-    model_fields = [
-        "xai_fast_model",
-        "xai_premium_model",
-        "xai_analysis_model",
-        "xai_rerank_model",
-        "xai_synthesis_model",
-        "xai_site_model",
-        "accordion_section_model",
-    ]
-    warnings: list[str] = []
-    for field in model_fields:
-        value = getattr(config, field, "")
-        if value and value in RETIRED_MODELS:
-            replacement = RETIRED_MODELS[value]
-            warnings.append(
-                f"{field} uses retired model '{value}' "
-                f"(retiring {RETIREMENT_DATE}); replace with '{replacement}'"
-            )
-    return warnings
-
-
-def _doctor_key_auth_rejected(exc: Exception) -> bool:
-    """True if ``exc`` is a provider auth rejection (HTTP 401/403).
-
-    Tells a genuine bad-key rejection apart from a transient failure
-    (offline / timeout / rate-limit / provider 5xx): only the former means the
-    key is dead. Handles the openai (``status_code``), google-genai (``code``),
-    and httpx (``response.status_code``) exception shapes.
-    """
-    status = getattr(exc, "status_code", None)
-    if status is None:
-        status = getattr(exc, "code", None)
-    if status is None:
-        status = getattr(getattr(exc, "response", None), "status_code", None)
-    return status in (401, 403)
-
-
-def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str]:
-    """Live-validate one provider's API key with a minimal request.
-
-    Returns ``(status, detail)`` where ``status`` is one of:
-
-    - ``"ok"`` -- the key is present and accepted by the provider
-    - ``"invalid"`` -- the key is present but the provider rejected it with an
-      auth error (401/403: revoked, expired, wrong project)
-    - ``"unknown"`` -- the key is present but could not be verified due to a
-      transient error (offline, timeout, rate limit, provider 5xx); ``detail``
-      carries the error. This is NOT a key failure and must not be reported as
-      "rejected" -- doing so was a false alarm on every flaky-network run.
-    - ``"missing"`` -- a required key (xai) is unset
-    - ``"not_set"`` -- an optional key (gemini/openai) is unset
-
-    On ``"ok"``, ``detail`` is the human label shown next to the key.
-
-    Both the human and ``--json`` doctor paths call this so they cannot drift.
-    Presence alone is not health -- a revoked key is *present* but dead -- and
-    it was exactly a presence-only ``--json`` check disagreeing with the live
-    human check that let a dead key report as healthy.
-    """
-    if provider == "xai":
-        if not config.xai_api_key:
-            return ("missing", "")
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(
-                api_key=config.xai_api_key.get_secret_value(),
-                base_url="https://api.x.ai/v1",
-            )
-            client.chat.completions.create(
-                model=config.xai_model_for("analysis"),
-                messages=[{"role": "user", "content": "hi"}],
-                max_completion_tokens=5,
-            )
-            return ("ok", config.xai_model_for("analysis"))
-        except Exception as e:
-            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
-    if provider == "gemini":
-        if not config.gemini_api_key:
-            return ("not_set", "")
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
-            client.models.generate_content(model="gemini-3.5-flash", contents="hi")
-            return ("ok", "Deep Research")
-        except Exception as e:
-            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
-    if provider == "openai":
-        if not config.openai_api_key:
-            return ("not_set", "")
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(api_key=config.openai_api_key.get_secret_value())
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": "hi"}],
-                max_tokens=5,
-            )
-            return ("ok", "optional")
-        except Exception as e:
-            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
-    raise ValueError(f"unknown provider: {provider}")
 
 
 @app.command(rich_help_panel="Maintain")

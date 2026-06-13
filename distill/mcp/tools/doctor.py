@@ -20,7 +20,7 @@ def doctor() -> str:
     # the CLI doctor, and the --json path never disagree about key health.
     # Presence alone is not health: a revoked/expired key is present but dead,
     # and reporting it "ok" is the false-green this tool used to produce.
-    from distill.commands._logic import _doctor_validate_key
+    from distill.doctor.checks import _doctor_validate_key
 
     for provider, label in (
         ("xai", "xai_api_key"),

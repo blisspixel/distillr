@@ -37,6 +37,11 @@ from distill.llm.telemetry import top_n_by_tokens
 
 _DISTILL_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "distill"
 _LLM_ROOT = _DISTILL_ROOT / "llm"
+# The doctor package legitimately constructs provider clients to live-validate
+# keys (key health is its whole job); excluded from the no-OpenAI-outside-llm scan
+# the same way distill/llm/ is. (Previously this lived in _logic and was skipped
+# by the "def doctor in source" heuristic; now it has its own package.)
+_DOCTOR_ROOT = _DISTILL_ROOT / "doctor"
 
 
 def _make_config(ops_dir: str = "", **overrides: str) -> RouterConfig:
@@ -76,8 +81,10 @@ def test_no_openai_construction_outside_llm() -> None:  # noqa: C901 — legacy,
 
     for root, _dirs, files in os.walk(str(_DISTILL_ROOT)):
         root_path = Path(root)
-        # Skip distill/llm/ entirely
+        # Skip distill/llm/ and distill/doctor/ entirely
         if root_path == _LLM_ROOT or str(root_path).startswith(str(_LLM_ROOT)):
+            continue
+        if root_path == _DOCTOR_ROOT or str(root_path).startswith(str(_DOCTOR_ROOT)):
             continue
         # Skip __pycache__
         if "__pycache__" in str(root_path):

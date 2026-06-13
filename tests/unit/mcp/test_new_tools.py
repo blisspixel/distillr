@@ -82,7 +82,7 @@ class TestDoctorTool:
 
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
-            patch("distill.commands._logic._doctor_validate_key", side_effect=_fake),
+            patch("distill.doctor.checks._doctor_validate_key", side_effect=_fake),
         ):
             from distill.mcp.tools.doctor import doctor
 
@@ -102,7 +102,7 @@ class TestDoctorTool:
 
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
-            patch("distill.commands._logic._doctor_validate_key", side_effect=_fake),
+            patch("distill.doctor.checks._doctor_validate_key", side_effect=_fake),
         ):
             from distill.mcp.tools.doctor import doctor
 

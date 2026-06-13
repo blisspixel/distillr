@@ -131,7 +131,7 @@ def _validate_xai() -> tuple[str, str]:
     """Live-validate the XAI key via the canonical doctor checker (so init and
     doctor can't drift). Lazy import keeps init load-light."""
     from distill.commands._helpers import get_config
-    from distill.commands._logic import _doctor_validate_key
+    from distill.doctor.checks import _doctor_validate_key
 
     return _doctor_validate_key("xai", get_config())
 

@@ -29,8 +29,10 @@ ALLOWLIST: dict[str, int] = {
     # show/package-latest/synthesis/findings -> view.py (slice 4): 9077 -> 8664;
     # app construction -> distill/_app.py (+ did-you-mean group): 8664 -> 8653;
     # costs + cleanup -> commands/maintain.py (Maintain slice 1): 8653 -> 8353;
-    # open + alerts -> commands/maintain.py (Maintain slice 2): 8353 -> 8202.
-    "distill/commands/_logic.py": 8202,
+    # open + alerts -> commands/maintain.py (Maintain slice 2): 8353 -> 8202;
+    # doctor check helpers -> distill/doctor/checks.py (slice 1a): 8202 -> 8093
+    # (net of the re-import block the doctor command still needs).
+    "distill/commands/_logic.py": 8093,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

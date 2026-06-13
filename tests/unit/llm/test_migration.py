@@ -21,8 +21,8 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from distill._cli_impl import check_retired_models
 from distill.config import DistillConfig
+from distill.doctor.checks import check_retired_models
 from distill.llm.cost import PRICING, compute_cost, get_pricing
 from distill.llm.router import (
     RETIRED_MODELS,
