@@ -25,8 +25,9 @@ ALLOWLIST: dict[str, int] = {
     # with each extracted slice. get_config (slice 0): 9373 -> 9368;
     # _resolve_topic_for_channel + _file_link (slice 1): 9368 -> 9331;
     # library command -> commands/view.py (slice 2): 9331 -> 9213;
-    # videos command -> commands/view.py (slice 3): 9213 -> 9077.
-    "distill/commands/_logic.py": 9077,
+    # videos command -> commands/view.py (slice 3): 9213 -> 9077;
+    # show/package-latest/synthesis/findings -> view.py (slice 4): 9077 -> 8664.
+    "distill/commands/_logic.py": 8664,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
