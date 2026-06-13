@@ -156,10 +156,35 @@ class TestOutputSanitization:
         assert "<img" not in out  # img dropped to kill zero-click exfil beacons
 
 
+def _config_baseline_text() -> str:
+    """Structural text of a config's renderings with NO real secret present.
+
+    Field names (xai_fast_model, ...) and default values (grok-4.3, warn) appear
+    verbatim in repr/str/JSON. A candidate secret that is a substring of this
+    baseline collides with structure, not with a leaked key -- the SecretStr is
+    still masked -- so such candidates are filtered out below rather than counted
+    as failures (the Hypothesis falsifying example was secret='_model', a
+    substring of 'xai_fast_model').
+    """
+    from distill.config import DistillConfig
+
+    sentinel = "Zq7SENTINEL7qZ"
+    cfg = DistillConfig(xai_api_key=sentinel)
+    rendered = repr(cfg) + str(cfg) + cfg.model_dump_json()
+    return rendered.replace(sentinel, "")
+
+
+_CONFIG_BASELINE = _config_baseline_text()
+
+
 class TestSecretNeverRenders:
     """API keys are SecretStr and never leak into repr/str/serialization."""
 
-    @given(st.text(min_size=6, max_size=40).filter(lambda s: s.strip() and "*" not in s))
+    @given(
+        st.text(min_size=6, max_size=40).filter(
+            lambda s: s.strip() and "*" not in s and s not in _CONFIG_BASELINE
+        )
+    )
     def test_secret_value_absent_from_renderings(self, secret):
         from distill.config import DistillConfig
 
