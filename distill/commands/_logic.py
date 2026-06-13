@@ -74,7 +74,7 @@ from distill.cli_shared import (
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
-from distill.commands._helpers import get_config
+from distill.commands._helpers import _file_link, _resolve_topic_for_channel, get_config
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
 from distill.config import DistillConfig
@@ -1359,34 +1359,6 @@ def topic_watch(
     )
 
 
-def _resolve_topic_for_channel(
-    lib: Library, topic: str | None, channel: str | None
-) -> tuple[str | None, str | None]:
-    """Auto-resolve topic when only a channel name is given.
-
-    If topic looks like a channel name (not a known topic), treat it as
-    the channel and resolve the topic from the library.
-
-    Returns (topic, channel) with resolved values.
-    """
-    if topic and channel:
-        return topic, channel
-
-    # If topic is provided but isn't a known topic, maybe it's a channel name
-    if topic and not channel and topic not in lib.get_topics():
-        found = lib.find_channel(topic)
-        if found:
-            return found.topic, found.name
-
-    # If channel is provided but topic is missing, look up the channel
-    if channel and not topic:
-        found = lib.find_channel(channel)
-        if found:
-            return found.topic, found.name
-
-    return topic, channel
-
-
 def _show_latest_insights(  # noqa: C901 — legacy, will refactor
     config: DistillConfig, topic: str, channel_name: str, limit: int = 3
 ) -> None:
@@ -1453,15 +1425,6 @@ def _show_latest_insights(  # noqa: C901 — legacy, will refactor
 
     console.print(f"  [dim]distill show {channel_name}                     Full insights[/dim]")
     console.print(f"  [dim]distill synthesis {channel_name}                Synthesis[/dim]\n")
-
-
-def _file_link(path: Path) -> str:
-    """Return a clickable file:// link for terminals that support it."""
-    resolved = path.resolve()
-    # file:// URI with forward slashes
-    uri = resolved.as_uri() if hasattr(resolved, "as_uri") else f"file:///{resolved}"
-    # Rich hyperlink: clickable text in supporting terminals, plain path elsewhere
-    return f"[link={uri}]{resolved}[/link]"
 
 
 def _resolve_video_channel_name(url: str, video_info) -> str:
