@@ -812,12 +812,21 @@ def get_model_override(ctx: typer.Context | None = None) -> str:
 
 
 def _preflight() -> None:
-    """Warn (non-blocking) if yt-dlp is stale. Cached daily; honors DISTILL_NO_PREFLIGHT."""
+    """Non-blocking startup nudges: a stale-yt-dlp warning and a distillr
+    update-available notice. Both cached daily and individually opt-out-able
+    (DISTILL_NO_PREFLIGHT / DISTILL_NO_UPDATE_CHECK)."""
     try:
         library_dir = get_config().library_dir
     except Exception:
         library_dir = None
     preflight_ytdlp(console, library_dir)
+    try:
+        from distill.update import check_for_update
+
+        check_for_update(console, library_dir)
+    except Exception:
+        # An update check must never break a command.
+        pass
 
 
 _TOPIC_PROFILE_VERSION = 1
@@ -6074,11 +6083,9 @@ def concepts(
     )
 
     if json_out:
-        from distill.commands._json import JsonEnvelope
-
         payload = summary.to_dict()
         payload["cost"] = tracker.format_cost()
-        typer.echo(JsonEnvelope.success(payload).to_json())
+        _emit_json(payload)
         return
 
     console.print()

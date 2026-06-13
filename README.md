@@ -87,6 +87,8 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/in
 
 After the installer finishes, open a **new** terminal and run `distill doctor`.
 
+**Updating:** `distill update` upgrades to the latest release in place — it detects how you installed (uv tool / pipx / pip) and runs the right upgrade for you; `distill update --check` just reports whether a newer version exists. distill also prints a one-line nudge when a new release is published (cached daily, silence with `DISTILL_NO_UPDATE_CHECK=1`).
+
 ---
 
 **Distill runs on Windows, macOS, and Linux** (Python 3.12+). Local models run on consumer GPUs via Ollama or LM Studio.

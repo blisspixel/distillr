@@ -636,6 +636,18 @@ Distill is built to run in a loop or under an agent with no human at the keyboar
 - **No-TTY safety:** when stdin is not a terminal, interactive prompts resolve to their safe default instead of aborting on EOF — a confirmation with no safe default declines (and prints the `--yes` hint), and menu prompts take their listed default. Bare `distill` skips the screen-clear when stdout is piped.
 - **Exit codes** (above) distinguish config (3) and network (4) failures from generic runtime errors (1), so a loop can branch on the cause.
 
+## Updating distill
+
+```bash
+distill update            # upgrade to the latest published release, in place
+distill update --check    # report installed vs latest without upgrading
+distill --json update --check   # same, machine-readable
+```
+
+`distill update` detects the install method — **uv tool**, **pipx**, or **pip** — and runs the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). On a **source/editable checkout** it won't touch your working tree; it tells you to `git pull` + `uv sync` instead.
+
+distill also surfaces a one-line "update available" nudge on startup when a newer release is published — checked against PyPI at most once per day (cached), non-blocking, and silenced with `DISTILL_NO_UPDATE_CHECK=1`.
+
 ## Shell completions
 
 ```bash

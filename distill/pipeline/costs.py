@@ -263,7 +263,11 @@ def save_run_log(
     new_log = ops_dir / "cost_log.jsonl"
     if old_log.exists() and not new_log.exists():
         shutil.move(str(old_log), str(new_log))
-        print("Migrated cost_log.jsonl to .distill/ for cleaner library layout")  # noqa: T201
+        # stderr, not stdout: this one-time notice must never land in a
+        # command's --json stdout (it would corrupt the envelope).
+        from distill._console import err_console
+
+        err_console.print("Migrated cost_log.jsonl to .distill/ for cleaner library layout")
 
     log_file = new_log
 

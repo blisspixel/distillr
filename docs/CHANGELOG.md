@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.15.0 - 2026-06-13
+
+**Install/update QOL: `distill update` + an update-available nudge.** Modern CLI tools upgrade in place and tell you when they're stale; distill now does both.
+
+### Added
+
+- **`distill update`** (`distill/update.py`, `distill/commands/update.py`): upgrades distillr in place, detecting the install method — **uv tool**, **pipx**, or **pip** — and running the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). A **source/editable checkout** is detected precisely (via `direct_url.json`) and never auto-upgraded — it prints `git pull` + `uv sync` guidance instead. `distill update --check` reports installed-vs-latest without upgrading; `--json` parity on both. Subprocess runs with the same hardened cwd/env as the yt-dlp updater (no `PYTHONPATH`/`PYTHONHOME` injection).
+- **Update-available nudge on startup**: a one-line notice when a newer distillr is published, checked against PyPI at most once per day (cached in `.distill/.update_check.json`), non-blocking, failure-silent (offline = no notice), opt-out via `DISTILL_NO_UPDATE_CHECK=1`. Rides the existing `_preflight` cadence alongside the yt-dlp staleness check. PEP 440 version comparison via `packaging`.
+- Install scripts and README/usage document `distill update` as the upgrade path; both installers print it in their next-steps.
+
+### Fixed (harden pass over the 0.13.1–0.14.0 surface)
+
+Two independent adversarial reviews of the synthesis-verify and console/`--json` changes confirmed no correctness defects; two LOW stdout-discipline gaps were closed so the `--json` stdout-purity invariant holds across *every* command, not just the read surface:
+
+- The one-time `cost_log.jsonl` migration notice in `save_run_log` printed to **stdout** (bare `print`) — it could land in a `--json` generation command's envelope stream once per library. Now routed through `err_console` (stderr).
+- The `concepts` command emitted its `--json` payload via a bespoke `typer.echo(JsonEnvelope...)`; unified onto the shared `emit_json` helper.
+
+- Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` + the new modules (0 errors), bandit (0 medium+), full suite green (2230 passed) at 80.99% branch coverage.
+
 ## 0.14.0 - 2026-06-12
 
 **Agent-grade `--json` and stdout discipline.** The two P0 items from the CLI audit: a clean machine-readable read surface and a strict stdout/stderr split, so an agent can loop distill and parse it reliably.
