@@ -3,7 +3,8 @@
 import pytest
 from typer.testing import CliRunner
 
-from distill import _cli_impl, cli
+from distill import cli
+from distill.commands import eval as _eval
 from distill.config import DistillConfig
 from distill.eval.harness import EvalRow
 from distill.eval.scoring import QualityScore
@@ -14,7 +15,7 @@ runner = CliRunner()
 @pytest.fixture
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
-    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_eval, "get_config", lambda: config)
     return config
 
 
@@ -103,7 +104,7 @@ def _mock_gpu_24gb(monkeypatch):
         gpu_type="nvidia", gpu_name="RTX 4090", vram_gb=24.0, system_ram_gb=64.0, is_container=False
     )
     monkeypatch.setattr(hardware, "detect_hardware", lambda: profile)
-    monkeypatch.setattr(_cli_impl, "_ollama_model_sizes", lambda: {"huge:70b": 40.0})
+    monkeypatch.setattr(_eval, "_ollama_model_sizes", lambda: {"huge:70b": 40.0})
 
 
 def test_eval_skips_local_model_that_exceeds_vram(mock_config, monkeypatch):
@@ -184,9 +185,9 @@ def test_eval_local_only_works_without_cloud_key(tmp_path, monkeypatch):
     # No XAI key: anchor/judge "auto" must resolve to local models so a local-only
     # user can eval without any cloud key or fuss.
     config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
-    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_eval, "get_config", lambda: config)
     _mock_no_gpu(monkeypatch)
-    monkeypatch.setattr(_cli_impl, "_best_local_model", lambda: "gemma4:26b")
+    monkeypatch.setattr(_eval, "_best_local_model", lambda: "gemma4:26b")
     import distill.eval as eval_pkg
 
     captured = {}

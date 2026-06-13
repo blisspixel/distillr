@@ -33,8 +33,9 @@ ALLOWLIST: dict[str, int] = {
     # doctor check helpers -> distill/doctor/checks.py (slice 1a): 8202 -> 8093
     # (net of the re-import block the doctor command still needs);
     # doctor + health commands -> commands/doctor.py (slice 1b): 8093 -> 7346;
-    # status -> commands/maintain.py (Maintain slice 3): 7346 -> 7201.
-    "distill/commands/_logic.py": 7201,
+    # status -> commands/maintain.py (Maintain slice 3): 7346 -> 7201;
+    # eval + ollama-model helpers -> commands/eval.py (Maintain slice 4): 7201 -> 6983.
+    "distill/commands/_logic.py": 6983,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
