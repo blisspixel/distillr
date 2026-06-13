@@ -36,8 +36,9 @@ ALLOWLIST: dict[str, int] = {
     # status -> commands/maintain.py (Maintain slice 3): 7346 -> 7201;
     # eval + ollama-model helpers -> commands/eval.py (Maintain slice 4): 7201 -> 6983;
     # migrate + corpus -> commands/maintain.py (Maintain slice 5): 6983 -> 6884;
-    # dashboard + serve -> commands/maintain.py (Maintain slice 6): 6884 -> 6845.
-    "distill/commands/_logic.py": 6845,
+    # dashboard + serve -> commands/maintain.py (Maintain slice 6): 6884 -> 6845;
+    # resynthesize + reanalyze -> commands/reprocess.py (Maintain slice 7): 6845 -> 6483.
+    "distill/commands/_logic.py": 6483,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
