@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
 from distill.commands import maintain as _maintain
 from distill.commands import reports as _reports
@@ -2693,7 +2694,7 @@ class TestSiteCommands:
             captured.update(query=query, **kwargs)
             return mock_config, cli.CostTracker(), []
 
-        monkeypatch.setattr(_cli_impl, "_preview_learning_selection", fake_preview)
+        monkeypatch.setattr(_discover, "_preview_learning_selection", fake_preview)
 
         result = runner.invoke(cli.app, ["search", "Claude Code leak", "--hours", "20"])
 

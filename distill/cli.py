@@ -92,6 +92,7 @@ from distill.commands.ask import register as _register_ask
 from distill.commands.audit import register as _register_audit
 from distill.commands.claude_md import register as _register_claude_md
 from distill.commands.concepts import register as _register_concepts_recovery
+from distill.commands.discover import register as _register_discover
 from distill.commands.doctor import register as _register_doctor
 from distill.commands.eval import register as _register_eval
 from distill.commands.ingest import register as _register_ingest
@@ -114,6 +115,7 @@ _register_doctor(app)
 _register_eval(app)
 _register_reprocess(app)
 _register_reports(app)
+_register_discover(app)
 _register_view(app)
 
 __all__ = ["app", "main"]
