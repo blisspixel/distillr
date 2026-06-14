@@ -73,6 +73,8 @@ point-an-agent-at-a-folder tools leave to improvisation.
    re-running a merge is order-independent and changes nothing.
 6. **LLM proposes, Python decides.** Models emit rows and prose; structural decisions —
    merge, dedup, canonicalization, thresholds, verification — are deterministic code.
+   (The rule-vs-agent boundary this draws, grounded in current best practice, is the
+   charter in [`design/agentic-balance.md`](design/agentic-balance.md).)
 7. **No off-ledger spend.** Every model and transcription call is cost-tracked.
 8. **Verification gates re-ingestion.** A generated answer becomes corpus only after a
    grounding check against its cited sources.
