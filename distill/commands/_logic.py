@@ -41,9 +41,6 @@ from distill.cli_shared import (
     output_path as _output_path,
 )
 from distill.cli_shared import (
-    print_markdown_safely as _print_markdown_safely,
-)
-from distill.cli_shared import (
     require_api_key as _require_api_key,
 )
 from distill.cli_shared import (
@@ -65,11 +62,9 @@ from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import (
-    _file_link,
     _invoke_command,
     _preflight,
     _resolve_intent,
-    _resolve_topic_for_channel,
     get_config,
 )
 from distill.commands._json import emit_json as _emit_json
@@ -2237,204 +2232,9 @@ def _render_dashboard_html(version: str, snapshot: dict) -> str:  # noqa: C901 �
 # ─── Library Management ───────────────────────────────────────────────
 
 
-@app.command(rich_help_panel="Library")
-def add(
-    topic: str = typer.Argument(help="Topic to add channel to (e.g., 'ai', 'security')"),
-    url: str = typer.Argument(help="YouTube channel URL"),
-):
-    """Add a channel to a topic."""
-    config = get_config()
-    lib = Library(config)
-
-    name = resolve_channel_name(url)
-    console.print(f"Adding [bold]{name}[/bold] to topic [bold]{topic}[/bold]...")
-
-    if lib.add_channel(topic, url, name):
-        console.print(f"[green]Added {name} to {topic}[/green]")
-        console.print(f"[dim]Next: distill run {topic}[/dim]")
-    else:
-        console.print(f"[yellow]{name} already exists in {topic}[/yellow]")
-
-
-@app.command(rich_help_panel="Library")
-def remove(
-    topic: str = typer.Argument(help="Topic", autocompletion=_complete_topics),
-    url: str = typer.Argument(help="YouTube channel URL to remove"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
-):
-    """Remove a channel from a topic."""
-    config = get_config()
-    lib = Library(config)
-
-    if not yes and not _tty_confirm(
-        f"Remove channel from '{topic}'? (library entry only, data stays on disk)"
-    ):
-        raise typer.Abort()
-
-    if lib.remove_channel(topic, url):
-        console.print(f"[green]Removed from {topic}[/green]")
-    else:
-        console.print(f"[yellow]Not found in {topic}[/yellow]")
-
-
 # ─── Browsing & Inspection ────────────────────────────────────────────
 # `show`, `package-latest`, `synthesis`, `findings` (+ their `_show_payload` /
 # `_emit_content_json` helpers) moved to commands/view.py (decomposition slice 4).
-
-
-@app.command(rich_help_panel="View")
-def diff(
-    topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
-    watch: str | None = typer.Option(
-        None,
-        "--watch",
-        help="Compare against this topic-watch's last run",
-        autocompletion=_complete_topic_watch_names,
-    ),
-    days: int = typer.Option(
-        7, "--days", "-d", help="Fallback comparison window when no topic-watch baseline exists"
-    ),
-    limit: int = typer.Option(10, "--limit", "-n", help="Max items to show per change section"),
-    write: bool = typer.Option(
-        True,
-        "--write/--no-write",
-        help="Write the latest topic diff as a slugged Markdown artifact",
-    ),
-):
-    """Show what changed in a topic since the last watch run or a fallback window."""
-    config = get_config()
-    lib = Library(config)
-    topic, _channel = _resolve_topic_for_channel(lib, topic, None)
-
-    if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
-        console.print(f"[red]Topic not found: {topic}[/red]")
-        raise typer.Exit(1)
-
-    baseline, watch_name, query, cadence = _resolve_topic_diff_baseline(
-        lib,
-        topic,
-        watch_name=watch,
-        days=days,
-    )
-    details = _collect_topic_change_details(config, lib, topic, baseline)
-    summary = str(details.get("summary", "no recent change detected"))
-    generated_at = details.get("generated_at") or datetime.now()
-    effective_baseline = details.get("effective_baseline") or (baseline or generated_at)
-    rendered = _render_topic_diff_markdown(
-        config,
-        title=f"# Topic Diff: {topic}",
-        topic=topic,
-        summary=summary,
-        baseline=baseline,
-        effective_baseline=effective_baseline,
-        generated_at=generated_at,
-        watch_name=watch_name,
-        query=query,
-        cadence=cadence,
-        new_videos=list(details.get("new_videos", [])),
-        new_pages=list(details.get("new_pages", [])),
-        new_papers=list(details.get("new_papers", [])),
-        refreshed_outputs=list(details.get("refreshed_outputs", [])),
-        limit=limit,
-    )
-
-    console.print(Panel(f"[bold]Topic Diff: {topic}[/bold]", border_style="cyan"))
-    _print_markdown_safely(console, rendered)
-
-    if write:
-        diff_path = write_markdown_artifact(
-            config.topic_dir(topic),
-            "topic_diff",
-            rendered,
-            identity=topic,
-            frontmatter=base_frontmatter(
-                artifact_type="topic_diff",
-                title=f"Topic Diff: {topic}",
-                topic=topic,
-                source="distill",
-                tags=tags_for(topic, "diff"),
-                synthesis_scope="operational",
-                extra={
-                    "watch_name": watch_name or "",
-                    "query": query or "",
-                    "cadence": cadence or "",
-                    "legacy_filename": "topic_diff.md",
-                },
-            ),
-        )
-        history_path = _append_topic_change_history(
-            config,
-            topic=topic,
-            summary=summary,
-            baseline=baseline,
-            generated_at=generated_at,
-            watch_name=watch_name,
-            query=query,
-            cadence=cadence,
-            new_videos=list(details.get("new_videos", [])),
-            new_pages=list(details.get("new_pages", [])),
-            new_papers=list(details.get("new_papers", [])),
-            refreshed_outputs=list(details.get("refreshed_outputs", [])),
-        )
-        console.print()
-        console.print(f"  {_file_link(diff_path)}")
-        console.print(f"  {_file_link(history_path)}")
-        console.print(f"  [dim]distill findings {topic}  |  distill synthesis {topic}[/dim]")
-
-
-@app.command(rich_help_panel="View")
-def trends(
-    topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
-    limit: int = typer.Option(
-        8, "--limit", "-n", help="How many recent change windows to summarize"
-    ),
-    write: bool = typer.Option(
-        True,
-        "--write/--no-write",
-        help="Write the latest topic trends as a slugged Markdown artifact",
-    ),
-):
-    """Show recent topic momentum using recorded diff history."""
-    config = get_config()
-    lib = Library(config)
-    topic, _channel = _resolve_topic_for_channel(lib, topic, None)
-
-    if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
-        console.print(f"[red]Topic not found: {topic}[/red]")
-        raise typer.Exit(1)
-
-    records = _load_topic_change_history(config, topic)
-    rendered = _render_topic_trends_markdown(
-        config,
-        topic=topic,
-        records=records,
-        generated_at=datetime.now(),
-        limit=limit,
-    )
-
-    console.print(Panel(f"[bold]Topic Trends: {topic}[/bold]", border_style="magenta"))
-    _print_markdown_safely(console, rendered)
-
-    if write:
-        trends_path = write_markdown_artifact(
-            config.topic_dir(topic),
-            "topic_trends",
-            rendered,
-            identity=topic,
-            frontmatter=base_frontmatter(
-                artifact_type="topic_trends",
-                title=f"Topic Trends: {topic}",
-                topic=topic,
-                source="distill",
-                tags=tags_for(topic, "trends"),
-                synthesis_scope="operational",
-                extra={"legacy_filename": "topic_trends.md"},
-            ),
-        )
-        console.print()
-        console.print(f"  {_file_link(trends_path)}")
-        console.print(f"  {_file_link(_topic_change_history_path(config, topic))}")
-        console.print(f"  [dim]distill diff {topic}  |  distill findings {topic}[/dim]")
 
 
 # ─── Processing ────────────────────────────────────────────────────────

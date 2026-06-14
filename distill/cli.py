@@ -37,7 +37,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _effective_days,
     _expand_learning_queries,
     _expand_paper_queries,
-    _file_link,
     _filter_recent_candidates,
     _format_date,
     _format_metric,
@@ -83,6 +82,10 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     topic_app,
     topic_watch_app,
 )
+
+# _file_link's canonical home is _helpers; _logic no longer imports it, so
+# re-export from the source to preserve cli._file_link for tests.
+from distill.commands._helpers import _file_link  # noqa: F401
 
 # Register commands defined in dedicated modules (kept out of the 7k-line
 # _logic.py). The import side-effect attaches the command to ``app``.

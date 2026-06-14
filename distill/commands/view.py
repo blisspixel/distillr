@@ -20,6 +20,7 @@ from rich.table import Table
 from distill._console import console
 from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import print_markdown_safely as _print_markdown_safely
+from distill.cli_shared import tty_confirm as _tty_confirm
 from distill.commands._helpers import _file_link, _resolve_topic_for_channel, get_config
 from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import format_date as _format_date
@@ -29,20 +30,42 @@ from distill.commands._json import json_mode_active as _json_mode_active
 # Shell-completion helpers still live in `_logic`. Imported one-way here (no
 # cycle: `_logic` does not import this module at top level). Extracting the
 # completion helpers to `_helpers` is a later decomposition step.
-from distill.commands._logic import _complete_topics, _complete_watched_channels
+from distill.commands._logic import (
+    _append_topic_change_history,
+    _collect_topic_change_details,
+    _complete_topic_watch_names,
+    _complete_topics,
+    _complete_watched_channels,
+    _load_topic_change_history,
+    _render_topic_diff_markdown,
+    _render_topic_trends_markdown,
+    _resolve_topic_diff_baseline,
+    _topic_change_history_path,
+)
+from distill.ingestors.youtube.discovery import resolve_channel_name
 from distill.library import Library
-from distill.library.paths import artifact_exists, find_artifact
+from distill.library.paths import (
+    artifact_exists,
+    base_frontmatter,
+    find_artifact,
+    tags_for,
+    write_markdown_artifact,
+)
 from distill.library.state import ChannelState
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
 __all__ = [
+    "add",
+    "diff",
     "findings",
     "library_cmd",
     "package_latest",
     "register",
+    "remove",
     "show",
     "synthesis",
+    "trends",
     "videos",
 ]
 
@@ -714,6 +737,197 @@ def findings(
     console.print(f"  [dim]distill export {topic}{ch_flag}  |  distill open {topic}[/dim]")
 
 
+def add(
+    topic: str = typer.Argument(help="Topic to add channel to (e.g., 'ai', 'security')"),
+    url: str = typer.Argument(help="YouTube channel URL"),
+):
+    """Add a channel to a topic."""
+    config = get_config()
+    lib = Library(config)
+
+    name = resolve_channel_name(url)
+    console.print(f"Adding [bold]{name}[/bold] to topic [bold]{topic}[/bold]...")
+
+    if lib.add_channel(topic, url, name):
+        console.print(f"[green]Added {name} to {topic}[/green]")
+        console.print(f"[dim]Next: distill run {topic}[/dim]")
+    else:
+        console.print(f"[yellow]{name} already exists in {topic}[/yellow]")
+
+
+def remove(
+    topic: str = typer.Argument(help="Topic", autocompletion=_complete_topics),
+    url: str = typer.Argument(help="YouTube channel URL to remove"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+):
+    """Remove a channel from a topic."""
+    config = get_config()
+    lib = Library(config)
+
+    if not yes and not _tty_confirm(
+        f"Remove channel from '{topic}'? (library entry only, data stays on disk)"
+    ):
+        raise typer.Abort()
+
+    if lib.remove_channel(topic, url):
+        console.print(f"[green]Removed from {topic}[/green]")
+    else:
+        console.print(f"[yellow]Not found in {topic}[/yellow]")
+
+
+def diff(
+    topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
+    watch: str | None = typer.Option(
+        None,
+        "--watch",
+        help="Compare against this topic-watch's last run",
+        autocompletion=_complete_topic_watch_names,
+    ),
+    days: int = typer.Option(
+        7, "--days", "-d", help="Fallback comparison window when no topic-watch baseline exists"
+    ),
+    limit: int = typer.Option(10, "--limit", "-n", help="Max items to show per change section"),
+    write: bool = typer.Option(
+        True,
+        "--write/--no-write",
+        help="Write the latest topic diff as a slugged Markdown artifact",
+    ),
+):
+    """Show what changed in a topic since the last watch run or a fallback window."""
+    config = get_config()
+    lib = Library(config)
+    topic, _channel = _resolve_topic_for_channel(lib, topic, None)
+
+    if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
+        console.print(f"[red]Topic not found: {topic}[/red]")
+        raise typer.Exit(1)
+
+    baseline, watch_name, query, cadence = _resolve_topic_diff_baseline(
+        lib,
+        topic,
+        watch_name=watch,
+        days=days,
+    )
+    details = _collect_topic_change_details(config, lib, topic, baseline)
+    summary = str(details.get("summary", "no recent change detected"))
+    generated_at = details.get("generated_at") or datetime.now()
+    effective_baseline = details.get("effective_baseline") or (baseline or generated_at)
+    rendered = _render_topic_diff_markdown(
+        config,
+        title=f"# Topic Diff: {topic}",
+        topic=topic,
+        summary=summary,
+        baseline=baseline,
+        effective_baseline=effective_baseline,
+        generated_at=generated_at,
+        watch_name=watch_name,
+        query=query,
+        cadence=cadence,
+        new_videos=list(details.get("new_videos", [])),
+        new_pages=list(details.get("new_pages", [])),
+        new_papers=list(details.get("new_papers", [])),
+        refreshed_outputs=list(details.get("refreshed_outputs", [])),
+        limit=limit,
+    )
+
+    console.print(Panel(f"[bold]Topic Diff: {topic}[/bold]", border_style="cyan"))
+    _print_markdown_safely(console, rendered)
+
+    if write:
+        diff_path = write_markdown_artifact(
+            config.topic_dir(topic),
+            "topic_diff",
+            rendered,
+            identity=topic,
+            frontmatter=base_frontmatter(
+                artifact_type="topic_diff",
+                title=f"Topic Diff: {topic}",
+                topic=topic,
+                source="distill",
+                tags=tags_for(topic, "diff"),
+                synthesis_scope="operational",
+                extra={
+                    "watch_name": watch_name or "",
+                    "query": query or "",
+                    "cadence": cadence or "",
+                    "legacy_filename": "topic_diff.md",
+                },
+            ),
+        )
+        history_path = _append_topic_change_history(
+            config,
+            topic=topic,
+            summary=summary,
+            baseline=baseline,
+            generated_at=generated_at,
+            watch_name=watch_name,
+            query=query,
+            cadence=cadence,
+            new_videos=list(details.get("new_videos", [])),
+            new_pages=list(details.get("new_pages", [])),
+            new_papers=list(details.get("new_papers", [])),
+            refreshed_outputs=list(details.get("refreshed_outputs", [])),
+        )
+        console.print()
+        console.print(f"  {_file_link(diff_path)}")
+        console.print(f"  {_file_link(history_path)}")
+        console.print(f"  [dim]distill findings {topic}  |  distill synthesis {topic}[/dim]")
+
+
+def trends(
+    topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
+    limit: int = typer.Option(
+        8, "--limit", "-n", help="How many recent change windows to summarize"
+    ),
+    write: bool = typer.Option(
+        True,
+        "--write/--no-write",
+        help="Write the latest topic trends as a slugged Markdown artifact",
+    ),
+):
+    """Show recent topic momentum using recorded diff history."""
+    config = get_config()
+    lib = Library(config)
+    topic, _channel = _resolve_topic_for_channel(lib, topic, None)
+
+    if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
+        console.print(f"[red]Topic not found: {topic}[/red]")
+        raise typer.Exit(1)
+
+    records = _load_topic_change_history(config, topic)
+    rendered = _render_topic_trends_markdown(
+        config,
+        topic=topic,
+        records=records,
+        generated_at=datetime.now(),
+        limit=limit,
+    )
+
+    console.print(Panel(f"[bold]Topic Trends: {topic}[/bold]", border_style="magenta"))
+    _print_markdown_safely(console, rendered)
+
+    if write:
+        trends_path = write_markdown_artifact(
+            config.topic_dir(topic),
+            "topic_trends",
+            rendered,
+            identity=topic,
+            frontmatter=base_frontmatter(
+                artifact_type="topic_trends",
+                title=f"Topic Trends: {topic}",
+                topic=topic,
+                source="distill",
+                tags=tags_for(topic, "trends"),
+                synthesis_scope="operational",
+                extra={"legacy_filename": "topic_trends.md"},
+            ),
+        )
+        console.print()
+        console.print(f"  {_file_link(trends_path)}")
+        console.print(f"  {_file_link(_topic_change_history_path(config, topic))}")
+        console.print(f"  [dim]distill diff {topic}  |  distill findings {topic}[/dim]")
+
+
 def register(app: typer.Typer) -> None:
     """Attach the view commands to the app (called from distill.cli)."""
     app.command(name="library", rich_help_panel="Library")(library_cmd)
@@ -722,3 +936,7 @@ def register(app: typer.Typer) -> None:
     app.command(name="package-latest", rich_help_panel="View")(package_latest)
     app.command(rich_help_panel="View")(synthesis)
     app.command(rich_help_panel="View")(findings)
+    app.command(rich_help_panel="Library")(add)
+    app.command(rich_help_panel="Library")(remove)
+    app.command(rich_help_panel="View")(diff)
+    app.command(rich_help_panel="View")(trends)
