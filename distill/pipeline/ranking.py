@@ -161,6 +161,17 @@ def _parse_rerank_response(content: str) -> list[dict]:
 def _heuristic_rank(
     query: str, videos: list[VideoInfo], *, skeptical: bool = False
 ) -> list[RankedVideo]:
+    """Deterministic, no-model ranking -- the honest tier-4 fallback, not a quality judge.
+
+    Composed of keyword/length/metadata heuristics (`_practicality_score`,
+    `_topicality_score`, token overlap, duration bands, engagement). Each is a
+    brittle proxy for a semantic call ("is this on-topic / practical / credible?")
+    and is used ONLY when no model is configured (the LLM rerank in `rerank_videos`
+    is the primary signal whenever a model is available, per P1) or as a supplement
+    to fill out the model's picks. The right reading is "a transparent best-effort
+    order without a model", never "a quality score" -- the model is the judge when
+    there is one. See docs/design/model-judgment-vs-brittle-fallbacks.md.
+    """
     ranked = []
     for video in videos:
         relevance = _query_overlap(query, video)
@@ -287,6 +298,9 @@ def _credibility_score(video: VideoInfo) -> float:
 
 
 def _practicality_score(query: str, video: VideoInfo) -> float:
+    # Brittle keyword proxy for "is this practical/how-to vs news?" -- booster and
+    # penalty word lists. A tier-4 fallback heuristic only (see _heuristic_rank);
+    # the model judges practicality when one is available.
     text = f"{video.title} {video.description}".lower()
     boosters = [
         "best practice",
@@ -313,6 +327,9 @@ def _practicality_score(query: str, video: VideoInfo) -> float:
 
 
 def _topicality_score(query: str, video: VideoInfo) -> float:
+    # Brittle token-overlap proxy for "is this on-topic?" with an ignore-list. A
+    # tier-4 fallback heuristic only (see _heuristic_rank); the model judges
+    # topicality when one is available.
     ignored = {
         "best",
         "practice",
@@ -565,6 +582,13 @@ def _parse_paper_rerank_response(content: str) -> list[dict]:
 
 
 def _heuristic_rank_papers(query: str, papers: list[PaperRecord]) -> list[RankedPaper]:
+    """Deterministic, no-model paper ranking -- the honest tier-4 fallback.
+
+    Like `_heuristic_rank` for videos: token overlap + abstract length/substance
+    keywords + recency + author/category metadata. Brittle proxies used only when
+    no model is configured (the LLM rerank is primary whenever one is); a
+    transparent best-effort order, not a quality judgment.
+    """
     ranked: list[RankedPaper] = []
     for paper in papers:
         relevance = _paper_query_overlap(query, paper)
@@ -598,6 +622,9 @@ def _paper_query_overlap(query: str, paper: PaperRecord) -> float:
 
 
 def _paper_depth_score(paper: PaperRecord) -> float:
+    # Brittle proxy for "is this paper substantive?" by abstract length + a
+    # substance-phrase keyword list. Tier-4 fallback heuristic only (see
+    # _heuristic_rank_papers); the model judges depth when one is available.
     abstract = (paper.abstract or "").lower()
     if not abstract:
         return 0.2
