@@ -21,8 +21,9 @@ deliberately NOT a gate. As a floor it would wrongly *exclude* a faithful,
 judge-approved candidate that paraphrases or is terse — the brittle-proxy failure
 mode the charter condemns. It survives only as the offline golden-CI regression
 tripwire and an advisory diagnostic shown in the report; ``threshold`` sets that
-advisory reference, nothing more. "High" confidence additionally needs statistical
-backing (min fixtures + a bootstrap win-rate CI lower bound clearing the floor).
+advisory reference, nothing more. Confidence reflects the model judges' agreement
+and the reason states the fixture count plainly -- there is no bootstrap CI or
+min-fixture gate (statistical theater over a tiny sample; reverted 2026-06-14).
 
 This is the end state of the inversion fix that started by gating on the judge
 instead of the brittle composite — see
@@ -37,7 +38,6 @@ from dataclasses import dataclass
 
 from distill.eval.harness import EvalRow
 from distill.eval.judge import FAITHFULNESS_ORDINAL
-from distill.eval.stats import bootstrap_mean_ci
 
 __all__ = [
     "EvalSummary",
@@ -49,15 +49,13 @@ __all__ = [
 ]
 
 DEFAULT_THRESHOLD: float = 0.90
-# A candidate "loses" to the anchor in the judge's eyes below this win-rate.
+# A candidate is "at par" with the anchor in the judge's eyes at/above this
+# win-rate. A plain threshold over the model's verdict (charter-allowed), not a
+# statistic. There is deliberately NO bootstrap CI / min-fixture machinery: a
+# bootstrap over 3 fixtures is statistical theater (reverted 2026-06-14, see
+# docs/design/model-judgment-vs-brittle-fallbacks.md). Sample size is stated
+# plainly in the reason instead; real statistics wait for a large fixture set.
 _WINRATE_FLOOR: float = 0.45
-# Minimum fixtures backing a *migration* before it can earn "high" confidence.
-# Below this, a switch is still recommended if it clears the gates, but only at
-# "tentative" — three fixtures cannot certify a model swap, and a bootstrap CI
-# over so few points is itself unreliable. This is the honest small-N cap; the
-# 1.0 fixture scale-up (~20) is what lets a real run reach "high". The anchor
-# ("stay put") needs no such certification.
-_MIN_FIXTURES_FOR_HIGH: int = 8
 
 
 @dataclass(frozen=True)
@@ -74,11 +72,6 @@ class ModelSummary:
     # "unfaithful" fixture blocks a migration to this model, however well it scores.
     unfaithful_fixtures: int = 0
     mean_faithfulness: float | None = None  # mean ordinal over judged rows; None if unjudged
-    # Paired bootstrap CI (90%) on the per-fixture win-rate vs the anchor — the
-    # honest uncertainty band on "is this candidate at par?". None for the anchor
-    # / when there is no judge signal.
-    winrate_ci_low: float | None = None
-    winrate_ci_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -107,7 +100,6 @@ def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
         for r in ok
         if r.faithfulness in FAITHFULNESS_ORDINAL
     ]
-    ci_low, ci_high = bootstrap_mean_ci(winrates) if winrates else (None, None)
     return ModelSummary(
         model=model,
         mean_composite=_mean(composites),
@@ -119,8 +111,6 @@ def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
         errors=sum(1 for r in rows if r.error),
         unfaithful_fixtures=sum(1 for r in ok if r.faithfulness == "unfaithful"),
         mean_faithfulness=_mean(faith_ordinals) if faith_ordinals else None,
-        winrate_ci_low=ci_low,
-        winrate_ci_high=ci_high,
     )
 
 
@@ -240,8 +230,8 @@ def _confidence(
 ) -> tuple[str, str]:
     """Confidence in the recommendation. The model judges already gated the *pick*
     (a non-anchor rec passed the faithfulness floor AND the win-rate floor); this
-    only nuances the label, using faithfulness and the bootstrap statistics -- the
-    brittle composite is never consulted here."""
+    only nuances the label from faithfulness, and states the fixture count -- the
+    brittle composite is never consulted here, and there is no statistics gate."""
     if rec.errors > 0:
         return (
             "tentative",
@@ -266,9 +256,10 @@ def _confidence(
             )
         return "high", "recommends the anchor — no cheaper model is certified at par"
     # Non-anchor rec: it already passed the faithfulness floor AND win-rate >=
-    # floor. "High" additionally requires statistical backing -- enough fixtures,
-    # and a bootstrap CI whose lower bound clears the at-par floor -- so a
-    # 3-fixture run can't crown a switch on a bare mean.
+    # floor (the model judges agree). Confidence reflects that agreement; the
+    # reason states the fixture count plainly so the reader weighs the sample
+    # size themselves. No bootstrap / min-N gate -- a switch is advice, never an
+    # auto-action, so honest reporting beats fake statistics over a tiny sample.
     if (
         rec.mean_faithfulness is not None
         and anchor.mean_faithfulness is not None
@@ -281,34 +272,18 @@ def _confidence(
             f"{rec.model} is judged at par, but it grades less faithful than the anchor on "
             f"average — inspect the flagged claims before switching",
         )
-    if rec.rows < _MIN_FIXTURES_FOR_HIGH:
-        return (
-            "tentative",
-            f"only {rec.rows} fixture(s) back this pick — high confidence needs "
-            f">= {_MIN_FIXTURES_FOR_HIGH}; add fixtures before trusting a switch",
-        )
-    if rec.winrate_ci_low is None or rec.winrate_ci_low < _WINRATE_FLOOR:
-        low = rec.winrate_ci_low
-        band = f"{low:.2f}" if low is not None else "n/a"
-        return (
-            "tentative",
-            f"{rec.model}'s win-rate 90% CI lower bound ({band}) dips below the at-par floor "
-            f"({_WINRATE_FLOOR:.2f}) — the evidence is too noisy to certify a switch",
-        )
     return (
         "high",
-        f"{rec.model} is judged faithful and at par with the anchor, and the win-rate CI lower "
-        f"bound ({rec.winrate_ci_low:.2f}) clears the floor across {rec.rows} fixtures",
+        f"{rec.model} is judged faithful and at par with the anchor across {rec.rows} fixture(s) "
+        f"(small sample — the eval recommends, it never switches your model for you)",
     )
 
 
-def _winrate_str(s: ModelSummary, anchor: str, *, with_ci: bool = False) -> str:
+def _winrate_str(s: ModelSummary, anchor: str) -> str:
     if s.model == anchor:
         return "anchor"
     if s.mean_winrate is None:
         return "—"
-    if with_ci and s.winrate_ci_low is not None and s.winrate_ci_high is not None:
-        return f"{s.mean_winrate:.2f} [{s.winrate_ci_low:.2f}-{s.winrate_ci_high:.2f}]"
     return f"{s.mean_winrate:.2f}"
 
 
@@ -404,7 +379,7 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
         suffix = f" ({', '.join(marks)})" if marks else ""
         out.append(
             f"| `{s.model}`{suffix} | {s.mean_composite:.2f} | {s.min_composite:.2f} "
-            f"| {s.max_composite:.2f} | {_winrate_str(s, summary.anchor, with_ci=True)} "
+            f"| {s.max_composite:.2f} | {_winrate_str(s, summary.anchor)} "
             f"| {_faithful_str(s)} | ${s.total_cost:.4f} |"
         )
     out += [
@@ -419,10 +394,10 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
         "wrongly exclude a faithful, judge-approved candidate that paraphrases or is terse. The "
         "Faithful column is the mean of per-fixture verdicts (faithful=1.0, minor=0.5, "
         "unfaithful=0.0); '—' means no judge was available. "
-        f"Win-rate shows a 90% paired bootstrap CI in brackets; **high** confidence in a switch "
-        f"requires at least {_MIN_FIXTURES_FOR_HIGH} fixtures and a CI lower bound clearing the "
-        f"at-par floor ({_WINRATE_FLOOR:.2f}) — a small fixture set is recommended only "
-        "tentatively, never certified.",
+        f"A candidate is 'at par' at win-rate >= {_WINRATE_FLOOR:.2f}. There is no bootstrap CI or "
+        "min-fixture gate (a bootstrap over a few fixtures is statistical theater); the fixture "
+        "count is stated in the recommendation instead, and the eval only ever recommends -- it "
+        "never switches your configured model.",
         "",
     ]
     return "\n".join(out)
