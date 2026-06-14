@@ -50,6 +50,7 @@ def mock_config(tmp_path):
     original_reports = _reports.get_config  # report/export moved to commands/reports.py
     original_papers = _papers.get_config  # paper/papers moved to commands/papers.py
     original_process = _process.get_config  # video/channel/run moved to commands/process.py
+    original_discover = _discover.get_config  # discover-panel cmds moved to commands/discover.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -61,6 +62,7 @@ def mock_config(tmp_path):
     _reports.get_config = lambda: config
     _papers.get_config = lambda: config
     _process.get_config = lambda: config
+    _discover.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -75,6 +77,7 @@ def mock_config(tmp_path):
     _reports.get_config = original_reports
     _papers.get_config = original_papers
     _process.get_config = original_process
+    _discover.get_config = original_discover
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -1094,7 +1097,7 @@ class TestTopicCommands:
         def fake_monitor(**kwargs):
             captured.update(kwargs)
 
-        monkeypatch.setattr(_cli_impl, "monitor", fake_monitor)
+        monkeypatch.setattr(_discover, "monitor", fake_monitor)
 
         result = runner.invoke(cli.app, ["topic", "watch", "fabric", "--preview"])
 
@@ -1487,7 +1490,7 @@ class TestWatchCommands:
             captured["seed_only"] = seed_only
             captured["report"] = report
 
-        monkeypatch.setattr(_cli_impl, "site_batch_cmd", fake_site_batch_cmd)
+        monkeypatch.setattr(_discover, "site_batch_cmd", fake_site_batch_cmd)
 
         result = runner.invoke(
             cli.app,
@@ -1506,7 +1509,7 @@ class TestWatchCommands:
             captured["query"] = query
             captured["kwargs"] = kwargs
 
-        monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
+        monkeypatch.setattr(_discover, "_run_learning_command", fake_run_learning_command)
 
         result = runner.invoke(
             cli.app,
@@ -2397,8 +2400,10 @@ class TestSiteCommands:
         )
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_discover_gc = _discover.get_config
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _discover.get_config = lambda: config
 
         try:
             monkeypatch.setattr(
@@ -2443,6 +2448,7 @@ class TestSiteCommands:
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _discover.get_config = original_discover_gc
 
     def test_site_writes_section_update_when_manifest_changes(self, tmp_path, monkeypatch):
         config = DistillConfig(
@@ -2452,8 +2458,10 @@ class TestSiteCommands:
         )
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_discover_gc = _discover.get_config
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _discover.get_config = lambda: config
 
         try:
             site_dir = config.site_dir("web", "example.com")
@@ -2508,6 +2516,7 @@ class TestSiteCommands:
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _discover.get_config = original_discover_gc
 
     def test_site_ingest_attachments_writes_attachment_artifacts(self, tmp_path, monkeypatch):
         config = DistillConfig(
@@ -2517,8 +2526,10 @@ class TestSiteCommands:
         )
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_discover_gc = _discover.get_config
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _discover.get_config = lambda: config
 
         try:
             monkeypatch.setattr(
@@ -2589,6 +2600,7 @@ class TestSiteCommands:
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _discover.get_config = original_discover_gc
 
     def test_site_reuses_existing_insights_when_page_is_unchanged(self, tmp_path, monkeypatch):
         config = DistillConfig(
@@ -2598,8 +2610,10 @@ class TestSiteCommands:
         )
         original = cli.get_config
         original_impl = _cli_impl.get_config
+        original_discover_gc = _discover.get_config
         cli.get_config = lambda: config
         _cli_impl.get_config = lambda: config
+        _discover.get_config = lambda: config
 
         try:
             page = SitePage(
@@ -2653,6 +2667,7 @@ class TestSiteCommands:
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
+            _discover.get_config = original_discover_gc
 
     def test_site_scrape_only_rejects_report(self, tmp_path):
         config = DistillConfig(
