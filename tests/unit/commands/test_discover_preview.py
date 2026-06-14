@@ -4,6 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import discover as _discover
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
@@ -17,6 +18,7 @@ runner = CliRunner()
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_discover, "get_config", lambda: config)
     return config
 
 
@@ -70,7 +72,7 @@ def test_from_preview_replays_exact_saved_set(mock_config, monkeypatch):
     def fake_ingest(**kwargs):
         captured.update(kwargs)
 
-    monkeypatch.setattr(_cli_impl, "_discover_ingest_set", fake_ingest)
+    monkeypatch.setattr(_discover, "_discover_ingest_set", fake_ingest)
 
     result = runner.invoke(
         cli.app, ["discover", "--from-preview", preview_id, "--topic", "t", "--yes"]
@@ -132,16 +134,18 @@ def _patch_discover_pipeline(monkeypatch):
             ),
         ),
     ]
-    monkeypatch.setattr(_cli_impl, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
-    monkeypatch.setattr(_cli_impl, "search_arxiv_multi", lambda *a, **k: [object()])
-    monkeypatch.setattr(_cli_impl, "_discover_fetch_videos", lambda *a, **k: [object()])
-    monkeypatch.setattr(_cli_impl, "_discover_rerank", lambda *a, **k: ranked)
+    monkeypatch.setattr(_discover, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
+    monkeypatch.setattr(_discover, "search_arxiv_multi", lambda *a, **k: [object()])
+    monkeypatch.setattr(_discover, "_discover_fetch_videos", lambda *a, **k: [object()])
+    monkeypatch.setattr(_discover, "_discover_rerank", lambda *a, **k: ranked)
     return ranked
 
 
 def test_fresh_topic_defaults_to_sizing_menu(mock_config, monkeypatch):
     _patch_discover_pipeline(monkeypatch)
     captured = {}
+    # The sizing menu's ingest runs inside _discover_sizing_flow (still in _logic),
+    # which resolves _discover_ingest_set from the _logic namespace.
     monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: captured.update(k))
     # The sizing menu is interactive; force the TTY path so CliRunner's input is read.
     monkeypatch.setattr("distill.commands._helpers._isatty", lambda: True)
@@ -160,7 +164,7 @@ def test_fresh_topic_cancel_aborts(mock_config, monkeypatch):
     _patch_discover_pipeline(monkeypatch)
     called = {"ingest": False}
     monkeypatch.setattr(
-        _cli_impl,
+        _discover,
         "_discover_ingest_set",
         lambda **k: called.__setitem__("ingest", True),
     )
@@ -180,7 +184,7 @@ def test_fresh_topic_non_tty_does_not_ingest_without_yes(mock_config, monkeypatc
     _patch_discover_pipeline(monkeypatch)
     called = {"ingest": False}
     monkeypatch.setattr(
-        _cli_impl,
+        _discover,
         "_discover_ingest_set",
         lambda **k: called.__setitem__("ingest", True),
     )
@@ -194,7 +198,7 @@ def test_fresh_topic_non_tty_does_not_ingest_without_yes(mock_config, monkeypatc
 def test_yes_bypasses_sizing_menu_on_fresh_topic(mock_config, monkeypatch):
     _patch_discover_pipeline(monkeypatch)
     captured = {}
-    monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: captured.update(k))
+    monkeypatch.setattr(_discover, "_discover_ingest_set", lambda **k: captured.update(k))
 
     # --yes -> skip the menu, take the rigor path (balanced=0.5 keeps only the paper).
     result = runner.invoke(cli.app, ["discover", "compose music", "--topic", "fresh", "--yes"])
@@ -215,7 +219,7 @@ def test_topic_create_drives_real_discover_wiring(mock_config, monkeypatch):
     """
     _patch_discover_pipeline(monkeypatch)
     captured = {}
-    monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: captured.update(k))
+    monkeypatch.setattr(_discover, "_discover_ingest_set", lambda **k: captured.update(k))
 
     result = runner.invoke(
         cli.app,

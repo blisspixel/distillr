@@ -10,6 +10,7 @@ Registered via register() from distill.cli.
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 import typer
@@ -23,8 +24,14 @@ from distill.commands._logic import (
     _ACCENT,
     _apply_verify_override,
     _detect_ramp_source,
+    _discover_fetch_videos,
+    _discover_generate_queries,
+    _discover_ingest_set,
+    _discover_rerank,
+    _discover_sizing_flow,
+    _display_ranked_discover,
+    _is_fresh_topic,
     _normalize_topic_watch_ranking_mode,
-    _persist_lens,
     _preview_learning_selection,
     _process_site_seed,
     _run_concepts_after_ingest,
@@ -35,473 +42,34 @@ from distill.commands._logic import (
     _validate_learning_options,
     topic_watch_run,
 )
+from distill.ingestors.papers.arxiv import PaperRecord, search_arxiv_multi
 from distill.ingestors.sites.scraper import SiteSeed, load_site_batch
+from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
+from distill.library.ingested import ingested_source_ids
+from distill.library.intent import make_intent, save_intent
 from distill.library.paths import find_artifact, site_name_from_url
 from distill.pipeline.analysis.site import synthesize_site_topic
-from distill.pipeline.costs import CostTracker
-from distill.pipeline.report.brief import run_research_brief
+from distill.pipeline.costs import CostTracker, estimate_discover_items, load_cost_calibration
+from distill.pipeline.discovery import (
+    RIGOR_LEVELS,
+    detect_score_cliff,
+    filter_ingested_candidates,
+    rigor_threshold,
+)
 from distill.pipeline.report.synthesize import run_synthesis
 from distill.pipeline.summary import RunSummary, display_summary, log_preview_cost
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
 __all__ = [
-    "brief_cmd",
-    "explore_cmd",
-    "latest_cmd",
-    "learn_cmd",
+    "discover",
     "monitor",
     "ramp_up",
     "register",
-    "research_brief_cmd",
-    "search_cmd",
     "site_batch_cmd",
     "site_cmd",
     "synthesize_cmd",
 ]
-
-
-def search_cmd(
-    query: str = typer.Argument(help="Topic or question to learn from YouTube"),
-    days: int = typer.Option(60, "--days", "-d", help="Recency window in days (default: 60)"),
-    hours: int | None = typer.Option(
-        None,
-        "--hours",
-        help="Exact recency window in hours (overrides day precision where possible)",
-    ),
-    limit: int = typer.Option(
-        5, "--limit", "-n", help="How many best-pick videos to show (default: 5)"
-    ),
-    sort: str = typer.Option(
-        "relevance", "--sort", help="Candidate search order: relevance or date"
-    ),
-    per_channel_cap: int = typer.Option(2, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-):
-    """Preview the best recent YouTube videos Distill would learn from."""
-    _preflight()
-    _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    config, tracker, _selected = _preview_learning_selection(
-        query,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        header="Search",
-        table_title="Best Videos to Learn From",
-        hours=hours,
-    )
-    if rerank and not config.xai_api_key:
-        console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
-    console.print('\n[dim]Run `distill learn "..."` to process these picks.[/dim]')
-    log_preview_cost(tracker, config.library_dir, "search")
-
-
-def explore_cmd(
-    query: str = typer.Argument(help="Topic or question to explore on YouTube"),
-    days: int = typer.Option(90, "--days", "-d", help="Recency window in days (default: 90)"),
-    limit: int = typer.Option(
-        10, "--limit", "-n", help="How many ranked videos to show (default: 10)"
-    ),
-    sort: str = typer.Option(
-        "relevance", "--sort", help="Candidate search order: relevance or date"
-    ),
-    per_channel_cap: int = typer.Option(3, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-):
-    """Broader preview mode for exploring a topic before processing it."""
-    _preflight()
-    _validate_learning_options(sort, limit, days, per_channel_cap)
-    config, tracker, _selected = _preview_learning_selection(
-        query,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        header="Explore",
-        table_title="Broader Topic Coverage",
-    )
-    if rerank and not config.xai_api_key:
-        console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
-    console.print(
-        '\n[dim]Run `distill latest "..."` or `distill learn "..."` to process the best set.[/dim]'
-    )
-    log_preview_cost(tracker, config.library_dir, "explore")
-
-
-def research_brief_cmd(
-    topics: list[str] = typer.Option(
-        ...,
-        "--topic",
-        "-t",
-        help="Topic(s) to include in the briefing. Pass multiple times or comma-separated.",
-    ),
-    name: str = typer.Option(
-        ...,
-        "--name",
-        "-n",
-        help="Output filename stub. Writes to output/briefing-{name}.md.",
-    ),
-    context: str | None = typer.Option(
-        None,
-        "--context",
-        help="Inline briefing context/instructions. Use --context-file for longer content.",
-    ),
-    context_file: Path | None = typer.Option(
-        None,
-        "--context-file",
-        help="Path to a markdown file whose contents become the briefing prompt.",
-    ),
-):
-    """Run a multi-topic Gemini Deep Research briefing grounded on existing corpora.
-
-    Unlike `distill report` (4-phase strategic report, one topic) and `distill brief`
-    (fast Grok-based single-topic brief), this runs a single Deep Research call
-    across one or more topics with a user-supplied context block that shapes the
-    briefing for a specific audience, decision, or downstream agent.
-
-    The context file IS the prompt — distill handles file gathering, File Search
-    grounding, Deep Research invocation, and output. Cost: ~$3-5 per briefing.
-
-    Example:
-        distill research-brief -t rag-research -t vector-dbs \\
-            --context-file docs/briefing-contexts/product-decision.md --name rag-q2
-    """
-    expanded: list[str] = []
-    for entry in topics:
-        expanded.extend(t.strip() for t in entry.split(",") if t.strip())
-    if not expanded:
-        console.print("[red]At least one --topic is required[/red]")
-        raise typer.Exit(1)
-
-    if context_file:
-        if not context_file.exists():
-            console.print(f"[red]--context-file not found: {context_file}[/red]")
-            raise typer.Exit(1)
-        file_text = context_file.read_text(encoding="utf-8")
-        context_text = f"{context}\n\n{file_text}" if context else file_text
-    else:
-        context_text = context or ""
-
-    if not context_text.strip():
-        console.print(
-            "[red]Provide --context or --context-file — the briefing needs instructions[/red]"
-        )
-        raise typer.Exit(1)
-
-    config = get_config()
-    _require_api_key(config.gemini_api_key, "GEMINI_API_KEY required for Deep Research")
-
-    tracker = CostTracker()
-    summary = RunSummary(command="research-brief")
-    summary.set_metadata(topic=",".join(expanded), workflow="research-brief")
-
-    try:
-        output_path = run_research_brief(
-            topics=expanded,
-            context=context_text,
-            name=name,
-            config=config,
-            tracker=tracker,
-        )
-    except Exception as exc:
-        summary.add_exception("research-brief", exc, context=",".join(expanded))
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        raise
-    if output_path is None:
-        summary.add_issue(
-            "research-brief",
-            "Research briefing did not produce results",
-            context=",".join(expanded),
-        )
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        raise typer.Exit(1)
-    summary.add_output(output_path)
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-
-
-def learn_cmd(
-    query: str = typer.Argument(help="Topic or question to learn from YouTube"),
-    topic: str | None = typer.Option(
-        None, "--topic", "-t", help="Topic to file under (default: derived from query)"
-    ),
-    days: int = typer.Option(60, "--days", "-d", help="Recency window in days (default: 60)"),
-    hours: int | None = typer.Option(
-        None,
-        "--hours",
-        help="Exact recency window in hours (overrides day precision where possible)",
-    ),
-    limit: int = typer.Option(
-        5, "--limit", "-n", help="How many best-pick videos to process (default: 5)"
-    ),
-    sort: str = typer.Option(
-        "relevance", "--sort", help="Candidate search order: relevance or date"
-    ),
-    per_channel_cap: int = typer.Option(2, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-    save: bool = typer.Option(
-        True,
-        "--save/--ephemeral",
-        help="Save discovered channels into the library (default: save)",
-    ),
-    report: bool = typer.Option(
-        False, "--report", "-r", help="Generate a topic report after processing"
-    ),
-    test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
-):
-    """Learn a topic fast by processing the best recent YouTube videos by default."""
-    _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    _run_learning_command(
-        query,
-        topic=topic,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=False,
-        header="Learning",
-        hours=hours,
-    )
-
-
-def brief_cmd(
-    query: str = typer.Argument(help="Topic or question to learn and turn into a short brief"),
-    topic: str | None = typer.Option(
-        None, "--topic", "-t", help="Topic to file under (default: derived from query)"
-    ),
-    days: int = typer.Option(60, "--days", "-d", help="Recency window in days (default: 60)"),
-    hours: int | None = typer.Option(
-        None,
-        "--hours",
-        help="Exact recency window in hours (overrides day precision where possible)",
-    ),
-    limit: int = typer.Option(
-        5, "--limit", "-n", help="How many best-pick videos to process (default: 5)"
-    ),
-    sort: str = typer.Option(
-        "relevance", "--sort", help="Candidate search order: relevance or date"
-    ),
-    per_channel_cap: int = typer.Option(2, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-    save: bool = typer.Option(
-        True,
-        "--save/--ephemeral",
-        help="Save discovered channels into the library (default: save)",
-    ),
-    report: bool = typer.Option(
-        False,
-        "--report",
-        "-r",
-        help="Also generate a full topic report after processing",
-    ),
-    test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
-):
-    """Learn a topic and generate a concise markdown brief."""
-    _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    _run_learning_command(
-        query,
-        topic=topic,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=True,
-        header="Briefing",
-        hours=hours,
-    )
-
-
-def latest_cmd(
-    query: str = typer.Argument(help="Topic or question to get current on quickly"),
-    topic: str | None = typer.Option(
-        None, "--topic", "-t", help="Topic to file under (default: derived from query)"
-    ),
-    days: int = typer.Option(3, "--days", "-d", help="Recency window in days (default: 3)"),
-    hours: int | None = typer.Option(
-        None,
-        "--hours",
-        help="Exact recency window in hours (overrides day precision where possible)",
-    ),
-    limit: int = typer.Option(
-        10, "--limit", "-n", help="How many best-pick videos to process (default: 10)"
-    ),
-    sort: str = typer.Option("date", "--sort", help="Candidate search order: relevance or date"),
-    per_channel_cap: int = typer.Option(3, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        True, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-    rigor: str = typer.Option(
-        "off",
-        "--rigor",
-        help="Quality bar on the rerank score: strict | balanced | loose | off (default off). "
-        "Drops candidates below the per-source threshold before the channel cap; needs --rerank.",
-    ),
-    lens: str = typer.Option(
-        "",
-        "--lens",
-        help="Analysis lens for per-source insights: research | practitioner | competitive | "
-        "academic | general. Persists as the topic's intent so later ingests inherit it. "
-        "Default: the topic's saved intent, else neutral 'general'.",
-    ),
-    verify: str = typer.Option(
-        "",
-        "--verify",
-        help="Claim-grounding mode for this run: warn | strict | off "
-        "(default: the DISTILL_VERIFY setting, else warn).",
-    ),
-    top_by_date: bool = typer.Option(
-        False,
-        "--top-by-date",
-        help="Pick the most-recently-uploaded videos in the window, ignoring "
-        "rerank quality scoring. Use when you literally want 'last N uploads' "
-        "rather than relevance- or quality-ranked picks. Implies --no-rerank.",
-    ),
-    save: bool = typer.Option(
-        True,
-        "--save/--ephemeral",
-        help="Save discovered channels into the library (default: save)",
-    ),
-    preview: bool = typer.Option(
-        False, "--preview", help="Preview the selected set without processing it"
-    ),
-    report: bool = typer.Option(
-        False, "--report", "-r", help="Generate a topic report after processing"
-    ),
-    brief: bool = typer.Option(
-        False, "--brief", help="Generate a concise topic brief after processing"
-    ),
-    test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
-    concepts_flag: bool = typer.Option(
-        False,
-        "--concepts",
-        help="Run the concept playbook extraction over the topic after ingest succeeds",
-    ),
-):
-    """Opinionated topic-first workflow for getting current fast."""
-    from distill.pipeline.discovery import RIGOR_LEVELS_WITH_OFF
-
-    _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    if rigor not in RIGOR_LEVELS_WITH_OFF:
-        console.print(
-            f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS_WITH_OFF)}."
-        )
-        raise typer.Exit(1)
-    _apply_verify_override(verify)
-    # --top-by-date is the user saying "I want the N most recent uploads, period."
-    # Force-disable LLM rerank and query expansion so chronological mode does
-    # not quietly spend tokens on ranking/search variants it will ignore.
-    effective_rerank = rerank and not top_by_date
-    effective_expand = not top_by_date
-    if lens:
-        _persist_lens(get_config(), topic or _topic_from_query(query), query, lens)
-    if preview:
-        config, tracker, _selected = _preview_learning_selection(
-            query,
-            days=days,
-            hours=hours,
-            limit=limit,
-            sort=sort,
-            per_channel_cap=per_channel_cap,
-            shorts=shorts,
-            rerank=effective_rerank,
-            header="Latest",
-            table_title="Latest Best-Pick Learning Set",
-            expand=effective_expand,
-            top_by_date=top_by_date,
-            rigor=rigor,
-        )
-        if effective_rerank and not config.xai_api_key:
-            console.print(
-                "[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]"
-            )
-        console.print("\n[dim]Run without `--preview` to process this set.[/dim]")
-        log_preview_cost(
-            tracker,
-            config.library_dir,
-            "latest",
-            metadata={"topic": topic} if topic else None,
-        )
-        return
-
-    # Thread concept extraction through the learning workflow's tracker so
-    # --concepts spend lands in the same cost_log.jsonl row as the rest of
-    # the run, instead of going untracked. Earlier the call site here
-    # invoked the concepts helper without a tracker because the learning
-    # flow owns its tracker internally and doesn't return it.
-    from collections.abc import Callable as _Callable
-
-    post_ingest_callback: _Callable[[str, CostTracker], None] | None = (
-        (lambda topic_name, tracker: _run_concepts_after_ingest(topic_name, tracker=tracker))
-        if concepts_flag
-        else None
-    )
-    _run_learning_command(
-        query,
-        topic=topic,
-        days=days,
-        hours=hours,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=effective_rerank,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=brief,
-        header="Latest",
-        expand=effective_expand,
-        top_by_date=top_by_date,
-        post_ingest_callback=post_ingest_callback,
-        rigor=rigor,
-    )
 
 
 def synthesize_cmd(
@@ -948,16 +516,445 @@ def site_batch_cmd(
         _run_scope_report(target_topic, config, tracker, scope="topic", test=test, summary=summary)
 
 
+def discover(  # noqa: C901 — legacy, will refactor
+    goal: str = typer.Argument(
+        "",
+        help='Research goal, e.g. "help an AI compose great music". Omit if using --goal-file.',
+    ),
+    goal_file: Path | None = typer.Option(
+        None,
+        "--goal-file",
+        help="Path to a markdown file whose contents become the goal. Enables reusable, "
+        "goal-driven topic refreshes. Overrides the positional argument if both are provided.",
+    ),
+    topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
+    paper_limit: int = typer.Option(10, "--paper-limit", help="Max papers to ingest (default: 10)"),
+    video_limit: int = typer.Option(10, "--video-limit", help="Max videos to ingest (default: 10)"),
+    site_seeds: Path | None = typer.Option(
+        None,
+        "--site-seeds",
+        help="Optional JSON/TXT seed file of curated website URLs to include in the goal-aware rerank",
+    ),
+    site_limit: int = typer.Option(
+        10,
+        "--site-limit",
+        help="Max curated website seeds to ingest when --site-seeds is provided (default: 10)",
+    ),
+    papers_only: bool = typer.Option(
+        False,
+        "--papers-only",
+        help="Skip videos entirely (equivalent to --video-limit 0). Use when the topic "
+        "has thin or unrigorous YouTube coverage and you only want academic sources.",
+    ),
+    videos_only: bool = typer.Option(
+        False,
+        "--videos-only",
+        help="Skip papers entirely (equivalent to --paper-limit 0). Use when the topic "
+        "is better covered by talks/lectures than by formal papers.",
+    ),
+    days: int = typer.Option(
+        365, "--days", "-d", help="YouTube recency window in days (default: 365)"
+    ),
+    shorts: bool = typer.Option(
+        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
+    ),
+    ingest_attachments: bool = typer.Option(
+        False,
+        "--ingest-attachments",
+        help="For selected site seeds, pull PDF text and supported embedded video transcripts into the page corpus",
+    ),
+    from_gaps: bool = typer.Option(
+        False,
+        "--from-gaps",
+        help="Derive the goal from an existing topic's coverage gaps (requires --topic). "
+        "Turns research_gaps into auto-generated discover queries.",
+    ),
+    rigor: str = typer.Option(
+        "balanced",
+        "--rigor",
+        help="Quality bar for the reranked shortlist: strict | balanced | loose. "
+        "Drops candidates whose rerank score is below the level's threshold.",
+    ),
+    lens: str = typer.Option(
+        "",
+        "--lens",
+        help="Analysis lens for per-source insights: research | practitioner | competitive | "
+        "academic | general. Default: inferred from the goal. Persisted as the topic's intent so "
+        "later ingests inherit it.",
+    ),
+    verify: str = typer.Option(
+        "",
+        "--verify",
+        help="Claim-grounding mode for this run: warn | strict | off "
+        "(default: the DISTILL_VERIFY setting, else warn).",
+    ),
+    preview: bool = typer.Option(
+        False, "--preview", help="Show the goal-ranked plan without ingesting"
+    ),
+    from_preview: str = typer.Option(
+        "",
+        "--from-preview",
+        help="Replay and ingest the exact set saved by an earlier --preview run, by its id. "
+        "Skips query-generation and the rerank, so you commit to precisely what you saw.",
+    ),
+    size: bool = typer.Option(
+        False,
+        "--size",
+        help="Force the size-then-approve menu (excellent / good / everything, each with its "
+        "spend) even on a topic that already has artifacts. On a fresh topic this is the default.",
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt"),
+):
+    """Goal-aware cross-source discovery: papers + videos, reranked against a goal.
+
+    With ``--from-gaps``, the goal is synthesized from the topic's coverage gaps
+    (the inverse of goal-driven discovery): "you are thin on X, single-source on
+    Y" becomes "find sources that fill X and Y". With ``--from-preview <id>``, the
+    exact shortlist a previous ``--preview`` run saved is ingested verbatim.
+    """
+
+    _preflight()
+    if from_preview and (from_gaps or preview):
+        console.print(
+            "[red]--from-preview replays a saved set; it can't combine with "
+            "--from-gaps or --preview.[/red]"
+        )
+        raise typer.Exit(1)
+    if rigor not in RIGOR_LEVELS:
+        console.print(f"[red]Unknown --rigor '{rigor}'.[/red] Choose: {', '.join(RIGOR_LEVELS)}.")
+        raise typer.Exit(1)
+    _apply_verify_override(verify)
+    if papers_only and videos_only:
+        console.print(
+            "[red]--papers-only and --videos-only are mutually exclusive. "
+            "Pick one, or omit both to discover across both sources.[/red]"
+        )
+        raise typer.Exit(1)
+    if papers_only:
+        video_limit = 0
+    if videos_only:
+        paper_limit = 0
+    if paper_limit < 0 or video_limit < 0 or site_limit < 0:
+        console.print("[red]Source limits cannot be negative.[/red]")
+        raise typer.Exit(1)
+    if goal_file is not None:
+        if not goal_file.exists():
+            console.print(f"[red]Goal file not found: {goal_file}[/red]")
+            raise typer.Exit(1)
+        goal = goal_file.read_text(encoding="utf-8").strip()
+    if from_gaps and not topic:
+        console.print("[red]--from-gaps requires --topic <name> to analyze.[/red]")
+        raise typer.Exit(1)
+    if not goal.strip() and not from_gaps and not from_preview:
+        console.print("[red]Goal is empty. Provide a goal argument or --goal-file path.[/red]")
+        raise typer.Exit(1)
+
+    config = get_config()
+    _require_api_key(config.xai_api_key, "XAI_API_KEY required for goal-aware discovery")
+    tracker = CostTracker()
+
+    if from_preview:
+        from distill.pipeline.preview_cache import (
+            PreviewCacheError,
+            load_preview,
+            preview_cache_dir,
+        )
+
+        try:
+            snapshot = load_preview(preview_cache_dir(config.library_dir), from_preview)
+        except PreviewCacheError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        replay_topic = topic or _topic_from_query(snapshot.goal[:80])
+        replay_summary = RunSummary(command="discover")
+        replay_summary.set_metadata(topic=replay_topic, workflow="discover", source_type="mixed")
+        replay_papers = [it for it in snapshot.items if it.kind == "paper"]
+        replay_videos = [it for it in snapshot.items if it.kind == "video"]
+        replay_sites = [it for it in snapshot.items if it.kind == "site"]
+        goal_line = snapshot.goal.splitlines()[0][:120] if snapshot.goal else ""
+        console.print(
+            f"\n[bold]Replaying previewed set {snapshot.id}[/bold] "
+            f"({len(replay_papers)} paper(s), {len(replay_videos)} video(s), "
+            f"{len(replay_sites)} site(s)) into topic '{replay_topic}'"
+        )
+        if goal_line:
+            console.print(f"[dim]Goal: {goal_line}[/dim]")
+        console.print()
+        if snapshot.goal:
+            save_intent(
+                config.topic_dir(replay_topic), make_intent(snapshot.goal, lens=lens, rigor=rigor)
+            )
+        _discover_ingest_set(
+            topic_name=replay_topic,
+            config=config,
+            tracker=tracker,
+            summary=replay_summary,
+            ranked_papers=replay_papers,
+            ranked_videos=replay_videos,
+            ranked_sites=replay_sites,
+            ingest_attachments=ingest_attachments,
+            yes=yes,
+        )
+        return
+
+    if from_gaps:
+        from distill.pipeline.gaps import gap_discovery_goal, topic_gap_summary
+
+        gap_summary = topic_gap_summary(config, topic)
+        goal = gap_discovery_goal(gap_summary)
+        console.print(f"[cyan]Gap-driven discovery for '{topic}'. Detected gaps:[/cyan]")
+        for g in gap_summary["gaps"]:
+            console.print(f"  [dim]- {g}[/dim]")
+        console.print(f"  [dim]Synthesized goal:[/dim] {goal[:160]}...")
+        console.print()
+
+    topic_name = topic or _topic_from_query(goal[:80])
+    if not preview:
+        # Persist the corpus intent so analysis (this run and later ingests into
+        # this topic) reads sources through the goal-inferred lens.
+        save_intent(config.topic_dir(topic_name), make_intent(goal, lens=lens, rigor=rigor))
+    if not from_gaps:
+        # Persist the goal<->topic association so catch-up can surface the
+        # refresh command on a cadence (the goal-file watch hook). Gap-derived
+        # goals are synthetic and refresh via --from-gaps instead.
+        from distill.pipeline.goals import save_topic_goal
+
+        save_topic_goal(
+            config.library_dir,
+            topic_name,
+            goal,
+            goal_file=str(goal_file) if goal_file is not None else "",
+            site_seeds=str(site_seeds) if site_seeds is not None else "",
+            now_iso=datetime.now().isoformat(),
+        )
+    effective_site_limit = site_limit if site_seeds is not None else 0
+    if paper_limit <= 0 and video_limit <= 0 and effective_site_limit <= 0:
+        console.print(
+            "[red]Specify at least one source: papers, videos, or --site-seeds with --site-limit > 0.[/red]"
+        )
+        raise typer.Exit(1)
+    summary = RunSummary(command="discover")
+    summary.set_metadata(topic=topic_name, workflow="discover", source_type="mixed")
+
+    sites: list[SiteSeed] = []
+    if site_seeds is not None:
+        if not site_seeds.exists():
+            console.print(f"[red]Site seed file not found: {site_seeds}[/red]")
+            raise typer.Exit(1)
+        site_batch = load_site_batch(site_seeds, topic_override=topic_name)
+        if effective_site_limit > 0:
+            sites = site_batch.seeds
+
+    # Goal files can be multi-line; keep console header compact.
+    goal_headline = goal.splitlines()[0][:120] if goal else ""
+    console.print(f"\n[bold]Discover: {goal_headline}[/bold]")
+    if goal_file is not None:
+        console.print(f"[dim]Goal loaded from {goal_file}[/dim]")
+    console.print(
+        f"[dim]Topic: {topic_name} | Papers: {paper_limit} | Videos: {video_limit} | Sites: {effective_site_limit} "
+        f"| Days: {days}[/dim]\n"
+    )
+    if site_seeds is not None:
+        console.print(f"[dim]Curated site seeds: {len(sites)} loaded from {site_seeds}[/dim]")
+        console.print()
+
+    # When the user has restricted to a single source via --papers-only / --videos-only,
+    # don't pay for query generation on the disabled side.
+    paper_query_count = 5 if paper_limit > 0 else 0
+    video_query_count = 5 if video_limit > 0 else 0
+    paper_queries, video_queries = _discover_generate_queries(
+        goal, config, tracker, paper_count=paper_query_count, video_count=video_query_count
+    )
+    if not paper_queries and not video_queries and not sites:
+        console.print("[red]Query generation produced no queries. Try a more concrete goal.[/red]")
+        raise typer.Exit(1)
+
+    if paper_queries:
+        console.print(
+            f"[dim]Paper queries ({len(paper_queries)}): {', '.join(paper_queries)}[/dim]"
+        )
+    if video_queries:
+        console.print(
+            f"[dim]Video queries ({len(video_queries)}): {', '.join(video_queries)}[/dim]"
+        )
+    if sites:
+        console.print(f"[dim]Curated site candidates: {len(sites)}[/dim]")
+    console.print()
+
+    papers: list[PaperRecord] = []
+    if paper_queries:
+        per_query_cap = max(paper_limit, 8)
+        papers = search_arxiv_multi(paper_queries, limit_per_query=per_query_cap, sort="relevance")
+        console.print(
+            f"[dim]Found {len(papers)} unique papers across {len(paper_queries)} search(es)[/dim]"
+        )
+
+    videos: list[VideoInfo] = []
+    if video_queries:
+        videos = _discover_fetch_videos(
+            video_queries, effective_days=days, candidate_cap=20, shorts=shorts
+        )
+        console.print(
+            f"[dim]Found {len(videos)} unique videos across {len(video_queries)} search(es)[/dim]"
+        )
+
+    # Corpus-aware dedup: drop searched candidates the topic already contains so
+    # rerank slots and ingest spend go to new material, and gap-driven re-runs
+    # converge instead of re-suggesting the corpus. Curated site seeds are kept
+    # (user-provided intent; the site pipeline reuses unchanged page insights).
+
+    papers, videos, excluded_ingested = filter_ingested_candidates(
+        papers, videos, ingested=ingested_source_ids(config.topic_dir(topic_name))
+    )
+    if excluded_ingested:
+        console.print(
+            f"[dim]Excluded {excluded_ingested} candidate(s) already in '{topic_name}'.[/dim]"
+        )
+
+    if not papers and not videos and not sites:
+        if excluded_ingested:
+            # A converged corpus is a clean no-op, not an error: every candidate
+            # the search surfaced is already ingested.
+            console.print(
+                f"[green]Corpus is current: every candidate found is already in "
+                f"'{topic_name}'.[/green]"
+            )
+            display_summary(
+                summary, cost_tracker=tracker, console=console, log_dir=config.library_dir
+            )
+            return
+        console.print("[red]No candidates found. Broaden the goal or widen --days.[/red]")
+        raise typer.Exit(1)
+
+    console.print("\n[dim]Reranking against goal...[/dim]")
+    try:
+        ranked = _discover_rerank(goal, papers, videos, sites, config, tracker)
+    except (TypeError, ValueError) as exc:
+        # Malformed rerank output (e.g. a null/non-numeric score) must not crash
+        # discover with a traceback; surface a clean error like the empty case.
+        console.print(f"[red]Rerank produced malformed output: {exc}[/red]")
+        raise typer.Exit(1) from exc
+    if not ranked:
+        console.print("[red]Rerank produced no ranked items.[/red]")
+        raise typer.Exit(1)
+
+    # Preview-as-default: on a fresh topic (or when --size is forced), present the
+    # size-then-approve menu instead of auto-applying --rigor. --yes and --preview
+    # keep the non-interactive paths below.
+    if not preview and not yes and (size or _is_fresh_topic(config, topic_name)):
+        _discover_sizing_flow(
+            goal=goal,
+            topic_name=topic_name,
+            config=config,
+            tracker=tracker,
+            summary=summary,
+            ranked=ranked,
+            paper_limit=paper_limit,
+            video_limit=video_limit,
+            site_limit=effective_site_limit,
+            ingest_attachments=ingest_attachments,
+        )
+        return
+
+    # --rigor: drop candidates below the level's rerank-score (final_score) threshold.
+
+    threshold = rigor_threshold(rigor)
+    kept = [r for r in ranked if r.final_score >= threshold]
+    if not kept:
+        console.print(
+            f"[yellow]No candidates clear the '{rigor}' bar (score >= {threshold:.2f}). "
+            "Try --rigor loose or a broader goal.[/yellow]"
+        )
+        raise typer.Exit(1)
+    if len(kept) < len(ranked):
+        console.print(
+            f"  [dim]--rigor {rigor}: kept {len(kept)}/{len(ranked)} candidates "
+            f"(score >= {threshold:.2f})[/dim]"
+        )
+    ranked = kept
+
+    # Apply per-source limits after ranking
+    ranked_papers = [r for r in ranked if r.kind == "paper"][:paper_limit]
+    ranked_videos = [r for r in ranked if r.kind == "video"][:video_limit]
+    ranked_sites = [r for r in ranked if r.kind == "site"][:effective_site_limit]
+    shortlist = sorted(
+        ranked_papers + ranked_videos + ranked_sites,
+        key=lambda x: x.final_score,
+        reverse=True,
+    )
+
+    _display_ranked_discover(shortlist, title=f"Goal-Ranked Corpus Plan ({len(shortlist)} items)")
+
+    # Size the set: the score "cliff" marks the clearly-excellent top, and a
+    # metadata-aware, self-calibrating cost estimate shows the likely spend
+    # before committing (per-video duration scales the estimate; rates calibrate
+    # against cost_log.jsonl history once enough runs accrue).
+
+    cliff = detect_score_cliff([r.final_score for r in shortlist])
+    calibration = load_cost_calibration(config.library_dir)
+    estimate = estimate_discover_items(
+        papers=len(ranked_papers),
+        video_durations=[getattr(r.video, "duration", None) for r in ranked_videos],
+        sites=len(ranked_sites),
+        calibration=calibration,
+    )
+    console.print(
+        f"  [dim]Top {cliff} sit above the score cliff (the clearly-excellent set). "
+        f"Estimated ingest cost: {estimate.format()}.[/dim]"
+    )
+    # Record the shown estimate so the run log carries estimated-vs-actual and
+    # `distill costs` can report estimator accuracy.
+    summary.estimated_cost = estimate.expected
+
+    if preview:
+        from distill.pipeline.preview_cache import preview_cache_dir, save_preview
+
+        snapshot = save_preview(
+            preview_cache_dir(config.library_dir),
+            goal=goal,
+            model="",
+            rigor=rigor,
+            items=shortlist,
+            estimate={
+                "expected": estimate.expected,
+                "low": estimate.low,
+                "high": estimate.high,
+                "calibrated": estimate.calibrated,
+            },
+            now_iso=datetime.now().isoformat(),
+        )
+        console.print(
+            f"\n[dim]Previewed set saved as[/dim] [bold]{snapshot.id}[/bold]. "
+            "[dim]Ingest exactly this set with:[/dim]\n"
+            f"  [cyan]distill discover --from-preview {snapshot.id} --topic {topic_name}[/cyan]"
+        )
+        display_summary(
+            summary,
+            cost_tracker=tracker,
+            console=console,
+            log_dir=config.library_dir,
+            preview=True,
+        )
+        return
+
+    _discover_ingest_set(
+        topic_name=topic_name,
+        config=config,
+        tracker=tracker,
+        summary=summary,
+        ranked_papers=ranked_papers,
+        ranked_videos=ranked_videos,
+        ranked_sites=ranked_sites,
+        ingest_attachments=ingest_attachments,
+        yes=yes,
+    )
+
+
 def register(app: typer.Typer) -> None:
     """Attach the discover preview commands to the app (called from distill.cli)."""
-    app.command(name="search", rich_help_panel="Discover")(search_cmd)
-    app.command(name="explore", rich_help_panel="Discover")(explore_cmd)
-    app.command(name="research-brief", rich_help_panel="Discover")(research_brief_cmd)
-    app.command(name="learn", rich_help_panel="Discover")(learn_cmd)
-    app.command(name="brief", rich_help_panel="Discover")(brief_cmd)
-    app.command(name="latest", rich_help_panel="Discover")(latest_cmd)
     app.command(name="synthesize", rich_help_panel="Discover")(synthesize_cmd)
     app.command(name="monitor", rich_help_panel="Discover")(monitor)
     app.command(name="ramp-up", rich_help_panel="Discover")(ramp_up)
     app.command(name="site", rich_help_panel="Discover")(site_cmd)
     app.command(name="site-batch", rich_help_panel="Discover")(site_batch_cmd)
+    app.command(rich_help_panel="Discover")(discover)

@@ -11,6 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import discover as _discover
 from distill.commands import papers as _papers
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
@@ -25,6 +26,7 @@ def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
     monkeypatch.setattr(_papers, "get_config", lambda: config)
+    monkeypatch.setattr(_discover, "get_config", lambda: config)
     return config
 
 
@@ -64,9 +66,9 @@ def test_discover_drops_already_ingested_candidates_before_rerank(mock_config, m
     v_old = VideoInfo("vOld", "Old", "20260101", 600, "u")
     v_new = VideoInfo("vNew", "New", "20260102", 600, "u")
 
-    monkeypatch.setattr(_cli_impl, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
-    monkeypatch.setattr(_cli_impl, "search_arxiv_multi", lambda *a, **k: [p_old, p_new])
-    monkeypatch.setattr(_cli_impl, "_discover_fetch_videos", lambda *a, **k: [v_old, v_new])
+    monkeypatch.setattr(_discover, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
+    monkeypatch.setattr(_discover, "search_arxiv_multi", lambda *a, **k: [p_old, p_new])
+    monkeypatch.setattr(_discover, "_discover_fetch_videos", lambda *a, **k: [v_old, v_new])
     rerank_seen = {}
 
     def fake_rerank(goal, papers, videos, sites, config, tracker):
@@ -74,8 +76,8 @@ def test_discover_drops_already_ingested_candidates_before_rerank(mock_config, m
         rerank_seen["videos"] = videos
         return [_ranked_paper(p) for p in papers]
 
-    monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
-    monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: None)
+    monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
+    monkeypatch.setattr(_discover, "_discover_ingest_set", lambda **k: None)
 
     result = runner.invoke(cli.app, ["discover", "goal", "--topic", "t", "--yes"])
 
@@ -89,20 +91,20 @@ def test_discover_drops_already_ingested_candidates_before_rerank(mock_config, m
 def test_discover_all_duplicates_is_a_converged_noop_not_an_error(mock_config, monkeypatch):
     _seed_ingested(mock_config, "t", paper_id="2601.00001v1", video_id="vOld")
 
-    monkeypatch.setattr(_cli_impl, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
+    monkeypatch.setattr(_discover, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
     monkeypatch.setattr(
-        _cli_impl,
+        _discover,
         "search_arxiv_multi",
         lambda *a, **k: [PaperRecord(paper_id="2601.00001v1", title="Old", abstract="a")],
     )
     monkeypatch.setattr(
-        _cli_impl,
+        _discover,
         "_discover_fetch_videos",
         lambda *a, **k: [VideoInfo("vOld", "Old", "20260101", 600, "u")],
     )
     rerank_called = {"yes": False}
     monkeypatch.setattr(
-        _cli_impl,
+        _discover,
         "_discover_rerank",
         lambda *a, **k: rerank_called.__setitem__("yes", True) or [],
     )

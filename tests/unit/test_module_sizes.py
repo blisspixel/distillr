@@ -48,8 +48,10 @@ ALLOWLIST: dict[str, int] = {
     # paper + papers -> commands/papers.py (Discover slice 5): 5741 -> 5502;
     # video + channel + run -> commands/process.py (Process slice): 5502 -> 4958;
     # synthesize + monitor + ramp-up + site + site-batch -> commands/discover.py
-    # (Discover slice 6): 4958 -> 4507.
-    "distill/commands/_logic.py": 4507,
+    # (Discover slice 6): 4958 -> 4507;
+    # discover -> commands/discover.py (Discover slice 7): 4507 -> 4067
+    # (learning family split out to commands/learn.py to keep both under the cap).
+    "distill/commands/_logic.py": 4067,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

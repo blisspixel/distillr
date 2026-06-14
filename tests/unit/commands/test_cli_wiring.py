@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from distill import _cli_impl, cli
 from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
+from distill.commands import learn as _learn
 from distill.commands import maintain as _maintain
 from distill.commands import papers as _papers
 from distill.commands import process as _process
@@ -51,6 +52,9 @@ def mock_config(tmp_path):
     original_papers = _papers.get_config  # paper/papers moved to commands/papers.py
     original_process = _process.get_config  # video/channel/run moved to commands/process.py
     original_discover = _discover.get_config  # discover-panel cmds moved to commands/discover.py
+    original_learn = (
+        _learn.get_config
+    )  # search/explore/learn/brief/latest moved to commands/learn.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -63,6 +67,7 @@ def mock_config(tmp_path):
     _papers.get_config = lambda: config
     _process.get_config = lambda: config
     _discover.get_config = lambda: config
+    _learn.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -78,6 +83,7 @@ def mock_config(tmp_path):
     _papers.get_config = original_papers
     _process.get_config = original_process
     _discover.get_config = original_discover
+    _learn.get_config = original_learn
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -917,7 +923,7 @@ class TestTopicCommands:
         def fake_discover(**kwargs):
             captured.update(kwargs)
 
-        monkeypatch.setattr(_cli_impl, "discover", fake_discover)
+        monkeypatch.setattr(_discover, "discover", fake_discover)
 
         result = runner.invoke(
             cli.app,
@@ -1016,7 +1022,7 @@ class TestTopicCommands:
         assert captured["kwargs"]["header"] == "Topic Create"
 
     def test_topic_preview_does_not_save_profile(self, mock_config, monkeypatch):
-        monkeypatch.setattr(_cli_impl, "discover", lambda **kwargs: None)
+        monkeypatch.setattr(_discover, "discover", lambda **kwargs: None)
 
         result = runner.invoke(
             cli.app,
@@ -1041,7 +1047,7 @@ class TestTopicCommands:
             encoding="utf-8",
         )
         captured = {}
-        monkeypatch.setattr(_cli_impl, "discover", lambda **kwargs: captured.update(kwargs))
+        monkeypatch.setattr(_discover, "discover", lambda **kwargs: captured.update(kwargs))
 
         result = runner.invoke(
             cli.app,
@@ -1759,7 +1765,7 @@ class TestWatchCommands:
         ]
 
         monkeypatch.setattr(
-            _cli_impl,
+            _discover,
             "_discover_generate_queries",
             lambda goal, config, tracker, *, paper_count, video_count: (
                 ["transformer music"],
@@ -1767,12 +1773,12 @@ class TestWatchCommands:
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _discover,
             "search_arxiv_multi",
             lambda queries, limit_per_query=10, sort="relevance": papers_fixture,
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _discover,
             "_discover_fetch_videos",
             lambda queries, effective_days, candidate_cap, shorts: videos_fixture,
         )
@@ -1810,7 +1816,7 @@ class TestWatchCommands:
                 ),
             ]
 
-        monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
 
         # Must not execute ingestion under --preview
         analyze_calls: list = []
@@ -1867,16 +1873,16 @@ class TestWatchCommands:
             generate_calls.append(goal)
             return (["transformer music"], [])
 
-        monkeypatch.setattr(_cli_impl, "_discover_generate_queries", fake_generate)
+        monkeypatch.setattr(_discover, "_discover_generate_queries", fake_generate)
         monkeypatch.setattr(
-            _cli_impl,
+            _discover,
             "search_arxiv_multi",
             lambda queries, limit_per_query=10, sort="relevance": [
                 PaperRecord(paper_id="2604.99999v1", title="X", abstract="y")
             ],
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _discover,
             "_discover_rerank",
             lambda goal, papers, videos, sites, config, tracker: [
                 cli._RankedDiscoverItem(
@@ -1954,7 +1960,7 @@ class TestWatchCommands:
                 )
             ]
 
-        monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
 
         result = runner.invoke(
             cli.app,
@@ -2048,7 +2054,7 @@ class TestWatchCommands:
             path.write_text("# Topic synthesis", encoding="utf-8")
             return "topic synthesis"
 
-        monkeypatch.setattr(_cli_impl, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
         monkeypatch.setattr(_cli_impl, "_process_site_seed", fake_process_site_seed)
         monkeypatch.setattr(_cli_impl, "synthesize_site_topic", fake_synthesize_site_topic)
         monkeypatch.setattr(
@@ -2698,7 +2704,7 @@ class TestSiteCommands:
             captured.update(query=query, **kwargs)
             return mock_config, cli.CostTracker(), []
 
-        monkeypatch.setattr(_discover, "_preview_learning_selection", fake_preview)
+        monkeypatch.setattr(_learn, "_preview_learning_selection", fake_preview)
 
         result = runner.invoke(cli.app, ["latest", "Claude Code leak", "--preview"])
 
@@ -2717,7 +2723,7 @@ class TestSiteCommands:
             captured.update(query=query, **kwargs)
             return mock_config, cli.CostTracker(), []
 
-        monkeypatch.setattr(_discover, "_preview_learning_selection", fake_preview)
+        monkeypatch.setattr(_learn, "_preview_learning_selection", fake_preview)
 
         result = runner.invoke(cli.app, ["search", "Claude Code leak", "--hours", "20"])
 
