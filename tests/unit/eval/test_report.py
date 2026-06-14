@@ -28,15 +28,15 @@ def _rows(
     ]
 
 
-def test_summarize_no_crash_when_threshold_clears_nothing():
-    # threshold > 1.0 means even the anchor cannot clear its own bar; summarize
-    # must not crash on min([]). It recommends nothing, tentatively.
-    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
-    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55)
+def test_threshold_is_advisory_not_a_gate():
+    # The deterministic composite is no longer a gate: even an absurd composite
+    # reference (threshold 1.5) must NOT suppress a judge-certified pick. The
+    # model judges decide; the brittle keyword/length heuristic cannot exclude a
+    # faithful, at-par candidate (the brittle-proxy fix).
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None)
+    rows += _rows("local", [0.90] * 8, 0.0, 0.55)
     summary = summarize(rows, anchor="grok-4.3", threshold=1.5)
-    assert summary.recommended is None
-    assert summary.confidence == "tentative"
-    assert "clears the bar" in summary.confidence_reason
+    assert summary.recommended == "local"
 
 
 def test_recommends_cheapest_clearing_with_high_confidence():
@@ -48,14 +48,16 @@ def test_recommends_cheapest_clearing_with_high_confidence():
     assert summary.confidence == "high"
 
 
-def test_tentative_when_worst_fixture_dips_below_bar():
-    # mean 0.88 clears bar 0.855, but one fixture at 0.80 is below it.
-    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
-    rows += _rows("local", [0.92, 0.92, 0.80], 0.0, 0.55)
+def test_composite_does_not_exclude_a_faithful_at_par_candidate():
+    # The brittle-rule fix, asserted directly: a candidate with a LOW composite
+    # (terse / paraphrase-heavy -> the keyword/length heuristic scores it poorly)
+    # is still recommended when it is faithful and the judge confirms it at par.
+    # The composite must not veto a judge-approved switch.
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None, faithfulness="faithful")
+    rows += _rows("local", [0.30] * 8, 0.0, 0.60, faithfulness="faithful")  # low composite
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "local"
-    assert summary.confidence == "tentative"
-    assert "worst fixture" in summary.confidence_reason
+    assert summary.confidence == "high"
 
 
 def test_judge_vetoes_migration_when_it_favors_anchor():
@@ -87,7 +89,7 @@ def test_judge_certifies_migration_when_at_par():
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "local"
     assert summary.confidence == "high"
-    assert "judge confirms" in summary.confidence_reason
+    assert "at par" in summary.confidence_reason
 
 
 def test_faithfulness_vetoes_migration_even_when_pairwise_wins():

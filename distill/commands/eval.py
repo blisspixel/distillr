@@ -85,7 +85,8 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     threshold: float = typer.Option(
         0.90,
         "--threshold",
-        help="Recommend the cheapest model whose mean quality >= threshold x the anchor's",
+        help="Advisory composite reference shown in the report (x the anchor's mean). "
+        "NOT a gate — the model judges decide the switch",
     ),
     report: bool = typer.Option(
         False, "--report", help="Write the cost x quality table to .distill/eval/<workload>_<ts>.md"
@@ -102,13 +103,13 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
 ):
     """Compare models on cost x quality over frozen fixtures; recommend the cheapest that clears the bar.
 
-    A migration is gated by model judges, not the gameable deterministic composite:
-    a candidate must clear the composite floor, pass the faithfulness veto (graded
-    absolutely against the source), AND have the pairwise judge confirm it at par
-    with the anchor; with no neutral judge the eval fails closed (stay on the
-    incumbent). It recommends; it never switches your configured model. To go
-    cheaper than the grok-4.3 cloud floor, eval a local model (e.g.
-    `--models grok-4.3,qwen3.5:27b` with Ollama running).
+    A migration is gated by model judges, never the gameable deterministic
+    composite: a candidate must pass the faithfulness veto (graded absolutely
+    against the source) AND have the pairwise judge confirm it at par with the
+    anchor; with no neutral judge the eval fails closed (stay on the incumbent).
+    The composite is shown for diagnosis only. It recommends; it never switches
+    your configured model. To go cheaper than the grok-4.3 cloud floor, eval a
+    local model (e.g. `--models grok-4.3,qwen3.5:27b` with Ollama running).
     """
     from datetime import datetime
 

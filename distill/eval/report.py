@@ -1,26 +1,31 @@
 """Aggregate eval rows into a cost x quality summary + a recommendation.
 
-The recommendation is pure Python aggregation over model-judge signals, in the
+The recommendation is pure Python aggregation over **model-judge** signals, in the
 order the agentic-balance charter requires (model proposes, Python decides). A
-*migration* away from the incumbent anchor must clear three gates; the anchor
-itself needs none ("stay put" is the safe default):
+*migration* away from the incumbent anchor must clear two model-judged gates; the
+anchor itself needs neither ("stay put" is the safe default):
 
-1. **Composite floor** (deterministic) — clears ``threshold x anchor``. A cheap,
-   key-free guardrail that is admittedly blind to faithfulness and gameable by
-   verbose, keyword-stuffed output. Necessary, never sufficient.
-2. **Faithfulness floor** (absolute model judge, graded against the source) — a
+1. **Faithfulness floor** (absolute model judge, graded against the source) — a
    candidate judged unfaithful on any fixture is vetoed however it scores. This
    is the grounding veto, independent of the anchor's framing, so a fluent-but-
    unfaithful output can't win and a faithful-but-divergent one isn't punished
    for diverging (the eval-gate #3 fix).
-3. **Pairwise at-par** (relative model judge vs the anchor) — the *reliable*
+2. **Pairwise at-par** (relative model judge vs the anchor) — the *reliable*
    judge mode (June-2026 practice: relative ranking rho~0.95 vs absolute scoring
    kappa~0.45), so it is the primary ranking signal among the faithful: a switch
    is certified only when the win-rate confirms the candidate >= anchor. No judge
    signal => fail closed (recommend the incumbent).
 
-This inverts the earlier (broken) design where the brittle composite decided and
-the judge only tinted a "confidence" label — see
+The **deterministic composite** (``scoring.py`` keyword/length heuristics) is
+deliberately NOT a gate. As a floor it would wrongly *exclude* a faithful,
+judge-approved candidate that paraphrases or is terse — the brittle-proxy failure
+mode the charter condemns. It survives only as the offline golden-CI regression
+tripwire and an advisory diagnostic shown in the report; ``threshold`` sets that
+advisory reference, nothing more. "High" confidence additionally needs statistical
+backing (min fixtures + a bootstrap win-rate CI lower bound clearing the floor).
+
+This is the end state of the inversion fix that started by gating on the judge
+instead of the brittle composite — see
 ``docs/design/model-judgment-vs-brittle-fallbacks.md``. Rendering is plain strings
 + markdown (no rich dependency) so this stays trivially testable.
 """
@@ -127,28 +132,33 @@ class _Eligibility:
 
 
 def _eligible_for_migration(
-    summaries: list[ModelSummary], anchor: str, anchor_summary: ModelSummary, bar: float
+    summaries: list[ModelSummary], anchor: str, anchor_summary: ModelSummary
 ) -> _Eligibility:
-    """Which models may be recommended, in charter order. A *migration* away from
-    the anchor must clear three gates; the anchor itself needs none ("stay put" is
+    """Which models may be recommended over the anchor. A *migration* must clear
+    two **model-judged** gates; the anchor itself needs neither ("stay put" is
     safe):
 
-      1. Deterministic composite floor -- a necessary guardrail, gameable on its
-         own, never sufficient.
-      2. Faithfulness floor (absolute, source-anchored): an "unfaithful" candidate
-         is vetoed however well it scores or compares -- the grounding veto,
-         independent of the anchor's framing, so a fluent-but-unfaithful output
-         can't win and a faithful-but-divergent one isn't punished for diverging.
-      3. Pairwise at-par (primary ranking signal among the faithful): the reliable
+      1. Faithfulness floor (absolute, source-anchored): an "unfaithful" candidate
+         is vetoed however it compares -- the grounding veto, independent of the
+         anchor's framing, so a fluent-but-unfaithful output can't win and a
+         faithful-but-divergent one isn't punished for diverging.
+      2. Pairwise at-par (primary ranking signal among the faithful): the reliable
          relative judgment must confirm the candidate >= anchor.
 
-    Faithfulness, not the gameable composite, holds the migration veto.
+    The deterministic composite is deliberately **not** a gate here. It is a
+    keyword/length heuristic (``scoring.py``) blind to faithfulness and gameable
+    by paraphrase -- as a floor it would wrongly *exclude* a faithful, judge-
+    approved candidate that paraphrases or is terse (the brittle-proxy failure
+    mode in ``docs/design/agentic-balance.md``). It survives only as the offline
+    golden-CI regression tripwire and an advisory diagnostic in the report, never
+    as a decision input. Eligibility is the model judges' call; Python only
+    aggregates and thresholds their verdicts (invariant #6).
     """
     eligible: list[ModelSummary] = []
     vetoed_cheaper = False
     faith_vetoed_cheaper = False
     for s in summaries:
-        if s.rows == 0 or s.mean_composite < bar:
+        if s.rows == 0:
             continue
         if s.model == anchor:
             eligible.append(s)
@@ -156,7 +166,7 @@ def _eligible_for_migration(
         cheaper = s.total_cost < anchor_summary.total_cost
         if s.unfaithful_fixtures > 0:
             # Grounding veto: never migrate to a model that invents facts on any
-            # fixture, however it scores or compares.
+            # fixture, however it compares.
             vetoed_cheaper = vetoed_cheaper or cheaper
             faith_vetoed_cheaper = faith_vetoed_cheaper or cheaper
             continue
@@ -172,7 +182,10 @@ def _eligible_for_migration(
 def summarize(
     rows: list[EvalRow], *, anchor: str, threshold: float = DEFAULT_THRESHOLD
 ) -> EvalSummary:
-    """Aggregate per-model and pick the cheapest model clearing threshold x anchor."""
+    """Aggregate per-model and pick the cheapest model the model judges certify at
+    par with the anchor. ``threshold`` no longer gates -- it sets only the advisory
+    composite reference shown in the report (the composite is a heuristic diagnostic,
+    not a decision input)."""
     # Label honestly: one workload shows its name; a mixed set (``--workload all``)
     # says "all (paper+video+site)" rather than mislabeling as the first fixture's.
     distinct = sorted({r.workload for r in rows})
@@ -195,19 +208,18 @@ def summarize(
     elif anchor_summary.rows == 0:
         reason = f"anchor '{anchor}' produced no valid output ({anchor_summary.errors} error(s))"
     else:
-        bar = threshold * anchor_summary.mean_composite
-        elig = _eligible_for_migration(summaries, anchor, anchor_summary, bar)
+        elig = _eligible_for_migration(summaries, anchor, anchor_summary)
         if elig.eligible:
-            rec = min(elig.eligible, key=lambda s: (s.total_cost, -s.mean_composite))
+            # Cheapest, tie-broken by the model-judged win-rate (never the
+            # brittle composite). The anchor is always eligible, so this list is
+            # non-empty whenever the anchor produced output.
+            rec = min(elig.eligible, key=lambda s: (s.total_cost, -(s.mean_winrate or 0.0)))
             recommended = rec.model
             confidence, reason = _confidence(
-                rec, anchor_summary, bar, elig.vetoed_cheaper, elig.faith_vetoed_cheaper
+                rec, anchor_summary, elig.vetoed_cheaper, elig.faith_vetoed_cheaper
             )
-        else:
-            # Nothing clears the bar -- possible when --threshold > 1.0, where
-            # even the anchor fails its own bar. Recommend nothing rather than
-            # crashing on min([]).
-            reason = f"no model clears the bar ({bar:.2f}) at threshold {threshold:g}"
+        else:  # pragma: no cover - anchor with rows>0 is always eligible
+            reason = "no model is eligible"
 
     return EvalSummary(
         workload=workload,
@@ -223,13 +235,13 @@ def summarize(
 def _confidence(
     rec: ModelSummary,
     anchor: ModelSummary,
-    bar: float,
     vetoed_cheaper: bool,
     faith_vetoed_cheaper: bool = False,
 ) -> tuple[str, str]:
-    """Confidence in the recommendation. The judges already gated the *pick* (a
-    non-anchor rec passed the faithfulness floor AND the win-rate floor); this only
-    nuances the label."""
+    """Confidence in the recommendation. The model judges already gated the *pick*
+    (a non-anchor rec passed the faithfulness floor AND the win-rate floor); this
+    only nuances the label, using faithfulness and the bootstrap statistics -- the
+    brittle composite is never consulted here."""
     if rec.errors > 0:
         return (
             "tentative",
@@ -245,25 +257,18 @@ def _confidence(
                 "(invented or unsupported claims); not migrating to ungrounded output",
             )
         if vetoed_cheaper:
-            # Cheaper models cleared the cheap composite floor but the pairwise
-            # judge would not certify them at par (or there was no neutral judge).
+            # Cheaper models exist but the pairwise judge would not certify them at
+            # par with the anchor (or there was no neutral judge to ask).
             return (
                 "high",
-                "recommends the anchor — cheaper models cleared the deterministic floor but the "
-                "judge did not confirm them at par with the anchor (or no judge signal); "
-                "not certifying a switch",
+                "recommends the anchor — the judge did not confirm any cheaper model at par "
+                "with the anchor (or no judge signal); not certifying a switch",
             )
-        return "high", "recommends the anchor — nothing cheaper clears the bar"
-    # Non-anchor rec: it already passed the composite floor, the faithfulness
-    # floor, AND win-rate >= floor. "High" additionally requires statistical
-    # backing -- enough fixtures, and a bootstrap CI whose lower bound clears the
-    # at-par floor -- so a 3-fixture run can't crown a switch on a bare mean.
-    if rec.min_composite < bar:
-        return (
-            "tentative",
-            f"{rec.model}'s worst fixture ({rec.min_composite:.2f}) dips below the bar "
-            f"({bar:.2f}) — add fixtures or inspect before switching",
-        )
+        return "high", "recommends the anchor — no cheaper model is certified at par"
+    # Non-anchor rec: it already passed the faithfulness floor AND win-rate >=
+    # floor. "High" additionally requires statistical backing -- enough fixtures,
+    # and a bootstrap CI whose lower bound clears the at-par floor -- so a
+    # 3-fixture run can't crown a switch on a bare mean.
     if (
         rec.mean_faithfulness is not None
         and anchor.mean_faithfulness is not None
@@ -273,8 +278,8 @@ def _confidence(
         # average less grounded than the incumbent -- a softer caveat, surfaced.
         return (
             "tentative",
-            f"{rec.model} clears the bar and the judge confirms it at par, but it grades less "
-            f"faithful than the anchor on average — inspect the flagged claims before switching",
+            f"{rec.model} is judged at par, but it grades less faithful than the anchor on "
+            f"average — inspect the flagged claims before switching",
         )
     if rec.rows < _MIN_FIXTURES_FOR_HIGH:
         return (
@@ -292,8 +297,8 @@ def _confidence(
         )
     return (
         "high",
-        f"{rec.model} clears the bar on every fixture, the judge confirms it at par, and the "
-        f"win-rate CI lower bound ({rec.winrate_ci_low:.2f}) clears the floor",
+        f"{rec.model} is judged faithful and at par with the anchor, and the win-rate CI lower "
+        f"bound ({rec.winrate_ci_low:.2f}) clears the floor across {rec.rows} fixtures",
     )
 
 
@@ -320,7 +325,7 @@ def console_lines(summary: EvalSummary) -> list[str]:
     """Plain-text lines for the terminal (no rich dependency)."""
     lines = [
         f"Model eval — {summary.workload} ({len(summary.models)} models, "
-        f"anchor {summary.anchor}, threshold {summary.threshold:.0%})",
+        f"anchor {summary.anchor}; composite advisory only, judges gate the switch)",
         f"  {'model':<26} {'mean':>6} {'min':>6} {'win':>6} {'cost':>9}",
     ]
     for s in summary.models:
@@ -380,7 +385,8 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
         "",
         f"- Generated: {now_iso}",
         f"- Anchor (incumbent/reference): `{summary.anchor}`",
-        f"- Threshold: {summary.threshold:.0%} of anchor's mean composite",
+        f"- Composite reference (advisory only, not a gate): "
+        f"{summary.threshold:.0%} of anchor's mean composite",
         f"- **Recommended: `{summary.recommended or 'none'}` "
         f"(confidence: {summary.confidence})** — {summary.confidence_reason}",
         "",
@@ -403,14 +409,16 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
         )
     out += [
         "",
-        "The recommendation is gated by two model judges, not by the deterministic composite. "
+        "The recommendation is gated by two **model judges**, never the deterministic composite. "
         "**Faithfulness** (absolute, graded against the source) is a veto floor: a model judged "
         "unfaithful on any fixture is never a migration target, however it scores. The **pairwise "
         "win-rate** (order-randomized over both A/B orderings to cancel position bias) is the "
         "primary ranking signal among the faithful — a switch is certified only when it confirms "
-        "the candidate at par with the anchor. The composite mean/min is a necessary guardrail "
-        "floor, never sufficient on its own. The Faithful column is the mean of per-fixture "
-        "verdicts (faithful=1.0, minor=0.5, unfaithful=0.0); '—' means no judge was available. "
+        "the candidate at par with the anchor. The composite (Mean/Min/Max) is a keyword/length "
+        "heuristic shown for diagnosis only — it is **not** a gate, because as a floor it would "
+        "wrongly exclude a faithful, judge-approved candidate that paraphrases or is terse. The "
+        "Faithful column is the mean of per-fixture verdicts (faithful=1.0, minor=0.5, "
+        "unfaithful=0.0); '—' means no judge was available. "
         f"Win-rate shows a 90% paired bootstrap CI in brackets; **high** confidence in a switch "
         f"requires at least {_MIN_FIXTURES_FOR_HIGH} fixtures and a CI lower bound clearing the "
         f"at-par floor ({_WINRATE_FLOOR:.2f}) — a small fixture set is recommended only "
