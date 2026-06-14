@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import view as _view
 from distill.config import DistillConfig
 from distill.library import Library, TopicWatchEntry
 from distill.library.paths import artifact_path
@@ -487,6 +488,7 @@ def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, m
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _view.get_config = lambda: config
 
     try:
         result = runner.invoke(cli.app, ["diff", "ai"])
@@ -505,6 +507,7 @@ def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, m
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _view.get_config = original
 
 
 def test_topic_watch_run_uses_popularity_ranking_mode(tmp_path, monkeypatch):
@@ -620,6 +623,7 @@ def test_trends_command_handles_empty_history(tmp_path):
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _view.get_config = lambda: config
     try:
         result = runner.invoke(cli.app, ["trends", "ai"])
         assert result.exit_code == 0
@@ -631,6 +635,7 @@ def test_trends_command_handles_empty_history(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _view.get_config = original
 
 
 def test_trends_command_summarizes_recent_windows(tmp_path):
@@ -656,6 +661,7 @@ def test_trends_command_summarizes_recent_windows(tmp_path):
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _view.get_config = lambda: config
     try:
         result = runner.invoke(cli.app, ["trends", "ai", "--limit", "3"])
         assert result.exit_code == 0
@@ -673,6 +679,7 @@ def test_trends_command_summarizes_recent_windows(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _view.get_config = original
 
 
 def test_topic_watch_list_shows_trend_label_when_history_exists(tmp_path):
