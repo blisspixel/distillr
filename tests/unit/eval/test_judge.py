@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 from distill.eval import judge as judge_mod
-from distill.eval.judge import judge_pairwise, judge_shares_family
+from distill.eval.judge import _pairwise_prompt, judge_pairwise, judge_shares_family
 from distill.pipeline.costs import CostTracker
 
 
@@ -80,3 +80,48 @@ def test_judge_shares_family():
     assert judge_shares_family("grok-4.3", "grok-4.20") is True
     assert judge_shares_family("grok-4.3", "qwen3.5:27b") is False
     assert judge_shares_family("gemini-3.1-pro", "grok-4.3") is False
+
+
+def test_prompt_is_rubric_structured_with_bias_guards():
+    # The rubric criteria and the explicit anti-verbosity / anti-position guards
+    # are the whole point of the rewrite — assert they survive in the prompt.
+    prompt = _pairwise_prompt("SRC", "A out", "B out")
+    for marker in ("Faithfulness", "Substance", "Coverage", "Conciseness"):
+        assert marker in prompt
+    assert "Length is NOT quality" in prompt
+    assert "ignore which analysis is shown first" in prompt
+    # No heuristics supplied -> no advisory block.
+    assert "ADVISORY HEURISTIC SIGNALS" not in prompt
+
+
+def test_prompt_includes_heuristics_block_when_supplied():
+    prompt = _pairwise_prompt("SRC", "A out", "B out", "depth 0.90", "depth 0.20")
+    assert "ADVISORY HEURISTIC SIGNALS" in prompt
+    assert "weak prior" in prompt  # framed as noisy, not a verdict
+    assert "A: depth 0.90" in prompt
+    assert "B: depth 0.20" in prompt
+
+
+def test_heuristics_follow_the_output_not_the_slot(monkeypatch):
+    # The prior must swap with its output in ordering 2, or it would leak the
+    # candidate's heuristic onto the anchor's slot and defeat the debias.
+    seen: list[str] = []
+
+    def capture(config, **kwargs):
+        seen.append(kwargs["prompt"])
+        return _resp('{"winner": "A", "rationale": "x"}')
+
+    monkeypatch.setattr(judge_mod, "llm_call", capture)
+    judge_pairwise(
+        "src",
+        "cand",
+        "anchor",
+        judge_model="grok-4.3",
+        candidate_heuristics="CAND-HEUR",
+        anchor_heuristics="ANCHOR-HEUR",
+    )
+    assert len(seen) == 2
+    # Ordering 1: A = candidate, so A carries the candidate heuristic.
+    assert "A: CAND-HEUR" in seen[0] and "B: ANCHOR-HEUR" in seen[0]
+    # Ordering 2: A = anchor, so the priors swap in lockstep with the outputs.
+    assert "A: ANCHOR-HEUR" in seen[1] and "B: CAND-HEUR" in seen[1]

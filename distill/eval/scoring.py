@@ -1,14 +1,21 @@
 """Deterministic quality scoring for the model eval.
 
 Pure functions, no IO, no LLM. Scores an analysis output on four dimensions
-against a fixture's golden expectations. This is the *decision* signal — the
-recommendation is computed from these scores alone (see ``report``). The LLM
-judge is a separate, advisory pairwise signal that only affects *confidence*,
-never the composite (so "LLM proposes, Python decides" holds — ``docs/invariants.md``).
+against a fixture's golden expectations. The recommendation is computed from
+these scores (see ``report``); the rubric LLM judge (``judge``) is a separate,
+reference-guided pairwise signal that affects *confidence*, so "LLM proposes,
+Python decides" holds (``docs/invariants.md``).
 
-Depth is deliberately **verbosity-resistant**: it gives full credit once an
-analysis is substantive enough and then *decays* for padding, so a longer answer
-can't win on length alone (the documented top bias in LLM evals).
+**Scope caveat — this is a noisy proxy, not a quality oracle.** These dimensions
+are cheap *string/length heuristics*: "concept coverage" is substring matching
+(it misses paraphrase), "depth" is a word count, "structure"/"formatting" are
+substring `##`/`- `. They are gameable by padding and keyword-stuffing and blind
+to faithfulness and meaning — a rule impersonating a semantic judgment, the
+"brittle proxy metrics" failure mode in ``docs/design/agentic-balance.md``. Their
+job is to be a reproducible, key-free *offline guardrail* (the golden gate in CI)
+and a weak prior fed to the rubric judge, NOT to be the last word on quality.
+Depth is verbosity-resistant — full credit once substantive, then decays for
+padding — so length alone can't win, but that only blunts one known bias.
 """
 
 from __future__ import annotations

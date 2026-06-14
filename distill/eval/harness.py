@@ -205,6 +205,12 @@ def _analyze(
     return analysis
 
 
+def _heuristic_summary(qs: QualityScore) -> str:
+    """One-line advisory digest of the deterministic dimension scores for the judge."""
+    dims = ", ".join(f"{d.name.lower()} {d.score:.2f}" for d in qs.dimensions)
+    return f"{dims} (composite {qs.composite:.2f})"
+
+
 def _pairwise(
     model: str,
     fixture: Fixture,
@@ -215,7 +221,9 @@ def _pairwise(
     run_tracker: CostTracker,
     cache_dir: Path | None,
 ) -> tuple[float | None, str]:
-    key = _hash("pairwise", model, fixture.id, _src_hash(fixture), anchor, judge_model)
+    # "pairwise-v2": rubric prompt + advisory heuristic priors. The version token
+    # invalidates verdicts cached under the old holistic prompt.
+    key = _hash("pairwise-v2", model, fixture.id, _src_hash(fixture), anchor, judge_model)
     cached = _load_json(cache_dir, key)
     if cached is not None:
         try:
@@ -223,6 +231,17 @@ def _pairwise(
             return (float(wr) if wr is not None else None), str(cached.get("rationale", ""))
         except (TypeError, ValueError):
             logger.warning("Ignoring malformed eval pairwise cache for %s/%s", model, fixture.id)
+
+    def _scores(output: str) -> str:
+        return _heuristic_summary(
+            score_output(
+                output,
+                expected_sections=fixture.expected_sections,
+                golden_concepts=fixture.golden_concepts,
+                min_words=fixture.min_words,
+            )
+        )
+
     try:
         result = judge_pairwise(
             fixture.source_text,
@@ -230,6 +249,8 @@ def _pairwise(
             anchor_output,
             judge_model=judge_model,
             tracker=run_tracker,
+            candidate_heuristics=_scores(candidate_output),
+            anchor_heuristics=_scores(anchor_output),
         )
     except Exception as exc:
         logger.warning("eval pairwise judge failed for %s on %s: %s", model, fixture.id, exc)

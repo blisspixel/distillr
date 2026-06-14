@@ -55,11 +55,52 @@ def judge_shares_family(judge_model: str, anchor_model: str) -> bool:
     return _family(judge_model) == _family(anchor_model)
 
 
-def _pairwise_prompt(source: str, output_a: str, output_b: str) -> str:
-    return f"""You are comparing two AI-generated analyses (A and B) of the same SOURCE. Decide which is the better analysis: faithful to the SOURCE (no invented claims), substantive (specific methods/numbers/entities), and covering the SOURCE's most important points. Ignore length — a shorter, tighter analysis can be better.
+def _heuristics_block(heur_a: str | None, heur_b: str | None) -> str:
+    """Render the advisory deterministic-score block, or empty if absent.
 
-Return ONLY valid JSON:
-{{"winner": "A" | "B" | "tie", "rationale": "one concrete sentence"}}
+    These are the cheap string/length heuristics from ``scoring.py``. They are
+    surfaced as a *prior*, explicitly flagged as noisy, never as the answer —
+    the whole point of the judge is to override them when they are wrong (a
+    paraphrase the regex missed, padding the word count rewarded). See the
+    "brittle proxy metrics" failure mode in docs/design/agentic-balance.md.
+    """
+    if not heur_a and not heur_b:
+        return ""
+    return f"""
+ADVISORY HEURISTIC SIGNALS (automated string/length matching — noisy, often wrong on paraphrase and easily gamed by padding; treat as a weak prior, not a verdict, and overrule them when your own reading disagrees):
+  A: {heur_a or "n/a"}
+  B: {heur_b or "n/a"}
+"""
+
+
+def _pairwise_prompt(
+    source: str,
+    output_a: str,
+    output_b: str,
+    heur_a: str | None = None,
+    heur_b: str | None = None,
+) -> str:
+    """Reference-guided, rubric-structured pairwise prompt.
+
+    Design follows current LLM-as-judge practice (analytic-rubric decomposition,
+    reason-before-verdict, explicit bias guards, reference-guided): the model
+    reads the SOURCE as ground truth, scores A and B against four named criteria,
+    then commits a single verdict. Atomic criteria beat a holistic "which is
+    better" vibe-check by blocking the halo effect (one strong dimension inflating
+    the rest) and by pinning faithfulness above polish.
+    """
+    return f"""You are a meticulous, impartial evaluator comparing two AI-generated analyses (A and B) of the same SOURCE. The SOURCE is the ground truth.
+
+Judge against these criteria, in priority order:
+1. Faithfulness (highest priority): every claim is supported by the SOURCE. Invented facts, wrong numbers, or unsupported claims are the worst defect — an analysis that is fluent but unfaithful loses to a plainer faithful one.
+2. Substance: specific methods, numbers, entities, and mechanisms from the SOURCE — not generic restatement that could apply to any source.
+3. Coverage: captures the SOURCE's most important points, not just easy peripheral ones.
+4. Conciseness: says it tightly. Length is NOT quality — padding, repetition, and filler are defects. A shorter, denser analysis beats a longer, padded one with the same content.
+
+Method: assess A and B on each criterion, then decide. If they trade off, the higher-priority criterion wins (an unfaithful claim outweighs broader coverage). Judge content, not surface: ignore which analysis is shown first, ignore length itself, and do not reward a confident or polished tone that is not backed by the SOURCE.
+{_heuristics_block(heur_a, heur_b)}
+Return ONLY valid JSON, after reasoning to yourself:
+{{"winner": "A" | "B" | "tie", "rationale": "one concrete sentence naming the deciding criterion and the specific evidence"}}
 
 SOURCE:
 {source[:_MAX_SOURCE_CHARS]}
@@ -99,12 +140,18 @@ def _rationale(text: str) -> str:
 
 
 def _one_comparison(
-    rc: RouterConfig, source: str, output_a: str, output_b: str, tracker: CostTracker | None
+    rc: RouterConfig,
+    source: str,
+    output_a: str,
+    output_b: str,
+    tracker: CostTracker | None,
+    heur_a: str | None = None,
+    heur_b: str | None = None,
 ) -> tuple[str | None, str]:
     response = llm_call(
         rc,
         workload_tag="qa",
-        prompt=_pairwise_prompt(source, output_a, output_b),
+        prompt=_pairwise_prompt(source, output_a, output_b, heur_a, heur_b),
         # Generous cap: "thinking" models (Gemini 3.x, Qwen3) spend output budget
         # on a reasoning trace before the verdict; a tight cap truncates the JSON.
         max_tokens=2048,
@@ -131,6 +178,8 @@ def judge_pairwise(
     judge_model: str = DEFAULT_JUDGE_MODEL,
     tracker: CostTracker | None = None,
     router_config: RouterConfig | None = None,
+    candidate_heuristics: str | None = None,
+    anchor_heuristics: str | None = None,
 ) -> PairwiseResult | None:
     """Candidate-vs-anchor win-rate, averaged over both orderings (debiased).
 
@@ -138,15 +187,38 @@ def judge_pairwise(
     ordering is position-biased, so a half-result is reported as no judge signal
     (the row scores deterministic-only) rather than as a debiased win-rate.
     Cost-tracked.
+
+    ``candidate_heuristics`` / ``anchor_heuristics`` are optional one-line
+    summaries of the cheap deterministic scores; when supplied they are shown to
+    the judge as an explicitly-noisy prior (see ``_heuristics_block``). They
+    follow the *output*, not the slot — so they are swapped along with A/B in
+    ordering 2, preserving the debias.
     """
     # Route to the judge model's own provider (a gemini judge must hit the gemini
     # endpoint, not the default xAI one) and force the judge model id.
     base = router_config or RouterConfig(provider=provider_for_model(judge_model))
     rc = base.with_model_override(judge_model)
     # Ordering 1: candidate = A, anchor = B. Ordering 2: swapped. Averaging the
-    # two cancels any A/B position preference the judge has.
-    w1, r1 = _one_comparison(rc, source_excerpt, candidate_output, anchor_output, tracker)
-    w2, r2 = _one_comparison(rc, source_excerpt, anchor_output, candidate_output, tracker)
+    # two cancels any A/B position preference the judge has. The heuristic priors
+    # swap with their outputs so each stays attached to the analysis it describes.
+    w1, r1 = _one_comparison(
+        rc,
+        source_excerpt,
+        candidate_output,
+        anchor_output,
+        tracker,
+        candidate_heuristics,
+        anchor_heuristics,
+    )
+    w2, r2 = _one_comparison(
+        rc,
+        source_excerpt,
+        anchor_output,
+        candidate_output,
+        tracker,
+        anchor_heuristics,
+        candidate_heuristics,
+    )
 
     # Both orderings must parse for a debiased win-rate. A single ordering
     # carries the judge's full A/B position bias, so a half-result is treated as
