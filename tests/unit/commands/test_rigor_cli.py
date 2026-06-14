@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import papers as _papers
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.pipeline.ranking import RankedPaper
@@ -17,6 +18,7 @@ runner = CliRunner()
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_papers, "get_config", lambda: config)
     return config
 
 
@@ -81,13 +83,13 @@ def test_papers_rigor_drops_subthreshold_candidates(mock_config, monkeypatch):
         ]
 
     captured = {}
-    monkeypatch.setattr(_cli_impl, "_expand_paper_queries", lambda *a, **k: ["q"])
+    monkeypatch.setattr(_papers, "_expand_paper_queries", lambda *a, **k: ["q"])
     monkeypatch.setattr(
-        _cli_impl, "search_arxiv_papers", lambda *a, **k: [object(), object(), object()]
+        _papers, "search_arxiv_papers", lambda *a, **k: [object(), object(), object()]
     )
-    monkeypatch.setattr(_cli_impl, "rerank_papers", fake_rerank)
+    monkeypatch.setattr(_papers, "rerank_papers", fake_rerank)
     monkeypatch.setattr(
-        _cli_impl,
+        _papers,
         "_display_ranked_papers",
         lambda ranked, **k: captured.__setitem__("ranked", ranked),
     )

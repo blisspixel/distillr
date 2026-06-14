@@ -44,8 +44,9 @@ ALLOWLIST: dict[str, int] = {
     # search + explore -> commands/discover.py (Discover slice 1): 6192 -> 6103;
     # research-brief -> commands/discover.py (Discover slice 2): 6103 -> 6010;
     # learn + brief -> commands/discover.py (Discover slice 3): 6010 -> 5893;
-    # latest -> commands/discover.py (Discover slice 4): 5893 -> 5741.
-    "distill/commands/_logic.py": 5741,
+    # latest -> commands/discover.py (Discover slice 4): 5893 -> 5741;
+    # paper + papers -> commands/papers.py (Discover slice 5): 5741 -> 5502.
+    "distill/commands/_logic.py": 5502,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

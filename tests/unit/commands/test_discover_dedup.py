@@ -11,6 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import papers as _papers
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
@@ -23,6 +24,7 @@ runner = CliRunner()
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_papers, "get_config", lambda: config)
     return config
 
 
@@ -119,8 +121,8 @@ def test_papers_drops_already_ingested_before_rerank(mock_config, monkeypatch):
     p_old = PaperRecord(paper_id="2601.00001v1", title="Old", abstract="a")
     p_new = PaperRecord(paper_id="2601.00002v1", title="New", abstract="a")
 
-    monkeypatch.setattr(_cli_impl, "_expand_paper_queries", lambda q, **k: [q])
-    monkeypatch.setattr(_cli_impl, "search_arxiv_papers", lambda *a, **k: [p_old, p_new])
+    monkeypatch.setattr(_papers, "_expand_paper_queries", lambda q, **k: [q])
+    monkeypatch.setattr(_papers, "search_arxiv_papers", lambda *a, **k: [p_old, p_new])
     rerank_seen = {}
 
     def fake_rerank_papers(query, candidates, config, **kwargs):
@@ -139,7 +141,7 @@ def test_papers_drops_already_ingested_before_rerank(mock_config, monkeypatch):
             for p in candidates
         ]
 
-    monkeypatch.setattr(_cli_impl, "rerank_papers", fake_rerank_papers)
+    monkeypatch.setattr(_papers, "rerank_papers", fake_rerank_papers)
 
     result = runner.invoke(
         cli.app, ["papers", "query", "--topic", "t", "--limit", "2", "--preview"]
@@ -153,15 +155,15 @@ def test_papers_drops_already_ingested_before_rerank(mock_config, monkeypatch):
 def test_papers_all_duplicates_is_a_converged_noop(mock_config, monkeypatch):
     _seed_ingested(mock_config, "t", paper_id="2601.00001v1")
 
-    monkeypatch.setattr(_cli_impl, "_expand_paper_queries", lambda q, **k: [q])
+    monkeypatch.setattr(_papers, "_expand_paper_queries", lambda q, **k: [q])
     monkeypatch.setattr(
-        _cli_impl,
+        _papers,
         "search_arxiv_papers",
         lambda *a, **k: [PaperRecord(paper_id="2601.00001v1", title="Old", abstract="a")],
     )
     rerank_called = {"yes": False}
     monkeypatch.setattr(
-        _cli_impl,
+        _papers,
         "rerank_papers",
         lambda *a, **k: rerank_called.__setitem__("yes", True) or [],
     )

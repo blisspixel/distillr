@@ -13,6 +13,7 @@ from distill import _cli_impl, cli
 from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
 from distill.commands import maintain as _maintain
+from distill.commands import papers as _papers
 from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
 from distill.commands import view as _view
@@ -46,6 +47,7 @@ def mock_config(tmp_path):
     original_doctor = _doctor.get_config  # `doctor`/`health` moved to commands/doctor.py
     original_reprocess = _reprocess.get_config  # resynthesize/reanalyze moved here
     original_reports = _reports.get_config  # report/export moved to commands/reports.py
+    original_papers = _papers.get_config  # paper/papers moved to commands/papers.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -55,6 +57,7 @@ def mock_config(tmp_path):
     _doctor.get_config = lambda: config
     _reprocess.get_config = lambda: config
     _reports.get_config = lambda: config
+    _papers.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -67,6 +70,7 @@ def mock_config(tmp_path):
     _doctor.get_config = original_doctor
     _reprocess.get_config = original_reprocess
     _reports.get_config = original_reports
+    _papers.get_config = original_papers
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -1516,7 +1520,7 @@ class TestWatchCommands:
             captured["topic"] = topic
             captured["limit"] = limit
 
-        monkeypatch.setattr(_cli_impl, "papers", fake_papers)
+        monkeypatch.setattr(_papers, "papers", fake_papers)
 
         result = runner.invoke(
             cli.app, ["ramp-up", "agent memory systems", "--source", "paper", "--topic", "papers"]
@@ -1529,7 +1533,7 @@ class TestWatchCommands:
         from distill.ingestors.papers.arxiv import PaperRecord
 
         monkeypatch.setattr(
-            _cli_impl,
+            _papers,
             "fetch_arxiv_paper",
             lambda target: PaperRecord(
                 paper_id="2602.12670v1",
@@ -1540,12 +1544,12 @@ class TestWatchCommands:
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _papers,
             "analyze_paper",
             lambda paper, config, tracker=None, intent=None: ("# Insight", "# Paper doc"),
         )
         monkeypatch.setattr(
-            _cli_impl, "synthesize_papers", lambda topic, config, tracker=None: "paper synthesis"
+            _papers, "synthesize_papers", lambda topic, config, tracker=None: "paper synthesis"
         )
 
         result = runner.invoke(cli.app, ["paper", "2602.12670", "--topic", "papers"])
@@ -1559,7 +1563,7 @@ class TestWatchCommands:
         from distill.ingestors.papers.arxiv import PaperRecord
 
         monkeypatch.setattr(
-            _cli_impl,
+            _papers,
             "search_arxiv_papers",
             lambda query, limit=10, **kwargs: [
                 PaperRecord(
@@ -1572,12 +1576,12 @@ class TestWatchCommands:
             ],
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _papers,
             "analyze_paper",
             lambda paper, config, tracker=None, intent=None: ("# Insight", "# Paper doc"),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _papers,
             "synthesize_papers",
             lambda topic, config, tracker=None: (
                 (mock_config.topic_dir(topic) / "paper_synthesis.md").write_text(
@@ -1587,7 +1591,7 @@ class TestWatchCommands:
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _papers,
             "synthesize_corpus",
             lambda topic, config, tracker=None: (
                 (mock_config.topic_dir(topic) / "corpus_synthesis.md").write_text(
@@ -1643,7 +1647,7 @@ class TestWatchCommands:
                 ),
             ]
 
-        monkeypatch.setattr(_cli_impl, "search_arxiv_papers", fake_search)
+        monkeypatch.setattr(_papers, "search_arxiv_papers", fake_search)
         monkeypatch.setattr(
             _cli_impl, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
         )
@@ -1688,13 +1692,13 @@ class TestWatchCommands:
                 )
             ]
 
-        monkeypatch.setattr(_cli_impl, "search_arxiv_multi", fake_multi)
+        monkeypatch.setattr(_papers, "search_arxiv_multi", fake_multi)
         monkeypatch.setattr(
             _cli_impl,
             "_llm_expand_paper_queries",
             lambda query, config, tracker=None: ["q1 variant", "q2 variant"],
         )
-        monkeypatch.setattr(_cli_impl, "analyze_paper", lambda *a, **k: ("", ""))
+        monkeypatch.setattr(_papers, "analyze_paper", lambda *a, **k: ("", ""))
 
         result = runner.invoke(
             cli.app,
