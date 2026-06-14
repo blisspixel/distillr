@@ -40,8 +40,9 @@ def test_summarize_no_crash_when_threshold_clears_nothing():
 
 
 def test_recommends_cheapest_clearing_with_high_confidence():
-    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)  # anchor (no winrate)
-    rows += _rows("qwen3.5:27b", [0.90, 0.90, 0.90], 0.0, 0.55)
+    # 8+ fixtures so the migration can earn "high" (min-N + bootstrap CI gate).
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None)  # anchor (no winrate)
+    rows += _rows("qwen3.5:27b", [0.90] * 8, 0.0, 0.55)
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "qwen3.5:27b"
     assert summary.confidence == "high"
@@ -81,8 +82,8 @@ def test_fail_closed_when_judge_unavailable():
 
 def test_judge_certifies_migration_when_at_par():
     # Cheaper model clears the floor AND the judge confirms it at par -> migrate.
-    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
-    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55)
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None)
+    rows += _rows("local", [0.90] * 8, 0.0, 0.55)
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "local"
     assert summary.confidence == "high"
@@ -103,9 +104,9 @@ def test_faithfulness_vetoes_migration_even_when_pairwise_wins():
 
 
 def test_faithful_candidate_at_par_migrates():
-    # Faithful AND pairwise-confirmed at par -> migrate, high confidence.
-    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None, faithfulness="faithful")
-    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55, faithfulness="faithful")
+    # Faithful AND pairwise-confirmed at par, enough fixtures -> migrate, high.
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None, faithfulness="faithful")
+    rows += _rows("local", [0.90] * 8, 0.0, 0.55, faithfulness="faithful")
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "local"
     assert summary.confidence == "high"
@@ -121,6 +122,57 @@ def test_less_faithful_than_anchor_migrates_but_tentative():
     assert summary.recommended == "local"
     assert summary.confidence == "tentative"
     assert "less faithful" in summary.confidence_reason
+
+
+def test_small_fixture_set_caps_at_tentative():
+    # Everything qualifies for a switch, but only 3 fixtures back it -> the
+    # migration is still recommended, but capped at tentative (min-N gate). Three
+    # fixtures cannot certify a model swap.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
+    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "local"
+    assert summary.confidence == "tentative"
+    assert "only 3 fixture(s)" in summary.confidence_reason
+
+
+def test_noisy_winrate_ci_lower_bound_below_floor_is_tentative():
+    # Enough fixtures, but the per-fixture win-rates straddle the floor so the
+    # bootstrap CI lower bound dips below it -> the evidence is too noisy to
+    # certify; recommend tentatively.
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None)
+    # win-rates alternate high/low around the 0.45 floor; mean clears it, CI low
+    # does not. Build per-fixture rows by hand to vary the win-rate.
+    wins = [0.9, 0.2, 0.9, 0.2, 0.9, 0.2, 0.9, 0.5]
+    rows += [
+        EvalRow(
+            workload="paper",
+            fixture_id=f"c{i}",
+            model="local",
+            quality=QualityScore(dimensions=[], composite=0.90),
+            cost=0.0,
+            input_tokens=0,
+            output_tokens=0,
+            pairwise_winrate=w,
+        )
+        for i, w in enumerate(wins)
+    ]
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "local"
+    assert summary.confidence == "tentative"
+    assert "too noisy" in summary.confidence_reason
+    local = next(s for s in summary.models if s.model == "local")
+    assert local.winrate_ci_low is not None and local.winrate_ci_low < 0.45
+
+
+def test_winrate_ci_surfaced_in_markdown():
+    rows = _rows("grok-4.3", [0.95] * 8, 0.10, None)
+    rows += _rows("local", [0.90] * 8, 0.0, 0.60)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    md = render_markdown(summary, now_iso="2026-06-14T00:00:00")
+    assert "bootstrap CI" in md
+    # The local row shows mean + bracketed band (identical win-rates -> tight band).
+    assert "0.60 [0.60-0.60]" in md
 
 
 def test_anchor_recommended_when_nothing_cheaper_clears():

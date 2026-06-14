@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 from distill.eval.harness import EvalRow
 from distill.eval.judge import FAITHFULNESS_ORDINAL
+from distill.eval.stats import bootstrap_mean_ci
 
 __all__ = [
     "EvalSummary",
@@ -45,6 +46,13 @@ __all__ = [
 DEFAULT_THRESHOLD: float = 0.90
 # A candidate "loses" to the anchor in the judge's eyes below this win-rate.
 _WINRATE_FLOOR: float = 0.45
+# Minimum fixtures backing a *migration* before it can earn "high" confidence.
+# Below this, a switch is still recommended if it clears the gates, but only at
+# "tentative" — three fixtures cannot certify a model swap, and a bootstrap CI
+# over so few points is itself unreliable. This is the honest small-N cap; the
+# 1.0 fixture scale-up (~20) is what lets a real run reach "high". The anchor
+# ("stay put") needs no such certification.
+_MIN_FIXTURES_FOR_HIGH: int = 8
 
 
 @dataclass(frozen=True)
@@ -61,6 +69,11 @@ class ModelSummary:
     # "unfaithful" fixture blocks a migration to this model, however well it scores.
     unfaithful_fixtures: int = 0
     mean_faithfulness: float | None = None  # mean ordinal over judged rows; None if unjudged
+    # Paired bootstrap CI (90%) on the per-fixture win-rate vs the anchor — the
+    # honest uncertainty band on "is this candidate at par?". None for the anchor
+    # / when there is no judge signal.
+    winrate_ci_low: float | None = None
+    winrate_ci_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +102,7 @@ def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
         for r in ok
         if r.faithfulness in FAITHFULNESS_ORDINAL
     ]
+    ci_low, ci_high = bootstrap_mean_ci(winrates) if winrates else (None, None)
     return ModelSummary(
         model=model,
         mean_composite=_mean(composites),
@@ -100,6 +114,8 @@ def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
         errors=sum(1 for r in rows if r.error),
         unfaithful_fixtures=sum(1 for r in ok if r.faithfulness == "unfaithful"),
         mean_faithfulness=_mean(faith_ordinals) if faith_ordinals else None,
+        winrate_ci_low=ci_low,
+        winrate_ci_high=ci_high,
     )
 
 
@@ -239,7 +255,9 @@ def _confidence(
             )
         return "high", "recommends the anchor — nothing cheaper clears the bar"
     # Non-anchor rec: it already passed the composite floor, the faithfulness
-    # floor, AND win-rate >= floor.
+    # floor, AND win-rate >= floor. "High" additionally requires statistical
+    # backing -- enough fixtures, and a bootstrap CI whose lower bound clears the
+    # at-par floor -- so a 3-fixture run can't crown a switch on a bare mean.
     if rec.min_composite < bar:
         return (
             "tentative",
@@ -258,13 +276,35 @@ def _confidence(
             f"{rec.model} clears the bar and the judge confirms it at par, but it grades less "
             f"faithful than the anchor on average — inspect the flagged claims before switching",
         )
-    return "high", f"{rec.model} clears the bar on every fixture and the judge confirms it at par"
+    if rec.rows < _MIN_FIXTURES_FOR_HIGH:
+        return (
+            "tentative",
+            f"only {rec.rows} fixture(s) back this pick — high confidence needs "
+            f">= {_MIN_FIXTURES_FOR_HIGH}; add fixtures before trusting a switch",
+        )
+    if rec.winrate_ci_low is None or rec.winrate_ci_low < _WINRATE_FLOOR:
+        low = rec.winrate_ci_low
+        band = f"{low:.2f}" if low is not None else "n/a"
+        return (
+            "tentative",
+            f"{rec.model}'s win-rate 90% CI lower bound ({band}) dips below the at-par floor "
+            f"({_WINRATE_FLOOR:.2f}) — the evidence is too noisy to certify a switch",
+        )
+    return (
+        "high",
+        f"{rec.model} clears the bar on every fixture, the judge confirms it at par, and the "
+        f"win-rate CI lower bound ({rec.winrate_ci_low:.2f}) clears the floor",
+    )
 
 
-def _winrate_str(s: ModelSummary, anchor: str) -> str:
+def _winrate_str(s: ModelSummary, anchor: str, *, with_ci: bool = False) -> str:
     if s.model == anchor:
         return "anchor"
-    return f"{s.mean_winrate:.2f}" if s.mean_winrate is not None else "—"
+    if s.mean_winrate is None:
+        return "—"
+    if with_ci and s.winrate_ci_low is not None and s.winrate_ci_high is not None:
+        return f"{s.mean_winrate:.2f} [{s.winrate_ci_low:.2f}-{s.winrate_ci_high:.2f}]"
+    return f"{s.mean_winrate:.2f}"
 
 
 def _faithful_str(s: ModelSummary) -> str:
@@ -358,7 +398,7 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
         suffix = f" ({', '.join(marks)})" if marks else ""
         out.append(
             f"| `{s.model}`{suffix} | {s.mean_composite:.2f} | {s.min_composite:.2f} "
-            f"| {s.max_composite:.2f} | {_winrate_str(s, summary.anchor)} "
+            f"| {s.max_composite:.2f} | {_winrate_str(s, summary.anchor, with_ci=True)} "
             f"| {_faithful_str(s)} | ${s.total_cost:.4f} |"
         )
     out += [
@@ -370,7 +410,11 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
         "primary ranking signal among the faithful — a switch is certified only when it confirms "
         "the candidate at par with the anchor. The composite mean/min is a necessary guardrail "
         "floor, never sufficient on its own. The Faithful column is the mean of per-fixture "
-        "verdicts (faithful=1.0, minor=0.5, unfaithful=0.0); '—' means no judge was available.",
+        "verdicts (faithful=1.0, minor=0.5, unfaithful=0.0); '—' means no judge was available. "
+        f"Win-rate shows a 90% paired bootstrap CI in brackets; **high** confidence in a switch "
+        f"requires at least {_MIN_FIXTURES_FOR_HIGH} fixtures and a CI lower bound clearing the "
+        f"at-par floor ({_WINRATE_FLOOR:.2f}) — a small fixture set is recommended only "
+        "tentatively, never certified.",
         "",
     ]
     return "\n".join(out)
