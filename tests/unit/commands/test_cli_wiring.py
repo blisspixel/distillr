@@ -2735,8 +2735,11 @@ class TestSiteCommands:
         assert captured["hours"] == 20
 
 
-def test_auto_skeptical_mode_triggers_for_rumor_queries():
-    assert cli._auto_skeptical_mode("Claude Code leak analysis", hours=20, days=1) is True
+def test_auto_skeptical_mode_ignores_rumor_keywords():
+    # P3: a keyword list no longer flips skeptical mode on. Whether "leak" /
+    # "analysis" in a query signals a rumor is the model's read, not a trip-wire's
+    # (April 1 stays the one structural trigger -- see test_learning.py).
+    assert cli._auto_skeptical_mode("Claude Code leak analysis", hours=20, days=1) is False
 
 
 def test_filter_recent_candidates_prefers_exact_published_at_hours():
@@ -2768,7 +2771,6 @@ def test_cli_query_helpers_cover_noise_and_focus_defaults():
     assert cli._replace_case_insensitive("Hello Leak", "leak", "news") == "Hello news"
     assert cli._strip_intent_terms("best practices for implementation guide") == ""
     assert cli._strip_noise_terms("latest rumor analysis leak") == ""
-    assert cli._looks_like_rumor_query("security breach analysis") is True
     assert cli._effective_days(2, 49) == 3
     assert cli._window_label(3, None) == "3 days"
     assert cli._window_label(3, 12) == "12 hours"

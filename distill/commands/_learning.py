@@ -80,7 +80,7 @@ def _heuristic_learning_queries(query: str, *, skeptical: bool = False) -> list[
             variants.append(f"{base} implementation")
             variants.append(f"{base} walkthrough")
 
-    if skeptical or _looks_like_rumor_query(normalized):
+    if skeptical:
         base = _strip_noise_terms(normalized) or normalized
         variants.extend(
             [
@@ -267,28 +267,15 @@ def _strip_noise_terms(query: str) -> str:
     return " ".join(words).strip()
 
 
-def _looks_like_rumor_query(query: str) -> bool:
-    lowered = query.lower()
-    rumor_terms = {
-        "leak",
-        "leaked",
-        "rumor",
-        "rumour",
-        "source code",
-        "hack",
-        "breach",
-        "exposed",
-        "incident",
-        "analysis",
-    }
-    return any(term in lowered for term in rumor_terms)
-
-
 def _auto_skeptical_mode(query: str, *, hours: int | None, days: int) -> bool:
+    # Structural date guard only: April 1 carries elevated prank/satire risk for
+    # short windows, so default skeptical mode on then. This used to also flip on
+    # when a keyword list decided the query "looks like a rumor" (leak/hack/even
+    # "analysis") -- a brittle proxy that leaked into the primary rerank prompt.
+    # Removed (P3): whether a source is an unverified leak is the model's read.
+    # `query` is retained for the injected-callable signature but unused.
     now = datetime.now()
-    if now.month == 4 and now.day == 1 and (hours is None or hours <= 48 or days <= 2):
-        return True
-    return _looks_like_rumor_query(query)
+    return now.month == 4 and now.day == 1 and (hours is None or hours <= 48 or days <= 2)
 
 
 def _effective_days(days: int, hours: int | None) -> int:

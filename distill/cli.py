@@ -45,7 +45,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _llm_expand_learning_queries,
     _llm_expand_paper_queries,
     _load_topic_change_history,
-    _looks_like_rumor_query,
     _preflight,
     _preview_learning_selection,
     _process_learning_selection,

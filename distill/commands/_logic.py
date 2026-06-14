@@ -162,7 +162,6 @@ from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topi
 _replace_case_insensitive = _learning_support._replace_case_insensitive
 _strip_intent_terms = _learning_support._strip_intent_terms
 _strip_noise_terms = _learning_support._strip_noise_terms
-_looks_like_rumor_query = _learning_support._looks_like_rumor_query
 _auto_skeptical_mode = _learning_support._auto_skeptical_mode
 _effective_days = _learning_support._effective_days
 _window_label = _learning_support._window_label

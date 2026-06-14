@@ -171,9 +171,7 @@ def _heuristic_rank(
         credibility = _credibility_score(video)
         practicality = _practicality_score(query, video)
         topicality = _topicality_score(query, video)
-        skepticism_delta, skeptical_notes = _skepticism_adjustment(
-            query, video, skeptical=skeptical
-        )
+        skepticism_delta, skeptical_notes = _skepticism_adjustment(video, skeptical=skeptical)
         base_score = (
             relevance * 0.28
             + depth * 0.18
@@ -387,10 +385,14 @@ def _tokenize(text: str) -> list[str]:
     return cleaned
 
 
-def _skepticism_adjustment(
-    query: str, video: VideoInfo, *, skeptical: bool = False
-) -> tuple[float, list[str]]:
-    if not skeptical and not _looks_like_rumor_query(query):
+def _skepticism_adjustment(video: VideoInfo, *, skeptical: bool = False) -> tuple[float, list[str]]:
+    # Only runs when the caller explicitly turned on skeptical mode (the user's
+    # --skeptical, or the structural April-1 date guard). It used to also fire
+    # when a keyword list decided the *query* "looks like a rumor" -- a brittle
+    # proxy that mislabeled neutral queries (e.g. "analysis") as rumor-sensitive
+    # and leaked that verdict into the primary rerank prompt. Removed (P3): whether
+    # a source is an unverified leak is the model's read, not a keyword list's.
+    if not skeptical:
         return 0.0, []
 
     text = f"{video.title} {video.description}".lower()
@@ -448,23 +450,6 @@ def _skepticism_adjustment(
         notes.append("April 1 caution")
 
     return delta, notes
-
-
-def _looks_like_rumor_query(query: str) -> bool:
-    lowered = query.lower()
-    rumor_terms = {
-        "leak",
-        "leaked",
-        "rumor",
-        "rumour",
-        "source code",
-        "hack",
-        "breach",
-        "exposed",
-        "incident",
-        "analysis",
-    }
-    return any(term in lowered for term in rumor_terms)
 
 
 @dataclass
