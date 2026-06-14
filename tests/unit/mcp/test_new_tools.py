@@ -127,7 +127,8 @@ class TestDoctorTool:
 
 
 class TestPapersTool:
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
@@ -137,7 +138,7 @@ class TestPapersTool:
 
             result = json.loads(asyncio.run(papers("ai", "transformers")))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()
 
     def test_processes_paper_records(self, mock_config, monkeypatch, tmp_path):
         from distill.ingestors.papers.arxiv import PaperRecord
@@ -254,7 +255,8 @@ class TestSiteBatchTool:
 
 
 class TestSynthesizeTool:
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
@@ -264,11 +266,12 @@ class TestSynthesizeTool:
 
             result = json.loads(asyncio.run(synthesize("ai")))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()
 
 
 class TestDiscoverTool:
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
@@ -278,7 +281,7 @@ class TestDiscoverTool:
 
             result = json.loads(asyncio.run(discover("test goal")))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()
 
     def test_papers_only_handles_paper_record_authors(self, mock_config, monkeypatch):
         from distill.ingestors.papers.arxiv import PaperRecord

@@ -7,6 +7,7 @@ import json
 from mcp.server.fastmcp import Context
 
 from distill.library.state import ChannelState
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
@@ -100,8 +101,8 @@ def learn_topic(
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
     config = _server._config()
-    if not config.xai_api_key:
-        return "Error: XAI_API_KEY not configured."
+    if not model_available():
+        return "Error: No model configured (set a cloud key or DISTILL_PROVIDER)."
 
     limit = _clamp_limit(limit)
     topic_name = topic or topic_from_query(query)
@@ -123,7 +124,7 @@ def learn_topic(
         config,
         tracker=tracker,
         top_n=max(limit * 2, 10),
-        use_llm=bool(config.xai_api_key),
+        use_llm=model_available("rerank"),
     )
     selected = ranked[:limit]
 
@@ -208,7 +209,7 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
         config,
         tracker=tracker,
         top_n=max(limit * 2, 10),
-        use_llm=bool(config.xai_api_key),
+        use_llm=model_available("rerank"),
     )
 
     results = []
@@ -252,8 +253,13 @@ async def discover(  # noqa: C901
     from distill.cli_shared import topic_from_query
 
     config = _server._config()
-    if not config.xai_api_key:
-        return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
+    if not model_available():
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "No model configured (set a cloud key or DISTILL_PROVIDER).",
+            }
+        )
 
     limit = _clamp_limit(limit)
     topic_name = topic or topic_from_query(goal)
@@ -286,7 +292,7 @@ async def discover(  # noqa: C901
                     config,
                     tracker=tracker,
                     top_n=max(limit * 2, 10),
-                    use_llm=bool(config.xai_api_key),
+                    use_llm=model_available("rerank"),
                 )
                 for item in ranked[:limit]:
                     v = item.video

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from distill.library.state import ChannelState
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
@@ -31,8 +32,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
     config = _server._config()
-    if not config.xai_api_key:
-        return "Error: XAI_API_KEY not configured. Run: python scripts/setup.py"
+    if not model_available():
+        return "Error: No model configured (set a cloud key or DISTILL_PROVIDER=ollama)."
 
     lib = _server._lib(config)
     watchlist = lib.get_watchlist()
@@ -149,7 +150,7 @@ def watch_add(
     name = resolve_channel_name(url)
 
     # Auto-generate instructions if none provided
-    if not instructions and config.xai_api_key:
+    if not instructions and model_available():
         try:
             vids = discover_videos(url, months=1, quiet=True)
             if vids:

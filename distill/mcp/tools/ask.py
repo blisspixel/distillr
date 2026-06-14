@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 
 __all__: list[str] = []
@@ -28,8 +29,14 @@ def ask(topic: str, question: str) -> str:
     from distill.pipeline.ask import ask_corpus
 
     config = _server._config()
-    if not config.xai_api_key:
-        return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."}, indent=2)
+    if not model_available("qa"):
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "No model configured (set a cloud key or DISTILL_PROVIDER).",
+            },
+            indent=2,
+        )
     if not config.topic_dir(topic).exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
 

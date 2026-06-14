@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
@@ -72,8 +73,8 @@ def resynthesize_topic(topic: str, channel: str | None = None) -> str:
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
     config = _server._config()
-    if not config.xai_api_key:
-        return "Error: XAI_API_KEY not configured."
+    if not model_available():
+        return "Error: No model configured (set a cloud key or DISTILL_PROVIDER)."
 
     lib = _server._lib(config)
     tracker = _server.capped_tracker()

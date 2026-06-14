@@ -176,40 +176,49 @@ class TestToolRegistration:
 
 
 class TestMissingConfigErrors:
-    """Test error responses when XAI_API_KEY is not set."""
+    """Error responses when no model is configured (no cloud key AND no local provider).
 
-    def test_papers_missing_api_key(self, tmp_path):
+    'anthropic' is a configured-but-not-implemented provider, so the router
+    reports no usable model regardless of any ambient cloud key -- a deterministic
+    'no model' independent of the environment.
+    """
+
+    def test_papers_missing_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.papers import papers
 
             result = json.loads(asyncio.run(papers("ai", "transformers")))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()
 
-    def test_discover_missing_api_key(self, tmp_path):
+    def test_discover_missing_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.discover import discover
 
             result = json.loads(asyncio.run(discover("test goal")))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()
 
-    def test_synthesize_missing_api_key(self, tmp_path):
+    def test_synthesize_missing_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.synthesis import synthesize
 
             result = json.loads(asyncio.run(synthesize("ai")))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()
 
-    def test_site_batch_missing_api_key(self, tmp_path):
+    def test_site_batch_missing_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.sites import site_batch
 
             result = json.loads(asyncio.run(site_batch("ai", urls=["https://example.com"])))
         assert result["status"] == "error"
-        assert "XAI_API_KEY" in result["error"]
+        assert "model" in result["error"].lower()

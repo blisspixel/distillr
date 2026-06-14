@@ -717,14 +717,15 @@ class TestCatchUp:
             result = catch_up()
         assert "empty" in result.lower()
 
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
         )
         with patch("distill.mcp.server._config", return_value=config):
             result = catch_up()
-        assert "XAI_API_KEY" in result
+        assert "model" in result.lower()
 
     def test_channel_up_to_date(self, mock_config):
         lib = Library(mock_config)
@@ -935,11 +936,12 @@ class TestSearchVideos:
 
 
 class TestLearnTopic:
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             result = learn_topic("ai agents")
-        assert "XAI_API_KEY" in result
+        assert "model" in result.lower()
 
     def test_no_videos_found(self, mock_config):
         with (
@@ -1004,11 +1006,12 @@ class TestLearnTopic:
 
 
 class TestProcessVideoUrl:
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             result = process_video_url("https://youtube.com/watch?v=abc")
-        assert "XAI_API_KEY" in result
+        assert "model" in result.lower()
 
     def test_missing_video_info(self, mock_config):
         with (
@@ -1095,14 +1098,15 @@ class TestGenerateReport:
 
 
 class TestResynthesizeTopic:
-    def test_no_api_key(self, tmp_path):
+    def test_no_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
         )
         with patch("distill.mcp.server._config", return_value=config):
             result = resynthesize_topic("ai")
-        assert "XAI_API_KEY" in result
+        assert "model" in result.lower()
 
     def test_resynthesize_all_channels(self, mock_config):
         _setup_library(mock_config, "ai", "TestChannel")

@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from mcp.server.fastmcp import Context
 
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
@@ -52,8 +53,13 @@ async def site_batch(  # noqa: C901
         seed_file: Path to a seed file with URLs
     """
     config = _server._config()
-    if not config.xai_api_key:
-        return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
+    if not model_available():
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "No model configured (set a cloud key or DISTILL_PROVIDER).",
+            }
+        )
 
     # Resolve URLs from seed file or direct list
     page_urls: list[str] = []

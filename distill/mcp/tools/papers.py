@@ -6,6 +6,7 @@ import json
 
 from mcp.server.fastmcp import Context
 
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
@@ -41,8 +42,13 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
         limit: Max papers to process
     """
     config = _server._config()
-    if not config.xai_api_key:
-        return json.dumps({"status": "error", "error": "XAI_API_KEY not configured."})
+    if not model_available():
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "No model configured (set a cloud key or DISTILL_PROVIDER).",
+            }
+        )
 
     try:
         limit = max(1, min(int(limit), _MAX_PAPERS))

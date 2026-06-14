@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from distill.library.paths import find_artifact
+from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import save_run_log
 
@@ -28,8 +29,8 @@ def process_video_url(url: str, topic: str = "ai") -> str:
     if refusal is not None:
         return refusal
     config = _server._config()
-    if not config.xai_api_key:
-        return "Error: XAI_API_KEY not configured."
+    if not model_available():
+        return "Error: No model configured (set a cloud key or DISTILL_PROVIDER)."
 
     info = get_video_info(url)
     if not info:
