@@ -84,3 +84,70 @@ with it; no behavior change (pure move). The whole effort is done when
 No behavior changes, no signature changes, no "while I'm here" refactors inside a
 move PR — a move PR is a *pure relocation* so the diff is reviewable and any test
 failure is unambiguously a wiring problem, not a logic regression.
+
+## Phase 2: the coupled core (status + plan)
+
+**Phase 1 is done.** Every cleanly-separable group is out: View
+(`commands/view.py`), the whole Maintain panel (`commands/maintain.py` +
+`commands/eval.py` + `commands/reprocess.py`), doctor/health
+(`commands/doctor.py` + the check helpers in `distill/doctor/checks.py`), Reports
+(`commands/reports.py`), and the top-level app + did-you-mean group
+(`distill/_app.py`). `_logic.py` went 9,373 → ~6,245 lines; 13 dead scaffold
+modules were deleted along the way. The size ratchet's allowlist tracked every
+step down.
+
+**What remains is one tightly-coupled cluster**, which is why the slice ordering
+put it last. The commands: Discover (`discover`, `papers`, `paper`, `latest`,
+`learn`, `search`, `explore`, `brief`, `research-brief`, `monitor`), Process
+(`run`, `site`, `site-batch`, `channel`), the Watch sub-apps (`watch_app`,
+`topic_watch_app`) plus `catch-up`, the Library leftovers (`add`, `remove`,
+`diff`, `trends`), and the `topic_app` / `intent_app` / `concepts_app` sub-apps.
+They share ~10 helpers used across group boundaries — `_preflight`,
+`_invoke_command`, `_resolve_intent`, `_validate_learning_options`,
+`_run_learning_command`, `_preview_learning_selection`, `_load_topic_profile`,
+`_process_video`, `_process_site_seed`, and the topic-watch ranking helpers — and
+`catch-up` / `topic-watch run` *call* the batch commands (`papers`, `paper`,
+`site_cmd`, `site_batch_cmd`). That call-graph is the reason a naive "move Watch
+first" churns: `watch.py` would import a dozen commands back from `_logic` that
+then move themselves.
+
+**The sequencing that avoids churn:**
+
+1. **Shared helpers to the foundation first.** Move the cross-group `_*` helpers
+   into `commands/_helpers.py` (already the no-upward-imports foundation that
+   `get_config` / `_resolve_topic_for_channel` live in). Once a helper is in the
+   foundation, every later command module imports it from one stable place
+   instead of back from `_logic`. Helpers used by a *single* surviving group stay
+   with that group. This is the load-bearing step — it turns the remaining moves
+   from "import a moving target back" into "import a settled foundation symbol."
+2. **Discover + Process commands** into `commands/discover.py` and
+   `commands/process.py` (or one `commands/pipeline.py` if the shared-helper set
+   is small enough after step 1). These own the batch commands the Watch group
+   calls.
+3. **Watch last**, into `commands/watch.py` — now its calls to `papers` /
+   `site_batch_cmd` resolve to *settled* modules (lazy-imported at the call site
+   where a cycle would otherwise form, the same pattern `topic_show` and the
+   report/export callers already use). The sub-app mechanics: the
+   `watch_app = typer.Typer(...)` / `topic_watch_app = typer.Typer(...)`
+   construction and their `app.add_typer(...)` wiring move into `watch.register()`
+   (mirroring how `view.register()` attaches its commands). `cli.py` currently
+   re-exports `watch_app` / `topic_watch_app` from `_cli_impl` with no external
+   users — drop those re-exports or point them at `commands/watch.py`.
+4. **Library leftovers + the `topic_app` / `intent_app` / `concepts_app`
+   sub-apps** fold in alongside, by the same sub-app pattern.
+
+**The stale-patch hazard is sharper here** because these commands are the
+most-tested. The same rule applies — repoint every `monkeypatch.setattr(_cli_impl,
+…)` / `patch("distill.commands._logic.…")` in the *same* PR and run the grep gate
+— and the multi-module `mock_config` fixture in `tests/unit/commands/
+test_cli_wiring.py` keeps growing one `_<module>.get_config` line per extracted
+group (the established shape). A bug-hunt pass (2026-06, three review agents)
+already found and fixed eight *false-pass* stale patches that the green suite
+could not see — tests that patched a moved command's old namespace and passed
+while testing nothing — so the per-PR grep gate plus a periodic false-pass sweep
+are both part of the contract for Phase 2.
+
+The endpoint is unchanged: `_logic.py` shrinks below the 1000-line cap, then
+disappears as a named module, and the ratchet allowlist empties. `cli.py` becomes
+the wiring-only entry point the [target layout](../../ROADMAP.md#target-package-layout-10)
+describes.
