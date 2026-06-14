@@ -38,8 +38,9 @@ ALLOWLIST: dict[str, int] = {
     # migrate + corpus -> commands/maintain.py (Maintain slice 5): 6983 -> 6884;
     # dashboard + serve -> commands/maintain.py (Maintain slice 6): 6884 -> 6845;
     # resynthesize + reanalyze -> commands/reprocess.py (Maintain slice 7): 6845 -> 6483;
-    # report + export -> commands/reports.py (Reports slice): 6483 -> 6245.
-    "distill/commands/_logic.py": 6245,
+    # report + export -> commands/reports.py (Reports slice): 6483 -> 6245;
+    # _preflight + _invoke_command -> _helpers.py (Phase 2 foundation): 6245 -> 6203.
+    "distill/commands/_logic.py": 6203,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

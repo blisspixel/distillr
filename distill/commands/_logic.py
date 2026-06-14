@@ -74,7 +74,13 @@ from distill.cli_shared import (
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
-from distill.commands._helpers import _file_link, _resolve_topic_for_channel, get_config
+from distill.commands._helpers import (
+    _file_link,
+    _invoke_command,
+    _preflight,
+    _resolve_topic_for_channel,
+    get_config,
+)
 from distill.commands._json import emit_json as _emit_json
 from distill.config import DistillConfig
 
@@ -178,9 +184,6 @@ from distill.pipeline.summary import (
 )
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
-from distill.preflight import (
-    preflight_ytdlp,
-)
 
 _replace_case_insensitive = _learning_support._replace_case_insensitive
 _strip_intent_terms = _learning_support._strip_intent_terms
@@ -792,24 +795,6 @@ def get_model_override(ctx: typer.Context | None = None) -> str:
     return ""
 
 
-def _preflight() -> None:
-    """Non-blocking startup nudges: a stale-yt-dlp warning and a distillr
-    update-available notice. Both cached daily and individually opt-out-able
-    (DISTILL_NO_PREFLIGHT / DISTILL_NO_UPDATE_CHECK)."""
-    try:
-        library_dir = get_config().library_dir
-    except Exception:
-        library_dir = None
-    preflight_ytdlp(console, library_dir)
-    try:
-        from distill.update import check_for_update
-
-        check_for_update(console, library_dir)
-    except Exception:
-        # An update check must never break a command.
-        pass
-
-
 _TOPIC_PROFILE_VERSION = 1
 
 
@@ -897,33 +882,6 @@ def _resolve_topic_workflow_config(
         "shorts": shorts,
         "mixed_sources": papers > 0,
     }
-
-
-def _invoke_command(fn, **overrides):
-    """Call a typer command as a plain Python function from another command.
-
-    Typer command parameters default to ``typer.Option(...)`` / ``typer.Argument(...)``
-    sentinel objects, which are truthy. Calling such a function directly and omitting
-    any parameter leaks that sentinel into the body, so guards like ``if channel:`` or
-    ``sort not in {...}`` misfire. This resolves every unspecified parameter to its real
-    default (the sentinel's ``.default``) so internal dispatch behaves like the CLI.
-    """
-    import inspect
-
-    kwargs = dict(overrides)  # always honor the caller's explicit values
-    for name, param in inspect.signature(fn).parameters.items():
-        if name in kwargs or param.kind in (
-            inspect.Parameter.VAR_KEYWORD,
-            inspect.Parameter.VAR_POSITIONAL,
-        ):
-            continue
-        default = param.default
-        if isinstance(default, (typer.models.OptionInfo, typer.models.ArgumentInfo)):
-            kwargs[name] = default.default
-        elif default is not inspect.Parameter.empty:
-            kwargs[name] = default
-        # A required param with no default is left out; fn raises if truly missing.
-    return fn(**kwargs)
 
 
 def _run_topic_workflow(

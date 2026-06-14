@@ -81,6 +81,7 @@ SHORTS_THRESHOLD = 180
 # ``cli_shared.console`` / ``_helpers.console`` import paths and monkeypatch
 # targets.
 from distill._console import console, err_console  # noqa: E402
+from distill.preflight import preflight_ytdlp  # noqa: E402
 
 
 def get_config() -> DistillConfig:
@@ -712,3 +713,51 @@ def _log_report_cost_delta(
         return
     with suppress(Exception):
         save_run_log(config.library_dir, "report", report_tracker, metadata=metadata)
+
+
+# ── Cross-command dispatch + startup helpers (moved from _logic, decomposition Phase 2) ──
+
+
+def _preflight() -> None:
+    """Non-blocking startup nudges: a stale-yt-dlp warning and a distillr
+    update-available notice. Both cached daily and individually opt-out-able
+    (DISTILL_NO_PREFLIGHT / DISTILL_NO_UPDATE_CHECK)."""
+    try:
+        library_dir = get_config().library_dir
+    except Exception:
+        library_dir = None
+    preflight_ytdlp(console, library_dir)
+    try:
+        from distill.update import check_for_update
+
+        check_for_update(console, library_dir)
+    except Exception:
+        # An update check must never break a command.
+        pass
+
+
+def _invoke_command(fn, **overrides):
+    """Call a typer command as a plain Python function from another command.
+
+    Typer command parameters default to ``typer.Option(...)`` / ``typer.Argument(...)``
+    sentinel objects, which are truthy. Calling such a function directly and omitting
+    any parameter leaks that sentinel into the body, so guards like ``if channel:`` or
+    ``sort not in {...}`` misfire. This resolves every unspecified parameter to its real
+    default (the sentinel's ``.default``) so internal dispatch behaves like the CLI.
+    """
+    import inspect
+
+    kwargs = dict(overrides)  # always honor the caller's explicit values
+    for name, param in inspect.signature(fn).parameters.items():
+        if name in kwargs or param.kind in (
+            inspect.Parameter.VAR_KEYWORD,
+            inspect.Parameter.VAR_POSITIONAL,
+        ):
+            continue
+        default = param.default
+        if isinstance(default, (typer.models.OptionInfo, typer.models.ArgumentInfo)):
+            kwargs[name] = default.default
+        elif default is not inspect.Parameter.empty:
+            kwargs[name] = default
+        # A required param with no default is left out; fn raises if truly missing.
+    return fn(**kwargs)
