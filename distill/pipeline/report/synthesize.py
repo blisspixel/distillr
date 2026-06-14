@@ -17,7 +17,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.llm import call as llm_call
-from distill.llm.router import RouterConfig
+from distill.llm.router import ConfigurationError, RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report.brief import gather_topic_files
 
@@ -25,6 +25,22 @@ __all__ = [
     "compose_synthesis_prompt",
     "run_synthesis",
 ]
+
+
+def _synthesis_model_available() -> bool:
+    """Is a model configured for the synthesis workload (cloud key OR local provider)?
+
+    Asks the router (does ``validate_config`` pass for this workload?), never
+    ``config.xai_api_key`` -- a local-only user (Ollama / LM Studio) can run
+    synthesis on their own model and must not be blocked with "XAI_API_KEY not
+    set". See docs/design/model-judgment-vs-brittle-fallbacks.md ("use what they
+    have, never assume a cloud key").
+    """
+    try:
+        RouterConfig().validate_config("synthesis")
+    except ConfigurationError:
+        return False
+    return True
 
 
 def compose_synthesis_prompt(context: str, corpus_sections: list[tuple[str, str]]) -> str:
@@ -64,8 +80,11 @@ def run_synthesis(
     tracker: CostTracker | None = None,
 ) -> Path | None:
     """Run a single-call LLM synthesis across the given topics."""
-    if not config.xai_api_key:
-        console.print("[red]XAI_API_KEY not set in .env[/red]")
+    if not _synthesis_model_available():
+        console.print(
+            "[red]No model configured for synthesis.[/red] Set a cloud key "
+            "(XAI_API_KEY / GEMINI_API_KEY) or a local provider (DISTILL_PROVIDER=ollama)."
+        )
         return None
 
     console.print(f"[cyan]Gathering files across {len(topics)} topic(s)...[/cyan]")

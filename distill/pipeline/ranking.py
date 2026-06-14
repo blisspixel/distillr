@@ -11,7 +11,7 @@ from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
-from distill.llm.router import RouterConfig
+from distill.llm.router import ConfigurationError, RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.discover import paper_rerank_prompt, search_rerank_prompt
 
@@ -22,6 +22,23 @@ __all__ = [
     "rerank_papers",
     "rerank_videos",
 ]
+
+
+def _rerank_model_available() -> bool:
+    """Is a model configured for the rerank workload (cloud key OR local provider)?
+
+    Asks the router (does ``validate_config`` pass for this workload?), never
+    ``config.xai_api_key`` -- an Ollama/LM Studio user has a usable local judge
+    and must get it, not the keyword heuristic. When no model is configured at
+    all, the caller falls back to the deterministic baseline (an honest,
+    non-semantic order). See docs/design/model-judgment-vs-brittle-fallbacks.md
+    (P1: "use what they have, never assume a cloud key").
+    """
+    try:
+        RouterConfig().validate_config("rerank")
+    except ConfigurationError:
+        return False
+    return True
 
 
 @dataclass
@@ -50,7 +67,7 @@ def rerank_videos(
         return []
 
     baseline = _heuristic_rank(query, videos, skeptical=skeptical)
-    if not use_llm or not config.xai_api_key:
+    if not use_llm or not _rerank_model_available():
         return baseline[:top_n]
 
     try:
@@ -474,7 +491,7 @@ def rerank_papers(
         return []
 
     baseline = _heuristic_rank_papers(query, papers)
-    if not use_llm or not config.xai_api_key:
+    if not use_llm or not _rerank_model_available():
         return baseline[:top_n]
 
     try:

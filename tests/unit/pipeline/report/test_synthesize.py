@@ -2,10 +2,21 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.llm.router import LLM_Response
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.synthesize import compose_synthesis_prompt, run_synthesis
+
+
+@pytest.fixture(autouse=True)
+def _model_available(monkeypatch):
+    # The gate asks the router now (cloud key OR local provider), not
+    # config.xai_api_key. Configure a keyless local provider so the real helper
+    # returns True -- env-isolated (ollama needs no key). The no-model test
+    # overrides the provider.
+    monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
 
 
 def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
@@ -23,7 +34,11 @@ def test_compose_synthesis_prompt_includes_context_and_sources():
     assert "=== END OF CORPUS ===" in prompt
 
 
-def test_run_synthesis_handles_missing_key(tmp_path):
+def test_run_synthesis_returns_none_when_no_model_available(tmp_path, monkeypatch):
+    # No usable model for the workload -> clean abort, not a crash. 'anthropic' is
+    # configured-but-not-implemented, so the router reports no model regardless of
+    # any ambient cloud key (deterministic, no env coupling).
+    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
     no_key = DistillConfig(distill_output_dir=tmp_path / "lib")
     assert run_synthesis(["ai"], "ctx", "demo", no_key) is None
 

@@ -32,7 +32,7 @@ From the June-2026 sweep of `distill/`. Severity is "does it drive a user-visibl
 
 | Site | Semantic call faked with a rule | Primary or fallback | Severity |
 |---|---|---|---|
-| `pipeline/ranking.py` `rerank_videos:53` / `rerank_papers:477` | the gate `not config.xai_api_key` decides whether to use model judgment at all | **decides the path** | **HIGH** |
+| `pipeline/ranking.py` `rerank_videos` / `rerank_papers` | the gate `not config.xai_api_key` decided whether to use model judgment at all | **decides the path** | **FIXED 2026-06-14 (P1)** |
 | `pipeline/ranking.py` `_skepticism_adjustment` / `_looks_like_rumor_query` (436) → `_auto_skeptical_mode` | "is this query/result a rumor or a prank?" by keyword list; **flips `skeptical` into the *primary* `_llm_rerank` prompt** | **leaks into primary** | **HIGH** |
 | `pipeline/ranking.py` `_practicality_score` (276) | "how-to vs news" by booster/penalty keyword lists | heuristic rank (fallback) | MED |
 | `pipeline/ranking.py` `_topicality_score` (302) | "is this on-topic?" by token overlap + ignore-list | heuristic rank (fallback) | MED |
@@ -46,7 +46,7 @@ The two HIGH rows are the real problem and share one root cause: **`ranking.py` 
 
 ## The plan (staged)
 
-**P1 — Route judgment to whatever model exists.** Replace the `not config.xai_api_key` gate in `rerank_videos` / `rerank_papers` (and any sibling) with a router capability check: "is a model available for the `rerank` workload?" (cloud key present, or a local provider configured and reachable). Cloud preferred; local used when that is what's configured. The keyword heuristic becomes tier-4 only. *Touches:* `ranking.py`, a small `RouterConfig.has_model_for(workload)` helper.
+**P1 — Route judgment to whatever model exists. SHIPPED 2026-06-14.** The `not config.xai_api_key` gate in `rerank_videos` / `rerank_papers` (and the sibling `report/synthesize.py` hard-abort) now asks the router instead: `_rerank_model_available()` / `_synthesis_model_available()` return True iff `RouterConfig().validate_config(workload)` passes (a keyless local provider is configured, OR a cloud key is present). So an Ollama/LM Studio user gets the model judge, and a local-only user is no longer blocked from synthesis with "XAI_API_KEY not set"; the keyword heuristic is the fallback only when *no* model is configured at all. *(Implementation note: the planned `RouterConfig.has_model_for` helper was inlined as a `validate_config` try/except in the two pipeline helpers because `distill/llm/router.py` is already at the 500-line module-size cap; the capability logic is `validate_config`'s either way.)* Covered by `test_ranking.py::{test_rerank_uses_model_with_local_provider_and_no_cloud_key, test_rerank_videos_falls_back_to_heuristic_when_no_model_available}` and the synthesize equivalents. **P2 (honest no-model labeling) is the remaining slice of this row:** the fallback still tags results `selected_by="heuristic"` rather than an explicit `no-model:recency` label with a one-line "add a model for ranked results" notice.
 
 **P2 — Honest no-model degradation.** When P1's check finds no model at all, do not return keyword "quality" scores as if ranked. Return a transparent order (recency, then engagement metadata) wrapped with an explicit label — `selected_by="no-model:recency"` and a one-line console/notice "No model configured — showing newest first; add a cloud key or a local model for ranked results." Surface, don't hide, the downgrade.
 

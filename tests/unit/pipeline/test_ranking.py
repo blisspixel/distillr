@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.pipeline.ranking import (
@@ -18,6 +20,16 @@ from distill.pipeline.ranking import (
     chronological_rank,
     rerank_videos,
 )
+
+
+@pytest.fixture(autouse=True)
+def _model_available(monkeypatch):
+    # The gate now asks the router (cloud key OR local provider), not
+    # config.xai_api_key. Configure a keyless local provider so the real
+    # availability helper returns True and the LLM-path tests exercise the model
+    # judge -- env-isolated (ollama needs no key, so this is independent of any
+    # ambient .env cloud key). No-model tests override the provider.
+    monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
 
 
 def _recent(days_ago: int = 1) -> str:
@@ -86,6 +98,45 @@ def test_rerank_videos_uses_llm_response_when_available(tmp_path, monkeypatch):
 
     assert [item.video.video_id for item in ranked] == ["v2"]
     assert ranked[0].selected_by == "llm"
+
+
+def test_rerank_uses_model_with_local_provider_and_no_cloud_key(tmp_path, monkeypatch):
+    # The P1 fix: an Ollama/LM Studio user has NO xai key but a usable local
+    # judge (availability True via the router). They must get the model rerank,
+    # not the keyword heuristic -- the gate asks the router, not config.xai_api_key.
+    config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+    videos = [
+        VideoInfo("v1", "One", _recent(3), 1200, "https://youtube.com/watch?v=v1", "CreatorA"),
+        VideoInfo("v2", "Two", _recent(4), 1200, "https://youtube.com/watch?v=v2", "CreatorB"),
+    ]
+    from distill.llm.router import LLM_Response
+
+    monkeypatch.setattr(
+        "distill.pipeline.ranking.llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='{"ranked_videos": [{"video_id": "v2", "final_score": 0.82, "rationale": "fit"}]}',
+            input_tokens=100,
+            output_tokens=50,
+            model="qwen3.5:27b",
+        ),
+    )
+    ranked = rerank_videos("query", videos, config, top_n=1, use_llm=True)
+    assert ranked[0].selected_by == "llm"  # local judge used despite no cloud key
+
+
+def test_rerank_videos_falls_back_to_heuristic_when_no_model_available(tmp_path, monkeypatch):
+    # No usable model for the workload: fall back to the deterministic baseline
+    # rather than calling a model that isn't there. 'anthropic' is a configured-
+    # but-not-implemented provider, so the router reports no model regardless of
+    # any ambient cloud key -- a deterministic "no model" without env coupling.
+    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    videos = [
+        VideoInfo("v1", "Kubernetes guide", _recent(3), 1200, "https://y.tube/v1", "A"),
+        VideoInfo("v2", "News roundup", _recent(4), 300, "https://y.tube/v2", "B"),
+    ]
+    ranked = rerank_videos("Kubernetes", videos, config, top_n=2, use_llm=True)
+    assert all(item.selected_by == "heuristic" for item in ranked)
 
 
 def test_rerank_videos_generic_topicality_penalizes_off_topic(tmp_path):
