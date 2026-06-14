@@ -17,7 +17,7 @@ import typer
 
 from distill import cli_shared
 from distill._console import console
-from distill.cli_shared import require_api_key as _require_api_key
+from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
 from distill.commands._helpers import _invoke_command, _preflight, get_config
 from distill.commands._logic import (
@@ -131,7 +131,7 @@ def synthesize_cmd(
         raise typer.Exit(1)
 
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required for Grok synthesis")
+    _require_model()
 
     tracker = CostTracker()
     output_path = run_synthesis(
@@ -370,7 +370,7 @@ def site_cmd(
         console.print("[red]--report cannot be used with --scrape-only[/red]")
         raise typer.Exit(2)
     if not scrape_only:
-        _require_api_key(config.xai_api_key, "XAI_API_KEY required for website analysis")
+        _require_model()
     tracker = CostTracker()
     summary = RunSummary(command="site")
     summary.set_metadata(topic=topic, workflow="site", source_type="website")
@@ -454,7 +454,7 @@ def site_batch_cmd(
         console.print("[red]--report cannot be used with --scrape-only[/red]")
         raise typer.Exit(2)
     if not scrape_only:
-        _require_api_key(config.xai_api_key, "XAI_API_KEY required for website analysis")
+        _require_model()
     batch = load_site_batch(path, topic_override=topic)
     tracker = CostTracker()
     summary = RunSummary(command="site-batch")
@@ -650,7 +650,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         raise typer.Exit(1)
 
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required for goal-aware discovery")
+    _require_model()
     tracker = CostTracker()
 
     if from_preview:

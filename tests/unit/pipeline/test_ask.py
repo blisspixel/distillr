@@ -120,6 +120,9 @@ def test_ask_command_wiring(config, monkeypatch):
 
     _seed_corpus(config)
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    # The ask gate asks the router for a model (cloud key OR local provider), not
+    # config.xai_api_key; a keyless local provider keeps this offline + deterministic.
+    monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
     _llm(monkeypatch, GROUNDED)
 
     result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t"])

@@ -133,9 +133,10 @@ def run_learning_command(
     rigor: str = "off",
 ) -> None:
     config = get_config()
-    if not config.xai_api_key:
-        console.print("[red]XAI_API_KEY required[/red]")
-        raise typer.Exit(1)
+    # Run if the user has any usable model (cloud key OR local provider), not
+    # only if XAI_API_KEY is set -- a local-only user can drive the flagship
+    # learning flow on their own model. See docs/design/model-judgment-vs-brittle-fallbacks.md.
+    cli_shared.require_model()
 
     topic_name = topic or topic_from_query(query)
     tracker = cost_tracker_factory()

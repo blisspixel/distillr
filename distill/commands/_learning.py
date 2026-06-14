@@ -14,6 +14,7 @@ from distill.config import DistillConfig
 from distill.ingestors.youtube.browser_search import search_youtube_results
 from distill.ingestors.youtube.discovery import enrich_videos, search_videos
 from distill.llm import call as llm_call
+from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.ranking import RankedPaper, rerank_videos
@@ -34,7 +35,7 @@ def _expand_learning_queries(
 
     normalized = " ".join(query.split())
     variants = _heuristic_learning_queries(normalized, skeptical=skeptical)
-    if expand and config and config.xai_api_key:
+    if expand and config and model_available("rerank"):
         llm_variants = _llm_expand_learning_queries(
             normalized,
             config,
@@ -155,7 +156,7 @@ def _expand_paper_queries(
     if not normalized:
         return []
     variants = [normalized]
-    if expand and config and config.xai_api_key:
+    if expand and config and model_available("rerank"):
         try:
             llm_variants = _llm_expand_paper_queries(normalized, config, tracker=tracker)
         except Exception as e:

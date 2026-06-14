@@ -17,7 +17,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.llm import call as llm_call
-from distill.llm.router import ConfigurationError, RouterConfig
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report.brief import gather_topic_files
 
@@ -36,11 +36,9 @@ def _synthesis_model_available() -> bool:
     set". See docs/design/model-judgment-vs-brittle-fallbacks.md ("use what they
     have, never assume a cloud key").
     """
-    try:
-        RouterConfig().validate_config("synthesis")
-    except ConfigurationError:
-        return False
-    return True
+    from distill.llm.availability import model_available
+
+    return model_available("synthesis")
 
 
 def compose_synthesis_prompt(context: str, corpus_sections: list[tuple[str, str]]) -> str:

@@ -21,7 +21,7 @@ from rich.table import Table
 from distill._console import console
 from distill.banner import show_banner
 from distill.cli_shared import output_path as _output_path
-from distill.cli_shared import require_api_key as _require_api_key
+from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import _resolve_topic_for_channel, get_config
 from distill.commands._helpers import tty_confirm as _tty_confirm
 
@@ -733,7 +733,7 @@ def corpus(
 ):
     """Build a mixed-source corpus synthesis for a topic."""
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
+    _require_model()
     tracker = CostTracker()
     summary = RunSummary(command="corpus")
     summary.set_metadata(topic=topic, workflow="corpus", source_type="mixed")

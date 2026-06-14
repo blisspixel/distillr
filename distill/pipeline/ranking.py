@@ -11,7 +11,7 @@ from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
-from distill.llm.router import ConfigurationError, RouterConfig
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.discover import paper_rerank_prompt, search_rerank_prompt
 
@@ -34,11 +34,9 @@ def _rerank_model_available() -> bool:
     non-semantic order). See docs/design/model-judgment-vs-brittle-fallbacks.md
     (P1: "use what they have, never assume a cloud key").
     """
-    try:
-        RouterConfig().validate_config("rerank")
-    except ConfigurationError:
-        return False
-    return True
+    from distill.llm.availability import model_available
+
+    return model_available("rerank")
 
 
 @dataclass

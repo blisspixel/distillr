@@ -92,7 +92,11 @@ def test_preview_learning_selection_exits_when_no_matches(config):
     assert excinfo.value.exit_code == 0
 
 
-def test_run_learning_command_requires_api_key(tmp_path):
+def test_run_learning_command_requires_a_model(tmp_path, monkeypatch):
+    # No usable model for any workload: the flagship command exits cleanly. Force
+    # a configured-but-not-implemented provider so "no model" is deterministic and
+    # independent of any ambient cloud key.
+    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
     no_key_config = type("NoKeyConfig", (), {"xai_api_key": "", "distill_output_dir": tmp_path})()
 
     with pytest.raises(typer.Exit) as excinfo:

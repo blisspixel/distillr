@@ -23,7 +23,7 @@ from distill.cli_shared import duration_str as _duration_str
 from distill.cli_shared import format_date as _format_date
 from distill.cli_shared import print_markdown_safely as _print_markdown_safely
 from distill.cli_shared import print_text_safely as _print_text_safely
-from distill.cli_shared import require_api_key as _require_api_key
+from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import safe_console_text as _safe_console_text
 from distill.cli_shared import strip_frontmatter as _strip_frontmatter
 from distill.commands._helpers import (
@@ -84,7 +84,7 @@ def video(
     Use --show to print the analysis inline.
     """
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required for analysis")
+    _require_model()
 
     tracker = CostTracker()
     summary = RunSummary(command="video")
@@ -188,7 +188,7 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
     """
     _preflight()
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
+    _require_model()
 
     lookback = months if months is not None else config.distill_default_months
     name = resolve_channel_name(url)

@@ -60,6 +60,7 @@ __all__ = [
     "record_exception_issue",
     "record_output_or_issue",
     "require_api_key",
+    "require_model",
     "resolve_video_channel_name",
     "run_scope_report",
     "safe_console_text",
@@ -230,6 +231,29 @@ def require_api_key(value: str | object, message: str) -> None:
     if not value:
         console.print(f"[red]{message}[/red]")
         raise typer.Exit(1)
+
+
+def require_model(workload: str = "", hint: str = "") -> None:
+    """Exit cleanly unless a model is configured for ``workload``.
+
+    The "use what they have" replacement for ``require_api_key(config.xai_api_key,
+    ...)``: a keyless local provider (Ollama / LM Studio) satisfies it, so a
+    local-only user is not blocked from a workload their own model can serve. Only
+    use ``require_api_key`` directly where a *specific* cloud key is genuinely
+    required (e.g. Grok speech-to-text, a grok-only eval judge).
+    """
+    from distill.llm.availability import model_available
+
+    if model_available(workload):
+        return
+    target = f" for {workload}" if workload else ""
+    extra = f" {hint}" if hint else ""
+    console.print(
+        f"[red]No model configured{target}.[/red] Set a cloud key "
+        f"(XAI_API_KEY / GEMINI_API_KEY) or a local provider (DISTILL_PROVIDER=ollama)."
+        f"{extra}"
+    )
+    raise typer.Exit(1)
 
 
 def strip_frontmatter(content: str) -> str:

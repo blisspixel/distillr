@@ -25,6 +25,7 @@ from distill.commands._logic import (
     _run_learning_command,
     _validate_learning_options,
 )
+from distill.llm.availability import model_available
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.brief import run_research_brief
 from distill.pipeline.summary import RunSummary, display_summary, log_preview_cost
@@ -79,8 +80,11 @@ def search_cmd(
         table_title="Best Videos to Learn From",
         hours=hours,
     )
-    if rerank and not config.xai_api_key:
-        console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
+    if rerank and not model_available("rerank"):
+        console.print(
+            "[yellow]No model configured; used deterministic ranking fallback "
+            "(set a cloud key or DISTILL_PROVIDER=ollama for LLM reranking)[/yellow]"
+        )
     console.print('\n[dim]Run `distill learn "..."` to process these picks.[/dim]')
     log_preview_cost(tracker, config.library_dir, "search")
 
@@ -118,8 +122,11 @@ def explore_cmd(
         header="Explore",
         table_title="Broader Topic Coverage",
     )
-    if rerank and not config.xai_api_key:
-        console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
+    if rerank and not model_available("rerank"):
+        console.print(
+            "[yellow]No model configured; used deterministic ranking fallback "
+            "(set a cloud key or DISTILL_PROVIDER=ollama for LLM reranking)[/yellow]"
+        )
     console.print(
         '\n[dim]Run `distill latest "..."` or `distill learn "..."` to process the best set.[/dim]'
     )
@@ -436,9 +443,10 @@ def latest_cmd(
             top_by_date=top_by_date,
             rigor=rigor,
         )
-        if effective_rerank and not config.xai_api_key:
+        if effective_rerank and not model_available("rerank"):
             console.print(
-                "[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]"
+                "[yellow]No model configured; used deterministic ranking fallback "
+                "(set a cloud key or DISTILL_PROVIDER=ollama for LLM reranking)[/yellow]"
             )
         console.print("\n[dim]Run without `--preview` to process this set.[/dim]")
         log_preview_cost(

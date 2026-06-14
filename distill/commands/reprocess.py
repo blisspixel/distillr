@@ -16,7 +16,7 @@ import typer
 import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.cli_shared import SHORTS_THRESHOLD
-from distill.cli_shared import require_api_key as _require_api_key
+from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import _resolve_intent, _resolve_topic_for_channel, get_config
 from distill.commands._helpers import format_date as _format_date
 from distill.commands._logic import _complete_topics
@@ -83,7 +83,7 @@ def resynthesize(
         raise typer.Exit(2)
 
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
+    _require_model()
     lib = Library(config)
     topic, channel = _resolve_topic_for_channel(lib, topic, channel)
 
@@ -208,7 +208,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
       distill reanalyze ai --dry-run
     """
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
+    _require_model()
     lib = Library(config)
     topic, channel = _resolve_topic_for_channel(lib, topic, channel)
 

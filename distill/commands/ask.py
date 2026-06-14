@@ -13,6 +13,7 @@ from rich.markdown import Markdown
 
 from distill._console import console
 from distill.commands import _logic
+from distill.commands._helpers import require_model as _require_model
 from distill.commands._logic import _complete_topics
 from distill.pipeline.ask import ask_corpus
 from distill.pipeline.costs import CostTracker, save_run_log
@@ -44,7 +45,7 @@ def ask_cmd(
     and future answers build on it -- the compounding step, verify-gated.
     """
     config = _logic.get_config()
-    _logic._require_api_key(config.xai_api_key, "XAI_API_KEY required for ask")
+    _require_model("qa")
     tracker = CostTracker()
 
     result = ask_corpus(question, topic=topic, config=config, save=save, tracker=tracker)

@@ -12,7 +12,7 @@ import typer
 
 import distill.cli_shared as cli_shared
 from distill._console import console
-from distill.cli_shared import require_api_key as _require_api_key
+from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
 from distill.commands._helpers import _resolve_intent, get_config
 from distill.commands._logic import (
@@ -30,6 +30,7 @@ from distill.ingestors.papers.arxiv import (
     search_arxiv_papers,
 )
 from distill.library.paths import find_artifact
+from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.ranking import rerank_papers
@@ -45,7 +46,7 @@ def paper(
 ):
     """Ingest and analyze a single arXiv paper."""
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required for paper analysis")
+    _require_model()
     tracker = CostTracker()
     summary = RunSummary(command="paper")
     summary.set_metadata(topic=topic, workflow="paper", source_type="paper")
@@ -141,7 +142,7 @@ def papers(  # noqa: C901 — legacy, will refactor
     _apply_verify_override(verify)
 
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required for paper analysis")
+    _require_model()
     tracker = CostTracker()
     topic_name = topic or _topic_from_query(query)
     if lens:
@@ -218,8 +219,11 @@ def papers(  # noqa: C901 — legacy, will refactor
         top_n=pool_n,
         use_llm=rerank,
     )
-    if rerank and not config.xai_api_key:
-        console.print("[yellow]XAI_API_KEY missing; used deterministic ranking fallback[/yellow]")
+    if rerank and not model_available("rerank"):
+        console.print(
+            "[yellow]No model configured; used deterministic ranking fallback "
+            "(set a cloud key or DISTILL_PROVIDER=ollama for LLM reranking)[/yellow]"
+        )
     ranked = _apply_source_rigor(ranked, source="paper", rigor=rigor, rerank_on=rerank, limit=limit)
 
     if preview:

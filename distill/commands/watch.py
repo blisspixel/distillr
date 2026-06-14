@@ -13,7 +13,7 @@ import typer
 from distill import cli_shared
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import duration_str as _duration_str
-from distill.cli_shared import require_api_key as _require_api_key
+from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import _preflight, get_config
 from distill.commands._logic import (
     _ACCENT,
@@ -31,6 +31,7 @@ from distill.ingestors.youtube.discovery import (
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
+from distill.llm.availability import model_available
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.summary import (
     ETATracker,
@@ -108,8 +109,8 @@ def watch_add(
     lib = Library(config)
     name = resolve_channel_name(url)
 
-    # Auto-generate smart instructions if none provided
-    if not instructions and config.xai_api_key:
+    # Auto-generate smart instructions if none provided (any configured model)
+    if not instructions and model_available():
         with console.status(
             f"  {name}  [dim]generating analysis focus[/dim]",
             spinner="dots",
@@ -231,7 +232,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
     """
     _preflight()
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
+    _require_model()
     lib = Library(config)
     watchlist = lib.get_watchlist()
 

@@ -41,7 +41,7 @@ from distill.cli_shared import (
     output_path as _output_path,
 )
 from distill.cli_shared import (
-    require_api_key as _require_api_key,
+    require_model as _require_model,
 )
 from distill.cli_shared import (
     resolve_video_channel_name as _shared_resolve_video_channel_name,
@@ -112,6 +112,7 @@ from distill.library.paths import (
     write_text_artifact,
 )
 from distill.library.state import ChannelState
+from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import analyze_site_page, synthesize_site, synthesize_site_topic
 from distill.pipeline.analysis.video import (
@@ -216,7 +217,7 @@ def _expand_learning_queries(
 
     normalized = " ".join(query.split())
     variants = _heuristic_learning_queries(normalized, skeptical=skeptical)
-    if expand and config and config.xai_api_key:
+    if expand and config and model_available("rerank"):
         llm_variants = _llm_expand_learning_queries(
             normalized,
             config,
@@ -239,7 +240,7 @@ def _expand_paper_queries(
     if not normalized:
         return []
     variants = [normalized]
-    if expand and config and config.xai_api_key:
+    if expand and config and model_available("rerank"):
         try:
             llm_variants = _llm_expand_paper_queries(normalized, config, tracker=tracker)
         except Exception as e:
@@ -2666,7 +2667,7 @@ def topic_watch_run(  # noqa: C901 — legacy, will refactor
     """Run recurring topic watches using the existing topic-learning pipeline."""
     _preflight()
     config = get_config()
-    _require_api_key(config.xai_api_key, "XAI_API_KEY required")
+    _require_model()
     lib = Library(config)
     watchlist = lib.get_topic_watchlist()
 
