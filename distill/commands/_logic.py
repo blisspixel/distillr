@@ -2469,63 +2469,6 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
         )
 
 
-@app.command(name="learn", rich_help_panel="Discover")
-def learn_cmd(
-    query: str = typer.Argument(help="Topic or question to learn from YouTube"),
-    topic: str | None = typer.Option(
-        None, "--topic", "-t", help="Topic to file under (default: derived from query)"
-    ),
-    days: int = typer.Option(60, "--days", "-d", help="Recency window in days (default: 60)"),
-    hours: int | None = typer.Option(
-        None,
-        "--hours",
-        help="Exact recency window in hours (overrides day precision where possible)",
-    ),
-    limit: int = typer.Option(
-        5, "--limit", "-n", help="How many best-pick videos to process (default: 5)"
-    ),
-    sort: str = typer.Option(
-        "relevance", "--sort", help="Candidate search order: relevance or date"
-    ),
-    per_channel_cap: int = typer.Option(2, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-    save: bool = typer.Option(
-        True,
-        "--save/--ephemeral",
-        help="Save discovered channels into the library (default: save)",
-    ),
-    report: bool = typer.Option(
-        False, "--report", "-r", help="Generate a topic report after processing"
-    ),
-    test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
-):
-    """Learn a topic fast by processing the best recent YouTube videos by default."""
-    _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    _run_learning_command(
-        query,
-        topic=topic,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=False,
-        header="Learning",
-        hours=hours,
-    )
-
-
 @app.command(name="latest", rich_help_panel="Discover")
 def latest_cmd(
     query: str = typer.Argument(help="Topic or question to get current on quickly"),
@@ -2675,66 +2618,6 @@ def latest_cmd(
         top_by_date=top_by_date,
         post_ingest_callback=post_ingest_callback,
         rigor=rigor,
-    )
-
-
-@app.command(name="brief", rich_help_panel="Discover")
-def brief_cmd(
-    query: str = typer.Argument(help="Topic or question to learn and turn into a short brief"),
-    topic: str | None = typer.Option(
-        None, "--topic", "-t", help="Topic to file under (default: derived from query)"
-    ),
-    days: int = typer.Option(60, "--days", "-d", help="Recency window in days (default: 60)"),
-    hours: int | None = typer.Option(
-        None,
-        "--hours",
-        help="Exact recency window in hours (overrides day precision where possible)",
-    ),
-    limit: int = typer.Option(
-        5, "--limit", "-n", help="How many best-pick videos to process (default: 5)"
-    ),
-    sort: str = typer.Option(
-        "relevance", "--sort", help="Candidate search order: relevance or date"
-    ),
-    per_channel_cap: int = typer.Option(2, "--channel-cap", help="Max final picks per channel"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    rerank: bool = typer.Option(
-        True,
-        "--rerank/--no-rerank",
-        help="Use LLM reranking to pick the best videos (default: on)",
-    ),
-    save: bool = typer.Option(
-        True,
-        "--save/--ephemeral",
-        help="Save discovered channels into the library (default: save)",
-    ),
-    report: bool = typer.Option(
-        False,
-        "--report",
-        "-r",
-        help="Also generate a full topic report after processing",
-    ),
-    test: bool = typer.Option(False, "--test", help="Test mode for research (cheaper)"),
-):
-    """Learn a topic and generate a concise markdown brief."""
-    _validate_learning_options(sort, limit, days, per_channel_cap, hours=hours)
-    _run_learning_command(
-        query,
-        topic=topic,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=True,
-        header="Briefing",
-        hours=hours,
     )
 
 

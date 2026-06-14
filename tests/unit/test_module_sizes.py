@@ -42,8 +42,9 @@ ALLOWLIST: dict[str, int] = {
     # _preflight + _invoke_command -> _helpers.py (Phase 2 foundation): 6245 -> 6203;
     # _resolve_intent -> _helpers.py (Phase 2 foundation): 6203 -> 6192;
     # search + explore -> commands/discover.py (Discover slice 1): 6192 -> 6103;
-    # research-brief -> commands/discover.py (Discover slice 2): 6103 -> 6010.
-    "distill/commands/_logic.py": 6010,
+    # research-brief -> commands/discover.py (Discover slice 2): 6103 -> 6010;
+    # learn + brief -> commands/discover.py (Discover slice 3): 6010 -> 5893.
+    "distill/commands/_logic.py": 5893,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
