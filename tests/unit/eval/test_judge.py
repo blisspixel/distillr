@@ -1,9 +1,16 @@
-"""Tests for distill.eval.judge (advisory pairwise judge, mocked LLM)."""
+"""Tests for distill.eval.judge (pairwise + faithfulness model judges, mocked LLM)."""
 
 from types import SimpleNamespace
 
 from distill.eval import judge as judge_mod
-from distill.eval.judge import _pairwise_prompt, judge_pairwise, judge_shares_family
+from distill.eval.judge import (
+    FAITHFULNESS_ORDINAL,
+    _faithfulness_prompt,
+    _pairwise_prompt,
+    judge_faithfulness,
+    judge_pairwise,
+    judge_shares_family,
+)
 from distill.pipeline.costs import CostTracker
 
 
@@ -100,6 +107,77 @@ def test_prompt_includes_heuristics_block_when_supplied():
     assert "weak prior" in prompt  # framed as noisy, not a verdict
     assert "A: depth 0.90" in prompt
     assert "B: depth 0.20" in prompt
+
+
+def test_faithfulness_parses_faithful_verdict(monkeypatch):
+    monkeypatch.setattr(
+        judge_mod,
+        "llm_call",
+        lambda *a, **k: _resp(
+            '{"verdict": "faithful", "unsupported": [], "rationale": "all good"}'
+        ),
+    )
+    tracker = CostTracker()
+    v = judge_faithfulness("SRC", "analysis", judge_model="grok-4.3", tracker=tracker)
+    assert v is not None
+    assert v.label == "faithful"
+    assert v.ordinal == FAITHFULNESS_ORDINAL["faithful"] == 2
+    assert v.unsupported == ()
+    assert len(tracker.entries) == 1  # single absolute call (no A/B debias needed)
+
+
+def test_faithfulness_parses_unfaithful_with_unsupported_claims(monkeypatch):
+    monkeypatch.setattr(
+        judge_mod,
+        "llm_call",
+        lambda *a, **k: _resp(
+            '{"verdict": "unfaithful", "unsupported": ["MRR of 99.9", "invented dataset XYZ"], '
+            '"rationale": "two numbers absent from the source"}'
+        ),
+    )
+    v = judge_faithfulness("SRC", "analysis", judge_model="grok-4.3")
+    assert v is not None
+    assert v.label == "unfaithful"
+    assert v.ordinal == 0
+    assert v.unsupported == ("MRR of 99.9", "invented dataset XYZ")
+
+
+def test_faithfulness_returns_none_on_unparseable(monkeypatch):
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp("no json at all"))
+    assert judge_faithfulness("s", "o", judge_model="grok-4.3") is None
+
+
+def test_faithfulness_returns_none_on_unknown_label(monkeypatch):
+    # A verdict outside the fixed scale is no signal, not a silently-coerced one.
+    monkeypatch.setattr(
+        judge_mod, "llm_call", lambda *a, **k: _resp('{"verdict": "mostly ok", "rationale": "x"}')
+    )
+    assert judge_faithfulness("s", "o", judge_model="grok-4.3") is None
+
+
+def test_faithfulness_routes_to_its_own_provider(monkeypatch):
+    captured: dict = {}
+
+    def fake_call(config, **kwargs):
+        captured["provider"] = config.provider
+        captured["model"] = config.model
+        return _resp('{"verdict": "faithful", "rationale": "x"}')
+
+    monkeypatch.setattr(judge_mod, "llm_call", fake_call)
+    judge_faithfulness("s", "o", judge_model="gemini-3.1-pro")
+    assert captured["provider"] == "gemini"
+    assert captured["model"] == "gemini-3.1-pro"
+
+
+def test_faithfulness_prompt_is_source_anchored_and_categorical():
+    # The whole point: graded against the SOURCE, coarse 3-way verdict, no
+    # fine-grained score, no anchor/pairwise comparison.
+    prompt = _faithfulness_prompt("SRC-TEXT", "ANALYSIS-TEXT")
+    assert "SOURCE is the ground truth" in prompt
+    for label in ("faithful", "minor", "unfaithful"):
+        assert f'"{label}"' in prompt
+    assert "fluency is not faithfulness" in prompt
+    assert "SRC-TEXT" in prompt and "ANALYSIS-TEXT" in prompt
 
 
 def test_heuristics_follow_the_output_not_the_slot(monkeypatch):

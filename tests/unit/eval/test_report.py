@@ -5,7 +5,13 @@ from distill.eval.report import console_lines, render_markdown, results_log_line
 from distill.eval.scoring import QualityScore
 
 
-def _rows(model: str, composites: list[float], cost_each: float, winrate: float | None) -> list:
+def _rows(
+    model: str,
+    composites: list[float],
+    cost_each: float,
+    winrate: float | None,
+    faithfulness: str = "",
+) -> list:
     return [
         EvalRow(
             workload="paper",
@@ -16,6 +22,7 @@ def _rows(model: str, composites: list[float], cost_each: float, winrate: float 
             input_tokens=0,
             output_tokens=0,
             pairwise_winrate=winrate,
+            faithfulness=faithfulness,
         )
         for i, c in enumerate(composites)
     ]
@@ -80,6 +87,40 @@ def test_judge_certifies_migration_when_at_par():
     assert summary.recommended == "local"
     assert summary.confidence == "high"
     assert "judge confirms" in summary.confidence_reason
+
+
+def test_faithfulness_vetoes_migration_even_when_pairwise_wins():
+    # The cheaper model clears the composite floor AND wins the pairwise judge,
+    # but is judged unfaithful on a fixture. Grounding veto: do NOT migrate to
+    # output that invents facts, however well it ranks. Stay on the incumbent.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None, faithfulness="faithful")
+    rows += _rows("local", [0.95, 0.95, 0.95], 0.0, 0.70, faithfulness="unfaithful")
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "grok-4.3"
+    assert "unfaithful" in summary.confidence_reason
+    local = next(s for s in summary.models if s.model == "local")
+    assert local.unfaithful_fixtures == 3
+
+
+def test_faithful_candidate_at_par_migrates():
+    # Faithful AND pairwise-confirmed at par -> migrate, high confidence.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None, faithfulness="faithful")
+    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55, faithfulness="faithful")
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "local"
+    assert summary.confidence == "high"
+
+
+def test_less_faithful_than_anchor_migrates_but_tentative():
+    # No outright-unfaithful fixture (clears the binary veto) and pairwise-at-par,
+    # but grades less faithful than the anchor on average -> migrate, tentatively,
+    # with the caveat surfaced.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None, faithfulness="faithful")
+    rows += _rows("local", [0.92, 0.92, 0.92], 0.0, 0.55, faithfulness="minor")
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "local"
+    assert summary.confidence == "tentative"
+    assert "less faithful" in summary.confidence_reason
 
 
 def test_anchor_recommended_when_nothing_cheaper_clears():

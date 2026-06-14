@@ -1,16 +1,28 @@
-"""Advisory pairwise LLM-judge for the model eval.
+"""LLM-judge surfaces for the model eval — two complementary modes.
 
-The judge compares a candidate analysis against the **anchor** (incumbent/reference)
-analysis of the same source and reports the candidate's win-rate. It runs **both
-orderings** (candidate as A, then as B) and averages, which cancels position bias
-— the most common LLM-judge failure. It is reference-guided by construction (the
-anchor is the reference).
+Both are model judgments graded against the SOURCE as ground truth (never a
+regex/keyword proxy of quality — that is the "brittle proxy" failure mode in
+``docs/design/agentic-balance.md``). They are used where June-2026 LLM-judge
+practice says each mode is reliable:
 
-The result is **advisory**: it feeds only the eval's *confidence* signal, never
-the recommendation, which is computed from deterministic scores (``scoring`` +
-``report``). When the judge shares the anchor's model family the comparison is
-biased *toward the anchor* — i.e. conservative (it won't over-recommend switching
-away); ``judge_shares_family`` lets the caller surface that caveat.
+- **Pairwise** (``judge_pairwise``) — compares a candidate analysis against the
+  **anchor** (incumbent) analysis of the same source and reports the candidate's
+  win-rate. Runs **both orderings** (candidate as A, then as B) and averages,
+  cancelling position bias. Relative judgment is the *reliable* mode (rho~0.95
+  ranking correlation), so this is the **primary ranking signal** among faithful
+  candidates. ``report`` gates a migration on it.
+- **Faithfulness** (``judge_faithfulness``) — grades ONE output absolutely
+  against the source: are its load-bearing claims supported? This is the
+  NLI/entailment-shaped, *coarse* end of absolute judging — deliberately a 3-way
+  categorical (``faithful``/``minor``/``unfaithful``), not a fine-grained score,
+  because absolute fine-grained scoring is the *unreliable* mode (kappa~0.45). It
+  is an independent, anchor-free **veto floor**: a fluent-but-unfaithful candidate
+  that wins pairwise is still refused, and a faithful candidate is not penalised
+  merely for diverging from the incumbent's framing (the eval-gate #3 fix).
+
+When the judge shares the anchor's model family the pairwise comparison is biased
+*toward the anchor* — conservative (it won't over-recommend switching away);
+``judge_shares_family`` lets the caller surface that caveat.
 """
 
 from __future__ import annotations
@@ -29,7 +41,10 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "DEFAULT_JUDGE_MODEL",
+    "FAITHFULNESS_ORDINAL",
+    "FaithfulnessVerdict",
     "PairwiseResult",
+    "judge_faithfulness",
     "judge_pairwise",
     "judge_shares_family",
 ]
@@ -38,12 +53,29 @@ DEFAULT_JUDGE_MODEL: str = "grok-4.3"
 _MAX_SOURCE_CHARS: int = 6000
 _MAX_OUTPUT_CHARS: int = 8000
 
+# Coarse, ordered faithfulness categories. Ordinal lets the report aggregate and
+# compare (candidate vs anchor) without pretending to a fine-grained score the
+# judge can't reliably assign (kappa~0.45 on absolute scoring). "unfaithful" is
+# the migration veto; the middle "minor" is a soft, surfaced caveat.
+FAITHFULNESS_ORDINAL: dict[str, int] = {"unfaithful": 0, "minor": 1, "faithful": 2}
+
 
 @dataclass(frozen=True)
 class PairwiseResult:
     win_rate: float  # candidate's win-rate vs anchor, 0.0-1.0 (0.5 = tie)
     comparisons: int  # number of order-randomized comparisons aggregated
     rationale: str
+
+
+@dataclass(frozen=True)
+class FaithfulnessVerdict:
+    label: str  # one of FAITHFULNESS_ORDINAL keys
+    unsupported: tuple[str, ...]  # load-bearing claims the judge could not ground
+    rationale: str
+
+    @property
+    def ordinal(self) -> int:
+        return FAITHFULNESS_ORDINAL[self.label]
 
 
 def _family(model: str) -> str:
@@ -236,3 +268,95 @@ def judge_pairwise(
     ]
     rationale = next((r for r in (r1, r2) if r), "")
     return PairwiseResult(win_rate=sum(scores) / len(scores), comparisons=2, rationale=rationale)
+
+
+def _faithfulness_prompt(source: str, output: str) -> str:
+    """Absolute, source-anchored faithfulness prompt — coarse by design.
+
+    Asks the judge to ground the analysis's load-bearing claims against the
+    SOURCE and return a 3-way categorical verdict, NOT a fine-grained score.
+    This is the NLI/entailment-shaped task (supported vs not) where absolute
+    judging is reliable; a 0-100 "quality" number is the unreliable mode and is
+    deliberately not requested. No pairwise comparison and no anchor: the whole
+    point is an independent read so a candidate is judged on its own grounding,
+    not on how closely it mirrors the incumbent's framing.
+    """
+    return f"""You are a meticulous fact-checker. Judge ONLY whether ANALYSIS is faithful to SOURCE. The SOURCE is the ground truth; you are not rating style, length, or polish.
+
+A claim is a load-bearing statement of fact: a number, a named entity or method, a date, a quantitative comparison, or a causal/empirical assertion. For each load-bearing claim in ANALYSIS, decide if SOURCE supports it. Ignore generic framing that asserts nothing checkable.
+
+Verdict scale (choose exactly one):
+- "faithful": every load-bearing claim is supported by SOURCE. Omitting things is fine — this judges what is said, not coverage.
+- "minor": broadly grounded, but one or two small unsupported or imprecise details (e.g. a hedged number, a slightly overstated qualifier) that do not change the substance.
+- "unfaithful": one or more invented facts, wrong numbers, or claims SOURCE does not support. A fluent, confident analysis that asserts things absent from SOURCE is unfaithful — fluency is not faithfulness.
+
+Be strict: when a specific claim has no support in SOURCE, it is unsupported even if it sounds plausible. Do not credit outside knowledge; only SOURCE counts.
+
+Return ONLY valid JSON, after reasoning to yourself:
+{{"verdict": "faithful" | "minor" | "unfaithful", "unsupported": ["<each unsupported load-bearing claim, verbatim or closely paraphrased>"], "rationale": "one concrete sentence naming the deciding claim(s)"}}
+
+SOURCE:
+{source[:_MAX_SOURCE_CHARS]}
+
+ANALYSIS:
+{output[:_MAX_OUTPUT_CHARS]}
+"""
+
+
+def _parse_faithfulness(text: str) -> FaithfulnessVerdict | None:
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    label = str(data.get("verdict", "")).strip().lower()
+    if label not in FAITHFULNESS_ORDINAL:
+        return None
+    raw_unsupported = data.get("unsupported", [])
+    unsupported = (
+        tuple(str(c).strip()[:200] for c in raw_unsupported if str(c).strip())
+        if isinstance(raw_unsupported, list)
+        else ()
+    )
+    rationale = str(data.get("rationale", "")).strip()[:300]
+    return FaithfulnessVerdict(label=label, unsupported=unsupported, rationale=rationale)
+
+
+def judge_faithfulness(
+    source_excerpt: str,
+    output: str,
+    *,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    tracker: CostTracker | None = None,
+    router_config: RouterConfig | None = None,
+) -> FaithfulnessVerdict | None:
+    """Grade one analysis output's faithfulness against the source (coarse, absolute).
+
+    Returns ``None`` when the verdict can't be parsed (the row then carries no
+    faithfulness signal rather than a fabricated one). A single call is correct
+    here — there is no A/B slot to debias, unlike the pairwise judge. Routed to
+    the judge model's own provider and cost-tracked.
+    """
+    base = router_config or RouterConfig(provider=provider_for_model(judge_model))
+    rc = base.with_model_override(judge_model)
+    response = llm_call(
+        rc,
+        workload_tag="qa",
+        prompt=_faithfulness_prompt(source_excerpt, output),
+        # Generous cap: reasoning models spend output budget before the JSON.
+        max_tokens=2048,
+        call_type="eval_judge_faithfulness",
+        temperature=0.0,
+    )
+    if tracker:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=response.input_tokens,
+                completion_tokens=response.output_tokens,
+                model=response.model,
+                call_type="eval_judge_faithfulness",
+            )
+        )
+    return _parse_faithfulness(response.text)

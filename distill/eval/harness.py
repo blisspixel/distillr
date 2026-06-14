@@ -1,11 +1,13 @@
 """Eval harness — run candidate models over fixtures, score quality + cost.
 
 Two phases per run: (1) analyze every (model, fixture) with the *real* production
-prompts under a forced model at ``temperature=0``; (2) judge each candidate
-pairwise against the **anchor** (incumbent/reference) model's output for the same
-fixture. The deterministic score is the decision signal; the pairwise win-rate is
-advisory (feeds confidence only). Analysis outputs and pairwise verdicts cache
-independently so re-running after a new model launches only runs the new work.
+prompts under a forced model at ``temperature=0``; (2) judge each output — an
+absolute source-anchored faithfulness verdict for every model, plus a pairwise
+candidate-vs-**anchor** win-rate for non-anchor models. ``report`` gates a
+migration on the model judges (faithfulness vetoes, pairwise ranks); the
+deterministic composite is only a guardrail floor. Analysis, pairwise, and
+faithfulness results cache independently so re-running after a new model launches
+only runs the new work.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from pathlib import Path
 from distill.eval._models import is_local as _is_local
 from distill.eval._models import provider_for_model
 from distill.eval.fixtures import Fixture, load_fixtures
-from distill.eval.judge import DEFAULT_JUDGE_MODEL, judge_pairwise
+from distill.eval.judge import DEFAULT_JUDGE_MODEL, judge_faithfulness, judge_pairwise
 from distill.eval.scoring import QualityScore, score_output
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
@@ -42,8 +44,9 @@ def estimate_eval_cost(
     """Fixture-aware pre-run estimate (USD), priced from each fixture's real size.
 
     Unlike a per-stage constant, this scales with the actual (small) fixture
-    source, so it doesn't overshoot — analysis is priced per candidate model and
-    the pairwise judge adds two calls per non-anchor model.
+    source, so it doesn't overshoot — analysis is priced per candidate model, the
+    faithfulness judge adds one call per (model, fixture) (anchor included), and
+    the pairwise judge adds two order-randomized calls per non-anchor model.
     """
     from distill.llm.cost import compute_cost
 
@@ -56,8 +59,11 @@ def estimate_eval_cost(
         for model in models:
             if not _is_local(model):  # local analysis is free
                 total += calls * compute_cost(model, in_tok, out_tok)
-            if model != anchor and not judge_local:  # pairwise judge: 2 order-randomized calls
-                total += 2 * compute_cost(judge_model, in_tok + 2 * out_tok, 120)
+            if not judge_local:
+                # Faithfulness judge: 1 absolute call per (model, fixture), anchor included.
+                total += compute_cost(judge_model, in_tok + out_tok, 120)
+                if model != anchor:  # pairwise judge: 2 order-randomized calls
+                    total += 2 * compute_cost(judge_model, in_tok + 2 * out_tok, 120)
     return total
 
 
@@ -72,6 +78,8 @@ class EvalRow:
     output_tokens: int
     pairwise_winrate: float | None = None  # vs anchor; None for the anchor itself
     judge_rationale: str = ""
+    faithfulness: str = ""  # absolute source-anchored verdict; "" = not judged
+    faithfulness_rationale: str = ""
     cached: bool = False
     error: str = ""  # non-empty when analysis failed (timeout / provider error)
 
@@ -264,6 +272,43 @@ def _pairwise(
     return win_rate, rationale
 
 
+def _faithfulness(
+    model: str,
+    fixture: Fixture,
+    output: str,
+    judge_model: str,
+    run_tracker: CostTracker,
+    cache_dir: Path | None,
+) -> tuple[str, str]:
+    """Absolute source-anchored faithfulness verdict for one output; cached.
+
+    Returns ``(label, rationale)`` where ``label`` is "" when no verdict was
+    produced (parse failure / judge error) — the row then carries no faithfulness
+    signal rather than a fabricated one.
+    """
+    key = _hash("faithful-v1", model, fixture.id, _src_hash(fixture), judge_model)
+    cached = _load_json(cache_dir, key)
+    if cached is not None:
+        try:
+            return str(cached.get("label", "")), str(cached.get("rationale", ""))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Ignoring malformed eval faithfulness cache for %s/%s", model, fixture.id
+            )
+    try:
+        verdict = judge_faithfulness(
+            fixture.source_text, output, judge_model=judge_model, tracker=run_tracker
+        )
+    except Exception as exc:
+        logger.warning("eval faithfulness judge failed for %s on %s: %s", model, fixture.id, exc)
+        return "", ""
+    if verdict is None:
+        # Unparseable verdict: no signal, and don't cache (a rerun re-judges).
+        return "", ""
+    _save_json(cache_dir, key, {"label": verdict.label, "rationale": verdict.rationale})
+    return verdict.label, verdict.rationale
+
+
 def run_model_eval(
     workload: str,
     models: list[str],
@@ -300,9 +345,18 @@ def run_model_eval(
             a = analyses[(model, fixture.id)]
             win_rate: float | None = None
             rationale = ""
-            # Judge only when a judge is configured and both this model and the
-            # anchor produced real output. An empty judge_model means no neutral
-            # judge was available -> no head-to-head signal (report fails closed).
+            faith_label = ""
+            faith_rationale = ""
+            # Faithfulness: an absolute, anchor-free grading of THIS output against
+            # the source — judged for every model (the anchor too) whenever a judge
+            # is configured and the output is real. It is the migration veto floor.
+            if judge_model and not a.error and a.output:
+                faith_label, faith_rationale = _faithfulness(
+                    model, fixture, a.output, judge_model, run_tracker, cache_dir
+                )
+            # Pairwise: candidate-vs-anchor, only for non-anchor models with both
+            # outputs real. An empty judge_model means no neutral judge was
+            # available -> no head-to-head signal (report fails closed).
             if (
                 judge_model
                 and model != anchor
@@ -338,6 +392,8 @@ def run_model_eval(
                     output_tokens=a.output_tokens,
                     pairwise_winrate=win_rate,
                     judge_rationale=rationale,
+                    faithfulness=faith_label,
+                    faithfulness_rationale=faith_rationale,
                     cached=a.cached,
                     error=a.error,
                 )

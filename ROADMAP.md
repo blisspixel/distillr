@@ -2,6 +2,8 @@
 
 High-level direction. Shipped work lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). The full, area-by-area backlog (un-trimmed, with priority breakdowns) lives in [`docs/roadmap.md`](docs/roadmap.md).
 
+> **Before you add a rule or an agentic surface, read [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md) first — and keep it (and its remediation ledger [`docs/design/model-judgment-vs-brittle-fallbacks.md`](docs/design/model-judgment-vs-brittle-fallbacks.md)) current as you go.** This is the single most repeated mistake in this codebase: reaching for a deterministic keyword/regex/length heuristic where a semantic call belongs, which *looks* rigorous but measures surface form and makes things worse. The charter's test: a decision is a **Rule** only when it is *structural or has ground truth* (valid JSON? URL public? cited span in the source? score over the threshold?); a **semantic quality judgment** ("is this faithful / on-topic / substantive?") goes to a model (cloud or local — use what the user has), with Python aggregating the model's per-criterion verdicts. And when you do replace a brittle rule with a model, use the model *in the mode the evidence says is reliable* — adding a fine-grained absolute "quality score" is just a new brittle proxy in model's clothing (see the eval-gate #3 faithfulness-floor case study). If no model is available, degrade to an honest, labeled order — never a keyword score dressed up as judgment.
+
 ## Current shape
 
 Distill is a source-to-intelligence platform covering four source types, labelled by maturity:

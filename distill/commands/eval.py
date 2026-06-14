@@ -79,7 +79,8 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     judge: str = typer.Option(
         "auto",
         "--judge",
-        help="Advisory pairwise judge (order-randomized vs the anchor); advisory only",
+        help="Neutral model that gates migrations (faithfulness veto + pairwise vs the anchor); "
+        "'auto' picks a cross-family model, else none -> fail closed on switches",
     ),
     threshold: float = typer.Option(
         0.90,
@@ -101,12 +102,13 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
 ):
     """Compare models on cost x quality over frozen fixtures; recommend the cheapest that clears the bar.
 
-    The recommendation is deterministic (cheapest model whose mean composite clears
-    threshold x the anchor). The pairwise LLM-judge is advisory — order-randomized
-    against the anchor, it only sets the confidence flag, never the pick. It
-    recommends; it never switches your configured model. To go cheaper than the
-    grok-4.3 cloud floor, eval a local model (e.g. `--models grok-4.3,qwen3.5:27b`
-    with Ollama running).
+    A migration is gated by model judges, not the gameable deterministic composite:
+    a candidate must clear the composite floor, pass the faithfulness veto (graded
+    absolutely against the source), AND have the pairwise judge confirm it at par
+    with the anchor; with no neutral judge the eval fails closed (stay on the
+    incumbent). It recommends; it never switches your configured model. To go
+    cheaper than the grok-4.3 cloud floor, eval a local model (e.g.
+    `--models grok-4.3,qwen3.5:27b` with Ollama running).
     """
     from datetime import datetime
 

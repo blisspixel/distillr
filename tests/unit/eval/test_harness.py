@@ -1,15 +1,29 @@
 """Tests for distill.eval.harness (two-phase run + score + cost + cache + estimate)."""
 
+import pytest
+
 from distill.eval import harness as harness_mod
 from distill.eval.fixtures import load_fixtures
 from distill.eval.harness import estimate_eval_cost, run_model_eval
-from distill.eval.judge import PairwiseResult
+from distill.eval.judge import FaithfulnessVerdict, PairwiseResult
 from distill.pipeline.costs import TokenUsage
 
 _OUTPUT = (
     "## Core Contribution\n- ICEWS MRR ChronoR GDELT Semantic Speed Gate.\n"
     "## Methods and Evidence\n- evidence.\n## Limits\n- limits.\n" + "word " * 200
 )
+
+
+@pytest.fixture(autouse=True)
+def _stub_faithfulness(monkeypatch):
+    # Keep the (now per-model) faithfulness judge offline by default — it returns
+    # a cheap "faithful" verdict and records no cost. Tests that exercise the
+    # faithfulness wiring override this.
+    monkeypatch.setattr(
+        harness_mod,
+        "judge_faithfulness",
+        lambda *a, **k: FaithfulnessVerdict(label="faithful", unsupported=(), rationale=""),
+    )
 
 
 def _fake_analyze_factory(calls):
@@ -49,6 +63,50 @@ def test_run_model_eval_scores_costs_and_judges(monkeypatch):
     assert len(judged) == 3  # one pairwise per candidate fixture
     assert all(r.cost > 0 for r in anchor_rows)  # grok priced from the registry
     assert all(r.cost == 0.0 for r in cand_rows)  # qwen is local -> free
+
+
+def test_faithfulness_judged_for_every_model_including_anchor(monkeypatch):
+    # The faithfulness floor applies to all models (the anchor too), unlike the
+    # pairwise judge which is candidate-vs-anchor only. Verify each row carries a
+    # verdict and the judge saw every (model, fixture).
+    monkeypatch.setattr(harness_mod, "judge_pairwise", lambda *a, **k: PairwiseResult(0.6, 2, ""))
+    seen: list = []
+
+    def fake_faith(source, output, **k):
+        seen.append(output[:5])
+        # candidate is unfaithful; anchor is faithful
+        label = "unfaithful" if "BAD" in output else "faithful"
+        return FaithfulnessVerdict(label=label, unsupported=(), rationale="r")
+
+    monkeypatch.setattr(harness_mod, "judge_faithfulness", fake_faith)
+
+    def analyze(fixture, rc, tracker):
+        tracker.record(TokenUsage(prompt_tokens=100, completion_tokens=50, model=rc.model))
+        return "BAD output" if rc.model == "cand" else _OUTPUT
+
+    rows = run_model_eval("paper", ["grok-4.3", "cand"], anchor="grok-4.3", analyze=analyze)
+    assert len(seen) == 6  # 3 fixtures x 2 models — anchor judged too
+    anchor_rows = [r for r in rows if r.model == "grok-4.3"]
+    cand_rows = [r for r in rows if r.model == "cand"]
+    assert all(r.faithfulness == "faithful" for r in anchor_rows)
+    assert all(r.faithfulness == "unfaithful" for r in cand_rows)
+
+
+def test_faithfulness_not_judged_when_no_judge_or_errored(monkeypatch):
+    # No judge configured -> no faithfulness call. An errored/empty output is
+    # skipped too (nothing to ground).
+    called = {"n": 0}
+
+    def fake_faith(*a, **k):
+        called["n"] += 1
+        return FaithfulnessVerdict(label="faithful", unsupported=(), rationale="")
+
+    monkeypatch.setattr(harness_mod, "judge_faithfulness", fake_faith)
+    rows = run_model_eval(
+        "paper", ["grok-4.3"], anchor="grok-4.3", judge_model="", analyze=_fake_analyze_factory([])
+    )
+    assert called["n"] == 0  # empty judge_model -> no faithfulness judging
+    assert all(r.faithfulness == "" for r in rows)
 
 
 def test_cache_hit_skips_reanalysis(tmp_path, monkeypatch):

@@ -1,14 +1,17 @@
 """Model eval — sweep candidate models over fixtures, score quality + cost.
 
 Public surface:
-- ``run_model_eval`` / ``EvalRow`` (harness): analyze + score + cost + pairwise per row.
+- ``run_model_eval`` / ``EvalRow`` (harness): analyze + score + cost + judge per row.
 - ``summarize`` / ``EvalSummary`` / ``console_lines`` / ``render_markdown`` (report).
 - ``load_fixtures`` / ``Fixture`` / ``WORKLOADS`` (fixtures).
-- ``score_output`` / ``QualityScore`` (deterministic scoring) and ``judge_pairwise`` /
-  ``judge_shares_family`` (advisory pairwise judge).
+- ``score_output`` / ``QualityScore`` (deterministic guardrail scoring); the model
+  judges ``judge_faithfulness`` (absolute, source-anchored veto floor) and
+  ``judge_pairwise`` (relative ranking) + ``judge_shares_family``.
 
-The deterministic composite is the decision signal; the pairwise judge is advisory
-and only affects confidence (see ``docs/invariants.md``: LLM proposes, Python decides).
+A migration is gated by the model judges, not the deterministic composite: the
+composite is a guardrail floor, faithfulness vetoes, and the pairwise win-rate
+ranks the faithful (see ``docs/invariants.md`` and
+``docs/design/model-judgment-vs-brittle-fallbacks.md``: LLM proposes, Python decides).
 """
 
 from __future__ import annotations
@@ -23,7 +26,10 @@ from distill.eval.harness import (
 )
 from distill.eval.judge import (
     DEFAULT_JUDGE_MODEL,
+    FAITHFULNESS_ORDINAL,
+    FaithfulnessVerdict,
     PairwiseResult,
+    judge_faithfulness,
     judge_pairwise,
     judge_shares_family,
 )
@@ -41,10 +47,12 @@ from distill.eval.scoring import QualityScore, score_output
 __all__ = [
     "DEFAULT_JUDGE_MODEL",
     "DEFAULT_THRESHOLD",
+    "FAITHFULNESS_ORDINAL",
     "GOLDEN_OUTPUTS",
     "WORKLOADS",
     "EvalRow",
     "EvalSummary",
+    "FaithfulnessVerdict",
     "Fixture",
     "ModelSummary",
     "PairwiseResult",
@@ -52,6 +60,7 @@ __all__ = [
     "console_lines",
     "degraded_output",
     "estimate_eval_cost",
+    "judge_faithfulness",
     "judge_pairwise",
     "judge_shares_family",
     "load_fixtures",
