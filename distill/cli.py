@@ -99,6 +99,7 @@ from distill.commands.ingest import register as _register_ingest
 from distill.commands.init import register as _register_init
 from distill.commands.maintain import register as _register_maintain
 from distill.commands.papers import register as _register_papers
+from distill.commands.process import register as _register_process
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
 from distill.commands.update import register as _register_update
@@ -118,6 +119,7 @@ _register_reprocess(app)
 _register_reports(app)
 _register_discover(app)
 _register_papers(app)
+_register_process(app)
 _register_view(app)
 
 __all__ = ["app", "main"]

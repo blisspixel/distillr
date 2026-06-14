@@ -14,6 +14,7 @@ from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
 from distill.commands import maintain as _maintain
 from distill.commands import papers as _papers
+from distill.commands import process as _process
 from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
 from distill.commands import view as _view
@@ -48,6 +49,7 @@ def mock_config(tmp_path):
     original_reprocess = _reprocess.get_config  # resynthesize/reanalyze moved here
     original_reports = _reports.get_config  # report/export moved to commands/reports.py
     original_papers = _papers.get_config  # paper/papers moved to commands/papers.py
+    original_process = _process.get_config  # video/channel/run moved to commands/process.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -58,6 +60,7 @@ def mock_config(tmp_path):
     _reprocess.get_config = lambda: config
     _reports.get_config = lambda: config
     _papers.get_config = lambda: config
+    _process.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -71,6 +74,7 @@ def mock_config(tmp_path):
     _reprocess.get_config = original_reprocess
     _reports.get_config = original_reports
     _papers.get_config = original_papers
+    _process.get_config = original_process
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -167,8 +171,8 @@ class TestVideoCommand:
             "https://www.youtube.com/@TestChannel",
         )
 
-        monkeypatch.setattr(_cli_impl, "get_video_info", lambda url: info)
-        monkeypatch.setattr(_cli_impl, "display_summary", lambda *args, **kwargs: None)
+        monkeypatch.setattr(_process, "get_video_info", lambda url: info)
+        monkeypatch.setattr(_process, "display_summary", lambda *args, **kwargs: None)
 
         def fake_process(topic, channel_name, video, config, tracker, summary):
             vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
@@ -180,7 +184,7 @@ class TestVideoCommand:
             )
             return True
 
-        monkeypatch.setattr(_cli_impl, "_process_video", fake_process)
+        monkeypatch.setattr(_process, "_process_video", fake_process)
 
         result = runner.invoke(cli.app, ["video", info.url])
 
@@ -203,8 +207,8 @@ class TestVideoCommand:
             "https://www.youtube.com/@TestChannel",
         )
 
-        monkeypatch.setattr(_cli_impl, "get_video_info", lambda url: info)
-        monkeypatch.setattr(_cli_impl, "display_summary", lambda *args, **kwargs: None)
+        monkeypatch.setattr(_process, "get_video_info", lambda url: info)
+        monkeypatch.setattr(_process, "display_summary", lambda *args, **kwargs: None)
 
         def fake_process(topic, channel_name, video, config, tracker, summary):
             vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
@@ -216,7 +220,7 @@ class TestVideoCommand:
             )
             return True
 
-        monkeypatch.setattr(_cli_impl, "_process_video", fake_process)
+        monkeypatch.setattr(_process, "_process_video", fake_process)
 
         result = runner.invoke(cli.app, ["video", info.url, "--show"])
 
@@ -318,7 +322,7 @@ class TestRunCommand:
         from distill.ingestors.youtube.discovery import VideoInfo
 
         monkeypatch.setattr(
-            _cli_impl,
+            _process,
             "discover_videos",
             lambda url, months, include_shorts=False: [
                 VideoInfo("v1", "Video 1", _recent(2), 600, "https://youtube.com/watch?v=v1"),
