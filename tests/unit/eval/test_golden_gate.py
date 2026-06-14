@@ -16,6 +16,15 @@ a mock LLM) so a prompt-builder signature break is caught here, not in productio
 This is the test-time complement to the run-time verify hook: verify grounds
 *production* output against receipts; this gate freezes what *good* extraction
 looks like and proves the scorer can still tell good from bad.
+
+**This is a STRUCTURAL gate, not a live-quality gate.** It scores fixed,
+hand-written goldens we control (discrimination + fixture sync + prompt wiring)
+and never scores live model output. The deterministic composite is fine here for
+exactly that reason. Judging the quality of *live* model output is `distill eval`'s
+model judges (faithfulness/coverage vs the source), run on-demand with a real
+model -- never a deterministic score, and never extend this offline gate to do it
+(scoring live output against composite floors would punish paraphrase; see
+docs/design/agentic-balance.md).
 """
 
 from __future__ import annotations
