@@ -54,7 +54,8 @@ ALLOWLIST: dict[str, int] = {
     # watch sub-app + catch-up -> commands/watch.py (Watch slice): 4067 -> 3672.
     # diff + trends + add + remove -> commands/view.py (View slice): 3672 -> 3478.
     # intent sub-app -> commands/intent.py (Library slice): 3478 -> 3392.
-    "distill/commands/_logic.py": 3392,
+    # concepts build command -> commands/concepts.py (Library slice): 3392 -> 3316.
+    "distill/commands/_logic.py": 3316,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

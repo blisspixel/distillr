@@ -1,13 +1,13 @@
-"""``distill concepts`` recovery subcommands: log / diff / rollback.
+"""``distill concepts`` subcommands: build + the recovery surface (log/diff/rollback).
 
-The ``build`` subcommand (extraction + merge) lives in ``_logic.py`` next
-to the ``concepts_app`` group definition. This module adds the *recovery
-surface* over the ``.history/`` snapshots that ``concepts build`` already
-writes on every overwrite, registered onto the same group via
-:func:`register` (called from ``distill.cli``, mirroring ``ingest``).
+The ``concepts_app`` group itself is still constructed in ``_logic.py`` (alongside
+the other sub-apps) and passed to :func:`register`; this module owns the *commands*
+attached to it. ``build`` (extraction + merge) and the recovery surface over the
+``.history/`` snapshots ``build`` writes on every overwrite both live here now,
+registered via :func:`register` (called from ``distill.cli``, mirroring ``ingest``).
 
-All logic lives in ``distill.concepts.recovery``; these functions are the
-thin Typer + rich presentation layer over it.
+All logic lives in ``distill.concepts.*``; these functions are the thin Typer +
+rich presentation layer over it.
 """
 
 from __future__ import annotations
@@ -19,11 +19,94 @@ import typer
 from distill._console import console
 from distill.commands import _logic
 from distill.commands._helpers import tty_confirm
+from distill.commands._json import emit_json
 from distill.commands._logic import _complete_topics
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
 
-__all__ = ["concept_diff_cmd", "concept_log_cmd", "concept_rollback_cmd", "register"]
+__all__ = [
+    "concept_diff_cmd",
+    "concept_log_cmd",
+    "concept_rollback_cmd",
+    "concepts_build",
+    "register",
+]
+
+
+def concepts_build(
+    topic: str = typer.Argument(
+        ..., help="Topic name (existing or new)", autocompletion=_complete_topics
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "--refresh",
+        help="Re-extract over every insight, ignoring the existing mentions.jsonl log",
+    ),
+    threshold: int = typer.Option(
+        3,
+        "--threshold",
+        "-t",
+        help="Minimum distinct sources to emit a concept note (default 3, the noise floor)",
+    ),
+    json_out: bool = typer.Option(False, "--json", help="Emit a machine-readable summary envelope"),
+):
+    """Extract and merge concept / entity playbook notes for a topic.
+
+    Walks library/topics/<topic>/{papers,videos,sites}/**/*_Insights.md,
+    runs the concept-extraction LLM pass over any insight not already
+    in mentions.jsonl, then merges and writes:
+
+      library/topics/<topic>/concepts/<slug>.md      (techniques, etc.)
+      library/topics/<topic>/entities/<slug>.md      (people, orgs, vendors)
+      library/topics/<topic>/concepts.jsonl          (rollup)
+      library/topics/<topic>/entities.jsonl          (rollup)
+
+    Idempotent: re-running without --refresh skips already-extracted
+    insights and only re-writes notes whose merged content actually
+    changed.
+    """
+    from distill.concepts import run_concepts
+    from distill.llm import RouterConfig
+    from distill.pipeline.costs import CostTracker
+
+    config = _logic.get_config()
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
+        raise typer.Exit(1)
+
+    rc = RouterConfig()
+    tracker = CostTracker()
+    summary = run_concepts(
+        topic=topic,
+        topic_dir=topic_dir,
+        rc=rc,
+        threshold=threshold,
+        refresh=refresh,
+        tracker=tracker,
+    )
+
+    if json_out:
+        payload = summary.to_dict()
+        payload["cost"] = tracker.format_cost()
+        emit_json(payload)
+        return
+
+    console.print()
+    console.print(f"[bold]Concept playbook -- {topic}[/bold]")
+    console.print(f"  Insights scanned:    {summary.insights_scanned}")
+    console.print(f"  Insights extracted:  {summary.insights_extracted}")
+    console.print(f"  Mentions added:      {summary.mentions_added}")
+    console.print(
+        f"  Concept notes:       {summary.concepts_written} written, {summary.concepts_unchanged} unchanged"
+    )
+    console.print(f"  Entity notes:        {summary.entities_written} written")
+    console.print(f"  Cost:                {tracker.format_cost()}")
+    console.print()
+    if summary.insights_extracted == 0 and summary.mentions_added == 0:
+        console.print(
+            "  [dim]No new insights to extract. Use --refresh to re-extract over all sources.[/dim]"
+        )
 
 
 def _resolve_topic_dir(topic: str) -> Path:
@@ -250,7 +333,8 @@ def concept_rollback_cmd(
 
 
 def register(concepts_app: typer.Typer) -> None:
-    """Attach the recovery subcommands to the ``concepts`` group."""
+    """Attach the build + recovery subcommands to the ``concepts`` group."""
+    concepts_app.command(name="build", rich_help_panel="Library")(concepts_build)
     concepts_app.command(name="log", rich_help_panel="Library")(concept_log_cmd)
     concepts_app.command(name="diff", rich_help_panel="Library")(concept_diff_cmd)
     concepts_app.command(name="rollback", rich_help_panel="Library")(concept_rollback_cmd)

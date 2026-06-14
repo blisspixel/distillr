@@ -67,7 +67,6 @@ from distill.commands._helpers import (
     _resolve_intent,
     get_config,
 )
-from distill.commands._json import emit_json as _emit_json
 from distill.config import DistillConfig
 
 # Doctor check/probe helpers live in distill.doctor.checks; the two used by the
@@ -2212,83 +2211,8 @@ concepts_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(concepts_app, name="concepts", rich_help_panel="Library")
-
-
-@concepts_app.command(name="build", rich_help_panel="Library")
-def concepts(
-    topic: str = typer.Argument(
-        ..., help="Topic name (existing or new)", autocompletion=_complete_topics
-    ),
-    refresh: bool = typer.Option(
-        False,
-        "--refresh",
-        help="Re-extract over every insight, ignoring the existing mentions.jsonl log",
-    ),
-    threshold: int = typer.Option(
-        3,
-        "--threshold",
-        "-t",
-        help="Minimum distinct sources to emit a concept note (default 3, the noise floor)",
-    ),
-    json_out: bool = typer.Option(False, "--json", help="Emit a machine-readable summary envelope"),
-):
-    """Extract and merge concept / entity playbook notes for a topic.
-
-    Walks library/topics/<topic>/{papers,videos,sites}/**/*_Insights.md,
-    runs the concept-extraction LLM pass over any insight not already
-    in mentions.jsonl, then merges and writes:
-
-      library/topics/<topic>/concepts/<slug>.md      (techniques, etc.)
-      library/topics/<topic>/entities/<slug>.md      (people, orgs, vendors)
-      library/topics/<topic>/concepts.jsonl          (rollup)
-      library/topics/<topic>/entities.jsonl          (rollup)
-
-    Idempotent: re-running without --refresh skips already-extracted
-    insights and only re-writes notes whose merged content actually
-    changed.
-    """
-    from distill.concepts import run_concepts
-    from distill.llm import RouterConfig
-    from distill.pipeline.costs import CostTracker
-
-    config = get_config()
-    topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
-        console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
-        raise typer.Exit(1)
-
-    rc = RouterConfig()
-    tracker = CostTracker()
-    summary = run_concepts(
-        topic=topic,
-        topic_dir=topic_dir,
-        rc=rc,
-        threshold=threshold,
-        refresh=refresh,
-        tracker=tracker,
-    )
-
-    if json_out:
-        payload = summary.to_dict()
-        payload["cost"] = tracker.format_cost()
-        _emit_json(payload)
-        return
-
-    console.print()
-    console.print(f"[bold]Concept playbook -- {topic}[/bold]")
-    console.print(f"  Insights scanned:    {summary.insights_scanned}")
-    console.print(f"  Insights extracted:  {summary.insights_extracted}")
-    console.print(f"  Mentions added:      {summary.mentions_added}")
-    console.print(
-        f"  Concept notes:       {summary.concepts_written} written, {summary.concepts_unchanged} unchanged"
-    )
-    console.print(f"  Entity notes:        {summary.entities_written} written")
-    console.print(f"  Cost:                {tracker.format_cost()}")
-    console.print()
-    if summary.insights_extracted == 0 and summary.mentions_added == 0:
-        console.print(
-            "  [dim]No new insights to extract. Use --refresh to re-extract over all sources.[/dim]"
-        )
+# The `concepts build` command (and the log/diff/rollback recovery surface) live
+# in commands/concepts.py and are attached to concepts_app via its register().
 
 
 # ─── Cleanup ────────────────────────────────────────────────────────
