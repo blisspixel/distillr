@@ -30,12 +30,14 @@ def test_intent_set_creates_intent(mock_config):
     assert intent.lens == "research"
 
 
-def test_intent_set_infers_lens_from_goal(mock_config):
+def test_intent_set_keeps_general_lens_without_explicit_lens(mock_config):
+    # A goal with no explicit --lens stays 'general' (P4: lens is not keyword-
+    # guessed from the goal; the goal drives the analysis via focus_directive).
     result = runner.invoke(
         cli.app, ["intent", "set", "t", "--goal", "vendor pricing and enterprise positioning"]
     )
     assert result.exit_code == 0
-    assert load_intent(mock_config.topic_dir("t")).lens == "competitive"
+    assert load_intent(mock_config.topic_dir("t")).lens == "general"
 
 
 def test_intent_set_merges_preserving_goal(mock_config):

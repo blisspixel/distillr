@@ -12,9 +12,12 @@ from distill.library.intent import (
 )
 
 
-def test_make_intent_infers_lens_from_goal():
+def test_make_intent_defaults_to_general_without_explicit_lens():
+    # The lens is no longer keyword-guessed from the goal (P4): a goal with no
+    # explicit --lens stays the neutral 'general'. The goal still drives the
+    # analysis via focus_directive; the model, not a keyword map, adapts.
     intent = make_intent("I need a research corpus on prior art")
-    assert intent.lens == "research"
+    assert intent.lens == "general"
     assert intent.goal == "I need a research corpus on prior art"
     assert intent.rigor == DEFAULT_RIGOR
 

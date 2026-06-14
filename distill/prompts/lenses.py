@@ -16,7 +16,6 @@ __all__ = [
     "LENS_NAMES",
     "LENS_STANCE",
     "focus_directive",
-    "infer_lens",
     "normalize_lens",
     "video_sections",
 ]
@@ -59,70 +58,14 @@ def normalize_lens(lens: str) -> str:
     return candidate if candidate in LENS_NAMES else DEFAULT_LENS
 
 
-# Keyword cues for inferring a lens from a free-text goal. Ordered by priority:
-# the first lens with a matching cue wins, so put the most specific first.
-_LENS_CUES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    (
-        "competitive",
-        (
-            "vendor",
-            "competitor",
-            "competitive",
-            "market",
-            "pricing",
-            "enterprise",
-            "customer",
-            "go-to-market",
-            "positioning",
-            "procure",
-            "buyer",
-            "sales",
-        ),
-    ),
-    (
-        "academic",
-        ("literature review", "lit review", "survey of", "scholarly", "peer-reviewed"),
-    ),
-    (
-        "research",
-        (
-            "research",
-            "prior art",
-            "arxiv",
-            "paper",
-            "thesis",
-            "state of the art",
-            "evidence",
-            "benchmark",
-        ),
-    ),
-    (
-        "practitioner",
-        (
-            "how to",
-            "how-to",
-            "tutorial",
-            "build",
-            "implement",
-            "hands-on",
-            "step-by-step",
-            "configure",
-            "deploy",
-            "practical",
-        ),
-    ),
-)
-
-
-def infer_lens(goal: str) -> str:
-    """Infer an analysis lens from a free-text goal, defaulting to ``general``."""
-    text = (goal or "").lower()
-    if not text.strip():
-        return DEFAULT_LENS
-    for lens, cues in _LENS_CUES:
-        if any(cue in text for cue in cues):
-            return lens
-    return DEFAULT_LENS
+# There is no keyword-based ``infer_lens``: guessing the lens from goal keywords
+# ("research"/"build"/"vendor" -> a lens) was a brittle proxy for a semantic call
+# (it mislabels mixed goals like "research how to build a competitive product").
+# It is unnecessary: the analysis prompt already carries the full goal via
+# ``focus_directive`` below, so the *model* adapts the analysis to the goal. The
+# lens only selects the section template + stance; when the user does not pass an
+# explicit ``--lens`` it stays the neutral ``general`` (see
+# docs/design/model-judgment-vs-brittle-fallbacks.md, P4).
 
 
 def focus_directive(goal: str = "", lens: str = "") -> str:

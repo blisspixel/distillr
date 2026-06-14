@@ -9,7 +9,6 @@ from distill.prompts.lenses import (
     DEFAULT_LENS,
     LENS_NAMES,
     focus_directive,
-    infer_lens,
     normalize_lens,
     video_sections,
 )
@@ -30,21 +29,6 @@ from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_pr
 )
 def test_normalize_lens(raw, expected):
     assert normalize_lens(raw) == expected
-
-
-@pytest.mark.parametrize(
-    ("goal", "expected"),
-    [
-        ("I need a research corpus on the prior art", "research"),
-        ("vendor pricing and enterprise customer positioning", "competitive"),
-        ("how to build and deploy an agent", "practitioner"),
-        ("a literature review of coreference", "academic"),
-        ("songs about cats", "general"),
-        ("", "general"),
-    ],
-)
-def test_infer_lens(goal, expected):
-    assert infer_lens(goal) == expected
 
 
 def test_focus_directive_empty_for_neutral_default():

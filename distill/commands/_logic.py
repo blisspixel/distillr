@@ -585,7 +585,9 @@ def intent_set(
         "", "--lens", help="research | practitioner | competitive | academic | general"
     ),
     goal: str = typer.Option(
-        "", "--goal", help="Research goal; the lens is inferred from it when --lens is omitted"
+        "",
+        "--goal",
+        help="Research goal; carried into every analysis prompt so the model adapts to it",
     ),
     audience: str = typer.Option("", "--audience", help="Who reads the output (shapes register)"),
     rigor: str = typer.Option("", "--rigor", help="loose | balanced | strict"),

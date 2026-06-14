@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 from distill.library.paths import atomic_write_text
-from distill.prompts.lenses import DEFAULT_LENS, infer_lens, normalize_lens
+from distill.prompts.lenses import DEFAULT_LENS, normalize_lens
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ def _normalize_rigor(rigor: str) -> str:
 class CorpusIntent:
     """What a corpus is for, read through which lens, for whom, at what rigor.
 
-    Construct via :func:`make_intent` (which normalizes lens/rigor and can infer
-    the lens from the goal) rather than the raw constructor.
+    Construct via :func:`make_intent` (which normalizes lens/rigor) rather than
+    the raw constructor.
     """
 
     goal: str = ""
@@ -74,12 +74,15 @@ def make_intent(
     quality_bar: str = "",
     budget_usd: float | None = None,
 ) -> CorpusIntent:
-    """Build a normalized ``CorpusIntent``, inferring the lens from the goal.
+    """Build a normalized ``CorpusIntent``.
 
-    An explicit ``lens`` always wins; when it is empty (or unknown) the lens is
-    inferred from the goal text, falling back to the neutral default.
+    An explicit ``lens`` selects the section template + analyst stance; when it is
+    empty or unknown the lens stays the neutral ``general``. The lens is NOT
+    guessed from goal keywords (that brittle proxy was removed in P4): the goal is
+    carried into every analysis prompt via ``focus_directive``, so the model adapts
+    the analysis to the goal regardless of which template is active.
     """
-    resolved_lens = normalize_lens(lens) if lens.strip() else infer_lens(goal)
+    resolved_lens = normalize_lens(lens)
     return CorpusIntent(
         goal=goal.strip(),
         lens=resolved_lens,

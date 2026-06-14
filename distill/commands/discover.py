@@ -711,7 +711,7 @@ def discover(  # noqa: C901 — legacy, will refactor
     topic_name = topic or _topic_from_query(goal[:80])
     if not preview:
         # Persist the corpus intent so analysis (this run and later ingests into
-        # this topic) reads sources through the goal-inferred lens.
+        # this topic) reads sources with the chosen lens and the goal in context.
         save_intent(config.topic_dir(topic_name), make_intent(goal, lens=lens, rigor=rigor))
     if not from_gaps:
         # Persist the goal<->topic association so catch-up can surface the

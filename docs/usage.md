@@ -74,12 +74,12 @@ distill intent show agentic-harness
 distill intent clear agentic-harness          # revert to neutral 'general'
 
 # Or set it inline on any entry point (persists for the topic)
-distill discover --goal-file private/goal.md --topic agentic-harness   # lens inferred from the goal
+distill discover --goal-file private/goal.md --topic agentic-harness   # goal drives the analysis; lens stays general
 distill papers "agent memory systems" --topic memory --lens research
 distill latest "Fabric best practices" --topic fabric --lens practitioner
 ```
 
-`discover` infers the lens from the goal when `--lens` is omitted (a goal mentioning "research" / "prior art" → `research`; "vendor" / "enterprise" → `competitive`). `intent set --goal "..."` does the same inference. Existing insights already on disk keep their original lens until re-analyzed; a `distill resynthesize <topic> --two-pass` refreshes the cross-source synthesis (and adds the thesis rung) cheaply.
+The `--goal` is carried into every analysis prompt, so the model adapts the analysis to it regardless of lens. `--lens` selects the section template + analyst stance (`general` default, or `research` / `practitioner` / `competitive` / `academic`); it is not guessed from the goal text. Existing insights already on disk keep their original lens until re-analyzed; a `distill resynthesize <topic> --two-pass` refreshes the cross-source synthesis (and adds the thesis rung) cheaply.
 
 ## YouTube: Stay current on a topic
 
