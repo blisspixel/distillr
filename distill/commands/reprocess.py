@@ -17,9 +17,9 @@ import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.cli_shared import SHORTS_THRESHOLD
 from distill.cli_shared import require_api_key as _require_api_key
-from distill.commands._helpers import _resolve_topic_for_channel, get_config
+from distill.commands._helpers import _resolve_intent, _resolve_topic_for_channel, get_config
 from distill.commands._helpers import format_date as _format_date
-from distill.commands._logic import _complete_topics, _resolve_intent
+from distill.commands._logic import _complete_topics
 from distill.library import Library
 from distill.library.paths import (
     base_frontmatter,

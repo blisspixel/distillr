@@ -39,7 +39,7 @@ from distill.library.paths import (
 )
 from distill.config import DistillConfig
 from distill.library import Library
-from distill.library.intent import load_intent
+from distill.library.intent import CorpusIntent, load_intent
 from distill.pipeline.costs import CostTracker, save_run_log
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
@@ -761,3 +761,15 @@ def _invoke_command(fn, **overrides):
             kwargs[name] = default
         # A required param with no default is left out; fn raises if truly missing.
     return fn(**kwargs)
+
+
+def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
+    """Load the persisted CorpusIntent for a topic, if any.
+
+    Returns ``None`` when the topic has no saved intent so analysis falls back to
+    the neutral default lens. A topic created via ``discover`` saves its intent,
+    so subsequent ingests into that topic inherit the same lens automatically.
+    """
+    if not topic:
+        return None
+    return load_intent(config.topic_dir(topic))

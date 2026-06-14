@@ -78,6 +78,7 @@ from distill.commands._helpers import (
     _file_link,
     _invoke_command,
     _preflight,
+    _resolve_intent,
     _resolve_topic_for_channel,
     get_config,
 )
@@ -117,7 +118,6 @@ from distill.ingestors.youtube.discovery import (
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
 from distill.library.intent import (
-    CorpusIntent,
     intent_path,
     load_intent,
     make_intent,
@@ -754,18 +754,6 @@ def _apply_verify_override(verify: str) -> None:
         console.print(f"[red]Unknown --verify '{verify}'.[/red] Choose: warn, strict, off.")
         raise typer.Exit(1)
     os.environ["DISTILL_VERIFY"] = value
-
-
-def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
-    """Load the persisted CorpusIntent for a topic, if any.
-
-    Returns ``None`` when the topic has no saved intent so analysis falls back to
-    the neutral default lens. A topic created via ``discover`` saves its intent,
-    so subsequent ingests into that topic inherit the same lens automatically.
-    """
-    if not topic:
-        return None
-    return load_intent(config.topic_dir(topic))
 
 
 def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:
