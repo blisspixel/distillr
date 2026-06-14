@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import intent as _intent
 from distill.config import DistillConfig
 from distill.library.intent import load_intent
 
@@ -16,10 +17,15 @@ runner = CliRunner()
 def mock_config(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     orig, orig_impl = cli.get_config, _cli_impl.get_config
+    orig_intent = _intent.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    # The intent commands moved to commands/intent.py and call get_config in that
+    # module's namespace, so patch it there too (one line per extracted group).
+    _intent.get_config = lambda: config
     yield config
     cli.get_config, _cli_impl.get_config = orig, orig_impl
+    _intent.get_config = orig_intent
 
 
 def test_intent_set_creates_intent(mock_config):

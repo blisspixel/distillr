@@ -53,7 +53,8 @@ ALLOWLIST: dict[str, int] = {
     # (learning family split out to commands/learn.py to keep both under the cap);
     # watch sub-app + catch-up -> commands/watch.py (Watch slice): 4067 -> 3672.
     # diff + trends + add + remove -> commands/view.py (View slice): 3672 -> 3478.
-    "distill/commands/_logic.py": 3478,
+    # intent sub-app -> commands/intent.py (Library slice): 3478 -> 3392.
+    "distill/commands/_logic.py": 3392,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
