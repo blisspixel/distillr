@@ -19,6 +19,7 @@ from distill.commands import process as _process
 from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
 from distill.commands import view as _view
+from distill.commands import watch as _watch
 from distill.commands._helpers import duration_str, format_date
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
@@ -55,6 +56,7 @@ def mock_config(tmp_path):
     original_learn = (
         _learn.get_config
     )  # search/explore/learn/brief/latest moved to commands/learn.py
+    original_watch = _watch.get_config  # watch sub-app + catch-up moved to commands/watch.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -68,6 +70,7 @@ def mock_config(tmp_path):
     _process.get_config = lambda: config
     _discover.get_config = lambda: config
     _learn.get_config = lambda: config
+    _watch.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -84,6 +87,7 @@ def mock_config(tmp_path):
     _process.get_config = original_process
     _discover.get_config = original_discover
     _learn.get_config = original_learn
+    _watch.get_config = original_watch
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:
@@ -1413,8 +1417,8 @@ class TestWatchCommands:
         assert "WatchMe" in result.output
 
     def test_watch_add(self, mock_config, monkeypatch):
-        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "NewWatch")
-        monkeypatch.setattr(_cli_impl, "discover_videos", lambda url, months=1, quiet=True: [])
+        monkeypatch.setattr(_watch, "resolve_channel_name", lambda url: "NewWatch")
+        monkeypatch.setattr(_watch, "discover_videos", lambda url, months=1, quiet=True: [])
         result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@NewWatch"])
         assert result.exit_code == 0
         assert "Watching" in result.output or "NewWatch" in result.output
@@ -1424,7 +1428,7 @@ class TestWatchCommands:
 
         lib = Library(mock_config)
         lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe")
-        monkeypatch.setattr(_cli_impl, "resolve_channel_name", lambda url: "WatchMe")
+        monkeypatch.setattr(_watch, "resolve_channel_name", lambda url: "WatchMe")
         result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@WatchMe"])
         assert result.exit_code == 0
         assert "already" in result.output
@@ -2129,7 +2133,7 @@ class TestCatchUpCommand:
         lib.add_to_watchlist("https://youtube.com/@WatchMe", "WatchMe", topic="deals", days=7)
 
         monkeypatch.setattr(
-            _cli_impl,
+            _watch,
             "discover_videos",
             lambda url, days=7, include_shorts=True, quiet=True: [
                 VideoInfo(

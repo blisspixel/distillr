@@ -34,7 +34,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _discover_generate_queries,
     _discover_rerank,
     _display_ranked_discover,
-    _duration_str,
     _effective_days,
     _expand_learning_queries,
     _expand_paper_queries,
@@ -83,7 +82,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     get_config,
     topic_app,
     topic_watch_app,
-    watch_app,
 )
 
 # Register commands defined in dedicated modules (kept out of the 7k-line
@@ -105,6 +103,7 @@ from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
+from distill.commands.watch import register as _register_watch
 
 _register_ingest(app)
 _register_concepts_recovery(concepts_app)
@@ -123,6 +122,7 @@ _register_learn(app)
 _register_papers(app)
 _register_process(app)
 _register_view(app)
+_register_watch(app)
 
 __all__ = ["app", "main"]
 
