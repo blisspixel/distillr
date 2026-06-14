@@ -878,6 +878,7 @@ class TestSearchVideos:
         fake_ranked.video = fake_vid
         fake_ranked.final_score = 0.95
         fake_ranked.rationale = "Very relevant"
+        fake_ranked.selected_by = "llm"
 
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
@@ -914,7 +915,7 @@ class TestSearchVideos:
         vid2.view_count = 20
         vid2.channel_url = "https://youtube.com/@Chan"
 
-        ranked = MagicMock(video=vid1, final_score=0.9, rationale="strong")
+        ranked = MagicMock(video=vid1, final_score=0.9, rationale="strong", selected_by="llm")
 
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
@@ -933,6 +934,38 @@ class TestSearchVideos:
 
         assert len(result["results"]) == 1
         assert mock_enrich.call_args.args[0] == [vid1]
+
+    def test_surfaces_ranked_by_and_no_model_notice(self, mock_config):
+        # P2: an agent consumer must be able to see HOW the set was ranked. A
+        # no-model fallback carries ranked_by="no-model" + an explicit notice so
+        # the degradation is visible, not mistaken for a model ranking.
+        vid = MagicMock(
+            video_id="x",
+            title="T",
+            channel_name="C",
+            upload_date="20260301",
+            url="u",
+            duration=600,
+            view_count=10,
+        )
+        ranked = MagicMock(video=vid, final_score=0.4, rationale="r", selected_by="no-model")
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch(
+                "distill.ingestors.youtube.browser_search.search_youtube_results",
+                return_value=[vid],
+            ),
+            patch(
+                "distill.ingestors.youtube.discovery.enrich_videos",
+                side_effect=lambda videos, **_: videos,
+            ),
+            patch("distill.pipeline.ranking.rerank_videos", return_value=[ranked]),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(search_videos("AI updates", limit=1))
+        assert result["ranked_by"] == "no-model"
+        assert result["results"][0]["ranked_by"] == "no-model"
+        assert "No model configured" in result["notice"]
 
 
 class TestLearnTopic:

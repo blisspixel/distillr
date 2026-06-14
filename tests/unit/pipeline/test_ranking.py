@@ -124,11 +124,11 @@ def test_rerank_uses_model_with_local_provider_and_no_cloud_key(tmp_path, monkey
     assert ranked[0].selected_by == "llm"  # local judge used despite no cloud key
 
 
-def test_rerank_videos_falls_back_to_heuristic_when_no_model_available(tmp_path, monkeypatch):
-    # No usable model for the workload: fall back to the deterministic baseline
-    # rather than calling a model that isn't there. 'anthropic' is a configured-
-    # but-not-implemented provider, so the router reports no model regardless of
-    # any ambient cloud key -- a deterministic "no model" without env coupling.
+def test_rerank_videos_labels_no_model_fallback(tmp_path, monkeypatch):
+    # No usable model for the workload (use_llm=True but nothing configured): fall
+    # back to the deterministic baseline AND label it "no-model" (P2), so a
+    # consumer sees a forced degraded order, not a chosen one. 'anthropic' is
+    # configured-but-not-implemented -> deterministic "no model", env-decoupled.
     monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     videos = [
@@ -136,6 +136,18 @@ def test_rerank_videos_falls_back_to_heuristic_when_no_model_available(tmp_path,
         VideoInfo("v2", "News roundup", _recent(4), 300, "https://y.tube/v2", "B"),
     ]
     ranked = rerank_videos("Kubernetes", videos, config, top_n=2, use_llm=True)
+    assert all(item.selected_by == "no-model" for item in ranked)
+
+
+def test_rerank_videos_no_rerank_stays_heuristic_not_no_model(tmp_path):
+    # The user explicitly chose the deterministic order (--no-rerank). That is a
+    # choice, not a degradation, so it stays "heuristic" even when a model exists.
+    config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+    videos = [
+        VideoInfo("v1", "Kubernetes guide", _recent(3), 1200, "https://y.tube/v1", "A"),
+        VideoInfo("v2", "News roundup", _recent(4), 300, "https://y.tube/v2", "B"),
+    ]
+    ranked = rerank_videos("Kubernetes", videos, config, top_n=2, use_llm=False)
     assert all(item.selected_by == "heuristic" for item in ranked)
 
 

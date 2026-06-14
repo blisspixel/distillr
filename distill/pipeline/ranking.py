@@ -39,6 +39,21 @@ def _rerank_model_available() -> bool:
     return model_available("rerank")
 
 
+def _mark_no_model(ranked: list) -> list:
+    """Relabel a deterministic order as the forced no-model fallback (P2).
+
+    Both ``RankedVideo`` and ``RankedPaper`` carry ``selected_by``; setting it to
+    ``"no-model"`` distinguishes "deterministic because no model is configured"
+    from "deterministic because the user passed --no-rerank" (which stays
+    ``"heuristic"``), so a consumer (MCP/JSON) sees the degradation rather than
+    mistaking a fallback order for a quality ranking. The graceful-degradation
+    mandate: label every degraded response.
+    """
+    for item in ranked:
+        item.selected_by = "no-model"
+    return ranked
+
+
 @dataclass
 class RankedVideo:
     video: VideoInfo
@@ -65,8 +80,16 @@ def rerank_videos(
         return []
 
     baseline = _heuristic_rank(query, videos, skeptical=skeptical)
-    if not use_llm or not _rerank_model_available():
+    if not use_llm:
+        # User chose the deterministic order (--no-rerank); "heuristic" is honest.
         return baseline[:top_n]
+    if not _rerank_model_available():
+        # No model configured at all: the deterministic order is a forced
+        # fallback, not a choice. Label it "no-model" so a downstream consumer
+        # (MCP/JSON) sees a degraded, non-model ranking (the graceful-degradation
+        # mandate: label every degraded response). See P2 in
+        # docs/design/model-judgment-vs-brittle-fallbacks.md.
+        return _mark_no_model(baseline[:top_n])
 
     try:
         llm_ranked = _llm_rerank(query, videos, config, tracker, skeptical=skeptical)
@@ -491,8 +514,10 @@ def rerank_papers(
         return []
 
     baseline = _heuristic_rank_papers(query, papers)
-    if not use_llm or not _rerank_model_available():
-        return baseline[:top_n]
+    if not use_llm:
+        return baseline[:top_n]  # user chose deterministic (--no-rerank)
+    if not _rerank_model_available():
+        return _mark_no_model(baseline[:top_n])  # forced fallback; label it (P2)
 
     try:
         llm_ranked = _llm_rerank_papers(query, papers, config, tracker)

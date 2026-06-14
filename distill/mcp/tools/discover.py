@@ -124,7 +124,7 @@ def learn_topic(
         config,
         tracker=tracker,
         top_n=max(limit * 2, 10),
-        use_llm=model_available("rerank"),
+        use_llm=True,  # rerank_videos checks model availability itself and labels a no-model fallback
     )
     selected = ranked[:limit]
 
@@ -209,7 +209,7 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
         config,
         tracker=tracker,
         top_n=max(limit * 2, 10),
-        use_llm=model_available("rerank"),
+        use_llm=True,  # rerank_videos checks model availability itself and labels a no-model fallback
     )
 
     results = []
@@ -225,10 +225,26 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
                 "view_count": v.view_count,
                 "score": round(item.final_score, 2),
                 "rationale": item.rationale,
+                # How this set was ordered, so an agent consumer can see a
+                # degraded ranking: "llm" (model-judged), "heuristic"
+                # (deterministic), or "no-model" (forced fallback, no model
+                # configured). The graceful-degradation mandate: label it.
+                "ranked_by": item.selected_by,
             }
         )
 
-    return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)
+    ranked_by = ranked[0].selected_by if ranked else "none"
+    payload: dict = {
+        "results": results,
+        "ranked_by": ranked_by,
+        "cost": _server._cost_summary(tracker),
+    }
+    if ranked_by == "no-model":
+        payload["notice"] = (
+            "No model configured -- results are a deterministic fallback order, not model-ranked. "
+            "Set a cloud key or DISTILL_PROVIDER=ollama for model reranking."
+        )
+    return json.dumps(payload, indent=2)
 
 
 @_server.mcp.tool()
@@ -292,7 +308,7 @@ async def discover(  # noqa: C901
                     config,
                     tracker=tracker,
                     top_n=max(limit * 2, 10),
-                    use_llm=model_available("rerank"),
+                    use_llm=True,  # rerank_videos checks model availability itself and labels a no-model fallback
                 )
                 for item in ranked[:limit]:
                     v = item.video
