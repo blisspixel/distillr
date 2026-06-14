@@ -55,7 +55,9 @@ ALLOWLIST: dict[str, int] = {
     # diff + trends + add + remove -> commands/view.py (View slice): 3672 -> 3478.
     # intent sub-app -> commands/intent.py (Library slice): 3478 -> 3392.
     # concepts build command -> commands/concepts.py (Library slice): 3392 -> 3316.
-    "distill/commands/_logic.py": 3316,
+    # _validate_learning_options wrapper eliminated; consumers point at
+    # commands/_learning_flow directly (Phase 2 foundation): 3316 -> 3304.
+    "distill/commands/_logic.py": 3304,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

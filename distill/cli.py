@@ -69,7 +69,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _topic_trends_output_path,
     _topic_watch_alert_lines,
     _truncate_channel_list,
-    _validate_learning_options,
     _watch_alerts_output_path,
     _window_label,
     _write_topic_change_briefing,

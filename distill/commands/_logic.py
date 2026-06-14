@@ -334,18 +334,6 @@ def _select_learning_videos(
     return enriched, selected
 
 
-def _validate_learning_options(
-    sort: str, limit: int, days: int, per_channel_cap: int, hours: int | None = None
-) -> None:
-    _learning_flow_support.validate_learning_options(
-        sort,
-        limit,
-        days,
-        per_channel_cap,
-        hours=hours,
-    )
-
-
 def _preview_learning_selection(
     query: str,
     *,
@@ -2338,7 +2326,7 @@ def topic_watch_add(
     if cadence not in {"daily", "weekly"}:
         raise typer.BadParameter("--cadence must be 'daily' or 'weekly'")
     ranking_mode = _normalize_topic_watch_ranking_mode(ranking)
-    _validate_learning_options(sort, limit, days, per_channel_cap)
+    _learning_flow_support.validate_learning_options(sort, limit, days, per_channel_cap)
 
     config = get_config()
     lib = Library(config)

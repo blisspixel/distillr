@@ -20,6 +20,9 @@ from distill._console import console
 from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
 from distill.commands._helpers import _invoke_command, _preflight, get_config
+from distill.commands._learning_flow import (
+    validate_learning_options as _validate_learning_options,
+)
 from distill.commands._logic import (
     _ACCENT,
     _apply_verify_override,
@@ -39,7 +42,6 @@ from distill.commands._logic import (
     _run_scope_report,
     _topic_watch_name,
     _topic_watch_ranking_strategy,
-    _validate_learning_options,
     topic_watch_run,
 )
 from distill.ingestors.papers.arxiv import PaperRecord, search_arxiv_multi
