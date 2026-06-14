@@ -171,7 +171,6 @@ from distill.pipeline.dashboard_data import (
     topic_watch_budget_messages as _topic_watch_budget_messages,
 )
 from distill.pipeline.ranking import chronological_rank, rerank_papers, rerank_videos
-from distill.pipeline.report.brief import run_research_brief
 from distill.pipeline.report.briefing import generate_topic_brief
 from distill.pipeline.report.synthesize import run_synthesis
 from distill.pipeline.summary import (
@@ -2737,98 +2736,6 @@ def brief_cmd(
         header="Briefing",
         hours=hours,
     )
-
-
-@app.command(name="research-brief", rich_help_panel="Discover")
-def research_brief_cmd(
-    topics: list[str] = typer.Option(
-        ...,
-        "--topic",
-        "-t",
-        help="Topic(s) to include in the briefing. Pass multiple times or comma-separated.",
-    ),
-    name: str = typer.Option(
-        ...,
-        "--name",
-        "-n",
-        help="Output filename stub. Writes to output/briefing-{name}.md.",
-    ),
-    context: str | None = typer.Option(
-        None,
-        "--context",
-        help="Inline briefing context/instructions. Use --context-file for longer content.",
-    ),
-    context_file: Path | None = typer.Option(
-        None,
-        "--context-file",
-        help="Path to a markdown file whose contents become the briefing prompt.",
-    ),
-):
-    """Run a multi-topic Gemini Deep Research briefing grounded on existing corpora.
-
-    Unlike `distill report` (4-phase strategic report, one topic) and `distill brief`
-    (fast Grok-based single-topic brief), this runs a single Deep Research call
-    across one or more topics with a user-supplied context block that shapes the
-    briefing for a specific audience, decision, or downstream agent.
-
-    The context file IS the prompt — distill handles file gathering, File Search
-    grounding, Deep Research invocation, and output. Cost: ~$3-5 per briefing.
-
-    Example:
-        distill research-brief -t rag-research -t vector-dbs \\
-            --context-file docs/briefing-contexts/product-decision.md --name rag-q2
-    """
-    expanded: list[str] = []
-    for entry in topics:
-        expanded.extend(t.strip() for t in entry.split(",") if t.strip())
-    if not expanded:
-        console.print("[red]At least one --topic is required[/red]")
-        raise typer.Exit(1)
-
-    if context_file:
-        if not context_file.exists():
-            console.print(f"[red]--context-file not found: {context_file}[/red]")
-            raise typer.Exit(1)
-        file_text = context_file.read_text(encoding="utf-8")
-        context_text = f"{context}\n\n{file_text}" if context else file_text
-    else:
-        context_text = context or ""
-
-    if not context_text.strip():
-        console.print(
-            "[red]Provide --context or --context-file — the briefing needs instructions[/red]"
-        )
-        raise typer.Exit(1)
-
-    config = get_config()
-    _require_api_key(config.gemini_api_key, "GEMINI_API_KEY required for Deep Research")
-
-    tracker = CostTracker()
-    summary = RunSummary(command="research-brief")
-    summary.set_metadata(topic=",".join(expanded), workflow="research-brief")
-
-    try:
-        output_path = run_research_brief(
-            topics=expanded,
-            context=context_text,
-            name=name,
-            config=config,
-            tracker=tracker,
-        )
-    except Exception as exc:
-        summary.add_exception("research-brief", exc, context=",".join(expanded))
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        raise
-    if output_path is None:
-        summary.add_issue(
-            "research-brief",
-            "Research briefing did not produce results",
-            context=",".join(expanded),
-        )
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        raise typer.Exit(1)
-    summary.add_output(output_path)
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
 @app.command(name="synthesize", rich_help_panel="Discover")
