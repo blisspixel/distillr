@@ -147,7 +147,23 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     if anchor == "auto":
         anchor = "grok-4.3" if cloud_ok else model_list[0]
     if judge == "auto":
-        judge = "grok-4.3" if cloud_ok else (best_local or model_list[0])
+        # A migration verdict must come from a judge that is neither the anchor's
+        # family (no incumbent grading its own replacement — biased against
+        # switching) nor a candidate (a model grading itself — biased toward
+        # itself, which would let a hallucinating candidate vouch for its own
+        # output and defeat the faithfulness veto). Prefer a different-family
+        # cloud model, else a different-family local model that isn't a candidate;
+        # else none -> the eval fails closed on migrations (honest "can't certify"
+        # beats a biased verdict).
+        def _neutral(cand: str) -> bool:
+            return bool(cand) and not judge_shares_family(cand, anchor) and cand not in model_list
+
+        if cloud_ok and _neutral("grok-4.3"):
+            judge = "grok-4.3"
+        elif _neutral(best_local or ""):
+            judge = best_local
+        else:
+            judge = ""
 
     # The anchor must be in the run so candidates have something to compare against.
     if anchor not in model_list:
@@ -192,16 +208,25 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         raise typer.Exit(1)
 
     est = estimate_eval_cost(fixtures, model_list, anchor=anchor, judge_model=judge)
+    judge_label = judge or "none (no neutral judge available)"
     console.print(
         f"[bold]Model eval[/bold]: {len(model_list)} model(s) x {len(fixtures)} fixture(s) "
-        f"({workload}). Anchor: {anchor}. Judge: {judge}."
+        f"({workload}). Anchor: {anchor}. Judge: {judge_label}."
     )
     console.print(f"[dim]Estimated spend ~${est:.2f}.[/dim]")
-    if judge_shares_family(judge, anchor):
+    if not judge:
         console.print(
-            "[dim]Note: the judge shares the anchor's family, so the pairwise comparison is "
-            "conservative (favors the anchor). Pass --judge <neutral-model> for an unbiased "
-            "head-to-head; the recommendation itself is deterministic and unaffected.[/dim]"
+            "[yellow]No neutral judge available[/yellow] — only the anchor's own family is "
+            "configured, and the incumbent can't impartially judge its own replacement. The "
+            "faithfulness check gates migrations, so without it the eval will recommend staying "
+            "on the anchor. Add a cross-family key (e.g. GEMINI_API_KEY) or pass "
+            "--judge <model from another family> to certify a switch."
+        )
+    elif judge_shares_family(judge, anchor):
+        console.print(
+            "[yellow]The --judge you chose shares the anchor's family[/yellow], so the head-to-head "
+            "is self-preference-biased toward the anchor and won't reliably certify a migration. "
+            "Pass a different-family --judge for an impartial verdict."
         )
     if not yes and not _tty_confirm("Run the eval?", default=True):
         console.print("[yellow]Aborted.[/yellow]")

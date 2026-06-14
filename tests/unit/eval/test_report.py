@@ -50,25 +50,36 @@ def test_tentative_when_worst_fixture_dips_below_bar():
     assert "worst fixture" in summary.confidence_reason
 
 
-def test_tentative_when_judge_favors_anchor():
+def test_judge_vetoes_migration_when_it_favors_anchor():
+    # The cheaper model clears the deterministic floor but the judge scores it
+    # below the anchor (win-rate 0.30 < floor). Faithfulness holds the veto: the
+    # migration is NOT recommended; we stay on the incumbent.
     rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
-    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.30)  # clears on scores, loses to judge
+    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.30)  # clears scores, loses to judge
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
-    assert summary.recommended == "local"
-    assert summary.confidence == "tentative"
-    assert "judge" in summary.confidence_reason
+    assert summary.recommended == "grok-4.3"
+    assert "did not confirm" in summary.confidence_reason
 
 
-def test_tentative_when_judge_unavailable():
-    # Both have no win-rate (judge failed). A cheaper model that "wins" on the
-    # deterministic dims alone must NOT be high-confidence — those metrics are
-    # gameable; without a judge it's tentative.
+def test_fail_closed_when_judge_unavailable():
+    # A cheaper model "wins" on the gameable deterministic dims but there is NO
+    # judge signal. The brittle composite must NOT license a migration on its
+    # own (it's blind to faithfulness) — fail closed, recommend the incumbent.
     rows = _rows("grok-4.3", [0.90, 0.90, 0.90], 0.10, None)
     rows += _rows("local", [0.95, 0.95, 0.95], 0.0, None)
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended == "grok-4.3"
+    assert "no judge signal" in summary.confidence_reason
+
+
+def test_judge_certifies_migration_when_at_par():
+    # Cheaper model clears the floor AND the judge confirms it at par -> migrate.
+    rows = _rows("grok-4.3", [0.95, 0.95, 0.95], 0.10, None)
+    rows += _rows("local", [0.90, 0.90, 0.90], 0.0, 0.55)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "local"
-    assert summary.confidence == "tentative"
-    assert "no signal" in summary.confidence_reason
+    assert summary.confidence == "high"
+    assert "judge confirms" in summary.confidence_reason
 
 
 def test_anchor_recommended_when_nothing_cheaper_clears():

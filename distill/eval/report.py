@@ -1,9 +1,22 @@
-"""Aggregate eval rows into a cost x quality summary + a deterministic pick.
+"""Aggregate eval rows into a cost x quality summary + a recommendation.
 
-The recommendation is pure Python over the deterministic composite: the cheapest
-model whose mean composite clears ``threshold x anchor`` (the anchor is the
-incumbent/reference model). The pairwise judge win-rate and the per-model spread
-feed only the **confidence** flag — they never change the pick. Rendering is
+The recommendation is pure Python aggregation over two signals, in the order the
+agentic-balance charter requires (model proposes, Python decides):
+
+1. The **faithfulness-aware pairwise judge** gates a migration. A non-anchor
+   candidate may only be recommended over the incumbent anchor if the judge
+   confirms it is at least at par (win-rate >= floor). No judge signal => the
+   switch is NOT certified (fail closed) — because the deterministic composite
+   below is admittedly blind to faithfulness and gameable by verbose, well-
+   formatted, keyword-stuffed output, so it cannot license a migration alone.
+2. The **deterministic composite** is a cheap guardrail floor (clears
+   ``threshold x anchor``), not the decider. It runs key-free in CI; it is
+   necessary, never sufficient, for recommending a switch.
+
+This inverts the earlier (broken) design where the brittle composite decided and
+the judge only tinted a "confidence" label — see
+``docs/design/model-judgment-vs-brittle-fallbacks.md``. The anchor (incumbent)
+needs no judge to be recommended: "stay put" is the safe default. Rendering is
 plain strings + markdown (no rich dependency) so this stays trivially testable.
 """
 
@@ -100,14 +113,33 @@ def summarize(
         reason = f"anchor '{anchor}' produced no valid output ({anchor_summary.errors} error(s))"
     else:
         bar = threshold * anchor_summary.mean_composite
-        # Only models that produced valid output on at least one fixture are eligible.
-        clearing = [s for s in summaries if s.rows > 0 and s.mean_composite >= bar]
-        if clearing:
-            rec = min(clearing, key=lambda s: (s.total_cost, -s.mean_composite))
+        # Eligibility, in charter order: clear the deterministic guardrail (a
+        # necessary floor), then -- for a *migration* away from the anchor -- the
+        # judge must confirm at-par. The anchor itself needs no judge ("stay put"
+        # is safe). A cheaper candidate that clears the floor but the judge can't
+        # certify (no signal, or below floor) is vetoed: faithfulness, not the
+        # gameable composite, holds the migration veto.
+        eligible: list[ModelSummary] = []
+        vetoed_cheaper = False
+        for s in summaries:
+            if s.rows == 0 or s.mean_composite < bar:
+                continue
+            if s.model == anchor:
+                eligible.append(s)
+                continue
+            if s.mean_winrate is None or s.mean_winrate < _WINRATE_FLOOR:
+                # Cheaper-than-anchor candidate blocked by the judge (or its
+                # absence). Record it so the anchor pick can explain itself.
+                if s.total_cost < anchor_summary.total_cost:
+                    vetoed_cheaper = True
+                continue
+            eligible.append(s)
+        if eligible:
+            rec = min(eligible, key=lambda s: (s.total_cost, -s.mean_composite))
             recommended = rec.model
-            confidence, reason = _confidence(rec, anchor_summary, bar)
+            confidence, reason = _confidence(rec, anchor_summary, bar, vetoed_cheaper)
         else:
-            # No model clears the bar -- possible when --threshold > 1.0, where
+            # Nothing clears the bar -- possible when --threshold > 1.0, where
             # even the anchor fails its own bar. Recommend nothing rather than
             # crashing on min([]).
             reason = f"no model clears the bar ({bar:.2f}) at threshold {threshold:g}"
@@ -123,36 +155,36 @@ def summarize(
     )
 
 
-def _confidence(rec: ModelSummary, anchor: ModelSummary, bar: float) -> tuple[str, str]:
-    """Deterministic confidence in the recommendation (advisory signals only)."""
+def _confidence(
+    rec: ModelSummary, anchor: ModelSummary, bar: float, vetoed_cheaper: bool
+) -> tuple[str, str]:
+    """Confidence in the recommendation. The judge already gated the *pick* (a
+    non-anchor rec has cleared the win-rate floor); this only nuances the label."""
     if rec.errors > 0:
         return (
             "tentative",
             f"{rec.model} failed on {rec.errors} fixture(s) — rerun before trusting the pick",
         )
     if rec.model == anchor.model:
+        if vetoed_cheaper:
+            # The honest "don't migrate" case: cheaper models cleared the cheap
+            # composite floor but the judge would not certify them at par (or
+            # there was no neutral judge to ask). Staying on the incumbent.
+            return (
+                "high",
+                "recommends the anchor — cheaper models cleared the deterministic floor but the "
+                "judge did not confirm them at par with the anchor (or no judge signal); "
+                "not certifying a switch",
+            )
         return "high", "recommends the anchor — nothing cheaper clears the bar"
+    # Non-anchor rec: it already passed the composite floor AND win-rate >= floor.
     if rec.min_composite < bar:
         return (
             "tentative",
             f"{rec.model}'s worst fixture ({rec.min_composite:.2f}) dips below the bar "
             f"({bar:.2f}) — add fixtures or inspect before switching",
         )
-    if rec.mean_winrate is None:
-        # No head-to-head signal (judge unavailable/failed). Deterministic scores
-        # alone are gameable by verbose, well-structured output — don't call this high.
-        return (
-            "tentative",
-            f"{rec.model} clears the deterministic bar but the judge produced no signal "
-            "(unavailable) — verify with a working --judge before switching",
-        )
-    if rec.mean_winrate < _WINRATE_FLOOR:
-        return (
-            "tentative",
-            f"deterministic scores clear the bar but the judge favors the anchor "
-            f"(win-rate {rec.mean_winrate:.2f} < {_WINRATE_FLOOR:.2f})",
-        )
-    return "high", f"{rec.model} clears the bar on every fixture and the judge agrees"
+    return "high", f"{rec.model} clears the bar on every fixture and the judge confirms it at par"
 
 
 def _winrate_str(s: ModelSummary, anchor: str) -> str:

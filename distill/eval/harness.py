@@ -300,9 +300,12 @@ def run_model_eval(
             a = analyses[(model, fixture.id)]
             win_rate: float | None = None
             rationale = ""
-            # Judge only when both this model and the anchor produced real output.
+            # Judge only when a judge is configured and both this model and the
+            # anchor produced real output. An empty judge_model means no neutral
+            # judge was available -> no head-to-head signal (report fails closed).
             if (
-                model != anchor
+                judge_model
+                and model != anchor
                 and not a.error
                 and anchor_a is not None
                 and not anchor_a.error
