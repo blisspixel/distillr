@@ -2675,7 +2675,7 @@ class TestSiteCommands:
             captured.update(query=query, **kwargs)
             return mock_config, cli.CostTracker(), []
 
-        monkeypatch.setattr(_cli_impl, "_preview_learning_selection", fake_preview)
+        monkeypatch.setattr(_discover, "_preview_learning_selection", fake_preview)
 
         result = runner.invoke(cli.app, ["latest", "Claude Code leak", "--preview"])
 
