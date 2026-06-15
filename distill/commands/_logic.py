@@ -63,6 +63,11 @@ from distill.commands._helpers import (
     _resolve_intent,
     get_config,
 )
+from distill.commands._topic_watch import (
+    _normalize_topic_watch_ranking_mode,
+    _topic_watch_name,
+    _topic_watch_ranking_strategy,
+)
 from distill.config import DistillConfig
 
 # Doctor check/probe helpers live in distill.doctor.checks; the two used by the
@@ -100,7 +105,6 @@ from distill.library.paths import (
     artifact_exists,
     base_frontmatter,
     find_artifact,
-    slugify_title,
     tags_for,
     write_markdown_artifact,
     write_text_artifact,
@@ -1561,42 +1565,6 @@ topic_watch_app = typer.Typer(
     rich_markup_mode="rich",
 )
 app.add_typer(topic_watch_app, name="topic-watch")
-
-
-def _topic_watch_name(query: str, topic: str | None, name: str | None) -> str:
-    if name:
-        return name
-    base = topic or _topic_from_query(query)
-    return slugify_title(base, max_len=30)
-
-
-_TOPIC_WATCH_RANKING_ALIASES = {
-    "freshness": "freshness",
-    "freshness-first": "freshness",
-    "fresh": "freshness",
-    "balanced": "balanced",
-    "balanced-mix": "balanced",
-    "popularity": "popularity",
-    "popularity-biased": "popularity",
-    "popular": "popularity",
-}
-
-
-def _normalize_topic_watch_ranking_mode(value: str) -> str:
-    normalized = _TOPIC_WATCH_RANKING_ALIASES.get(value.lower().strip())
-    if not normalized:
-        allowed = ", ".join(["freshness", "balanced", "popularity"])
-        raise typer.BadParameter(f"ranking mode must be one of: {allowed}")
-    return normalized
-
-
-def _topic_watch_ranking_strategy(ranking_mode: str) -> dict[str, object]:
-    mode = _normalize_topic_watch_ranking_mode(ranking_mode)
-    if mode == "freshness":
-        return {"mode": mode, "sort": "date", "rerank": False, "label": "freshness-first"}
-    if mode == "popularity":
-        return {"mode": mode, "sort": "relevance", "rerank": False, "label": "popularity-biased"}
-    return {"mode": "balanced", "sort": "date", "rerank": True, "label": "balanced mix"}
 
 
 @topic_watch_app.callback()

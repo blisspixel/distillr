@@ -64,7 +64,11 @@ ALLOWLIST: dict[str, int] = {
     # _build_start_here_table, _show_first_run_home) -> commands/dashboard.py;
     # _default lazy-imports it, maintain/cli repointed (Dashboard slice):
     # 3290 -> 2644.
-    "distill/commands/_logic.py": 2644,
+    # topic-watch naming/ranking helpers (_topic_watch_name,
+    # _normalize_topic_watch_ranking_mode, _topic_watch_ranking_strategy) ->
+    # commands/_topic_watch.py support module; dashboard/discover repointed
+    # (Phase 2 foundation): 2644 -> 2612.
+    "distill/commands/_logic.py": 2612,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

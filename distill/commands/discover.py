@@ -38,15 +38,17 @@ from distill.commands._logic import (
     _discover_sizing_flow,
     _display_ranked_discover,
     _is_fresh_topic,
-    _normalize_topic_watch_ranking_mode,
     _preview_learning_selection,
     _process_site_seed,
     _run_concepts_after_ingest,
     _run_learning_command,
     _run_scope_report,
+    topic_watch_run,
+)
+from distill.commands._topic_watch import (
+    _normalize_topic_watch_ranking_mode,
     _topic_watch_name,
     _topic_watch_ranking_strategy,
-    topic_watch_run,
 )
 from distill.ingestors.papers.arxiv import PaperRecord, search_arxiv_multi
 from distill.ingestors.sites.scraper import SiteSeed, load_site_batch
