@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import dashboard as _dashboard
 from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
 from distill.commands import learn as _learn
@@ -57,6 +58,7 @@ def mock_config(tmp_path):
         _learn.get_config
     )  # search/explore/learn/brief/latest moved to commands/learn.py
     original_watch = _watch.get_config  # watch sub-app + catch-up moved to commands/watch.py
+    original_dashboard = _dashboard.get_config  # home screen moved to commands/dashboard.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
     cli.get_config = lambda: config
@@ -71,6 +73,7 @@ def mock_config(tmp_path):
     _discover.get_config = lambda: config
     _learn.get_config = lambda: config
     _watch.get_config = lambda: config
+    _dashboard.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
@@ -88,6 +91,7 @@ def mock_config(tmp_path):
     _discover.get_config = original_discover
     _learn.get_config = original_learn
     _watch.get_config = original_watch
+    _dashboard.get_config = original_dashboard
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
     if original_expand_impl is not None:

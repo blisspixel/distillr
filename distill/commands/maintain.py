@@ -25,13 +25,11 @@ from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import _resolve_topic_for_channel, get_config
 from distill.commands._helpers import tty_confirm as _tty_confirm
 
-# Completion helper and the home-screen/dashboard renderers are still owned by
-# _logic (the bare `distill` home screen uses them); imported back here for the
-# commands that moved.
-from distill.commands._logic import (
-    _complete_topics,
+# Completion helper and version probe stay in _logic; the dashboard renderers
+# live in commands/dashboard.py (the bare `distill` home screen uses them too).
+from distill.commands._logic import _complete_topics, _get_version
+from distill.commands.dashboard import (
     _dashboard_snapshot,
-    _get_version,
     _render_dashboard_html,
     _show_dashboard,
 )

@@ -59,7 +59,12 @@ ALLOWLIST: dict[str, int] = {
     # commands/_learning_flow directly (Phase 2 foundation): 3316 -> 3304.
     # _detect_ramp_source (pure structural dispatch) -> _helpers.py;
     # discover.py repointed (Phase 2 foundation): 3304 -> 3290.
-    "distill/commands/_logic.py": 3290,
+    # home-screen + HTML dashboard renderers (_show_dashboard,
+    # _render_dashboard_html, _dashboard_snapshot, _dashboard_metric,
+    # _build_start_here_table, _show_first_run_home) -> commands/dashboard.py;
+    # _default lazy-imports it, maintain/cli repointed (Dashboard slice):
+    # 3290 -> 2644.
+    "distill/commands/_logic.py": 2644,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

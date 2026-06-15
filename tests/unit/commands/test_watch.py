@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import dashboard as _dashboard
 from distill.commands import view as _view
 from distill.config import DistillConfig
 from distill.library import Library, TopicWatchEntry
@@ -124,6 +125,7 @@ def test_topic_watch_cli_add_and_list(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_topic_watch_run_invokes_learning(tmp_path, monkeypatch):
@@ -169,6 +171,7 @@ def test_topic_watch_run_invokes_learning(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
@@ -246,6 +249,7 @@ def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):
@@ -287,6 +291,7 @@ def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeypatch):
@@ -311,6 +316,7 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _dashboard.get_config = lambda: config
     monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
@@ -327,6 +333,7 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
@@ -366,6 +373,7 @@ def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _dashboard.get_config = lambda: config
     monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
@@ -380,6 +388,7 @@ def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
@@ -408,6 +417,7 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _dashboard.get_config = lambda: config
     monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
@@ -421,6 +431,7 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
@@ -444,6 +455,7 @@ def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
     original = cli.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _dashboard.get_config = lambda: config
     monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
 
@@ -455,6 +467,7 @@ def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, monkeypatch):
@@ -507,6 +520,7 @@ def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, m
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
         _view.get_config = original
 
 
@@ -546,6 +560,7 @@ def test_topic_watch_run_uses_popularity_ranking_mode(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
@@ -588,6 +603,7 @@ def test_topic_watch_preview_uses_freshness_ranking_mode(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_topic_watch_ranking_command_updates_mode(tmp_path):
@@ -610,6 +626,7 @@ def test_topic_watch_ranking_command_updates_mode(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_trends_command_handles_empty_history(tmp_path):
@@ -635,6 +652,7 @@ def test_trends_command_handles_empty_history(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
         _view.get_config = original
 
 
@@ -679,6 +697,7 @@ def test_trends_command_summarizes_recent_windows(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
         _view.get_config = original
 
 
@@ -712,6 +731,7 @@ def test_topic_watch_list_shows_trend_label_when_history_exists(tmp_path):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original
 
 
 def test_topic_watch_run_prints_alert_digest_for_notable_change(tmp_path, monkeypatch):
@@ -750,3 +770,4 @@ def test_topic_watch_run_prints_alert_digest_for_notable_change(tmp_path, monkey
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
+        _dashboard.get_config = original

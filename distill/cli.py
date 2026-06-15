@@ -60,7 +60,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _run_scope_report,
     _run_topic_workflow,
     _select_learning_videos,
-    _show_dashboard,
     _site_section_change_summary,
     _strip_intent_terms,
     _strip_noise_terms,
@@ -91,6 +90,10 @@ from distill.commands.ask import register as _register_ask
 from distill.commands.audit import register as _register_audit
 from distill.commands.claude_md import register as _register_claude_md
 from distill.commands.concepts import register as _register_concepts_recovery
+
+# Home-screen/dashboard renderers moved to commands/dashboard.py; re-export
+# _show_dashboard so tests patching cli._show_dashboard keep working.
+from distill.commands.dashboard import _show_dashboard  # noqa: F401
 from distill.commands.discover import register as _register_discover
 from distill.commands.doctor import register as _register_doctor
 from distill.commands.eval import register as _register_eval
