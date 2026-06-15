@@ -1924,20 +1924,6 @@ def _export_topic_bundle(config: DistillConfig, topic: str, export_format: str) 
     return zip_path
 
 
-def _detect_ramp_source(target: str) -> str:
-    target_path = Path(target)
-    if target_path.exists():
-        return "website-batch"
-    lowered = target.lower()
-    if "arxiv.org" in lowered:
-        return "paper"
-    if lowered.startswith("http://") or lowered.startswith("https://"):
-        if "youtube.com" in lowered or "youtu.be" in lowered:
-            return "youtube-url"
-        return "website"
-    return "youtube-query"
-
-
 def _dashboard_snapshot(config: DistillConfig) -> dict:
     return _shared_dashboard_snapshot(config)
 

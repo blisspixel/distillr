@@ -127,6 +127,26 @@ def _file_link(path: Path) -> str:
     return f"[link={uri}]{resolved}[/link]"
 
 
+def _detect_ramp_source(target: str) -> str:
+    """Classify a ramp-up target into the workflow that should ingest it.
+
+    Structural dispatch on the literal shape of the argument (an existing path,
+    an arxiv URL, a YouTube URL, any other URL, or a bare query) — ground truth,
+    not a semantic judgment, so it stays a deterministic rule.
+    """
+    target_path = Path(target)
+    if target_path.exists():
+        return "website-batch"
+    lowered = target.lower()
+    if "arxiv.org" in lowered:
+        return "paper"
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        if "youtube.com" in lowered or "youtu.be" in lowered:
+            return "youtube-url"
+        return "website"
+    return "youtube-query"
+
+
 def _isatty() -> bool:
     """Whether stdin is an interactive terminal. Indirected so it can be
     forced in tests (CliRunner swaps ``sys.stdin`` for a non-TTY stream)."""

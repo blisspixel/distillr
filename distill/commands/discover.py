@@ -19,14 +19,18 @@ from distill import cli_shared
 from distill._console import console
 from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
-from distill.commands._helpers import _invoke_command, _preflight, get_config
+from distill.commands._helpers import (
+    _detect_ramp_source,
+    _invoke_command,
+    _preflight,
+    get_config,
+)
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
 from distill.commands._logic import (
     _ACCENT,
     _apply_verify_override,
-    _detect_ramp_source,
     _discover_fetch_videos,
     _discover_generate_queries,
     _discover_ingest_set,

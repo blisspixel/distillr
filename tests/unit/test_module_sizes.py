@@ -57,7 +57,9 @@ ALLOWLIST: dict[str, int] = {
     # concepts build command -> commands/concepts.py (Library slice): 3392 -> 3316.
     # _validate_learning_options wrapper eliminated; consumers point at
     # commands/_learning_flow directly (Phase 2 foundation): 3316 -> 3304.
-    "distill/commands/_logic.py": 3304,
+    # _detect_ramp_source (pure structural dispatch) -> _helpers.py;
+    # discover.py repointed (Phase 2 foundation): 3304 -> 3290.
+    "distill/commands/_logic.py": 3290,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent
