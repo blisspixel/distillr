@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.16.1 - 2026-06-14
+
+First PyPI build carrying the 0.13–0.16 line: 0.13.0 through 0.16.0 each shipped a `release:` commit but were never tagged, so the tag-triggered publish workflow never ran and PyPI/the release page stayed at 0.12.13. This release tags a green-CI commit so `pip install distillr` is current again; it cumulatively includes every 0.13–0.16 feature plus the internal refactors below.
 
 ### Changed
 
