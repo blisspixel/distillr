@@ -207,14 +207,17 @@ adapted, declined"** — not duplicated here. Only what's *new* lives here:
 ## 10. Remediation plan (corrected against the tree, ranked)
 
 **Load-bearing (do):**
-1. **Decompose `distill/commands/_logic.py`** (9,373 lines, 155 fns; 9× the
-   ceiling) — agent-legibility for the dominant reader, so it earns the feature
-   spine. **Hazard the drafts missed:** 76 `from distill.commands._logic import …`
-   sites + `monkeypatch`/`patch("distill.commands._logic.…")` strings. Moving a
-   function silently false-greens those patches. **Rule:** `_logic.py` stays a
-   re-export facade until every call site *and* patch string is migrated; grep
+1. **Decompose `distill/commands/_logic.py`** (began at 9,373 lines, 155 fns; 9×
+   the ceiling — now 2,612 and shrinking, Phase 2 ~80% done with two command
+   groups left) — agent-legibility for the dominant reader, so it earns the
+   feature spine. **Hazard the drafts missed:** 76
+   `from distill.commands._logic import …` sites +
+   `monkeypatch`/`patch("distill.commands._logic.…")` strings. Moving a function
+   silently false-greens those patches. **Rule:** `_logic.py` stays a re-export
+   facade until every call site *and* patch string is migrated; grep
    `distill.commands._logic` as a pre-merge check; sequence move → re-export →
-   repoint patches → delete facade (often two PRs per group, not one).
+   repoint patches → delete facade (often two PRs per group, not one). Status and
+   the per-slice plan: [`logic-decomposition.md`](logic-decomposition.md).
 2. **The module-size pytest ratchet** (§9) — the mechanism that makes #1 stick.
 3. **Coverage floor as a real ratchet** — store the floor, CI asserts
    `measured ≥ stored`, reject lowering; fix the live **79-vs-80 mismatch** in

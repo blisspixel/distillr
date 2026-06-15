@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- **`_logic.py` decomposition — Phase 2 progress (pure relocations, no behavior change).** Continued retiring the monolith one green slice at a time, each lowering the must-only-decrease module-size ratchet:
+  - Home screen + HTML dashboard renderers (`_show_dashboard`, `_show_first_run_home`, `_build_start_here_table`, `_dashboard_metric`, `_dashboard_snapshot`, `_render_dashboard_html`) → **`distill/commands/dashboard.py`**. `_logic`'s root callback lazy-imports `_show_dashboard` to avoid the import cycle; `maintain.py`/`cli.py` repointed. The home-screen test fixtures now patch `dashboard.get_config` (verified load-bearing — the no-arg-`distill` tests pass *because* of the patch, the stale-patch false-green guard).
+  - Topic-watch naming/ranking helpers (`_topic_watch_name`, `_normalize_topic_watch_ranking_mode`, `_topic_watch_ranking_strategy`) → **`distill/commands/_topic_watch.py`** support module (zero back-references); `dashboard.py`/`discover.py` import from the foundation instead of back from `_logic`.
+  - `_detect_ramp_source` (pure structural dispatch) → **`distill/commands/_helpers.py`**; `discover.py` repointed.
+  - Net across these three slices: `_logic.py` 3,304 → 2,612 lines (9,373 at the start of the effort). Two command groups remain in the monolith (`topic_app`, `topic_watch_app`) plus the root callback and the shared helper body. Status and per-slice plan: [`docs/design/logic-decomposition.md`](design/logic-decomposition.md).
+  - Verified each slice: ruff (clean) + format, import-linter (4/4 kept), pyright (0 errors), bandit (0 medium+), full suite green (2,244 passed).
+
 ## 0.16.0 - 2026-06-13
 
 **Golden-corpus eval gate (blocking) -- a 1.0 quality-bar item.** The test-time complement to the run-time verify hook: verify grounds *production* output against receipts; this freezes what *good* extraction looks like and proves the scorer can still tell good from bad. Catches the regression class coverage/types/lint miss -- prompt drift, scoring changes, and silent degradation of section/concept extraction.

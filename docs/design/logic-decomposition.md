@@ -1,14 +1,18 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: plan. Remediation #1 from [`how-we-build.md`](how-we-build.md). This is
-> the architectural-change case the operating model says gets a design doc before
-> code. It executes as many small green PRs across sessions, not one big bang.
+> Status: in progress (Phase 1 done; Phase 2 ~80% — `_logic.py` is down from
+> 9,373 to 2,612 lines, two command groups left). Remediation #1 from
+> [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
+> operating model says gets a design doc before code. It executes as many small
+> green PRs across sessions, not one big bang. Live status is in the
+> [Phase 2 section](#phase-2-the-coupled-core-status--plan) below.
 
 ## Problem & North-Star tie
 
-`distill/commands/_logic.py` is **9,373 lines / 155 functions** — 9× the 1000-line
-ceiling, 21× the next file, and a direct violation of the ROADMAP's "one command
-group per file" target. It earns the *feature spine* (not just a harden pass)
+`distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
+1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
+command group per file" target (now 2,612 lines and shrinking; see Phase 2). It
+earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
 the single worst offender. Goal: every command group in its own
@@ -92,49 +96,77 @@ failure is unambiguously a wiring problem, not a logic regression.
 `commands/eval.py` + `commands/reprocess.py`), doctor/health
 (`commands/doctor.py` + the check helpers in `distill/doctor/checks.py`), Reports
 (`commands/reports.py`), and the top-level app + did-you-mean group
-(`distill/_app.py`). `_logic.py` went 9,373 → ~6,245 lines; 13 dead scaffold
-modules were deleted along the way. The size ratchet's allowlist tracked every
-step down.
+(`distill/_app.py`). The size ratchet's allowlist tracked every step down.
 
-**What remains is one tightly-coupled cluster**, which is why the slice ordering
-put it last. The commands: Discover (`discover`, `papers`, `paper`, `latest`,
-`learn`, `search`, `explore`, `brief`, `research-brief`, `monitor`), Process
-(`run`, `site`, `site-batch`, `channel`), the Watch sub-apps (`watch_app`,
-`topic_watch_app`) plus `catch-up`, the Library leftovers (`add`, `remove`,
-`diff`, `trends`), and the `topic_app` / `intent_app` / `concepts_app` sub-apps.
-They share ~10 helpers used across group boundaries — `_preflight`,
-`_invoke_command`, `_resolve_intent`, `_validate_learning_options`,
-`_run_learning_command`, `_preview_learning_selection`, `_load_topic_profile`,
-`_process_video`, `_process_site_seed`, and the topic-watch ranking helpers — and
-`catch-up` / `topic-watch run` *call* the batch commands (`papers`, `paper`,
-`site_cmd`, `site_batch_cmd`). That call-graph is the reason a naive "move Watch
-first" churns: `watch.py` would import a dozen commands back from `_logic` that
-then move themselves.
+**Phase 2 is most of the way through the coupled core.** Since the Phase 1
+boundary the following have left the monolith, each as a green, pure-relocation
+slice with the ratchet lowered to match:
 
-**The sequencing that avoids churn:**
+- **Discover / Process / Papers** → `commands/discover.py`, `commands/process.py`,
+  `commands/papers.py`, with the learning family split into `commands/learn.py`
+  to keep both under the cap.
+- **Watch** (the `watch` sub-app + `catch-up`) → `commands/watch.py`.
+- **View leftovers** (`diff`, `trends`, `add`, `remove`) → `commands/view.py`.
+- **Intent / Concepts** sub-apps → `commands/intent.py`, `commands/concepts.py`.
+- **Home screen + HTML dashboard renderers** → `commands/dashboard.py`
+  (`_logic`'s root callback lazy-imports `_show_dashboard` to avoid the cycle).
+- **Foundation moves** that settle the shared seam so later moves import a stable
+  symbol instead of a moving target: `_preflight` / `_invoke_command` /
+  `_resolve_intent` / `_detect_ramp_source` → `commands/_helpers.py`; the learning
+  flow → `commands/_learning.py` + `commands/_learning_flow.py` (the
+  `_validate_learning_options` wrapper was eliminated, consumers point at
+  `_learning_flow` directly); the topic-change helpers → `commands/_topic_changes.py`;
+  the topic-watch naming/ranking helpers → `commands/_topic_watch.py`.
 
-1. **Shared helpers to the foundation first.** Move the cross-group `_*` helpers
-   into `commands/_helpers.py` (already the no-upward-imports foundation that
-   `get_config` / `_resolve_topic_for_channel` live in). Once a helper is in the
-   foundation, every later command module imports it from one stable place
-   instead of back from `_logic`. Helpers used by a *single* surviving group stay
-   with that group. This is the load-bearing step — it turns the remaining moves
-   from "import a moving target back" into "import a settled foundation symbol."
-2. **Discover + Process commands** into `commands/discover.py` and
-   `commands/process.py` (or one `commands/pipeline.py` if the shared-helper set
-   is small enough after step 1). These own the batch commands the Watch group
-   calls.
-3. **Watch last**, into `commands/watch.py` — now its calls to `papers` /
-   `site_batch_cmd` resolve to *settled* modules (lazy-imported at the call site
-   where a cycle would otherwise form, the same pattern `topic_show` and the
-   report/export callers already use). The sub-app mechanics: the
-   `watch_app = typer.Typer(...)` / `topic_watch_app = typer.Typer(...)`
-   construction and their `app.add_typer(...)` wiring move into `watch.register()`
-   (mirroring how `view.register()` attaches its commands). `cli.py` currently
-   re-exports `watch_app` / `topic_watch_app` from `_cli_impl` with no external
-   users — drop those re-exports or point them at `commands/watch.py`.
-4. **Library leftovers + the `topic_app` / `intent_app` / `concepts_app`
-   sub-apps** fold in alongside, by the same sub-app pattern.
+`_logic.py` is down from **9,373 → 2,612 lines**; 13 dead scaffold modules were
+deleted along the way.
+
+**What still lives in `_logic.py`:**
+
+- **Two command groups**: the `topic_app` sub-app (`create`, `preview`, `update`,
+  `brief`, `report`, `show`, `export`, `watch`) and the `topic_watch_app` sub-app
+  (callback + `add`, `remove`, `days`, `cadence`, `ranking`, `budget`, `pause`,
+  `resume`, `run`).
+- **The root `@app.callback` `_default`** (the bare-`distill` home-screen entry).
+- **The shared helper body** the extracted command modules import back: the
+  learning cluster (`_select_learning_videos`, `_expand_learning_queries`,
+  `_apply_source_rigor`, `_process_learning_selection`, and the
+  `_preview_learning_selection` / `_run_learning_command` injection wrappers), the
+  discover/process helpers (`_discover_*`, `_process_video`, `_process_site_seed`,
+  `_write_paper_artifacts`), and the topic helpers (`_run_topic_workflow`,
+  `_load_topic_profile` / `_save_topic_profile`, `_resolve_topic_workflow_config`,
+  the bundle/export helpers).
+
+**Next slices (recommended order):**
+
+1. **`topic_watch_app` → `commands/topic_watch.py`** (scoped, execution-ready).
+   ~388 lines, callback + 9 commands by the `register(topic_watch_app)` pattern;
+   `discover.py` repoints its one `topic_watch_run` import; the learning helpers it
+   calls stay in `_logic` and are imported back (no cycle — `_logic` does not
+   import the command module). Its support helpers already sit in
+   `commands/_topic_watch.py`. This is the first slice that *re-registers Typer
+   commands* (vs. moving plain functions), and `test_watch.py` patches
+   `get_config` in a uniform structure across 12 topic-watch invocations, so the
+   new module's namespace is added the same way the dashboard slice added
+   `_dashboard.get_config`.
+2. **`topic_app` → `commands/topic.py`**, taking its command-private profile/bundle
+   helpers (`_topic_profile_path`, `_topic_exists`, `_load_topic_profile`,
+   `_save_topic_profile`, `_resolve_topic_workflow_config`, `_collect_topic_bundle_files`,
+   `_topic_bundle_manifest`, `_export_topic_bundle`) with it — they have **zero**
+   external consumers, so they move as a unit. `_run_topic_workflow` is shared with
+   `discover.py`, so it stays in `_logic` (or moves to the foundation) and is
+   imported back.
+3. **The learning / discover / process helper body** folds into the foundation or
+   the command modules that own it, until `_logic.py` drops below the 1000-line cap.
+4. **The root callback** moves to `cli.py` / `distill/_app.py` and `_logic`
+   disappears as a named module.
+
+**A noted follow-up (behavior-touching, separate from the pure moves):** the
+dashboard slice was a pure relocation, so `_show_dashboard` still collects its
+data inline rather than consuming the shared `dashboard_snapshot()` that
+`_render_dashboard_html` already renders from. Consolidating it onto the shared
+snapshot would dissolve ~20 collector dependencies but changes the rendered
+warnings set, so it is a deliberate refactor with its own test, not a move slice.
 
 **The stale-patch hazard is sharper here** because these commands are the
 most-tested. The same rule applies — repoint every `monkeypatch.setattr(_cli_impl,
@@ -144,7 +176,9 @@ test_cli_wiring.py` keeps growing one `_<module>.get_config` line per extracted
 group (the established shape). A bug-hunt pass (2026-06, three review agents)
 already found and fixed eight *false-pass* stale patches that the green suite
 could not see — tests that patched a moved command's old namespace and passed
-while testing nothing — so the per-PR grep gate plus a periodic false-pass sweep
+while testing nothing — and the dashboard slice's fixtures were verified
+load-bearing (the home-screen tests pass *because* `dashboard.get_config` is
+patched, not by accident). The per-PR grep gate plus a periodic false-pass sweep
 are both part of the contract for Phase 2.
 
 The endpoint is unchanged: `_logic.py` shrinks below the 1000-line cap, then
