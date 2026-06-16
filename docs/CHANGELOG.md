@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.16.2 - 2026-06-16
+
+**Dependency security bump.** `pip-audit` flagged eight CVEs disclosed against pinned dependencies after the 0.16.1 build. Targeted lockfile upgrade to the fix versions; no product code changed, so behavior is identical to 0.16.1.
+
+### Security
+
+- **cryptography 48.0.0 -> 49.0.0** (GHSA-537c-gmf6-5ccf).
+- **pypdf 6.12.2 -> 6.13.2** (CVE-2026-54530, CVE-2026-54531). Direct dependency; the open `>=4.0.0` bound already gave fresh installs the patched version, this pins the dev/CI floor to match.
+- **python-multipart 0.0.29 -> 0.0.32** (CVE-2026-53538, CVE-2026-53539, CVE-2026-53540).
+- **starlette 1.2.0 -> 1.3.1** (CVE-2026-54282, CVE-2026-54283).
+- Verified: `pip-audit` clean, ruff (clean) + format, full suite green (2,317 passed).
+
 ## 0.16.1 - 2026-06-14
 
 First PyPI build carrying the 0.13–0.16 line: 0.13.0 through 0.16.0 each shipped a `release:` commit but were never tagged, so the tag-triggered publish workflow never ran and PyPI/the release page stayed at 0.12.13. This release tags a green-CI commit so `pip install distillr` is current again; it cumulatively includes every 0.13–0.16 feature plus the internal refactors below.
