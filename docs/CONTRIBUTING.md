@@ -112,6 +112,12 @@ Probably out of scope (please open an issue to discuss before building):
 - If you're changing prompts or model routing, note the behavior change in `CHANGELOG.md` (so users running refresh flows know why outputs may shift).
 - Avoid introducing a new top-level dependency without a clear reason. distill tries to stay pip-installable with a small dependency graph.
 
+## Git and GitHub hygiene
+
+- **One long-lived branch: `main`**, kept releasable. Do work on short-lived feature branches; they auto-delete at merge (`delete_branch_on_merge` is on for the repo), so nothing stale accumulates. Solo direct-to-`main` commits are fine for this project — the rule is "no branches left sitting," not "always open a PR."
+- **No machine attribution in history.** Commits and PR bodies carry no `Co-authored-by`, `Generated with`, or agent/tool credit lines (Claude, Codex, Copilot, and the like). The author is the human who made the change; `git log` and blame stay honest.
+- **Dependabot stays off, deliberately** (removed in 0.9.23 — see the ROADMAP "Engineering standards: adopted, adapted, declined" entry). `pip-audit` in the CI gate covers vulnerable-dependency alerts without bot PRs or bot branches.
+
 ## Pre-push checklist (release quality)
 
 Before pushing to main or tagging a release, run the full gate locally. CI catches these, but catching them locally avoids embarrassing red badges on the repo.
