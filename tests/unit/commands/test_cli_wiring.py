@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import _learning as _learning_support
 from distill.commands import dashboard as _dashboard
 from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
@@ -1743,7 +1744,7 @@ class TestWatchCommands:
 
         monkeypatch.setattr(_papers, "search_arxiv_multi", fake_multi)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "_llm_expand_paper_queries",
             lambda query, config, tracker=None: ["q1 variant", "q2 variant"],
         )

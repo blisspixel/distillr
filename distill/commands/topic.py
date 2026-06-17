@@ -19,9 +19,8 @@ from distill.cli_shared import (
 from distill.cli_shared import (
     topic_from_query as _topic_from_query,
 )
-from distill.commands._helpers import _invoke_command, _preflight, get_config
+from distill.commands._helpers import _complete_topics, _invoke_command, _preflight, get_config
 from distill.commands._logic import (
-    _complete_topics,
     _generate_and_export_topic_brief,
     _preview_learning_selection,
     _run_learning_command,

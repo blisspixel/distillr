@@ -293,20 +293,20 @@ def test_local_ingest_strict_refuses_insight(tmp_path, monkeypatch):
 def test_apply_verify_override_sets_env_and_rejects_typos(monkeypatch):
     import typer
 
-    from distill import _cli_impl
+    from distill.commands._helpers import _apply_verify_override
 
     monkeypatch.delenv("DISTILL_VERIFY", raising=False)
-    _cli_impl._apply_verify_override("STRICT")
+    _apply_verify_override("STRICT")
     import os
 
     assert os.environ["DISTILL_VERIFY"] == "strict"
     monkeypatch.delenv("DISTILL_VERIFY", raising=False)
 
-    _cli_impl._apply_verify_override("")  # no-op
+    _apply_verify_override("")  # no-op
     assert "DISTILL_VERIFY" not in os.environ
 
     try:
-        _cli_impl._apply_verify_override("bogus")
+        _apply_verify_override("bogus")
         raise AssertionError("expected typer.Exit")
     except typer.Exit:
         pass

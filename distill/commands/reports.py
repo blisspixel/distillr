@@ -12,8 +12,7 @@ import typer
 
 from distill._console import console
 from distill.cli_shared import output_path as _output_path
-from distill.commands._helpers import _resolve_topic_for_channel, get_config
-from distill.commands._logic import _complete_topics
+from distill.commands._helpers import _complete_topics, _resolve_topic_for_channel, get_config
 from distill.commands.topic import (
     _collect_topic_bundle_files,
     _export_topic_bundle,

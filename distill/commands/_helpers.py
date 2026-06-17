@@ -7,6 +7,7 @@ re-exported here so that both old and new import paths work.
 """
 
 import json
+import os
 import shutil
 import sys
 from contextlib import suppress
@@ -41,7 +42,7 @@ from distill.library.paths import (
 )
 from distill.config import DistillConfig
 from distill.library import Library
-from distill.library.intent import CorpusIntent, load_intent
+from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
 from distill.pipeline.costs import CostTracker, save_run_log
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
@@ -49,6 +50,11 @@ from distill.ingestors.youtube.transcripts import get_transcript
 
 __all__ = [
     "SHORTS_THRESHOLD",
+    "_apply_verify_override",
+    "_complete_topic_watch_names",
+    "_complete_topics",
+    "_complete_watched_channels",
+    "_persist_lens",
     "console",
     "duration_str",
     "ensure_channel_context",
@@ -97,6 +103,65 @@ def get_config() -> DistillConfig:
     """
     load_dotenv()
     return DistillConfig()
+
+
+def _apply_verify_override(verify: str) -> None:
+    """Apply a per-run ``--verify`` override through the process environment."""
+    if not verify:
+        return
+    value = verify.strip().lower()
+    if value not in {"warn", "strict", "off"}:
+        console.print(f"[red]Unknown --verify '{verify}'.[/red] Choose: warn, strict, off.")
+        raise typer.Exit(1)
+    os.environ["DISTILL_VERIFY"] = value
+
+
+def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:
+    """Persist an explicit ``--lens`` choice without clobbering existing intent."""
+    existing = load_intent(config.topic_dir(topic_name))
+    save_intent(
+        config.topic_dir(topic_name),
+        make_intent(
+            goal=existing.goal if existing and existing.goal else fallback_goal,
+            lens=lens,
+            audience=existing.audience if existing else "",
+            rigor=existing.rigor if existing else "",
+            budget_usd=existing.budget_usd if existing else None,
+        ),
+    )
+
+
+def _complete_watched_channels(incomplete: str) -> list[str]:
+    """Autocomplete for watched channel names."""
+    try:
+        lib = Library(get_config())
+        return [
+            e.name for e in lib.get_watchlist() if e.name.lower().startswith(incomplete.lower())
+        ]
+    except Exception:
+        return []
+
+
+def _complete_topic_watch_names(incomplete: str) -> list[str]:
+    """Autocomplete for topic-watch names."""
+    try:
+        lib = Library(get_config())
+        return [
+            e.name
+            for e in lib.get_topic_watchlist()
+            if e.name.lower().startswith(incomplete.lower())
+        ]
+    except Exception:
+        return []
+
+
+def _complete_topics(incomplete: str) -> list[str]:
+    """Autocomplete for topic names."""
+    try:
+        lib = Library(get_config())
+        return [t for t in lib.get_topics() if t.lower().startswith(incomplete.lower())]
+    except Exception:
+        return []
 
 
 def _resolve_topic_for_channel(

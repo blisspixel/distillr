@@ -79,7 +79,7 @@ def test_intent_clear_removes(mock_config):
 
 def test_persist_lens_preserves_existing_goal(mock_config):
     # The helper papers/latest use: --lens must not clobber a discover-set goal.
-    from distill.commands._logic import _persist_lens
+    from distill.commands._helpers import _persist_lens
     from distill.library.intent import make_intent, save_intent
 
     save_intent(mock_config.topic_dir("t"), make_intent("deep research goal", lens="research"))

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Moved the `distill topic-watch` sub-app from `_logic.py` into `distill/commands/topic_watch.py`, repointed `discover.monitor --now`, and lowered the `_logic.py` module-size ratchet from 2,612 to 2,210 lines. No behavior change intended.
 - Moved the `distill topic` sub-app from `_logic.py` into `distill/commands/topic.py`, including its profile, workflow, summary, and corpus-bundle helpers. Repointed report/export bundle imports and topic command tests, and lowered the `_logic.py` module-size ratchet from 2,210 to 1,616 lines. No behavior change intended.
+- Moved shared verify, lens, completion, and source-rigor helpers from `_logic.py` into `distill/commands/_helpers.py` and `distill/commands/_learning.py`. Repointed command imports/tests and lowered the `_logic.py` module-size ratchet from 1,616 to 1,512 lines. No behavior change intended.
 
 ## 0.16.2 - 2026-06-16
 

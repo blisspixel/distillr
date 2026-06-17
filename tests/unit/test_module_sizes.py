@@ -69,8 +69,9 @@ ALLOWLIST: dict[str, int] = {
     # commands/_topic_watch.py support module; dashboard/discover repointed
     # (Phase 2 foundation): 2644 -> 2612.
     # topic-watch sub-app -> commands/topic_watch.py (Watch slice): 2612 -> 2210.
-    # topic sub-app + profile/bundle helpers -> commands/topic.py: 2210 -> 1616.
-    "distill/commands/_logic.py": 1616,
+    # shared verify/lens/completion/source-rigor helpers -> support modules:
+    # 1616 -> 1512.
+    "distill/commands/_logic.py": 1512,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

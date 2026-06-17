@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
 from distill.commands import papers as _papers
+from distill.commands._learning import _apply_source_rigor
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.pipeline.ranking import RankedPaper
@@ -31,34 +32,26 @@ def _scored(*scores):
 
 def test_apply_rigor_off_is_passthrough():
     items = _scored(0.9, 0.1)
-    out = _cli_impl._apply_source_rigor(
-        items, source="paper", rigor="off", rerank_on=True, limit=10
-    )
+    out = _apply_source_rigor(items, source="paper", rigor="off", rerank_on=True, limit=10)
     assert out == items
 
 
 def test_apply_rigor_filters_below_threshold():
     # paper strict bar is 0.65 -> drop 0.5 and 0.2, keep 0.9 and 0.7.
     items = _scored(0.9, 0.7, 0.5, 0.2)
-    out = _cli_impl._apply_source_rigor(
-        items, source="paper", rigor="strict", rerank_on=True, limit=10
-    )
+    out = _apply_source_rigor(items, source="paper", rigor="strict", rerank_on=True, limit=10)
     assert [i.final_score for i in out] == [0.9, 0.7]
 
 
 def test_apply_rigor_caps_at_limit():
     items = _scored(0.9, 0.8, 0.7)
-    out = _cli_impl._apply_source_rigor(
-        items, source="paper", rigor="loose", rerank_on=True, limit=2
-    )
+    out = _apply_source_rigor(items, source="paper", rigor="loose", rerank_on=True, limit=2)
     assert len(out) == 2
 
 
 def test_apply_rigor_ignored_without_rerank():
     items = _scored(0.9, 0.1)
-    out = _cli_impl._apply_source_rigor(
-        items, source="video", rigor="strict", rerank_on=False, limit=10
-    )
+    out = _apply_source_rigor(items, source="video", rigor="strict", rerank_on=False, limit=10)
     # Heuristic scores aren't on the rerank scale -> passthrough (a warning is printed).
     assert out == items
 

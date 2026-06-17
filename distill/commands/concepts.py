@@ -18,9 +18,8 @@ import typer
 
 from distill._console import console
 from distill.commands import _logic
-from distill.commands._helpers import tty_confirm
+from distill.commands._helpers import _complete_topics, tty_confirm
 from distill.commands._json import emit_json, json_mode_active
-from distill.commands._logic import _complete_topics
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
 

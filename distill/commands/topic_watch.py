@@ -16,11 +16,14 @@ from distill.cli_shared import (
     topic_from_query as _topic_from_query,
 )
 from distill.commands import _learning_flow as _learning_flow_support
-from distill.commands._helpers import _preflight, get_config
-from distill.commands._logic import (
-    _ACCENT,
+from distill.commands._helpers import (
     _complete_topic_watch_names,
     _complete_topics,
+    _preflight,
+    get_config,
+)
+from distill.commands._logic import (
+    _ACCENT,
     _preview_learning_selection,
     _run_learning_command,
 )

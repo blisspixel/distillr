@@ -10,7 +10,7 @@ runtime.
 """
 
 import json
-import os
+import os as os  # compatibility export for distill._cli_impl
 import sys
 from datetime import datetime
 from hashlib import sha1
@@ -52,7 +52,12 @@ from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import (
+    _apply_verify_override,  # noqa: F401 - compatibility export for distill._cli_impl
+    _complete_topic_watch_names,  # noqa: F401 - compatibility export for distill._cli_impl
+    _complete_topics,  # noqa: F401 - compatibility export for distill._cli_impl
+    _complete_watched_channels,  # noqa: F401 - compatibility export for distill._cli_impl
     _invoke_command,  # noqa: F401 - compatibility export for distill._cli_impl
+    _persist_lens,  # noqa: F401 - compatibility export for distill._cli_impl
     _preflight,
     _resolve_intent,
     get_config,
@@ -85,11 +90,6 @@ from distill.ingestors.youtube.discovery import (
 )
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
-from distill.library.intent import (
-    load_intent,
-    make_intent,
-    save_intent,
-)
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
@@ -131,6 +131,7 @@ _filter_recent_candidates = _learning_support._filter_recent_candidates
 _dedupe_candidates = _learning_support._dedupe_candidates
 _format_metric = _learning_support._format_metric
 _apply_ranked_channel_cap = _learning_support._apply_ranked_channel_cap
+_apply_source_rigor = _learning_support._apply_source_rigor
 _dedupe_query_strings = _learning_support._dedupe_query_strings
 _heuristic_learning_queries = _learning_support._heuristic_learning_queries
 _llm_expand_learning_queries = _learning_support._llm_expand_learning_queries
@@ -571,83 +572,11 @@ def _default(
         _show_dashboard()
 
 
-def _apply_verify_override(verify: str) -> None:
-    """Apply a per-run ``--verify`` override (process-scoped env set).
-
-    ``get_config()`` builds a fresh ``DistillConfig`` per call (including
-    inside the injected learning flows), so the override is applied where
-    every instantiation reads it: the process environment. ``load_dotenv``
-    never overwrites existing env vars, so the flag wins over ``.env``.
-    Unlike a typo'd env var (which degrades to ``warn``), a typo'd *flag* is
-    an interactive mistake the user can fix immediately -- it errors loudly.
-    """
-    if not verify:
-        return
-    value = verify.strip().lower()
-    if value not in {"warn", "strict", "off"}:
-        console.print(f"[red]Unknown --verify '{verify}'.[/red] Choose: warn, strict, off.")
-        raise typer.Exit(1)
-    os.environ["DISTILL_VERIFY"] = value
-
-
-def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:
-    """Persist an explicit ``--lens`` choice as the topic's intent.
-
-    Preserves any goal/audience/rigor/budget already saved (e.g. from a prior
-    ``discover``); only the lens is overridden, with ``fallback_goal`` used when
-    the topic has no saved goal yet.
-    """
-    existing = load_intent(config.topic_dir(topic_name))
-    save_intent(
-        config.topic_dir(topic_name),
-        make_intent(
-            goal=existing.goal if existing and existing.goal else fallback_goal,
-            lens=lens,
-            audience=existing.audience if existing else "",
-            rigor=existing.rigor if existing else "",
-            budget_usd=existing.budget_usd if existing else None,
-        ),
-    )
-
-
 def get_model_override(ctx: typer.Context | None = None) -> str:
     """Get the --model override from the CLI context, if set."""
     if ctx and ctx.obj:
         return ctx.obj.get("model", "")
     return ""
-
-
-def _complete_watched_channels(incomplete: str) -> list[str]:
-    """Autocomplete for watched channel names."""
-    try:
-        lib = Library(get_config())
-        return [
-            e.name for e in lib.get_watchlist() if e.name.lower().startswith(incomplete.lower())
-        ]
-    except Exception:
-        return []
-
-
-def _complete_topic_watch_names(incomplete: str) -> list[str]:
-    """Autocomplete for topic-watch names."""
-    try:
-        lib = Library(get_config())
-        return [
-            e.name
-            for e in lib.get_topic_watchlist()
-            if e.name.lower().startswith(incomplete.lower())
-        ]
-    except Exception:
-        return []
-
-
-def _complete_topics(incomplete: str) -> list[str]:
-    """Autocomplete for topic names."""
-    try:
-        lib = Library(get_config())
-        return [t for t in lib.get_topics() if t.lower().startswith(incomplete.lower())]
-    except Exception:
-        return []
 
 
 def _show_latest_insights(  # noqa: C901 — legacy, will refactor
@@ -1271,39 +1200,6 @@ def _write_paper_artifacts(
         },
     )
     return paper_dir
-
-
-def _apply_source_rigor(ranked: list, *, source: str, rigor: str, rerank_on: bool, limit: int):
-    """Drop reranked items below the per-source rigor bar, then cap at ``limit``.
-
-    ``rigor="off"`` (the papers/latest default) is a passthrough. Rigor is
-    calibrated to the LLM rerank's ``final_score``; with ``--no-rerank`` the
-    scores are heuristic and off that scale, so an explicit bar is skipped with a
-    warning rather than mis-filtering. Used by ``papers`` and ``latest``.
-    """
-    if rigor == "off":
-        return ranked[:limit]
-    if not rerank_on:
-        console.print(
-            f"[yellow]--rigor {rigor} needs the LLM rerank (it scores on the rerank's scale); "
-            "ignoring it under --no-rerank.[/yellow]"
-        )
-        return ranked[:limit]
-    from distill.pipeline.discovery import source_rigor_threshold
-
-    threshold = source_rigor_threshold(source, rigor)
-    kept = [r for r in ranked if r.final_score >= threshold]
-    if len(kept) < len(ranked):
-        console.print(
-            f"  [dim]--rigor {rigor}: kept {len(kept)}/{len(ranked)} candidate(s) "
-            f"(score >= {threshold:.2f})[/dim]"
-        )
-    if not kept:
-        console.print(
-            f"[yellow]No candidates clear the '{rigor}' bar (score >= {threshold:.2f}). "
-            "Try --rigor loose.[/yellow]"
-        )
-    return kept[:limit]
 
 
 def _is_fresh_topic(config, topic_name: str) -> bool:

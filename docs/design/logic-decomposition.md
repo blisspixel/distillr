@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
 > Status: in progress (Phase 1 done; Phase 2 ~90% - `_logic.py` is down from
-> 9,373 to 1,616 lines, no command sub-apps left). Remediation #1 from
+> 9,373 to 1,512 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 1,616 lines and shrinking; see Phase 2). It
+command group per file" target (now 1,512 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -112,15 +112,16 @@ slice with the ratchet lowered to match:
   (`_logic`'s root callback lazy-imports `_show_dashboard` to avoid the cycle).
 - **Foundation moves** that settle the shared seam so later moves import a stable
   symbol instead of a moving target: `_preflight` / `_invoke_command` /
-  `_resolve_intent` / `_detect_ramp_source` → `commands/_helpers.py`; the learning
-  flow → `commands/_learning.py` + `commands/_learning_flow.py` (the
+  `_resolve_intent` / `_detect_ramp_source` / `_apply_verify_override` /
+  `_persist_lens` / the shell-completion helpers → `commands/_helpers.py`; the learning
+  flow and source-rigor filter → `commands/_learning.py` + `commands/_learning_flow.py` (the
   `_validate_learning_options` wrapper was eliminated, consumers point at
   `_learning_flow` directly); the topic-change helpers → `commands/_topic_changes.py`;
   the topic-watch naming/ranking helpers → `commands/_topic_watch.py`.
 - **Topic** (`topic_app` plus profile/workflow/summary/bundle helpers) ->
   `commands/topic.py`; `reports.py` imports the bundle helpers from the new owner.
 
-`_logic.py` is down from **9,373 -> 1,616 lines**; 13 dead scaffold modules were
+`_logic.py` is down from **9,373 -> 1,512 lines**; 13 dead scaffold modules were
 deleted along the way.
 
 **What still lives in `_logic.py`:**
@@ -128,8 +129,8 @@ deleted along the way.
 - **The root `@app.callback` `_default`** (the bare-`distill` home-screen entry).
 - **The shared helper body** the extracted command modules import back: the
   learning cluster (`_select_learning_videos`, `_expand_learning_queries`,
-  `_apply_source_rigor`, `_process_learning_selection`, and the
-  `_preview_learning_selection` / `_run_learning_command` injection wrappers), the
+  `_process_learning_selection`, and the `_preview_learning_selection` /
+  `_run_learning_command` injection wrappers), the
   discover/process helpers (`_discover_*`, `_process_video`, `_process_site_seed`,
   `_write_paper_artifacts`), topic-change bridge exports, and compatibility
   re-exports still expected through `distill._cli_impl`.

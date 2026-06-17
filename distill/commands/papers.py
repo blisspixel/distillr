@@ -2,8 +2,8 @@
 
 `distill paper` (single arXiv paper) and `distill papers` (query-expanded,
 LLM-reranked multi-paper ingest with cross-paper synthesis). The paper-writing
-and shared rigor/verify/lens/concept helpers stay in _logic (used by the MCP
-papers tool and other commands) and are imported back. Registered via register().
+and shared concept/artifact helpers stay in _logic (used by the MCP papers tool
+and other commands) and are imported back. Registered via register().
 """
 
 from __future__ import annotations
@@ -14,13 +14,18 @@ import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
-from distill.commands._helpers import _resolve_intent, get_config
-from distill.commands._logic import (
-    _apply_source_rigor,
+from distill.commands._helpers import (
     _apply_verify_override,
+    _persist_lens,
+    _resolve_intent,
+    get_config,
+)
+from distill.commands._learning import (
+    _apply_source_rigor,
     _display_ranked_papers,
     _expand_paper_queries,
-    _persist_lens,
+)
+from distill.commands._logic import (
     _run_concepts_after_ingest,
     _write_paper_artifacts,
 )

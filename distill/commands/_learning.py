@@ -440,6 +440,33 @@ def _apply_ranked_channel_cap(ranked, limit: int, per_channel_cap: int):
     return selected
 
 
+def _apply_source_rigor(ranked: list, *, source: str, rigor: str, rerank_on: bool, limit: int):
+    """Drop reranked items below the per-source rigor bar, then cap at ``limit``."""
+    if rigor == "off":
+        return ranked[:limit]
+    if not rerank_on:
+        console.print(
+            f"[yellow]--rigor {rigor} needs the LLM rerank (it scores on the rerank's scale); "
+            "ignoring it under --no-rerank.[/yellow]"
+        )
+        return ranked[:limit]
+    from distill.pipeline.discovery import source_rigor_threshold
+
+    threshold = source_rigor_threshold(source, rigor)
+    kept = [r for r in ranked if r.final_score >= threshold]
+    if len(kept) < len(ranked):
+        console.print(
+            f"  [dim]--rigor {rigor}: kept {len(kept)}/{len(ranked)} candidate(s) "
+            f"(score >= {threshold:.2f})[/dim]"
+        )
+    if not kept:
+        console.print(
+            f"[yellow]No candidates clear the '{rigor}' bar (score >= {threshold:.2f}). "
+            "Try --rigor loose.[/yellow]"
+        )
+    return kept[:limit]
+
+
 def _display_ranked_videos(ranked, title: str):
     table = Table(title=title, box=box.SIMPLE_HEAVY)
     table.add_column("#", justify="right")

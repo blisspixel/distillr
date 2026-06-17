@@ -14,11 +14,14 @@ from distill import cli_shared
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import duration_str as _duration_str
 from distill.cli_shared import require_model as _require_model
-from distill.commands._helpers import _preflight, get_config
-from distill.commands._logic import (
-    _ACCENT,
+from distill.commands._helpers import (
     _complete_topics,
     _complete_watched_channels,
+    _preflight,
+    get_config,
+)
+from distill.commands._logic import (
+    _ACCENT,
     _ensure_channel_context,
     _print_goal_refreshes,
     _process_video,

@@ -15,8 +15,8 @@ from pathlib import Path
 import typer
 
 from distill._console import console
-from distill.commands._helpers import get_config
-from distill.commands._logic import _complete_topics, _get_version
+from distill.commands._helpers import _complete_topics, get_config
+from distill.commands._logic import _get_version
 from distill.config import DistillConfig
 from distill.doctor.checks import (
     _check_lmstudio_status,

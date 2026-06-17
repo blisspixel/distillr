@@ -21,21 +21,21 @@ from distill._console import console
 from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import print_markdown_safely as _print_markdown_safely
 from distill.cli_shared import tty_confirm as _tty_confirm
-from distill.commands._helpers import _file_link, _resolve_topic_for_channel, get_config
+from distill.commands._helpers import (
+    _complete_topic_watch_names,
+    _complete_topics,
+    _complete_watched_channels,
+    _file_link,
+    _resolve_topic_for_channel,
+    get_config,
+)
 from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import format_date as _format_date
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
-
-# Shell-completion helpers still live in `_logic`. Imported one-way here (no
-# cycle: `_logic` does not import this module at top level). Extracting the
-# completion helpers to `_helpers` is a later decomposition step.
 from distill.commands._logic import (
     _append_topic_change_history,
     _collect_topic_change_details,
-    _complete_topic_watch_names,
-    _complete_topics,
-    _complete_watched_channels,
     _load_topic_change_history,
     _render_topic_diff_markdown,
     _render_topic_trends_markdown,

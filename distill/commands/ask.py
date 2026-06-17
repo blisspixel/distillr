@@ -13,8 +13,8 @@ from rich.markdown import Markdown
 
 from distill._console import console
 from distill.commands import _logic
+from distill.commands._helpers import _complete_topics
 from distill.commands._helpers import require_model as _require_model
-from distill.commands._logic import _complete_topics
 from distill.pipeline.ask import ask_corpus
 from distill.pipeline.costs import CostTracker, save_run_log
 
