@@ -8,6 +8,7 @@ callback in ``cli.py``) to set up console and file handlers on the
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 __all__ = ["configure_logging"]
@@ -36,31 +37,36 @@ def configure_logging(debug: bool = False, ops_dir: Path | None = None) -> None:
             if isinstance(handler, logging.StreamHandler) and not isinstance(
                 handler, logging.FileHandler
             ):
+                # Reused processes and test runners replace stdout/stderr per
+                # invocation. A StreamHandler created during an earlier CLI run
+                # can otherwise point at a closed capture stream and emit
+                # "--- Logging error ---" into the next command's output.
+                handler.stream = sys.stderr
                 handler.setLevel(logging.DEBUG if debug else logging.WARNING)
         return
 
     root = logging.getLogger("distill")
     root.setLevel(logging.DEBUG)
 
-    # Console handler — WARNING+ by default, DEBUG with --debug
-    console_handler = logging.StreamHandler()
+    # Console handler: WARNING+ by default, DEBUG with --debug
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.DEBUG if debug else logging.WARNING)
     console_handler.setFormatter(
         logging.Formatter(
-            "%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+            "%(asctime)s %(levelname)-8s %(name)s - %(message)s",
             datefmt="%H:%M:%S",
         )
     )
     root.addHandler(console_handler)
 
-    # File handler — always DEBUG, writes to ops_dir
+    # File handler: always DEBUG, writes to ops_dir
     if ops_dir:
         ops_dir.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(ops_dir / "distill.log", encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+                "%(asctime)s %(levelname)-8s %(name)s - %(message)s",
             )
         )
         root.addHandler(file_handler)

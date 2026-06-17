@@ -129,6 +129,17 @@ class TestJsonDoctor:
         assert "checks" in parsed["data"]
         assert "warnings" in parsed["data"]
 
+    def test_doctor_command_local_json_output(self, mock_config):
+        """`distill doctor --json` matches the global JSON flag shape."""
+        with patch("distill.commands.doctor.get_config", return_value=mock_config):
+            result = runner.invoke(app, ["doctor", "--json"])
+
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        assert parsed["status"] == "ok"
+        assert "checks" in parsed["data"]
+        assert "warnings" in parsed["data"]
+
     def test_doctor_json_no_ansi(self, mock_config):
         """doctor --json output contains no ANSI escape codes."""
         with patch("distill.commands.doctor.get_config", return_value=mock_config):
@@ -238,6 +249,23 @@ class TestJsonAlerts:
         parsed = json.loads(result.output)
         assert parsed["status"] == "ok"
         assert "New video detected" in parsed["data"]["alerts"]
+
+
+class TestJsonHealth:
+    """Test distill health --json produces valid JSON."""
+
+    def test_health_json_empty_library(self, mock_config):
+        """health --json returns an envelope even when there are no topics."""
+        with patch("distill.commands.doctor.get_config", return_value=mock_config):
+            result = runner.invoke(app, ["--json", "health"])
+
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        assert parsed["status"] == "ok"
+        assert parsed["data"]["scope"] == "all"
+        assert parsed["data"]["topics"] == []
+        assert parsed["data"]["healthy"] is False
+        assert parsed["data"]["message"] == "No topics found to audit"
 
 
 class TestJsonErrorPaths:

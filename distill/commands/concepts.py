@@ -19,7 +19,7 @@ import typer
 from distill._console import console
 from distill.commands import _logic
 from distill.commands._helpers import tty_confirm
-from distill.commands._json import emit_json
+from distill.commands._json import emit_json, json_mode_active
 from distill.commands._logic import _complete_topics
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
@@ -86,7 +86,7 @@ def concepts_build(
         tracker=tracker,
     )
 
-    if json_out:
+    if json_out or json_mode_active():
         payload = summary.to_dict()
         payload["cost"] = tracker.format_cost()
         emit_json(payload)

@@ -39,7 +39,7 @@ from distill.preflight import (
 __all__ = ["doctor", "health", "register"]
 
 
-def doctor(  # noqa: C901 — legacy, will refactor
+def doctor(  # noqa: C901 - legacy, will refactor
     ctx: typer.Context,
     update: bool = typer.Option(
         False,
@@ -59,7 +59,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
     json_output: bool = typer.Option(
         False,
         "--json",
-        help="Output link-check results as JSON",
+        help="Output doctor or link-check results as JSON",
     ),
     migrate_links: bool = typer.Option(
         False,
@@ -138,7 +138,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
         actions = scan_legacy_artifacts(library_dir)
 
         if not actions:
-            console.print("  [green]Nothing to migrate — no legacy artifacts found.[/green]")
+            console.print("  [green]Nothing to migrate - no legacy artifacts found.[/green]")
             return
 
         if not apply:
@@ -180,7 +180,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
 
         if not actions:
             console.print(
-                "  [green]Nothing to migrate — no ``confidence:`` frontmatter found.[/green]"
+                "  [green]Nothing to migrate - no ``confidence:`` frontmatter found.[/green]"
             )
             return
 
@@ -216,7 +216,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
         console.print("[red]Error: --apply requires --migrate-links or --migrate-frontmatter[/red]")
         raise typer.Exit(1)
 
-    if json_mode:
+    if json_mode or json_output:
         # JSON mode: collect health data and return structured output
         checks: dict[str, str] = {}
         warnings_list: list[str] = []
@@ -392,7 +392,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
         age = ytdlp_age_days()
         if update_succeeded and (age is None or age > YTDLP_STALE_DAYS):
             # Suppress the "X days old; run --update" nag right after a successful
-            # upgrade attempt — pypi simply hasn't shipped a newer release yet.
+            # upgrade attempt; pypi simply hasn't shipped a newer release yet.
             age_label = "  [dim](latest available release)[/dim]"
         elif age is None:
             age_label = ""
@@ -431,7 +431,7 @@ def doctor(  # noqa: C901 — legacy, will refactor
 
     # Transcription providers (Whisper for sources without native captions:
     # X-native video, podcasts, conference talks, generic audio/video files).
-    # YouTube continues to use yt-dlp captions — these checks are only
+    # YouTube continues to use yt-dlp captions; these checks are only
     # relevant for sources outside that path.
     console.print()
     console.print("  [bold]Transcription[/bold]")
@@ -669,12 +669,12 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
                 status_icon = "[yellow]↓[/yellow]"
             console.print(
                 f"  {status_icon} {rec.model_name}  "
-                f"[dim]ctx={rec.context_window:,} — {rec.reason}[/dim]"
+                f"[dim]ctx={rec.context_window:,} - {rec.reason}[/dim]"
             )
             if rec_base not in ollama_model_names and rec.model_name not in ollama_models:
                 console.print(f"     [dim]ollama pull {rec.model_name}[/dim]")
 
-    # Next step — a concrete first command tailored to what's actually configured.
+    # Next step: a concrete first command tailored to what's actually configured.
     console.print()
     console.print("  [bold]Next step[/bold]")
     console.print(f"  [dim]{'-' * 50}[/dim]")
@@ -709,6 +709,7 @@ def health(  # noqa: C901 -- straight-line walk over topics + warning categories
     ),
 ):
     """Audit corpus quality signals like stale syntheses and thin artifacts."""
+    from distill.commands._json import emit_json, json_mode_active
     from distill.concepts.contradictions import find_contested
 
     config = get_config()
@@ -723,6 +724,22 @@ def health(  # noqa: C901 -- straight-line walk over topics + warning categories
             contested = find_contested(topic_dir)
             if contested:
                 contested_by_topic[t] = contested
+
+    if json_mode_active():
+        emit_json(
+            {
+                "scope": topic,
+                "topics": topics,
+                "healthy": bool(topics) and not warnings and not contested_by_topic,
+                "warnings": warnings,
+                "contested_concepts": {
+                    t: [item.to_dict() for item in items]
+                    for t, items in sorted(contested_by_topic.items())
+                },
+                "message": "" if topics else "No topics found to audit",
+            }
+        )
+        return
 
     console.print()
     console.print("[bold]Corpus Health[/bold]")

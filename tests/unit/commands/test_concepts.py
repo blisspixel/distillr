@@ -38,7 +38,7 @@ def fixture_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DistillCo
 class _StubResponse:
     def __init__(self, payload: list) -> None:
         self.text = json.dumps(payload)
-        self.model = "stub-model"
+        self.model = "grok-4.3"
         self.input_tokens = 10
         self.output_tokens = 5
 
@@ -94,6 +94,21 @@ class TestConceptsCommand:
         assert "topic" in json_blob
         assert "insights_scanned" in json_blob
         assert "success" in json_blob or "data" in json_blob
+
+    def test_global_json_output(self, fixture_config: DistillConfig) -> None:
+        _seed_topic(fixture_config.library_dir)
+        rows = [
+            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
+        ] * 3
+        with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)):
+            result = runner.invoke(
+                cli.app, ["--json", "concepts", "build", "tkg", "--threshold", "3"]
+            )
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        assert parsed["status"] == "ok"
+        assert parsed["data"]["topic"] == "tkg"
+        assert parsed["data"]["insights_scanned"] == 3
 
     def test_health_surfaces_contested_concepts(self, fixture_config: DistillConfig) -> None:
         """distill health <topic> lifts contested concepts into its warnings."""
