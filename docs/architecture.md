@@ -284,7 +284,7 @@ distill/                           # Python package — layered subpackage archi
 │   ├── serve.py                   # distill serve
 │   ├── site.py                    # distill site, site-batch
 │   ├── synthesize.py              # distill synthesize, resynthesize
-│   ├── topics.py                  # distill topic create/preview/update/brief/report/show/export
+│   ├── topic.py                   # distill topic create/preview/update/brief/report/show/export/watch
 │   ├── topic_watch.py             # distill topic-watch *
 │   └── watch.py                   # distill watch *
 │

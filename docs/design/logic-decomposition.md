@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: in progress (Phase 1 done; Phase 2 ~85% - `_logic.py` is down from
-> 9,373 to 2,210 lines, one command group left). Remediation #1 from
+> Status: in progress (Phase 1 done; Phase 2 ~90% - `_logic.py` is down from
+> 9,373 to 1,616 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 2,210 lines and shrinking; see Phase 2). It
+command group per file" target (now 1,616 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -117,36 +117,28 @@ slice with the ratchet lowered to match:
   `_validate_learning_options` wrapper was eliminated, consumers point at
   `_learning_flow` directly); the topic-change helpers → `commands/_topic_changes.py`;
   the topic-watch naming/ranking helpers → `commands/_topic_watch.py`.
+- **Topic** (`topic_app` plus profile/workflow/summary/bundle helpers) ->
+  `commands/topic.py`; `reports.py` imports the bundle helpers from the new owner.
 
-`_logic.py` is down from **9,373 -> 2,210 lines**; 13 dead scaffold modules were
+`_logic.py` is down from **9,373 -> 1,616 lines**; 13 dead scaffold modules were
 deleted along the way.
 
 **What still lives in `_logic.py`:**
 
-- **One command group**: the `topic_app` sub-app (`create`, `preview`, `update`,
-  `brief`, `report`, `show`, `export`, `watch`).
 - **The root `@app.callback` `_default`** (the bare-`distill` home-screen entry).
 - **The shared helper body** the extracted command modules import back: the
   learning cluster (`_select_learning_videos`, `_expand_learning_queries`,
   `_apply_source_rigor`, `_process_learning_selection`, and the
   `_preview_learning_selection` / `_run_learning_command` injection wrappers), the
   discover/process helpers (`_discover_*`, `_process_video`, `_process_site_seed`,
-  `_write_paper_artifacts`), and the topic helpers (`_run_topic_workflow`,
-  `_load_topic_profile` / `_save_topic_profile`, `_resolve_topic_workflow_config`,
-  the bundle/export helpers).
+  `_write_paper_artifacts`), topic-change bridge exports, and compatibility
+  re-exports still expected through `distill._cli_impl`.
 
 **Next slices (recommended order):**
 
-1. **`topic_app` -> `commands/topic.py`** (next execution-ready slice), taking its
-   command-private profile/bundle helpers (`_topic_profile_path`, `_topic_exists`,
-   `_load_topic_profile`, `_save_topic_profile`, `_resolve_topic_workflow_config`,
-   `_collect_topic_bundle_files`, `_topic_bundle_manifest`, `_export_topic_bundle`)
-   with it. They have **zero** external consumers, so they move as a unit.
-   `_run_topic_workflow` is shared with `discover.py`, so it stays in `_logic`
-   for this slice unless a foundation module can take it without widening scope.
-2. **The learning / discover / process helper body** folds into the foundation or
+1. **The learning / discover / process helper body** folds into the foundation or
    the command modules that own it, until `_logic.py` drops below the 1000-line cap.
-3. **The root callback** moves to `cli.py` / `distill/_app.py` and `_logic`
+2. **The root callback** moves to `cli.py` / `distill/_app.py` and `_logic`
    disappears as a named module.
 
 **A noted follow-up (behavior-touching, separate from the pure moves):** the
@@ -163,7 +155,9 @@ most-tested. The rule is to repoint every stale `monkeypatch.setattr` or
 `_<module>.get_config` line per extracted group (the established shape). The
 topic-watch extraction added
 `topic_watch.get_config` to that fixture and repointed its `_run_learning_command`
-and `_preview_learning_selection` monkeypatches to the new module. A bug-hunt pass
+and `_preview_learning_selection` monkeypatches to the new module. The topic
+extraction added `topic.get_config` and repointed the topic videos-only
+`_run_learning_command` monkeypatch to `commands.topic`. A bug-hunt pass
 (2026-06, three review agents)
 already found and fixed eight *false-pass* stale patches that the green suite
 could not see — tests that patched a moved command's old namespace and passed

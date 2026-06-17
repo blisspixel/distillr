@@ -3,8 +3,7 @@
 report runs the 4-phase Deep Research pipeline into a topic/channel report;
 export packages a topic into a Word document or a portable corpus zip (the
 deepr/bundle formats). Reports-panel verbs. Registered via register() from
-distill.cli. The corpus-bundle helpers stay in _logic (they lean on shared
-count helpers) and are imported back here.
+distill.cli.
 """
 
 from __future__ import annotations
@@ -14,9 +13,9 @@ import typer
 from distill._console import console
 from distill.cli_shared import output_path as _output_path
 from distill.commands._helpers import _resolve_topic_for_channel, get_config
-from distill.commands._logic import (
+from distill.commands._logic import _complete_topics
+from distill.commands.topic import (
     _collect_topic_bundle_files,
-    _complete_topics,
     _export_topic_bundle,
 )
 from distill.library import Library

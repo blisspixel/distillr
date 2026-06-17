@@ -19,6 +19,7 @@ from distill.commands import papers as _papers
 from distill.commands import process as _process
 from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
+from distill.commands import topic as _topic
 from distill.commands import topic_watch as _topic_watch
 from distill.commands import view as _view
 from distill.commands import watch as _watch
@@ -59,6 +60,7 @@ def mock_config(tmp_path):
         _learn.get_config
     )  # search/explore/learn/brief/latest moved to commands/learn.py
     original_watch = _watch.get_config  # watch sub-app + catch-up moved to commands/watch.py
+    original_topic = _topic.get_config  # topic sub-app moved to commands/topic.py
     original_topic_watch = _topic_watch.get_config  # topic-watch moved to commands/topic_watch.py
     original_dashboard = _dashboard.get_config  # home screen moved to commands/dashboard.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
@@ -75,6 +77,7 @@ def mock_config(tmp_path):
     _discover.get_config = lambda: config
     _learn.get_config = lambda: config
     _watch.get_config = lambda: config
+    _topic.get_config = lambda: config
     _topic_watch.get_config = lambda: config
     _dashboard.get_config = lambda: config
     if original_expand is not None:
@@ -94,6 +97,7 @@ def mock_config(tmp_path):
     _discover.get_config = original_discover
     _learn.get_config = original_learn
     _watch.get_config = original_watch
+    _topic.get_config = original_topic
     _topic_watch.get_config = original_topic_watch
     _dashboard.get_config = original_dashboard
     if original_expand is not None:
@@ -1010,7 +1014,7 @@ class TestTopicCommands:
             captured["query"] = query
             captured["kwargs"] = kwargs
 
-        monkeypatch.setattr(_cli_impl, "_run_learning_command", fake_run_learning_command)
+        monkeypatch.setattr(_topic, "_run_learning_command", fake_run_learning_command)
 
         result = runner.invoke(
             cli.app,

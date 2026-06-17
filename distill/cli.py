@@ -58,7 +58,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _resolve_topic_diff_baseline,
     _run_learning_command,
     _run_scope_report,
-    _run_topic_workflow,
     _select_learning_videos,
     _site_section_change_summary,
     _strip_intent_terms,
@@ -76,7 +75,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     concepts_app,
     console,
     get_config,
-    topic_app,
 )
 
 # _file_link's canonical home is _helpers; _logic no longer imports it, so
@@ -105,6 +103,22 @@ from distill.commands.papers import register as _register_papers
 from distill.commands.process import register as _register_process
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
+from distill.commands.topic import (  # noqa: F401
+    _collect_topic_bundle_files,
+    _export_topic_bundle,
+    _load_topic_profile,
+    _render_topic_summary,
+    _resolve_topic_workflow_config,
+    _run_topic_workflow,
+    _save_topic_profile,
+    _topic_bundle_manifest,
+    _topic_exists,
+    _topic_profile_path,
+    topic_app,
+)
+from distill.commands.topic import (
+    register as _register_topic,
+)
 from distill.commands.topic_watch import register as _register_topic_watch
 from distill.commands.topic_watch import topic_watch_app  # noqa: F401
 from distill.commands.update import register as _register_update
@@ -123,6 +137,7 @@ _register_maintain(app)
 _register_doctor(app)
 _register_eval(app)
 _register_reprocess(app)
+_register_topic(app)
 _register_reports(app)
 _register_discover(app)
 _register_learn(app)

@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
 from distill.commands import discover as _discover
+from distill.commands import topic as _topic
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
@@ -19,6 +20,7 @@ def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
     monkeypatch.setattr(_discover, "get_config", lambda: config)
+    monkeypatch.setattr(_topic, "get_config", lambda: config)
     return config
 
 
