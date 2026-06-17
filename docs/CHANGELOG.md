@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.3 - 2026-06-17
+
 ### Changed
 
 - Moved the `distill topic-watch` sub-app from `_logic.py` into `distill/commands/topic_watch.py`, repointed `discover.monitor --now`, and lowered the `_logic.py` module-size ratchet from 2,612 to 2,210 lines. No behavior change intended.
