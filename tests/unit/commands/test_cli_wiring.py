@@ -1220,6 +1220,26 @@ class TestExportOpenCostsAndStatus:
         assert manifest["topic"] == "ai"
         assert manifest["format"] == "deepr"
 
+    def test_export_bundle_sanitizes_archive_topic_prefix(self, mock_config):
+        raw_topic = "../escape"
+        topic_dir = mock_config.topic_dir(raw_topic)
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        (topic_dir / "topic_synthesis.md").write_text("# Topic", encoding="utf-8")
+
+        result = runner.invoke(
+            cli.app, ["export", raw_topic, "--what", "bundle", "--format", "deepr"]
+        )
+
+        assert result.exit_code == 0
+        output_dir = mock_config.library_dir.parent / "output"
+        bundle = output_dir / "corpus-escape-deepr.zip"
+        assert bundle.exists()
+        assert not (mock_config.library_dir.parent / "corpus-..").exists()
+        with zipfile.ZipFile(bundle) as zf:
+            names = zf.namelist()
+        assert "escape/topic_synthesis.md" in names
+        assert all(not name.startswith(("../", "/")) for name in names)
+
     def test_dashboard_web_writes_html(self, mock_config):
         topic_dir = mock_config.topic_dir("ai")
         topic_dir.mkdir(parents=True, exist_ok=True)

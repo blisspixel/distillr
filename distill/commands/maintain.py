@@ -388,6 +388,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
       distill open --vault            # Open library as Obsidian vault
       distill open --vault --path topics/ai-agents  # Open subdirectory
     """
+    import shutil
     import subprocess
 
     config = get_config()
@@ -399,14 +400,20 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
             console.print(f"[red]Error: library directory does not exist: {library_dir}[/red]")
             raise typer.Exit(1)
 
-        target = library_dir
+        library_root = library_dir.resolve()
+        target = library_root
         if path:
-            target = library_dir / path
-            if not target.exists():
+            target = (library_root / path).resolve()
+            try:
+                target.relative_to(library_root)
+            except ValueError:
+                console.print(f"[red]Error: path escapes library directory: {path}[/red]")
+                raise typer.Exit(1) from None
+            if not target.exists() or not target.is_dir():
                 console.print(f"[red]Error: subdirectory not found: {target}[/red]")
                 # List available subdirectories
                 available = [
-                    d.relative_to(library_dir) for d in library_dir.iterdir() if d.is_dir()
+                    d.relative_to(library_root) for d in library_root.iterdir() if d.is_dir()
                 ]
                 if available:
                     console.print("\n  Available subdirectories:")
@@ -417,16 +424,15 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
         # Check for DISTILL_VAULT_EDITOR env var
         vault_editor = os.environ.get("DISTILL_VAULT_EDITOR")
         if vault_editor:
-            import shutil
-
-            if not shutil.which(vault_editor):
+            editor_path = shutil.which(vault_editor)
+            if not editor_path:
                 console.print(
                     f"[red]Error: DISTILL_VAULT_EDITOR program not found: {vault_editor}[/red]\n"
                     f"  Ensure the program is installed and in your PATH."
                 )
                 raise typer.Exit(1)
             console.print(f"Opening [bold]{target}[/bold] with {vault_editor}")
-            subprocess.run([vault_editor, str(target)])
+            subprocess.run([editor_path, str(target)])
         else:
             console.print(f"Opening [bold]{target}[/bold]")
             webbrowser.open(str(target))
@@ -471,7 +477,12 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
     if startfile is not None:
         startfile(target)
     else:
-        subprocess.run(["open" if os.uname().sysname == "Darwin" else "xdg-open", str(target)])
+        opener_name = "open" if os.uname().sysname == "Darwin" else "xdg-open"
+        opener_path = shutil.which(opener_name)
+        if opener_path:
+            subprocess.run([opener_path, str(target)])
+        else:
+            webbrowser.open(str(target))
 
 
 def alerts(

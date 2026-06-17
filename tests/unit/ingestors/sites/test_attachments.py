@@ -267,10 +267,14 @@ def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
     )[0]
 
     assert _provider_for_url("https://youtu.be/abc123xyz99") == "youtube"
+    assert _provider_for_url("https://youtube.com.evil/watch?v=abc123xyz99") == "youtube.com.evil"
+    assert _provider_for_url("https://youtu.be.evil/abc123xyz99") == "youtu.be.evil"
     assert _provider_for_url("https://example.com/guide.pdf") == "pdf"
     assert _provider_for_url("https://docs.example.com/page") == "docs.example.com"
     assert _extract_youtube_video_id("https://youtu.be/abc123xyz99") == "abc123xyz99"
     assert _extract_youtube_video_id("https://www.youtube.com/shorts/abc123xyz99") == "abc123xyz99"
+    assert _extract_youtube_video_id("https://youtube.com.evil/watch?v=abc123xyz99") == ""
+    assert _extract_youtube_video_id("https://youtu.be.evil/abc123xyz99") == ""
     assert _extract_youtube_video_id("https://example.com/video") == ""
 
     no_id_attachment = type(video_attachment)(

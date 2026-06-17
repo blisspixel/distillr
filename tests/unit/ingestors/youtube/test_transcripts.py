@@ -1,6 +1,7 @@
 """Tests for distill.transcripts."""
 
 import os
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -414,6 +415,8 @@ class TestScribeFallback:
         result = _try_scribe("https://youtube.com/watch?v=abc", target, config)
 
         assert result is True
+        command = mock_run.call_args.args[0]
+        assert command[:3] == [sys.executable, "-m", "scribe"]
         assert target.read_text(encoding="utf-8") == "new"
 
     @patch("distill.ingestors.youtube.transcripts.subprocess.run", side_effect=TimeoutError())

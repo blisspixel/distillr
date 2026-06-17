@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,11 +62,10 @@ def detect_hardware() -> HardwareProfile:
 def _detect_nvidia() -> tuple[str, str, float] | None:
     """Detect NVIDIA GPU via nvidia-smi. Returns (gpu_type, gpu_name, vram_gb) or None."""
     try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+        result = _run_tool(
+            "nvidia-smi",
+            "--query-gpu=name,memory.total",
+            "--format=csv,noheader,nounits",
         )
         if result.returncode != 0:
             return None
@@ -93,12 +93,7 @@ def _detect_nvidia() -> tuple[str, str, float] | None:
 def _get_apple_chip_name() -> str:
     """Get Apple Silicon chip name via sysctl."""
     try:
-        result = subprocess.run(
-            ["sysctl", "-n", "machdep.cpu.brand_string"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        result = _run_tool("sysctl", "-n", "machdep.cpu.brand_string")
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
@@ -148,18 +143,26 @@ def _get_windows_ram() -> float:
 def _get_macos_ram() -> float:
     """Get macOS system RAM via sysctl hw.memsize."""
     try:
-        result = subprocess.run(
-            ["sysctl", "-n", "hw.memsize"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        result = _run_tool("sysctl", "-n", "hw.memsize")
         if result.returncode == 0 and result.stdout.strip():
             bytes_val = int(result.stdout.strip())
             return round(bytes_val / (1024**3), 1)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError, ValueError):
         pass
     return 0.0
+
+
+def _run_tool(name: str, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run an external diagnostic tool after resolving it from PATH."""
+    executable = shutil.which(name)
+    if executable is None:
+        raise FileNotFoundError(name)
+    return subprocess.run(
+        [executable, *args],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
 
 
 def _get_linux_ram() -> float:

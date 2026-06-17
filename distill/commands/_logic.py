@@ -1466,13 +1466,13 @@ def _export_topic_bundle(config: DistillConfig, topic: str, export_format: str) 
     if not files:
         raise typer.Exit(1)
 
-    zip_path = _output_path(config, f"corpus-{topic}-{export_format}.zip")
+    zip_path = _output_path(config, f"corpus-{topic_dir.name}-{export_format}.zip")
     manifest = _topic_bundle_manifest(config, topic, export_format, files)
 
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
         for path_obj in files:
-            arcname = Path(topic) / path_obj.relative_to(topic_dir)
+            arcname = Path(topic_dir.name) / path_obj.relative_to(topic_dir)
             zf.write(path_obj, arcname=str(arcname.as_posix()))
     return zip_path
 

@@ -12,6 +12,7 @@ import sys
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Side-effect import: reconfigures stdout/stderr to UTF-8 *before* rich.Console
 # is constructed below or any other distill module creates its own Console.
@@ -33,6 +34,7 @@ from distill.pipeline.analysis.video import (
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
+    sanitize_path_component,
     slugify_title,
     tags_for,
     write_markdown_artifact,
@@ -138,13 +140,20 @@ def _detect_ramp_source(target: str) -> str:
     if target_path.exists():
         return "website-batch"
     lowered = target.lower()
-    if "arxiv.org" in lowered:
+    if lowered == "arxiv.org" or lowered.startswith(("arxiv.org/", "www.arxiv.org/")):
         return "paper"
     if lowered.startswith("http://") or lowered.startswith("https://"):
-        if "youtube.com" in lowered or "youtu.be" in lowered:
+        host = (urlparse(target).hostname or "").lower()
+        if _host_matches(host, "arxiv.org"):
+            return "paper"
+        if _host_matches(host, "youtube.com") or _host_matches(host, "youtu.be"):
             return "youtube-url"
         return "website"
     return "youtube-query"
+
+
+def _host_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith(f".{domain}")
 
 
 def _isatty() -> bool:
@@ -223,7 +232,8 @@ def output_path(config: DistillConfig, filename: str) -> Path:
     """Return a path inside the output/ folder, creating it if needed."""
     out_dir = config.library_dir.parent / "output"
     out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir / filename
+    safe_filename = sanitize_path_component(str(filename)).lstrip(". ") or "untitled"
+    return out_dir / safe_filename
 
 
 def topic_from_query(query: str) -> str:

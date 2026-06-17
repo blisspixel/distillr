@@ -15,7 +15,6 @@ import urllib.parse
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
-from xml.etree.ElementTree import Element  # Element is a type, not a parser
 
 import requests
 from defusedxml.ElementTree import fromstring as xml_fromstring
@@ -379,7 +378,7 @@ def _parse_arxiv_feed(payload: str) -> list[PaperRecord]:
     return results
 
 
-def _entry_text(entry: Element, path: str) -> str:
+def _entry_text(entry: Any, path: str) -> str:
     return entry.findtext(path, default="", namespaces=ATOM_NS)
 
 

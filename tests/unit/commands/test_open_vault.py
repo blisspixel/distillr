@@ -61,7 +61,7 @@ class TestOpenVault:
 
             open_cmd(topic=None, channel=None, what="output", vault=True, path="")
 
-            mock_run.assert_called_once_with(["obsidian", str(library_dir)])
+            mock_run.assert_called_once_with(["/usr/bin/obsidian", str(library_dir.resolve())])
 
     def test_vault_missing_library_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -105,6 +105,32 @@ class TestOpenVault:
             open_cmd(topic=None, channel=None, what="output", vault=True, path="topics/ai-agents")
 
             mock_open.assert_called_once_with(str(subdir))
+
+    def test_vault_path_cannot_escape_library(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--vault --path rejects traversal outside the library root."""
+        library_dir = tmp_path / "library"
+        library_dir.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        mock_config = MagicMock()
+        mock_config.library_dir = library_dir
+
+        monkeypatch.delenv("DISTILL_VAULT_EDITOR", raising=False)
+
+        with (
+            patch("distill.commands.maintain.get_config", return_value=mock_config),
+            patch("distill.commands.maintain.webbrowser.open") as mock_open,
+            patch("distill.commands.maintain.console"),
+        ):
+            from distill.commands.maintain import open_cmd
+
+            with pytest.raises(typer.Exit):
+                open_cmd(topic=None, channel=None, what="output", vault=True, path="../outside")
+
+            mock_open.assert_not_called()
 
     def test_vault_with_missing_subdirectory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

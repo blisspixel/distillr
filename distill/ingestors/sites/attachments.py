@@ -267,10 +267,10 @@ def _ingest_youtube_attachment(
 
 
 def _provider_for_url(url: str) -> str:
-    host = urlparse(url).netloc.lower()
-    if "youtube.com" in host or "youtu.be" in host:
+    host = (urlparse(url).hostname or "").lower()
+    if _host_matches(host, "youtube.com") or _host_matches(host, "youtu.be"):
         return "youtube"
-    if "vimeo.com" in host:
+    if _host_matches(host, "vimeo.com"):
         return "vimeo"
     if url.lower().endswith(".pdf"):
         return "pdf"
@@ -279,10 +279,10 @@ def _provider_for_url(url: str) -> str:
 
 def _extract_youtube_video_id(url: str) -> str:
     parsed = urlparse(url)
-    host = parsed.netloc.lower()
-    if "youtu.be" in host:
+    host = (parsed.hostname or "").lower()
+    if _host_matches(host, "youtu.be"):
         return parsed.path.strip("/")
-    if "youtube.com" not in host:
+    if not _host_matches(host, "youtube.com"):
         return ""
     query_id = parse_qs(parsed.query).get("v")
     if query_id:
@@ -291,3 +291,7 @@ def _extract_youtube_video_id(url: str) -> str:
     if match:
         return match.group(1)
     return ""
+
+
+def _host_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith(f".{domain}")

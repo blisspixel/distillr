@@ -24,7 +24,10 @@ class TestDetectNvidia:
         mock_result.returncode = 0
         mock_result.stdout = "NVIDIA GeForce RTX 4090, 24564\n"
 
-        with patch("subprocess.run", return_value=mock_result):
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
             result = _detect_nvidia()
 
         assert result is not None
@@ -34,7 +37,7 @@ class TestDetectNvidia:
         assert vram_gb == pytest.approx(24.0, abs=0.1)
 
     def test_nvidia_not_found(self) -> None:
-        with patch("subprocess.run", side_effect=FileNotFoundError):
+        with patch("distill.doctor.hardware.shutil.which", return_value=None):
             result = _detect_nvidia()
         assert result is None
 
@@ -43,12 +46,18 @@ class TestDetectNvidia:
         mock_result.returncode = 1
         mock_result.stdout = ""
 
-        with patch("subprocess.run", return_value=mock_result):
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
             result = _detect_nvidia()
         assert result is None
 
     def test_nvidia_smi_timeout(self) -> None:
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 5)):
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("subprocess.run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 5)),
+        ):
             result = _detect_nvidia()
         assert result is None
 
@@ -57,7 +66,10 @@ class TestDetectNvidia:
         mock_result.returncode = 0
         mock_result.stdout = ""
 
-        with patch("subprocess.run", return_value=mock_result):
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
             result = _detect_nvidia()
         assert result is None
 
@@ -70,12 +82,15 @@ class TestAppleChipName:
         mock_result.returncode = 0
         mock_result.stdout = "Apple M1 Pro\n"
 
-        with patch("subprocess.run", return_value=mock_result):
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
             name = _get_apple_chip_name()
         assert name == "Apple M1 Pro"
 
     def test_apple_chip_fallback(self) -> None:
-        with patch("subprocess.run", side_effect=FileNotFoundError):
+        with patch("distill.doctor.hardware.shutil.which", return_value=None):
             name = _get_apple_chip_name()
         assert name == "Apple Silicon"
 
@@ -91,6 +106,7 @@ class TestSystemRam:
 
         with (
             patch("platform.system", return_value="Darwin"),
+            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             ram = _get_system_ram()
@@ -162,6 +178,7 @@ class TestDetectHardware:
             raise FileNotFoundError
 
         with (
+            patch("distill.doctor.hardware.shutil.which", side_effect=lambda cmd: cmd),
             patch("subprocess.run", side_effect=mock_run),
             patch("platform.system", return_value="Linux"),
             patch("pathlib.Path.exists", return_value=False),
@@ -176,6 +193,7 @@ class TestDetectHardware:
 
     def test_no_gpu_system(self) -> None:
         with (
+            patch("distill.doctor.hardware.shutil.which", return_value=None),
             patch("subprocess.run", side_effect=FileNotFoundError),
             patch("platform.system", return_value="Linux"),
             patch("platform.machine", return_value="x86_64"),

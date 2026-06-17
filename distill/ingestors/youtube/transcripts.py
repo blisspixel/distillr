@@ -16,6 +16,7 @@ The resilience order (0.12.11, the 0.11 YouTube-resilience margin):
 
 import re
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -242,7 +243,7 @@ def _try_scribe(video_url: str, output_path: Path, config: DistillConfig) -> boo
     try:
         result = subprocess.run(
             [
-                "python",
+                sys.executable,
                 "-m",
                 "scribe",
                 "url",

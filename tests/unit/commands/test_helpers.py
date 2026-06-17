@@ -19,6 +19,7 @@ from distill.cli_shared import (
     topic_from_query,
     write_video_metadata,
 )
+from distill.commands._helpers import _detect_ramp_source
 
 
 class TestEnsureUtf8Stdio:
@@ -123,6 +124,13 @@ class TestOutputPath:
         result = output_path(config, "test.txt")
         assert result.parent == config.library_dir.parent / "output"
 
+    def test_sanitizes_pathlike_filename(self, config):
+        result = output_path(config, "../escape.txt")
+
+        assert result.parent == config.library_dir.parent / "output"
+        assert result.name == "-escape.txt"
+        assert not (config.library_dir.parent / "escape.txt").exists()
+
 
 class TestTopicFromQuery:
     def test_normal_query(self):
@@ -132,6 +140,19 @@ class TestTopicFromQuery:
 
     def test_empty_query(self):
         assert topic_from_query("") == "research"
+
+
+class TestDetectRampSource:
+    def test_routes_known_public_hosts(self):
+        assert _detect_ramp_source("https://arxiv.org/abs/2601.00001") == "paper"
+        assert _detect_ramp_source("https://www.youtube.com/watch?v=abc") == "youtube-url"
+        assert _detect_ramp_source("https://youtu.be/abc") == "youtube-url"
+        assert _detect_ramp_source("https://example.com/page") == "website"
+
+    def test_rejects_lookalike_hosts(self):
+        assert _detect_ramp_source("https://arxiv.org.evil/abs/2601.00001") == "website"
+        assert _detect_ramp_source("https://youtube.com.evil/watch?v=abc") == "website"
+        assert _detect_ramp_source("https://youtu.be.evil/abc") == "website"
 
 
 class TestWriteVideoMetadata:
