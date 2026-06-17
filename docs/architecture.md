@@ -285,7 +285,8 @@ distill/                           # Python package — layered subpackage archi
 │   ├── site.py                    # distill site, site-batch
 │   ├── synthesize.py              # distill synthesize, resynthesize
 │   ├── topics.py                  # distill topic create/preview/update/brief/report/show/export
-│   └── watch.py                   # distill watch *, topic-watch *
+│   ├── topic_watch.py             # distill topic-watch *
+│   └── watch.py                   # distill watch *
 │
 ├── ingestors/                     # Capture layer — one source per subpackage
 │   ├── youtube/

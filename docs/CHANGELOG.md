@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Moved the `distill topic-watch` sub-app from `_logic.py` into `distill/commands/topic_watch.py`, repointed `discover.monitor --now`, and lowered the `_logic.py` module-size ratchet from 2,612 to 2,210 lines. No behavior change intended.
+
 ## 0.16.2 - 2026-06-16
 
 **Dependency security bump.** `pip-audit` flagged eight CVEs disclosed against pinned dependencies after the 0.16.1 build. Targeted lockfile upgrade to the fix versions; no product code changed, so behavior is identical to 0.16.1.

@@ -77,7 +77,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     console,
     get_config,
     topic_app,
-    topic_watch_app,
 )
 
 # _file_link's canonical home is _helpers; _logic no longer imports it, so
@@ -106,6 +105,8 @@ from distill.commands.papers import register as _register_papers
 from distill.commands.process import register as _register_process
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
+from distill.commands.topic_watch import register as _register_topic_watch
+from distill.commands.topic_watch import topic_watch_app  # noqa: F401
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
 from distill.commands.watch import register as _register_watch
@@ -128,6 +129,7 @@ _register_learn(app)
 _register_papers(app)
 _register_process(app)
 _register_view(app)
+_register_topic_watch(app)
 _register_watch(app)
 
 __all__ = ["app", "main"]

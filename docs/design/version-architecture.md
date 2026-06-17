@@ -48,8 +48,8 @@ agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
 The promise: **stability and a defended quality bar.** Contracts (CLI flags,
 MCP schemas, library layout, frontmatter) are versioned and frozen; prompts
 stay versioned-but-revisable on a documented cadence; branch coverage >=95%;
-Pyright-strict; parse-don't-validate boundaries; the golden-corpus eval gate
-with metamorphic robustness; verification depth on the deterministic core;
+Pyright-strict; parse-don't-validate boundaries; the structural golden-corpus
+eval gate plus model-judged live `distill eval`; verification depth on the deterministic core;
 the presentation pass (screenshots/recordings land here, by deliberate
 deferral). An external system -- Deepr, a stranger's agent stack, a lab's
 cron job -- can depend on distill without expecting churn.
