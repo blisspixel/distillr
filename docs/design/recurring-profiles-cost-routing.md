@@ -68,7 +68,8 @@ A profile is not a hidden background agent. It is a durable plan for how to
 refresh a corpus from trusted sources, under a declared cost policy, with
 preview and verifier surfaces the user or an external loop can run.
 
-"Free" is not the right word. The product term is **no-metered-cost**:
+"Free" needs a precise product meaning. The product term is
+**no-incremental-metered-cost**:
 
 - deterministic local work,
 - public feeds and already accessible pages,
@@ -76,6 +77,22 @@ preview and verifier surfaces the user or an external loop can run.
 - or explicitly configured subscription / plan-quota CLI usage,
 
 with no API-billed call unless the user opts into it.
+
+The cost classes are:
+
+- **Local sunk-cost compute.** Ollama, LM Studio, and local transcription spend
+  the user's hardware, electricity, and time, but do not create an incremental
+  vendor API bill. This is the preferred route for high-volume refresh,
+  fan-out, draft analysis, and cross-topic scans once eval says quality clears
+  the workload bar.
+- **Included plan quota.** Codex CLI, Claude Code, Grok Build, and similar
+  tools may be effectively free at the margin when the user already has a plan
+  and the route consumes included quota rather than API credits. This is useful
+  for bursty agentic fan-out, cross-topic research, reviewer passes, and
+  synthesis planning. It still consumes a finite quota and may hit provider
+  rate or session limits, so it remains on the usage ledger.
+- **Metered API spend.** Cloud API routes are the quality floor and escalation
+  path, but only run in `auto` or `paid-ok` when policy and caps allow them.
 
 ## Profile model
 
@@ -157,6 +174,17 @@ The no-metered route order should be:
    later Gemini / Antigravity if the support statement is clear.
 4. Metered cloud API routes only when cost mode is `auto` or `paid-ok`.
 
+For high-volume work, route selection should also understand shape:
+
+- Local sunk-cost routes are favored for broad fan-out: candidate triage,
+  cross-topic clustering, repeated draft summaries, and cheap negative passes.
+- Plan-quota CLI routes are favored for bounded high-judgment passes when local
+  models are too weak or too slow but the user has included quota available:
+  reviewer passes, cross-topic synthesis planning, contradiction interpretation,
+  and adapter self-checks.
+- Metered APIs are reserved for workloads where local and plan-quota routes fail
+  quality, context, latency, or policy requirements.
+
 Claude Code gets an extra preflight: if `ANTHROPIC_API_KEY` is present and the
 chosen route claims subscription usage, Distill must block and explain that the
 CLI would use API billing.
@@ -206,6 +234,12 @@ boundaries:
    before it is recommended. It becomes a route only after `distill eval` shows
    that its output clears the workload bar and the no-metered ledger remains
    complete.
+10. **Judge local against quota routes.** `distill eval` should compare local
+    model output against plan-quota CLI output for the same fixture and workload.
+    A judge model evaluates faithfulness, specificity, citation use, synthesis
+    quality, and actionability from receipts. Distill recommends the cheapest
+    no-incremental-metered-cost route that clears the bar, not the route that is
+    merely available.
 
 ## Build order
 
@@ -227,14 +261,17 @@ boundaries:
 7. **Adapter contracts.** Add plan-quota adapters only behind explicit support
    statements, scratch-manifest writes, environment preflights, and
    `distill eval` fixtures.
-8. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
+8. **Cross-route eval.** Extend `distill eval` so local sunk-cost routes,
+   plan-quota CLI routes, and metered API routes can be compared on the same
+   fixture with an LLM-as-judge rubric and a usage ledger row.
+9. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
    schema so Codex, Claude Code, Grok Build, cron, or GitHub Actions can steward
    them externally.
 
 ## Non-goals
 
 - No hidden daemon or built-in scheduler in the first profile slice.
-- No claim that subscription usage is literally free.
+- No claim that subscription usage has no cost or no limits.
 - No automated YouTube anti-bot workaround.
 - No plan-quota adapter without eval evidence and a support statement.
 - No profile-only pipeline that bypasses existing verify, audit, cost, and
