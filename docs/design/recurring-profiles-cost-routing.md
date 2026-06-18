@@ -148,6 +148,37 @@ The first checked-in examples should be:
 - `vendor-docs-watch`: official docs and release notes only, useful for
   tracking OpenAI, Anthropic, Google, xAI, Microsoft, and local model tooling.
 
+## Profile preview and the rule/judgment split
+
+Profile preview is the first place this slice can accidentally recreate the
+brittle-rule failure mode. The resolver should be deterministic about facts it
+can prove, and agentic about judgments that depend on meaning.
+
+Rule-owned preview work:
+
+- Parse profile files and reject invalid schemas.
+- Resolve feeds, YouTube channel Atom feeds, repository metadata, trusted
+  domains, and saved queries into candidate rows.
+- Normalize public URLs, repo identities, timestamps, source ids, and local
+  output paths.
+- Enforce profile limits, no-metered-cost refusal, explicit allowlists,
+  freshness windows, duplicate suppression, and preview-only writes.
+
+Agentic preview work:
+
+- Judge source fit against the goal file.
+- Judge novelty against the existing corpus.
+- Judge whether a candidate is a rumor, a release note, a tutorial, a primary
+  source, or a useful secondary interpretation.
+- Prioritize candidates when the profile has more candidates than the user wants
+  to inspect or ingest.
+
+If no eligible local or plan-quota model route is available in `no-metered`
+mode, preview may still return deterministic source rows by recency, feed order,
+or explicit profile order. It must label that result as structural ordering, not
+semantic quality ranking. Keyword, regex, title-length, or domain-weight scores
+may be diagnostic hints, but they must not become the quality gate.
+
 ## Cost modes
 
 `DISTILL_COST_MODE` and `--cost-mode` should accept:
@@ -262,7 +293,10 @@ boundaries:
    No network or LLM dependency.
 3. **Profile preview.** `distill profile preview <name>` resolves feeds,
    channels, domains, repos, and queries into candidate source rows without
-   writing analysis artifacts.
+   writing analysis artifacts. Structural resolution is rule-owned; source fit,
+   novelty, rumor classification, and priority are model-judged when an eligible
+   no-metered route exists, otherwise the preview is labeled as unranked
+   structural order.
 4. **Profile run.** `distill profile run <name>` executes the same approved
    ingest and analysis paths Distill already uses, with resume-friendly state.
 5. **Cost policy enforcement.** Route selection respects `auto`,

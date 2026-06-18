@@ -277,7 +277,7 @@ This is the daily-driver pass for the "I keep seeing this topic evolve" workflow
 **Recurring research profiles.**
 
 - **First-class profiles.** Add a profile file that binds a topic, goal, preferred YouTube channels, trusted domains, newsletter/feed URLs, search phrases, source limits, rigor, and default output actions. Substack-class feeds are the durable path for sources such as Latent Space because Distill can ingest full post text from feeds today. It is a durable artifact an external loop can read and rerun.
-- **Preview remains the default commit boundary.** Profile refreshes surface new candidates and cost before ingest unless `--yes` is explicitly set by a trusted operator or external loop.
+- **Preview remains the default commit boundary.** Profile refreshes surface new candidates and cost before ingest unless `--yes` is explicitly set by a trusted operator or external loop. Preview resolution is deterministic for fetch, parse, freshness, identity, caps, and no-metered refusal; semantic priority belongs to a model route. If no eligible no-metered model route exists, preview shows labeled structural order rather than a fake keyword quality rank.
 - **Profile health in audit.** `distill audit` reports whether a profile has gone stale, whether its feeds/channels/domains still resolve, and whether the corpus is thin relative to its own profile.
 - **Examples.** Ship checked-in examples for "AI developer news", "agentic coding", and "vendor docs watch" using public sources, high-signal newsletter feeds, and preview-only commands.
 
@@ -298,7 +298,7 @@ This is the daily-driver pass for the "I keep seeing this topic evolve" workflow
 
 **Planned 0.19.x order.**
 
-- **0.19.0 profile artifacts and preview.** Ship schema, examples, validation, and preview-only candidate discovery for AI developer news, live agentic dev, and vendor docs watch.
+- **0.19.0 profile artifacts and preview.** Ship schema, examples, validation, and preview-only candidate discovery for AI developer news, live agentic dev, and vendor docs watch. Candidate fetch and normalization are rule-owned; source fit, novelty, rumor classification, and priority are model-judged or explicitly marked unranked.
 - **0.19.1 cost policy and local routes.** Wire `auto`, `no-metered`, and `paid-ok` through the router, ledger, Ollama, LM Studio, and deterministic fetch/transcript paths. Label local routes as sunk-cost compute and record usage even when dollar cost is zero.
 - **0.19.2 adapter doctor.** Add read-only preflight checks for Codex CLI, Claude Code, and Grok Build: installed version, auth mode, blocked API-key state, headless support, machine-readable output support, and support-statement version.
 - **0.19.3 cross-route quality eval.** Add fixture comparisons for local sunk-cost routes, plan-quota CLI routes, and metered API routes. Use LLM-as-judge scoring over receipts plus cost-per-accepted-change accounting so fan-out routing is based on output quality and retained work, not just availability.

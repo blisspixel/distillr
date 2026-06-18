@@ -35,6 +35,7 @@ That is invariant #6 restated against the axis: **"LLM proposes, Python decides.
 ## The failure modes the sources name, and distill's guard against each
 
 - **Brittle hardcoded logic.** [Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) names "hardcoding complex, brittle logic" as a fragility source, and points the other way: "as model capabilities improve, agentic design will trend towards letting intelligent models act intelligently, with progressively less human curation." *distill's guard:* the open-ended surfaces (discovery, analysis, synthesis) are left to the model rather than scripted; the determinism is reserved for the *decisions*, which are well-defined and benefit from it.
+- **Harness as brittle decision tree.** Recent harness-engineering guidance points to a different improvement path: trace failures, add evals, improve tools, tighten context, and make validation explicit. LangChain's 2026 harness write-up reports a large benchmark gain from harness changes around self-verification, tracing, and context, while OpenAI's agent-improvement loop defines the harness as the contract around instructions, tools, routing, output requirements, and validation checks. Neither pattern says to replace semantic judgment with fixed keyword branches. *distill's guard:* profile preview, discovery, and synthesis planning may use rules to fetch, parse, bound, and verify, but semantic ranking stays model-judged or honestly labeled as an unranked structural order.
 - **Self-declared "done."** [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) names the "marked complete without proper testing" failure — an agent overclaiming completion. *distill's guard:* invariant #8 — a generated answer becomes corpus only after a grounding check against its cited sources. The write-time verify hook and `distill audit` measure completion **by ground truth (receipts), not by the model's confidence.** `ask --save` refuses an answer with an unsupported load-bearing claim.
 - **Gating the reasoning instead of the tools.** [NVIDIA, Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/): "the risk lies mostly in the tools or plugins available" — gate the irreversible actions, not the thinking. *distill's guard:* MCP read-only mode plus per-call spend caps plus the ingest-domain allowlist gate the *write / spend / ingest* tools; the read and reasoning surface stays fully open. The keep-list is irreversibility, not intelligence.
 - **Over-agentifying when a fixed path fits.** [HuggingFace smolagents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) is the counterweight — regularize *toward* a deterministic path when one fits. *distill's guard:* the workflow spine is the default; agentic behavior is added only at the leaves where it demonstrably earns its place, matching "add complexity only when it demonstrably improves outcomes."
@@ -54,6 +55,15 @@ A full audit of where this failure mode still lives in distill — and the stage
 ## How this constrains the agentic-vision RFCs
 
 [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) and [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) push distill to be *more* model-driven (adaptive lenses, goal-driven discovery, a self-running deep-synthesis loop). This charter is the boundary they operate within: **make the open-ended surfaces more agentic where flexibility helps, but keep the decisions Python-owned (invariant #6) and completion checked against receipts plus faithfulness verdicts (invariant #8).** A more agentic synthesis loop is welcome; a synthesis loop that decides for itself that it is finished, without a receipt check, is not.
+
+The same constraint applies to recurring profiles. A profile schema is a rule:
+names, paths, source lists, cost mode, freshness policy, and limits are explicit
+configuration. Profile preview is mixed: feed parsing, URL safety, repo identity,
+domain allowlists, freshness, de-duplication, max item caps, and no-metered-cost
+refusal are rules; source fit, novelty, importance, rumor likelihood, and
+priority are semantic judgments. If no eligible model route is available, preview
+may still show candidates by recency or source order, but it must label that as
+structural ordering rather than pretend it is a quality ranking.
 
 ## Loop admission test
 
@@ -111,6 +121,8 @@ The sources agree on the drift — "less structure, more model" as capability ri
 - Anthropic, [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — the workflow-vs-agent axis and decision criterion (quotes above verified 2026-06-13).
 - Anthropic, [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — brittle-hardcoded-logic failure; the "less structure, more model" direction.
 - Anthropic, [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — completion by ground truth, not a self-declared flag.
+- LangChain, [Improving Deep Agents with harness engineering](https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering): harness improvement through self-verification, tracing, context, tools, and measured outcomes.
+- OpenAI, [Build an Agent Improvement Loop with Traces, Evals, and Codex](https://developers.openai.com/cookbook/examples/agents_sdk/agent_improvement_loop): traces plus feedback become evals, and evals drive harness changes through a validation contract.
 - NVIDIA, [Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/) — gate the tools (irreversible actions), not the reasoning.
 - HuggingFace, [smolagents — Introduction to Agents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) — regularize toward a deterministic path when one fits.
 - Background on autonomy levels: DeepMind's Levels of AGI and the autonomy-level literature (see the 2026-06 deep-research claim set for the full, adversarially-verified citation list).
