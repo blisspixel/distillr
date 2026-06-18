@@ -58,6 +58,9 @@ The two useful additions are:
   execution.
 - **Verification is the stop condition.** A loop is done when the command exits
   cleanly and audit/verify state changes as expected.
+- **Loop admission is explicit.** A repeated loop is allowed only for recurring
+  work with an automated verifier, bounded budget, usable tools, and persisted
+  state. Otherwise Distill should emit a one-shot command or operator note.
 - **No fake semantic gates.** The no-brittle-junk charter still applies. Python
   may validate structure and aggregate model verdicts, but it must not decide
   whether a source is good, faithful, or substantively complete by keyword or
@@ -106,6 +109,11 @@ with a stable schema:
       "verifier": {
         "command": ["distill", "audit", "memory", "--report-only", "--json"],
         "expect": "freshness.stale == 0"
+      },
+      "loop": {
+        "state_path": ".distill/loops/memory.stale-synthesis.corpus.json",
+        "max_attempts": 3,
+        "acceptance_metric": "cost_per_accepted_change"
       }
     }
   ]
@@ -131,7 +139,15 @@ Optional fields:
 
 - `source_paths`, `verify_sidecars`, `ingest_domains`, `blocked_by`,
   `requires_env`, `preview_id`, `from_preview_command`, `cost_mode`,
-  `allowed_provider_routes`.
+  `allowed_provider_routes`, `loop`.
+
+Loop metadata is intentionally small:
+
+- `state_path`: stable file where an external runner records attempts, route,
+  cost, verifier result, accepted artifact paths, and blocked reasons.
+- `max_attempts`: deterministic stop before a loop burns budget indefinitely.
+- `acceptance_metric`: usually `cost_per_accepted_change`; Distill may compute
+  it from the ledger and verifier outcomes instead of trusting a runner summary.
 
 ## Build order
 
@@ -143,11 +159,12 @@ Optional fields:
 3. **OKF export mapper.** Read native artifacts, map to OKF concept docs, write
    `index.md` / `log.md`, and validate the generated bundle.
 4. **Next-action planner.** Convert existing audit/gap/staleness/failure/cost
-   objects into stable JSON action rows.
+   objects into stable JSON action rows with verifier commands, loop admission
+   fields, and state-path hints.
 5. **CLI/MCP exposure.** Add CLI first, then expose a read-only MCP equivalent
    if the schema proves useful.
 6. **Docs and fixtures.** Usage examples for human operators and external loops;
-   fixture tests for both OKF and next-action JSON.
+   fixture tests for OKF, next-action JSON, and loop admission failure cases.
 
 ## Non-goals
 
@@ -166,5 +183,7 @@ Optional fields:
 - `distill audit --next-actions --json` is stable enough for an external loop to
   de-duplicate actions, run one command, and verify completion without reading
   console prose.
+- External loops can decide whether to continue, stop, or escalate by reading
+  Distill state, not by parsing a model's completion claim.
 - The native corpus layout, existing MCP read surface, and existing Obsidian
   workflow continue to work unchanged.

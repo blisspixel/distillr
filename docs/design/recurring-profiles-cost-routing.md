@@ -233,11 +233,15 @@ boundaries:
    provider, model when available, auth mode, command class, usage signal,
    elapsed time, files read, files written, output text, citations or receipts,
    and policy decisions.
-9. **Eval before recommendation.** A CLI adapter can be installed and tested
+9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
+   rejected outputs, verifier failures, elapsed time, usage, and cost per
+   accepted change. No-metered routes still lose when they produce too much
+   rejected work.
+10. **Eval before recommendation.** A CLI adapter can be installed and tested
    before it is recommended. It becomes a route only after `distill eval` shows
    that its output clears the workload bar and the no-metered ledger remains
    complete.
-10. **Judge local against quota routes.** `distill eval` should compare local
+11. **Judge local against quota routes.** `distill eval` should compare local
     model output against plan-quota CLI output for the same fixture and workload.
     A judge model evaluates faithfulness, specificity, citation use, synthesis
     quality, and actionability from receipts. Distill recommends the cheapest
@@ -266,10 +270,12 @@ boundaries:
    `distill eval` fixtures.
 8. **Cross-route eval.** Extend `distill eval` so local sunk-cost routes,
    plan-quota CLI routes, and metered API routes can be compared on the same
-   fixture with an LLM-as-judge rubric and a usage ledger row.
+   fixture with an LLM-as-judge rubric, acceptance accounting, and a usage
+   ledger row.
 9. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
-   schema so Codex, Claude Code, Grok Build, cron, or GitHub Actions can steward
-   them externally.
+   schema, including state paths, max attempts, verifier commands, and
+   acceptance metrics, so Codex, Claude Code, Grok Build, cron, or GitHub
+   Actions can steward them externally.
 
 ## Non-goals
 
@@ -286,7 +292,8 @@ boundaries:
   in no-metered-cost mode, and see exactly what was skipped because it would
   have spent money.
 - The same profile can be handed to an external loop through next-action JSON
-  without scraping console text.
+  without scraping console text, and the loop can stop from state and verifier
+  data rather than parsing a model completion claim.
 - Local and plan-quota routes are measured against frozen fixtures before they
   are trusted for profile analysis.
 - The cost ledger remains complete even when dollar cost is zero.

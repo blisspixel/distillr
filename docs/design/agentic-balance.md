@@ -55,6 +55,48 @@ A full audit of where this failure mode still lives in distill — and the stage
 
 [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) and [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) push distill to be *more* model-driven (adaptive lenses, goal-driven discovery, a self-running deep-synthesis loop). This charter is the boundary they operate within: **make the open-ended surfaces more agentic where flexibility helps, but keep the decisions Python-owned (invariant #6) and completion checked against receipts plus faithfulness verdicts (invariant #8).** A more agentic synthesis loop is welcome; a synthesis loop that decides for itself that it is finished, without a receipt check, is not.
 
+## Loop admission test
+
+A repeated agent loop earns a place in distill only when all four conditions are
+true:
+
+- **The work recurs.** A one-off job should stay a prompt, command, or operator
+  workflow. Loop setup must amortize across repeated refresh, repair, eval, or
+  stewardship runs.
+- **Verification is automated.** The stop condition must be a test, metric,
+  audit result, receipt check, faithfulness verdict, or explicit expected state.
+  A model saying "done" is never a verifier.
+- **Budget is bounded and observable.** The loop has a max run count, max wall
+  time, max spend, max tokens, or all of them, and it records cost per accepted
+  change. A cheap loop that keeps bad changes is still expensive.
+- **The agent has the tools to observe reality.** It can read the relevant state,
+  run exact commands, inspect logs or structured errors, and write only approved
+  artifacts. Without those tools, the loop is just repeated guessing.
+
+This is the practical version of "more agentic": make the repeated judgment
+surfaces model-driven, but admit the loop only when the verifier and boundary are
+strong enough to make unattended repetition safer than manual babysitting.
+
+## Minimum viable loop
+
+The smallest loop distill should support has four pieces:
+
+- **Trigger.** A schedule, profile refresh, audit finding, next-action row, or
+  explicit operator command starts the run.
+- **Reusable knowledge.** The loop reads AGENTS.md / CLAUDE.md, profile files,
+  OKF export indexes, audit reports, and previous run state instead of
+  rediscovering the task from scratch.
+- **State file.** The run persists attempts, selected route, cost, verifier
+  result, accepted artifact paths, and blocked reasons so the next run resumes
+  rather than restarts.
+- **Gate.** The run is kept only when the structural verifier and semantic
+  receipt-backed verdicts pass. Rejected attempts are logged, quarantined, or
+  discarded, never silently merged into the corpus.
+
+The headline loop metric is **cost per accepted change**, not raw number of
+attempts or tokens spent. A route graduates only when accepted changes are common
+enough, faithful enough, and cheap enough under `distill eval`.
+
 ## The direction of travel, with a gate
 
 The sources agree on the drift — "less structure, more model" as capability rises. distill is built to move that way *without rewrites*: the `distill/llm` router abstracts provider+model behind workload tags, so the rule/model ratio can shift per-workload over time. But the shift is gated, not assumed: a workload moves from rule-assisted to more model-driven (or from cloud to local) only when **`distill eval`** shows it clears the cost×quality bar on the frozen fixtures. Flexibility is added when it demonstrably improves outcomes — the source's own test — never on vibes.
