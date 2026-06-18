@@ -7,6 +7,9 @@ This document turns the recurring "track AI developer news / live agentic dev"
 workflow into a product slice, and defines the cost policy that keeps it useful
 without surprise API spend.
 
+Concrete June 2026 command flags, preflights, and adapter invocation patterns
+live in [`cli-adapter-runbook.md`](cli-adapter-runbook.md).
+
 ## Research signals
 
 - YouTube exposes channel update feeds through
