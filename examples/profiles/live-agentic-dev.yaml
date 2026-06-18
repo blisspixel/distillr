@@ -1,0 +1,35 @@
+schema_version: research-profile.v1
+name: live-agentic-dev
+topic: live-agentic-dev
+description: Follows live agentic development demos, coding-agent workflows, and loop engineering practice.
+goal_file: goals/live-agentic-dev.md
+cost_mode: no-metered
+freshness:
+  cadence: daily
+  stale_after: P2D
+sources:
+  youtube_channels:
+    - handle: "@AIEngineerWorldsFair"
+      label: AI Engineer
+    - handle: "@OpenAI"
+      label: OpenAI
+  feeds:
+    - url: https://www.latent.space/feed
+      label: Latent Space
+  domains:
+    - developers.openai.com
+    - code.claude.com
+    - docs.x.ai
+  repositories:
+    - openai/codex
+queries:
+  - live agentic dev
+  - loop engineering coding agents
+  - coding agent worktree workflow
+outputs:
+  summary: true
+  trend_notes: true
+  okf_export: false
+limits:
+  max_new_items: 20
+  max_metered_usd: 0

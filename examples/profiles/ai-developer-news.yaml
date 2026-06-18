@@ -1,0 +1,41 @@
+schema_version: research-profile.v1
+name: ai-developer-news
+topic: ai-developer-news
+description: Tracks practical AI developer news, agent tooling, release notes, and engineering posts.
+goal_file: goals/ai-developer-news.md
+cost_mode: no-metered
+freshness:
+  cadence: daily
+  stale_after: P1D
+sources:
+  youtube_channels:
+    - handle: "@OpenAI"
+      label: OpenAI
+    - handle: "@AnthropicAI"
+      label: Anthropic
+    - handle: "@GoogleDeepMind"
+      label: Google DeepMind
+  feeds:
+    - url: https://www.latent.space/feed
+      label: Latent Space
+    - url: https://openai.com/news/rss.xml
+      label: OpenAI News
+  domains:
+    - developers.openai.com
+    - docs.anthropic.com
+    - docs.x.ai
+    - ai.google.dev
+  repositories:
+    - openai/codex
+    - modelcontextprotocol/python-sdk
+queries:
+  - agentic coding loops
+  - AI developer tooling release notes
+  - local LLM developer workflow
+outputs:
+  summary: true
+  trend_notes: true
+  okf_export: false
+limits:
+  max_new_items: 25
+  max_metered_usd: 0

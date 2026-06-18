@@ -1,5 +1,18 @@
 # Example corpus
 
+`profiles/` contains recurring research profile examples for the next profile
+workflow slice. They are schema-valid, preview-first plans for common ongoing
+research jobs:
+
+- `ai-developer-news.yaml`
+- `live-agentic-dev.yaml`
+- `vendor-docs-watch.yaml`
+
+Each profile points at a goal file under `profiles/goals/` and uses
+`cost_mode: no-metered`, so future profile preview/run work has concrete public
+fixtures for feeds, YouTube channels, domains, repositories, queries, freshness,
+outputs, and limits.
+
 `library/topics/claim-verification/` is **real distill output**, unedited: the
 corpus distill built about its own next milestone (the 0.10 write-time
 claim-verification hook) on 2026-06-11, via

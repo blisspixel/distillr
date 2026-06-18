@@ -1,0 +1,37 @@
+schema_version: research-profile.v1
+name: vendor-docs-watch
+topic: vendor-docs-watch
+description: Watches official vendor docs, release notes, and repos for changes that affect agentic workflows.
+goal_file: goals/vendor-docs-watch.md
+cost_mode: no-metered
+freshness:
+  cadence: weekly
+  stale_after: P7D
+sources:
+  feeds:
+    - url: https://openai.com/news/rss.xml
+      label: OpenAI News
+  domains:
+    - developers.openai.com
+    - docs.anthropic.com
+    - code.claude.com
+    - docs.x.ai
+    - ai.google.dev
+    - learn.microsoft.com
+    - docs.ollama.com
+    - lmstudio.ai
+  repositories:
+    - openai/codex
+    - modelcontextprotocol/python-sdk
+    - ollama/ollama
+queries:
+  - agent SDK release notes
+  - coding agent CLI docs
+  - local model server API changes
+outputs:
+  summary: true
+  trend_notes: true
+  okf_export: true
+limits:
+  max_new_items: 30
+  max_metered_usd: 0

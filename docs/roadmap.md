@@ -95,8 +95,8 @@ be moved to `CHANGELOG.md` on next release).
 
 Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-cost-routing.md).
 
-- [ ] **Research profile schema.** Store recurring source plans as versioned files: topic, goal file, trusted feeds including Substack-class newsletters, YouTube channels, domains, repos, queries, freshness policy, output preferences, and cost mode.
-- [ ] **Checked-in example profiles.** Ship `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch` examples that use public sources, newsletter/feed sources such as Latent Space-class posts, and preview-only defaults.
+- [x] **Research profile schema.** Store recurring source plans as versioned files: topic, goal file, trusted feeds including Substack-class newsletters, YouTube channels, domains, repos, queries, freshness policy, output preferences, and cost mode. Shipped as the pure `distill.library.profiles` parser and validator.
+- [x] **Checked-in example profiles.** Ship `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch` examples that use public sources, newsletter/feed sources such as Latent Space-class posts, and preview-only defaults.
 - [ ] **Profile preview.** Add `distill profile preview <name>` to resolve candidate updates from feeds, YouTube channel Atom feeds, trusted domains, repos, and saved queries before analysis writes anything.
 - [ ] **Profile run.** Add `distill profile run <name>` over the existing ingest, analyze, verify, audit, and cost-ledger paths, with resume-friendly state and profile-level health.
 - [ ] **No-metered-cost mode.** Add `DISTILL_COST_MODE=auto|no-metered|paid-ok` plus `--cost-mode`. In `no-metered`, Distill refuses API-billed routes and prints the provider/workload that would have spent money.
