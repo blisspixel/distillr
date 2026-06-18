@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from pydantic import model_validator
@@ -26,6 +26,8 @@ class LLM_Response:
     input_tokens: int
     output_tokens: int
     model: str
+    provider_name: str = ""
+    provider_type: str = ""
 
 
 class LLMRouterError(Exception):
@@ -57,18 +59,7 @@ RETIRED_MODELS: dict[str, str] = {
 }
 
 WORKLOAD_TAGS: frozenset[str] = frozenset(
-    {
-        "analysis",
-        "rerank",
-        "synthesis",
-        "site",
-        "accordion",
-        "brief",
-        "report",
-        "qa",
-        "maintenance",
-        "concepts",
-    }
+    "analysis rerank synthesis site accordion brief report qa maintenance concepts".split()  # noqa: SIM905
 )
 
 
@@ -387,12 +378,15 @@ def call(  # noqa: C901 — the credit/auth fallback adds one branch; keeping it
             reasoning_effort=reasoning_effort,
         )
         try:
-            return asyncio.run(coro)
+            response = asyncio.run(coro)
         except RuntimeError as rt_err:
             if "cannot be called from a running event loop" in str(rt_err):
                 loop = asyncio.get_event_loop()
-                return loop.run_until_complete(coro)
-            raise
+                response = loop.run_until_complete(coro)
+            else:
+                raise
+        provider_type = "local" if p_name in LOCAL_PROVIDERS else "cloud"
+        return replace(response, provider_name=p_name, provider_type=provider_type)
 
     def _record(
         p_name: str,

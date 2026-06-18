@@ -124,14 +124,7 @@ def ingest_repo(
             call_type="repo_analysis",
         )
         if tracker is not None:
-            tracker.record(
-                TokenUsage(
-                    prompt_tokens=response.input_tokens,
-                    completion_tokens=response.output_tokens,
-                    model=response.model,
-                    call_type="repo_analysis",
-                )
-            )
+            tracker.record(TokenUsage.from_response(response, call_type="repo_analysis"))
 
         # Write-time verify hook: ground numeric claims against the receipt
         # *before* committing; strict mode refuses the write.

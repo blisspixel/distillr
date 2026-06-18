@@ -3,6 +3,7 @@
 import json
 
 from distill.llm.cost import deep_research_query_cost
+from distill.llm.router import LLM_Response
 from distill.pipeline.costs import (
     ACCORDION_GROK_ESTIMATE,
     CostTracker,
@@ -118,6 +119,32 @@ def test_cost_tracker_uses_model_specific_pricing():
 
     assert tracker.total_grok_cost == 8.0
     assert tracker.summary_dict()["by_model"]["grok-4.20"]["calls"] == 1
+
+
+def test_cost_tracker_treats_no_metered_provider_responses_as_zero():
+    tracker = CostTracker()
+    response = LLM_Response(
+        text="ok",
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
+        model="qwen2.5:14b",
+        provider_name="ollama",
+        provider_type="local",
+    )
+
+    tracker.record(TokenUsage.from_response(response, call_type="analysis"))
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            model="agent",
+            provider_name="agent",
+            call_type="analysis",
+        )
+    )
+
+    assert tracker.total_cost == 0.0
+    assert tracker.format_cost() == "$0.0000"
 
 
 def test_save_run_log_preview_suffixes_command(tmp_path):

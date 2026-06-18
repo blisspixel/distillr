@@ -192,14 +192,7 @@ def ingest_podcast(
             call_type="podcast_analysis",
         )
         if tracker is not None:
-            tracker.record(
-                TokenUsage(
-                    prompt_tokens=response.input_tokens,
-                    completion_tokens=response.output_tokens,
-                    model=response.model,
-                    call_type="podcast_analysis",
-                )
-            )
+            tracker.record(TokenUsage.from_response(response, call_type="podcast_analysis"))
 
         # Write-time verify hook: the receipt is the transcript + show notes.
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook

@@ -146,14 +146,7 @@ def _expanded_vocabulary_hint(
         )
         return ""
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="x_vocab_expand",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="x_vocab_expand"))
     # Collapse to one line; drop common prefixes the LLM sometimes adds
     # despite instructions.
     text = " ".join(response.text.split())
@@ -216,14 +209,7 @@ def analyze_tweet(
     )
     response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="x_tweet")
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="x_tweet",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="x_tweet"))
     body = response.text
     frontmatter = base_frontmatter(
         artifact_type="insights",

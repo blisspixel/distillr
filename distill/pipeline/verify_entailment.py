@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 """The entailment tier: prose claims and named entities, checked locally.
 
 Layers on the deterministic tier (`distill.pipeline.verify`) and never

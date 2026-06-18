@@ -58,14 +58,7 @@ def analyze_site_page(
     response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="site_page")
     result = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="site_page",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="site_page"))
 
     # JSON-encode page-derived values: a newline (or quote) in an ingested
     # page's title/metadata would otherwise break out of its line and inject
@@ -121,14 +114,7 @@ def synthesize_site(
     )
     synthesis = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="site_synthesis",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="site_synthesis"))
     site_dir = config.site_dir(topic, site_name)
 
     # Verify against the per-page insights the prompt was built from; strict
@@ -207,14 +193,7 @@ def synthesize_site_topic(
     )
     synthesis = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="site_topic_synthesis",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="site_topic_synthesis"))
 
     # Verify against the per-site syntheses; this writer shares the
     # topic_synthesis artifact identity with the video producer, so the

@@ -117,14 +117,7 @@ def summarize_query(
         call_type="find_summary",
     )
     if tracker is not None:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="find_summary",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="find_summary"))
     summary = response.text.strip()
     cited = [s for s in stems if f"[{s}]" in summary] or stems
 

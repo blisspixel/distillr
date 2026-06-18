@@ -89,14 +89,7 @@ def synthesize_channel(
         )
         synthesis = response.text
         if tracker:
-            tracker.record(
-                TokenUsage(
-                    prompt_tokens=response.input_tokens,
-                    completion_tokens=response.output_tokens,
-                    model=response.model,
-                    call_type="channel_synthesis",
-                )
-            )
+            tracker.record(TokenUsage.from_response(response, call_type="channel_synthesis"))
     except BudgetExceededError:
         # The spend cap is a hard stop, never a per-channel issue to swallow
         # (the 0.12.13 defect class: each call spends before recording).
@@ -203,14 +196,7 @@ def synthesize_topic(
         )
         synthesis = response.text
         if tracker:
-            tracker.record(
-                TokenUsage(
-                    prompt_tokens=response.input_tokens,
-                    completion_tokens=response.output_tokens,
-                    model=response.model,
-                    call_type="topic_synthesis",
-                )
-            )
+            tracker.record(TokenUsage.from_response(response, call_type="topic_synthesis"))
     except BudgetExceededError:
         # Hard stop -- swallowing it here would let a capped multi-channel
         # sweep keep spending (the 0.12.13 defect class).

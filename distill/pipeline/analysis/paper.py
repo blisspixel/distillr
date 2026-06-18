@@ -89,14 +89,7 @@ def analyze_paper(
     response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="paper")
     result = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="paper",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="paper"))
     safe_title = paper.title.replace('"', '\\"')
     source_mode = "full_pdf" if pdf_text else "abstract_only"
     insights = (
@@ -149,14 +142,7 @@ def synthesize_papers(
     # Record spend before the verify gate can refuse the write: the call
     # already happened, and a strict refusal must not leave it off-ledger.
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="paper_synthesis",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="paper_synthesis"))
 
     # Verify the synthesis against its own inputs: cross-paper synthesis is
     # the artifact most prone to attribution swaps. The receipt is the set of

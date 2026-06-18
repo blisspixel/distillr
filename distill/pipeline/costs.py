@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from distill.llm.cost import (
     DEFAULT_MODEL,
@@ -24,6 +25,7 @@ from distill.llm.cost import (
 )
 
 ACCORDION_GROK_ESTIMATE: float = 0.05
+NO_METERED_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio", "agent"})
 
 __all__ = [
     "ACCORDION_GROK_ESTIMATE",
@@ -81,6 +83,25 @@ class TokenUsage:
     completion_tokens: int = 0
     model: str = ""
     call_type: str = ""
+    provider_name: str = ""
+    provider_type: str = ""
+
+    @classmethod
+    def from_response(cls, response: Any, *, call_type: str = "") -> "TokenUsage":
+        """Build a usage row from an LLM router response."""
+        return cls(
+            prompt_tokens=response.input_tokens,
+            completion_tokens=response.output_tokens,
+            model=response.model,
+            call_type=call_type,
+            provider_name=getattr(response, "provider_name", ""),
+            provider_type=getattr(response, "provider_type", ""),
+        )
+
+    @property
+    def no_metered_cost(self) -> bool:
+        """True when the call came from a local or deferred no-metered provider."""
+        return self.provider_type == "local" or self.provider_name in NO_METERED_PROVIDERS
 
 
 @dataclass
@@ -169,6 +190,8 @@ class CostTracker:
         """Estimated xAI cost based on token usage and the actual model used."""
         total = 0.0
         for entry in self.entries:
+            if entry.no_metered_cost:
+                continue
             rates = get_pricing(entry.model)
             total += entry.prompt_tokens * rates.get("input", 0.0) / 1_000_000
             total += entry.completion_tokens * rates.get("output", 0.0) / 1_000_000

@@ -120,14 +120,7 @@ def discover_generate_queries(
         temperature=0.0,  # deterministic queries so re-previews search the same pool
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="discover_plan",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="discover_plan"))
     text = (response.text or "").strip()
     if text.startswith("```"):
         lines = text.splitlines()
@@ -272,14 +265,7 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
         temperature=0.0,  # deterministic rerank so the previewed order is reproducible
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="discover_rerank",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="discover_rerank"))
     text = (response.text or "").strip()
     if text.startswith("```"):
         lines = text.splitlines()

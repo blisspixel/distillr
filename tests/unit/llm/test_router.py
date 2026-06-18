@@ -100,6 +100,8 @@ def test_telemetry_emission_completeness(
             result = call(config, workload_tag, "test prompt")
 
         assert result.model == model
+        assert result.provider_name == "xai"
+        assert result.provider_type == "cloud"
 
         records = top_n_by_tokens(ops_dir, n=1)
         assert len(records) == 1

@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 BASELINES_DIR = Path(__file__).parent.parent.parent / "tests" / "eval" / "baselines"
 
 
+def _empty_details() -> dict[str, Any]:
+    return {}
+
+
 @dataclass
 class EvalResult:
     """Result of evaluating a model against the cloud baseline."""
@@ -26,7 +30,7 @@ class EvalResult:
     workload: str
     score: float  # 0.0 - 1.0 (fraction of cloud baseline quality)
     passed: bool  # score >= 0.80
-    details: dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=_empty_details)
 
 
 def load_baselines(baselines_dir: Path | None = None) -> dict[str, Path]:

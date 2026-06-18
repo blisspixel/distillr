@@ -130,14 +130,7 @@ def _llm_rerank(
         temperature=0.0,  # deterministic rerank so a preview and its re-run agree
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="search_rerank",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="search_rerank"))
 
     content = response.text
     parsed = _parse_rerank_response(content)
@@ -557,14 +550,7 @@ def _llm_rerank_papers(
         temperature=0.0,  # deterministic rerank so a preview and its re-run agree
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="paper_rerank",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="paper_rerank"))
 
     content = response.text
     parsed = _parse_paper_rerank_response(content or "")

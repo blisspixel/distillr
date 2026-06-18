@@ -75,14 +75,7 @@ def synthesize_corpus_from_claims(
     )
     synthesis = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="corpus_synthesis_two_pass",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="corpus_synthesis_two_pass"))
 
     # Verify against the rendered claim set -- exactly the evidence the
     # synthesis prompt embedded, so a number or assertion the model introduced
@@ -242,14 +235,7 @@ def synthesize_corpus(
     )
     synthesis = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="corpus_synthesis",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="corpus_synthesis"))
 
     # Verify against the per-source sections the prompt was built from; the
     # corpus synthesis bridges source types, so an attribution swap here is

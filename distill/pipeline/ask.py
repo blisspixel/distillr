@@ -96,14 +96,7 @@ def ask_corpus(
         call_type="ask",
     )
     if tracker is not None:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="ask",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="ask"))
     answer = response.text.strip()
     cited = [s for s in stems if f"[{s}]" in answer]
 

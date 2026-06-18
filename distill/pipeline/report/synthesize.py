@@ -111,14 +111,7 @@ def run_synthesis(
     )
     result = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="synthesis",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="synthesis"))
 
     if not result:
         console.print("[red]No output received from LLM[/red]")

@@ -11,6 +11,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from distill.doctor.hardware import HardwareProfile
 
@@ -82,7 +83,7 @@ def _load_recommendation_table(
         try:
             data = json.loads(config_path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
-                return data
+                return cast(dict[str, list[dict[str, str | int]]], data)
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to load recommendation config: %s", exc)
     return _DEFAULT_RECOMMENDATIONS

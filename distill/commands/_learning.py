@@ -109,14 +109,7 @@ def _llm_expand_learning_queries(
         rc, workload_tag="rerank", prompt=prompt, max_tokens=512, call_type="search_expand"
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="search_expand",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="search_expand"))
     content = response.text
     if not content:
         return []
@@ -178,14 +171,7 @@ def _llm_expand_paper_queries(
         rc, workload_tag="rerank", prompt=prompt, max_tokens=512, call_type="paper_expand"
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="paper_expand",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="paper_expand"))
     content = response.text
     if not content:
         return []

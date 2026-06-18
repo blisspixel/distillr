@@ -191,14 +191,7 @@ def _one_comparison(
         temperature=0.0,
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="eval_judge_pairwise",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="eval_judge_pairwise"))
     return _winner(response.text), _rationale(response.text)
 
 
@@ -351,12 +344,5 @@ def judge_faithfulness(
         temperature=0.0,
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="eval_judge_faithfulness",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="eval_judge_faithfulness"))
     return _parse_faithfulness(response.text)

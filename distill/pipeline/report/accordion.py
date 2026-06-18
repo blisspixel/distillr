@@ -337,12 +337,7 @@ def _write_sections(  # noqa: C901 — retry integration adds necessary branchin
             )
             if tracker:
                 tracker.record(
-                    TokenUsage(
-                        prompt_tokens=response.input_tokens,
-                        completion_tokens=response.output_tokens,
-                        model=response.model,
-                        call_type=f"section:{_section_title[:30]}",
-                    )
+                    TokenUsage.from_response(response, call_type=f"section:{_section_title[:30]}")
                 )
             return response.text
 
@@ -490,14 +485,7 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
         )
         qa_result = qa_response.text
         if tracker:
-            tracker.record(
-                TokenUsage(
-                    prompt_tokens=qa_response.input_tokens,
-                    completion_tokens=qa_response.output_tokens,
-                    model=qa_response.model,
-                    call_type="qa_review",
-                )
-            )
+            tracker.record(TokenUsage.from_response(qa_response, call_type="qa_review"))
     except Exception:
         qa_result = ""
 
@@ -563,12 +551,7 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
             rewrite = fix_response.text
             if tracker:
                 tracker.record(
-                    TokenUsage(
-                        prompt_tokens=fix_response.input_tokens,
-                        completion_tokens=fix_response.output_tokens,
-                        model=fix_response.model,
-                        call_type=f"fix:{title[:25]}",
-                    )
+                    TokenUsage.from_response(fix_response, call_type=f"fix:{title[:25]}")
                 )
         except Exception:
             rewrite = ""

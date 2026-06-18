@@ -148,14 +148,7 @@ def ingest_newsletter(
             call_type="newsletter_analysis",
         )
         if tracker is not None:
-            tracker.record(
-                TokenUsage(
-                    prompt_tokens=response.input_tokens,
-                    completion_tokens=response.output_tokens,
-                    model=response.model,
-                    call_type="newsletter_analysis",
-                )
-            )
+            tracker.record(TokenUsage.from_response(response, call_type="newsletter_analysis"))
 
         # Write-time verify hook: the receipt is the captured post body.
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook

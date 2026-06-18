@@ -58,27 +58,13 @@ def analyze_video(
     response1 = llm_call(rc, workload_tag="analysis", prompt=prompt1, call_type="pass1")
     pass1 = response1.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response1.input_tokens,
-                completion_tokens=response1.output_tokens,
-                model=response1.model,
-                call_type="pass1",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response1, call_type="pass1"))
 
     prompt2 = pass2_synthesis_prompt(title, upload_date, channel_name, pass1, goal=goal, lens=lens)
     response2 = llm_call(rc, workload_tag="analysis", prompt=prompt2, call_type="pass2")
     pass2 = response2.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response2.input_tokens,
-                completion_tokens=response2.output_tokens,
-                model=response2.model,
-                call_type="pass2",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response2, call_type="pass2"))
 
     model = response2.model
     safe_title = title.replace('"', '\\"')
@@ -118,14 +104,7 @@ def analyze_short(
     )
     result = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="short",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="short"))
 
     safe_title = title.replace('"', '\\"')
     return f"""---
@@ -167,14 +146,7 @@ def analyze_scan(
     )
     result = response.text
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="scan",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="scan"))
 
     safe_title = title.replace('"', '\\"')
     return f"""---
@@ -204,14 +176,7 @@ def generate_channel_context(
     prompt = channel_context_prompt(channel_name, video_titles)
     response = llm_call(rc, workload_tag="analysis", prompt=prompt, call_type="channel_context")
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="channel_context",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="channel_context"))
     return response.text
 
 
@@ -228,12 +193,5 @@ def generate_watch_instructions(
         rc, workload_tag="analysis", prompt=prompt, max_tokens=256, call_type="watch_instructions"
     )
     if tracker:
-        tracker.record(
-            TokenUsage(
-                prompt_tokens=response.input_tokens,
-                completion_tokens=response.output_tokens,
-                model=response.model,
-                call_type="watch_instructions",
-            )
-        )
+        tracker.record(TokenUsage.from_response(response, call_type="watch_instructions"))
     return response.text
