@@ -1,0 +1,39 @@
+{
+  "actions": [
+    {
+      "approval": "none",
+      "command": [
+        "distill",
+        "claude-md",
+        "t"
+      ],
+      "estimated_cost_usd": 0.0,
+      "id": "t.regenerate.orientation",
+      "kind": "regenerate_orientation",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 1,
+        "state_path": ".distill/loops/t.regenerate.orientation.json"
+      },
+      "rationale": "Topic orientation files are missing or incomplete.",
+      "severity": "warning",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "no action with id 't.regenerate.orientation'"
+      },
+      "writes": [
+        "topics/t/CLAUDE.md",
+        "topics/t/AGENTS.md"
+      ]
+    }
+  ],
+  "generated_at": "2026-06-11T20:00:00Z",
+  "schema_version": "next-actions.v1",
+  "topic": "t"
+}

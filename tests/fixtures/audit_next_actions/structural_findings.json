@@ -1,0 +1,229 @@
+{
+  "actions": [
+    {
+      "approval": "spend",
+      "command": [
+        "distill",
+        "corpus",
+        "t"
+      ],
+      "estimated_cost_usd": null,
+      "id": "t.build.corpus.synthesis",
+      "kind": "build_corpus_synthesis",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 3,
+        "state_path": ".distill/loops/t.build.corpus.synthesis.json"
+      },
+      "rationale": "A multi-source topic is missing its mixed-source corpus synthesis.",
+      "severity": "warning",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "no action with id 't.build.corpus.synthesis'"
+      },
+      "writes": [
+        "topics/t/*_Corpus_Synthesis.md"
+      ]
+    },
+    {
+      "approval": "operator",
+      "command": [
+        "distill",
+        "doctor",
+        "--links",
+        "--fix"
+      ],
+      "estimated_cost_usd": 0.0,
+      "id": "t.fix.links",
+      "kind": "fix_links",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 1,
+        "state_path": ".distill/loops/t.fix.links.json"
+      },
+      "rationale": "1 wiki-link(s) are unresolved.",
+      "severity": "warning",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "no action with id 't.fix.links'"
+      },
+      "writes": [
+        "topics/t/**/*.md"
+      ]
+    },
+    {
+      "approval": "spend",
+      "command": [
+        "distill",
+        "corpus",
+        "t"
+      ],
+      "estimated_cost_usd": null,
+      "id": "t.refresh.synthesis",
+      "kind": "refresh_synthesis",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 3,
+        "state_path": ".distill/loops/t.refresh.synthesis.json"
+      },
+      "rationale": "1 synthesis artifact(s) predate sources.",
+      "severity": "warning",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "freshness.stale == 0"
+      },
+      "writes": [
+        "topics/t/*_Corpus_Synthesis.md"
+      ]
+    },
+    {
+      "approval": "none",
+      "command": [
+        "distill",
+        "claude-md",
+        "t"
+      ],
+      "estimated_cost_usd": 0.0,
+      "id": "t.regenerate.orientation",
+      "kind": "regenerate_orientation",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 1,
+        "state_path": ".distill/loops/t.regenerate.orientation.json"
+      },
+      "rationale": "Topic orientation files are missing or incomplete.",
+      "severity": "warning",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "no action with id 't.regenerate.orientation'"
+      },
+      "writes": [
+        "topics/t/CLAUDE.md",
+        "topics/t/AGENTS.md"
+      ]
+    },
+    {
+      "approval": "spend",
+      "command": [
+        "distill",
+        "discover",
+        "--from-gaps",
+        "--topic",
+        "t",
+        "--preview"
+      ],
+      "estimated_cost_usd": null,
+      "id": "t.gap.discovery.preview",
+      "kind": "gap_discovery_preview",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 1,
+        "state_path": ".distill/loops/t.gap.discovery.preview.json"
+      },
+      "rationale": "Coverage gaps exist; preview candidate sources before ingest.",
+      "severity": "info",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "preview exits 0 and records a preview id"
+      },
+      "writes": [
+        ".distill/previews/*.json"
+      ]
+    },
+    {
+      "approval": "none",
+      "command": [
+        "distill",
+        "diff",
+        "t"
+      ],
+      "estimated_cost_usd": 0.0,
+      "id": "t.write.diff",
+      "kind": "write_diff",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 1,
+        "state_path": ".distill/loops/t.write.diff.json"
+      },
+      "rationale": "No topic diff baseline exists yet.",
+      "severity": "info",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "no action with id 't.write.diff'"
+      },
+      "writes": [
+        "topics/t/*_Topic_Diff.md"
+      ]
+    },
+    {
+      "approval": "none",
+      "command": [
+        "distill",
+        "trends",
+        "t"
+      ],
+      "estimated_cost_usd": 0.0,
+      "id": "t.write.trends",
+      "kind": "write_trends",
+      "loop": {
+        "acceptance_metric": "verifier_passed",
+        "max_attempts": 1,
+        "state_path": ".distill/loops/t.write.trends.json"
+      },
+      "rationale": "No topic trend summary exists yet.",
+      "severity": "info",
+      "verifier": {
+        "command": [
+          "distill",
+          "audit",
+          "t",
+          "--next-actions",
+          "--json"
+        ],
+        "expect": "no action with id 't.write.trends'"
+      },
+      "writes": [
+        "topics/t/*_Topic_Trends.md"
+      ]
+    }
+  ],
+  "generated_at": "2026-06-11T20:00:00Z",
+  "schema_version": "next-actions.v1",
+  "topic": "t"
+}

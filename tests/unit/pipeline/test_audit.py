@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from distill.library.links import BrokenLink
 from distill.pipeline.audit import (
     AuditReport,
     SynthesisFreshness,
@@ -16,6 +17,11 @@ from distill.pipeline.audit import (
 )
 
 NOW = "2026-06-11T20:00:00Z"
+FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "audit_next_actions"
+
+
+def _load_fixture(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def _seed_insight(topic_dir: Path, rel: str, *, sidecar: dict | None = None) -> None:
@@ -148,6 +154,69 @@ class TestRenderAndWrite:
 
 
 class TestNextActionPlan:
+    def test_empty_plan_matches_fixture(self, tmp_path: Path):
+        library = tmp_path / "library"
+        report = _report(
+            topic="empty",
+            health_warnings=[],
+            contested=[],
+            gaps=["No major research gaps detected from the local corpus heuristics."],
+            next_actions=[],
+            verify=VerifyRollup(insights_total=0, checked=0, clean=0),
+        )
+
+        data = build_next_action_plan(library, [report], topic="all", generated_at=NOW).to_dict()
+
+        assert data == _load_fixture("empty_plan.json")
+
+    def test_orientation_only_plan_matches_fixture(self, tmp_path: Path):
+        library = tmp_path / "library"
+        topic_dir = library / "topics" / "t"
+        topic_dir.mkdir(parents=True)
+        report = _report(
+            health_warnings=[],
+            contested=[],
+            gaps=["No major research gaps detected from the local corpus heuristics."],
+            next_actions=[],
+            verify=VerifyRollup(insights_total=0, checked=0, clean=0),
+        )
+
+        data = build_next_action_plan(library, [report], topic="t", generated_at=NOW).to_dict()
+
+        assert data == _load_fixture("orientation_only.json")
+
+    def test_structural_findings_plan_matches_fixture(self, tmp_path: Path):
+        library = tmp_path / "library"
+        topic_dir = library / "topics" / "t"
+        topic_dir.mkdir(parents=True)
+        report = _report(
+            health_warnings=[],
+            contested=[],
+            broken_links=[
+                BrokenLink(
+                    source_file=topic_dir / "notes.md",
+                    line_number=3,
+                    link_text="[[missing]]",
+                    target_slug="missing",
+                )
+            ],
+            gaps=[
+                "Mixed-source corpus synthesis is missing for a multi-source topic.",
+                "No topic diff is available yet.",
+                "No topic trend summary is available yet.",
+            ],
+            next_actions=[],
+            verify=VerifyRollup(insights_total=0, checked=0, clean=0),
+            freshness=SynthesisFreshness(
+                checked=1,
+                stale=[{"synthesis": "t_Corpus_Synthesis.md", "behind": 1, "gap_days": 2}],
+            ),
+        )
+
+        data = build_next_action_plan(library, [report], topic="t", generated_at=NOW).to_dict()
+
+        assert data == _load_fixture("structural_findings.json")
+
     def test_builds_bounded_actions_from_structural_findings(self, tmp_path: Path):
         library = tmp_path / "library"
         topic_dir = library / "topics" / "t"

@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Added `distill audit <topic|all> --next-actions --json`, a loop-readable action plan over deterministic audit findings with action ids, exact commands, approval class, write scope, loop metadata, and verifier stop conditions.
+- Added fixture-backed tests for the audit next-action JSON contract, covering empty, orientation-only, and structural-finding action plans.
 
 ### Changed
 
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
+- Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
 
 ## 0.16.3 - 2026-06-17
 

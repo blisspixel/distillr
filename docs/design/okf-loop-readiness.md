@@ -22,8 +22,12 @@ engineering wave, and what it should explicitly leave alone.
 - The current coding-agent CLI wave makes external loop runners realistic:
   Codex CLI, Claude Code, Grok Build, cron, and GitHub Actions can all run
   bounded commands if Distill emits exact argv arrays, approval classes, and
-  verifiers. This doc covers the loop contract; the recurring-profile and
-  no-metered-cost routing details live in
+  verifiers. Sources: [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive),
+  [Claude Code programmatic usage](https://code.claude.com/docs/en/headless),
+  [Grok Build overview](https://docs.x.ai/build/overview), and
+  [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+  This doc covers the loop contract; the recurring-profile and no-metered-cost
+  routing details live in
   [`recurring-profiles-cost-routing.md`](recurring-profiles-cost-routing.md).
 - The current loop-engineering discussion in coding-agent communities maps onto
   primitives Distill already has: durable filesystem state, audit reports,
@@ -65,6 +69,54 @@ The two useful additions are:
   may validate structure and aggregate model verdicts, but it must not decide
   whether a source is good, faithful, or substantively complete by keyword or
   length proxy.
+
+## External runner contract
+
+The shipped loop handoff is a contract boundary, not a scheduler. Distill owns
+the state it can prove from the corpus and emits the next safe unit of work. An
+external runner owns timing, policy, tool choice, and whether an action should
+run at all.
+
+Distill is responsible for:
+
+- Emitting one parseable `next-actions.v1` JSON object.
+- Keeping action ids deterministic so runners can de-duplicate across attempts.
+- Returning exact argv arrays rather than shell strings.
+- Classifying approval as `none`, `operator`, or `spend`.
+- Estimating cost as `0.0` only for routes known to avoid metered API spend, or
+  `null` when the route is unknown or model-dependent.
+- Naming expected write scopes as library-relative paths or glob-like summaries.
+- Providing a verifier command and expectation that define the stop condition.
+- Suggesting a small loop state path and max-attempt count for external logs.
+
+The external runner is responsible for:
+
+- Choosing the trigger: manual run, cron, Task Scheduler, GitHub Actions,
+  Codex, Claude Code, Grok Build, or another harness.
+- Reading `schema_version` and refusing unknown schemas unless the runner has an
+  explicit compatibility shim.
+- Applying user policy: approval gates, no-metered-cost mode, provider routing,
+  spend caps, wall-clock limits, and branch or worktree isolation.
+- Executing `command` as an argv array without shell interpolation.
+- Recording attempt state, selected route, stdout/stderr or structured events,
+  verifier results, accepted artifact paths, cost or quota usage, and blocked
+  reasons at the suggested `loop.state_path` or a runner-owned equivalent.
+- Running the verifier after each attempt and accepting work only when the
+  expectation is satisfied.
+- Escalating instead of retrying when max attempts, spend, permissions, missing
+  credentials, or ambiguous cost policy blocks the action.
+
+Current runner surfaces make this contract practical without Distill embedding a
+runner. Codex supports `codex exec` for scripts and CI with explicit sandbox and
+approval settings plus JSONL output. Claude Code supports `claude -p` for
+non-interactive runs, `--bare` for controlled scripts, tool allowlists, and
+structured output. Grok Build supports headless `grok -p` usage for scripts and
+automations. GitHub Actions and cron can provide the recurring trigger, with the
+same rule: they run Distill commands and verifiers, they do not ask Distill to
+be the scheduler.
+
+Adapter guidance for those runners belongs in examples and profile docs. The
+core contract should stay tool-neutral: JSON in, argv out, verifier decides.
 
 ## OKF mapping
 

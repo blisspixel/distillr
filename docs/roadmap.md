@@ -88,8 +88,8 @@ be moved to `CHANGELOG.md` on next release).
 - [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.1 bundle with generated `index.md`, `log.md`, `type` frontmatter, standard Markdown links, citations, and provenance-preserving references back to receipts and verify sidecars. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
 - [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, structurally valid reserved files, and link warnings. Follow OKF's permissive consumer posture: broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
 - [x] **Loop-readable next-action plans.** `distill audit <topic|all> --next-actions --json` emits bounded actions with ids, exact commands, approval class, write scope, loop metadata, and verifier/stop condition. The first shipped surface covers broken links, missing orientation, prompt staleness with routable sources, synthesis freshness, coverage gaps, missing corpus synthesis, diffs, and trends. This is rule-owned structure over existing findings, not a semantic priority scorer.
-- [ ] **No scheduler inside Distill.** Document the contract for Codex, Claude Code, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run.
-- [ ] **Loop transcript fixtures.** Add a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.
+- [x] **No scheduler inside Distill.** Documented the contract for Codex, Claude Code, Grok Build, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run, where to run it, how to gate spend, and when to stop.
+- [x] **Loop contract fixtures.** Added a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.
 
 ### 0.19 Recurring research profiles and no-metered-cost routing
 
