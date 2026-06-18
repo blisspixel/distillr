@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "yt-dlp>=2025.1.0",
+    "yt-dlp>=2026.6.9",
     "openai>=1.0.0",
     "google-genai>=1.50.0",
     "typer>=0.9.0",
@@ -43,7 +43,7 @@ dependencies = [
     "jinja2>=3.1.0",
     "markdown>=3.5.0",
     "nh3>=0.2.0",
-    "pypdf>=4.0.0",
+    "pypdf>=6.13.3",
     "requests>=2.32.0",
     "httpx>=0.28.0",
     "defusedxml>=0.7.1",
@@ -111,26 +111,26 @@ target-version = "py312"
 
 [tool.ruff.lint]
 # Selected rule categories:
-#   E, W, F  — pycodestyle + pyflakes (style + unused / undefined)
-#   I        — import sorting
-#   UP       — pyupgrade (modern Python syntax)
-#   B        — flake8-bugbear (common bugs)
-#   SIM      — flake8-simplify (refactoring)
-#   RUF      — ruff-specific rules
-#   C4       — flake8-comprehensions (cleaner comprehensions)
-#   PTH      — flake8-use-pathlib (prefer pathlib over os.path)
-#   RET      — flake8-return (cleaner returns)
-#   T20      — flake8-print (no bare print — use rich.console.print)
-#   A        — flake8-builtins (avoid shadowing)
+#   E, W, F  - pycodestyle + pyflakes (style + unused / undefined)
+#   I        - import sorting
+#   UP       - pyupgrade (modern Python syntax)
+#   B        - flake8-bugbear (common bugs)
+#   SIM      - flake8-simplify (refactoring)
+#   RUF      - ruff-specific rules
+#   C4       - flake8-comprehensions (cleaner comprehensions)
+#   PTH      - flake8-use-pathlib (prefer pathlib over os.path)
+#   RET      - flake8-return (cleaner returns)
+#   T20      - flake8-print (no bare print - use rich.console.print)
+#   A        - flake8-builtins (avoid shadowing)
 select = [
     "E", "W", "F", "I", "UP", "B", "SIM", "RUF",
     "C4", "PTH", "RET", "T20", "A", "C901",
 ]
 ignore = [
     "E501",    # Line length handled by ruff format
-    "RET504",  # Unnecessary assignment before return — subjective readability preference
-    "RET505",  # Unnecessary else after return — subjective readability preference
-    "SIM108",  # Use ternary — often hurts readability
+    "RET504",  # Unnecessary assignment before return - subjective readability preference
+    "RET505",  # Unnecessary else after return - subjective readability preference
+    "SIM108",  # Use ternary - often hurts readability
 ]
 
 [tool.ruff.lint.mccabe]
@@ -139,11 +139,11 @@ max-complexity = 10
 [tool.ruff.lint.per-file-ignores]
 # Tests often shadow builtins and print debug output; that's fine.
 "tests/**/*.py" = ["A001", "A002", "T201"]
-# scripts/setup.py is an interactive installer — print is intentional.
+# scripts/setup.py is an interactive installer - print is intentional.
 "scripts/setup.py" = ["T201"]
 
 [tool.ruff.lint.flake8-bugbear]
-# Typer uses Option/Argument factories in default args by design — that's how
+# Typer uses Option/Argument factories in default args by design - that's how
 # it identifies CLI parameters. Whitelist them from B008 globally.
 extend-immutable-calls = [
     "typer.Argument",
@@ -163,7 +163,7 @@ Issues = "https://github.com/blisspixel/distillr/issues"
 exclude_dirs = ["tests", "archive", "library", "output", "tmp", ".venv", "venv"]
 
 [tool.pyright]
-# Pyright runs in "basic" mode for now — lenient enough to catch real bugs
+# Pyright runs in "basic" mode for now - lenient enough to catch real bugs
 # without blocking on pre-existing typing gaps across the large CLI module.
 # Tighten to "standard" or "strict" on individual modules via pyright: strict
 # comments as the codebase is incrementally typed.

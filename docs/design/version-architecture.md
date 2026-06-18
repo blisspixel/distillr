@@ -16,43 +16,41 @@ ships when its promise is true and tested, and not before.
 ### 0.x (now) -- "The loop works"
 
 The promise being built: one tool takes a research goal to a verified,
-agent-legible, self-auditing local corpus. As of 2026-06-12 it is
-substantially true -- **0.11's and 0.12's named scope both shipped**:
-goal-aware convergent discovery, lens-aware analysis, write-time claim
-grounding on every emit path, eight source types, the full audit trust
-surface (verification coverage, prompt staleness, synthesis freshness,
-near-duplicates, contested concepts, links, gaps, with re-analysis
-commands), the
-`ask`/`--save` compounding loop, read-only MCP with sub-agent summary
-tools, estimator accountability, and the CLAUDE.md/AGENTS.md/SKILL.md
-agent surfaces. Remaining before the 1.0 gate opens, in dependency order:
+agent-legible, self-auditing local corpus. As of 0.16.1, the main loop is
+substantially true: goal-aware convergent discovery, lens-aware analysis,
+write-time claim grounding on every emit path, eight source types, the full
+audit trust surface, `ask`/`--save`, read-only MCP, sub-agent summaries,
+estimator accountability, the local entailment tier, verify-on-synthesis,
+agent-grade `--json`, `distill update`, and the blocking golden-corpus eval
+gate have all shipped.
 
-1. **0.12 margins -- all closed as of 0.12.12** (goal-file refresh hook
-   0.12.7, synthesis stale-flag 0.12.8, MCP spend caps + ingest allowlist
-   0.12.9, per-item failure isolation + resume hint 0.12.10, YouTube
-   resilience 0.12.11, library-level hygiene rollup 0.12.12).
-   Orientation-emission completeness lives on as an adapter-contract
-   review question, not a build item.
-2. **The entailment tier -- shipped 0.13.0** ([`entailment-tier.md`](entailment-tier.md)):
-   HHEM-2.1-Open behind the `distillr[entailment]` extra, prose claims
-   scored against receipts, sidecar schema v2, strict refuses on prose
-   flags, verify on the paper-synthesis emit. Remaining 0.13.x: corpus/
-   topic synthesis receipts (0.13.1), live HHEM calibration on the dev
-   box, Auto-GDA adaptation as a later upgrade path.
-3. **Harden passes interleaved** per the established rhythm, plus the
-   `_logic.py` decomposition ratchet (one command group per pass, removal
-   criteria already defined).
+Remaining before the 1.0 gate opens, in dependency order:
+
+1. **0.17 OKF interop + loop-ready stewardship.** Export and validate native
+   corpora as OKF v0.1 bundles, and emit audit-derived next-action plans that
+   external loops can run and verify.
+2. **0.18 decomposition finish + batch-run visibility.** Delete the remaining
+   `_logic.py` monolith, then add live progress, running cost, verbosity, and
+   consistent help examples for the batch commands.
+3. **0.19 recurring research profiles + no-metered-cost routing.** Make
+   ongoing topics like AI developer news and live agentic dev first-class
+   profiles, then add a fail-closed cost policy for local inference and
+   explicitly configured plan-quota CLI routes.
+4. **Harden passes interleaved.** Keep the established rhythm for security,
+   robustness, dependency, and parse-don't-crash sweeps.
 
 ### 1.0 -- "You can build on it"
 
 The promise: **stability and a defended quality bar.** Contracts (CLI flags,
-MCP schemas, library layout, frontmatter) are versioned and frozen; prompts
-stay versioned-but-revisable on a documented cadence; branch coverage >=95%;
-Pyright-strict; parse-don't-validate boundaries; the structural golden-corpus
-eval gate plus model-judged live `distill eval`; verification depth on the deterministic core;
-the presentation pass (screenshots/recordings land here, by deliberate
-deferral). An external system -- Deepr, a stranger's agent stack, a lab's
-cron job -- can depend on distill without expecting churn.
+MCP schemas, library layout, frontmatter, OKF export schema, next-action JSON
+schema, profile config schema, and cost-mode semantics) are versioned and
+frozen; prompts stay versioned-but-revisable when evals or model changes
+justify it; branch coverage >=95%; Pyright-strict; parse-don't-validate
+boundaries; the structural golden-corpus eval gate plus model-judged live
+`distill eval`; verification depth on the deterministic core; the presentation
+pass (screenshots/recordings land here, by deliberate deferral). An external
+system -- Deepr, a stranger's agent stack, a lab's cron job -- can depend on
+distill without expecting churn.
 
 Full spec: [`../../ROADMAP.md`](../../ROADMAP.md), "1.0.0 -- Stability
 commitment + quality bar". Decision due before the freeze: the project name
@@ -60,24 +58,24 @@ commitment + quality bar". Decision due before the freeze: the project name
 
 ### 2.0 -- "Runs on whatever you have, unattended, and compounds"
 
-The promise: **provider-plural, loop-native, and entailment-verified.**
+The promise: **provider-plural, loop-native, and self-improving under audit.**
 Everything here exists in committed-direction form already; 2.0 is where the
-promises graduate from opt-in to defaults:
+promises graduate from additive surfaces to default posture:
 
 - **Provider breadth + plan-quota compute** (the committed post-1.0
-  milestone): cloud adapters complete (xAI, Google, Anthropic, OpenAI,
-  Bedrock, Foundry) and the plan-quota class (agent CLIs your subscriptions
-  already license) -- every backend graduating only through `distill eval`.
-  The 2.0-level promise: *the default route is whatever clears the quality
-  bar cheapest on your hardware and plans*, re-evaluated by the eval harness,
-  not by vibes.
+  milestone): 0.19 establishes no-metered-cost policy and the first adapter
+  contract; 2.0 broadens it across cloud adapters (xAI, Google, Anthropic,
+  OpenAI, Bedrock, Foundry) and plan-quota CLIs your subscriptions already
+  license. Every backend graduates only through `distill eval`. The 2.0-level
+  promise: *the default route is whatever clears the quality bar cheapest on
+  your hardware and plans*, re-evaluated by the eval harness, not by vibes.
 - **Stewardship loops mature**: goal-file watch refresh, scheduled audit, and
-  the reconcile behavior (assess -> plan -> act -> converge) folded into
-  `discover`/`synthesize`/`audit` per the master plan -- distill remains the
-  loopable primitive; the loop runner stays external.
-- **The trust ceiling rises**: entailment-tier verification everywhere,
-  including synthesis and `ask --save`; the audit gains trend lines
-  (verification coverage over time).
+  reconcile behavior (assess -> plan -> act -> verify) folded into the core
+  workflows. Distill remains the loopable primitive; the loop runner stays
+  external.
+- **The trust ceiling rises**: audit gains trend lines, evaluator calibration
+  improves, and external loop transcripts become fixtures for improving tool
+  descriptions and next-action schemas.
 - **The semantic layer**: alias resolution over `mentions.jsonl` (the staged
   symbolic+semantic pipeline already specced), Tier-2 concept/entity playbooks
   maintained at scale, shared LLM-intermediate caching as the load-bearing
@@ -92,8 +90,9 @@ This era is sketched, not committed -- it gets real design docs only after
 - **Shareable recipes**: a goal-file + seeds + intent as a published artifact
   anyone can reproduce or refresh a corpus from (research *intent* as the
   unit of sharing, not just outputs).
-- **Corpus interop**: merging and diffing corpora git-natively across people
-  and machines; provenance survives the merge.
+- **Corpus interop**: OKF bundles, native Distill corpora, and recipe artifacts
+  can be compared and merged git-natively across people and machines;
+  provenance survives the merge.
 - **The plugin boundary realized**: community source adapters on the
   documented contract, gated by the golden-corpus eval -- the cap on built-in
   adapters stays, the ecosystem grows around it.
@@ -130,18 +129,21 @@ speculatively. Current state:
 | Whole-pipeline agentic plan (P1-P8) | [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) | Live; P1-P3/P6/P7 shipped, P4/P5 partial (deterministic verify shipped) |
 | Synthesis depth / thesis loop | [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) | Live; thesis rung shipped, loop pending |
 | Version horizon (this doc) | `version-architecture.md` | Live |
-| Entailment verification tier | [`entailment-tier.md`](entailment-tier.md) | **Design accepted 2026-06-12**; implementation targets 0.13.0 (HHEM-2.1-Open default behind a `distillr[entailment]` extra, sidecar schema v2 additive, verify-on-synthesis rides along) |
+| Entailment verification tier | [`entailment-tier.md`](entailment-tier.md) | Shipped 0.13.0 and 0.13.1 |
 | `distill ask` + re-ingest gating | [`ask-loop.md`](ask-loop.md) | Live; shipped 0.12.0 |
-| Provider-adapter + plan-quota contract | -- | To write at the post-1.0 milestone start (commitments + caveats in ROADMAP) |
-| Recipe format / corpus interop | -- | 3.0-era; do not write yet |
+| OKF interop + loop-readable stewardship | [`okf-loop-readiness.md`](okf-loop-readiness.md) | Next build slice |
+| Recurring profiles + no-metered-cost routing | [`recurring-profiles-cost-routing.md`](recurring-profiles-cost-routing.md) | 0.19 slice |
+| Provider-adapter breadth | -- | 2.0-era expansion after the 0.19 contract proves out |
+| Recipe format / corpus merge | -- | 3.0-era; do not write yet |
 
 ## The order of operations, in one list
 
-Dependency-ordered, no calendar: finish 0.11 (media, Substack) -> 0.12
-compounding corpus -> entailment tier whenever it fits alongside ->
-harden passes + `_logic.py` ratchet throughout -> 1.0 freeze (name decision,
-eval gate, presentation) -> provider breadth + plan-quota (2.0 spine) ->
-stewardship loops + semantic layer (2.0 completion) -> recipes/interop/plugins
-(3.0). Every step ships behind the same CI gate, starts with its dogfood
-corpus and design doc, and respects the invariants -- that is what "built out
-exceptionally well" means operationally.
+Dependency-ordered, no calendar: OKF export/validation + loop-readable
+next-actions -> finish `_logic.py` decomposition -> batch progress/cost UX ->
+recurring profiles + no-metered-cost routing -> 1.0 freeze (name decision,
+contract/version policy, quality gate, presentation) -> provider breadth
+(2.0 spine) -> stewardship loops + semantic layer (2.0 completion) ->
+recipes/merge/plugins (3.0). Every step ships behind the same CI gate, starts
+with its dogfood corpus and design doc where the work is architectural, and
+respects the invariants. That is what "built out exceptionally well" means
+operationally.
