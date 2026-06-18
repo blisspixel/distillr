@@ -25,15 +25,36 @@ without surprise API spend.
   plans with plan-specific limits. Sources:
   [Codex CLI docs](https://developers.openai.com/codex/cli) and
   [Codex plan docs](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan).
+- Codex CLI has an explicit non-interactive mode for automation. The safe
+  automation defaults are `codex exec --json --sandbox read-only` for planning
+  and inspection, then `--sandbox workspace-write` only when an adapter is
+  approved to write to its scratch area. Sources:
+  [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive),
+  [Codex sandboxing](https://developers.openai.com/codex/concepts/sandboxing),
+  and [Codex approvals](https://developers.openai.com/codex/agent-approvals-security).
 - Claude Code can use Pro/Max subscription usage, but an `ANTHROPIC_API_KEY`
   environment variable makes it use API billing instead. Subscription limits
   are shared with Claude usage. Source:
   [Claude Code plan support](https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan).
+- Claude Code supports non-interactive print mode, isolated worktrees, settings
+  permissions, and the Agent SDK. Distill should use print mode only for early
+  adapter experiments and prefer the SDK when it needs structured events or
+  durable production behavior. Sources:
+  [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference),
+  [Claude Code settings](https://code.claude.com/docs/en/settings), and
+  [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview).
 - Grok Build is available to SuperGrok and X Premium Plus subscribers, supports
   plan mode, and xAI release notes describe headless scripting and orchestrator
   usage. Sources: [Grok Build launch](https://x.ai/news/grok-build-cli),
   [Grok modes](https://docs.x.ai/build/modes-and-commands), and
   [xAI release notes](https://docs.x.ai/developers/release-notes).
+- Grok Build has first-class headless scripting and Agent Client Protocol
+  support. Distill should prefer `grok -p ... --output-format json` or
+  `--output-format streaming-json` for one-shot tasks, and ACP when it needs a
+  long-lived app integration. Sources:
+  [Grok Build overview](https://docs.x.ai/build/overview),
+  [Grok headless scripting](https://docs.x.ai/build/cli/headless-scripting),
+  and [Grok enterprise auth](https://docs.x.ai/build/enterprise).
 - Agent eval guidance is clear on the operating model: define success criteria,
   evaluate the produced outcome, and track cost, token use, latency, and errors.
   Sources:
@@ -140,6 +161,52 @@ Claude Code gets an extra preflight: if `ANTHROPIC_API_KEY` is present and the
 chosen route claims subscription usage, Distill must block and explain that the
 CLI would use API billing.
 
+## CLI adapter contract
+
+Codex CLI, Claude Code, Grok Build, and similar tools are not normal model
+providers inside Distill. Treat them as external workers with stronger
+boundaries:
+
+1. **No direct corpus mutation.** Adapters may read the source package and write
+   a result manifest to a scratch directory. Distill parses the manifest,
+   verifies it, records cost or usage, and performs the final corpus write
+   itself.
+2. **Machine-readable output required.** Codex starts with JSONL from
+   `codex exec --json`. Grok starts with `--output-format json` or
+   `--output-format streaming-json`, then ACP when a durable app bridge is
+   needed. Claude starts with print mode for narrow experiments and graduates
+   to the Agent SDK for structured streams.
+3. **Read-only before write.** First workloads are corpus Q&A, classification,
+   synthesis planning, and profile preview enrichment. Workspace write access is
+   allowed only after the read-only adapter clears eval fixtures and writes
+   exclusively to the scratch manifest path.
+4. **No-metered proof is explicit.** Local routes are no-metered by topology.
+   Plan-quota routes are no-metered only when the adapter preflight can show the
+   CLI is using an included plan session rather than an API key or purchased
+   credits. If the auth mode is unknown, block in `no-metered`.
+5. **API-key presence blocks plan claims.** For Claude, `ANTHROPIC_API_KEY`
+   blocks subscription routing. For Grok, `XAI_API_KEY` or a configured model
+   API key blocks plan-quota routing unless the user selected `paid-ok`. For
+   Codex, an OpenAI API-key route is treated as metered unless the adapter can
+   prove a ChatGPT-plan session is being used.
+6. **Provider-specific safety flags.** Codex uses `read-only` or
+   `workspace-write` sandboxes and avoids `danger-full-access`. Grok scripts use
+   `--no-auto-update`; `--always-approve` is allowed only inside an isolated
+   scratch workspace. Claude settings deny `.env`, secrets, and unexpected
+   writes, and allow only the narrow commands needed for the workload.
+7. **Bounded loop behavior.** Every adapter call has a timeout, max output
+   size, max turn or session budget when supported, and a structured stop
+   reason. Rate limits, quota stops, auth ambiguity, and malformed output fail
+   closed.
+8. **Same result schema for all adapters.** The result manifest records route,
+   provider, model when available, auth mode, command class, usage signal,
+   elapsed time, files read, files written, output text, citations or receipts,
+   and policy decisions.
+9. **Eval before recommendation.** A CLI adapter can be installed and tested
+   before it is recommended. It becomes a route only after `distill eval` shows
+   that its output clears the workload bar and the no-metered ledger remains
+   complete.
+
 ## Build order
 
 1. **Docs and examples.** Add three profile examples and document cost modes
@@ -153,9 +220,14 @@ CLI would use API billing.
    ingest and analysis paths Distill already uses, with resume-friendly state.
 5. **Cost policy enforcement.** Route selection respects `auto`,
    `no-metered`, and `paid-ok`, and writes a ledger entry for every run.
-6. **Adapter contracts.** Add plan-quota adapters only behind explicit support
-   statements, environment preflights, and `distill eval` fixtures.
-7. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
+6. **Adapter doctor.** Add read-only preflights for local, Codex, Claude Code,
+   and Grok Build routes: installed version, auth mode, dangerous environment
+   variables, headless support, machine-readable output support, and support
+   statement version.
+7. **Adapter contracts.** Add plan-quota adapters only behind explicit support
+   statements, scratch-manifest writes, environment preflights, and
+   `distill eval` fixtures.
+8. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
    schema so Codex, Claude Code, Grok Build, cron, or GitHub Actions can steward
    them externally.
 

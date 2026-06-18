@@ -286,8 +286,19 @@ This is the daily-driver pass for the "I keep seeing this topic evolve" workflow
 - **Cost policy.** Add `DISTILL_COST_MODE=auto|no-metered|paid-ok` plus CLI `--cost-mode`. In `no-metered`, distill refuses paid API calls and prints the provider/workload that would have spent money.
 - **Local first.** Ollama/LM Studio remain the preferred no-metered route when `distill eval` says quality clears the workload bar.
 - **Plan-quota adapters are explicit.** Codex CLI, Claude Code, Grok Build, and similar tools are only used when the user has configured them and the adapter can prove it is using plan credentials rather than an API key. Terms, quotas, and headless support are provider-specific and may change, so failures degrade to a clear message.
+- **CLI adapters are external workers, not hidden providers.** Codex starts with `codex exec --json` under `read-only` or `workspace-write` sandboxing. Claude Code starts with print mode for narrow experiments and graduates to the Agent SDK when Distill needs structured production streams. Grok Build starts with headless JSON or streaming JSON output, then ACP for app integration. All three write only a scratch result manifest; Distill performs verification, ledger recording, and final corpus writes.
+- **No-metered proof fails closed.** Local inference is no-metered by topology. Plan-quota usage is no-metered only when preflight can show a subscription/session route rather than an API key or purchased credits. `ANTHROPIC_API_KEY`, `XAI_API_KEY`, or an OpenAI API-key route blocks plan-quota claims unless the user selected `paid-ok`.
+- **Safety posture is adapter-specific.** Codex avoids `danger-full-access`; Grok scripts use `--no-auto-update` and reserve `--always-approve` for isolated scratch workspaces; Claude settings deny `.env`, secrets, and unexpected writes. Every adapter has timeouts, output limits, and structured stop reasons.
 - **Eval gate.** A plan-quota route graduates only when it passes `distill eval` for the workload. Cheap unusable output is not a route.
 - **Ledger still records usage.** Even if dollars are zero, runs log provider, route, estimated tokens or available usage signal, elapsed time, and any quota/rate-limit stop.
+
+**Planned 0.19.x order.**
+
+- **0.19.0 profile artifacts and preview.** Ship schema, examples, validation, and preview-only candidate discovery for AI developer news, live agentic dev, and vendor docs watch.
+- **0.19.1 cost policy and local routes.** Wire `auto`, `no-metered`, and `paid-ok` through the router, ledger, Ollama, LM Studio, and deterministic fetch/transcript paths.
+- **0.19.2 adapter doctor.** Add read-only preflight checks for Codex CLI, Claude Code, and Grok Build: installed version, auth mode, blocked API-key state, headless support, machine-readable output support, and support-statement version.
+- **0.19.3 read-only CLI adapter prototypes.** Add eval-gated read-only adapter workloads first: profile enrichment, corpus Q&A, candidate classification, and synthesis planning. No corpus writes from adapter processes.
+- **0.19.4 profile run and loop handoff.** Enable approved profile refreshes and next-action JSON so cron, GitHub Actions, Codex, Claude Code, Grok Build, or a human operator can steward the profile without scraping console text.
 
 Why this comes before 1.0: recurring profiles and cost policy are user-facing contracts. If they are going to exist, they should settle before CLI flags and config semantics freeze.
 
