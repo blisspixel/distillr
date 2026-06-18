@@ -467,6 +467,9 @@ distill audit ai                                    # full trust report -> ai_Au
                                                     #    near-duplicates, contested concepts, links, gaps; stale
                                                     #    artifacts/syntheses get re-analysis commands -- printed,
                                                     #    never run)
+distill audit ai --next-actions --json             # machine-readable actions with commands,
+                                                    #   approval class, write scope, loop state,
+                                                    #   and verifier stop conditions
 distill audit all --report-only                     # every topic, no prompts (for scheduled runs);
                                                     #   also writes Library_Audit.md: library-wide
                                                     #   hygiene (empty/unreadable/unindexed topics)
@@ -654,6 +657,7 @@ Distill is built to run in a loop or under an agent with no human at the keyboar
 
 - **`--yes` / `-y`** skips confirmation on every spend- or mutation-gated command.
 - **`audit --report-only`** writes the report artifact and sets the exit code from findings without prompting.
+- **`audit --next-actions --json`** emits bounded action rows an external loop can run and verify without scraping console output.
 - **No-TTY safety:** when stdin is not a terminal, interactive prompts resolve to their safe default instead of aborting on EOF — a confirmation with no safe default declines (and prints the `--yes` hint), and menu prompts take their listed default. Bare `distill` skips the screen-clear when stdout is piped.
 - **Exit codes** (above) distinguish config (3) and network (4) failures from generic runtime errors (1), so a loop can branch on the cause.
 

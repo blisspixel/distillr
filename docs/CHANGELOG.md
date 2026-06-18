@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added `distill audit <topic|all> --next-actions --json`, a loop-readable action plan over deterministic audit findings with action ids, exact commands, approval class, write scope, loop metadata, and verifier stop conditions.
+
+### Changed
+
+- Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
+
 ## 0.16.3 - 2026-06-17
 
 ### Changed

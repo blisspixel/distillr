@@ -253,7 +253,7 @@ OKF is the new interchange target for agent-readable knowledge, and loop enginee
 
 **Loop-ready stewardship surface.**
 
-- **Next-action plan.** `distill audit <topic|all> --next-actions --json` emits a bounded plan from existing deterministic findings: stale artifacts, stale syntheses, missing orientation, broken links, coverage gaps, failed sources, and cost anomalies. Each action carries an id, rationale, exact command, estimated spend when known, required approval level, expected artifact, and verifier/stop condition.
+- **Next-action plan shipped.** `distill audit <topic|all> --next-actions --json` emits a bounded plan from existing deterministic findings: broken links, missing orientation, stale artifacts with routable sources, stale syntheses, coverage gaps, missing corpus synthesis, missing diffs, and missing trend summaries. Each action carries an id, rationale, exact command, cost class, approval level, write scope, loop metadata, and verifier/stop condition.
 - **No autonomous execution inside distill.** The plan is data for Codex, Claude Code, cron, GitHub Actions, or a human operator. Distill does not add a scheduler, worker pool, or PR bot.
 - **Verification is the stop condition.** A loop is done when the command exits cleanly and the relevant audit/verify signal turns green, not when a model declares success.
 - **Loop admission metadata.** A next-action row that is meant for repeated execution names its state path, max attempts, verifier, approval class, and acceptance metric. If Distill cannot name those, it emits an operator note rather than a loop action.
@@ -276,10 +276,10 @@ This is the daily-driver pass for the "I keep seeing this topic evolve" workflow
 
 **Recurring research profiles.**
 
-- **First-class profiles.** Add a profile file that binds a topic, goal, preferred YouTube channels, trusted domains, feed URLs, search phrases, source limits, rigor, and default output actions. It is a durable artifact an external loop can read and rerun.
+- **First-class profiles.** Add a profile file that binds a topic, goal, preferred YouTube channels, trusted domains, newsletter/feed URLs, search phrases, source limits, rigor, and default output actions. Substack-class feeds are the durable path for sources such as Latent Space because Distill can ingest full post text from feeds today. It is a durable artifact an external loop can read and rerun.
 - **Preview remains the default commit boundary.** Profile refreshes surface new candidates and cost before ingest unless `--yes` is explicitly set by a trusted operator or external loop.
 - **Profile health in audit.** `distill audit` reports whether a profile has gone stale, whether its feeds/channels/domains still resolve, and whether the corpus is thin relative to its own profile.
-- **Examples.** Ship checked-in examples for "AI developer news", "agentic coding", and "vendor docs watch" using public sources and preview-only commands.
+- **Examples.** Ship checked-in examples for "AI developer news", "agentic coding", and "vendor docs watch" using public sources, high-signal newsletter feeds, and preview-only commands.
 
 **No-metered-cost routing.**
 

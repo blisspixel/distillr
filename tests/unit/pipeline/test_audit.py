@@ -7,7 +7,9 @@ from pathlib import Path
 
 from distill.pipeline.audit import (
     AuditReport,
+    SynthesisFreshness,
     VerifyRollup,
+    build_next_action_plan,
     collect_verify_rollup,
     render_audit_md,
     write_audit_artifact,
@@ -145,6 +147,52 @@ class TestRenderAndWrite:
         assert "findings: 4" in text
 
 
+class TestNextActionPlan:
+    def test_builds_bounded_actions_from_structural_findings(self, tmp_path: Path):
+        library = tmp_path / "library"
+        topic_dir = library / "topics" / "t"
+        topic_dir.mkdir(parents=True)
+        report = _report(
+            contested=[],
+            gaps=[
+                "Mixed-source corpus synthesis is missing for a multi-source topic.",
+                "No topic diff is available yet.",
+                "No topic trend summary is available yet.",
+            ],
+            next_actions=[],
+            verify=VerifyRollup(insights_total=0, checked=0, clean=0),
+            freshness=SynthesisFreshness(
+                checked=1,
+                stale=[{"synthesis": "t_Corpus_Synthesis.md", "behind": 1, "gap_days": 2}],
+            ),
+        )
+
+        plan = build_next_action_plan(library, [report], topic="t", generated_at=NOW)
+        data = plan.to_dict()
+
+        assert data["schema_version"] == "next-actions.v1"
+        assert data["topic"] == "t"
+        kinds = [action["kind"] for action in data["actions"]]
+        assert kinds[:3] == [
+            "build_corpus_synthesis",
+            "refresh_synthesis",
+            "regenerate_orientation",
+        ]
+        assert "gap_discovery_preview" in kinds
+        assert "write_diff" in kinds
+        assert "write_trends" in kinds
+        for action in data["actions"]:
+            assert action["command"][0] == "distill"
+            assert action["verifier"]["command"] == [
+                "distill",
+                "audit",
+                "t",
+                "--next-actions",
+                "--json",
+            ]
+            assert action["loop"]["acceptance_metric"] == "verifier_passed"
+
+
 def test_audit_command_report_only(tmp_path, monkeypatch):
     """End-to-end command run over a seeded topic: report artifact lands, no prompt."""
     from typer.testing import CliRunner
@@ -171,3 +219,27 @@ def test_audit_command_report_only(tmp_path, monkeypatch):
     assert audit_path.exists()
     assert "5.5" in audit_path.read_text(encoding="utf-8")
     assert "finding(s)" in result.output
+
+
+def test_audit_command_next_actions_json(tmp_path, monkeypatch):
+    """Command-local JSON emits a clean next-action envelope for loop runners."""
+    from typer.testing import CliRunner
+
+    from distill import _cli_impl, cli
+    from distill.config import DistillConfig
+
+    config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
+    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    topic_dir = config.topic_dir("t")
+    _seed_insight(topic_dir, "papers/p1", sidecar={"checked": 1, "unsupported": []})
+
+    result = CliRunner().invoke(cli.app, ["audit", "t", "--next-actions", "--json"])
+
+    assert result.exit_code == 0, result.output
+    parsed = json.loads(result.output)
+    assert parsed["status"] == "ok"
+    data = parsed["data"]
+    assert data["schema_version"] == "next-actions.v1"
+    assert data["topic"] == "t"
+    assert (topic_dir / "t_Audit.md").exists()
+    assert any(action["kind"] == "regenerate_orientation" for action in data["actions"])

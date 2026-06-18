@@ -87,7 +87,7 @@ be moved to `CHANGELOG.md` on next release).
 
 - [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.1 bundle with generated `index.md`, `log.md`, `type` frontmatter, standard Markdown links, citations, and provenance-preserving references back to receipts and verify sidecars. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
 - [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, structurally valid reserved files, and link warnings. Follow OKF's permissive consumer posture: broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
-- [ ] **Loop-readable next-action plans.** Add `distill audit <topic|all> --next-actions --json` so stale artifacts, stale syntheses, broken links, gap-fill candidates, failed sources, and cost anomalies become bounded actions with ids, exact commands, spend estimates, approval class, and verifier/stop condition. This is rule-owned structure over existing findings, not a semantic priority scorer.
+- [x] **Loop-readable next-action plans.** `distill audit <topic|all> --next-actions --json` emits bounded actions with ids, exact commands, approval class, write scope, loop metadata, and verifier/stop condition. The first shipped surface covers broken links, missing orientation, prompt staleness with routable sources, synthesis freshness, coverage gaps, missing corpus synthesis, diffs, and trends. This is rule-owned structure over existing findings, not a semantic priority scorer.
 - [ ] **No scheduler inside Distill.** Document the contract for Codex, Claude Code, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run.
 - [ ] **Loop transcript fixtures.** Add a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.
 
@@ -95,8 +95,8 @@ be moved to `CHANGELOG.md` on next release).
 
 Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-cost-routing.md).
 
-- [ ] **Research profile schema.** Store recurring source plans as versioned files: topic, goal file, trusted feeds, YouTube channels, domains, repos, queries, freshness policy, output preferences, and cost mode.
-- [ ] **Checked-in example profiles.** Ship `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch` examples that use public sources and preview-only defaults.
+- [ ] **Research profile schema.** Store recurring source plans as versioned files: topic, goal file, trusted feeds including Substack-class newsletters, YouTube channels, domains, repos, queries, freshness policy, output preferences, and cost mode.
+- [ ] **Checked-in example profiles.** Ship `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch` examples that use public sources, newsletter/feed sources such as Latent Space-class posts, and preview-only defaults.
 - [ ] **Profile preview.** Add `distill profile preview <name>` to resolve candidate updates from feeds, YouTube channel Atom feeds, trusted domains, repos, and saved queries before analysis writes anything.
 - [ ] **Profile run.** Add `distill profile run <name>` over the existing ingest, analyze, verify, audit, and cost-ledger paths, with resume-friendly state and profile-level health.
 - [ ] **No-metered-cost mode.** Add `DISTILL_COST_MODE=auto|no-metered|paid-ok` plus `--cost-mode`. In `no-metered`, Distill refuses API-billed routes and prints the provider/workload that would have spent money.

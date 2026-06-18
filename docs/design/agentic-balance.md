@@ -97,6 +97,11 @@ The headline loop metric is **cost per accepted change**, not raw number of
 attempts or tokens spent. A route graduates only when accepted changes are common
 enough, faithful enough, and cheap enough under `distill eval`.
 
+`distill audit <topic|all> --next-actions --json` is the first concrete loop
+handoff surface for this model. Distill owns the rule-readable action row,
+command, write scope, approval class, and verifier. Codex, Claude Code, Grok
+Build, cron, GitHub Actions, or a human operator owns whether to run it.
+
 ## The direction of travel, with a gate
 
 The sources agree on the drift — "less structure, more model" as capability rises. distill is built to move that way *without rewrites*: the `distill/llm` router abstracts provider+model behind workload tags, so the rule/model ratio can shift per-workload over time. But the shift is gated, not assumed: a workload moves from rule-assisted to more model-driven (or from cloud to local) only when **`distill eval`** shows it clears the cost×quality bar on the frozen fixtures. Flexibility is added when it demonstrably improves outcomes — the source's own test — never on vibes.

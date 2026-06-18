@@ -16,11 +16,14 @@ from datetime import UTC, datetime
 
 import typer
 
-from distill._console import console
+from distill._console import console, set_json_mode
 from distill.commands import _logic
 from distill.commands._helpers import _complete_topics, tty_prompt
+from distill.commands._json import emit_json, json_mode_active, set_json_active
 from distill.pipeline.audit import (
     AuditReport,
+    NextActionPlan,
+    build_next_action_plan,
     collect_library_hygiene,
     collect_staleness,
     collect_synthesis_freshness,
@@ -35,6 +38,26 @@ __all__ = ["audit_cmd", "register"]
 
 def _now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _resolve_next_action_mode(json_output: bool, next_actions: bool) -> tuple[bool, bool]:
+    """Return ``(next_actions, wants_json)`` and activate command-local JSON."""
+    if json_output:
+        set_json_mode(True)
+        set_json_active(True)
+    wants_json = json_output or json_mode_active()
+    return next_actions or wants_json, wants_json
+
+
+def _emit_empty_plan(config, topic: str, generated_at: str) -> None:
+    emit_json(
+        build_next_action_plan(
+            config.library_dir,
+            [],
+            topic=topic,
+            generated_at=generated_at,
+        ).to_dict()
+    )
 
 
 def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport:
@@ -83,6 +106,16 @@ def audit_cmd(
         help="Write the report artifact(s) and exit without the action menu "
         "(for scheduled/unattended runs).",
     ),
+    next_actions: bool = typer.Option(
+        False,
+        "--next-actions",
+        help="Emit a bounded next-action plan instead of opening the interactive action menu.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the next-action plan as JSON. Implies --next-actions.",
+    ),
 ):
     """Audit corpus trust and health into a `<topic>_Audit.md` report artifact.
 
@@ -92,36 +125,43 @@ def audit_cmd(
     """
     from distill.library.links import check_links
 
+    next_actions, wants_json = _resolve_next_action_mode(json_output, next_actions)
+
     config = _logic.get_config()
     lib = _logic.Library(config)
     topics = lib.get_topics() if topic == "all" else [topic]
+    now_iso = _now_iso()
     if not topics:
-        console.print("[yellow]No topics found to audit.[/yellow]")
+        if wants_json:
+            _emit_empty_plan(config, topic, now_iso)
+        else:
+            console.print("[yellow]No topics found to audit.[/yellow]")
         raise typer.Exit(0)
 
     link_result = check_links(config.library_dir)
     broken_by_topic = _bucket_broken_links(link_result.broken_links)
 
-    now_iso = _now_iso()
     reports: list[AuditReport] = []
     for t in topics:
         report = _build_report(config, lib, t, broken_by_topic)
         reports.append(report)
-        path = write_audit_artifact(config.topic_dir(t), report, now_iso=now_iso)
-        v = report.verify
-        s = report.staleness
-        console.print(
-            f"[bold]{t}[/bold]: {report.issue_count} finding(s) -- "
-            f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
-            f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
-            f"{len(report.freshness.stale)} stale synthesis/es, "
-            f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
-            f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
-        )
-        console.print(f"  [dim]{path}[/dim]")
+        _write_topic_audit_report(config, report, now_iso=now_iso, quiet=wants_json)
 
     if topic == "all":
-        _write_library_audit(config, now_iso)
+        _write_library_audit(config, now_iso, quiet=wants_json)
+
+    if next_actions:
+        plan = build_next_action_plan(
+            config.library_dir,
+            reports,
+            topic=topic,
+            generated_at=now_iso,
+        )
+        if wants_json:
+            emit_json(plan.to_dict())
+        else:
+            _print_next_action_plan(plan)
+        return
 
     total_findings = sum(r.issue_count for r in reports)
     if report_only or total_findings == 0:
@@ -132,13 +172,32 @@ def audit_cmd(
     _action_menu(config, topics, reports, link_result, now_iso)
 
 
-def _write_library_audit(config, now_iso: str) -> None:
+def _write_topic_audit_report(config, report: AuditReport, *, now_iso: str, quiet: bool) -> None:
+    path = write_audit_artifact(config.topic_dir(report.topic), report, now_iso=now_iso)
+    if quiet:
+        return
+    v = report.verify
+    s = report.staleness
+    console.print(
+        f"[bold]{report.topic}[/bold]: {report.issue_count} finding(s) -- "
+        f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
+        f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
+        f"{len(report.freshness.stale)} stale synthesis/es, "
+        f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
+        f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
+    )
+    console.print(f"  [dim]{path}[/dim]")
+
+
+def _write_library_audit(config, now_iso: str, *, quiet: bool = False) -> None:
     """The library-wide hygiene view that ends every ``audit all`` run."""
     from distill.library.paths import atomic_write_text
 
     hygiene = collect_library_hygiene(config.library_dir)
     path = config.library_dir / "Library_Audit.md"
     atomic_write_text(path, render_library_audit_md(hygiene, now_iso=now_iso))
+    if quiet:
+        return
     console.print(
         f"\n[bold]Library[/bold]: {hygiene.healthy} healthy topic(s) | "
         f"{len(hygiene.empty)} empty, {len(hygiene.unreadable)} unreadable, "
@@ -146,6 +205,18 @@ def _write_library_audit(config, now_iso: str) -> None:
         f"{len(hygiene.test_named)} test-named (informational)"
     )
     console.print(f"  [dim]{path}[/dim]")
+
+
+def _print_next_action_plan(plan: NextActionPlan) -> None:
+    console.print("\n[bold]Next actions[/bold]")
+    if not plan.actions:
+        console.print("  [green]No bounded next actions found.[/green]")
+        return
+    for action in plan.actions:
+        command = " ".join(action.command)
+        console.print(f"  [cyan]{action.id}[/cyan] [{action.severity}] {action.rationale}")
+        console.print(f"    command: {command}")
+        console.print(f"    verifier: {' '.join(action.verifier.command)}")
 
 
 def _bucket_broken_links(broken_links: list) -> dict[str, list]:

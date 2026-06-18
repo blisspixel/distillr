@@ -19,6 +19,11 @@ live in [`cli-adapter-runbook.md`](cli-adapter-runbook.md).
   remains quota-based, with all requests costing quota units. Sources:
   [YouTube push notifications](https://developers.google.com/youtube/v3/guides/push_notifications)
   and [YouTube Data API overview](https://developers.google.com/youtube/v3/getting-started).
+- Newsletter and Substack-class sources are already a first-class Distill input
+  through RSS/feed ingestion. Profiles should track the publication feed URL,
+  not just a single article URL, so recurring refresh can capture new posts and
+  preserve full post text from `content:encoded` bodies when the publisher
+  provides them.
 - Local model servers are mature enough to be first-class routes: Ollama serves
   a local API at `http://localhost:11434/api`, and LM Studio serves local models
   through REST plus OpenAI-compatible and Anthropic-compatible endpoints.
@@ -115,6 +120,7 @@ sources:
     - channel_id: UC...
       label: example-channel
   feeds:
+    - https://www.latent.space/feed
     - https://example.com/feed.xml
   domains:
     - docs.anthropic.com
@@ -135,8 +141,8 @@ limits:
 
 The first checked-in examples should be:
 
-- `ai-developer-news`: channels, vendor docs, release notes, and feeds around
-  coding agents and agent platforms.
+- `ai-developer-news`: channels, vendor docs, release notes, newsletter feeds,
+  and other feeds around coding agents and agent platforms.
 - `live-agentic-dev`: YouTube-heavy creator tracking, with transcript-first
   ingest and local transcription fallback.
 - `vendor-docs-watch`: official docs and release notes only, useful for
@@ -250,8 +256,8 @@ boundaries:
 
 ## Build order
 
-1. **Docs and examples.** Add three profile examples and document cost modes
-   before adding new commands.
+1. **Docs and examples.** Add three profile examples, including trusted
+   newsletter feeds, and document cost modes before adding new commands.
 2. **Profile schema and validation.** Pure parser and validator with fixtures.
    No network or LLM dependency.
 3. **Profile preview.** `distill profile preview <name>` resolves feeds,

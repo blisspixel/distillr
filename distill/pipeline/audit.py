@@ -28,6 +28,7 @@ from distill.library.paths import (
     artifact_path,
     base_frontmatter,
     find_artifact,
+    sanitize_path_component,
     tags_for,
     write_markdown_artifact,
 )
@@ -36,9 +37,14 @@ from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 __all__ = [
     "AuditReport",
     "LibraryHygiene",
+    "LoopMetadata",
+    "NextAction",
+    "NextActionPlan",
+    "NextActionVerifier",
     "StalenessRollup",
     "SynthesisFreshness",
     "VerifyRollup",
+    "build_next_action_plan",
     "collect_library_hygiene",
     "collect_staleness",
     "collect_synthesis_freshness",
@@ -125,6 +131,334 @@ class AuditReport:
             + len(self.freshness.stale)
             + len(self.freshness.shadowed_legacy)
         )
+
+
+@dataclass(frozen=True)
+class NextActionVerifier:
+    """Machine-checkable stop condition for an external loop."""
+
+    command: list[str]
+    expect: str
+
+    def to_dict(self) -> dict:
+        return {"command": self.command, "expect": self.expect}
+
+
+@dataclass(frozen=True)
+class LoopMetadata:
+    """Small loop admission record for external runners."""
+
+    state_path: str
+    max_attempts: int
+    acceptance_metric: str
+
+    def to_dict(self) -> dict:
+        return {
+            "state_path": self.state_path,
+            "max_attempts": self.max_attempts,
+            "acceptance_metric": self.acceptance_metric,
+        }
+
+
+@dataclass(frozen=True)
+class NextAction:
+    """One bounded action an external runner can inspect, run, and verify."""
+
+    id: str
+    kind: str
+    severity: str
+    rationale: str
+    command: list[str]
+    approval: str
+    estimated_cost_usd: float | None
+    writes: list[str]
+    verifier: NextActionVerifier
+    loop: LoopMetadata | None = None
+
+    def to_dict(self) -> dict:
+        data = {
+            "id": self.id,
+            "kind": self.kind,
+            "severity": self.severity,
+            "rationale": self.rationale,
+            "command": self.command,
+            "approval": self.approval,
+            "estimated_cost_usd": self.estimated_cost_usd,
+            "writes": self.writes,
+            "verifier": self.verifier.to_dict(),
+        }
+        if self.loop is not None:
+            data["loop"] = self.loop.to_dict()
+        return data
+
+
+@dataclass(frozen=True)
+class NextActionPlan:
+    """Stable JSON contract for audit-driven external stewardship loops."""
+
+    schema_version: str
+    topic: str
+    generated_at: str
+    actions: list[NextAction]
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": self.schema_version,
+            "topic": self.topic,
+            "generated_at": self.generated_at,
+            "actions": [a.to_dict() for a in self.actions],
+        }
+
+
+def _action_id(topic: str, kind: str, suffix: str = "") -> str:
+    raw = ".".join(p for p in (topic, kind, suffix) if p)
+    return sanitize_path_component(raw).replace("-", ".")
+
+
+def _loop(action_id: str, *, max_attempts: int = 1) -> LoopMetadata:
+    return LoopMetadata(
+        state_path=f".distill/loops/{action_id}.json",
+        max_attempts=max_attempts,
+        acceptance_metric="verifier_passed",
+    )
+
+
+def _audit_json_command(topic: str) -> list[str]:
+    return ["distill", "audit", topic, "--next-actions", "--json"]
+
+
+def _has_no_major_gap(report: AuditReport) -> bool:
+    return all("No major research gaps" in gap for gap in report.gaps)
+
+
+def _topic_orientation_missing(topic_dir: Path) -> bool:
+    return not (topic_dir / "CLAUDE.md").exists() or not (topic_dir / "AGENTS.md").exists()
+
+
+def _append_action(actions: list[NextAction], action: NextAction) -> None:
+    if not any(existing.id == action.id for existing in actions):
+        actions.append(action)
+
+
+def _reanalysis_argvs(library_dir: Path, topic: str, stale: list[dict]) -> list[list[str]]:
+    """Concrete re-analysis argv arrays for stale artifacts."""
+    commands: list[list[str]] = []
+    for item in stale:
+        rel = str(item.get("insight", ""))
+        try:
+            text = (library_dir / rel).read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+        url = frontmatter_field(text, "url")
+        source = frontmatter_field(text, "source")
+        if source == "arxiv" and url:
+            arxiv_id = url.rstrip("/").rsplit("/", 1)[-1]
+            commands.append(["distill", "papers", arxiv_id, "--topic", topic, "--limit", "1"])
+        elif url and (
+            any(h in url for h in _INGESTABLE_HOSTS) or url.lower().endswith((".rss", ".xml"))
+        ):
+            commands.append(["distill", "ingest", url, "--topic", topic])
+    return commands
+
+
+def _actions_for_report(library_dir: Path, report: AuditReport) -> list[NextAction]:
+    """Build rule-owned next actions from one deterministic audit report."""
+    actions: list[NextAction] = []
+    topic = report.topic
+    topic_dir = library_dir / "topics" / topic
+
+    if report.broken_links:
+        action_id = _action_id(topic, "fix-links")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="fix_links",
+                severity="warning",
+                rationale=f"{len(report.broken_links)} wiki-link(s) are unresolved.",
+                command=["distill", "doctor", "--links", "--fix"],
+                approval="operator",
+                estimated_cost_usd=0.0,
+                writes=[f"topics/{topic}/**/*.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect=f"no action with id '{action_id}'",
+                ),
+                loop=_loop(action_id),
+            ),
+        )
+
+    if topic_dir.exists() and _topic_orientation_missing(topic_dir):
+        action_id = _action_id(topic, "regenerate-orientation")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="regenerate_orientation",
+                severity="warning",
+                rationale="Topic orientation files are missing or incomplete.",
+                command=["distill", "claude-md", topic],
+                approval="none",
+                estimated_cost_usd=0.0,
+                writes=[f"topics/{topic}/CLAUDE.md", f"topics/{topic}/AGENTS.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect=f"no action with id '{action_id}'",
+                ),
+                loop=_loop(action_id),
+            ),
+        )
+
+    stale_commands = _reanalysis_argvs(library_dir, topic, report.staleness.stale)
+    if stale_commands:
+        action_id = _action_id(topic, "reanalyze-stale")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="reanalyze_stale",
+                severity="warning",
+                rationale=f"{len(report.staleness.stale)} artifact(s) use stale prompt versions.",
+                command=stale_commands[0],
+                approval="spend",
+                estimated_cost_usd=None,
+                writes=[f"topics/{topic}/**/*_Insights.md", f"topics/{topic}/**/*_Verify.json"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect="staleness.stale decreases or reaches 0",
+                ),
+                loop=_loop(action_id, max_attempts=3),
+            ),
+        )
+
+    if report.freshness.stale:
+        action_id = _action_id(topic, "refresh-synthesis")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="refresh_synthesis",
+                severity="warning",
+                rationale=f"{len(report.freshness.stale)} synthesis artifact(s) predate sources.",
+                command=["distill", "corpus", topic],
+                approval="spend",
+                estimated_cost_usd=None,
+                writes=[f"topics/{topic}/*_Corpus_Synthesis.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect="freshness.stale == 0",
+                ),
+                loop=_loop(action_id, max_attempts=3),
+            ),
+        )
+
+    missing = set(report.gaps)
+    if not _has_no_major_gap(report):
+        action_id = _action_id(topic, "gap-discovery-preview")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="gap_discovery_preview",
+                severity="info",
+                rationale="Coverage gaps exist; preview candidate sources before ingest.",
+                command=["distill", "discover", "--from-gaps", "--topic", topic, "--preview"],
+                approval="spend",
+                estimated_cost_usd=None,
+                writes=[".distill/previews/*.json"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect="preview exits 0 and records a preview id",
+                ),
+                loop=_loop(action_id, max_attempts=1),
+            ),
+        )
+
+    if "Mixed-source corpus synthesis is missing for a multi-source topic." in missing:
+        action_id = _action_id(topic, "build-corpus-synthesis")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="build_corpus_synthesis",
+                severity="warning",
+                rationale="A multi-source topic is missing its mixed-source corpus synthesis.",
+                command=["distill", "corpus", topic],
+                approval="spend",
+                estimated_cost_usd=None,
+                writes=[f"topics/{topic}/*_Corpus_Synthesis.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect=f"no action with id '{action_id}'",
+                ),
+                loop=_loop(action_id, max_attempts=3),
+            ),
+        )
+
+    if "No topic diff is available yet." in missing:
+        action_id = _action_id(topic, "write-diff")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="write_diff",
+                severity="info",
+                rationale="No topic diff baseline exists yet.",
+                command=["distill", "diff", topic],
+                approval="none",
+                estimated_cost_usd=0.0,
+                writes=[f"topics/{topic}/*_Topic_Diff.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect=f"no action with id '{action_id}'",
+                ),
+                loop=_loop(action_id),
+            ),
+        )
+
+    if "No topic trend summary is available yet." in missing:
+        action_id = _action_id(topic, "write-trends")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="write_trends",
+                severity="info",
+                rationale="No topic trend summary exists yet.",
+                command=["distill", "trends", topic],
+                approval="none",
+                estimated_cost_usd=0.0,
+                writes=[f"topics/{topic}/*_Topic_Trends.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect=f"no action with id '{action_id}'",
+                ),
+                loop=_loop(action_id),
+            ),
+        )
+
+    return actions
+
+
+def build_next_action_plan(
+    library_dir: Path,
+    reports: list[AuditReport],
+    *,
+    topic: str,
+    generated_at: str,
+) -> NextActionPlan:
+    """Convert deterministic audit reports into a loop-readable action plan."""
+    actions: list[NextAction] = []
+    for report in reports:
+        actions.extend(_actions_for_report(library_dir, report))
+    severity_rank = {"warning": 0, "info": 1}
+    actions.sort(key=lambda a: (severity_rank.get(a.severity, 9), a.id))
+    return NextActionPlan(
+        schema_version="next-actions.v1",
+        topic=topic,
+        generated_at=generated_at,
+        actions=actions,
+    )
 
 
 def _sidecar_flags(data: dict, artifact_path: str) -> list[dict]:
