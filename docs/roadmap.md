@@ -46,6 +46,25 @@ structured intelligence without duplicating ingestion work. The priorities below
 build toward that: tighter outputs, cleaner handoffs, and interoperability with
 orchestration layers.
 
+The direction is **more agentic**, but not more self-certifying. Open-ended
+judgment moves toward models: source fit, query expansion, analysis lensing,
+synthesis planning, contradiction interpretation, and future deep-synthesis
+loops. Structural and irreversible boundaries stay rule-owned: schemas, path
+and URL safety, cost-mode refusal, action ids, exact commands, audit rollups,
+approval class, receipts, and verifier stop conditions. Each backlog item
+should be legible as one of three shapes:
+
+- **Agentic judgment:** a model decides something semantic because rules would
+  fake it.
+- **Rule-owned structure:** Python validates something with ground truth or
+  explicit configuration.
+- **Judgment-then-rule:** a model returns per-criterion verdicts, then Python
+  aggregates, thresholds, records, and gates.
+
+That split is product direction, not implementation trivia. "More agentic" means
+more model judgment where flexibility helps, plus tighter rule-owned boundaries
+around writes, spend, ingestion, and completion.
+
 **Competitive context (June 2026).** The "local-first LLM Wiki" space saturated
 within weeks of Karpathy's April gist (35k-star official Obsidian skills, an
 11k-star desktop wiki app); the vault-maintenance fight is not distillr's to win.
@@ -68,7 +87,7 @@ be moved to `CHANGELOG.md` on next release).
 
 - [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.1 bundle with generated `index.md`, `log.md`, `type` frontmatter, standard Markdown links, citations, and provenance-preserving references back to receipts and verify sidecars. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
 - [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, structurally valid reserved files, and link warnings. Follow OKF's permissive consumer posture: broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
-- [ ] **Loop-readable next-action plans.** Add `distill audit <topic|all> --next-actions --json` so stale artifacts, stale syntheses, broken links, gap-fill candidates, failed sources, and cost anomalies become bounded actions with ids, exact commands, spend estimates, approval class, and verifier/stop condition.
+- [ ] **Loop-readable next-action plans.** Add `distill audit <topic|all> --next-actions --json` so stale artifacts, stale syntheses, broken links, gap-fill candidates, failed sources, and cost anomalies become bounded actions with ids, exact commands, spend estimates, approval class, and verifier/stop condition. This is rule-owned structure over existing findings, not a semantic priority scorer.
 - [ ] **No scheduler inside Distill.** Document the contract for Codex, Claude Code, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run.
 - [ ] **Loop transcript fixtures.** Add a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.
 
