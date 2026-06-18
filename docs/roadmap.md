@@ -66,8 +66,8 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 0. OKF interop and loop-ready stewardship
 
-- [ ] **OKF export.** Export `topic` or `all` into a conformant OKF v0.1 bundle with generated `index.md`, `log.md`, `type` frontmatter, standard Markdown links, citations, and provenance-preserving references back to receipts and verify sidecars. This is a read-only projection; the native `library/` layout remains authoritative.
-- [ ] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, structurally valid reserved files, and link warnings. Follow OKF's permissive consumer posture: broken links warn, they do not invalidate the bundle.
+- [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.1 bundle with generated `index.md`, `log.md`, `type` frontmatter, standard Markdown links, citations, and provenance-preserving references back to receipts and verify sidecars. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
+- [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, structurally valid reserved files, and link warnings. Follow OKF's permissive consumer posture: broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
 - [ ] **Loop-readable next-action plans.** Add `distill audit <topic|all> --next-actions --json` so stale artifacts, stale syntheses, broken links, gap-fill candidates, failed sources, and cost anomalies become bounded actions with ids, exact commands, spend estimates, approval class, and verifier/stop condition.
 - [ ] **No scheduler inside Distill.** Document the contract for Codex, Claude Code, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run.
 - [ ] **Loop transcript fixtures.** Add a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.

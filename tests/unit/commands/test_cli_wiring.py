@@ -1229,6 +1229,38 @@ class TestExportOpenCostsAndStatus:
         assert manifest["topic"] == "ai"
         assert manifest["format"] == "deepr"
 
+    def test_export_okf_writes_valid_directory_bundle(self, mock_config):
+        topic_dir = mock_config.topic_dir("ai")
+        video_dir = topic_dir / "channels" / "TestCh" / "videos" / "video-1"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (video_dir / "video_Insights.md").write_text(
+            "---\nvideo_title: Test Video\nurl: https://youtube.com/watch?v=1\n---\n\n# Insight\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["export", "ai", "--format", "okf"])
+
+        assert result.exit_code == 0
+        output_dir = mock_config.library_dir.parent / "output" / "okf-ai"
+        assert (output_dir / "index.md").exists()
+        assert (output_dir / "log.md").exists()
+        exported = output_dir / "channels" / "TestCh" / "videos" / "video-1" / "video_Insights.md"
+        assert exported.exists()
+        text = exported.read_text(encoding="utf-8")
+        assert 'type: "Source Insight"' in text
+        assert 'resource: "https://youtube.com/watch?v=1"' in text
+
+    def test_okf_validate_reports_invalid_bundle(self, tmp_path):
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "concept.md").write_text("---\ntitle: Missing type\n---\n\n# Concept\n")
+
+        result = runner.invoke(cli.app, ["okf", "validate", str(bundle)])
+
+        assert result.exit_code == 1
+        assert "OKF invalid" in result.output
+        assert "type" in result.output
+
     def test_export_bundle_sanitizes_archive_topic_prefix(self, mock_config):
         raw_topic = "../escape"
         topic_dir = mock_config.topic_dir(raw_topic)

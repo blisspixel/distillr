@@ -8,6 +8,8 @@ distill.cli.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from distill._console import console
@@ -17,8 +19,10 @@ from distill.commands.topic import (
     _collect_topic_bundle_files,
     _export_topic_bundle,
 )
+from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.export import markdown_to_docx
+from distill.library.okf import export_okf_bundle
 from distill.library.paths import find_artifact
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.deep_research import run_deep_research
@@ -27,7 +31,76 @@ from distill.pipeline.summary import RunSummary, display_summary
 __all__ = ["export", "register", "report"]
 
 
-def report(  # noqa: C901 — legacy, will refactor
+def _export_okf_bundle_cli(config: DistillConfig, topic: str) -> None:
+    try:
+        result = export_okf_bundle(config, topic)
+    except FileNotFoundError:
+        console.print(f"[yellow]Topic not found: {topic}[/yellow]")
+        raise typer.Exit(1) from None
+    if not result.validation.ok:
+        console.print(f"[red]OKF export failed validation: {result.output_dir}[/red]")
+        for issue in result.validation.errors:
+            console.print(f"  [dim]{issue.path}[/dim]: {issue.message}")
+        raise typer.Exit(1)
+    console.print(f"[green]Exported OKF bundle: {result.output_dir}[/green]")
+    console.print(f"[dim]{result.files_written} files written[/dim]")
+    if result.validation.warnings:
+        console.print(f"[yellow]{len(result.validation.warnings)} OKF warning(s)[/yellow]")
+    console.print(f"\n  [dim]distill okf validate {result.output_dir}[/dim]")
+
+
+def _export_zip_bundle_cli(config: DistillConfig, topic: str, bundle_format: str) -> None:
+    topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        console.print(f"[yellow]Topic not found: {topic}[/yellow]")
+        raise typer.Exit(1)
+    files = _collect_topic_bundle_files(config, topic)
+    if not files:
+        console.print(f"[yellow]No exportable corpus files found for topic: {topic}[/yellow]")
+        raise typer.Exit(1)
+    zip_path = _export_topic_bundle(config, topic, bundle_format)
+    console.print(f"[green]Exported bundle: {zip_path}[/green]")
+    console.print(f"[dim]{zip_path.stat().st_size / 1024:.1f} KB[/dim]")
+    console.print(f"\n  [dim]distill open {topic}  to inspect the source corpus[/dim]")
+
+
+def _export_markdown_source(
+    config: DistillConfig,
+    topic: str,
+    channel: str | None,
+    what: str,
+) -> tuple[Path, str]:
+    if what == "report":
+        if channel:
+            return (
+                find_artifact(
+                    config.channel_dir(topic, channel), "report", identity=f"{topic}_{channel}"
+                ),
+                f"Report: {channel}",
+            )
+        return find_artifact(
+            config.topic_dir(topic), "report", identity=topic
+        ), f"Strategic Intelligence: {topic}"
+
+    if what == "synthesis":
+        if channel:
+            return (
+                find_artifact(
+                    config.channel_dir(topic, channel),
+                    "synthesis",
+                    identity=f"{topic}_{channel}",
+                ),
+                f"Channel Synthesis: {channel}",
+            )
+        return find_artifact(
+            config.topic_dir(topic), "topic_synthesis", identity=topic
+        ), f"Topic Synthesis: {topic}"
+
+    console.print(f"[red]Unknown export type: {what}. Use: report, synthesis, bundle[/red]")
+    raise typer.Exit(1)
+
+
+def report(  # noqa: C901 - legacy, will refactor
     topic: str = typer.Argument(None, help="Topic or channel name"),
     channel: str | None = typer.Option(None, "--channel", "-c", help="Report on a single channel"),
     all_topics: bool = typer.Option(False, "--all", help="Report on entire library"),
@@ -205,54 +278,25 @@ def export(
     ),
     channel: str | None = typer.Option(None, "--channel", "-c", help="Specific channel"),
     bundle_format: str = typer.Option(
-        "bundle", "--format", help="Bundle format for --what bundle: bundle or deepr"
+        "bundle", "--format", help="Bundle format: bundle, deepr, or okf"
     ),
 ):
     """Export reports, syntheses, or a portable topic corpus bundle."""
     config = get_config()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    if bundle_format == "okf" and what == "report":
+        what = "bundle"
+    if not (what == "bundle" and bundle_format == "okf" and topic.lower() == "all"):
+        topic, channel = _resolve_topic_for_channel(lib, topic, channel)
 
     if what == "bundle":
-        topic_dir = config.topic_dir(topic)
-        if not topic_dir.exists():
-            console.print(f"[yellow]Topic not found: {topic}[/yellow]")
-            raise typer.Exit(1)
-        files = _collect_topic_bundle_files(config, topic)
-        if not files:
-            console.print(f"[yellow]No exportable corpus files found for topic: {topic}[/yellow]")
-            raise typer.Exit(1)
-        zip_path = _export_topic_bundle(config, topic, bundle_format)
-        console.print(f"[green]Exported bundle: {zip_path}[/green]")
-        console.print(f"[dim]{zip_path.stat().st_size / 1024:.1f} KB[/dim]")
-        console.print(f"\n  [dim]distill open {topic}  to inspect the source corpus[/dim]")
+        if bundle_format == "okf":
+            _export_okf_bundle_cli(config, topic)
+        else:
+            _export_zip_bundle_cli(config, topic, bundle_format)
         return
 
-    if what == "report":
-        if channel:
-            md_path = find_artifact(
-                config.channel_dir(topic, channel),
-                "report",
-                identity=f"{topic}_{channel}",
-            )
-            title = f"Report: {channel}"
-        else:
-            md_path = find_artifact(config.topic_dir(topic), "report", identity=topic)
-            title = f"Strategic Intelligence: {topic}"
-    elif what == "synthesis":
-        if channel:
-            md_path = find_artifact(
-                config.channel_dir(topic, channel),
-                "synthesis",
-                identity=f"{topic}_{channel}",
-            )
-            title = f"Channel Synthesis: {channel}"
-        else:
-            md_path = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
-            title = f"Topic Synthesis: {topic}"
-    else:
-        console.print(f"[red]Unknown export type: {what}. Use: report, synthesis, bundle[/red]")
-        raise typer.Exit(1)
+    md_path, title = _export_markdown_source(config, topic, channel, what)
 
     if not md_path.exists():
         console.print(f"[yellow]File not found: {md_path}[/yellow]")

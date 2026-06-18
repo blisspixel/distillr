@@ -99,6 +99,8 @@ from distill.commands.init import register as _register_init
 from distill.commands.intent import register as _register_intent
 from distill.commands.learn import register as _register_learn
 from distill.commands.maintain import register as _register_maintain
+from distill.commands.okf import okf_app  # noqa: F401
+from distill.commands.okf import register as _register_okf
 from distill.commands.papers import register as _register_papers
 from distill.commands.process import register as _register_process
 from distill.commands.reports import register as _register_reports
@@ -137,6 +139,7 @@ _register_maintain(app)
 _register_doctor(app)
 _register_eval(app)
 _register_reprocess(app)
+_register_okf(app)
 _register_topic(app)
 _register_reports(app)
 _register_discover(app)

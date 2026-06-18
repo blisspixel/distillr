@@ -444,6 +444,9 @@ distill trends ai --limit 5
 distill export ai --what report
 distill export SomeCreator --what synthesis
 distill export ai --what bundle --format deepr      # zipped corpus bundle
+distill export ai --format okf                      # OKF v0.1 directory bundle
+distill export all --format okf                     # OKF bundle for every topic
+distill okf validate output/okf-ai                  # validate any OKF bundle
 
 # Open files / folders in the system file browser
 distill open                                        # open output/
