@@ -259,7 +259,7 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
                 ),
             ),
-            env_blockers=("GEMINI_API_KEY",),
+            env_blockers=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
             config_probes=(
                 ConfigProbe(
                     "~/.gemini/settings.json",
@@ -270,7 +270,11 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             ),
             probes=(
                 CommandProbe("version", ("gemini", "--version")),
-                CommandProbe("help", ("gemini", "--help")),
+                CommandProbe(
+                    "help",
+                    ("gemini", "--help"),
+                    ("--prompt", "--approval-mode", "--output-format"),
+                ),
             ),
         ),
         AdapterSpec(
@@ -284,7 +288,7 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
                 ),
             ),
-            env_blockers=("GEMINI_API_KEY",),
+            env_blockers=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
             config_probes=(
                 ConfigProbe(
                     "~/.antigravity/settings.json",

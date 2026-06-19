@@ -657,6 +657,36 @@
 - Continue remaining adapter command templates, native usage collection for
   non-Codex CLI outputs, official auth proof, and eval-gated route graduation.
 
+### Cycle 27 - Blocked Gemini Command Planner
+
+- External spend: `$0.00`.
+- Added a blocked Gemini CLI read-only command plan based on local Gemini CLI
+  0.46.0 help output.
+- The plan records `gemini --approval-mode plan --output-format json --prompt
+  ""` plus staged prompt, schema, result capture, native usage capture, and
+  allowed scratch capture metadata.
+- The plan remains blocked on runner stdin prompt support, stdout
+  `result.txt` capture, lack of observed native schema enforcement, native
+  usage capture, and the normal support, auth, and eval gates.
+- Tightened Gemini-family billing preflights so `GOOGLE_API_KEY` blocks
+  no-metered Gemini and Antigravity claims alongside `GEMINI_API_KEY`.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapters.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapters.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run pytest -q tests\unit\doctor\test_adapters.py tests\unit\doctor\test_adapter_commands.py` passed: 18 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2477
+    passed, 8 deselected, 1 warning, coverage above the 80% gate.
+
+### Next
+
+- Continue the Antigravity command template, non-Codex native usage capture,
+  official auth proof, and eval-gated route graduation.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

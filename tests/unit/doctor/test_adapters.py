@@ -49,6 +49,24 @@ def test_adapter_doctor_records_required_flags_and_env_blockers(monkeypatch):
     assert not codex.no_metered_eligible
 
 
+def test_adapter_doctor_blocks_google_api_key_for_gemini(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+
+    report = adapters.adapter_doctor_report(
+        environ={"GOOGLE_API_KEY": "key"},
+        runner=_runner_with_required_flags,
+    )
+
+    gemini = next(probe for probe in report.adapters if probe.name == "gemini-cli")
+    antigravity = next(probe for probe in report.adapters if probe.name == "antigravity")
+    assert gemini.auth_mode == "api-key-env"
+    assert gemini.env_blockers_present == ["GOOGLE_API_KEY"]
+    assert "GOOGLE_API_KEY is set" in gemini.blocked_reasons
+    assert antigravity.auth_mode == "api-key-env"
+    assert antigravity.env_blockers_present == ["GOOGLE_API_KEY"]
+    assert "GOOGLE_API_KEY is set" in antigravity.blocked_reasons
+
+
 def test_credit_metered_copilot_is_not_no_metered_candidate(monkeypatch):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
@@ -137,7 +155,7 @@ def _runner_with_required_flags(command: Sequence[str], _timeout: int) -> tuple[
         ("grok", "--version"): "grok 0.2.50",
         ("grok", "--help"): "--output-format",
         ("gemini", "--version"): "gemini 1.0.0",
-        ("gemini", "--help"): "",
+        ("gemini", "--help"): "--prompt --approval-mode --output-format",
         ("antigravity", "--version"): "antigravity 1.0.0",
         ("antigravity", "--help"): "",
         ("gh", "--version"): "gh 2.0.0",

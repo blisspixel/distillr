@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a strict Codex JSONL usage parser for `codex exec --json` `turn.completed` events.
 - Added a Codex capture writer that turns captured JSONL stdout plus `result.txt` into `native-usage.json` and a validated `adapter-result.v1` scratch manifest.
 - Added workload-runner capture hooks so tested adapter workloads can write captured results before manifest validation.
+- Added a blocked Gemini CLI read-only command planner and tightened Gemini-family API-key blockers to include `GOOGLE_API_KEY`.
 
 ### Changed
 

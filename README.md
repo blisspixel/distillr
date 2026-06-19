@@ -356,18 +356,21 @@ scratch manifest. A ledger helper can convert verified
 adapter manifests into zero-dollar included-plan usage rows and metadata, but
 no plan-quota CLI route is live until auth proof, a current no-metered support
 statement, adapter-specific workload integration, remaining command templates,
-native usage capture where applicable, and eval gates clear. The
+native usage capture where applicable, and eval gates clear. Gemini and
+Antigravity also fail closed when `GOOGLE_API_KEY` is present. The
 doctor JSON also exposes the `adapter-workload.v1` package contract for future
 scratch-relative read-only adapter tasks, and a checked workload runner can
 verify declared reads, writes, cost mode, and result manifests for exact-argv
-experiments. Blocked Codex, Claude, and Grok read-only command planners record
-future argv shapes plus staged prompt, schema, result capture, native usage
-capture, and allowed scratch capture metadata. Claude schema paths can be
+experiments. Blocked Codex, Claude, Grok, and Gemini read-only command planners
+record future argv shapes plus staged prompt, schema, result capture, native
+usage capture, and allowed scratch capture metadata. Claude schema paths can be
 inlined into argv from scratch JSON schema files, but the plans are
 deliberately blocked until adapter-specific native usage capture and the other
 adapter gates exist. Codex JSONL `turn.completed` usage can be parsed into the
 native usage contract and written into scratch manifests through workload
-runner capture hooks, but the route gates are still blocked.
+runner capture hooks. Gemini has local headless JSON flags, but its plan stays
+blocked on runner stdin prompt support, stdout result capture, native schema
+enforcement, native usage capture, and route gates.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

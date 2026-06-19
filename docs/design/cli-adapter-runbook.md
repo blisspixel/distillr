@@ -322,6 +322,60 @@ Avoid in Distill automation:
 - `--permission-mode bypassPermissions`.
 - Web search for no-metered corpus analysis unless explicitly requested.
 
+### Gemini CLI
+
+Best default for bounded read-only planning only after an included-plan session,
+machine-readable output, usage capture, and eval evidence are proven. Local
+0.46.0 help shows headless `--prompt`, JSON output, and `--approval-mode plan`.
+
+Preflight:
+
+- `gemini --version`
+- `gemini --help`
+- Scan `~/.gemini/settings.json` for API-key routing fields.
+- Remove `GEMINI_API_KEY` and `GOOGLE_API_KEY` from the subprocess
+  environment for plan-quota routing.
+- If auth cannot be classified as an included plan session, block in
+  `no-metered`.
+
+Headless JSON command shape:
+
+```text
+gemini \
+  --approval-mode plan \
+  --output-format json \
+  --prompt "<prompt>"
+```
+
+Current blockers:
+
+- The Gemini template needs runner stdin prompt support before Distill can pass
+  staged `adapter-workload.v1` prompts without shell piping.
+- The Gemini template needs a stdout result-capture wrapper to write
+  `result.txt`.
+- The local CLI has JSON output, but no observed native `--output-schema`
+  enforcement in 0.46.0 help.
+- Adapter-specific native usage capture is not implemented.
+
+Useful flags observed locally in 0.46.0:
+
+- `-p`, `--prompt` for non-interactive mode.
+- `--output-format text|json|stream-json`.
+- `--approval-mode default|auto_edit|yolo|plan`.
+- `--sandbox` for sandboxing, not yet validated for Distill workloads.
+- `--allowed-mcp-server-names` to constrain MCP access.
+- `--include-directories` for extra context directories, avoided until eval.
+
+Avoid in Distill automation:
+
+- `--yolo`.
+- `--approval-mode yolo`.
+- `--raw-output`, unless a wrapper explicitly accepts and sanitizes the risk.
+- `--skip-trust`, unless Distill supplies an isolated scratch workspace and
+  matching policy.
+- `--include-directories <library>` because additional directories increase
+  the readable surface. Stage sources into scratch instead.
+
 ## Credit-metered CLI candidates
 
 ### GitHub Copilot CLI
@@ -456,7 +510,7 @@ data or make an adapter eligible.
 The Codex writer converts captured JSONL stdout plus `result.txt` into a
 scratch native usage file and result manifest, and the workload runner can
 invoke it through a post-process capture hook before manifest validation.
-`distill.doctor.adapter_commands` records blocked Codex, Claude, and Grok
+`distill.doctor.adapter_commands` records blocked Codex, Claude, Grok, and Gemini
 read-only argv templates. Command plans include staged prompt, schema, result
 capture, native usage capture, and allowed scratch capture metadata. Claude
 schema paths can be materialized into `--json-schema` argv arguments from

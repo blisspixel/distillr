@@ -255,6 +255,17 @@ through the real Codex capture writer and verify the resulting
 Capture failures become explicit blocked reasons and do not bypass manifest
 validation.
 
+Cycle 27 added a blocked Gemini CLI read-only command plan. Local Gemini CLI
+0.46.0 help exposes headless `--prompt`, `--output-format json`, and
+`--approval-mode plan`, so Distill now records the future argv shape with
+staged prompt, schema, result capture, and native usage capture metadata. The
+plan remains blocked because the runner still needs stdin prompt piping,
+stdout-to-`result.txt` capture, native schema enforcement is not exposed by the
+local help, native usage capture is not implemented, and the support, auth, and
+eval gates remain closed. The same cycle tightened Gemini-family billing
+preflights so `GOOGLE_API_KEY` blocks no-metered Gemini and Antigravity claims
+alongside `GEMINI_API_KEY`.
+
 Remaining near-term gaps are official installed-session auth proof,
-remaining adapter command templates, native usage collection from non-Codex CLI
+the Antigravity command template, native usage collection from non-Codex CLI
 outputs for future plan-quota adapters, and eval-gated route graduation.
