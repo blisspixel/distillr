@@ -177,14 +177,17 @@ class ETATracker:
 
     total: int
     completed: int = 0
+    failed: int = 0
     _times: list[float] = field(default_factory=list)
 
     def start(self) -> float:
         return time.time()
 
-    def tick(self, start_time: float) -> None:
+    def tick(self, start_time: float, *, success: bool = True) -> None:
         self._times.append(time.time() - start_time)
         self.completed += 1
+        if not success:
+            self.failed += 1
 
     @property
     def avg_seconds(self) -> float:
@@ -202,8 +205,13 @@ class ETATracker:
         mins = int(remaining // 60)
         return f"~{mins}m left"
 
-    def progress_str(self, current_step: str = "") -> str:
-        parts = [f"{self.completed + 1}/{self.total}"]
+    def progress_str(self, current_step: str = "", cost_tracker: Any | None = None) -> str:
+        index = min(self.completed + 1, self.total) if self.total else 0
+        parts = [f"{index}/{self.total}"]
+        if cost_tracker is not None:
+            parts.append(f"completed {self.completed}/{self.total}")
+            parts.append(f"failed {self.failed}")
+            parts.append(f"spent {cost_tracker.format_cost()}")
         eta = self.eta_str
         if eta:
             parts.append(eta)

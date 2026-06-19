@@ -96,6 +96,11 @@ distill latest "Claude Code leak analysis" --topic claude-code-leak --hours 20 -
 
 `--rigor strict|balanced|loose|off` adds a quality bar on the rerank score (video thresholds 0.6 / 0.4 / 0.25), dropping weak picks before the channel cap; default `off` (unchanged behavior), and it needs the LLM rerank — under `--no-rerank` / `--top-by-date` an explicit bar is skipped with a warning. The thresholds are calibrated per command (lower than `discover`'s, since `latest` is a single-source relevance ranker rather than a cross-source curation gate — see [`architecture.md`](architecture.md) "Rigor calibration").
 
+During processing, `distill latest` prints per-video progress after each item:
+completed count, failed count, running spend, and ETA when enough videos have
+completed. Live transcript and analysis phase labels include the same running
+spend.
+
 For strict "last N uploads in the window" semantics — bypassing both the LLM rerank and the heuristic relevance/depth mix and sorting purely by upload date — pass `--top-by-date`. Channel cap still applies, and `--rerank` is force-disabled so query-expansion spend isn't billed for output that's then ignored.
 
 ```bash
@@ -163,7 +168,10 @@ distill catch-up --dry-run                          # preview
 distill reanalyze deals --deep
 ```
 
-Scan mode (used by `catch-up`) is lightweight (~$0.001/video). Use `reanalyze --deep` when you want the full 2-pass analysis on a video you flagged from a scan.
+Scan mode (used by `catch-up`) is lightweight (~$0.001/video). During
+processing, `catch-up` prints per-video completed count, failed count, running
+spend, and ETA when enough videos have completed. Use `reanalyze --deep` when
+you want the full 2-pass analysis on a video you flagged from a scan.
 
 ## YouTube: Topic watch (recurring)
 

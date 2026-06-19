@@ -338,5 +338,12 @@ spend, and ETA for non-video loops. `distill papers` uses it for per-paper
 analysis progress, and `distill site-batch` uses it for per-seed progress.
 `site-batch` now also records unexpected seed-level exceptions as structured
 `site-ingest` issues and continues with later seeds, while `BudgetExceededError`
-still stops the run. Remaining progress work is to carry the same surface into
-`discover`, `latest`, and `catch-up`.
+still stops the run. At the end of that cycle, `discover`, `latest`, and
+`catch-up` still needed the same surface.
+
+Cycle 36 extended the same progress posture to video-backed loops. `ETATracker`
+now records failed items, can include running spend in phase labels, and
+`process_video` prints a persistent per-video progress line after success or
+failure. This covers `latest`, `catch-up`, and the other shared video paths
+without changing ranking, analysis, or synthesis behavior. The remaining named
+batch-progress gap is `discover`.

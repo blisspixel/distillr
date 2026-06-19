@@ -501,6 +501,31 @@ def record_exception_issue(
         )
 
 
+def _tick_video_eta(eta: ETATracker | None, start_time: float, *, success: bool) -> None:
+    if eta is None:
+        return
+    try:
+        eta.tick(start_time, success=success)
+    except TypeError:
+        eta.tick(start_time)
+
+
+def _print_video_progress(eta: ETATracker | None, tracker: CostTracker) -> None:
+    parts = ["progress"]
+    if eta is not None and hasattr(eta, "completed") and hasattr(eta, "total"):
+        parts.append(f"completed {eta.completed}/{eta.total}")
+        parts.append(f"failed {getattr(eta, 'failed', 0)}")
+    parts.append(f"spent {tracker.format_cost()}")
+    console.print(f"    [dim]{' | '.join(parts)}[/dim]")
+
+
+def _eta_progress_str(eta: ETATracker, step: str, tracker: CostTracker) -> str:
+    try:
+        return eta.progress_str(step, cost_tracker=tracker)
+    except TypeError:
+        return eta.progress_str(step)
+
+
 def process_video(  # noqa: C901 — legacy, will refactor
     topic: str,
     channel_name: str,
@@ -532,7 +557,11 @@ def process_video(  # noqa: C901 — legacy, will refactor
     transcript_bytes = transcript_file.stat().st_size if transcript_file.exists() else 0
 
     if not transcript_file.exists():
-        _ts_label = f"    {eta.progress_str('transcript')}" if eta else "    [dim]transcript[/dim]"
+        _ts_label = (
+            f"    {_eta_progress_str(eta, 'transcript', tracker)}"
+            if eta
+            else "    [dim]transcript[/dim]"
+        )
         with console.status(_ts_label, spinner="dots"):
             success = get_transcript(
                 video.url, video.video_id, transcript_file, config, tracker=tracker
@@ -548,8 +577,8 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     duration=video.duration,
                 )
             )
-            if eta:
-                eta.tick(vid_start)
+            _tick_video_eta(eta, vid_start, success=False)
+            _print_video_progress(eta, tracker)
             return False
         transcript_bytes = transcript_file.stat().st_size
 
@@ -565,8 +594,8 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 duration=video.duration,
             )
         )
-        if eta:
-            eta.tick(vid_start)
+        _tick_video_eta(eta, vid_start, success=False)
+        _print_video_progress(eta, tracker)
         return False
 
     labels = {
@@ -576,7 +605,11 @@ def process_video(  # noqa: C901 — legacy, will refactor
     }
     step_label = labels.get(effective_mode, "analyzing")
     try:
-        _an_label = f"    {eta.progress_str(step_label)}" if eta else f"    [dim]{step_label}[/dim]"
+        _an_label = (
+            f"    {_eta_progress_str(eta, step_label, tracker)}"
+            if eta
+            else f"    [dim]{step_label}[/dim]"
+        )
         _intent = load_intent(config.topic_dir(topic))
         with console.status(_an_label, spinner="dots"):
             if effective_mode == "short":
@@ -637,8 +670,8 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     duration=video.duration,
                 )
             )
-            if eta:
-                eta.tick(vid_start)
+            _tick_video_eta(eta, vid_start, success=False)
+            _print_video_progress(eta, tracker)
             return False
 
         meta = {
@@ -673,7 +706,9 @@ def process_video(  # noqa: C901 — legacy, will refactor
             ),
         )
         size = f"{transcript_bytes:,}b" if transcript_bytes else ""
+        _tick_video_eta(eta, vid_start, success=True)
         console.print(f"    [{_ACCENT}]done[/{_ACCENT}]  [dim]{size}[/dim]")
+        _print_video_progress(eta, tracker)
         if state is not None:
             state.mark_processed(
                 video.video_id,
@@ -692,8 +727,6 @@ def process_video(  # noqa: C901 — legacy, will refactor
             )
         )
         summary.add_output(insights_file)
-        if eta:
-            eta.tick(vid_start)
         return True
     except Exception as e:
         console.print(f"    [red]failed: {e}[/red]")
@@ -707,8 +740,8 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 duration=video.duration,
             )
         )
-        if eta:
-            eta.tick(vid_start)
+        _tick_video_eta(eta, vid_start, success=False)
+        _print_video_progress(eta, tracker)
         return False
 
 

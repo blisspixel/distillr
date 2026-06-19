@@ -258,6 +258,16 @@ class TestETATracker:
         tracker.tick(start)
         assert tracker.completed == 1
 
+    def test_tick_records_failed_items(self, monkeypatch):
+        import distill.pipeline.summary as summary_mod
+
+        monkeypatch.setattr(summary_mod.time, "time", lambda: 1005.0)
+
+        tracker = ETATracker(total=2)
+        tracker.tick(1000.0, success=False)
+        assert tracker.completed == 1
+        assert tracker.failed == 1
+
     def test_eta_str_empty_when_no_times(self):
         tracker = ETATracker(total=5)
         assert tracker.eta_str == ""
@@ -300,6 +310,13 @@ class TestETATracker:
         assert "3/5" in result
         assert "left" in result
         assert "analyzing" in result
+
+    def test_progress_str_can_include_cost_and_failure_counts(self):
+        tracker = ETATracker(total=3, completed=1, failed=1)
+        result = tracker.progress_str("analyzing", cost_tracker=CostTracker())
+        assert "completed 1/3" in result
+        assert "failed 1" in result
+        assert "spent $0.0000" in result
 
 
 class TestDisplayEstimate:

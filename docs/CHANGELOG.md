@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a biggest-prompts view to `distill costs`, `distill costs --json`, and the local web costs page using per-call telemetry from `library/.distill/telemetry.jsonl`.
 - Added context-engineering contribution rules to `docs/CONTRIBUTING.md` so prompt, MCP, report, pipeline, and loop changes preserve provenance, keep default context small, and measure prompt-budget impact.
 - Added shared batch progress formatting and wired it into `distill papers` and `distill site-batch`, showing phase, item count, completed count, failed count, running spend, and ETA when enough items have completed.
+- Added persistent per-video progress output for video-backed loops such as `distill latest` and `distill catch-up`, showing completed count, failed count, running spend, and ETA after each processed video.
 
 ### Changed
 

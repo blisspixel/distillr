@@ -5,6 +5,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from rich.console import Console
 
 from distill._bootstrap import ensure_utf8_stdio
 from distill.cli_shared import (
@@ -548,6 +549,43 @@ class TestHelperRecording:
 
 
 class TestProcessVideoAdvanced:
+    def test_successful_analysis_prints_persistent_progress(self, config, monkeypatch):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import ETATracker, RunSummary
+
+        video = SimpleNamespace(
+            video_id="progress123",
+            title="Progress Video",
+            upload_date="20250101",
+            duration=600,
+            url="https://youtube.com/watch?v=progress123",
+        )
+        vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "transcript.txt").write_text("Transcript content", encoding="utf-8")
+
+        monkeypatch.setattr(
+            "distill.commands._helpers.analyze_video",
+            lambda *a, **kw: "# Insights\nDetailed",
+        )
+        progress_console = Console(record=True, width=120)
+        monkeypatch.setattr("distill.commands._helpers.console", progress_console)
+
+        result = process_video(
+            "ai",
+            "TestCh",
+            video,
+            config,
+            CostTracker(),
+            RunSummary(command="test"),
+            eta=ETATracker(total=1),
+        )
+
+        assert result is True
+        rendered = progress_console.export_text()
+        assert "progress | completed 1/1 | failed 0 | spent $0.0000" in rendered
+
     def test_successful_analysis_marks_state_and_ticks_eta(self, config, monkeypatch):
         from distill.cli_shared import process_video
         from distill.library.state import ChannelState

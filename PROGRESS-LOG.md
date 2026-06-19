@@ -79,6 +79,33 @@
 - Extend the same batch progress surface to `discover`, `latest`, and
   `catch-up`, then consider a verbosity dial once all loops share the helper.
 
+### Cycle 36 - Video Loop Running Progress
+
+- External spend: `$0.00`.
+- Extended `ETATracker` with failed item counting and optional running spend in
+  phase labels.
+- `process_video` now prints a persistent per-video progress line after each
+  success or failure: completed count, failed count, and running spend.
+- This covers video-backed loops including `distill latest` and
+  `distill catch-up` through the shared video helper without changing ranking,
+  analysis, or synthesis behavior.
+- The remaining named batch-progress gap is `discover`.
+- Targeted validation:
+  - `uv run ruff check distill\pipeline\summary.py distill\commands\_helpers.py tests\unit\pipeline\test_summary.py tests\unit\commands\test_helpers.py` passed.
+  - `uv run ruff format --check distill\pipeline\summary.py distill\commands\_helpers.py tests\unit\pipeline\test_summary.py tests\unit\commands\test_helpers.py` passed.
+  - `uv run pytest -q tests\unit\pipeline\test_summary.py::TestETATracker::test_tick_records_failed_items tests\unit\pipeline\test_summary.py::TestETATracker::test_progress_str_can_include_cost_and_failure_counts tests\unit\commands\test_helpers.py::TestProcessVideoAdvanced::test_successful_analysis_prints_persistent_progress tests\unit\commands\test_helpers.py::TestProcessVideoAdvanced::test_successful_analysis_marks_state_and_ticks_eta` passed: 4 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 446 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2502
+    passed, 8 deselected, 1 warning, 82.65% coverage.
+
+### Next
+
+- Extend the same phase/item/completed/failed/spend surface through
+  `discover`, then evaluate whether a verbosity dial is still needed before
+  the CLI contract freezes.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.
