@@ -215,6 +215,12 @@ allowed scratch capture files, while Claude remains blocked until schema
 inlining, native usage collection, support proof, auth proof, and eval evidence
 exist.
 
+Cycle 22 added deterministic Claude schema inlining for command plans. The
+inliner loads a staged scratch JSON schema object, inserts compact sorted JSON
+before Claude's `--tools` argument, rejects non-object schemas and path escapes,
+and removes only the schema-inlining blocker. Claude still remains blocked on
+native usage collection and route gates.
+
 Remaining near-term gaps are official installed-session auth proof,
 remaining adapter-specific capture wiring, remaining adapter command templates,
 real native usage collection for future plan-quota adapters, and eval-gated

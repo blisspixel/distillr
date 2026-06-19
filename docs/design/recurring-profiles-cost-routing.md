@@ -310,8 +310,9 @@ boundaries:
    from captured CLI output only when the caller supplies real native usage
    signals. Command planners may record exact argv shapes, staged prompt paths,
    schema paths, result capture paths, and allowed scratch capture files while
-   still blocked. This does not bypass adapter support, auth, usage collection,
-   or eval gates.
+   still blocked. Claude schema paths can be inlined from staged JSON schema
+   files, but this does not bypass adapter support, auth, usage collection, or
+   eval gates.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per
    accepted change. No-metered routes still lose when they produce too much

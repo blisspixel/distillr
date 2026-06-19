@@ -100,6 +100,9 @@
   allowed scratch capture files, but a command plan is not eligible while
   blockers remain. Codex, Claude, and Grok read-only plans are blocked until
   native usage collection and route gates exist.
+- Use `distill.doctor.adapter_commands.inline_adapter_command_schema()` to
+  materialize Claude schema paths into argv only after the schema file is
+  staged inside scratch and parsed as a JSON object.
 - Use `distill.doctor.adapter_runner.run_adapter_command()` for future adapter
   commands. It runs exact argv arrays with shell disabled, strips known
   metered API-key environment variables, enforces a timeout, and validates the

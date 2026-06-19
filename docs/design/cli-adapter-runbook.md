@@ -420,8 +420,9 @@ caller-supplied native usage. It does not invent usage data or make an adapter
 eligible.
 `distill.doctor.adapter_commands` records blocked Codex, Claude, and Grok
 read-only argv templates. Command plans include staged prompt, schema, result
-capture, and allowed scratch capture metadata, but keep templates blocked until
-schema inlining where needed, native usage collection, current support
+capture, and allowed scratch capture metadata. Claude schema paths can be
+materialized into `--json-schema` argv arguments from staged scratch JSON schema
+files, but templates stay blocked until native usage collection, current support
 statement, auth proof, and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head

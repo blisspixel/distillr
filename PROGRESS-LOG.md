@@ -515,6 +515,32 @@
 - Continue schema inlining, native usage collection, and remaining command
   templates.
 
+### Cycle 22 - Claude Schema Inlining
+
+- External spend: `$0.00`.
+- Added `inline_adapter_command_schema()` for deterministic Claude command-plan
+  materialization.
+- The inliner loads a staged scratch schema file, requires a JSON object,
+  inserts compact sorted JSON before Claude's `--tools` argument, rejects
+  scratch path escapes, and removes only the schema-inlining blocker.
+- Claude command plans still remain blocked on native usage collection plus
+  adapter doctor, support, auth, and eval gates.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py` passed: 2 files already formatted.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_commands.py` passed: 9 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 441 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2457
+    passed, 8 deselected, 1 warning, 82.15% coverage.
+
+### Next
+
+- Continue native usage collection and remaining command templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any
 
 from distill.doctor.adapter_workload import AdapterWorkloadPackage
 from distill.doctor.adapters import AdapterProbe
 
 __all__ = [
+    "AdapterCommandError",
     "AdapterCommandPlan",
+    "inline_adapter_command_schema",
     "plan_adapter_command",
 ]
+
+CLAUDE_SCHEMA_INLINE_BLOCKER = "claude command template requires schema inlining before execution"
+
+
+class AdapterCommandError(ValueError):
+    """Raised when a command plan cannot be materialized safely."""
 
 
 @dataclass(frozen=True)
@@ -108,6 +119,29 @@ def plan_adapter_command(
     )
 
 
+def inline_adapter_command_schema(
+    plan: AdapterCommandPlan,
+    *,
+    scratch_root: Path,
+) -> AdapterCommandPlan:
+    """Inline a staged schema file into a command plan when the adapter requires it."""
+
+    if plan.adapter != "claude" or not plan.schema_path:
+        return plan
+    if CLAUDE_SCHEMA_INLINE_BLOCKER not in plan.blocked_reasons:
+        return plan
+    schema_payload = _load_schema_payload(scratch_root, Path(plan.schema_path))
+    schema_json = json.dumps(schema_payload, separators=(",", ":"), sort_keys=True)
+    blocked_reasons = [
+        reason for reason in plan.blocked_reasons if reason != CLAUDE_SCHEMA_INLINE_BLOCKER
+    ]
+    return replace(
+        plan,
+        argv=_insert_before(plan.argv, "--tools", ("--json-schema", schema_json)),
+        blocked_reasons=blocked_reasons,
+    )
+
+
 def _codex_command(
     workload: AdapterWorkloadPackage,
 ) -> tuple[tuple[str, ...], list[str], dict[str, Any]]:
@@ -152,7 +186,7 @@ def _claude_command(
         )
     if not workload.output_schema_path:
         blocked_reasons.append("claude command template requires output_schema_path")
-    blocked_reasons.append("claude command template requires schema inlining before execution")
+    blocked_reasons.append(CLAUDE_SCHEMA_INLINE_BLOCKER)
     blocked_reasons.append("native usage collection is not implemented: claude")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
@@ -220,3 +254,38 @@ def _dedupe(values: list[str]) -> list[str]:
             seen.add(value)
             result.append(value)
     return result
+
+
+def _load_schema_payload(root: Path, schema_path: Path) -> Mapping[str, Any]:
+    path = _resolve_scratch_file(root, schema_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AdapterCommandError(f"adapter command schema is invalid JSON: {schema_path}") from exc
+    if not isinstance(payload, Mapping):
+        raise AdapterCommandError(f"adapter command schema must be a JSON object: {schema_path}")
+    return payload
+
+
+def _resolve_scratch_file(root: Path, path: Path) -> Path:
+    scratch_root = root.resolve()
+    candidate = (scratch_root / path).resolve()
+    try:
+        candidate.relative_to(scratch_root)
+    except ValueError as exc:
+        raise AdapterCommandError(
+            f"adapter command path escapes scratch workspace: {path}"
+        ) from exc
+    return candidate
+
+
+def _insert_before(
+    argv: tuple[str, ...],
+    marker: str,
+    inserted: tuple[str, ...],
+) -> tuple[str, ...]:
+    try:
+        index = argv.index(marker)
+    except ValueError:
+        return (*argv, *inserted)
+    return (*argv[:index], *inserted, *argv[index:])

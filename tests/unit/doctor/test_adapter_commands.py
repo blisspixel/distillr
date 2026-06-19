@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-from distill.doctor.adapter_commands import plan_adapter_command
+import json
+from dataclasses import replace
+
+import pytest
+
+from distill.doctor.adapter_commands import (
+    AdapterCommandError,
+    inline_adapter_command_schema,
+    plan_adapter_command,
+)
 from distill.doctor.adapter_workload import validate_adapter_workload_package
 from distill.doctor.adapters import AdapterProbe
 
@@ -84,6 +93,50 @@ def test_claude_command_plan_records_read_only_argv_but_stays_blocked():
     )
     assert "native usage collection is not implemented: claude" in plan.blocked_reasons
     assert not plan.ok
+
+
+def test_inline_adapter_command_schema_materializes_claude_schema(tmp_path):
+    schema = {
+        "type": "object",
+        "properties": {"summary": {"type": "string"}},
+        "required": ["summary"],
+    }
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas" / "result.json").write_text(json.dumps(schema), encoding="utf-8")
+    plan = plan_adapter_command("claude", _workload())
+
+    materialized = inline_adapter_command_schema(plan, scratch_root=tmp_path)
+
+    schema_index = materialized.argv.index("--json-schema")
+    assert materialized.argv[schema_index + 1] == json.dumps(
+        schema,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    assert materialized.argv.index("--json-schema") < materialized.argv.index("--tools")
+    assert "claude command template requires schema inlining before execution" not in (
+        materialized.blocked_reasons
+    )
+    assert "native usage collection is not implemented: claude" in materialized.blocked_reasons
+    assert "claude command template requires schema inlining before execution" in (
+        plan.blocked_reasons
+    )
+
+
+def test_inline_adapter_command_schema_rejects_non_object_schema(tmp_path):
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas" / "result.json").write_text("[]", encoding="utf-8")
+    plan = plan_adapter_command("claude", _workload())
+
+    with pytest.raises(AdapterCommandError, match="schema must be a JSON object"):
+        inline_adapter_command_schema(plan, scratch_root=tmp_path)
+
+
+def test_inline_adapter_command_schema_rejects_path_escape(tmp_path):
+    plan = replace(plan_adapter_command("claude", _workload()), schema_path="../schema.json")
+
+    with pytest.raises(AdapterCommandError, match="escapes scratch workspace"):
+        inline_adapter_command_schema(plan, scratch_root=tmp_path)
 
 
 def test_grok_command_plan_records_read_only_argv_but_stays_blocked():

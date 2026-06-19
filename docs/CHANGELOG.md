@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a native adapter result writer that turns captured CLI output plus caller-supplied native usage into validated `adapter-result.v1` scratch manifests.
 - Added command-plan capture metadata and a blocked Grok read-only command planner for future scratch adapter workloads.
 - Added schema-path command-plan metadata and a blocked Claude read-only command planner for future scratch adapter workloads.
+- Added deterministic Claude command-plan schema inlining from staged scratch JSON schema files.
 
 ### Changed
 

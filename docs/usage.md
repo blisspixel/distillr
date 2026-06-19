@@ -265,8 +265,9 @@ metadata. The Codex read-only command planner records the future
 blocked `claude -p --input-format text --output-format json` shape, and the
 Grok planner records a blocked `grok --no-auto-update --prompt-file ...
 --output-format json` shape. Plans include staged prompt, schema, result
-capture, and allowed scratch capture metadata, but stay blocked until native
-usage collection and adapter gates exist. Distill still does not expose any
+capture, and allowed scratch capture metadata; Claude schema paths can be
+inlined from staged JSON schema files. Plans stay blocked until native usage
+collection and adapter gates exist. Distill still does not expose any
 plan-quota adapter as an eligible route by itself.
 
 ## Websites
