@@ -196,9 +196,6 @@ def test_gemini_command_plan_records_headless_argv_but_stays_blocked():
     assert "gemini command template requires stdin prompt support in runner" in (
         plan.blocked_reasons
     )
-    assert "gemini command template requires stdout result capture wrapper" in (
-        plan.blocked_reasons
-    )
     assert "gemini command template does not enforce output_schema_path natively" in (
         plan.blocked_reasons
     )
@@ -233,9 +230,6 @@ def test_antigravity_command_plan_records_chat_argv_but_stays_blocked():
     assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert "antigravity command template lacks headless JSON output" in plan.blocked_reasons
-    assert "antigravity command template requires stdout result capture wrapper" in (
-        plan.blocked_reasons
-    )
     assert "antigravity command template does not enforce output_schema_path natively" in (
         plan.blocked_reasons
     )

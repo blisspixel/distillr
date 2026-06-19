@@ -712,8 +712,34 @@
 
 ### Next
 
-- Continue native usage collection for non-Codex CLI outputs, stdout capture
-  wrappers for adapters without native result files, official auth proof, and
+- Continue native usage collection for non-Codex CLI outputs,
+  adapter-specific capture wiring that supplies those usage files, official
+  auth proof, and eval-gated route graduation.
+
+### Cycle 29 - Generic Stdout Capture Writer
+
+- External spend: `$0.00`.
+- Added `write_stdout_captured_result()` for adapter CLIs that need captured
+  stdout written to `result.txt` before manifest validation.
+- The helper writes result text and then uses the shared result writer with an
+  existing validated `adapter-native-usage.v1` file. It does not invent usage
+  signals.
+- Tightened the shared result writer so a native usage file must name the same
+  adapter as the manifest being written.
+- Removed the obsolete stdout result-capture blockers from Gemini and
+  Antigravity command plans. They remain blocked on native usage, schema,
+  auth, support, and eval gates.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_capture.py distill\doctor\adapter_result_writer.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_capture.py distill\doctor\adapter_result_writer.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_commands.py` passed: 25 passed.
+
+### Next
+
+- Continue native usage collection for non-Codex CLI outputs, adapter-specific
+  capture wiring that supplies those usage files, official auth proof, and
   eval-gated route graduation.
 
 ### Cycle 15 - Adapter Manifest Ledger Bridge

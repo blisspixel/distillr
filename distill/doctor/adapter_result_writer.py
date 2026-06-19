@@ -107,10 +107,16 @@ def _usage_from_spec(spec: AdapterResultWriteSpec, root: Path) -> AdapterUsage:
     if spec.usage is not None:
         return spec.usage
     if spec.native_usage_path is not None:
-        return load_adapter_native_usage(
+        record = load_adapter_native_usage(
             spec.native_usage_path,
             scratch_root=root,
-        ).to_adapter_usage()
+        )
+        if record.adapter != spec.adapter:
+            raise ValueError(
+                "adapter native usage adapter mismatch: "
+                f"expected {spec.adapter}, got {record.adapter}"
+            )
+        return record.to_adapter_usage()
     return AdapterUsage(
         input_tokens=None,
         output_tokens=None,

@@ -351,8 +351,6 @@ Current blockers:
 
 - The Gemini template needs runner stdin prompt support before Distill can pass
   staged `adapter-workload.v1` prompts without shell piping.
-- The Gemini template needs a stdout result-capture wrapper to write
-  `result.txt`.
 - The local CLI has JSON output, but no observed native `--output-schema`
   enforcement in 0.46.0 help.
 - Adapter-specific native usage capture is not implemented.
@@ -405,7 +403,6 @@ antigravity chat \
 Current blockers:
 
 - The local chat command lacks observed headless JSON output.
-- The template needs a stdout result-capture wrapper to write `result.txt`.
 - The local CLI has no observed native `--output-schema` enforcement in 1.107.0
   help.
 - Adapter-specific native usage capture is not implemented.
@@ -559,6 +556,9 @@ data or make an adapter eligible.
 The Codex writer converts captured JSONL stdout plus `result.txt` into a
 scratch native usage file and result manifest, and the workload runner can
 invoke it through a post-process capture hook before manifest validation.
+The generic stdout writer saves captured stdout to `result.txt` and writes the
+same result manifest from a validated native usage file, but it does not invent
+usage signals.
 `distill.doctor.adapter_commands` records blocked Codex, Claude, Grok, Gemini,
 and Antigravity read-only argv templates. Command plans include staged prompt,
 schema, result capture, native usage capture, and allowed scratch capture

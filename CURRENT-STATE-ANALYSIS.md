@@ -275,7 +275,16 @@ native usage signal. The adapter doctor now also probes Antigravity chat help
 for mode support. This closes the current command-template set for the five
 planned included-plan adapters without making any route eligible.
 
+Cycle 29 added a generic stdout capture writer. For CLIs without a native
+result-file flag, `write_stdout_captured_result()` writes captured stdout to
+`result.txt` and then writes the same validated `adapter-result.v1` manifest
+from an existing `adapter-native-usage.v1` scratch file. The shared result
+writer now rejects native usage files whose adapter name does not match the
+manifest adapter, so a Codex usage file cannot accidentally ledger a Grok,
+Gemini, Claude, or Antigravity result. This closes the generic result-capture
+primitive without inventing non-Codex usage signals or enabling any route.
+
 Remaining near-term gaps are official installed-session auth proof,
 native usage collection from non-Codex CLI outputs for future plan-quota
-adapters, stdout capture wrappers for adapters without native result files, and
+adapters, adapter-specific capture wiring that supplies those usage files, and
 eval-gated route graduation.

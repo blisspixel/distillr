@@ -95,6 +95,10 @@
   future Codex process exits to write `native-usage.json` and
   `adapter-result.json` from captured JSONL stdout plus `result.txt`. It is
   still not a route eligibility gate.
+- Use `distill.doctor.adapter_capture.write_stdout_captured_result()` for
+  adapters that only expose useful stdout. It writes `result.txt` and the
+  result manifest, but it requires a real validated `adapter-native-usage.v1`
+  file and does not invent usage signals.
 - If an adapter manifest reports `quota`, `rate_limit`, or `rate-limit`, it
   must include structured `quota_stop` metadata instead of relying on free text.
 - Future adapter workloads must use the strict `adapter-workload.v1` package

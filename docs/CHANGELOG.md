@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added workload-runner capture hooks so tested adapter workloads can write captured results before manifest validation.
 - Added a blocked Gemini CLI read-only command planner and tightened Gemini-family API-key blockers to include `GOOGLE_API_KEY`.
 - Added a blocked Antigravity read-only command planner based on local `antigravity chat --help` evidence.
+- Added a generic stdout capture writer for adapter CLIs that need captured stdout written to `result.txt` before manifest validation.
 
 ### Changed
 

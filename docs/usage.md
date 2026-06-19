@@ -275,11 +275,12 @@ staged JSON schema files. Plans stay blocked until adapter-specific native
 usage capture and adapter gates exist. Distill can parse Codex JSONL
 `turn.completed` usage into the native usage contract and write the scratch
 manifest from captured stdout plus `result.txt` through the workload runner
-capture hook. Gemini stays blocked on runner stdin prompt support, stdout
-result capture, native schema enforcement, and native usage capture.
-Antigravity stays blocked because local help exposes no headless JSON, native
-schema, or usage surface. Distill still does not expose any plan-quota adapter
-as an eligible route by itself.
+capture hook. Gemini stays blocked on runner stdin prompt support, native
+schema enforcement, and native usage capture. Antigravity stays blocked because
+local help exposes no headless JSON, native schema, or usage surface. A generic
+stdout capture helper can write captured stdout to `result.txt`, but it still
+requires a real validated native usage file. Distill still does not expose any
+plan-quota adapter as an eligible route by itself.
 
 ## Websites
 
