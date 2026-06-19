@@ -27,7 +27,12 @@ def _print_issues(issues: tuple[OkfIssue, ...], heading: str) -> None:
 def validate(
     path: Path = typer.Argument(..., help="Path to an OKF bundle directory"),
 ) -> None:
-    """Validate an OKF bundle."""
+    """Validate an OKF bundle.
+
+    Examples:
+      distill okf validate output/okf-ai
+      distill --json okf validate output/okf-ai
+    """
     result = validate_okf_bundle(path)
 
     if json_mode_active():

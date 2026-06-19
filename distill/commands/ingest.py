@@ -61,7 +61,13 @@ def ingest_cmd(
         help="For podcast feeds: how many of the latest episodes to ingest (default 1).",
     ),
 ):
-    """Ingest a single URL or local file into the library, picking the right adapter."""
+    """Ingest a single URL or local file into the library, picking the right adapter.
+
+    Examples:
+      distill ingest https://github.com/example/project --topic repos
+      distill ingest private/research.pdf --topic papers
+      distill ingest https://example.com/feed.xml --rss --episodes 3 --topic feeds
+    """
     config = get_config()
     tracker = CostTracker()
 

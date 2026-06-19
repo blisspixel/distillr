@@ -618,6 +618,12 @@ def discover(  # noqa: C901 — legacy, will refactor
     (the inverse of goal-driven discovery): "you are thin on X, single-source on
     Y" becomes "find sources that fill X and Y". With ``--from-preview <id>``, the
     exact shortlist a previous ``--preview`` run saved is ingested verbatim.
+
+    Examples:
+      distill discover "agentic coding loops" --topic agentic-coding --preview
+      distill discover "agentic coding loops" --topic agentic-coding --yes
+      distill discover --goal-file private/agentic-coding.md --topic agentic-coding --yes
+      distill discover --from-preview 20260619-120000 --topic agentic-coding
     """
 
     _preflight()

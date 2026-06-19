@@ -44,7 +44,13 @@ def profile_preview_cmd(
         help="Fetch feeds and YouTube channel metadata before showing candidates.",
     ),
 ):
-    """Preview the current candidate set for a recurring profile."""
+    """Preview the current candidate set for a recurring profile.
+
+    Examples:
+      distill profile preview ai-developer-news
+      distill profile preview examples/profiles/ai-developer-news.yaml --no-fetch
+      distill --json profile preview ai-developer-news --limit 20
+    """
 
     try:
         _config, path, result = _load_profile_preview(profile, limit, fetch_sources)
@@ -87,7 +93,16 @@ def profile_run_cmd(
         help="Maximum seconds to allow each profile command.",
     ),
 ):
-    """Run a recurring profile through existing Distill commands."""
+    """Run a recurring profile through existing Distill commands.
+
+    Without ``--yes``, prints the command plan and state path only. With
+    ``--yes``, executes the approved commands and records their results.
+
+    Examples:
+      distill profile run ai-developer-news
+      distill profile run ai-developer-news --yes
+      distill --cost-mode no-metered profile run ai-developer-news --yes
+    """
 
     try:
         config, path, preview = _load_profile_preview(profile, limit, fetch_sources)

@@ -125,6 +125,11 @@ def report(  # noqa: C901 - legacy, will refactor
     Use --legacy for single-shot Deep Research.
     Use --research-only to run only Phase 1.
     Use --no-qa to skip the QA review.
+
+    Examples:
+      distill report ai
+      distill report ai --focus "migration risks"
+      distill report ai --research-only
     """
     config = get_config()
     if topic:
@@ -281,7 +286,13 @@ def export(
         "bundle", "--format", help="Bundle format: bundle, deepr, or okf"
     ),
 ):
-    """Export reports, syntheses, or a portable topic corpus bundle."""
+    """Export reports, syntheses, or a portable topic corpus bundle.
+
+    Examples:
+      distill export ai
+      distill export ai --what synthesis
+      distill export ai --what bundle --format okf
+    """
     config = get_config()
     lib = Library(config)
     if bundle_format == "okf" and what == "report":

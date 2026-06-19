@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added the same per-item progress surface to `distill discover` paper and site ingestion, while its video branch uses the shared video progress path.
 - Added report progress for the default 4-phase pipeline, covering report phases, section writing, and QA rewrites with completed count, failed count, running spend, and ETA when available.
 - Added global `distill --quiet/-q` and `distill --verbose/-v` output controls, with `--quiet` suppressing human console output for loop runners and `--verbose` enabling debug logging.
+- Added `--help` examples for recurring workflow preview, approval, ingest, audit next-action plans, OKF export, and OKF validation.
 
 ### Changed
 

@@ -372,3 +372,9 @@ Cycle 40 ships that verbosity dial. The top-level callback now accepts
 `distill.commands._helpers`, so `_logic.py` stays under the lowered 1444-line
 ratchet. `--json` still owns stdout purity separately; quiet mode suppresses
 human console output without changing JSON emission.
+
+Cycle 41 closes the remaining recurring-workflow help-example pass. Command
+help now shows concrete preview, approve, discovery commit, single-target
+ingest, audit next-action, OKF export, and OKF validation examples on the
+commands that own those workflows. This is a CLI legibility change only: no
+semantic ranking, ingest behavior, audit logic, or export contract changed.

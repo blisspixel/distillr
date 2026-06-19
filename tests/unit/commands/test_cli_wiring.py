@@ -159,6 +159,23 @@ class TestTopLevelExperience:
         assert "distill monitor" in result.output
         assert "Microsoft AI news" in result.output
 
+    def test_help_shows_recurring_workflow_examples(self):
+        checks = [
+            (["profile", "preview", "--help"], "distill profile preview ai-developer-news"),
+            (["profile", "run", "--help"], "distill profile run ai-developer-news --yes"),
+            (["discover", "--help"], 'distill discover "agentic coding loops"'),
+            (["ingest", "--help"], "distill ingest https://github.com/example/project"),
+            (["audit", "--help"], "distill --json audit all --next-actions"),
+            (["export", "--help"], "distill export ai --what bundle --format okf"),
+            (["okf", "validate", "--help"], "distill okf validate output/okf-ai"),
+        ]
+
+        for argv, expected in checks:
+            result = runner.invoke(cli.app, argv)
+
+            assert result.exit_code == 0, result.output
+            assert expected in result.output
+
     def test_no_args_empty_library_shows_launcher(self, mock_config, monkeypatch):
         monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
         monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)

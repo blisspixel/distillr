@@ -122,6 +122,11 @@ def audit_cmd(
     One deterministic run bundling verification coverage (the `_Verify.json`
     sidecars), stale/thin warnings, contested concepts, broken wiki-links, and
     coverage gaps -- then an action menu for the safe fixes. No model calls.
+
+    Examples:
+      distill audit all --report-only
+      distill audit ai --next-actions
+      distill --json audit all --next-actions
     """
     from distill.library.links import check_links
 

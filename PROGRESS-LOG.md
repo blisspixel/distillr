@@ -215,6 +215,33 @@
 - Normalize `--help` examples for recurring workflows or continue the next
   local roadmap slice with no external spend.
 
+### Cycle 41 - Recurring Workflow Help Examples
+
+- External spend: `$0.00`.
+- Added rendered `--help` examples for recurring profile preview and approved
+  profile runs.
+- Added help examples for discovery preview and commit, single-target ingest,
+  audit next-action plans, OKF export, and OKF validation.
+- Updated roadmap, changelog, skills, and current-state notes so the CLI-UX
+  help-example gap is marked shipped.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_cli_wiring.py::TestTopLevelExperience -q`
+    passed: 7 passed.
+  - `uv run ruff check distill/commands/profile.py distill/commands/audit.py distill/commands/reports.py distill/commands/okf.py distill/commands/ingest.py distill/commands/discover.py tests/unit/commands/test_cli_wiring.py`
+    passed.
+  - `uv run ruff format --check distill/commands/profile.py distill/commands/audit.py distill/commands/reports.py distill/commands/okf.py distill/commands/ingest.py distill/commands/discover.py tests/unit/commands/test_cli_wiring.py`
+    passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 447 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2511
+    passed, 8 deselected, 1 warning, 82.73% coverage.
+
+### Next
+
+- Continue `_logic.py` decomposition or the next local roadmap slice with no
+  external spend.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.
