@@ -252,6 +252,7 @@ class TestJsonDoctor:
         assert result.exit_code == 0
         data = json.loads(result.output)["data"]
         assert data["schema_version"] == "adapter-doctor.v1"
+        assert data["manifest_contract"]["schema_version"] == "adapter-result.v1"
         assert data["adapters"][0]["name"] == "codex"
         assert data["adapters"][0]["no_metered_eligible"] is False
 

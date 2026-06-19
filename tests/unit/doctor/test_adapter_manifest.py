@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+from pydantic import ValidationError
+
+from distill.doctor.adapter_manifest import (
+    ADAPTER_RESULT_SCHEMA_VERSION,
+    AdapterManifestError,
+    adapter_result_manifest_contract,
+    load_adapter_result_manifest,
+    validate_adapter_result_manifest,
+)
+
+
+def _manifest(**overrides):
+    payload = {
+        "schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
+        "adapter": "codex",
+        "adapter_version": "codex 0.140.0",
+        "auth_class": "included-plan",
+        "command_class": "scratch-write",
+        "model": "gpt-5.1-codex",
+        "prompt_hash": "sha256:prompt",
+        "source_hash": "sha256:source",
+        "elapsed_ms": 1234,
+        "usage": {
+            "input_tokens": 100,
+            "output_tokens": 25,
+            "native": {"event_count": 3},
+        },
+        "stop_reason": "complete",
+        "files_read": ["sources/input.md"],
+        "files_written": ["result.json"],
+        "output": {"summary": "ok"},
+        "policy": {
+            "cost_mode": "no-metered",
+            "blocked_api_key_env": [],
+            "metered_allowed": False,
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_adapter_manifest_accepts_valid_no_metered_result(tmp_path):
+    manifest = validate_adapter_result_manifest(_manifest(), scratch_root=tmp_path)
+
+    assert manifest.schema_version == "adapter-result.v1"
+    assert manifest.auth_class == "included-plan"
+    assert manifest.resolve_written_paths(tmp_path) == (tmp_path.resolve() / "result.json",)
+
+
+def test_adapter_manifest_loads_json_and_reports_contract(tmp_path):
+    manifest_path = tmp_path / "adapter-result.json"
+    manifest_path.write_text(json.dumps(_manifest()), encoding="utf-8")
+
+    manifest = load_adapter_result_manifest(manifest_path, scratch_root=tmp_path)
+    contract = adapter_result_manifest_contract()
+
+    assert manifest.adapter == "codex"
+    assert contract["schema_version"] == "adapter-result.v1"
+    assert "usage" in contract["required_fields"]
+    assert "files_written" in contract["path_fields"]
+
+
+def test_adapter_manifest_requires_usage_signal():
+    payload = _manifest(
+        usage={
+            "input_tokens": None,
+            "output_tokens": None,
+            "native": {},
+        }
+    )
+
+    with pytest.raises(ValidationError, match="usage must include"):
+        validate_adapter_result_manifest(payload)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"auth_class": "metered-api"},
+        {
+            "policy": {
+                "cost_mode": "no-metered",
+                "blocked_api_key_env": ["OPENAI_API_KEY"],
+                "metered_allowed": False,
+            }
+        },
+        {
+            "policy": {
+                "cost_mode": "no-metered",
+                "blocked_api_key_env": [],
+                "metered_allowed": True,
+            }
+        },
+    ],
+)
+def test_adapter_manifest_fails_closed_for_no_metered_policy(override):
+    with pytest.raises(ValidationError):
+        validate_adapter_result_manifest(_manifest(**override))
+
+
+@pytest.mark.parametrize(
+    "bad_path",
+    [
+        "../library/result.json",
+        "/tmp/result.json",
+        "C:/Users/nicks/result.json",
+        "result/../secret.json",
+    ],
+)
+def test_adapter_manifest_rejects_unsafe_written_paths(bad_path):
+    with pytest.raises(ValidationError):
+        validate_adapter_result_manifest(_manifest(files_written=[bad_path]))
+
+
+def test_adapter_manifest_rejects_non_mapping_file(tmp_path):
+    manifest_path = tmp_path / "adapter-result.yaml"
+    manifest_path.write_text("- not\n- a\n- mapping\n", encoding="utf-8")
+
+    with pytest.raises(AdapterManifestError, match="must be a mapping"):
+        load_adapter_result_manifest(manifest_path)

@@ -245,7 +245,8 @@ distill --json doctor --adapters
 
 The adapter doctor is read-only. It checks candidate CLI adapter binaries,
 version/help commands, required structured-output flags, route class, support
-statement status, and API-key environment blockers. It does not run adapter
+statement status, API-key environment blockers, and the required
+`adapter-result.v1` scratch manifest contract. It does not run adapter
 workloads or make plan-quota routes eligible by itself.
 
 ## Websites

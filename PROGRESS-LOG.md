@@ -219,3 +219,33 @@
 ### Next
 
 - Continue adapter doctor auth classification and support-statement fixtures.
+
+### Cycle 9 - Adapter Result Manifest Boundary
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_manifest`, a strict parser for future
+  `adapter-result.v1` CLI adapter manifests.
+- The manifest boundary enforces known adapters, auth class, command class,
+  cost mode, prompt and source hashes, elapsed time, usage signals, declared
+  read and write paths, output payload, and policy state.
+- The parser rejects unsafe scratch-relative write paths, missing usage
+  signals, unknown fields, unknown adapters, and no-metered results that carry
+  metered auth, API-key blockers, or metered usage allowance.
+- `distill doctor --adapters` JSON now includes the manifest contract so
+  external loops and future adapter runners can inspect the required shape.
+- Updated README, usage docs, roadmap, changelog, current-state notes,
+  adapter runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_manifest.py distill\doctor\adapters.py distill\commands\doctor.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_manifest.py distill\doctor\adapters.py distill\commands\doctor.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py::TestJsonDoctor::test_doctor_json_adapter_report` passed: 15 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 429 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2405
+    passed, 8 deselected, 1 warning, 81.93% coverage.
+
+### Next
+
+- Continue adapter doctor installed-session auth classification and runner-side
+  manifest enforcement.

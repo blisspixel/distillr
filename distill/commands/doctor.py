@@ -629,6 +629,9 @@ def _doctor_adapter_report(*, json_output: bool) -> None:
 
     console.print("\n  [bold]CLI Adapter Doctor[/bold]")
     console.print("  [dim]Read-only checks. No adapter workloads were run.[/dim]")
+    console.print(
+        f"  [dim]Scratch manifest contract: {report.manifest_contract['schema_version']}[/dim]"
+    )
     for probe in report.adapters:
         status = "READY" if probe.no_metered_eligible else "BLOCKED"
         color = "green" if probe.no_metered_eligible else "yellow"

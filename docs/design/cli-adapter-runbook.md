@@ -348,14 +348,21 @@ usage:
   output_tokens: integer|null
   native: object
 stop_reason: string
+files_read:
+  - sources/input.md
 files_written:
-  - path: result.json
+  - result.json
 output: object|string
 policy:
   cost_mode: no-metered|auto|paid-ok
   blocked_api_key_env: [string]
   metered_allowed: boolean
 ```
+
+The checked parser lives in `distill.doctor.adapter_manifest`. It rejects
+unknown fields, unsafe relative paths, missing usage signals, unknown adapters,
+and `no-metered` results that report metered auth, API-key blockers, or metered
+usage allowance.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

@@ -339,7 +339,8 @@ profile commands, missing goals, invalid state, and thin local corpora are
 visible without network access. `distill doctor --adapters` adds read-only CLI
 adapter preflights for candidate plan-quota and credit-metered routes, including
 binary presence, version/help probes, required flags, API-key environment
-blockers, route class, and support-statement status.
+blockers, route class, support-statement status, and the required
+`adapter-result.v1` scratch manifest contract.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 
