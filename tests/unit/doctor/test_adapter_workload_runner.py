@@ -5,7 +5,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from distill.doctor.adapter_capture import (
+    ClaudeCaptureWriteSpec,
     CodexCaptureWriteSpec,
+    write_claude_captured_result,
     write_codex_captured_result,
 )
 from distill.doctor.adapter_runner import AdapterProcessResult
@@ -183,6 +185,75 @@ def test_adapter_workload_runner_accepts_capture_writer_manifest(tmp_path):
     assert result.adapter_result.manifest.usage.input_tokens == 12
     assert result.adapter_result.manifest.usage.output_tokens == 4
     assert result.adapter_result.manifest.usage.native["cached_input_tokens"] == 8
+    assert result.adapter_result.workspace_check is not None
+    assert result.adapter_result.workspace_check.new_files == (
+        "adapter-result.json",
+        "native-usage.json",
+        "result.txt",
+    )
+
+
+def test_adapter_workload_runner_accepts_claude_capture_writer_manifest(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        _cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+    ) -> AdapterProcessResult:
+        return AdapterProcessResult(
+            exit_code=0,
+            stdout=json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "duration_ms": 800,
+                    "num_turns": 1,
+                    "structured_output": {"summary": "ok"},
+                    "stop_reason": "end_turn",
+                    "session_id": "session_456",
+                    "usage": {"input_tokens": 16, "output_tokens": 3},
+                }
+            ),
+        )
+
+    def capture_writer(
+        process: AdapterProcessResult,
+        scratch_root: Path,
+        workload: AdapterWorkloadPackage,
+    ) -> None:
+        write_claude_captured_result(
+            ClaudeCaptureWriteSpec(
+                adapter_version="claude 2.1.173",
+                auth_class="included-plan",
+                scratch_root=scratch_root,
+                workload=workload,
+                stdout_json=process.stdout,
+                model="claude-fable-5",
+                elapsed_ms=800,
+            )
+        )
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="claude",
+            argv=("claude", "-p", "--output-format", "json"),
+            scratch_root=tmp_path,
+            allowed_new_files=("native-usage.json", "result.txt"),
+            capture_writer=capture_writer,
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.adapter_result is not None
+    assert result.adapter_result.manifest is not None
+    assert result.adapter_result.manifest.adapter == "claude"
+    assert result.adapter_result.manifest.output == {"summary": "ok"}
+    assert result.adapter_result.manifest.usage.input_tokens == 16
+    assert result.adapter_result.manifest.usage.output_tokens == 3
     assert result.adapter_result.workspace_check is not None
     assert result.adapter_result.workspace_check.new_files == (
         "adapter-result.json",

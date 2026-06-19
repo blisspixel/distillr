@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a blocked Gemini CLI read-only command planner and tightened Gemini-family API-key blockers to include `GOOGLE_API_KEY`.
 - Added a blocked Antigravity read-only command planner based on local `antigravity chat --help` evidence.
 - Added a generic stdout capture writer for adapter CLIs that need captured stdout written to `result.txt` before manifest validation.
+- Added a Claude JSON usage parser and capture writer that turn captured Claude Code JSON stdout into `native-usage.json`, `result.txt`, and a validated `adapter-result.v1` scratch manifest.
 
 ### Changed
 

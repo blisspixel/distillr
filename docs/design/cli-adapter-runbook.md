@@ -266,6 +266,18 @@ Quota behavior to record:
 - A 429 weekly-limit response with zero tokens and zero cost is a clean quota
   stop, not a model-quality failure.
 
+Native usage capture:
+
+- `claude -p --output-format json` emits a result object with `usage` metadata,
+  and `stream-json` can carry usage on message objects.
+- `distill.doctor.adapter_native_usage.claude_json_native_usage()` parses those
+  usage objects into `adapter-native-usage.v1`.
+- `distill.doctor.adapter_capture.write_claude_captured_result()` writes
+  `native-usage.json`, `result.txt`, and a validated `adapter-result.v1`
+  manifest from captured Claude JSON stdout.
+- The helper does not make Claude route-eligible. Auth, support, and eval gates
+  still apply.
+
 ### Grok Build
 
 Best default for bounded high-judgment planning, cross-topic synthesis planning,
@@ -556,6 +568,8 @@ data or make an adapter eligible.
 The Codex writer converts captured JSONL stdout plus `result.txt` into a
 scratch native usage file and result manifest, and the workload runner can
 invoke it through a post-process capture hook before manifest validation.
+The Claude writer converts captured JSON stdout into a scratch native usage
+file, `result.txt`, and result manifest through the same workload-runner hook.
 The generic stdout writer saves captured stdout to `result.txt` and writes the
 same result manifest from a validated native usage file, but it does not invent
 usage signals.
@@ -564,8 +578,8 @@ and Antigravity read-only argv templates. Command plans include staged prompt,
 schema, result capture, native usage capture, and allowed scratch capture
 metadata. Claude schema paths can be materialized into `--json-schema` argv
 arguments from staged scratch JSON schema files, but templates stay blocked
-until current support statement, auth proof, adapter-specific native usage
-capture where applicable, and eval evidence exist.
+until current support statement, auth proof, remaining adapter-specific native
+usage capture where applicable, and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

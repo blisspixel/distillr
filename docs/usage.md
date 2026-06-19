@@ -271,16 +271,16 @@ Grok planner records a blocked `grok --no-auto-update --prompt-file ...
 Antigravity planner records a blocked `antigravity chat --mode ask -` shape.
 Plans include staged prompt, schema, result capture, native usage capture, and
 allowed scratch capture metadata; Claude schema paths can be inlined from
-staged JSON schema files. Plans stay blocked until adapter-specific native
-usage capture and adapter gates exist. Distill can parse Codex JSONL
-`turn.completed` usage into the native usage contract and write the scratch
-manifest from captured stdout plus `result.txt` through the workload runner
-capture hook. Gemini stays blocked on runner stdin prompt support, native
-schema enforcement, and native usage capture. Antigravity stays blocked because
-local help exposes no headless JSON, native schema, or usage surface. A generic
-stdout capture helper can write captured stdout to `result.txt`, but it still
-requires a real validated native usage file. Distill still does not expose any
-plan-quota adapter as an eligible route by itself.
+staged JSON schema files. Plans stay blocked until support, auth, and eval
+adapter gates exist. Distill can parse Codex JSONL `turn.completed` usage and
+Claude JSON `usage` output into the native usage contract, then write scratch
+manifests through workload runner capture hooks. Gemini stays blocked on runner
+stdin prompt support, native schema enforcement, and native usage capture.
+Antigravity stays blocked because local help exposes no headless JSON, native
+schema, or usage surface. A generic stdout capture helper can write captured
+stdout to `result.txt`, but it still requires a real validated native usage
+file. Distill still does not expose any plan-quota adapter as an eligible route
+by itself.
 
 ## Websites
 

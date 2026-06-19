@@ -6,8 +6,10 @@ from pathlib import Path
 import pytest
 
 from distill.doctor.adapter_capture import (
+    ClaudeCaptureWriteSpec,
     CodexCaptureWriteSpec,
     StdoutCaptureWriteSpec,
+    write_claude_captured_result,
     write_codex_captured_result,
     write_stdout_captured_result,
 )
@@ -102,6 +104,89 @@ def test_write_codex_captured_result_rejects_usage_path_escape(tmp_path):
                     '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
                 ),
                 native_usage_path=Path("..") / "native-usage.json",
+            )
+        )
+
+
+def test_write_claude_captured_result_writes_usage_result_and_manifest(tmp_path):
+    _stage_inputs(tmp_path)
+
+    manifest = write_claude_captured_result(
+        ClaudeCaptureWriteSpec(
+            adapter_version="claude 2.1.173",
+            auth_class="included-plan",
+            scratch_root=tmp_path,
+            workload=_workload(),
+            stdout_json=json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "duration_ms": 1200,
+                    "num_turns": 1,
+                    "structured_output": {"summary": "ok"},
+                    "stop_reason": "end_turn",
+                    "session_id": "session_123",
+                    "usage": {
+                        "input_tokens": 18,
+                        "cache_read_input_tokens": 7,
+                        "output_tokens": 5,
+                    },
+                }
+            ),
+            model="claude-fable-5",
+            elapsed_ms=1200,
+            citations=("https://example.test/source",),
+            receipts=("sources/input.md",),
+        )
+    )
+
+    usage_record = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage_record.adapter == "claude"
+    assert usage_record.source == "stdout-json"
+    assert (tmp_path / "result.txt").read_text(encoding="utf-8") == ('{\n  "summary": "ok"\n}\n')
+    assert manifest.adapter == "claude"
+    assert manifest.model == "claude-fable-5"
+    assert manifest.stop_reason == "end_turn"
+    assert manifest.output == {"summary": "ok"}
+    assert manifest.usage.input_tokens == 18
+    assert manifest.usage.output_tokens == 5
+    assert manifest.usage.native["cache_read_input_tokens"] == 7
+    assert (
+        json.loads((tmp_path / "adapter-result.json").read_text(encoding="utf-8"))["adapter"]
+        == "claude"
+    )
+
+
+def test_write_claude_captured_result_rejects_missing_usage(tmp_path):
+    _stage_inputs(tmp_path)
+
+    with pytest.raises(AdapterNativeUsageError, match="usage not found"):
+        write_claude_captured_result(
+            ClaudeCaptureWriteSpec(
+                adapter_version="claude 2.1.173",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                stdout_json='{"type":"result","result":"ok"}',
+            )
+        )
+
+
+def test_write_claude_captured_result_rejects_result_path_escape(tmp_path):
+    _stage_inputs(tmp_path)
+
+    with pytest.raises(ValueError, match="escapes scratch workspace"):
+        write_claude_captured_result(
+            ClaudeCaptureWriteSpec(
+                adapter_version="claude 2.1.173",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                stdout_json=(
+                    '{"type":"result","result":"ok","usage":{"input_tokens":1,"output_tokens":1}}'
+                ),
+                result_text_path=Path("..") / "result.txt",
             )
         )
 

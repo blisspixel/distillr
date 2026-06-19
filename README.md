@@ -365,16 +365,15 @@ experiments. Blocked Codex, Claude, Grok, Gemini, and Antigravity read-only
 command planners record future argv shapes plus staged prompt, schema, result
 capture, native usage capture, and allowed scratch capture metadata. Claude
 schema paths can be inlined into argv from scratch JSON schema files, but the
-plans are deliberately blocked until adapter-specific native usage capture and
-the other adapter gates exist. Codex JSONL `turn.completed` usage can be parsed
-into the native usage contract and written into scratch manifests through
-workload runner capture hooks. Gemini has local headless JSON flags, but its
-plan stays blocked on runner stdin prompt support, native schema enforcement,
-native usage capture, and route gates. Antigravity has a local chat command
-shape but stays blocked because no headless JSON, native schema, or usage
-surface is exposed in local help. A generic stdout capture helper can write
-captured stdout to `result.txt`, but it still requires a real validated native
-usage file.
+plans remain gated by support, auth, and eval evidence. Codex JSONL
+`turn.completed` usage and Claude JSON `usage` output can be parsed into the
+native usage contract and written into scratch manifests through workload
+runner capture hooks. Gemini has local headless JSON flags, but its plan stays
+blocked on runner stdin prompt support, native schema enforcement, native usage
+capture, and route gates. Antigravity has a local chat command shape but stays
+blocked because no headless JSON, native schema, or usage surface is exposed in
+local help. A generic stdout capture helper can write captured stdout to
+`result.txt`, but it still requires a real validated native usage file.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

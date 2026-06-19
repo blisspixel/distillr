@@ -284,7 +284,16 @@ manifest adapter, so a Codex usage file cannot accidentally ledger a Grok,
 Gemini, Claude, or Antigravity result. This closes the generic result-capture
 primitive without inventing non-Codex usage signals or enabling any route.
 
+Cycle 30 added Claude Code native usage capture. The parser accepts captured
+Claude JSON or stream JSON stdout, extracts `usage` objects, preserves cache,
+duration, turn, cost, session, and stop metadata, and writes a strict
+`adapter-native-usage.v1` record. The Claude capture writer extracts the
+structured result, writes `result.txt`, writes `native-usage.json`, and then
+uses the shared manifest writer so prompt/source hashes, policy, and scratch
+paths are still enforced. The command planner no longer carries the obsolete
+Claude native-usage blocker after schema inlining, but Claude remains
+route-blocked by support, auth, and eval gates.
+
 Remaining near-term gaps are official installed-session auth proof,
-native usage collection from non-Codex CLI outputs for future plan-quota
-adapters, adapter-specific capture wiring that supplies those usage files, and
-eval-gated route graduation.
+native usage collection and capture wiring for Grok, Gemini, and Antigravity,
+and eval-gated route graduation.

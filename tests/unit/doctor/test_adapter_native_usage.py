@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from distill.doctor.adapter_native_usage import (
     AdapterNativeUsageError,
     adapter_native_usage_contract,
+    claude_json_native_usage,
     codex_jsonl_native_usage,
     load_adapter_native_usage,
     validate_adapter_native_usage,
@@ -159,3 +160,75 @@ def test_codex_jsonl_native_usage_rejects_bad_token_field():
         codex_jsonl_native_usage(
             '{"type":"turn.completed","usage":{"input_tokens":true,"output_tokens":1}}'
         )
+
+
+def test_claude_json_native_usage_collects_result_usage():
+    record = claude_json_native_usage(
+        json.dumps(
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": False,
+                "duration_ms": 4047,
+                "duration_api_ms": 3011,
+                "num_turns": 1,
+                "result": '{"summary":"ok"}',
+                "stop_reason": "end_turn",
+                "session_id": "session_123",
+                "total_cost_usd": 0.079,
+                "usage": {
+                    "input_tokens": 20,
+                    "cache_creation_input_tokens": 6,
+                    "cache_read_input_tokens": 8,
+                    "output_tokens": 13,
+                },
+            }
+        ),
+        model="claude-fable-5",
+    )
+    usage = record.to_adapter_usage()
+
+    assert record.adapter == "claude"
+    assert record.source == "stdout-json"
+    assert record.request_id == "session_123"
+    assert record.stop_reason == "end_turn"
+    assert usage.input_tokens == 20
+    assert usage.output_tokens == 13
+    assert usage.native["cache_creation_input_tokens"] == 6
+    assert usage.native["cache_read_input_tokens"] == 8
+    assert usage.native["duration_ms"] == 4047
+    assert usage.native["duration_api_ms"] == 3011
+    assert usage.native["num_turns"] == 1
+    assert usage.native["total_cost_usd"] == 0.079
+    assert usage.native["result_subtypes"] == ("success",)
+
+
+def test_claude_json_native_usage_collects_stream_message_usage():
+    record = claude_json_native_usage(
+        "\n".join(
+            [
+                '{"type":"system","subtype":"init","session_id":"session_abc"}',
+                (
+                    '{"type":"assistant","message":{"model":"claude-fable-5",'
+                    '"usage":{"input_tokens":9,"output_tokens":4}}}'
+                ),
+            ]
+        )
+    )
+    usage = record.to_adapter_usage()
+
+    assert record.model == "claude-fable-5"
+    assert record.request_id == "session_abc"
+    assert usage.input_tokens == 9
+    assert usage.output_tokens == 4
+    assert usage.native["usage_event_count"] == 1
+
+
+def test_claude_json_native_usage_rejects_missing_usage():
+    with pytest.raises(AdapterNativeUsageError, match="claude JSON usage not found"):
+        claude_json_native_usage('{"type":"result","result":"ok"}')
+
+
+def test_claude_json_native_usage_rejects_bad_token_field():
+    with pytest.raises(AdapterNativeUsageError, match="non-negative integer"):
+        claude_json_native_usage('{"type":"result","usage":{"input_tokens":-1,"output_tokens":1}}')

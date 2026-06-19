@@ -742,6 +742,38 @@
   capture wiring that supplies those usage files, official auth proof, and
   eval-gated route graduation.
 
+### Cycle 30 - Claude JSON Usage Capture
+
+- External spend: `$0.00`.
+- Added `claude_json_native_usage()` for captured Claude Code JSON or stream
+  JSON stdout.
+- The parser extracts Claude `usage` objects, preserves cache, duration, turn,
+  cost, session, and stop metadata, and returns the strict
+  `adapter-native-usage.v1` shape.
+- Added `write_claude_captured_result()` to write `native-usage.json`,
+  `result.txt`, and a validated `adapter-result.v1` manifest from captured
+  Claude JSON stdout.
+- Added workload-runner coverage proving a simulated Claude process can pass
+  through the capture hook and existing manifest checks.
+- Removed the obsolete Claude native-usage command-plan blocker. Claude still
+  remains blocked by support proof, auth proof, and eval route gates.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_native_usage.py distill\doctor\adapter_capture.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapter_workload_runner.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_native_usage.py distill\doctor\adapter_capture.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapter_workload_runner.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapter_workload_runner.py` passed: 47 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2490
+    passed, 8 deselected, coverage 82.28%.
+
+### Next
+
+- Continue native usage collection and capture wiring for Grok, Gemini, and
+  Antigravity, official auth proof, and eval-gated route graduation.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

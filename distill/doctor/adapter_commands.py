@@ -211,7 +211,6 @@ def _claude_command(
     if not workload.output_schema_path:
         blocked_reasons.append("claude command template requires output_schema_path")
     blocked_reasons.append(CLAUDE_SCHEMA_INLINE_BLOCKER)
-    blocked_reasons.append("adapter-specific native usage capture is not implemented: claude")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
         (

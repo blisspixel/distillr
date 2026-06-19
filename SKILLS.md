@@ -91,10 +91,18 @@
 - Use `distill.doctor.adapter_native_usage.codex_jsonl_native_usage()` for
   captured `codex exec --json` stdout. It parses `turn.completed` usage events
   into the native usage contract, but it does not make Codex route-eligible.
+- Use `distill.doctor.adapter_native_usage.claude_json_native_usage()` for
+  captured Claude Code JSON or stream JSON stdout. It parses Claude `usage`
+  objects into the native usage contract, but it does not make Claude
+  route-eligible.
 - Use `distill.doctor.adapter_capture.write_codex_captured_result()` after a
   future Codex process exits to write `native-usage.json` and
   `adapter-result.json` from captured JSONL stdout plus `result.txt`. It is
   still not a route eligibility gate.
+- Use `distill.doctor.adapter_capture.write_claude_captured_result()` after a
+  future Claude process exits to write `native-usage.json`, `result.txt`, and
+  `adapter-result.json` from captured JSON stdout. It is still not a route
+  eligibility gate.
 - Use `distill.doctor.adapter_capture.write_stdout_captured_result()` for
   adapters that only expose useful stdout. It writes `result.txt` and the
   result manifest, but it requires a real validated `adapter-native-usage.v1`
@@ -114,8 +122,9 @@
   argv shapes, staged prompt paths, schema paths, result capture paths, and
   allowed scratch capture files, but a command plan is not eligible while
   blockers remain. Codex, Claude, Grok, Gemini, and Antigravity read-only
-  plans are blocked until adapter-specific native usage capture, support proof,
-  auth proof, and eval route gates exist.
+  plans are blocked until support proof, auth proof, and eval route gates
+  exist. Grok, Gemini, and Antigravity also still need adapter-specific native
+  usage capture.
 - Use `distill.doctor.adapter_commands.inline_adapter_command_schema()` to
   materialize Claude schema paths into argv only after the schema file is
   staged inside scratch and parsed as a JSON object.

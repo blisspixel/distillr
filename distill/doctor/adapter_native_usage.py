@@ -157,6 +157,79 @@ def codex_jsonl_native_usage(
     )
 
 
+def claude_json_native_usage(
+    json_output: str,
+    *,
+    model: str = "",
+    request_id: str = "",
+    stop_reason: str = "complete",
+) -> AdapterNativeUsageRecord:
+    """Collect native usage from Claude Code JSON or stream JSON output."""
+
+    events = _parse_claude_json_events(json_output)
+    usage_events = _claude_top_level_usage_events(events)
+    if not usage_events:
+        usage_events = _claude_message_usage_events(events)
+    if not usage_events:
+        raise AdapterNativeUsageError("claude JSON usage not found")
+
+    result_events = _events_with_type(events, "result")
+    metadata_events = result_events or events
+    session_id = request_id.strip() or _first_text(metadata_events, "session_id")
+    model_name = model.strip() or _first_text(metadata_events, "model") or _message_model(events)
+    final_stop_reason = _claude_stop_reason(metadata_events, stop_reason=stop_reason)
+    native: dict[str, Any] = {
+        "adapter_format": "claude-json",
+        "event_count": len(events),
+        "usage_event_count": len(usage_events),
+        "cache_creation_input_tokens": _sum_optional_usage_field(
+            usage_events,
+            "cache_creation_input_tokens",
+            label="claude JSON",
+        ),
+        "cache_read_input_tokens": _sum_optional_usage_field(
+            usage_events,
+            "cache_read_input_tokens",
+            label="claude JSON",
+        ),
+        "raw_usage_events": usage_events,
+    }
+    for key in ("duration_ms", "duration_api_ms", "num_turns"):
+        value = _sum_optional_usage_field(metadata_events, key, label="claude JSON")
+        if value is not None:
+            native[key] = value
+    total_cost = _sum_optional_number_field(metadata_events, "total_cost_usd", "claude JSON")
+    if total_cost is not None:
+        native["total_cost_usd"] = total_cost
+    subtypes = tuple(
+        subtype for event in metadata_events if (subtype := _optional_text(event.get("subtype")))
+    )
+    if subtypes:
+        native["result_subtypes"] = subtypes
+
+    return AdapterNativeUsageRecord(
+        schema_version=ADAPTER_NATIVE_USAGE_SCHEMA_VERSION,
+        adapter="claude",
+        source="stdout-json",
+        usage=AdapterUsage(
+            input_tokens=_sum_optional_usage_field(
+                usage_events,
+                "input_tokens",
+                label="claude JSON",
+            ),
+            output_tokens=_sum_optional_usage_field(
+                usage_events,
+                "output_tokens",
+                label="claude JSON",
+            ),
+            native=native,
+        ),
+        model=model_name,
+        request_id=session_id,
+        stop_reason=final_stop_reason,
+    )
+
+
 def adapter_native_usage_contract() -> dict[str, Any]:
     """Return the native usage contract for doctor reports and docs."""
 
@@ -229,7 +302,105 @@ def _parse_codex_jsonl_event(line: str, line_number: int) -> Mapping[str, Any] |
     return event
 
 
-def _sum_optional_usage_field(usages: list[dict[str, Any]], key: str) -> int | None:
+def _parse_claude_json_events(json_output: str) -> list[dict[str, Any]]:
+    text = json_output.strip()
+    if not text:
+        raise AdapterNativeUsageError("claude JSON output is empty")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return _parse_claude_jsonl_events(text)
+    if not isinstance(payload, Mapping):
+        raise AdapterNativeUsageError("claude JSON output must be an object or JSONL objects")
+    return [dict(payload)]
+
+
+def _parse_claude_jsonl_events(text: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            event = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise AdapterNativeUsageError(
+                f"claude JSON usage line is invalid JSON: {line_number}"
+            ) from exc
+        if not isinstance(event, Mapping):
+            raise AdapterNativeUsageError(
+                f"claude JSON usage line must be an object: {line_number}"
+            )
+        events.append(dict(event))
+    if not events:
+        raise AdapterNativeUsageError("claude JSON output is empty")
+    return events
+
+
+def _claude_top_level_usage_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    usage_events: list[dict[str, Any]] = []
+    for event in events:
+        if "usage" not in event or event["usage"] is None:
+            continue
+        if not isinstance(event["usage"], Mapping):
+            raise AdapterNativeUsageError("claude JSON usage must be an object")
+        usage_events.append(dict(event["usage"]))
+    return usage_events
+
+
+def _claude_message_usage_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    usage_events: list[dict[str, Any]] = []
+    for event in events:
+        message = event.get("message")
+        if not isinstance(message, Mapping):
+            continue
+        usage = message.get("usage")
+        if usage is None:
+            continue
+        if not isinstance(usage, Mapping):
+            raise AdapterNativeUsageError("claude JSON message usage must be an object")
+        usage_events.append(dict(usage))
+    return usage_events
+
+
+def _events_with_type(events: list[dict[str, Any]], event_type: str) -> list[dict[str, Any]]:
+    return [event for event in events if _optional_text(event.get("type")) == event_type]
+
+
+def _first_text(events: list[dict[str, Any]], key: str) -> str:
+    for event in events:
+        value = _optional_text(event.get(key))
+        if value:
+            return value
+    return ""
+
+
+def _message_model(events: list[dict[str, Any]]) -> str:
+    for event in events:
+        message = event.get("message")
+        if not isinstance(message, Mapping):
+            continue
+        model = _optional_text(message.get("model"))
+        if model:
+            return model
+    return ""
+
+
+def _claude_stop_reason(events: list[dict[str, Any]], *, stop_reason: str) -> str:
+    explicit = stop_reason.strip()
+    if explicit != "complete":
+        return explicit
+    if any(event.get("is_error") is True for event in events):
+        return "failed"
+    return _first_text(events, "stop_reason") or explicit
+
+
+def _sum_optional_usage_field(
+    usages: list[dict[str, Any]],
+    key: str,
+    *,
+    label: str = "codex JSONL",
+) -> int | None:
     total = 0
     found = False
     for usage in usages:
@@ -238,9 +409,27 @@ def _sum_optional_usage_field(usages: list[dict[str, Any]], key: str) -> int | N
         value = usage[key]
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise AdapterNativeUsageError(
-                f"codex JSONL usage field {key} must be a non-negative integer"
+                f"{label} usage field {key} must be a non-negative integer"
             )
         total += value
+        found = True
+    return total if found else None
+
+
+def _sum_optional_number_field(
+    events: list[dict[str, Any]],
+    key: str,
+    label: str,
+) -> float | None:
+    total = 0.0
+    found = False
+    for event in events:
+        if key not in event or event[key] is None:
+            continue
+        value = event[key]
+        if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
+            raise AdapterNativeUsageError(f"{label} field {key} must be a non-negative number")
+        total += float(value)
         found = True
     return total if found else None
 

@@ -93,9 +93,6 @@ def test_claude_command_plan_records_read_only_argv_but_stays_blocked():
     assert "claude command template requires schema inlining before execution" in (
         plan.blocked_reasons
     )
-    assert "adapter-specific native usage capture is not implemented: claude" in (
-        plan.blocked_reasons
-    )
     assert not plan.ok
 
 
@@ -121,9 +118,7 @@ def test_inline_adapter_command_schema_materializes_claude_schema(tmp_path):
     assert "claude command template requires schema inlining before execution" not in (
         materialized.blocked_reasons
     )
-    assert "adapter-specific native usage capture is not implemented: claude" in (
-        materialized.blocked_reasons
-    )
+    assert materialized.blocked_reasons == ["adapter doctor probe is required"]
     assert "claude command template requires schema inlining before execution" in (
         plan.blocked_reasons
     )
