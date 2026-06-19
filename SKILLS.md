@@ -33,6 +33,9 @@
   `cost_mode: no-metered`.
 - In `no-metered`, local Ollama and LM Studio are allowed by topology.
   API-billed routes and ambiguous adapter routes must fail closed.
+- Blocked route reports include provider, workload, route cost class, reason,
+  proof requirements when applicable, and a paid-ok retry hint for intentional
+  metered runs.
 - Plan-quota CLI routes are not no-metered defaults until adapter doctor,
   support statement, complete usage ledger, scratch manifest, and eval proof
   exist.

@@ -329,7 +329,9 @@ executes the generated `distill ...` commands through the existing ingest,
 analysis, verify, and cost paths while recording resume state under
 `library/.distill/profiles/`. Cost-log rows now record provider and route-class
 usage for no-metered local calls and profile-run orchestration even when the
-dollar cost is zero.
+dollar cost is zero. Blocked no-metered routes report the provider, workload,
+route cost class, proof requirements when applicable, and the paid-ok retry
+hint needed for an intentional metered run.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

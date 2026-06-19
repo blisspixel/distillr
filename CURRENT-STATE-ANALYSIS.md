@@ -114,6 +114,10 @@ Cycle 4 added the first complete zero-dollar ledger slice: cost-log rows now
 record `usage_ledger`, `by_provider`, and `by_route_class`, and approved profile
 runs write zero-dollar `profile-run` orchestration rows.
 
-Remaining near-term gaps are richer blocked-route reporting, native usage and
-quota-stop fields for future plan-quota adapters, audit-visible profile health,
-and profile next-action handoff rows.
+Cycle 5 completed richer no-metered route-block reporting: blocked policy
+messages and reports now include provider, workload, cost class, required proof
+when applicable, and paid-ok retry guidance for intentional metered runs.
+
+Remaining near-term gaps are native usage and quota-stop fields for future
+plan-quota adapters, audit-visible profile health, and profile next-action
+handoff rows.

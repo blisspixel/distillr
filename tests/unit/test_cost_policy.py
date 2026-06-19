@@ -7,6 +7,7 @@ from distill.llm.cost_policy import (
     classify_provider,
     normalize_cost_mode,
     require_route_allowed,
+    route_block_report,
 )
 
 
@@ -39,11 +40,12 @@ def test_no_metered_allows_local_routes() -> None:
 
     assert decision.allowed
     assert decision.cost_class == "local"
+    assert decision.workload == "analysis"
 
 
 @pytest.mark.parametrize("provider", ["xai", "gemini"])
 def test_no_metered_blocks_api_billed_routes(provider: str) -> None:
-    with pytest.raises(CostPolicyError, match="API-billed"):
+    with pytest.raises(CostPolicyError, match="Blocked provider"):
         require_route_allowed(
             cost_mode="no-metered",
             provider=provider,
@@ -58,3 +60,37 @@ def test_no_metered_blocks_unproven_agent_provider() -> None:
             provider="agent",
             workload="analysis",
         )
+
+
+def test_route_block_report_includes_recovery_hint_for_metered_api() -> None:
+    report = route_block_report(
+        cost_mode="no-metered",
+        provider="xai",
+        workload="synthesis",
+    )
+
+    assert report["allowed"] is False
+    assert report["provider"] == "xai"
+    assert report["workload"] == "synthesis"
+    assert report["cost_class"] == "metered-api"
+    assert "paid-ok" in str(report["recovery_hint"])
+    assert "Blocked provider: xai" in str(report["message"])
+
+
+def test_route_block_report_includes_plan_quota_proof_requirements() -> None:
+    report = route_block_report(
+        cost_mode="no-metered",
+        provider="codex",
+        workload="analysis",
+    )
+
+    assert report["allowed"] is False
+    assert report["cost_class"] == "included-plan"
+    assert report["requirements"] == [
+        "adapter doctor",
+        "support statement",
+        "usage ledger",
+        "scratch manifest",
+        "eval proof",
+    ]
+    assert "Required proof" in str(report["message"])

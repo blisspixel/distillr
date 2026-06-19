@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added global `distill --cost-mode <auto|no-metered|paid-ok>` overrides, with no-metered profile previews emitting replay commands that carry the override explicitly.
 - Added `distill profile run <name|path>` with JSON output, approval-gated execution through generated `distill ...` commands, per-command exit capture, and resume state under `.distill/profiles/<profile>/run_state.json`.
 - Added provider, route-class, and no-metered usage breakdowns to cost-log rows, including zero-dollar profile-run orchestration rows.
+- Added structured no-metered route-block reports with provider, workload, cost class, proof requirements, and paid-ok retry guidance.
 
 ### Changed
 

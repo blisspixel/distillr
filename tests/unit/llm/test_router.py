@@ -160,8 +160,13 @@ def test_no_metered_blocks_api_billed_route_before_key_validation() -> None:
     """Cost policy fails closed before a cloud route can spend or ask for keys."""
     config = RouterConfig(provider="xai", xai_api_key="test-key", cost_mode="no-metered")
 
-    with pytest.raises(ConfigurationError, match="API-billed"):
+    with pytest.raises(ConfigurationError) as exc_info:
         call(config, "analysis", "test prompt")
+    message = str(exc_info.value)
+    assert "Blocked provider: xai" in message
+    assert "Workload: analysis" in message
+    assert "Cost class: metered-api" in message
+    assert "paid-ok" in message
 
 
 def test_no_metered_allows_local_route() -> None:
@@ -180,8 +185,24 @@ def test_no_metered_blocks_unproven_agent_route() -> None:
     """Deferred agent routes need adapter proof before no-metered routing."""
     config = RouterConfig(provider="agent", cost_mode="no-metered")
 
-    with pytest.raises(ConfigurationError, match="unknown billing"):
+    with pytest.raises(ConfigurationError) as exc_info:
         call(config, "analysis", "test prompt")
+    message = str(exc_info.value)
+    assert "Blocked provider: agent" in message
+    assert "Cost class: unknown" in message
+    assert "unknown billing" in message
+
+
+def test_no_metered_reports_plan_quota_proof_for_reserved_cli_route() -> None:
+    """Reserved CLI route names explain the proof needed before provider validation."""
+    config = RouterConfig(provider="codex", cost_mode="no-metered")
+
+    with pytest.raises(ConfigurationError) as exc_info:
+        call(config, "analysis", "test prompt")
+    message = str(exc_info.value)
+    assert "Blocked provider: codex" in message
+    assert "Cost class: included-plan" in message
+    assert "Required proof: adapter doctor" in message
 
 
 def test_unknown_provider_raises_configuration_error() -> None:

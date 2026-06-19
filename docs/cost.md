@@ -37,6 +37,11 @@ This is a route-policy guard, not a quality judgment. Local routes still need
 Plan-quota CLIs remain blocked in `no-metered` until adapter doctor, support
 statement, usage ledger, scratch manifest, and eval proof exist.
 
+When a route is blocked, Distill reports the blocked provider, workload, route
+cost class, reason, required proof when applicable, and the next allowed action.
+Metered API routes point to `distill --cost-mode paid-ok <same command>` only
+after the operator has confirmed the spend cap.
+
 Use `distill --cost-mode no-metered <command>` for a one-run override without
 editing `.env`. Recurring profile previews include that global override in
 generated replay commands when the profile declares `cost_mode: no-metered`.

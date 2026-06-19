@@ -121,3 +121,31 @@
 ### Next
 
 - Continue with richer blocked-route reporting or profile next-action handoff.
+
+### Cycle 5 - Structured Route-Block Reports
+
+- External spend: `$0.00`.
+- Completed richer no-metered route-block reporting for the cost-policy layer.
+- Extended route-policy decisions with workload, recovery hint, and proof
+  requirements.
+- Added a structured `route_block_report` helper for loop-readable provider,
+  workload, cost class, reason, requirements, and message fields.
+- Updated blocked router errors so no-metered failures show the blocked
+  provider, workload, cost class, required proof when relevant, and a paid-ok
+  retry hint for intentional metered runs.
+- Updated README, cost docs, roadmap, changelog, current-state notes, and loop
+  skills to mark the no-metered-cost mode slice complete.
+- Targeted validation:
+  - `uv run ruff check distill\llm\cost_policy.py tests\unit\test_cost_policy.py tests\unit\llm\test_router.py` passed.
+  - `uv run ruff format --check distill\llm\cost_policy.py tests\unit\test_cost_policy.py tests\unit\llm\test_router.py` initially requested formatting for `tests\unit\llm\test_router.py`; after formatting, the full format gate passed.
+  - `uv run pytest -q tests\unit\test_cost_policy.py tests\unit\llm\test_router.py::test_no_metered_blocks_api_billed_route_before_key_validation tests\unit\llm\test_router.py::test_no_metered_blocks_unproven_agent_route tests\unit\llm\test_router.py::test_no_metered_reports_plan_quota_proof_for_reserved_cli_route` passed: 20 passed.
+- Full validation before this log entry:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2388
+    passed, 8 deselected, coverage 81.91%.
+
+### Next
+
+- Continue with profile next-action handoff rows or adapter doctor preflight
+  scaffolding.
