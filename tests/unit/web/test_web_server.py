@@ -74,6 +74,26 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
         ),
         encoding="utf-8",
     )
+    telemetry_file = config.library_dir / ".distill" / "telemetry.jsonl"
+    telemetry_file.parent.mkdir(parents=True, exist_ok=True)
+    telemetry_file.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-04-20T12:01:00",
+                "workload_tag": "report",
+                "call_type": "qa",
+                "model": "grok-4.3",
+                "provider_name": "xai",
+                "provider_type": "cloud",
+                "input_tokens": 2000,
+                "output_tokens": 500,
+                "elapsed_seconds": 9.0,
+                "outcome": "success",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     client = TestClient(create_app(config))
 
@@ -99,6 +119,9 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
 
     costs_html = client.get("/costs").text
     assert "$0.40" in costs_html or "0.4" in costs_html
+    assert "Biggest Prompts" in costs_html
+    assert "report" in costs_html
+    assert "2,500" in costs_html
 
 
 def test_create_app_fallback_markdown_filter_and_run_server(monkeypatch, config):

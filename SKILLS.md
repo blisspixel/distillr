@@ -41,6 +41,9 @@
   wiring, complete usage ledger, and eval proof exist.
 - Cost-log rows include `usage_ledger`, `by_provider`, and `by_route_class`.
   Keep no-metered local usage visible even when `actual_cost` is `0.0`.
+- Per-call prompt telemetry belongs in `library/.distill/telemetry.jsonl`.
+  `distill costs` should surface the biggest prompts from that file rather
+  than mixing call-level rows into run-level `cost_log.jsonl`.
 - Approved profile runs write a zero-dollar `profile-run` row so orchestration
   attempts show up even if child commands use local or deterministic paths.
 

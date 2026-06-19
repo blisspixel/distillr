@@ -107,6 +107,69 @@ class TestJsonCosts:
         assert len(parsed["data"]["runs"]) == 1
         assert parsed["data"]["total_cost"] == 0.1234
 
+    def test_costs_json_includes_biggest_prompts(self, mock_config):
+        """costs --json includes largest per-call telemetry records."""
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-12T12:00:00",
+                    "command": "report",
+                    "actual_cost": 0.2,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        telemetry_file = mock_config.library_dir / ".distill" / "telemetry.jsonl"
+        telemetry_file.parent.mkdir(parents=True, exist_ok=True)
+        telemetry_file.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-12T12:00:00",
+                            "workload_tag": "analysis",
+                            "call_type": "small",
+                            "model": "grok-4.3",
+                            "provider_name": "xai",
+                            "provider_type": "cloud",
+                            "input_tokens": 100,
+                            "output_tokens": 50,
+                            "elapsed_seconds": 1.0,
+                            "outcome": "success",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-12T12:01:00",
+                            "workload_tag": "report",
+                            "call_type": "qa",
+                            "model": "grok-4.3",
+                            "provider_name": "xai",
+                            "provider_type": "cloud",
+                            "input_tokens": 700,
+                            "output_tokens": 200,
+                            "elapsed_seconds": 4.0,
+                            "outcome": "success",
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
+            result = runner.invoke(app, ["--json", "costs"])
+
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        prompts = parsed["data"]["biggest_prompts"]
+        assert prompts[0]["workload_tag"] == "report"
+        assert prompts[0]["call_type"] == "qa"
+        assert prompts[0]["total_tokens"] == 900
+
     def test_costs_json_no_ansi(self, mock_config):
         """costs --json output contains no ANSI escape codes."""
         with patch("distill.commands.maintain.get_config", return_value=mock_config):

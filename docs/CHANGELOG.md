@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a Claude JSON usage parser and capture writer that turn captured Claude Code JSON stdout into `native-usage.json`, `result.txt`, and a validated `adapter-result.v1` scratch manifest.
 - Added staged stdin support to the scratch adapter runner and workload runner so future CLI adapter templates can receive prompt files without shell piping.
 - Added read-only JSON auth-command probes for adapter doctor, including Claude auth status and Grok inspect markers without exposing secret values.
+- Added a biggest-prompts view to `distill costs`, `distill costs --json`, and the local web costs page using per-call telemetry from `library/.distill/telemetry.jsonl`.
 
 ### Changed
 

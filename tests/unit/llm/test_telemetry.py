@@ -182,6 +182,39 @@ def test_malformed_jsonl_lines_are_skipped(tmp_path: Path) -> None:
     assert results[0].model == "grok-4.3"
 
 
+def test_invalid_token_type_lines_are_skipped(tmp_path: Path) -> None:
+    """Records with non-numeric token counts are skipped without error."""
+    ops_dir = str(tmp_path / "ops")
+    Path(ops_dir).mkdir(parents=True, exist_ok=True)
+    jsonl_path = Path(ops_dir) / "telemetry.jsonl"
+
+    invalid_record = {
+        "model": "grok-4.3",
+        "workload_tag": "analysis",
+        "input_tokens": "many",
+        "output_tokens": 50,
+        "elapsed_seconds": 1.0,
+        "outcome": "success",
+    }
+    valid_record = {
+        "model": "grok-4.3",
+        "workload_tag": "report",
+        "input_tokens": 200,
+        "output_tokens": 100,
+        "elapsed_seconds": 2.0,
+        "outcome": "success",
+    }
+    jsonl_path.write_text(
+        json.dumps(invalid_record) + "\n" + json.dumps(valid_record) + "\n",
+        encoding="utf-8",
+    )
+
+    results = top_n_by_tokens(ops_dir, n=10)
+
+    assert len(results) == 1
+    assert results[0].workload_tag == "report"
+
+
 def test_ops_dir_auto_creation(tmp_path: Path) -> None:
     """ops_dir is created automatically on first write."""
     ops_dir = str(tmp_path / "new" / "nested" / "ops")

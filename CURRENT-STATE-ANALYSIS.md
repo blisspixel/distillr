@@ -315,3 +315,11 @@ Remaining near-term gaps are current official no-metered support statements,
 installed-session auth proof where no command or config proof exists, native
 usage collection and capture wiring for Grok, Gemini, and Antigravity, and
 eval-gated route graduation.
+
+Cycle 33 closed the per-prompt telemetry cost-surface gap. Per-call router
+telemetry already wrote token counts and elapsed time to
+`library/.distill/telemetry.jsonl`; this cycle exposed the largest prompt calls
+in `distill costs`, `distill costs --json`, and the local web costs page. The
+run-level `cost_log.jsonl` remains reserved for run summaries, estimates, and
+provider breakdowns. The telemetry reader now skips rows with non-numeric token
+counts so a malformed line cannot take down cost inspection.

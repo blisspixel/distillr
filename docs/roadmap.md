@@ -123,7 +123,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [ ] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem
 - [x] **Preview-table rendering at narrow widths** - fixed 0.9.31 (stacked layout below 110 columns); detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [x] **Library `CLAUDE.md` source counts wrong for legacy-layout topics** - fixed 0.9.29: source counting covers modern, lowercase, and legacy insight patterns, skips derived subtrees, and no longer hides older corpora from the generated index.
-- [ ] **Per-prompt token telemetry.** Log prompt-input length, output length, and elapsed time *per call* (not just per run) to `library/cost_log.jsonl` - needed to make context-engineering improvements (chunked paper analysis, report-pipeline compaction) measurable. Surface a "biggest prompts" view in `distill costs` so prompt budget regressions are visible.
+- [x] **Per-prompt token telemetry.** Every LLM router call writes prompt-input length, output length, elapsed time, provider, workload, call type, run id, and outcome to `library/.distill/telemetry.jsonl`, keeping per-call telemetry separate from run-level `cost_log.jsonl`. `distill costs` and the local web costs page now surface a "biggest prompts" view so prompt budget regressions are visible before context-engineering changes such as chunked paper analysis or report-pipeline compaction ship.
 
 ### 3. Productize the core workflow
 

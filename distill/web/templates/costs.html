@@ -45,6 +45,28 @@
   {% endif %}
 </div>
 
+{% if biggest_prompts %}
+<div class="card" style="margin-top:16px;">
+  <h2>Biggest Prompts</h2>
+  <table>
+    <thead><tr><th>When</th><th>Workload</th><th>Call Type</th><th>Model</th><th>Provider</th><th>Tokens</th><th>Time</th></tr></thead>
+    <tbody>
+      {% for record in biggest_prompts %}
+      <tr>
+        <td>{{ record.timestamp|format_timestamp }}</td>
+        <td>{{ record.workload_tag or '-' }}</td>
+        <td>{{ record.call_type or '-' }}</td>
+        <td>{{ record.model or '-' }}</td>
+        <td>{{ record.provider or '-' }}</td>
+        <td>{{ record.tokens_label }}</td>
+        <td>{{ "%.1f"|format(record.elapsed_seconds|float) }}s</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <div class="card" style="margin-top:16px;">
   <h2>Recent Runs</h2>
   <table>

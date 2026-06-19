@@ -17,6 +17,14 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _valid_token_count(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _valid_elapsed_seconds(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
 @dataclass
 class Telemetry_Record:
     """Per-prompt telemetry entry."""
@@ -75,7 +83,14 @@ def top_n_by_tokens(ops_dir: str, n: int = 10) -> list[Telemetry_Record]:
             data: dict[str, object] = json.loads(line)
             # Only pass keys that are valid Telemetry_Record fields
             filtered: dict[str, object] = {k: v for k, v in data.items() if k in field_names}
-            records.append(Telemetry_Record(**filtered))  # type: ignore[arg-type]
+            record = Telemetry_Record(**filtered)  # type: ignore[arg-type]
+            if not (
+                _valid_token_count(record.input_tokens)
+                and _valid_token_count(record.output_tokens)
+                and _valid_elapsed_seconds(record.elapsed_seconds)
+            ):
+                continue
+            records.append(record)
         except (json.JSONDecodeError, TypeError):
             continue
 

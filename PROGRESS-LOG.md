@@ -2,6 +2,35 @@
 
 ## 2026-06-19
 
+### Cycle 33 - Biggest Prompt Cost Surface
+
+- External spend: `$0.00`.
+- Added a biggest-prompts view to `distill costs` from
+  `library/.distill/telemetry.jsonl`.
+- `distill costs --json` now includes `biggest_prompts` even when run-level
+  cost history is absent, so external loops can inspect prompt regressions
+  without scraping console output.
+- The local web costs page now shows the same biggest-prompts telemetry beside
+  topic, source, and recent-run cost data.
+- Hardened `top_n_by_tokens()` so telemetry rows with non-numeric token counts
+  are skipped instead of breaking cost inspection.
+- Updated README, ROADMAP, detailed roadmap, usage docs, changelog, and loop
+  skills to keep the run-level `cost_log.jsonl` and per-call
+  `telemetry.jsonl` boundary explicit.
+- Targeted validation:
+  - `uv run pytest -q tests\unit\llm\test_telemetry.py::test_invalid_token_type_lines_are_skipped tests\unit\commands\test_cli_wiring.py::TestExportOpenCostsAndStatus::test_costs_reads_log_and_shows_breakdown tests\unit\commands\test_cli_json.py::TestJsonCosts::test_costs_json_includes_biggest_prompts tests\unit\web\test_web_server.py::test_web_routes_render_dashboard_topic_channel_video_and_watchlist` passed: 4 passed, 1 warning.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2497
+    passed, 8 deselected, 1 warning, 82.48% coverage.
+
+### Next
+
+- Continue with local roadmap items that do not depend on unavailable adapter
+  support statements: likely live mixed-source progress, report pipeline
+  compaction measurement, or trusted-site discovery.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

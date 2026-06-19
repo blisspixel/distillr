@@ -74,17 +74,30 @@ def costs(  # noqa: C901 -- legacy, will refactor
     legacy_log = config.library_dir / "cost_log.jsonl"
     log_file = ops_log if ops_log.exists() else legacy_log
     json_mode = ctx.obj.get("json", False) if ctx.obj else False
+    biggest_prompts = _biggest_prompt_rows(config)
 
     if not log_file.exists():
         if json_mode:
+            local_cloud = _compute_local_cloud_stats(config)
             envelope = JsonEnvelope.success(
-                {"runs": [], "total_cost": 0, "message": "No cost history yet."}
+                {
+                    "runs": [],
+                    "total_cost": 0,
+                    "message": "No cost history yet.",
+                    "cloud_spend_usd": 0,
+                    "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
+                    "local_tokens_total": local_cloud.get("local_total_tokens", 0),
+                    "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+                    "biggest_prompts": biggest_prompts,
+                }
             )
             import sys
 
             sys.stdout.write(envelope.to_json() + "\n")
         else:
             console.print("[dim]No cost history yet. Costs are logged after each run.[/dim]")
+            _costs_local_cloud_section(config)
+            _costs_biggest_prompts_section(config, biggest_prompts)
         return
 
     entries = []
@@ -97,14 +110,26 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     if not entries:
         if json_mode:
+            local_cloud = _compute_local_cloud_stats(config)
             envelope = JsonEnvelope.success(
-                {"runs": [], "total_cost": 0, "message": "No cost entries found."}
+                {
+                    "runs": [],
+                    "total_cost": 0,
+                    "message": "No cost entries found.",
+                    "cloud_spend_usd": 0,
+                    "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
+                    "local_tokens_total": local_cloud.get("local_total_tokens", 0),
+                    "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+                    "biggest_prompts": biggest_prompts,
+                }
             )
             import sys
 
             sys.stdout.write(envelope.to_json() + "\n")
         else:
             console.print("[dim]No cost entries found.[/dim]")
+            _costs_local_cloud_section(config)
+            _costs_biggest_prompts_section(config, biggest_prompts)
         return
 
     # `entries[-0:]` is the whole list, so guard explicitly: --last 0 (or a
@@ -129,6 +154,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                 "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                 "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                 "estimator_accuracy": accuracy,
+                "biggest_prompts": biggest_prompts,
             }
         )
         import sys
@@ -193,6 +219,8 @@ def costs(  # noqa: C901 -- legacy, will refactor
     # Local vs Cloud split from telemetry
     _costs_local_cloud_section(config)
 
+    _costs_biggest_prompts_section(config, biggest_prompts)
+
     # Per-call-type breakdown for each run
     for e in recent:
         by_type = e.get("by_call_type", {})
@@ -217,6 +245,79 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     f"{data['output_tokens']:,}",
                 )
             console.print(breakdown_table)
+
+
+def _biggest_prompt_rows(config: DistillConfig, limit: int = 10) -> list[dict[str, object]]:
+    """Return largest per-call prompt telemetry records for cost surfaces."""
+    from distill.llm.telemetry import top_n_by_tokens
+
+    ops_dir = str(config.library_dir / ".distill")
+    rows: list[dict[str, object]] = []
+    for record in top_n_by_tokens(ops_dir, n=limit):
+        rows.append(
+            {
+                "timestamp": record.timestamp,
+                "workload_tag": record.workload_tag,
+                "call_type": record.call_type,
+                "model": record.model,
+                "provider_name": record.provider_name,
+                "provider_type": record.provider_type,
+                "input_tokens": record.input_tokens,
+                "output_tokens": record.output_tokens,
+                "total_tokens": record.input_tokens + record.output_tokens,
+                "elapsed_seconds": record.elapsed_seconds,
+                "outcome": record.outcome,
+                "run_id": record.run_id,
+            }
+        )
+    return rows
+
+
+def _costs_biggest_prompts_section(
+    config: DistillConfig,
+    biggest_prompts: list[dict[str, object]] | None = None,
+) -> None:
+    """Display the largest per-call prompt telemetry records."""
+    rows = biggest_prompts if biggest_prompts is not None else _biggest_prompt_rows(config)
+    if not rows:
+        return
+
+    console.print()
+    table = Table(title="Biggest Prompts", box=box.SIMPLE, show_header=True)
+    table.add_column("Date", style="dim")
+    table.add_column("Workload")
+    table.add_column("Call Type", style="dim")
+    table.add_column("Model")
+    table.add_column("Provider", style="dim")
+    table.add_column("Tokens", justify="right")
+    table.add_column("Time", justify="right")
+    table.add_column("Outcome", style="dim")
+
+    for row in rows[:10]:
+        timestamp = str(row.get("timestamp") or "")[:16].replace("T", " ")
+        provider = str(row.get("provider_name") or row.get("provider_type") or "-")
+        elapsed = row.get("elapsed_seconds", 0)
+        try:
+            elapsed_float = float(elapsed)
+        except (TypeError, ValueError):
+            elapsed_float = 0.0
+        total_tokens = row.get("total_tokens", 0)
+        try:
+            total_tokens_int = int(total_tokens)
+        except (TypeError, ValueError):
+            total_tokens_int = 0
+        table.add_row(
+            timestamp or "-",
+            str(row.get("workload_tag") or "-"),
+            str(row.get("call_type") or "-"),
+            str(row.get("model") or "-"),
+            provider,
+            f"{total_tokens_int:,}",
+            f"{elapsed_float:.1f}s",
+            str(row.get("outcome") or "-"),
+        )
+
+    console.print(table)
 
 
 def _compute_local_cloud_stats(config: DistillConfig) -> dict:

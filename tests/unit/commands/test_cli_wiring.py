@@ -1329,12 +1329,35 @@ class TestExportOpenCostsAndStatus:
             '{"timestamp":"2026-03-12T12:00:00","command":"learn","full_videos":2,"shorts":1,"actual_cost":0.1234,"total_input_tokens":1000,"total_output_tokens":500,"elapsed_seconds":65,"by_call_type":{"pass1":{"calls":2,"input_tokens":500,"output_tokens":200}}}\n',
             encoding="utf-8",
         )
+        telemetry_file = mock_config.library_dir / ".distill" / "telemetry.jsonl"
+        telemetry_file.parent.mkdir(parents=True, exist_ok=True)
+        telemetry_file.write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-12T12:01:00",
+                    "workload_tag": "report",
+                    "call_type": "qa",
+                    "model": "grok-4.3",
+                    "provider_name": "xai",
+                    "provider_type": "cloud",
+                    "input_tokens": 2400,
+                    "output_tokens": 600,
+                    "elapsed_seconds": 12.5,
+                    "outcome": "success",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
         result = runner.invoke(cli.app, ["costs"])
 
         assert result.exit_code == 0
         assert "Cost History" in result.output
         assert "Latest run breakdown" in result.output
+        assert "Biggest Prompts" in result.output
+        assert "report" in result.output
+        assert "3,000" in result.output
 
     def test_status_shows_artifacts(self, mock_config_with_library):
         _populate_videos(mock_config_with_library, "ai", "TestCh")
