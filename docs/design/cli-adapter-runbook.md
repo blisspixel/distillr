@@ -367,6 +367,10 @@ and `no-metered` results that report metered auth, API-key blockers, or metered
 usage allowance. The same module also provides scratch before/after snapshot
 checks so a runner can reject missing declared files or unexpected new files
 without treating pre-staged source files as adapter writes.
+The `distill.doctor.adapter_runner` primitive runs exact argv arrays with shell
+disabled inside scratch, strips known metered API-key environment variables,
+enforces a timeout, loads the result manifest, and applies the scratch write
+check. It is a boundary helper, not a route recommendation.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

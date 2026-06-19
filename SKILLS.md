@@ -37,8 +37,8 @@
   proof requirements when applicable, and a paid-ok retry hint for intentional
   metered runs.
 - Plan-quota CLI routes are not no-metered defaults until adapter doctor,
-  support statement, included-plan auth proof, runner-side manifest
-  enforcement, complete usage ledger, and eval proof exist.
+  support statement, included-plan auth proof, adapter-specific workload
+  wiring, complete usage ledger, and eval proof exist.
 - Cost-log rows include `usage_ledger`, `by_provider`, and `by_route_class`.
   Keep no-metered local usage visible even when `actual_cost` is `0.0`.
 - Approved profile runs write a zero-dollar `profile-run` row so orchestration
@@ -84,7 +84,11 @@
 - Future CLI adapter runners must snapshot scratch files before execution and
   use `check_adapter_workspace_writes()` after parsing the manifest. Missing
   declared outputs and unexpected new files are blockers.
+- Use `distill.doctor.adapter_runner.run_adapter_command()` for future adapter
+  commands. It runs exact argv arrays with shell disabled, strips known
+  metered API-key environment variables, enforces a timeout, and validates the
+  manifest plus scratch writes. It is not a route graduation gate by itself.
 - Planned support statements remain blocked until official auth proof, adapter
-  runner integration, native usage ledger signals, and eval evidence exist.
+  workload wiring, native usage ledger signals, and eval evidence exist.
 - API-key environment blockers keep plan-quota candidates out of no-metered
   routing.

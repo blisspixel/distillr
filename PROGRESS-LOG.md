@@ -307,3 +307,32 @@
 
 - Continue official installed-session auth proof and read-only adapter runner
   integration.
+
+### Cycle 12 - Scratch-Only Adapter Runner Primitive
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_runner`, a generic scratch-only runner
+  primitive for future CLI adapter integrations.
+- The runner accepts exact argv arrays, runs with shell disabled, strips known
+  metered API-key environment variables, enforces a timeout, captures bounded
+  stdout and stderr tails, parses `adapter-result.v1`, and applies scratch
+  write checks.
+- The runner is not wired into provider routing and does not make any
+  plan-quota CLI route eligible. It is a rule-owned boundary for future
+  adapter-specific workload wiring and eval fixtures.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_runner.py tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_manifest.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_runner.py tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_manifest.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_manifest.py` passed: 18 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 431 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2415
+    passed, 8 deselected, 1 warning, 81.98% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and adapter-specific read-only
+  workload wiring.

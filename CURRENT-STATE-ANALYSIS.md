@@ -75,7 +75,7 @@ The live code already had:
   only `XAI_API_KEY`.
 - An `AgentProvider`, adapter doctor scaffold, strict manifest parser, and local
   config auth-marker scanning, but without official installed-session auth
-  proof, support statement, adapter runner integration, native usage
+  proof, support statement, adapter-specific workload wiring, native usage
   signals, and eval proof needed for no-metered routing.
 
 One documentation inconsistency was fixed before this file was created: roadmap
@@ -94,8 +94,8 @@ does not violate agentic balance. The slice in this branch:
 - Allows local Ollama and LM Studio in `no-metered`.
 - Blocks cloud APIs and unproven adapter routes in `no-metered`.
 - Keeps plan-quota CLIs blocked until adapter doctor, support statement,
-  included-plan auth proof, adapter runner integration, ledger, and eval proof
-  exist.
+  included-plan auth proof, adapter-specific workload wiring, ledger, and eval
+  proof exist.
 
 External spend used so far: `$0.00`.
 
@@ -156,6 +156,11 @@ runners. A runner can snapshot staged source files before execution, parse the
 `adapter-result.v1` manifest afterward, and reject missing declared outputs or
 unexpected new scratch files.
 
-Remaining near-term gaps are official installed-session auth proof, adapter
-runner integration, native usage and quota-stop fields for future plan-quota
-adapters, and eval-gated route graduation.
+Cycle 12 added the generic scratch-only adapter runner primitive. It runs exact
+argv arrays with shell disabled, strips known metered API-key environment
+variables, enforces a timeout, captures bounded output tails, parses the result
+manifest, and applies scratch write checks.
+
+Remaining near-term gaps are official installed-session auth proof,
+adapter-specific workload wiring, native usage and quota-stop fields for future
+plan-quota adapters, and eval-gated route graduation.

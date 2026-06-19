@@ -341,7 +341,10 @@ adapter preflights for candidate plan-quota and credit-metered routes, including
 binary presence, version/help probes, required flags, API-key environment
 blockers, local config API-key markers, route class, support-statement status,
 and the required `adapter-result.v1` scratch manifest contract, including the
-before/after scratch write check future runners must use.
+before/after scratch write check future runners must use. The reusable adapter
+runner primitive can execute exact argv arrays in scratch with shell disabled
+and API-key environment variables stripped, but no plan-quota CLI route is live
+until auth proof, support statement, ledger, and eval gates clear.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 
