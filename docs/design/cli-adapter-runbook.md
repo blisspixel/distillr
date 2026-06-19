@@ -5,7 +5,9 @@ Researched June 18, 2026 against official docs and local CLI help.
 
 This runbook defines how Distill should invoke local runtimes and plan-quota
 coding CLIs without hidden API spend or uncontrolled writes. It covers Ollama,
-LM Studio, Codex CLI, Claude Code, and Grok Build.
+LM Studio, Codex CLI, Claude Code, and Grok Build. Credit-metered CLIs such as
+GitHub Copilot CLI can reuse the same scratch-manifest contract, but they are
+not no-metered defaults.
 
 ## Operating rule
 
@@ -299,6 +301,33 @@ Avoid in Distill automation:
 - `--permission-mode bypassPermissions`.
 - Web search for no-metered corpus analysis unless explicitly requested.
 
+## Credit-metered CLI candidates
+
+### GitHub Copilot CLI
+
+Copilot CLI is supportable as an external worker, but not as a default
+no-metered route. GitHub documents Copilot usage through plans, AI credits, and
+usage limits, so Distill should classify it as credit-metered unless adapter
+doctor can prove a no-incremental-cost entitlement.
+
+Preflight:
+
+- `copilot --version`
+- `copilot --help`
+- Inspect local Copilot config for auth and entitlement metadata when a
+  documented machine-readable command exists.
+- If entitlement, AI-credit status, or usage accounting is unknown, block in
+  `no-metered` and allow only under `paid-ok` or a future explicit
+  plan-credit policy.
+
+Adapter shape:
+
+- Prefer plan or review modes for read-only planning and critique.
+- Require either structured output or a scratch result manifest before the
+  route can feed Distill automation.
+- Record AI-credit usage or the nearest native usage signal on the ledger.
+- Do not let Copilot write directly to `library/`.
+
 ## Cross-route eval
 
 Every candidate route should run the same fixture package and write the same
@@ -359,3 +388,8 @@ the quality bar. Do not promote a route merely because it is available.
 - LM Studio developer API and structured output:
   <https://lmstudio.ai/docs/developer>
   and <https://lmstudio.ai/docs/developer/openai-compat/structured-output>
+- GitHub Copilot CLI:
+  <https://docs.github.com/copilot/concepts/agents/about-copilot-cli>
+  and <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference>
+- GitHub Copilot usage limits:
+  <https://docs.github.com/en/copilot/concepts/usage-limits>

@@ -63,6 +63,24 @@ live in [`cli-adapter-runbook.md`](cli-adapter-runbook.md).
   [Grok Build overview](https://docs.x.ai/build/overview),
   [Grok headless scripting](https://docs.x.ai/build/cli/headless-scripting),
   and [Grok enterprise auth](https://docs.x.ai/build/enterprise).
+- GitHub Copilot CLI is a command-line agent with plan mode, permission
+  prompts, and current-directory scoping. GitHub documents plan and agent usage
+  through Copilot plans, AI credits, and usage limits, so Copilot should not be
+  treated as a no-metered default. It can be supported later as an explicit
+  credit-metered CLI route under `paid-ok` or a separate plan-credit policy, but
+  not as a local or no-metered route by default. Sources:
+  [About GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli),
+  [Copilot CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference),
+  and [GitHub Copilot usage limits](https://docs.github.com/en/copilot/concepts/usage-limits).
+- Gemini CLI and Antigravity are useful but volatile Google routes. Gemini CLI
+  documents terminal and automation use, while Google's own guidance positions
+  Antigravity as the agent manager or IDE path and Gemini CLI as the terminal
+  or headless path. Treat both as candidate plan-quota routes until adapter
+  doctor proves the installed binary, auth mode, output format, and current
+  support statement. Sources:
+  [Gemini CLI repository](https://github.com/google-gemini/gemini-cli),
+  [Antigravity CLI overview](https://antigravity.google/docs/cli-overview),
+  and [Choosing Antigravity or Gemini CLI](https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli).
 - Agent eval guidance is clear on the operating model: define success criteria,
   evaluate the produced outcome, and track cost, token use, latency, and errors.
   Sources:
@@ -95,12 +113,16 @@ The cost classes are:
   the workload bar.
 - **Included plan quota.** Codex CLI, Claude Code, Grok Build, and similar
   tools may be effectively free at the margin when the user already has a plan
-  and the route consumes included quota rather than API credits. This is useful
-  for bursty agentic fan-out, cross-topic research, reviewer passes, and
-  synthesis planning. It still consumes a finite quota and may hit provider
-  rate or session limits, so it remains on the usage ledger.
+  and the route consumes included quota rather than API credits. Gemini CLI and
+  Antigravity join this class only when their support statement and installed
+  binary make headless or scripted use clear. This is useful for bursty agentic
+  fan-out, cross-topic research, reviewer passes, and synthesis planning. It
+  still consumes a finite quota and may hit provider rate or session limits, so
+  it remains on the usage ledger.
 - **Metered API spend.** Cloud API routes are the quality floor and escalation
   path, but only run in `auto` or `paid-ok` when policy and caps allow them.
+  CLI routes backed by paid credits, including Copilot-style AI-credit usage,
+  belong here unless a future support statement proves otherwise.
 
 ## Profile model
 
@@ -210,9 +232,13 @@ The no-metered route order should be:
 1. Deterministic parse, fetch, transcript, and audit actions.
 2. Local OpenAI-compatible or native routes: Ollama, LM Studio, and existing
    local transcription.
-3. Configured plan-quota CLI adapters: Codex CLI, Claude Code, Grok Build, and
-   later Gemini / Antigravity if the support statement is clear.
+3. Configured plan-quota CLI adapters: Codex CLI, Claude Code, Grok Build,
+   Gemini CLI, and Antigravity when the support statement is clear.
 4. Metered cloud API routes only when cost mode is `auto` or `paid-ok`.
+
+GitHub Copilot CLI is not in the no-metered ladder by default. It can follow
+the same adapter shape later, but should be classified as credit-metered unless
+preflight proves a no-incremental-cost entitlement.
 
 For high-volume work, route selection should also understand shape:
 
@@ -231,7 +257,8 @@ CLI would use API billing.
 
 ## CLI adapter contract
 
-Codex CLI, Claude Code, Grok Build, and similar tools are not normal model
+Codex CLI, Claude Code, Grok Build, Gemini CLI, Antigravity, and similar tools
+are not normal model
 providers inside Distill. Treat them as external workers with stronger
 boundaries:
 
@@ -243,7 +270,10 @@ boundaries:
    `codex exec --json`. Grok starts with `--output-format json` or
    `--output-format streaming-json`, then ACP when a durable app bridge is
    needed. Claude starts with print mode for narrow experiments and graduates
-   to the Agent SDK for structured streams.
+   to the Agent SDK for structured streams. Gemini and Antigravity do not enter
+   the route set until adapter doctor proves a stable structured output or
+   scratch-manifest path. Copilot-style credit-metered CLIs follow the same
+   output rule if they are added under `paid-ok`.
 3. **Read-only before write.** First workloads are corpus Q&A, classification,
    synthesis planning, and profile preview enrichment. Workspace write access is
    allowed only after the read-only adapter clears eval fixtures and writes
@@ -256,7 +286,10 @@ boundaries:
    blocks subscription routing. For Grok, `XAI_API_KEY` or a configured model
    API key blocks plan-quota routing unless the user selected `paid-ok`. For
    Codex, an OpenAI API-key route is treated as metered unless the adapter can
-   prove a ChatGPT-plan session is being used.
+   prove a ChatGPT-plan session is being used. For Google or any other included
+   quota route, unknown entitlement or API-key auth blocks no-metered claims.
+   For GitHub Copilot, AI-credit usage is metered unless a future support
+   statement proves a no-incremental-cost entitlement.
 6. **Provider-specific safety flags.** Codex uses `read-only` or
    `workspace-write` sandboxes and avoids `danger-full-access`. Grok scripts use
    `--no-auto-update`; `--always-approve` is allowed only inside an isolated
@@ -302,9 +335,10 @@ boundaries:
 5. **Cost policy enforcement.** Route selection respects `auto`,
    `no-metered`, and `paid-ok`, and writes a ledger entry for every run.
 6. **Adapter doctor.** Add read-only preflights for local, Codex, Claude Code,
-   and Grok Build routes: installed version, auth mode, dangerous environment
-   variables, headless support, machine-readable output support, and support
-   statement version.
+   Grok Build, Gemini CLI, and Antigravity routes: installed version, auth mode,
+   dangerous environment variables, headless support, machine-readable output
+   support, and support statement version. Copilot can be reported separately
+   as a credit-metered CLI candidate under explicit paid policy.
 7. **Adapter contracts.** Add plan-quota adapters only behind explicit support
    statements, scratch-manifest writes, environment preflights, and
    `distill eval` fixtures.
@@ -314,8 +348,9 @@ boundaries:
    ledger row.
 9. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
    schema, including state paths, max attempts, verifier commands, and
-   acceptance metrics, so Codex, Claude Code, Grok Build, cron, or GitHub
-   Actions can steward them externally.
+   acceptance metrics, so Codex, Claude Code, Grok Build, Gemini CLI,
+   Antigravity, cron, GitHub Actions, or a paid-policy Copilot route can steward
+   them externally.
 
 ## Non-goals
 

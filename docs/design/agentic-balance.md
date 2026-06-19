@@ -22,6 +22,28 @@ distill is, by deliberate design, **a workflow at its spine with agentic judgmen
 
 That is invariant #6 restated against the axis: **"LLM proposes, Python decides."** Models emit rows, prose, and semantic verdicts. Python owns control flow, merge bookkeeping, dedup, explicit thresholds, receipt checks, and final accept/refuse behavior. The "Building Effective Agents" framing is its citation: distill keeps the *control flow* in workflow territory and spends the model where flexibility genuinely can't be hardcoded.
 
+## Fresh sources vs model memory
+
+Local inference changes the judgment route, not the source route. When Distill
+uses Ollama or LM Studio, discovery and ingest still fetch current public
+sources before analysis. The local model reads the captured receipt; it is not
+being trusted to answer from pretraining alone.
+
+That keeps the rule/judgment split intact:
+
+- Source acquisition is rule-owned: exact URLs, feed entries, channel updates,
+  paper ids, repo metadata, timestamps, and receipts.
+- Source interpretation is model-owned: relevance, novelty, synthesis, and
+  faithfulness verdicts over the captured evidence.
+- Cost policy is rule-owned: local sunk-cost routes, included-plan routes, and
+  metered API routes are labeled by preflight and ledger rules, not model
+  claims.
+
+A stale local model may still be useful when the source receipt is fresh and the
+task is extraction, classification, or bounded synthesis. It is not enough for
+unverified world knowledge. The corpus trusts receipts plus verification, not a
+model's memory.
+
 | Surface | Rule or agent | Why it sits there |
 |---|---|---|
 | Discovery (goal-aware fanout across YouTube/arXiv/web, rerank for fit) | **Agent** | Open-ended; the step count and the right sources can't be predicted or hardcoded — exactly the case the source names. |

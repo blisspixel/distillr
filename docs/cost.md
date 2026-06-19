@@ -4,6 +4,23 @@ Distill runs on a mix of free and paid stages. YouTube captions and local PDF ex
 
 Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table — and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. grok-4.3 is the **cloud floor**: xAI retired the cheaper fast tiers (grok-4-1-fast, grok-4-fast, grok-3, …) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](migration-grok-4.3.md)). To go cheaper than grok-4.3 you run analysis on a **local model** (Ollama/LM Studio, $0 marginal) — measure the tradeoff first with `distill eval --models grok-4.3,<local-model>`, which scores quality and cost over frozen fixtures and recommends the cheapest model that clears your bar.
 
+Local analysis is not stale-source analysis. When `DISTILL_PROVIDER=ollama` or
+`DISTILL_PROVIDER=lmstudio` is set, Distill still searches and fetches current
+public sources before analysis. The local model reads those receipts. Its
+pretraining may be old, but the evidence under the insight is whatever Distill
+just captured from arXiv, YouTube, feeds, sites, repos, or local files.
+
+## Route classes
+
+| Route class | Implemented today | Cost meaning | Notes |
+|---|---:|---|---|
+| Deterministic fetch, parse, audit, and local extraction | Yes | No model bill | Still uses network for public sources when the command asks for them. |
+| Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill | Uses local hardware, electricity, and time. Quality must clear `distill eval` before a workload should default to it. |
+| Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
+| Opt-in Anthropic and OpenAI API routes | Partial | Metered API spend | Providers exist in-tree, but they are not calibrated defaults. |
+| Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity | Planned | Included quota only if proven | Not live providers yet. They need adapter doctor preflights, support statements, scratch manifests, complete usage ledgering, and `distill eval` evidence. |
+| Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
+
 ## Per-stage cost
 
 | Stage | Typical cost | Basis (@ grok-4.3) |

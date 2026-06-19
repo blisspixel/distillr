@@ -161,6 +161,13 @@ echo "DISTILL_PROVIDER=ollama" >> .env
 distill doctor                  # verify local setup
 ```
 
+Local mode still uses fresh sources. `DISTILL_PROVIDER=ollama` or
+`DISTILL_PROVIDER=lmstudio` changes the model that analyzes the fetched
+receipts; it does not answer from the model's pretraining alone. `distill
+discover`, `distill latest`, `distill papers`, and `distill ingest` still fetch
+current public sources such as arXiv, YouTube, feeds, sites, repos, and local
+files, then ask the configured model to analyze that captured evidence.
+
 **Shell completions** (optional): `distill --install-completion` wires tab-completion for your shell (bash/zsh/fish/PowerShell), including live topic-name completion; `distill --show-completion` prints the script to inspect or source manually.
 
 **No telemetry.** Distill phones home for nothing — no analytics, no usage beacons. Your research, your keys, and your run history stay on your disk. The only outbound calls are the LLM/transcription APIs you configure and the public sources you ask it to fetch.
@@ -314,7 +321,7 @@ There's also a canonical **Agent Skill** at [`skills/distill-corpus/SKILL.md`](s
 
 On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs ~$0.03/video and a full paper ~$0.03; Gemini Deep Research dominates paid reports (~$2–3/report); `distill synthesize` is ~$0.20–0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor — xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The only cheaper path is running analysis on a **local model** (Ollama/LM Studio) — `distill eval --models grok-4.3,<local-model>` measures the cost × quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Every run logs actual vs estimated cost to `cost_log.jsonl`, and the pre-run estimate self-calibrates against that history; `distill costs` shows it. The estimator's goal is **accuracy**, not safe padding — a padded estimate discourages runs you'd happily pay for, so calibration error is tracked and shrunk over time.
 
-Providers are adapters behind a workload router: grok + gemini are the calibrated cloud defaults, Ollama/LM Studio the local route, and **Anthropic and OpenAI adapters ship in-tree** (wireable, opt-in). Broader backends (AWS Bedrock, Microsoft Foundry) and **plan-quota compute** — routing batch analysis through agent CLIs your existing subscriptions already license (Claude, Codex, Gemini, and others), eval-gated for quality — are committed on the [roadmap](ROADMAP.md#looking-beyond-10).
+Route status today: xAI/Gemini cloud routes and Ollama/LM Studio local routes are implemented. Anthropic and OpenAI providers ship in-tree as opt-in routes, but they are not calibrated defaults. Plan-quota CLI routes such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity are roadmap adapters, not hidden providers. They only graduate when an adapter doctor can prove included-plan auth, machine-readable output, scratch-only writes, complete usage ledgering, and `distill eval` quality for the workload. GitHub Copilot CLI can be supported later as an explicit credit-metered route, but it is not a no-metered default because Copilot usage is tied to AI credits and usage limits. Until adapters exist, these CLIs can run Distill externally as operators, but Distill should not claim their quota as an internal model route.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 
