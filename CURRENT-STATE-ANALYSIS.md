@@ -238,7 +238,15 @@ non-interactive JSONL event contract and local `codex exec --help`; no Codex
 model call was made. Codex command plans still remain blocked until runner
 capture wiring, auth proof, support proof, and eval evidence exist.
 
+Cycle 25 added the Codex capture writer. Given captured Codex JSONL stdout and
+the planned `result.txt`, it writes a validated `native-usage.json` file and
+then writes an `adapter-result.v1` manifest through the shared result writer.
+This closes the post-process capture primitive for Codex fixtures without
+running Codex or enabling the route. The remaining Codex-specific gap is wiring
+the workload runner to call the capture writer after process exit and then
+apply the existing manifest and scratch-write checks.
+
 Remaining near-term gaps are official installed-session auth proof,
-remaining adapter-specific capture wiring, remaining adapter command templates,
-real native usage collection from non-Codex CLI outputs for future plan-quota
-adapters, and eval-gated route graduation.
+workload-runner capture wiring, remaining adapter command templates, native
+usage collection from non-Codex CLI outputs for future plan-quota adapters, and
+eval-gated route graduation.

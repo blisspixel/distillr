@@ -597,6 +597,33 @@
 - Continue runner capture wiring for Codex JSONL usage, non-Codex native usage
   capture, and remaining command templates.
 
+### Cycle 25 - Codex Capture Writer
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_capture`, starting with
+  `write_codex_captured_result()` for post-process Codex capture.
+- The helper writes a validated `native-usage.json` from captured Codex JSONL
+  stdout, then writes an `adapter-result.v1` manifest from `result.txt`,
+  workload hashes, and native usage through the shared result writer.
+- Updated the Codex command-plan blocker to say the capture writer is not yet
+  wired into the workload runner.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_capture.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_capture.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py` passed after formatting one test file.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py` passed: 12 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2472
+    passed, 8 deselected, 1 warning, 82.21% coverage.
+
+### Next
+
+- Continue workload-runner capture wiring for Codex, non-Codex native usage
+  capture, and remaining command templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added deterministic Claude command-plan schema inlining from staged scratch JSON schema files.
 - Added the strict `adapter-native-usage.v1` usage contract and wired the adapter result writer to consume validated native usage files from scratch.
 - Added a strict Codex JSONL usage parser for `codex exec --json` `turn.completed` events.
+- Added a Codex capture writer that turns captured JSONL stdout plus `result.txt` into `native-usage.json` and a validated `adapter-result.v1` scratch manifest.
 
 ### Changed
 

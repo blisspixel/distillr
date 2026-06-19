@@ -184,9 +184,12 @@ Native usage capture:
 - `codex exec --json` emits `turn.completed` events with a `usage` object.
 - `distill.doctor.adapter_native_usage.codex_jsonl_native_usage()` parses that
   JSONL and converts the summed token fields into `adapter-native-usage.v1`.
-- This parser does not make Codex route-eligible. Runner capture still has to
-  wire stdout JSONL to `native-usage.json`, and auth/support/eval gates still
-  apply.
+- `distill.doctor.adapter_capture.write_codex_captured_result()` writes that
+  native usage file and the validated `adapter-result.v1` manifest from
+  captured stdout JSONL plus `result.txt`.
+- These helpers do not make Codex route-eligible. The workload runner still has
+  to invoke the capture writer after the process exits, and auth/support/eval
+  gates still apply.
 
 Avoid in Distill automation:
 
@@ -449,13 +452,17 @@ package, write outside declared outputs, or return a different cost mode.
 manifests from captured CLI output, workload package hashes, and explicit
 native usage metadata or validated native usage files. It does not invent usage
 data or make an adapter eligible.
+`distill.doctor.adapter_capture` contains adapter-specific capture writers.
+The Codex writer converts captured JSONL stdout plus `result.txt` into a
+scratch native usage file and result manifest, but it is not wired into the
+workload runner yet.
 `distill.doctor.adapter_commands` records blocked Codex, Claude, and Grok
 read-only argv templates. Command plans include staged prompt, schema, result
 capture, native usage capture, and allowed scratch capture metadata. Claude
 schema paths can be materialized into `--json-schema` argv arguments from
 staged scratch JSON schema files, but templates stay blocked until
-adapter-specific native usage capture, current support statement, auth proof,
-and eval evidence exist.
+workload-runner capture wiring, current support statement, auth proof, and eval
+evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,
