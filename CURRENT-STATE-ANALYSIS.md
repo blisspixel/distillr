@@ -73,10 +73,10 @@ The live code already had:
 - Profile schema and checked-in examples with `cost_mode: no-metered`.
 - Local/provider availability helpers that ask the router rather than checking
   only `XAI_API_KEY`.
-- An `AgentProvider`, adapter doctor scaffold, and strict manifest parser, but
-  without installed-session auth classification, support statement, runner-side
-  manifest enforcement, native usage signals, and eval proof needed for
-  no-metered routing.
+- An `AgentProvider`, adapter doctor scaffold, strict manifest parser, and local
+  config auth-marker scanning, but without official installed-session auth
+  proof, support statement, runner-side manifest enforcement, native usage
+  signals, and eval proof needed for no-metered routing.
 
 One documentation inconsistency was fixed before this file was created: roadmap
 notes still described an old MCP count of 22 to 21 tools, while the live code,
@@ -145,6 +145,12 @@ metered auth, API-key blockers, or metered usage allowance. The adapter doctor
 JSON report now publishes that contract so external loops can inspect it before
 any route graduates.
 
-Remaining near-term gaps are installed-session auth classification,
+Cycle 10 added local config auth-marker scanning to adapter doctor. It parses
+known TOML and JSON config files, reports matched marker names and display
+paths only, classifies API-key environment variables and API-key config fields
+as metered blockers, and reports session markers as evidence without making
+routes eligible.
+
+Remaining near-term gaps are official installed-session auth proof,
 runner-side scratch-manifest enforcement, native usage and quota-stop fields for
 future plan-quota adapters, and eval-gated route graduation.

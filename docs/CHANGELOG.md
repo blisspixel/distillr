@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added recurring profile health to `distill audit all`, covering invalid profiles, missing goals, stale or missing runs, failed commands, invalid state, and thin local corpora.
 - Added `distill doctor --adapters` read-only CLI adapter preflights for candidate plan-quota and credit-metered routes.
 - Added the strict `adapter-result.v1` manifest parser for future CLI adapters, covering usage signals, cost policy, auth class, declared files, and scratch path safety.
+- Added local config auth-marker scanning to `distill doctor --adapters` so API-key config routes block no-metered claims without exposing secret values.
 
 ### Changed
 

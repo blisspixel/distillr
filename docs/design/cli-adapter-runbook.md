@@ -34,6 +34,8 @@ a command.
 - Scan provider config files for `api_key`, `env_key`, or provider API-key
   environment references. Presence classifies the route as metered unless the
   user selected `paid-ok`.
+- Report only matched config marker names and display paths. Never emit secret
+  values from provider config files.
 - Record every route on the ledger even when dollar cost is zero: adapter,
   version, auth class, model when known, prompt hash, source hash, elapsed time,
   native usage signal, stop reason, and files written.

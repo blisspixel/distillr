@@ -18,7 +18,7 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill | Uses local hardware, electricity, and time. Quality must clear `distill eval` before a workload should default to it. |
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
 | Opt-in Anthropic and OpenAI API routes | Partial | Metered API spend | Providers exist in-tree, but they are not calibrated defaults. |
-| Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights and the strict `adapter-result.v1` manifest parser exist, but routes still need support statements, included-plan auth proof, runner-side manifest enforcement, native usage ledgering, and `distill eval` evidence. |
+| Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, local config auth-marker scanning, and the strict `adapter-result.v1` manifest parser exist, but routes still need support statements, included-plan auth proof, runner-side manifest enforcement, native usage ledgering, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
 ## Cost modes

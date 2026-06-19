@@ -249,3 +249,34 @@
 
 - Continue adapter doctor installed-session auth classification and runner-side
   manifest enforcement.
+
+### Cycle 10 - Adapter Auth Marker Classification
+
+- External spend: `$0.00`.
+- Added local config auth-marker scanning to `distill doctor --adapters`.
+- Adapter doctor now parses known TOML and JSON config files for Codex, Claude,
+  Grok, Gemini CLI, and Antigravity, reporting marker names and display paths
+  without exposing secret values.
+- API-key environment variables and API-key config fields classify the adapter
+  auth mode as metered and keep no-metered claims blocked.
+- Session markers are reported as evidence only. They do not make a route
+  eligible without support statements, runner-side manifest enforcement,
+  native usage signals, and eval proof.
+- Fixed the adapter doctor test seam so `environ={}` means an empty
+  environment instead of falling back to the process environment.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapters.py distill\commands\doctor.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\doctor\adapters.py distill\commands\doctor.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py::TestJsonDoctor::test_doctor_json_adapter_report` passed: 7 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 429 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2408
+    passed, 8 deselected, 1 warning, 81.98% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and runner-side manifest
+  enforcement.

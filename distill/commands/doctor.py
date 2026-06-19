@@ -641,6 +641,12 @@ def _doctor_adapter_report(*, json_output: bool) -> None:
         )
         if probe.version:
             console.print(f"    version: {probe.version}")
+        if probe.auth_mode:
+            console.print(f"    auth: {probe.auth_mode}")
+        if probe.config_files_found:
+            console.print(f"    config files: {', '.join(probe.config_files_found)}")
+        if probe.auth_evidence:
+            console.print(f"    auth evidence: {', '.join(probe.auth_evidence)}")
         if probe.env_blockers_present:
             console.print(f"    env blockers: {', '.join(probe.env_blockers_present)}")
         if probe.missing_flags:
