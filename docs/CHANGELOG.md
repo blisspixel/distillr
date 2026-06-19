@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added provider, route-class, and no-metered usage breakdowns to cost-log rows, including zero-dollar profile-run orchestration rows.
 - Added structured no-metered route-block reports with provider, workload, cost class, proof requirements, and paid-ok retry guidance.
 - Added profile-run `next_actions` rows with argv commands, approval class, write scope, verifier, and loop metadata for external runners.
+- Added recurring profile health to `distill audit all`, covering invalid profiles, missing goals, stale or missing runs, failed commands, invalid state, and thin local corpora.
 
 ### Changed
 

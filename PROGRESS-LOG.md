@@ -173,3 +173,24 @@
 
 - Continue with audit-visible profile health or adapter doctor preflight
   scaffolding.
+
+### Cycle 7 - Audit-Visible Profile Health
+
+- External spend: `$0.00`.
+- Added deterministic recurring profile health to `distill audit all` through
+  the library audit rollup.
+- Profile health now reports invalid profile files, missing goal files, missing
+  or stale run state, recorded profile command failures, invalid run state, and
+  profiles whose local corpus is thin relative to their saved source plan.
+- Kept audit local-only and no-spend. Feed, channel, and domain reachability
+  checks remain outside this deterministic audit pass.
+- Updated README, usage docs, roadmap, changelog, current-state notes, and loop
+  skills.
+- Targeted validation:
+  - `uv run ruff check distill\pipeline\audit.py tests\unit\pipeline\test_library_hygiene.py` passed.
+  - `uv run ruff format --check distill\pipeline\audit.py tests\unit\pipeline\test_library_hygiene.py` passed after formatting.
+  - `uv run pytest -q tests\unit\pipeline\test_library_hygiene.py tests\unit\pipeline\test_audit.py::test_audit_command_next_actions_json` passed: 9 passed.
+
+### Next
+
+- Continue with adapter doctor preflight scaffolding.

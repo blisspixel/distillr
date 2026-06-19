@@ -55,6 +55,9 @@
 - Profile run JSON includes `next_actions` rows with argv commands, approval
   class, write scope, verifier, and loop metadata. External runners should use
   those rows instead of parsing console output.
+- `distill audit all` includes local recurring profile health from profile
+  files and run state: invalid YAML/schema, missing goals, missing or stale
+  runs, recorded failures, invalid state, and thin local corpora.
 - Exact feed items and YouTube videos can be marked complete after a successful
   run. Standing seeds such as feeds, channels, domains, repositories, and saved
   queries must stay repeatable.

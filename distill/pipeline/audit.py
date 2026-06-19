@@ -39,6 +39,11 @@ from distill.pipeline.next_actions import (
     action_id,
     loop_metadata,
 )
+from distill.pipeline.profile_health import (
+    ProfileHealth,
+    collect_profile_health,
+    render_profile_health_section,
+)
 from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 _action_id = action_id
@@ -51,11 +56,13 @@ __all__ = [
     "NextAction",
     "NextActionPlan",
     "NextActionVerifier",
+    "ProfileHealth",
     "StalenessRollup",
     "SynthesisFreshness",
     "VerifyRollup",
     "build_next_action_plan",
     "collect_library_hygiene",
+    "collect_profile_health",
     "collect_staleness",
     "collect_synthesis_freshness",
     "collect_verify_rollup",
@@ -793,12 +800,15 @@ class LibraryHygiene:
     unreadable: list[str] = field(default_factory=list)  # broken links/reparse points
     unindexed: list[str] = field(default_factory=list)  # has sources, no CLAUDE.md
     test_named: list[str] = field(default_factory=list)  # name suggests test/scratch
+    profiles: ProfileHealth = field(default_factory=ProfileHealth)
 
     @property
     def issue_count(self) -> int:
         # test_named is informational, not a finding -- a deliberately named
         # validation topic is not wrong, just worth listing for cleanup.
-        return len(self.empty) + len(self.unreadable) + len(self.unindexed)
+        return (
+            len(self.empty) + len(self.unreadable) + len(self.unindexed) + self.profiles.issue_count
+        )
 
 
 _TEST_NAME_RE = re.compile(r"(^|-)(test|tests|validate|validation|scratch|tmp|wwt)(-|\d|$)")
@@ -809,9 +819,10 @@ def collect_library_hygiene(library_dir: Path) -> LibraryHygiene:
     from distill.library.claude_md import count_topic_sources
     from distill.library.freshness import collect_synthesis_freshness
 
+    profile_health = collect_profile_health(library_dir)
     topics_dir = library_dir / "topics"
     if not topics_dir.is_dir():
-        return LibraryHygiene()
+        return LibraryHygiene(profiles=profile_health)
     healthy = 0
     empty: list[str] = []
     unreadable: list[str] = []
@@ -843,6 +854,7 @@ def collect_library_hygiene(library_dir: Path) -> LibraryHygiene:
         unreadable=unreadable,
         unindexed=unindexed,
         test_named=test_named,
+        profiles=profile_health,
     )
 
 
@@ -894,8 +906,11 @@ def render_library_audit_md(hygiene: LibraryHygiene, *, now_iso: str) -> str:
             "",
         ]
         lines += [f"- `topics/{t}/`" for t in hygiene.test_named]
-    if hygiene.issue_count == 0 and not hygiene.test_named:
+    topic_issue_count = len(hygiene.empty) + len(hygiene.unreadable) + len(hygiene.unindexed)
+    if topic_issue_count == 0 and not hygiene.test_named:
         lines += ["", "- Every topic directory is readable, indexed, and non-empty."]
+    lines.append("")
+    lines += render_profile_health_section(hygiene.profiles)
     lines.append("")
     return "\n".join(lines)
 

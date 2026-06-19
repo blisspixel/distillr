@@ -123,6 +123,11 @@ Cycle 6 added profile loop handoff rows: `profile-run.v1` JSON now emits
 including argv commands, approval class, write scope, verifier, and loop
 metadata.
 
+Cycle 7 added audit-visible recurring profile health to `distill audit all`.
+The audit remains deterministic and local-only: it reports invalid profile
+files, missing goals, missing or stale run state, recorded profile command
+failures, invalid state, and profiles whose local corpus is thin relative to
+their saved source plan.
+
 Remaining near-term gaps are native usage and quota-stop fields for future
-plan-quota adapters, audit-visible profile health, and adapter doctor
-preflights.
+plan-quota adapters and adapter doctor preflights.

@@ -333,7 +333,10 @@ dollar cost is zero. Blocked no-metered routes report the provider, workload,
 route cost class, proof requirements when applicable, and the paid-ok retry
 hint needed for an intentional metered run. Profile run JSON also emits
 `next_actions` rows with argv commands, approval class, write scope, verifier,
-and loop metadata for external runners.
+and loop metadata for external runners. `distill audit all` includes local
+profile health from profile files and run state so stale profiles, failed
+profile commands, missing goals, invalid state, and thin local corpora are
+visible without network access.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

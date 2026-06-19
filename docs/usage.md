@@ -233,6 +233,11 @@ domains, repositories, and saved queries remain repeatable so recurring
 profiles keep checking for new material. Failed commands stay retryable and are
 recorded in the state file.
 
+`distill audit all` includes recurring profile health from local files and run
+state: invalid profile files, missing goal files, stale or missing runs,
+recorded command failures, invalid run state, and profiles whose local corpus
+is still thin relative to the saved source plan.
+
 ## Websites
 
 ```bash
