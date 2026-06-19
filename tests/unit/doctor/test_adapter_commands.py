@@ -41,7 +41,7 @@ def test_codex_command_plan_records_read_only_argv_but_stays_blocked():
         "-",
     )
     assert not plan.ok
-    assert "native adapter-result.v1 manifest writer is not implemented" in plan.blocked_reasons
+    assert "adapter-specific capture wiring is not implemented" in plan.blocked_reasons
     assert plan.to_dict()["ok"] is False
 
 

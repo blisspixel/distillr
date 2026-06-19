@@ -257,11 +257,14 @@ arrays inside scratch with shell disabled and API-key environment variables
 stripped. A workload runner can load a checked `adapter-workload.v1` package,
 execute an exact argv in scratch, and reject results that read outside the
 package, write outside declared outputs, or report a different cost mode. A
+native result writer can turn captured CLI output plus caller-supplied native
+usage into a validated `adapter-result.v1` scratch manifest. A
 ledger helper can convert verified adapter manifests into cost-tracker rows and
 metadata. The Codex read-only command planner records the future
-`codex exec --sandbox read-only` argv shape, but keeps it blocked until native
-manifest writing and adapter gates exist. Distill still does not expose any
-plan-quota adapter as an eligible route by itself.
+`codex exec --sandbox read-only` argv shape, but keeps it blocked until
+adapter-specific capture wiring, native usage collection, and adapter gates
+exist. Distill still does not expose any plan-quota adapter as an eligible
+route by itself.
 
 ## Websites
 

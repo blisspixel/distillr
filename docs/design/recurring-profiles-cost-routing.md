@@ -306,9 +306,10 @@ boundaries:
    Workload packages are scratch-relative and validated before an adapter can
    receive source packages. Verified manifests can be transformed into cost-log
    rows, and checked workload runs verify manifest reads, writes, and cost mode
-   against the package. Command planners may record exact argv shapes while
-   still blocked. This does not bypass adapter support, auth, manifest, or eval
-   gates.
+   against the package. A native result writer can write validated manifests
+   from captured CLI output only when the caller supplies real native usage
+   signals. Command planners may record exact argv shapes while still blocked.
+   This does not bypass adapter support, auth, usage collection, or eval gates.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per
    accepted change. No-metered routes still lose when they produce too much
@@ -347,8 +348,9 @@ boundaries:
    can be reported separately as a credit-metered CLI candidate under explicit
    paid policy.
 7. **Adapter contracts.** Add plan-quota adapters only behind explicit support
-   statements whose no-metered status is current, scratch-manifest writes,
-   environment preflights, and `distill eval` fixtures.
+   statements whose no-metered status is current, adapter-specific capture
+   wiring, native usage collection, environment preflights, and `distill eval`
+   fixtures.
 8. **Cross-route eval.** Extend `distill eval` so local sunk-cost routes,
    plan-quota CLI routes, and metered API routes can be compared on the same
    fixture with an LLM-as-judge rubric, acceptance accounting, and a usage

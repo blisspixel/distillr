@@ -421,10 +421,37 @@
   - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2445
     passed, 8 deselected, 1 warning, 82.08% coverage.
 
+### Cycle 19 - Native Adapter Result Writer
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_result_writer`, a native writer for strict
+  `adapter-result.v1` scratch manifests.
+- The writer hashes the workload prompt and source files, reads captured CLI
+  output from scratch, requires caller-supplied token or native usage signals,
+  records quota-stop metadata when present, validates the payload through the
+  manifest boundary, and writes stable JSON to the workload's manifest path.
+- Extended the workload runner so read-only command templates can declare
+  capture files such as `result.txt` while still blocking undeclared scratch
+  writes.
+- Updated the Codex command planner blocker from missing manifest writer to
+  missing adapter-specific capture wiring, keeping the route ineligible until
+  auth proof, native usage collection, support proof, and eval evidence exist.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_result_writer.py distill\doctor\adapter_workload_runner.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_result_writer.py distill\doctor\adapter_workload_runner.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed: 6 files already formatted.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed: 16 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 441 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2452
+    passed, 8 deselected, 1 warning, 82.14% coverage.
+
 ### Next
 
-- Continue native `adapter-result.v1` manifest-writing harness design for
-  read-only adapter command templates.
+- Continue adapter-specific capture wiring and native usage collection for
+  read-only command templates.
 
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 

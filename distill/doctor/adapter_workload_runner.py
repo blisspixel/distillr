@@ -39,6 +39,7 @@ class AdapterWorkloadRunSpec:
     scratch_root: Path
     workload_path: Path = Path("adapter-workload.json")
     scrubbed_env_vars: tuple[str, ...] = METERED_API_ENV_VARS
+    allowed_new_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,7 @@ def run_adapter_workload(
             timeout_seconds=workload.max_seconds,
             output_limit=workload.output_limit,
             scrubbed_env_vars=spec.scrubbed_env_vars,
+            allowed_new_files=spec.allowed_new_files,
         ),
         environ=environ,
         runner=runner,

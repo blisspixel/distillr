@@ -81,7 +81,7 @@ def _codex_command(workload: AdapterWorkloadPackage) -> tuple[tuple[str, ...], l
         blocked_reasons.append("codex command template currently supports read-only workloads only")
     if not workload.output_schema_path:
         blocked_reasons.append("codex command template requires output_schema_path")
-    blocked_reasons.append("native adapter-result.v1 manifest writer is not implemented")
+    blocked_reasons.append("adapter-specific capture wiring is not implemented")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
         (

@@ -414,9 +414,13 @@ zero-dollar accounting records, not proof that the adapter should be selected.
 `distill.doctor.adapter_workload_runner` composes the workload package with the
 scratch runner. It blocks result manifests that read outside the workload
 package, write outside declared outputs, or return a different cost mode.
+`distill.doctor.adapter_result_writer` writes validated `adapter-result.v1`
+manifests from captured CLI output, workload package hashes, and
+caller-supplied native usage. It does not invent usage data or make an adapter
+eligible.
 `distill.doctor.adapter_commands` records the Codex read-only argv template,
-but keeps it blocked until a native `adapter-result.v1` manifest writer,
-current support statement, auth proof, and eval evidence exist.
+but keeps it blocked until adapter-specific capture wiring, native usage
+collection, current support statement, auth proof, and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

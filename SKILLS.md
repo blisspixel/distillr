@@ -81,6 +81,9 @@
   manifest shape from `distill.doctor.adapter_manifest`. Keep writes scratch
   relative, include a usage signal, and fail closed on metered auth in
   `no-metered`.
+- Use `distill.doctor.adapter_result_writer.write_adapter_result_manifest()`
+  when wrapping captured CLI output. It hashes workload inputs and writes the
+  validated manifest, but the caller must supply real native usage signals.
 - If an adapter manifest reports `quota`, `rate_limit`, or `rate-limit`, it
   must include structured `quota_stop` metadata instead of relying on free text.
 - Future adapter workloads must use the strict `adapter-workload.v1` package
@@ -94,8 +97,8 @@
   scratch runner and blocks read, write, or cost-mode drift.
 - `distill.doctor.adapter_commands.plan_adapter_command()` may record future
   argv shapes, but a command plan is not eligible while blockers remain. The
-  Codex read-only plan is blocked until native manifest writing and route gates
-  exist.
+  Codex read-only plan is blocked until adapter-specific capture wiring,
+  native usage collection, and route gates exist.
 - Use `distill.doctor.adapter_runner.run_adapter_command()` for future adapter
   commands. It runs exact argv arrays with shell disabled, strips known
   metered API-key environment variables, enforces a timeout, and validates the

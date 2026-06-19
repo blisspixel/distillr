@@ -347,16 +347,19 @@ evidence, notes, and `no_metered_current`. The manifest contract now includes
 structured quota-stop metadata for future rate-limit and quota exhaustion
 handling. The reusable adapter runner
 primitive can execute exact argv arrays in scratch with shell disabled and
-API-key environment variables stripped. A ledger helper can convert verified
+API-key environment variables stripped. A native result writer can turn
+captured CLI output plus caller-supplied native usage into a validated
+`adapter-result.v1` scratch manifest. A ledger helper can convert verified
 adapter manifests into zero-dollar included-plan usage rows and metadata, but
 no plan-quota CLI route is live until auth proof, a current no-metered support
-statement, adapter-specific command templates, and eval gates clear. The
+statement, adapter-specific capture wiring, adapter-specific command
+templates, and eval gates clear. The
 doctor JSON also exposes the `adapter-workload.v1` package contract for future
 scratch-relative read-only adapter tasks, and a checked workload runner can
 verify declared reads, writes, cost mode, and result manifests for exact-argv
 experiments. A Codex read-only command planner exists for the future
-`codex exec` path, but it is deliberately blocked until native
-`adapter-result.v1` manifest writing and the other adapter gates exist.
+`codex exec` path, but it is deliberately blocked until adapter-specific
+capture wiring, native usage collection, and the other adapter gates exist.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

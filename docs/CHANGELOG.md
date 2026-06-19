@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added the strict `adapter-workload.v1` package parser and exposed its contract through `distill doctor --adapters` JSON for future scratch-relative read-only adapter tasks.
 - Added a checked adapter workload runner that loads `adapter-workload.v1`, runs exact argv arrays in scratch, and blocks result manifests that read, write, or report cost mode outside the package contract.
 - Added a blocked Codex read-only command planner that records the future `codex exec --sandbox read-only` argv shape without making Codex eligible as a Distill route.
+- Added a native adapter result writer that turns captured CLI output plus caller-supplied native usage into validated `adapter-result.v1` scratch manifests.
 
 ### Changed
 

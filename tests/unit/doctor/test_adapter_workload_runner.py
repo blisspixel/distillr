@@ -91,6 +91,67 @@ def test_adapter_workload_runner_accepts_read_only_manifest(tmp_path):
     assert result.to_dict()["adapter_result"]["manifest"]["adapter"] == "codex"
 
 
+def test_adapter_workload_runner_accepts_declared_capture_file(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+    ) -> AdapterProcessResult:
+        (cwd / "result.txt").write_text("captured stdout", encoding="utf-8")
+        (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
+        return AdapterProcessResult(exit_code=0, stdout="done")
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "--json"),
+            scratch_root=tmp_path,
+            allowed_new_files=("result.txt",),
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.adapter_result is not None
+    assert result.adapter_result.workspace_check is not None
+    assert result.adapter_result.workspace_check.new_files == (
+        "adapter-result.json",
+        "result.txt",
+    )
+
+
+def test_adapter_workload_runner_blocks_undeclared_capture_file(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+    ) -> AdapterProcessResult:
+        (cwd / "result.txt").write_text("captured stdout", encoding="utf-8")
+        (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "--json"),
+            scratch_root=tmp_path,
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert not result.ok
+    assert result.adapter_result is not None
+    assert "adapter wrote unexpected scratch files" in result.adapter_result.blocked_reasons
+
+
 def test_adapter_workload_runner_blocks_reads_outside_workload(tmp_path):
     _stage_workload(tmp_path)
 

@@ -193,11 +193,16 @@ written files.
 
 Cycle 18 added a blocked adapter command planner. It records the future Codex
 read-only `codex exec --sandbox read-only` argv shape, inherits adapter doctor
-blockers, and remains ineligible until native `adapter-result.v1` manifest
-writing, current support proof, installed-session auth proof, and eval evidence
-exist.
+blockers, and remains ineligible until the later manifest writer and remaining
+route gates exist.
+
+Cycle 19 added a native adapter result writer. It writes validated
+`adapter-result.v1` scratch manifests from captured CLI output, workload input
+hashes, and caller-supplied native usage metadata, and the workload runner now
+allows declared capture files such as `result.txt` while blocking undeclared
+scratch writes.
 
 Remaining near-term gaps are official installed-session auth proof,
-native manifest writing, additional adapter command templates, real native
-usage collection for future plan-quota adapters, and eval-gated route
+adapter-specific capture wiring, additional adapter command templates, real
+native usage collection for future plan-quota adapters, and eval-gated route
 graduation.
