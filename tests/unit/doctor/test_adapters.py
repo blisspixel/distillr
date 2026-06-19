@@ -132,6 +132,46 @@ def test_adapter_doctor_reports_session_config_but_keeps_route_blocked(monkeypat
     assert not grok.no_metered_eligible
 
 
+def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+
+    def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
+        if command == ("claude", "auth", "status", "--json"):
+            return (
+                0,
+                '{"auth":{"method":"oauth","state":"authenticated","account":"nick@example.test"}}',
+                "",
+            )
+        return _runner_with_required_flags(command, _timeout)
+
+    report = adapters.adapter_doctor_report(environ={}, runner=runner)
+
+    claude = next(probe for probe in report.adapters if probe.name == "claude")
+    assert claude.auth_mode == "session-command"
+    assert "auth_status: oauth" in claude.auth_evidence
+    assert "auth_status: authenticated" in claude.auth_evidence
+    assert "nick@example.test" not in " ".join(claude.auth_evidence + claude.blocked_reasons)
+    assert "support statement is not current" in claude.blocked_reasons
+    assert not claude.no_metered_eligible
+
+
+def test_adapter_doctor_reports_metered_auth_command(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+
+    def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
+        if command == ("claude", "auth", "status", "--json"):
+            return 0, '{"auth":{"method":"api_key"}}', ""
+        return _runner_with_required_flags(command, _timeout)
+
+    report = adapters.adapter_doctor_report(environ={}, runner=runner)
+
+    claude = next(probe for probe in report.adapters if probe.name == "claude")
+    assert claude.auth_mode == "api-key-command"
+    assert "auth_status: api_key" in claude.auth_evidence
+    assert "auth_status: api_key references API-key auth" in claude.blocked_reasons
+    assert not claude.no_metered_eligible
+
+
 def test_adapter_doctor_blocks_unknown_auth_for_installed_candidate(monkeypatch, tmp_path):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
@@ -152,8 +192,10 @@ def _runner_with_required_flags(command: Sequence[str], _timeout: int) -> tuple[
         ("codex", "exec", "--help"): "--json --sandbox --output-schema --output-last-message",
         ("claude", "--version"): "claude 2.1.173",
         ("claude", "-p", "--help"): "--output-format --max-turns --no-session-persistence",
+        ("claude", "auth", "status", "--json"): "{}",
         ("grok", "--version"): "grok 0.2.50",
         ("grok", "--help"): "--output-format",
+        ("grok", "inspect", "--json"): "{}",
         ("gemini", "--version"): "gemini 1.0.0",
         ("gemini", "--help"): "--prompt --approval-mode --output-format",
         ("antigravity", "--version"): "antigravity 1.0.0",

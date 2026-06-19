@@ -339,10 +339,11 @@ profile commands, missing goals, invalid state, and thin local corpora are
 visible without network access. `distill doctor --adapters` adds read-only CLI
 adapter preflights for candidate plan-quota and credit-metered routes, including
 binary presence, version/help probes, required flags, API-key environment
-blockers, local config API-key markers, route class, support-statement status,
-structured support details, the required `adapter-workload.v1` input package
-contract, the required `adapter-native-usage.v1` usage contract, and the
-required `adapter-result.v1` scratch manifest contract, including the
+blockers, local config API-key markers, JSON auth-command markers for Claude
+and Grok, route class, support-statement status, structured support details,
+the required `adapter-workload.v1` input package contract, the required
+`adapter-native-usage.v1` usage contract, and the required
+`adapter-result.v1` scratch manifest contract, including the
 before/after scratch write check future runners must use. Support details
 record `checked_on`, source URLs, required evidence, notes, and
 `no_metered_current`. The manifest contract now includes structured quota-stop
@@ -354,10 +355,10 @@ captured CLI output plus explicit native usage metadata or a validated
 `adapter-native-usage.v1` scratch file into a validated `adapter-result.v1`
 scratch manifest. A ledger helper can convert verified
 adapter manifests into zero-dollar included-plan usage rows and metadata, but
-no plan-quota CLI route is live until auth proof, a current no-metered support
-statement, adapter-specific workload integration, native usage capture where
-applicable, and eval gates clear. Gemini and Antigravity also fail closed when
-`GOOGLE_API_KEY` is present. The
+no plan-quota CLI route is live until complete auth proof, a current
+no-metered support statement, adapter-specific workload integration, native
+usage capture where applicable, and eval gates clear. Gemini and Antigravity
+also fail closed when `GOOGLE_API_KEY` is present. The
 doctor JSON also exposes the `adapter-workload.v1` package contract for future
 scratch-relative read-only adapter tasks, and a checked workload runner can
 verify declared reads, writes, cost mode, and result manifests for exact-argv

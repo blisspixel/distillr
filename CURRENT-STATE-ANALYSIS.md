@@ -303,6 +303,15 @@ stdin. This removes the obsolete Gemini stdin blocker while leaving Gemini
 blocked on native schema enforcement, native usage capture, support, auth, and
 eval gates.
 
-Remaining near-term gaps are official installed-session auth proof,
-native usage collection and capture wiring for Grok, Gemini, and Antigravity,
-and eval-gated route graduation.
+Cycle 32 added JSON auth-command probes to adapter doctor. Claude can now run a
+read-only `claude auth status --json` probe and Grok can run
+`grok inspect --json`; both are parsed for configured marker names only. The
+doctor can classify API-key command evidence separately from session command
+evidence without recording secret values or account identifiers. This is still
+not route graduation because support statements remain non-current and eval
+gates remain closed.
+
+Remaining near-term gaps are current official no-metered support statements,
+installed-session auth proof where no command or config proof exists, native
+usage collection and capture wiring for Grok, Gemini, and Antigravity, and
+eval-gated route graduation.

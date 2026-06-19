@@ -250,10 +250,11 @@ statement status and detail, API-key environment blockers, and the required
 scratch contracts. Support details include the
 checked date, source URLs, required evidence, notes, and whether the statement
 is current for no-metered routing. It also scans known local adapter config
-files for API-key and session markers, reporting marker names without secret
-values. The manifest contract includes the before/after scratch write check
-future runners must use, plus structured `quota_stop` metadata for future
-quota and rate-limit stops. A reusable runner primitive can execute exact argv
+files and selected JSON auth-command outputs for API-key and session markers,
+reporting marker names without secret values. The manifest contract includes
+the before/after scratch write check future runners must use, plus structured
+`quota_stop` metadata for future quota and rate-limit stops. A reusable runner
+primitive can execute exact argv
 arrays inside scratch with shell disabled and API-key environment variables
 stripped. A workload runner can load a checked `adapter-workload.v1` package,
 execute an exact argv in scratch, and reject results that read outside the

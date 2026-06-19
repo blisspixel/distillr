@@ -77,6 +77,9 @@
   but it must not run adapter workloads.
 - Adapter config scanning reports marker names only. Never print provider
   config secret values in doctor output, docs, logs, or tests.
+- Adapter JSON auth-command probes also report marker names only. Never print
+  auth command secret values or account identifiers in doctor output, docs,
+  logs, or tests.
 - Future CLI adapters must write or emit the strict `adapter-result.v1`
   manifest shape from `distill.doctor.adapter_manifest`. Keep writes scratch
   relative, include a usage signal, and fail closed on metered auth in

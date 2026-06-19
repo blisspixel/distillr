@@ -797,6 +797,30 @@
 - Continue native usage collection and capture wiring for Grok, Gemini, and
   Antigravity, official auth proof, and eval-gated route graduation.
 
+### Cycle 32 - Adapter Auth Command Probes
+
+- External spend: `$0.00`.
+- Added generic read-only JSON auth-command probes to adapter doctor.
+- Claude now has a planned `claude auth status --json` marker probe, and Grok
+  now has a planned `grok inspect --json` marker probe.
+- Auth command output is parsed for configured marker names only. Secret values
+  and account identifiers are not recorded.
+- Adapter doctor can classify `api-key-command` separately from
+  `session-command`, while support statements and eval gates still keep every
+  plan-quota route blocked.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapters.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\doctor\adapters.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run pytest -q tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py::TestJsonDoctor::test_doctor_json_adapter_report` passed: 10 passed.
+
+### Next
+
+- Continue native usage collection and capture wiring for Grok, Gemini, and
+  Antigravity, current support statements, remaining auth proof, and eval-gated
+  route graduation.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

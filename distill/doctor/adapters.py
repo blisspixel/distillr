@@ -18,6 +18,7 @@ __all__ = [
     "AdapterDoctorReport",
     "AdapterProbe",
     "AdapterSpec",
+    "AuthCommandProbe",
     "CommandProbe",
     "ConfigProbe",
     "SupportStatement",
@@ -46,6 +47,16 @@ class CommandProbe:
     label: str
     command: tuple[str, ...]
     required_flags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AuthCommandProbe:
+    """One read-only command that may prove adapter auth route class."""
+
+    label: str
+    command: tuple[str, ...]
+    metered_markers: tuple[str, ...]
+    session_markers: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -81,6 +92,7 @@ class AdapterSpec:
     probes: tuple[CommandProbe, ...]
     env_blockers: tuple[str, ...] = ()
     config_probes: tuple[ConfigProbe, ...] = ()
+    auth_probes: tuple[AuthCommandProbe, ...] = ()
     no_metered_candidate: bool = True
 
 
@@ -221,6 +233,14 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     ("--output-format", "--max-turns", "--no-session-persistence"),
                 ),
             ),
+            auth_probes=(
+                AuthCommandProbe(
+                    "auth_status",
+                    ("claude", "auth", "status", "--json"),
+                    ("api_key", "apiKeyHelper", "apiKey", "ANTHROPIC_API_KEY", "console"),
+                    ("oauth", "subscription", "logged_in", "authenticated"),
+                ),
+            ),
         ),
         AdapterSpec(
             name="grok",
@@ -246,6 +266,14 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             probes=(
                 CommandProbe("version", ("grok", "--version")),
                 CommandProbe("help", ("grok", "--help"), ("--output-format",)),
+            ),
+            auth_probes=(
+                AuthCommandProbe(
+                    "inspect_json",
+                    ("grok", "inspect", "--json"),
+                    ("api_key", "env_key", "XAI_API_KEY", "xai.api_key"),
+                    ("cached_token", "oauth", "session"),
+                ),
             ),
         ),
         AdapterSpec(
@@ -372,18 +400,35 @@ def _probe_adapter(
     env_blockers_present = [name for name in spec.env_blockers if env.get(name)]
     config_result = _scan_config_probes(spec.config_probes, home_dir)
     blocked_reasons: list[str] = []
+    auth_command_result = _AuthCommandResult(
+        metered_evidence=[],
+        session_evidence=[],
+        blocked_reasons=[],
+    )
+
+    if not installed:
+        blocked_reasons.append(f"{spec.binary} is not installed")
+    else:
+        auth_command_result = _run_auth_command_probes(
+            spec.auth_probes,
+            runner=runner,
+            timeout_seconds=timeout_seconds,
+        )
+        blocked_reasons.extend(auth_command_result.blocked_reasons)
+
     auth_mode = _auth_mode(
         spec=spec,
         installed=installed,
         env_blockers_present=env_blockers_present,
         config_result=config_result,
+        auth_command_result=auth_command_result,
     )
 
-    if not installed:
-        blocked_reasons.append(f"{spec.binary} is not installed")
     for blocker in env_blockers_present:
         blocked_reasons.append(f"{blocker} is set")
     for evidence in config_result.metered_evidence:
+        blocked_reasons.append(f"{evidence} references API-key auth")
+    for evidence in auth_command_result.metered_evidence:
         blocked_reasons.append(f"{evidence} references API-key auth")
 
     command_result = _CommandProbeResult(version="", missing_flags=[], blocked_reasons=[])
@@ -419,7 +464,12 @@ def _probe_adapter(
         support_statement_detail=spec.support_statement.to_dict(),
         version=command_result.version,
         auth_mode=auth_mode,
-        auth_evidence=sorted(config_result.metered_evidence + config_result.session_evidence),
+        auth_evidence=sorted(
+            config_result.metered_evidence
+            + config_result.session_evidence
+            + auth_command_result.metered_evidence
+            + auth_command_result.session_evidence
+        ),
         config_files_checked=[probe.display_path for probe in spec.config_probes],
         config_files_found=config_result.files_found,
         missing_flags=sorted(set(command_result.missing_flags)),
@@ -501,6 +551,49 @@ class _ConfigScanResult:
     session_evidence: list[str]
 
 
+@dataclass(frozen=True)
+class _AuthCommandResult:
+    metered_evidence: list[str]
+    session_evidence: list[str]
+    blocked_reasons: list[str]
+
+
+def _run_auth_command_probes(
+    probes: Sequence[AuthCommandProbe],
+    *,
+    runner: CommandRunner,
+    timeout_seconds: int,
+) -> _AuthCommandResult:
+    metered_evidence: list[str] = []
+    session_evidence: list[str] = []
+    blocked_reasons: list[str] = []
+    for probe in probes:
+        exit_code, stdout, stderr = runner(probe.command, timeout_seconds)
+        if exit_code != 0:
+            blocked_reasons.append(f"{probe.label} exited {exit_code}")
+            continue
+        try:
+            keys = _json_marker_keys(stdout or stderr)
+        except json.JSONDecodeError:
+            blocked_reasons.append(f"{probe.label} output is not JSON")
+            continue
+        metered_evidence.extend(
+            f"{probe.label}: {marker}"
+            for marker in probe.metered_markers
+            if _marker_present(marker, keys)
+        )
+        session_evidence.extend(
+            f"{probe.label}: {marker}"
+            for marker in probe.session_markers
+            if _marker_present(marker, keys)
+        )
+    return _AuthCommandResult(
+        metered_evidence=sorted(set(metered_evidence)),
+        session_evidence=sorted(set(session_evidence)),
+        blocked_reasons=blocked_reasons,
+    )
+
+
 def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _ConfigScanResult:
     files_found: list[str] = []
     metered_evidence: list[str] = []
@@ -529,6 +622,11 @@ def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _Confi
         metered_evidence=sorted(set(metered_evidence)),
         session_evidence=sorted(set(session_evidence)),
     )
+
+
+def _json_marker_keys(text: str) -> set[str]:
+    payload = json.loads(text)
+    return _flatten_config_keys(payload)
 
 
 def _config_marker_keys(path: Path) -> set[str]:
@@ -572,6 +670,7 @@ def _auth_mode(
     installed: bool,
     env_blockers_present: list[str],
     config_result: _ConfigScanResult,
+    auth_command_result: _AuthCommandResult,
 ) -> str:
     if spec.route_class == "credit-metered":
         return "credit-metered"
@@ -579,6 +678,10 @@ def _auth_mode(
         return "api-key-env"
     if config_result.metered_evidence:
         return "api-key-config"
+    if auth_command_result.metered_evidence:
+        return "api-key-command"
+    if auth_command_result.session_evidence:
+        return "session-command"
     if config_result.session_evidence:
         return "session-config"
     if not installed:
