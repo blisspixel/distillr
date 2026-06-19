@@ -323,3 +323,11 @@ in `distill costs`, `distill costs --json`, and the local web costs page. The
 run-level `cost_log.jsonl` remains reserved for run summaries, estimates, and
 provider breakdowns. The telemetry reader now skips rows with non-numeric token
 counts so a malformed line cannot take down cost inspection.
+
+Cycle 34 closed the contributor-guide context-engineering item. The
+contributor guide now tells prompt, MCP, report, pipeline, and loop changes to
+prefer paths before payloads, preserve provenance in context, measure prompt
+budget with biggest-prompts telemetry, compact evidence before wording, keep
+durable knowledge as structured deltas, clear stale intermediate context, and
+leave semantic judgment to model verdicts rather than deterministic proxy
+scores.

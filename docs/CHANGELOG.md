@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added staged stdin support to the scratch adapter runner and workload runner so future CLI adapter templates can receive prompt files without shell piping.
 - Added read-only JSON auth-command probes for adapter doctor, including Claude auth status and Grok inspect markers without exposing secret values.
 - Added a biggest-prompts view to `distill costs`, `distill costs --json`, and the local web costs page using per-call telemetry from `library/.distill/telemetry.jsonl`.
+- Added context-engineering contribution rules to `docs/CONTRIBUTING.md` so prompt, MCP, report, pipeline, and loop changes preserve provenance, keep default context small, and measure prompt-budget impact.
 
 ### Changed
 

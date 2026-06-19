@@ -31,6 +31,28 @@
   support statements: likely live mixed-source progress, report pipeline
   compaction measurement, or trusted-site discovery.
 
+### Cycle 34 - Context Engineering Contributor Rules
+
+- External spend: `$0.00`.
+- Added a `docs/CONTRIBUTING.md` context-engineering section so prompt, MCP,
+  report, pipeline, and loop changes have concrete contribution rules.
+- The new rules cover paths before payloads, provenance in context,
+  biggest-prompts telemetry for prompt-budget measurement, evidence-preserving
+  compaction, structured deltas, stale intermediate-context clearing, and
+  model-owned semantic judgment.
+- Marked the detailed roadmap context-engineering documentation item complete.
+- Updated changelog and loop skills so future cycles reuse the same posture.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2497
+    passed, 8 deselected, 1 warning, 82.48% coverage.
+
+### Next
+
+- Continue local roadmap work with either tool-result clearing in iterative
+  loops, effective-context regression tests, or live batch progress.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

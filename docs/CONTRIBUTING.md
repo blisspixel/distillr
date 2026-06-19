@@ -105,6 +105,45 @@ Probably out of scope (please open an issue to discuss before building):
 - A proprietary database or non-markdown storage format
 - Features that couple distill tightly to a single vendor beyond the current xAI/Google mix
 
+## Context engineering
+
+Treat the model context window as working memory, not storage. Durable state
+belongs in `library/`, `.distill/`, sidecars, frontmatter, and receipts. Prompts
+should receive the smallest evidence set that can do the job, with paths back to
+the durable corpus when more detail is needed.
+
+When changing prompts, agent-facing tools, report flows, MCP responses, or
+long-running loops, use these rules:
+
+- Prefer paths, previews, ids, and drill-down commands over full artifact bodies
+  in default agent-facing responses. Full bodies are fine only when the caller
+  explicitly asks to read that file.
+- Preserve provenance in the context you pass. If a prompt sees a claim, it
+  should also see enough source identity, citation, receipt, or sidecar context
+  to avoid laundering uncertainty in later synthesis.
+- Measure prompt budget changes. Use `distill costs` and the biggest-prompts
+  view from `library/.distill/telemetry.jsonl` before and after prompt or
+  pipeline rewrites that can change token volume.
+- Compact by retaining evidence first, then reducing wording. For report and
+  synthesis work, high-recall source selection comes before precision trimming.
+  Do not drop receipts or confidence labels just to save tokens.
+- Use structured deltas for durable knowledge. Concept notes, run state, audit
+  state, and next actions should append, merge, or snapshot explicit changes
+  rather than rewriting opaque summaries that lose why something changed.
+- Clear stale intermediate context in iterative loops. A later LLM call should
+  not inherit old tool results, failed attempts, or preview rows unless they are
+  still relevant to the current step.
+- Keep semantic judgment model-owned. Relevance, faithfulness, novelty,
+  synthesis quality, and source fit are not keyword, length, or cosine scores.
+  Python may parse schemas, enforce budgets, aggregate model verdicts, and
+  check receipts, but it must not fake a semantic quality gate.
+
+Any PR that increases default prompt size, returns larger MCP payloads, changes
+report context flow, or adds an agent loop should explain the context-budget
+impact in the changelog or design note. For larger changes, add a focused test
+or fixture that proves the smaller context still preserves the evidence the
+output needs.
+
 ## PR expectations
 
 - Keep PRs focused. One behavior change or one capability per PR.

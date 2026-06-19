@@ -23,6 +23,22 @@
 - If no model route exists for a semantic task, label the fallback as structural
   ordering. Do not present keyword or length heuristics as quality ranking.
 
+## Context Engineering
+
+- Treat prompt context as working memory and the corpus as durable memory.
+  Default agent-facing surfaces should return paths, ids, previews, or
+  drill-down commands before full payloads.
+- Preserve source identity, receipts, confidence labels, and sidecar paths in
+  any context that carries claims into analysis, synthesis, reports, or loops.
+- Use `distill costs` biggest-prompts telemetry to measure prompt-budget impact
+  after prompt, MCP, report, or pipeline rewrites.
+- Compact by keeping evidence first and trimming wording second. Do not drop
+  provenance or confidence labels to save tokens.
+- Prefer structured deltas, append logs, merge steps, and snapshots over opaque
+  summary rewrites for durable knowledge.
+- Clear stale intermediate context in iterative loops unless the current step
+  still needs it.
+
 ## Cost Policy
 
 - External spend budget for this loop is `$5.00`; current spend is `$0.00`.
