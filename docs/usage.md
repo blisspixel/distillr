@@ -238,6 +238,16 @@ state: invalid profile files, missing goal files, stale or missing runs,
 recorded command failures, invalid run state, and profiles whose local corpus
 is still thin relative to the saved source plan.
 
+```bash
+distill doctor --adapters
+distill --json doctor --adapters
+```
+
+The adapter doctor is read-only. It checks candidate CLI adapter binaries,
+version/help commands, required structured-output flags, route class, support
+statement status, and API-key environment blockers. It does not run adapter
+workloads or make plan-quota routes eligible by itself.
+
 ## Websites
 
 ```bash

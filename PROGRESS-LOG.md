@@ -194,3 +194,28 @@
 ### Next
 
 - Continue with adapter doctor preflight scaffolding.
+
+### Cycle 8 - Adapter Doctor Scaffold
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapters`, a pure read-only preflight layer for
+  candidate CLI adapter routes.
+- Added `distill doctor --adapters` with human and JSON output.
+- The adapter report now classifies Codex, Claude, Grok, Gemini CLI,
+  Antigravity, and Copilot candidates by binary presence, version/help probes,
+  required structured-output flags, API-key environment blockers, route class,
+  support-statement status, and no-metered eligibility.
+- The scaffold is fail-closed. Planned support statements keep plan-quota
+  candidates blocked until auth classification, scratch-manifest enforcement,
+  native usage signals, and eval evidence exist. Copilot is reported as a
+  credit-metered candidate, not a no-metered default.
+- Updated README, usage docs, roadmap, changelog, current-state notes, and loop
+  skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapters.py distill\commands\doctor.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\doctor\adapters.py distill\commands\doctor.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py::TestJsonDoctor::test_doctor_json_adapter_report` passed: 4 passed.
+
+### Next
+
+- Continue adapter doctor auth classification and support-statement fixtures.

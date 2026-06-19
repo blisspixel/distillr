@@ -223,6 +223,38 @@ class TestJsonDoctor:
         data = json.loads(result.output)["data"]
         assert data["ready"] is False
 
+    def test_doctor_json_adapter_report(self, mock_config):
+        """doctor --adapters --json emits the adapter-doctor schema."""
+        from distill.doctor.adapters import AdapterDoctorReport, AdapterProbe
+
+        fake_report = AdapterDoctorReport(
+            schema_version="adapter-doctor.v1",
+            adapters=[
+                AdapterProbe(
+                    name="codex",
+                    binary="codex",
+                    route_class="included-plan",
+                    installed=False,
+                    no_metered_candidate=True,
+                    no_metered_eligible=False,
+                    support_statement="planned",
+                    blocked_reasons=["codex is not installed"],
+                )
+            ],
+        )
+
+        with (
+            patch("distill.commands.doctor.get_config", return_value=mock_config),
+            patch("distill.doctor.adapters.adapter_doctor_report", return_value=fake_report),
+        ):
+            result = runner.invoke(app, ["--json", "doctor", "--adapters"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)["data"]
+        assert data["schema_version"] == "adapter-doctor.v1"
+        assert data["adapters"][0]["name"] == "codex"
+        assert data["adapters"][0]["no_metered_eligible"] is False
+
 
 class TestJsonAlerts:
     """Test distill alerts --json produces valid JSON."""

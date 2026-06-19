@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added structured no-metered route-block reports with provider, workload, cost class, proof requirements, and paid-ok retry guidance.
 - Added profile-run `next_actions` rows with argv commands, approval class, write scope, verifier, and loop metadata for external runners.
 - Added recurring profile health to `distill audit all`, covering invalid profiles, missing goals, stale or missing runs, failed commands, invalid state, and thin local corpora.
+- Added `distill doctor --adapters` read-only CLI adapter preflights for candidate plan-quota and credit-metered routes.
 
 ### Changed
 

@@ -129,5 +129,12 @@ files, missing goals, missing or stale run state, recorded profile command
 failures, invalid state, and profiles whose local corpus is thin relative to
 their saved source plan.
 
-Remaining near-term gaps are native usage and quota-stop fields for future
-plan-quota adapters and adapter doctor preflights.
+Cycle 8 started adapter doctor scaffolding with `distill doctor --adapters`.
+The check is read-only and fail-closed: it reports candidate adapter binary
+presence, version/help probes, required structured-output flags, API-key
+environment blockers, route class, and support-statement status without running
+adapter workloads.
+
+Remaining near-term gaps are installed-session auth classification,
+scratch-manifest enforcement, native usage and quota-stop fields for future
+plan-quota adapters, and eval-gated route graduation.

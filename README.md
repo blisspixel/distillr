@@ -336,7 +336,10 @@ hint needed for an intentional metered run. Profile run JSON also emits
 and loop metadata for external runners. `distill audit all` includes local
 profile health from profile files and run state so stale profiles, failed
 profile commands, missing goals, invalid state, and thin local corpora are
-visible without network access.
+visible without network access. `distill doctor --adapters` adds read-only CLI
+adapter preflights for candidate plan-quota and credit-metered routes, including
+binary presence, version/help probes, required flags, API-key environment
+blockers, route class, and support-statement status.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

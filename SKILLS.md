@@ -70,3 +70,13 @@
   - `uv run pytest -q --cov=distill --cov-fail-under=80`
 - If the full coverage run exceeds a short command timeout, rerun with a longer
   timeout before treating it as a failure.
+
+## Adapter Doctor
+
+- `distill doctor --adapters` is read-only. It may run version/help commands,
+  but it must not run adapter workloads.
+- Planned support statements remain blocked until auth classification,
+  scratch-manifest enforcement, native usage ledger signals, and eval evidence
+  exist.
+- API-key environment blockers keep plan-quota candidates out of no-metered
+  routing.

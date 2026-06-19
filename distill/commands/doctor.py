@@ -61,6 +61,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         "--json",
         help="Output doctor or link-check results as JSON",
     ),
+    adapters: bool = typer.Option(
+        False,
+        "--adapters",
+        help="Check candidate CLI adapter readiness without running workloads",
+    ),
     migrate_links: bool = typer.Option(
         False,
         "--migrate-links",
@@ -84,6 +89,10 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     _ACCENT = "rgb(100,149,237)"
     config = get_config()
+
+    if adapters:
+        _doctor_adapter_report(json_output=json_output or json_mode)
+        return
 
     # --- Link integrity check mode ---
     if links:
@@ -603,6 +612,38 @@ def doctor(  # noqa: C901 - legacy, will refactor
     _doctor_local_inference_section(config, _ACCENT)
 
     console.print()
+
+
+def _doctor_adapter_report(*, json_output: bool) -> None:
+    """Print or emit read-only CLI adapter readiness."""
+
+    from distill.commands._json import JsonEnvelope
+    from distill.doctor.adapters import adapter_doctor_report
+
+    report = adapter_doctor_report()
+    if json_output:
+        import sys
+
+        sys.stdout.write(JsonEnvelope.success(report.to_dict()).to_json() + "\n")
+        return
+
+    console.print("\n  [bold]CLI Adapter Doctor[/bold]")
+    console.print("  [dim]Read-only checks. No adapter workloads were run.[/dim]")
+    for probe in report.adapters:
+        status = "READY" if probe.no_metered_eligible else "BLOCKED"
+        color = "green" if probe.no_metered_eligible else "yellow"
+        console.print(
+            f"  [{color}]{status}[/{color}] {probe.name} "
+            f"[dim]({probe.route_class}; {probe.binary})[/dim]"
+        )
+        if probe.version:
+            console.print(f"    version: {probe.version}")
+        if probe.env_blockers_present:
+            console.print(f"    env blockers: {', '.join(probe.env_blockers_present)}")
+        if probe.missing_flags:
+            console.print(f"    missing flags: {', '.join(probe.missing_flags)}")
+        if probe.blocked_reasons:
+            console.print(f"    blocked: {'; '.join(probe.blocked_reasons)}")
 
 
 def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:  # noqa: C901
