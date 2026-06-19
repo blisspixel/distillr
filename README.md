@@ -331,7 +331,9 @@ analysis, verify, and cost paths while recording resume state under
 usage for no-metered local calls and profile-run orchestration even when the
 dollar cost is zero. Blocked no-metered routes report the provider, workload,
 route cost class, proof requirements when applicable, and the paid-ok retry
-hint needed for an intentional metered run.
+hint needed for an intentional metered run. Profile run JSON also emits
+`next_actions` rows with argv commands, approval class, write scope, verifier,
+and loop metadata for external runners.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

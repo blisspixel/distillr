@@ -223,6 +223,9 @@ distill --cost-mode no-metered profile run ai-developer-news --yes
 and does not execute commands or write run state. With `--yes`, it executes the
 approved argv rows from preview, captures each exit code and output tail, and
 writes state to `library/.distill/profiles/<profile>/run_state.json`.
+JSON output includes `next_actions` rows with the same argv, approval, write
+scope, verifier, and loop metadata shape used by audit next actions, so an
+external runner can execute profile refreshes without scraping console text.
 
 Resume policy is structural: exact feed items and exact YouTube videos are
 marked complete on success, while standing seeds such as feeds, channels,

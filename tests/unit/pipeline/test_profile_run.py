@@ -72,6 +72,30 @@ def test_profile_run_without_approval_only_returns_plan(tmp_path):
     assert result.pending_count == 2
     assert calls == []
     assert not profile_run_state_path(tmp_path, "agent-loops").exists()
+    action = result.to_dict()["next_actions"][0]
+    assert action["id"] == "profile.agent.loops.run"
+    assert action["kind"] == "profile_run"
+    assert action["approval"] == "operator"
+    assert action["estimated_cost_usd"] == 0.0
+    assert action["command"] == [
+        "distill",
+        "--cost-mode",
+        "no-metered",
+        "profile",
+        "run",
+        "agent-loops",
+        "--yes",
+    ]
+    assert action["loop"]["acceptance_metric"] == "verifier_passed"
+    assert action["verifier"]["command"] == [
+        "distill",
+        "--cost-mode",
+        "no-metered",
+        "--json",
+        "profile",
+        "run",
+        "agent-loops",
+    ]
 
 
 def test_profile_run_marks_exact_items_complete_but_keeps_seeds_repeatable(tmp_path):
@@ -126,6 +150,11 @@ def test_profile_run_failure_is_recorded_without_completion(tmp_path):
 
     assert result.failed_count == 2
     assert result.health_status == "failed"
+    action = result.to_dict()["next_actions"][0]
+    assert action["id"] == "profile.agent.loops.retry"
+    assert action["kind"] == "profile_run_retry"
+    assert action["severity"] == "warning"
+    assert action["loop"]["max_attempts"] == 3
 
     state = json.loads(profile_run_state_path(tmp_path, "agent-loops").read_text(encoding="utf-8"))
     assert state["completed"] == {}

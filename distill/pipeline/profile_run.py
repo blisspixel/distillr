@@ -14,6 +14,12 @@ from typing import Any
 
 from distill.library.paths import atomic_write_text, sanitize_path_component
 from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.next_actions import (
+    NextAction,
+    NextActionVerifier,
+    action_id,
+    loop_metadata,
+)
 from distill.pipeline.profile_preview import (
     ProfilePreviewCandidate,
     ProfilePreviewResult,
@@ -125,6 +131,7 @@ class ProfileRunResult:
     profile: str
     topic: str
     cost_mode: str
+    generated_at: str
     state_path: str
     approved: bool
     executed: bool
@@ -132,6 +139,7 @@ class ProfileRunResult:
     ordering: str
     commands: list[ProfileRunCommand] = field(default_factory=list)
     events: list[ProfileRunEvent] = field(default_factory=list)
+    next_actions: list[NextAction] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
 
     @property
@@ -172,6 +180,7 @@ class ProfileRunResult:
             "profile": self.profile,
             "topic": self.topic,
             "cost_mode": self.cost_mode,
+            "generated_at": self.generated_at,
             "state_path": self.state_path,
             "approved": self.approved,
             "executed": self.executed,
@@ -189,6 +198,7 @@ class ProfileRunResult:
             },
             "commands": [command.to_dict() for command in self.commands],
             "events": [event.to_dict() for event in self.events],
+            "next_actions": [action.to_dict() for action in self.next_actions],
             "warnings": self.warnings,
         }
 
@@ -239,6 +249,7 @@ def run_profile_preview(
     *,
     library_dir: Path,
     approved: bool,
+    profile_ref: str = "",
     timeout_seconds: int = 1800,
     executor: CommandExecutor = execute_command,
 ) -> ProfileRunResult:
@@ -290,6 +301,7 @@ def run_profile_preview(
         profile=preview.profile,
         topic=preview.topic,
         cost_mode=preview.cost_mode,
+        generated_at=_now_iso(),
         state_path=str(state_path),
         approved=approved,
         executed=approved,
@@ -298,6 +310,14 @@ def run_profile_preview(
         commands=commands,
         events=events,
         warnings=[warning.to_dict() for warning in preview.warnings],
+    )
+    result = replace(
+        result,
+        next_actions=_profile_next_actions(
+            result,
+            library_dir=library_dir,
+            profile_ref=profile_ref or preview.profile,
+        ),
     )
     if approved:
         save_run_log(
@@ -316,6 +336,107 @@ def run_profile_preview(
             },
         )
     return result
+
+
+def _profile_next_actions(
+    result: ProfileRunResult,
+    *,
+    library_dir: Path,
+    profile_ref: str,
+) -> list[NextAction]:
+    if result.failed_count:
+        return [
+            _profile_action(result, library_dir=library_dir, profile_ref=profile_ref, retry=True)
+        ]
+    if not result.approved and result.selected_count:
+        return [
+            _profile_action(result, library_dir=library_dir, profile_ref=profile_ref, retry=False)
+        ]
+    return []
+
+
+def _profile_action(
+    result: ProfileRunResult,
+    *,
+    library_dir: Path,
+    profile_ref: str,
+    retry: bool,
+) -> NextAction:
+    suffix = "retry" if retry else "run"
+    action_id_value = action_id("profile", result.profile, suffix)
+    selected = result.failed_count if retry else result.selected_count
+    approval = _approval_for_cost_mode(result.cost_mode)
+    return NextAction(
+        id=action_id_value,
+        kind="profile_run_retry" if retry else "profile_run",
+        severity="warning" if retry else "info",
+        rationale=_profile_action_rationale(selected, retry=retry),
+        command=_profile_run_command(
+            result.cost_mode,
+            profile_ref,
+            json_output=False,
+            approved=True,
+        ),
+        approval=approval,
+        estimated_cost_usd=0.0 if approval == "operator" else None,
+        writes=_profile_action_writes(result, library_dir),
+        verifier=NextActionVerifier(
+            command=_profile_run_command(
+                result.cost_mode,
+                profile_ref,
+                json_output=True,
+                approved=False,
+            ),
+            expect="state file exists and health.status != 'failed'",
+        ),
+        loop=loop_metadata(action_id_value, max_attempts=3 if retry else 1),
+    )
+
+
+def _profile_action_rationale(count: int, *, retry: bool) -> str:
+    if retry:
+        return (
+            f"{count} profile command(s) failed; rerun skips completed exact items "
+            "and retries pending work."
+        )
+    return f"{count} profile command(s) are pending approval."
+
+
+def _approval_for_cost_mode(cost_mode: str) -> str:
+    return "operator" if cost_mode == "no-metered" else "spend"
+
+
+def _profile_run_command(
+    cost_mode: str,
+    profile_ref: str,
+    *,
+    json_output: bool,
+    approved: bool,
+) -> list[str]:
+    command = ["distill"]
+    if cost_mode != "auto":
+        command.extend(["--cost-mode", cost_mode])
+    if json_output:
+        command.append("--json")
+    command.extend(["profile", "run", profile_ref])
+    if approved:
+        command.append("--yes")
+    return command
+
+
+def _profile_action_writes(result: ProfileRunResult, library_dir: Path) -> list[str]:
+    return [
+        _library_relative(Path(result.state_path), library_dir),
+        f"topics/{result.topic}/**/*",
+        ".distill/cost_log.jsonl",
+    ]
+
+
+def _library_relative(path: Path, library_dir: Path) -> str:
+    try:
+        return path.relative_to(library_dir).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _build_commands(

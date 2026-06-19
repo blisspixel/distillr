@@ -52,6 +52,9 @@
 - With `--yes`, profile run executes generated `distill ...` argv rows through
   subprocesses with shell disabled and records command results under
   `.distill/profiles/<profile>/run_state.json`.
+- Profile run JSON includes `next_actions` rows with argv commands, approval
+  class, write scope, verifier, and loop metadata. External runners should use
+  those rows instead of parsing console output.
 - Exact feed items and YouTube videos can be marked complete after a successful
   run. Standing seeds such as feeds, channels, domains, repositories, and saved
   queries must stay repeatable.

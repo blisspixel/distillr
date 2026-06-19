@@ -149,3 +149,27 @@
 
 - Continue with profile next-action handoff rows or adapter doctor preflight
   scaffolding.
+
+### Cycle 6 - Profile Loop Handoff Rows
+
+- External spend: `$0.00`.
+- Extracted the audit next-action dataclasses into
+  `distill.pipeline.next_actions` so audit and profile surfaces share one
+  structural action contract.
+- Added `next_actions` rows to `profile-run.v1` JSON for approval-required
+  profile plans and retryable failed profile runs.
+- Profile action rows include stable ids, argv commands, approval class,
+  estimated cost, expected write scope, verifier command, and loop metadata.
+- Preserved explicit YAML profile references in emitted action commands so
+  loops can rerun the same profile target without guessing its library name.
+- Updated README, usage docs, roadmap, changelog, current-state notes, design
+  success criteria, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\pipeline\next_actions.py distill\pipeline\audit.py distill\pipeline\profile_run.py distill\commands\profile.py tests\unit\pipeline\test_audit.py tests\unit\pipeline\test_profile_run.py tests\unit\commands\test_profile_command.py` passed.
+  - `uv run ruff format --check distill\pipeline\next_actions.py distill\pipeline\audit.py distill\pipeline\profile_run.py distill\commands\profile.py tests\unit\pipeline\test_audit.py tests\unit\pipeline\test_profile_run.py tests\unit\commands\test_profile_command.py` passed.
+  - `uv run pytest -q tests\unit\pipeline\test_audit.py::TestNextActionPlan tests\unit\pipeline\test_profile_run.py tests\unit\commands\test_profile_command.py` passed: 12 passed.
+
+### Next
+
+- Continue with audit-visible profile health or adapter doctor preflight
+  scaffolding.

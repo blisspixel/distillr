@@ -118,6 +118,11 @@ Cycle 5 completed richer no-metered route-block reporting: blocked policy
 messages and reports now include provider, workload, cost class, required proof
 when applicable, and paid-ok retry guidance for intentional metered runs.
 
+Cycle 6 added profile loop handoff rows: `profile-run.v1` JSON now emits
+`next_actions` entries using the same structural action contract as audit,
+including argv commands, approval class, write scope, verifier, and loop
+metadata.
+
 Remaining near-term gaps are native usage and quota-stop fields for future
-plan-quota adapters, audit-visible profile health, and profile next-action
-handoff rows.
+plan-quota adapters, audit-visible profile health, and adapter doctor
+preflights.

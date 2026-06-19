@@ -95,6 +95,7 @@ def profile_run_cmd(
             preview,
             library_dir=config.library_dir,
             approved=yes,
+            profile_ref=profile,
             timeout_seconds=timeout_seconds,
         )
     except ProfileValidationError as exc:

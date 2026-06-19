@@ -136,6 +136,24 @@ def test_profile_run_json_without_yes_returns_approval_plan(tmp_path, monkeypatc
         "agent-loops",
         "--preview",
     ]
+    assert data["next_actions"][0]["command"] == [
+        "distill",
+        "--cost-mode",
+        "no-metered",
+        "profile",
+        "run",
+        str(profile_path),
+        "--yes",
+    ]
+    assert data["next_actions"][0]["verifier"]["command"] == [
+        "distill",
+        "--cost-mode",
+        "no-metered",
+        "--json",
+        "profile",
+        "run",
+        str(profile_path),
+    ]
     assert not (config.library_dir / ".distill" / "profiles").exists()
 
 

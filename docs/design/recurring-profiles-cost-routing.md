@@ -366,9 +366,9 @@ boundaries:
 - A user can create an `ai-developer-news` profile, preview new sources, run it
   in no-metered-cost mode, and see exactly what was skipped because it would
   have spent money.
-- The same profile can be handed to an external loop through next-action JSON
-  without scraping console text, and the loop can stop from state and verifier
-  data rather than parsing a model completion claim.
+- The same profile can be handed to an external loop through profile-run
+  `next_actions` JSON without scraping console text, and the loop can stop from
+  state and verifier data rather than parsing a model completion claim.
 - Local and plan-quota routes are measured against frozen fixtures before they
   are trusted for profile analysis.
 - The cost ledger remains complete even when dollar cost is zero.
