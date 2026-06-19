@@ -81,6 +81,8 @@
   manifest shape from `distill.doctor.adapter_manifest`. Keep writes scratch
   relative, include a usage signal, and fail closed on metered auth in
   `no-metered`.
+- If an adapter manifest reports `quota`, `rate_limit`, or `rate-limit`, it
+  must include structured `quota_stop` metadata instead of relying on free text.
 - Future CLI adapter runners must snapshot scratch files before execution and
   use `check_adapter_workspace_writes()` after parsing the manifest. Missing
   declared outputs and unexpected new files are blockers.

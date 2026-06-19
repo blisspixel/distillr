@@ -301,8 +301,8 @@ boundaries:
    closed.
 8. **Same result schema for all adapters.** The result manifest records route,
    provider, model when available, auth mode, command class, usage signal,
-   elapsed time, files read, files written, output text, citations or receipts,
-   and policy decisions.
+   elapsed time, quota-stop metadata, files read, files written, output text,
+   citations or receipts, and policy decisions.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per
    accepted change. No-metered routes still lose when they produce too much

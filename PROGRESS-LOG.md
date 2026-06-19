@@ -337,6 +337,34 @@
 - Continue official installed-session auth proof and adapter-specific read-only
   workload wiring.
 
+### Cycle 14 - Adapter Quota-Stop Manifest Metadata
+
+- External spend: `$0.00`.
+- Added strict `quota_stop` metadata to the future `adapter-result.v1`
+  manifest contract.
+- The parser now rejects quota and rate-limit stop reasons unless the manifest
+  includes `quota_stop.reached=true` with a reason. It also rejects negative
+  retry-after values and mismatched quota-stop metadata on non-quota stops.
+- This does not make any plan-quota adapter live. It closes another
+  rule-owned boundary so future adapter runners can distinguish usable output
+  from quota exhaustion before ledger and eval integration.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_manifest.py tests\unit\doctor\test_adapter_manifest.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_manifest.py tests\unit\doctor\test_adapter_manifest.py` passed.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_manifest.py` passed: 17 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 431 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed on rerun:
+    2419 passed, 8 deselected, 1 warning, 82.01% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and adapter-specific read-only
+  workload wiring.
+
 ### Cycle 13 - Structured Adapter Support Statements
 
 - External spend: `$0.00`.

@@ -167,6 +167,11 @@ evidence, no-metered current status, and notes for each candidate route. Planned
 plan-quota routes remain blocked because their support records are not current,
 and Copilot remains a credit-metered candidate rather than a no-metered default.
 
+Cycle 14 added structured `quota_stop` metadata to the future
+`adapter-result.v1` manifest boundary. Quota and rate-limit stop reasons now
+require a reached flag and reason, preventing adapter runners from hiding quota
+exhaustion in free-text stop output.
+
 Remaining near-term gaps are official installed-session auth proof,
-adapter-specific workload wiring, native usage and quota-stop fields for future
-plan-quota adapters, and eval-gated route graduation.
+adapter-specific workload wiring, native usage collection and ledger integration
+for future plan-quota adapters, and eval-gated route graduation.

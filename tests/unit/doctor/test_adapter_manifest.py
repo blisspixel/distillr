@@ -64,6 +64,7 @@ def test_adapter_manifest_loads_json_and_reports_contract(tmp_path):
     assert manifest.adapter == "codex"
     assert contract["schema_version"] == "adapter-result.v1"
     assert "usage" in contract["required_fields"]
+    assert "quota_stop" in contract["optional_fields"]
     assert "files_written" in contract["path_fields"]
 
 
@@ -77,6 +78,62 @@ def test_adapter_manifest_requires_usage_signal():
     )
 
     with pytest.raises(ValidationError, match="usage must include"):
+        validate_adapter_result_manifest(payload)
+
+
+def test_adapter_manifest_accepts_quota_stop_metadata():
+    manifest = validate_adapter_result_manifest(
+        _manifest(
+            stop_reason="rate_limit",
+            quota_stop={
+                "reached": True,
+                "reason": "daily plan quota exhausted",
+                "retry_after_seconds": 3600,
+                "provider_code": "rate_limit",
+                "native": {"remaining_requests": 0},
+            },
+        )
+    )
+
+    assert manifest.quota_stop is not None
+    assert manifest.quota_stop.reached is True
+    assert manifest.quota_stop.retry_after_seconds == 3600
+    assert manifest.to_dict()["quota_stop"]["native"] == {"remaining_requests": 0}
+
+
+def test_adapter_manifest_requires_quota_stop_for_quota_reason():
+    with pytest.raises(ValidationError, match="quota or rate-limit stop_reason requires"):
+        validate_adapter_result_manifest(_manifest(stop_reason="quota"))
+
+
+def test_adapter_manifest_rejects_mismatched_quota_stop():
+    payload = _manifest(
+        quota_stop={
+            "reached": True,
+            "reason": "daily plan quota exhausted",
+            "retry_after_seconds": None,
+            "provider_code": "",
+            "native": {},
+        }
+    )
+
+    with pytest.raises(ValidationError, match=r"quota_stop\.reached requires"):
+        validate_adapter_result_manifest(payload)
+
+
+def test_adapter_manifest_rejects_negative_retry_after():
+    payload = _manifest(
+        stop_reason="rate-limit",
+        quota_stop={
+            "reached": True,
+            "reason": "daily plan quota exhausted",
+            "retry_after_seconds": -1,
+            "provider_code": "rate_limit",
+            "native": {},
+        },
+    )
+
+    with pytest.raises(ValidationError, match="retry_after_seconds must be non-negative"):
         validate_adapter_result_manifest(payload)
 
 

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added scratch before/after write-check helpers for future CLI adapter runners, rejecting missing declared outputs and unexpected new scratch files.
 - Added a scratch-only exact-argv adapter runner primitive with shell disabled, timeout handling, API-key environment stripping, manifest parsing, and scratch write checks.
 - Added structured adapter support-statement details to `distill doctor --adapters`, including checked date, source URLs, required evidence, no-metered status, and notes.
+- Added strict `quota_stop` metadata to the future `adapter-result.v1` manifest so quota and rate-limit stops cannot hide in free-text stop reasons.
 
 ### Changed
 

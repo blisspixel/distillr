@@ -44,6 +44,7 @@ _ADAPTER_NAMES = frozenset(
     }
 )
 _NO_METERED_AUTH_CLASSES = frozenset({"local", "included-plan"})
+_QUOTA_STOP_REASONS = frozenset({"quota", "rate-limit"})
 _ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 
@@ -72,6 +73,36 @@ class AdapterUsage(BaseModel):
         """True when the adapter recorded at least one usage signal."""
 
         return self.input_tokens is not None or self.output_tokens is not None or bool(self.native)
+
+
+class AdapterQuotaStop(BaseModel):
+    """Structured quota or rate-limit stop from an external adapter run."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    reached: bool
+    reason: str = ""
+    retry_after_seconds: int | None = None
+    provider_code: str = ""
+    native: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("reason", "provider_code")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("retry_after_seconds")
+    @classmethod
+    def _non_negative_retry_after(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("retry_after_seconds must be non-negative")
+        return value
+
+    @model_validator(mode="after")
+    def _require_reason_when_reached(self) -> Self:
+        if self.reached and not self.reason:
+            raise ValueError("quota_stop.reason is required when quota was reached")
+        return self
 
 
 class AdapterPolicy(BaseModel):
@@ -115,6 +146,7 @@ class AdapterResultManifest(BaseModel):
     files_written: list[str]
     output: dict[str, Any] | str
     policy: AdapterPolicy
+    quota_stop: AdapterQuotaStop | None = None
     citations: list[str] = Field(default_factory=list)
     receipts: list[str] = Field(default_factory=list)
 
@@ -167,6 +199,11 @@ class AdapterResultManifest(BaseModel):
             raise ValueError("usage must include token counts or native usage metadata")
         if self.command_class == "scratch-write" and not self.files_written:
             raise ValueError("scratch-write manifests must record files_written")
+        quota_stop_reason = _is_quota_stop_reason(self.stop_reason)
+        if quota_stop_reason and (self.quota_stop is None or not self.quota_stop.reached):
+            raise ValueError("quota or rate-limit stop_reason requires quota_stop.reached")
+        if self.quota_stop is not None and self.quota_stop.reached and not quota_stop_reason:
+            raise ValueError("quota_stop.reached requires quota or rate-limit stop_reason")
         if self.policy.cost_mode == "no-metered":
             if self.auth_class not in _NO_METERED_AUTH_CLASSES:
                 raise ValueError("no-metered adapter results require local or included-plan auth")
@@ -227,10 +264,21 @@ def adapter_result_manifest_contract() -> dict[str, Any]:
     return {
         "schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
         "required_fields": list(ADAPTER_MANIFEST_REQUIRED_FIELDS),
+        "optional_fields": ["model", "citations", "receipts", "quota_stop"],
         "path_fields": list(ADAPTER_MANIFEST_PATH_FIELDS),
         "auth_classes": ["local", "included-plan", "metered-api", "unknown"],
         "command_classes": ["read-only", "scratch-write"],
         "no_metered_auth_classes": sorted(_NO_METERED_AUTH_CLASSES),
+        "quota_stop": {
+            "required_when_stop_reason": ["quota", "rate_limit", "rate-limit"],
+            "fields": [
+                "reached",
+                "reason",
+                "retry_after_seconds",
+                "provider_code",
+                "native",
+            ],
+        },
         "workspace_write_check": {
             "uses_before_snapshot": True,
             "flags_missing_declared_files": True,
@@ -319,6 +367,10 @@ def _normalize_manifest_path(value: str) -> str:
     if any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"manifest path must not traverse directories: {value!r}")
     return path.as_posix()
+
+
+def _is_quota_stop_reason(value: str) -> bool:
+    return value.strip().lower().replace("_", "-") in _QUOTA_STOP_REASONS
 
 
 def _relative_scratch_path(root: Path, path: Path) -> str:

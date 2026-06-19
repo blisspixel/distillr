@@ -354,6 +354,12 @@ usage:
   output_tokens: integer|null
   native: object
 stop_reason: string
+quota_stop:
+  reached: boolean
+  reason: string
+  retry_after_seconds: integer|null
+  provider_code: string
+  native: object
 files_read:
   - sources/input.md
 files_written:
@@ -368,9 +374,11 @@ policy:
 The checked parser lives in `distill.doctor.adapter_manifest`. It rejects
 unknown fields, unsafe relative paths, missing usage signals, unknown adapters,
 and `no-metered` results that report metered auth, API-key blockers, or metered
-usage allowance. The same module also provides scratch before/after snapshot
-checks so a runner can reject missing declared files or unexpected new files
-without treating pre-staged source files as adapter writes.
+usage allowance. If `stop_reason` is `quota`, `rate_limit`, or `rate-limit`,
+the manifest must include `quota_stop.reached=true` with a reason. The same
+module also provides scratch before/after snapshot checks so a runner can
+reject missing declared files or unexpected new files without treating
+pre-staged source files as adapter writes.
 The `distill.doctor.adapter_runner` primitive runs exact argv arrays with shell
 disabled inside scratch, strips known metered API-key environment variables,
 enforces a timeout, loads the result manifest, and applies the scratch write

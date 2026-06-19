@@ -251,7 +251,8 @@ checked date, source URLs, required evidence, notes, and whether the statement
 is current for no-metered routing. It also scans known local adapter config
 files for API-key and session markers, reporting marker names without secret
 values. The manifest contract includes the before/after scratch write check
-future runners must use. A reusable runner primitive can execute exact argv
+future runners must use, plus structured `quota_stop` metadata for future
+quota and rate-limit stops. A reusable runner primitive can execute exact argv
 arrays inside scratch with shell disabled and API-key environment variables
 stripped. Distill still does not expose plan-quota adapter workloads or make
 plan-quota routes eligible by itself.
