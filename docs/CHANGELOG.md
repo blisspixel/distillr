@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added fixture-backed tests for the audit next-action JSON contract, covering empty, orientation-only, and structural-finding action plans.
 - Added the versioned recurring research profile parser and validator for `research-profile.v1` files, covering source declarations, freshness policy, output preferences, limits, and no-metered-cost profile invariants.
 - Added checked-in recurring profile examples for `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch`, each with a goal file and no-metered preview defaults.
+- Added `distill profile preview <name|path>` with JSON output and a human table, resolving current feed items, YouTube channel updates, domain seeds, repository seeds, and saved query preview commands without ingesting or analyzing anything.
 
 ### Changed
 

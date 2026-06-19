@@ -18,6 +18,7 @@ from distill.commands import learn as _learn
 from distill.commands import maintain as _maintain
 from distill.commands import papers as _papers
 from distill.commands import process as _process
+from distill.commands import profile as _profile
 from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
 from distill.commands import topic as _topic
@@ -55,6 +56,7 @@ def mock_config(tmp_path):
     original_reprocess = _reprocess.get_config  # resynthesize/reanalyze moved here
     original_reports = _reports.get_config  # report/export moved to commands/reports.py
     original_papers = _papers.get_config  # paper/papers moved to commands/papers.py
+    original_profile = _profile.get_config  # profile sub-app moved to commands/profile.py
     original_process = _process.get_config  # video/channel/run moved to commands/process.py
     original_discover = _discover.get_config  # discover-panel cmds moved to commands/discover.py
     original_learn = (
@@ -74,6 +76,7 @@ def mock_config(tmp_path):
     _reprocess.get_config = lambda: config
     _reports.get_config = lambda: config
     _papers.get_config = lambda: config
+    _profile.get_config = lambda: config
     _process.get_config = lambda: config
     _discover.get_config = lambda: config
     _learn.get_config = lambda: config
@@ -94,6 +97,7 @@ def mock_config(tmp_path):
     _reprocess.get_config = original_reprocess
     _reports.get_config = original_reports
     _papers.get_config = original_papers
+    _profile.get_config = original_profile
     _process.get_config = original_process
     _discover.get_config = original_discover
     _learn.get_config = original_learn

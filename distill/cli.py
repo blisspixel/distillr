@@ -103,6 +103,8 @@ from distill.commands.okf import okf_app  # noqa: F401
 from distill.commands.okf import register as _register_okf
 from distill.commands.papers import register as _register_papers
 from distill.commands.process import register as _register_process
+from distill.commands.profile import profile_app  # noqa: F401
+from distill.commands.profile import register as _register_profile
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
 from distill.commands.topic import (  # noqa: F401
@@ -145,6 +147,7 @@ _register_reports(app)
 _register_discover(app)
 _register_learn(app)
 _register_papers(app)
+_register_profile(app)
 _register_process(app)
 _register_view(app)
 _register_topic_watch(app)
