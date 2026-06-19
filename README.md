@@ -365,7 +365,8 @@ future argv shapes plus staged prompt, schema, result capture, native usage
 capture, and allowed scratch capture metadata. Claude schema paths can be
 inlined into argv from scratch JSON schema files, but the plans are
 deliberately blocked until adapter-specific native usage capture and the other
-adapter gates exist.
+adapter gates exist. Codex JSONL `turn.completed` usage can be parsed into the
+native usage contract, but runner wiring and the route gates are still blocked.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

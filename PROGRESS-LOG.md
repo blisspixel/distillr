@@ -569,6 +569,34 @@
 - Continue adapter-specific native usage capture from real CLI outputs and
   remaining command templates.
 
+### Cycle 24 - Codex JSONL Usage Parser
+
+- External spend: `$0.00`.
+- Checked official Codex non-interactive documentation and local
+  `codex exec --help`; no Codex model call was made.
+- Added `codex_jsonl_native_usage()` to parse `codex exec --json` stdout,
+  extract `turn.completed.usage`, sum token fields, preserve cached and
+  reasoning token metadata, and return an `adapter-native-usage.v1` record.
+- Updated the Codex command-plan blocker to say JSONL usage capture is not yet
+  wired into the runner, rather than claiming no parser exists.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_native_usage.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_native_usage.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_commands.py` passed after formatting one file.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_commands.py` passed: 20 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 443 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` timed out at
+    10 minutes, then passed on rerun with a longer timeout: 2469 passed,
+    8 deselected, 1 warning, 82.21% coverage.
+
+### Next
+
+- Continue runner capture wiring for Codex JSONL usage, non-Codex native usage
+  capture, and remaining command templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

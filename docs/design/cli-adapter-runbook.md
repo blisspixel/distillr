@@ -179,6 +179,15 @@ Useful flags:
 - `--oss --local-provider ollama|lmstudio`, observed locally in 0.140.0, should
   be treated as experimental until adapter doctor validates it.
 
+Native usage capture:
+
+- `codex exec --json` emits `turn.completed` events with a `usage` object.
+- `distill.doctor.adapter_native_usage.codex_jsonl_native_usage()` parses that
+  JSONL and converts the summed token fields into `adapter-native-usage.v1`.
+- This parser does not make Codex route-eligible. Runner capture still has to
+  wire stdout JSONL to `native-usage.json`, and auth/support/eval gates still
+  apply.
+
 Avoid in Distill automation:
 
 - `--sandbox danger-full-access`.

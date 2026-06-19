@@ -152,7 +152,7 @@ def _codex_command(
         blocked_reasons.append("codex command template currently supports read-only workloads only")
     if not workload.output_schema_path:
         blocked_reasons.append("codex command template requires output_schema_path")
-    blocked_reasons.append("adapter-specific native usage capture is not implemented: codex")
+    blocked_reasons.append("codex JSONL native usage capture is not wired into runner")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
         (

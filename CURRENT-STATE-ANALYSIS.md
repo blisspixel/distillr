@@ -230,7 +230,15 @@ fields, absolute paths, and scratch path escapes. This is still not route
 graduation; adapter-specific wrappers must collect real CLI usage before any
 plan-quota route can run.
 
+Cycle 24 added a Codex-specific JSONL usage parser. The parser consumes
+`codex exec --json` stdout, extracts `turn.completed.usage`, sums token fields,
+preserves cached and reasoning token metadata, and returns an
+`adapter-native-usage.v1` record. It is based on the official Codex
+non-interactive JSONL event contract and local `codex exec --help`; no Codex
+model call was made. Codex command plans still remain blocked until runner
+capture wiring, auth proof, support proof, and eval evidence exist.
+
 Remaining near-term gaps are official installed-session auth proof,
 remaining adapter-specific capture wiring, remaining adapter command templates,
-real native usage collection from CLI outputs for future plan-quota adapters,
-and eval-gated route graduation.
+real native usage collection from non-Codex CLI outputs for future plan-quota
+adapters, and eval-gated route graduation.

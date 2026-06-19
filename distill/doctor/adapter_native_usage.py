@@ -97,6 +97,66 @@ class AdapterNativeUsageRecord(BaseModel):
         return self.model_dump(mode="json")
 
 
+def codex_jsonl_native_usage(
+    jsonl: str,
+    *,
+    model: str = "",
+    request_id: str = "",
+    stop_reason: str = "complete",
+) -> AdapterNativeUsageRecord:
+    """Collect native usage from Codex `exec --json` JSONL output."""
+
+    event_count = 0
+    usage_events: list[dict[str, Any]] = []
+    thread_id = request_id.strip()
+    saw_failed_turn = False
+    for line_number, line in enumerate(jsonl.splitlines(), start=1):
+        event = _parse_codex_jsonl_event(line, line_number)
+        if event is None:
+            continue
+        event_count += 1
+        event_type = event.get("type")
+        if event_type == "thread.started" and not thread_id:
+            thread_id = _optional_text(event.get("thread_id"))
+        if event_type == "turn.failed":
+            saw_failed_turn = True
+        if event_type == "turn.completed":
+            usage = event.get("usage")
+            if not isinstance(usage, Mapping):
+                raise AdapterNativeUsageError(
+                    f"codex JSONL turn.completed usage must be an object: {line_number}"
+                )
+            usage_events.append(dict(usage))
+
+    if not usage_events:
+        raise AdapterNativeUsageError("codex JSONL usage not found")
+    if saw_failed_turn and stop_reason == "complete":
+        stop_reason = "failed"
+
+    cached_input_tokens = _sum_optional_usage_field(usage_events, "cached_input_tokens")
+    reasoning_output_tokens = _sum_optional_usage_field(usage_events, "reasoning_output_tokens")
+    return AdapterNativeUsageRecord(
+        schema_version=ADAPTER_NATIVE_USAGE_SCHEMA_VERSION,
+        adapter="codex",
+        source="stdout-json",
+        usage=AdapterUsage(
+            input_tokens=_sum_optional_usage_field(usage_events, "input_tokens"),
+            output_tokens=_sum_optional_usage_field(usage_events, "output_tokens"),
+            native={
+                "adapter_format": "codex-jsonl",
+                "event_count": event_count,
+                "usage_event_count": len(usage_events),
+                "cached_input_tokens": cached_input_tokens,
+                "reasoning_output_tokens": reasoning_output_tokens,
+                "raw_usage_events": usage_events,
+            },
+        ),
+        model=model,
+        request_id=thread_id,
+        stop_reason=stop_reason,
+    )
+
+
 def adapter_native_usage_contract() -> dict[str, Any]:
     """Return the native usage contract for doctor reports and docs."""
 
@@ -152,3 +212,38 @@ def _resolve_usage_path(path: Path, *, scratch_root: Path | None) -> Path:
             f"adapter native usage path escapes scratch workspace: {path}"
         ) from exc
     return candidate
+
+
+def _parse_codex_jsonl_event(line: str, line_number: int) -> Mapping[str, Any] | None:
+    text = line.strip()
+    if not text:
+        return None
+    try:
+        event = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise AdapterNativeUsageError(
+            f"codex JSONL usage line is invalid JSON: {line_number}"
+        ) from exc
+    if not isinstance(event, Mapping):
+        raise AdapterNativeUsageError(f"codex JSONL usage line must be an object: {line_number}")
+    return event
+
+
+def _sum_optional_usage_field(usages: list[dict[str, Any]], key: str) -> int | None:
+    total = 0
+    found = False
+    for usage in usages:
+        if key not in usage or usage[key] is None:
+            continue
+        value = usage[key]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise AdapterNativeUsageError(
+                f"codex JSONL usage field {key} must be a non-negative integer"
+            )
+        total += value
+        found = True
+    return total if found else None
+
+
+def _optional_text(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""

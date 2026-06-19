@@ -88,6 +88,9 @@
 - Use `distill.doctor.adapter_native_usage.load_adapter_native_usage()` for
   scratch usage files. It requires token counts or native usage metadata and
   rejects unknown adapters, unknown fields, absolute paths, and path escapes.
+- Use `distill.doctor.adapter_native_usage.codex_jsonl_native_usage()` for
+  captured `codex exec --json` stdout. It parses `turn.completed` usage events
+  into the native usage contract, but it does not make Codex route-eligible.
 - If an adapter manifest reports `quota`, `rate_limit`, or `rate-limit`, it
   must include structured `quota_stop` metadata instead of relying on free text.
 - Future adapter workloads must use the strict `adapter-workload.v1` package

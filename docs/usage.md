@@ -270,7 +270,9 @@ Grok planner records a blocked `grok --no-auto-update --prompt-file ...
 capture, native usage capture, and allowed scratch capture metadata; Claude
 schema paths can be inlined from staged JSON schema files. Plans stay blocked
 until adapter-specific native usage capture and adapter gates exist. Distill
-still does not expose any plan-quota adapter as an eligible route by itself.
+can parse Codex JSONL `turn.completed` usage into the native usage contract,
+but runner wiring is still blocked. Distill still does not expose any
+plan-quota adapter as an eligible route by itself.
 
 ## Websites
 
