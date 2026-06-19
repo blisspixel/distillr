@@ -485,6 +485,36 @@
 - Continue native usage collection and remaining adapter-specific command
   templates.
 
+### Cycle 21 - Blocked Claude Command Planner
+
+- External spend: `$0.00`.
+- Checked the installed Claude CLI help locally with `claude --version` and
+  `claude -p --help`; no paid model call was made.
+- Extended `AdapterCommandPlan` with `schema_path` so command templates can
+  record output-schema inputs even when the adapter needs a future wrapper to
+  inline schema JSON.
+- Added a blocked Claude read-only command plan using `claude -p` with text
+  stdin, JSON output, tools disabled, and session persistence disabled.
+- Kept the Claude plan blocked until schema inlining and native usage
+  collection exist, and preserved the adapter doctor, support, auth, and eval
+  blockers.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py` passed: 2 files already formatted.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_commands.py` passed: 6 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 441 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2454
+    passed, 8 deselected, 1 warning, 82.15% coverage.
+
+### Next
+
+- Continue schema inlining, native usage collection, and remaining command
+  templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

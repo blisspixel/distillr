@@ -357,10 +357,10 @@ templates, and eval gates clear. The
 doctor JSON also exposes the `adapter-workload.v1` package contract for future
 scratch-relative read-only adapter tasks, and a checked workload runner can
 verify declared reads, writes, cost mode, and result manifests for exact-argv
-experiments. Blocked Codex and Grok read-only command planners record future
-argv shapes plus staged prompt, result capture, and allowed scratch capture
-metadata, but they are deliberately blocked until native usage collection and
-the other adapter gates exist.
+experiments. Blocked Codex, Claude, and Grok read-only command planners record
+future argv shapes plus staged prompt, schema, result capture, and allowed
+scratch capture metadata, but they are deliberately blocked until native usage
+collection and the other adapter gates exist.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

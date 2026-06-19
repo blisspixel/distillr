@@ -96,10 +96,10 @@
   scratch workload experiments. It composes `adapter-workload.v1` with the
   scratch runner and blocks read, write, or cost-mode drift.
 - `distill.doctor.adapter_commands.plan_adapter_command()` may record future
-  argv shapes, staged prompt paths, result capture paths, and allowed scratch
-  capture files, but a command plan is not eligible while blockers remain.
-  Codex and Grok read-only plans are blocked until native usage collection and
-  route gates exist.
+  argv shapes, staged prompt paths, schema paths, result capture paths, and
+  allowed scratch capture files, but a command plan is not eligible while
+  blockers remain. Codex, Claude, and Grok read-only plans are blocked until
+  native usage collection and route gates exist.
 - Use `distill.doctor.adapter_runner.run_adapter_command()` for future adapter
   commands. It runs exact argv arrays with shell disabled, strips known
   metered API-key environment variables, enforces a timeout, and validates the

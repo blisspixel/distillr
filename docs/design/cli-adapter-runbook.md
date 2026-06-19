@@ -418,11 +418,11 @@ package, write outside declared outputs, or return a different cost mode.
 manifests from captured CLI output, workload package hashes, and
 caller-supplied native usage. It does not invent usage data or make an adapter
 eligible.
-`distill.doctor.adapter_commands` records the Codex read-only argv template,
-plus the Grok read-only argv template. Command plans include staged prompt,
-result capture, and allowed scratch capture metadata, but keep templates
-blocked until native usage collection, current support statement, auth proof,
-and eval evidence exist.
+`distill.doctor.adapter_commands` records blocked Codex, Claude, and Grok
+read-only argv templates. Command plans include staged prompt, schema, result
+capture, and allowed scratch capture metadata, but keep templates blocked until
+schema inlining where needed, native usage collection, current support
+statement, auth proof, and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

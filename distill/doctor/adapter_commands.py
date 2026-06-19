@@ -22,6 +22,7 @@ class AdapterCommandPlan:
     workload: str
     argv: tuple[str, ...] = ()
     stdin_path: str = ""
+    schema_path: str = ""
     result_text_path: str = ""
     allowed_new_files: tuple[str, ...] = ()
     blocked_reasons: list[str] = field(default_factory=list)
@@ -36,6 +37,7 @@ class AdapterCommandPlan:
             "workload": self.workload,
             "argv": list(self.argv),
             "stdin_path": self.stdin_path,
+            "schema_path": self.schema_path,
             "result_text_path": self.result_text_path,
             "allowed_new_files": list(self.allowed_new_files),
             "blocked_reasons": self.blocked_reasons,
@@ -67,6 +69,17 @@ def plan_adapter_command(
 
     if adapter == "codex":
         argv, template_blockers, metadata = _codex_command(workload)
+        blocked_reasons.extend(template_blockers)
+        return AdapterCommandPlan(
+            adapter=adapter,
+            workload=workload.workload,
+            argv=argv,
+            blocked_reasons=_dedupe(blocked_reasons),
+            **metadata,
+        )
+
+    if adapter == "claude":
+        argv, template_blockers, metadata = _claude_command(workload)
         blocked_reasons.extend(template_blockers)
         return AdapterCommandPlan(
             adapter=adapter,
@@ -122,6 +135,42 @@ def _codex_command(
         blocked_reasons,
         {
             "stdin_path": workload.prompt_path,
+            "schema_path": schema_path,
+            "result_text_path": "result.txt",
+            "allowed_new_files": ("result.txt",),
+        },
+    )
+
+
+def _claude_command(
+    workload: AdapterWorkloadPackage,
+) -> tuple[tuple[str, ...], list[str], dict[str, Any]]:
+    blocked_reasons: list[str] = []
+    if workload.command_class != "read-only":
+        blocked_reasons.append(
+            "claude command template currently supports read-only workloads only"
+        )
+    if not workload.output_schema_path:
+        blocked_reasons.append("claude command template requires output_schema_path")
+    blocked_reasons.append("claude command template requires schema inlining before execution")
+    blocked_reasons.append("native usage collection is not implemented: claude")
+    schema_path = workload.output_schema_path or "schemas/result.json"
+    return (
+        (
+            "claude",
+            "-p",
+            "--input-format",
+            "text",
+            "--output-format",
+            "json",
+            "--tools",
+            "",
+            "--no-session-persistence",
+        ),
+        blocked_reasons,
+        {
+            "stdin_path": workload.prompt_path,
+            "schema_path": schema_path,
             "result_text_path": "result.txt",
             "allowed_new_files": ("result.txt",),
         },
@@ -156,6 +205,7 @@ def _grok_command(
         ),
         blocked_reasons,
         {
+            "schema_path": workload.output_schema_path or "schemas/result.json",
             "result_text_path": "result.txt",
             "allowed_new_files": ("result.txt",),
         },

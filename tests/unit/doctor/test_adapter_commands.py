@@ -42,10 +42,12 @@ def test_codex_command_plan_records_read_only_argv_but_stays_blocked():
     )
     assert not plan.ok
     assert plan.stdin_path == "prompt.md"
+    assert plan.schema_path == "schemas/result.json"
     assert plan.result_text_path == "result.txt"
     assert plan.allowed_new_files == ("result.txt",)
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert "native usage collection is not implemented: codex" in plan.blocked_reasons
+    assert plan.to_dict()["schema_path"] == "schemas/result.json"
     assert plan.to_dict()["allowed_new_files"] == ["result.txt"]
     assert plan.to_dict()["ok"] is False
 
@@ -55,6 +57,32 @@ def test_codex_command_plan_requires_output_schema():
 
     assert "--output-schema" in plan.argv
     assert "codex command template requires output_schema_path" in plan.blocked_reasons
+    assert not plan.ok
+
+
+def test_claude_command_plan_records_read_only_argv_but_stays_blocked():
+    plan = plan_adapter_command("claude", _workload())
+
+    assert plan.argv == (
+        "claude",
+        "-p",
+        "--input-format",
+        "text",
+        "--output-format",
+        "json",
+        "--tools",
+        "",
+        "--no-session-persistence",
+    )
+    assert plan.stdin_path == "prompt.md"
+    assert plan.schema_path == "schemas/result.json"
+    assert plan.result_text_path == "result.txt"
+    assert plan.allowed_new_files == ("result.txt",)
+    assert "adapter doctor probe is required" in plan.blocked_reasons
+    assert "claude command template requires schema inlining before execution" in (
+        plan.blocked_reasons
+    )
+    assert "native usage collection is not implemented: claude" in plan.blocked_reasons
     assert not plan.ok
 
 
@@ -76,6 +104,7 @@ def test_grok_command_plan_records_read_only_argv_but_stays_blocked():
         "--max-turns",
         "1",
     )
+    assert plan.schema_path == "schemas/result.json"
     assert plan.result_text_path == "result.txt"
     assert plan.allowed_new_files == ("result.txt",)
     assert "adapter doctor probe is required" in plan.blocked_reasons
@@ -108,9 +137,9 @@ def test_codex_command_plan_inherits_probe_blockers():
 
 
 def test_command_plan_blocks_unknown_adapter_template():
-    plan = plan_adapter_command("claude", _workload())
+    plan = plan_adapter_command("gemini-cli", _workload())
 
     assert plan.argv == ()
     assert "adapter doctor probe is required" in plan.blocked_reasons
-    assert "adapter command template is not implemented: claude" in plan.blocked_reasons
+    assert "adapter command template is not implemented: gemini-cli" in plan.blocked_reasons
     assert not plan.ok

@@ -208,6 +208,13 @@ paths, result capture paths, and allowed scratch capture files, while remaining
 ineligible until native usage collection, support proof, auth proof, and eval
 evidence exist.
 
+Cycle 21 added schema-path command-plan metadata and a blocked Claude read-only
+template based on local `claude -p --help` output. Codex, Claude, and Grok
+plans now record staged prompt paths, schema paths, result capture paths, and
+allowed scratch capture files, while Claude remains blocked until schema
+inlining, native usage collection, support proof, auth proof, and eval evidence
+exist.
+
 Remaining near-term gaps are official installed-session auth proof,
 remaining adapter-specific capture wiring, remaining adapter command templates,
 real native usage collection for future plan-quota adapters, and eval-gated
