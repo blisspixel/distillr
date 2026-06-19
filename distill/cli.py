@@ -38,7 +38,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _expand_learning_queries,
     _expand_paper_queries,
     _filter_recent_candidates,
-    _format_date,
     _format_metric,
     _generate_and_export_topic_brief,
     _heuristic_learning_queries,
@@ -76,6 +75,7 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     console,
     get_config,
 )
+from distill.cli_shared import format_date as _format_date  # noqa: F401
 
 # _file_link's canonical home is _helpers; _logic no longer imports it, so
 # re-export from the source to preserve cli._file_link for tests.

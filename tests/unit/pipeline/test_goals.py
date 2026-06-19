@@ -72,16 +72,16 @@ class TestRefreshCommand:
 
 
 def test_catch_up_surfaces_goal_refreshes(tmp_path, monkeypatch):
-    from distill.commands import _logic
+    from distill.commands import watch
     from distill.config import DistillConfig
 
     config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
     save_topic_goal(config.library_dir, "music", "goal text", goal_file="g.md")
     save_topic_goal(config.library_dir, "other", "another goal")
 
-    lines = _logic._print_goal_refreshes(config)
+    lines = watch._print_goal_refreshes(config)
     assert len(lines) == 2
     assert lines[0].startswith("distill discover")
 
-    filtered = _logic._print_goal_refreshes(config, topic_filter="music")
+    filtered = watch._print_goal_refreshes(config, topic_filter="music")
     assert filtered == ["distill discover --goal-file g.md --topic music --preview"]

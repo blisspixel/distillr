@@ -242,6 +242,35 @@
 - Continue `_logic.py` decomposition or the next local roadmap slice with no
   external spend.
 
+### Cycle 42 - Watch Helper Decomposition
+
+- External spend: `$0.00`.
+- Moved watch-owned `_show_latest_insights` and `_print_goal_refreshes` from
+  `_logic.py` into `distill.commands.watch`.
+- Repointed the goal-refresh test to the canonical watch module so it remains
+  load-bearing after the move.
+- Preserved `distill.cli._format_date` compatibility by re-exporting
+  `cli_shared.format_date` instead of keeping the helper in `_logic.py`.
+- Lowered the `_logic.py` module-size ratchet from 1444 to 1355.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/pipeline/test_goals.py tests/unit/test_module_sizes.py tests/unit/commands/test_cli_wiring.py::TestWatchCommands -q`
+    passed: 33 passed.
+  - `uv run ruff check distill/commands/_logic.py distill/commands/watch.py distill/cli.py tests/unit/pipeline/test_goals.py tests/unit/test_module_sizes.py`
+    passed.
+  - `uv run ruff format --check distill/commands/_logic.py distill/commands/watch.py distill/cli.py tests/unit/pipeline/test_goals.py tests/unit/test_module_sizes.py`
+    passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 447 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2511
+    passed, 8 deselected, 1 warning, 82.79% coverage.
+
+### Next
+
+- Continue extracting the learning, discover, and process helper body from
+  `_logic.py` until it drops below the 1000-line cap.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

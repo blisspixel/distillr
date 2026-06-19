@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
 > Status: in progress (Phase 1 done; Phase 2 ~90% - `_logic.py` is down from
-> 9,373 to 1,444 lines, no command sub-apps left). Remediation #1 from
+> 9,373 to 1,355 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 1,444 lines and shrinking; see Phase 2). It
+command group per file" target (now 1,355 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -120,8 +120,11 @@ slice with the ratchet lowered to match:
   the topic-watch naming/ranking helpers → `commands/_topic_watch.py`.
 - **Topic** (`topic_app` plus profile/workflow/summary/bundle helpers) ->
   `commands/topic.py`; `reports.py` imports the bundle helpers from the new owner.
+- **Watch-owned display helpers** (`_show_latest_insights` and
+  `_print_goal_refreshes`) -> `commands/watch.py`; `cli.py` re-exports
+  `_format_date` from `cli_shared` for legacy test compatibility.
 
-`_logic.py` is down from **9,373 -> 1,444 lines**; 13 dead scaffold modules were
+`_logic.py` is down from **9,373 -> 1,355 lines**; 13 dead scaffold modules were
 deleted along the way.
 
 **What still lives in `_logic.py`:**

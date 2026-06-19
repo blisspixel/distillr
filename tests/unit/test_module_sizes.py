@@ -73,7 +73,8 @@ ALLOWLIST: dict[str, int] = {
     # 1616 -> 1512.
     # discover ingest helpers -> commands/_discover_ingest.py: 1512 -> 1445.
     # output-mode setup -> commands/_helpers.py: 1445 -> 1444.
-    "distill/commands/_logic.py": 1444,
+    # watch-owned display helpers -> commands/watch.py: 1444 -> 1355.
+    "distill/commands/_logic.py": 1355,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

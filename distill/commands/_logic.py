@@ -28,16 +28,10 @@ from distill.cli_shared import (
     console,
 )
 from distill.cli_shared import (
-    format_date as _format_date,
-)
-from distill.cli_shared import (
     output_path as _output_path,
 )
 from distill.cli_shared import (
     resolve_video_channel_name as _shared_resolve_video_channel_name,
-)
-from distill.cli_shared import (
-    strip_frontmatter as _strip_frontmatter,
 )
 from distill.cli_shared import (
     topic_from_query as _topic_from_query,
@@ -579,74 +573,6 @@ def get_model_override(ctx: typer.Context | None = None) -> str:
     return ""
 
 
-def _show_latest_insights(  # noqa: C901 — legacy, will refactor
-    config: DistillConfig, topic: str, channel_name: str, limit: int = 3
-) -> None:
-    """Print a compact summary of the latest video insights for a channel."""
-    videos_dir = config.videos_dir(topic, channel_name)
-    if not videos_dir.exists():
-        return
-    vid_list = []
-    for vid_dir in videos_dir.iterdir():
-        if not vid_dir.is_dir():
-            continue
-        meta_file = vid_dir / "metadata.json"
-        insights_file = find_artifact(vid_dir, "insights")
-        if not meta_file.exists() or not insights_file.exists():
-            continue
-        try:
-            meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            meta["_dir"] = vid_dir
-            vid_list.append(meta)
-        except (OSError, json.JSONDecodeError):
-            continue
-    if not vid_list:
-        return
-    vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
-    selected = vid_list[:limit]
-
-    console.print(f"\n  [bold]Latest from {channel_name}[/bold]\n")
-    for i, meta in enumerate(selected, 1):
-        title = meta.get("title", "Unknown")
-        date = _format_date(meta.get("upload_date", ""))
-        vid_dir = meta["_dir"]
-        insights_file = find_artifact(vid_dir, "insights")
-        content = insights_file.read_text(encoding="utf-8")
-        # Strip frontmatter
-        content = _strip_frontmatter(content)
-        # Extract just the Summary section
-        summary_text = ""
-        in_summary = False
-        for line in content.split("\n"):
-            if line.strip().lower().startswith("## summary") or line.strip().lower().startswith(
-                "## quick take"
-            ):
-                in_summary = True
-                continue
-            if in_summary and line.strip().startswith("## "):
-                break
-            if in_summary:
-                summary_text += line + "\n"
-        summary_text = summary_text.strip()
-        if not summary_text:
-            # Fallback: first non-empty paragraph
-            for line in content.split("\n"):
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    summary_text = line
-                    break
-        # Truncate if too long
-        if len(summary_text) > 300:
-            summary_text = summary_text[:297] + "..."
-
-        console.print(f"  [bold]{i}. {title}[/bold]")
-        console.print(f"  [dim]{date}[/dim]")
-        console.print(f"  {summary_text}\n")
-
-    console.print(f"  [dim]distill show {channel_name}                     Full insights[/dim]")
-    console.print(f"  [dim]distill synthesis {channel_name}                Synthesis[/dim]\n")
-
-
 def _resolve_video_channel_name(url: str, video_info) -> str:
     return _shared_resolve_video_channel_name(url, video_info, resolve_channel_name)
 
@@ -887,21 +813,6 @@ _ACCENT = "rgb(100,149,237)"
 
 
 # ─── Catch-Up ────────────────────────────────────────────────────────
-
-
-def _print_goal_refreshes(config, *, topic_filter: str | None = None) -> list[str]:
-    """Print (and return) the refresh commands for persisted topic goals."""
-    from distill.pipeline.goals import goal_refresh_command, load_topic_goals
-
-    goals = load_topic_goals(config.library_dir)
-    if topic_filter:
-        goals = {t: e for t, e in goals.items() if t == topic_filter}
-    lines = [goal_refresh_command(t, e) for t, e in sorted(goals.items())]
-    if lines:
-        console.print("\n  [dim]Goal-driven topics — refresh against their saved goals:[/dim]")
-        for line in lines:
-            console.print(f"  [cyan]{line}[/cyan]")
-    return lines
 
 
 def _process_site_seed(  # noqa: C901 — legacy, will refactor

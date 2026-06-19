@@ -103,6 +103,9 @@
 - Per-item failures should become structured run issues and the loop should
   continue when re-running is convergent. `BudgetExceededError` remains a hard
   stop.
+- When a helper moves out of `_logic.py`, repoint tests to the canonical owner
+  in the same slice and keep only explicit compatibility re-exports that callers
+  still use.
 
 ## Validation
 

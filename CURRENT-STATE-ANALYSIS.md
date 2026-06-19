@@ -378,3 +378,9 @@ help now shows concrete preview, approve, discovery commit, single-target
 ingest, audit next-action, OKF export, and OKF validation examples on the
 commands that own those workflows. This is a CLI legibility change only: no
 semantic ranking, ingest behavior, audit logic, or export contract changed.
+
+Cycle 42 resumes `_logic.py` decomposition. The watch-owned
+`_show_latest_insights` and `_print_goal_refreshes` helpers now live in
+`distill.commands.watch`, and the goal-refresh test imports that canonical
+owner. `distill.cli._format_date` remains available by re-exporting
+`cli_shared.format_date`, while `_logic.py` drops to the 1355-line ratchet.
