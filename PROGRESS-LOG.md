@@ -45,6 +45,7 @@
 ### Cycle 2 - CLI Cost-Mode Override
 
 - External spend: `$0.00`.
+- Committed as `96a9744` (`Add CLI cost mode override`).
 - Added a shared `_apply_cost_mode_override` helper that validates
   `auto|no-metered|paid-ok` through the same policy enum as the router.
 - Added top-level `distill --cost-mode <mode>` so loops can apply a one-run
@@ -65,5 +66,33 @@
 
 ### Next
 
-- Commit the CLI cost-mode override slice once green.
 - Continue with profile-run state and zero-dollar ledger rows.
+
+### Cycle 3 - Profile Run State
+
+- External spend: `$0.00`.
+- Added `distill profile run <name|path>` as an approval-gated runner over the
+  existing profile preview command list.
+- `profile run` without `--yes` returns a human or JSON plan and does not
+  execute commands or write state.
+- `profile run --yes` executes the generated `distill ...` argv rows with
+  shell disabled, captures exit codes plus stdout and stderr tails, and writes
+  state under `.distill/profiles/<profile>/run_state.json`.
+- Exact feed items and exact YouTube videos are marked complete on success.
+  Standing seeds such as feeds, channels, domains, repositories, and saved
+  queries remain repeatable so recurring profiles keep checking for new
+  material.
+- Targeted validation:
+  - `uv run ruff check distill\pipeline\profile_run.py distill\commands\profile.py tests\unit\pipeline\test_profile_run.py tests\unit\commands\test_profile_command.py` passed.
+  - `uv run ruff format --check distill\pipeline\profile_run.py distill\commands\profile.py tests\unit\pipeline\test_profile_run.py tests\unit\commands\test_profile_command.py` passed after formatting `distill\commands\profile.py`.
+  - `uv run pytest -q tests\unit\pipeline\test_profile_run.py tests\unit\commands\test_profile_command.py` passed: 8 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed after rerun
+    with a longer timeout: 2384 passed, 8 deselected, coverage 81.84%.
+
+### Next
+
+- Continue with complete usage ledger rows for no-metered and zero-dollar
+  profile usage.

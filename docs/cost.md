@@ -40,6 +40,9 @@ statement, usage ledger, scratch manifest, and eval proof exist.
 Use `distill --cost-mode no-metered <command>` for a one-run override without
 editing `.env`. Recurring profile previews include that global override in
 generated replay commands when the profile declares `cost_mode: no-metered`.
+`distill profile run <name> --yes` executes those commands through the existing
+ingest, analysis, verify, and cost-log paths, with resume state under
+`library/.distill/profiles/`.
 
 ## Per-stage cost
 

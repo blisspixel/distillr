@@ -12,6 +12,7 @@ Full command reference. For the short version, see the README.
 - [YouTube: Ramp up fast](#youtube-ramp-up-fast)
 - [YouTube: Channel watch and catch-up](#youtube-channel-watch-and-catch-up)
 - [YouTube: Topic watch (recurring)](#youtube-topic-watch-recurring)
+- [Recurring research profiles](#recurring-research-profiles)
 - [Websites](#websites)
 - [arXiv papers](#arxiv-papers)
 - [Reports](#reports)
@@ -196,6 +197,38 @@ Each topic-watch run leaves:
 - `library/topics/<topic>/<topic>_Topic_Trends.md` — momentum over recent diff windows
 - `library/library_Latest_Changes.md` — library-level rollup
 - `library/library_Watch_Alerts.md` — digest of notable changes (also exposed via MCP at `distill://watch-alerts`)
+
+## Recurring research profiles
+
+Research profiles are saved source plans for topics you refresh repeatedly.
+They bind a topic, goal file, trusted feeds, YouTube channels, domains,
+repositories, saved queries, freshness limits, and cost mode in one YAML file
+under `library/profiles/`.
+
+```bash
+# Inspect the exact candidate rows and commands without writing analysis artifacts
+distill profile preview ai-developer-news
+distill profile preview examples/profiles/ai-developer-news.yaml --no-fetch
+
+# Plan a run. This prints the same command list plus the durable state path.
+distill profile run ai-developer-news
+distill --json profile run ai-developer-news --no-fetch
+
+# Execute approved commands through the existing Distill ingest and analysis paths.
+distill profile run ai-developer-news --yes
+distill --cost-mode no-metered profile run ai-developer-news --yes
+```
+
+`profile run` is approval-gated. Without `--yes`, it prints or emits the plan
+and does not execute commands or write run state. With `--yes`, it executes the
+approved argv rows from preview, captures each exit code and output tail, and
+writes state to `library/.distill/profiles/<profile>/run_state.json`.
+
+Resume policy is structural: exact feed items and exact YouTube videos are
+marked complete on success, while standing seeds such as feeds, channels,
+domains, repositories, and saved queries remain repeatable so recurring
+profiles keep checking for new material. Failed commands stay retryable and are
+recorded in the state file.
 
 ## Websites
 

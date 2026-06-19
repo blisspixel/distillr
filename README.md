@@ -323,6 +323,12 @@ On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs 
 
 Route status today: xAI/Gemini cloud routes and Ollama/LM Studio local routes are implemented. `DISTILL_COST_MODE=no-metered` is wired as a fail-closed route policy, and `distill --cost-mode no-metered <command>` applies the same policy for one run: local Ollama/LM Studio are allowed, while API-billed or ambiguous routes are refused before provider calls. Profile previews include the cost-mode override in generated replay commands when the profile is no-metered. Anthropic and OpenAI providers ship in-tree as opt-in routes, but they are not calibrated defaults. Plan-quota CLI routes such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity are roadmap adapters, not hidden providers. They only graduate when an adapter doctor can prove included-plan auth, machine-readable output, scratch-only writes, complete usage ledgering, and `distill eval` quality for the workload. GitHub Copilot CLI can be supported later as an explicit credit-metered route, but it is not a no-metered default because Copilot usage is tied to AI credits and usage limits. Until adapters exist, these CLIs can run Distill externally as operators, but Distill should not claim their quota as an internal model route.
 
+Recurring profile runs use the same boundary. `distill profile run <name>`
+prints an approval plan by default, and `distill profile run <name> --yes`
+executes the generated `distill ...` commands through the existing ingest,
+analysis, verify, and cost paths while recording resume state under
+`library/.distill/profiles/`.
+
 Full cost model in [`docs/cost.md`](docs/cost.md).
 
 ## Reliability and trust boundaries

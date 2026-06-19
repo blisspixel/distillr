@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added `distill profile preview <name|path>` with JSON output and a human table, resolving current feed items, YouTube channel updates, domain seeds, repository seeds, and saved query preview commands without ingesting or analyzing anything.
 - Added the first `DISTILL_COST_MODE=auto|no-metered|paid-ok` foundation: config and router parsing, route classification, and fail-closed router refusal for API-billed or unknown routes in `no-metered`.
 - Added global `distill --cost-mode <auto|no-metered|paid-ok>` overrides, with no-metered profile previews emitting replay commands that carry the override explicitly.
+- Added `distill profile run <name|path>` with JSON output, approval-gated execution through generated `distill ...` commands, per-command exit capture, and resume state under `.distill/profiles/<profile>/run_state.json`.
 
 ### Changed
 

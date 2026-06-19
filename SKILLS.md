@@ -37,6 +37,18 @@
   support statement, complete usage ledger, scratch manifest, and eval proof
   exist.
 
+## Recurring Profiles
+
+- `distill profile preview <name>` is the non-mutating source resolver.
+- `distill profile run <name>` is approval-gated. Without `--yes`, it returns
+  the command plan and state path without executing or writing run state.
+- With `--yes`, profile run executes generated `distill ...` argv rows through
+  subprocesses with shell disabled and records command results under
+  `.distill/profiles/<profile>/run_state.json`.
+- Exact feed items and YouTube videos can be marked complete after a successful
+  run. Standing seeds such as feeds, channels, domains, repositories, and saved
+  queries must stay repeatable.
+
 ## Validation
 
 - For code or docs changes, run:

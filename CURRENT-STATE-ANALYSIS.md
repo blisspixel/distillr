@@ -95,3 +95,21 @@ does not violate agentic balance. The slice in this branch:
   scratch-manifest, and eval proof exist.
 
 External spend used so far: `$0.00`.
+
+## Subsequent Implementation Updates
+
+Cycle 2 added the top-level `distill --cost-mode <mode>` override and made
+no-metered profile preview commands carry that override explicitly. That keeps
+loop runners from depending on ambient `.env` state.
+
+Cycle 3 added `distill profile run <name|path>` as the next structural slice.
+The command plans by default and requires `--yes` before execution. When
+approved, it executes the generated `distill ...` argv rows through the
+existing ingest and analysis commands, records per-command outcomes, and writes
+resume state under `.distill/profiles/<profile>/run_state.json`. Exact feed
+items and YouTube videos complete once. Standing seeds remain repeatable so
+recurring profiles keep checking for new material.
+
+Remaining near-term gaps are complete zero-dollar usage ledger rows, richer
+blocked-route reporting, audit-visible profile health, and profile next-action
+handoff rows.

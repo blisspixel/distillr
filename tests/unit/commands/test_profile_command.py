@@ -90,6 +90,55 @@ def test_profile_preview_json_missing_yaml_keeps_single_suffix(tmp_path, monkeyp
     assert "missing.yaml.yaml" not in envelope["error"]
 
 
+def test_profile_run_json_without_yes_returns_approval_plan(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    profile_path = tmp_path / "profile.yaml"
+    profile_path.write_text(
+        "\n".join(
+            [
+                "schema_version: research-profile.v1",
+                "name: agent-loops",
+                "topic: agent-loops",
+                "goal_file: goals/agent-loops.md",
+                "cost_mode: no-metered",
+                "queries:",
+                "  - long running agent loops",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        cli.app,
+        ["--json", "profile", "run", str(profile_path), "--no-fetch"],
+    )
+
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    assert envelope["status"] == "ok"
+    data = envelope["data"]
+    assert data["schema_version"] == "profile-run.v1"
+    assert data["approved"] is False
+    assert data["health"]["status"] == "approval_required"
+    assert data["pending_count"] == 1
+    assert data["commands"][0]["command"] == [
+        "distill",
+        "--cost-mode",
+        "no-metered",
+        "latest",
+        "long running agent loops",
+        "--topic",
+        "agent-loops",
+        "--preview",
+    ]
+    assert not (config.library_dir / ".distill" / "profiles").exists()
+
+
 def test_global_cost_mode_option_sets_process_policy(tmp_path, monkeypatch):
     old_cost_mode = os.environ.get("DISTILL_COST_MODE")
     monkeypatch.delenv("DISTILL_COST_MODE", raising=False)
