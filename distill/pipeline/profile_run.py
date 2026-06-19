@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from distill.library.paths import atomic_write_text, sanitize_path_component
+from distill.pipeline.costs import CostTracker, save_run_log
 from distill.pipeline.profile_preview import (
     ProfilePreviewCandidate,
     ProfilePreviewResult,
@@ -247,6 +248,7 @@ def run_profile_preview(
     state = _load_state(state_path, profile=preview.profile, topic=preview.topic)
     commands = _build_commands(preview.candidates, completed=_completed_keys(state))
     events: list[ProfileRunEvent] = []
+    started = time.monotonic()
 
     if approved:
         state["profile"] = preview.profile
@@ -283,7 +285,7 @@ def run_profile_preview(
             _save_state(state_path, state)
         commands = updated_commands
 
-    return ProfileRunResult(
+    result = ProfileRunResult(
         schema_version=_RESULT_SCHEMA_VERSION,
         profile=preview.profile,
         topic=preview.topic,
@@ -297,6 +299,23 @@ def run_profile_preview(
         events=events,
         warnings=[warning.to_dict() for warning in preview.warnings],
     )
+    if approved:
+        save_run_log(
+            library_dir,
+            "profile-run",
+            CostTracker(),
+            elapsed_seconds=time.monotonic() - started,
+            metadata={
+                "profile": preview.profile,
+                "topic": preview.topic,
+                "cost_mode": preview.cost_mode,
+                "selected_count": str(result.selected_count),
+                "skipped_count": str(result.skipped_count),
+                "succeeded_count": str(result.succeeded_count),
+                "failed_count": str(result.failed_count),
+            },
+        )
+    return result
 
 
 def _build_commands(

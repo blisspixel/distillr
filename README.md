@@ -327,7 +327,9 @@ Recurring profile runs use the same boundary. `distill profile run <name>`
 prints an approval plan by default, and `distill profile run <name> --yes`
 executes the generated `distill ...` commands through the existing ingest,
 analysis, verify, and cost paths while recording resume state under
-`library/.distill/profiles/`.
+`library/.distill/profiles/`. Cost-log rows now record provider and route-class
+usage for no-metered local calls and profile-run orchestration even when the
+dollar cost is zero.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

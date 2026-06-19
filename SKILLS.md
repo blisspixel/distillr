@@ -36,6 +36,10 @@
 - Plan-quota CLI routes are not no-metered defaults until adapter doctor,
   support statement, complete usage ledger, scratch manifest, and eval proof
   exist.
+- Cost-log rows include `usage_ledger`, `by_provider`, and `by_route_class`.
+  Keep no-metered local usage visible even when `actual_cost` is `0.0`.
+- Approved profile runs write a zero-dollar `profile-run` row so orchestration
+  attempts show up even if child commands use local or deterministic paths.
 
 ## Recurring Profiles
 

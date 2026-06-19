@@ -96,3 +96,28 @@
 
 - Continue with complete usage ledger rows for no-metered and zero-dollar
   profile usage.
+
+### Cycle 4 - Zero-Dollar Usage Ledger
+
+- External spend: `$0.00`.
+- Extended `save_run_log` rows with provider breakdowns, route-class
+  breakdowns, no-metered LLM call counts, local transcription counts, and a
+  `usage_ledger` object.
+- Updated `CostTracker.summary_dict()` to surface metered and no-metered call
+  counts plus provider usage.
+- Made approved `profile run` executions write a zero-dollar `profile-run`
+  orchestration row with profile, topic, cost mode, selected, skipped,
+  succeeded, and failed counts.
+- Targeted validation:
+  - `uv run ruff check distill\pipeline\costs.py distill\pipeline\profile_run.py tests\unit\pipeline\test_costs.py tests\unit\pipeline\test_profile_run.py` passed.
+  - `uv run ruff format --check distill\pipeline\costs.py distill\pipeline\profile_run.py tests\unit\pipeline\test_costs.py tests\unit\pipeline\test_profile_run.py` passed after formatting `distill\pipeline\costs.py` and `tests\unit\pipeline\test_costs.py`.
+  - `uv run pytest -q tests\unit\pipeline\test_costs.py tests\unit\pipeline\test_profile_run.py` passed: 33 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed after a final
+    post-format rerun: 2385 passed, 8 deselected, coverage 81.87%.
+
+### Next
+
+- Continue with richer blocked-route reporting or profile next-action handoff.

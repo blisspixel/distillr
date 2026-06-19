@@ -110,6 +110,10 @@ resume state under `.distill/profiles/<profile>/run_state.json`. Exact feed
 items and YouTube videos complete once. Standing seeds remain repeatable so
 recurring profiles keep checking for new material.
 
-Remaining near-term gaps are complete zero-dollar usage ledger rows, richer
-blocked-route reporting, audit-visible profile health, and profile next-action
-handoff rows.
+Cycle 4 added the first complete zero-dollar ledger slice: cost-log rows now
+record `usage_ledger`, `by_provider`, and `by_route_class`, and approved profile
+runs write zero-dollar `profile-run` orchestration rows.
+
+Remaining near-term gaps are richer blocked-route reporting, native usage and
+quota-stop fields for future plan-quota adapters, audit-visible profile health,
+and profile next-action handoff rows.

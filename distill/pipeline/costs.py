@@ -229,6 +229,7 @@ class CostTracker:
     def summary_dict(self) -> dict:
         """Summary for logging/display."""
         by_model: dict[str, dict[str, float | int]] = {}
+        by_provider: dict[str, dict[str, Any]] = {}
         for entry in self.entries:
             model_summary = by_model.setdefault(
                 entry.model or "unknown",
@@ -238,15 +239,34 @@ class CostTracker:
             model_summary["input_tokens"] += entry.prompt_tokens
             model_summary["output_tokens"] += entry.completion_tokens
 
+            provider_key = _provider_key(entry)
+            provider_summary = by_provider.setdefault(
+                provider_key,
+                {
+                    "calls": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "provider_name": entry.provider_name,
+                    "provider_type": entry.provider_type,
+                    "no_metered_cost": entry.no_metered_cost,
+                },
+            )
+            provider_summary["calls"] += 1
+            provider_summary["input_tokens"] += entry.prompt_tokens
+            provider_summary["output_tokens"] += entry.completion_tokens
+
         summary = {
             "grok_calls": len(self.entries),
             "gemini_queries": self.gemini_queries,
+            "metered_calls": sum(1 for e in self.entries if not e.no_metered_cost),
+            "no_metered_calls": sum(1 for e in self.entries if e.no_metered_cost),
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
             "estimated_grok_cost": f"${self.total_grok_cost:.4f}",
             "estimated_gemini_cost": f"${self.total_gemini_cost:.2f}",
             "estimated_total_cost": self.format_cost(),
             "by_model": by_model,
+            "by_provider": by_provider,
         }
         if self.transcriptions:
             summary["transcription_calls"] = len(self.transcriptions)
@@ -312,6 +332,8 @@ def save_run_log(
 
     by_type: dict[str, dict] = {}
     by_model: dict[str, dict] = {}
+    by_provider: dict[str, dict] = {}
+    by_route_class: dict[str, dict] = {}
     for e in tracker.entries:
         ct = e.call_type or "unknown"
         if ct not in by_type:
@@ -326,11 +348,59 @@ def save_run_log(
         by_model[model_key]["calls"] += 1
         by_model[model_key]["input_tokens"] += e.prompt_tokens
         by_model[model_key]["output_tokens"] += e.completion_tokens
+
+        provider_key = _provider_key(e)
+        if provider_key not in by_provider:
+            by_provider[provider_key] = {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "provider_name": e.provider_name,
+                "provider_type": e.provider_type,
+                "no_metered_cost": e.no_metered_cost,
+            }
+        by_provider[provider_key]["calls"] += 1
+        by_provider[provider_key]["input_tokens"] += e.prompt_tokens
+        by_provider[provider_key]["output_tokens"] += e.completion_tokens
+
+        route_class = _route_class(e)
+        if route_class not in by_route_class:
+            by_route_class[route_class] = {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        by_route_class[route_class]["calls"] += 1
+        by_route_class[route_class]["input_tokens"] += e.prompt_tokens
+        by_route_class[route_class]["output_tokens"] += e.completion_tokens
     entry["by_call_type"] = by_type
     entry["by_model"] = by_model
+    entry["by_provider"] = by_provider
+    entry["by_route_class"] = by_route_class
+    entry["usage_ledger"] = {
+        "llm_calls": len(tracker.entries),
+        "metered_llm_calls": sum(1 for e in tracker.entries if not e.no_metered_cost),
+        "no_metered_llm_calls": sum(1 for e in tracker.entries if e.no_metered_cost),
+        "gemini_queries": tracker.gemini_queries,
+        "transcription_calls": len(tracker.transcriptions),
+        "metered_transcription_calls": sum(1 for t in tracker.transcriptions if t.cost > 0),
+        "no_metered_transcription_calls": sum(1 for t in tracker.transcriptions if t.cost == 0),
+    }
 
     with log_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def _provider_key(entry: TokenUsage) -> str:
+    return entry.provider_name or entry.provider_type or "unknown"
+
+
+def _route_class(entry: TokenUsage) -> str:
+    if entry.provider_type == "local":
+        return "local"
+    if entry.no_metered_cost:
+        return "no-metered"
+    return "metered"
 
 
 def _median(values: list[float]) -> float:

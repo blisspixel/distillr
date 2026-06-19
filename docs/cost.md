@@ -44,6 +44,10 @@ generated replay commands when the profile declares `cost_mode: no-metered`.
 ingest, analysis, verify, and cost-log paths, with resume state under
 `library/.distill/profiles/`.
 
+The usage ledger records zero-dollar usage too. Cost-log rows include provider
+and route-class breakdowns, no-metered LLM call counts, local transcription
+counts, and profile-run orchestration rows even when `actual_cost` is `0.0`.
+
 ## Per-stage cost
 
 | Stage | Typical cost | Basis (@ grok-4.3) |

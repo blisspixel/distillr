@@ -145,6 +145,34 @@ def test_cost_tracker_treats_no_metered_provider_responses_as_zero():
 
     assert tracker.total_cost == 0.0
     assert tracker.format_cost() == "$0.0000"
+    assert tracker.summary_dict()["no_metered_calls"] == 2
+
+
+def test_save_run_log_records_route_usage_for_zero_dollar_calls(tmp_path):
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=120,
+            completion_tokens=40,
+            model="qwen3:latest",
+            call_type="analysis",
+            provider_name="ollama",
+            provider_type="local",
+        )
+    )
+    tracker.record_transcription("local", 90.0)
+
+    save_run_log(tmp_path, "local-analysis", tracker)
+
+    entry = json.loads(
+        (tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8").strip()
+    )
+    assert entry["actual_cost"] == 0.0
+    assert entry["usage_ledger"]["no_metered_llm_calls"] == 1
+    assert entry["usage_ledger"]["metered_llm_calls"] == 0
+    assert entry["usage_ledger"]["no_metered_transcription_calls"] == 1
+    assert entry["by_provider"]["ollama"]["no_metered_cost"] is True
+    assert entry["by_route_class"]["local"]["calls"] == 1
 
 
 def test_save_run_log_preview_suffixes_command(tmp_path):

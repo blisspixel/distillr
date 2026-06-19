@@ -95,6 +95,11 @@ def test_profile_run_marks_exact_items_complete_but_keeps_seeds_repeatable(tmp_p
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert "youtube_video:youtube:v1" in state["completed"]
     assert "query:query:agent loops" not in state["completed"]
+    cost_row = json.loads((tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8"))
+    assert cost_row["command"] == "profile-run"
+    assert cost_row["actual_cost"] == 0.0
+    assert cost_row["metadata"]["profile"] == "agent-loops"
+    assert cost_row["metadata"]["succeeded_count"] == "2"
 
     second = run_profile_preview(
         _preview(),
