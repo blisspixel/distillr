@@ -398,6 +398,34 @@
 - Continue official installed-session auth proof and adapter-specific command
   templates for read-only workload prototypes.
 
+### Cycle 18 - Blocked Codex Command Planner
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_commands`, a command-plan layer for future CLI
+  adapter workload runs.
+- The first template records the future Codex read-only argv:
+  `codex exec --sandbox read-only --ephemeral --json --output-schema ... --output-last-message result.txt -`.
+- The plan deliberately remains blocked until native `adapter-result.v1`
+  manifest writing, current support proof, installed-session auth proof, and
+  eval evidence exist. It also inherits adapter doctor blockers such as missing
+  flags or ineligible cost mode.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py distill\doctor\adapter_workload.py tests\unit\doctor\test_adapter_workload.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py distill\doctor\adapter_workload.py tests\unit\doctor\test_adapter_workload.py` passed after import fixing.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapter_workload.py` passed: 16 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 439 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2445
+    passed, 8 deselected, 1 warning, 82.08% coverage.
+
+### Next
+
+- Continue native `adapter-result.v1` manifest-writing harness design for
+  read-only adapter command templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

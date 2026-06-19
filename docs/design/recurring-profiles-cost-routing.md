@@ -306,7 +306,8 @@ boundaries:
    Workload packages are scratch-relative and validated before an adapter can
    receive source packages. Verified manifests can be transformed into cost-log
    rows, and checked workload runs verify manifest reads, writes, and cost mode
-   against the package. This does not bypass adapter support, auth, or eval
+   against the package. Command planners may record exact argv shapes while
+   still blocked. This does not bypass adapter support, auth, manifest, or eval
    gates.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per

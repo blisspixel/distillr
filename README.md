@@ -354,7 +354,9 @@ statement, adapter-specific command templates, and eval gates clear. The
 doctor JSON also exposes the `adapter-workload.v1` package contract for future
 scratch-relative read-only adapter tasks, and a checked workload runner can
 verify declared reads, writes, cost mode, and result manifests for exact-argv
-experiments.
+experiments. A Codex read-only command planner exists for the future
+`codex exec` path, but it is deliberately blocked until native
+`adapter-result.v1` manifest writing and the other adapter gates exist.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

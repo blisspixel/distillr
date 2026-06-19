@@ -92,6 +92,10 @@
 - Use `distill.doctor.adapter_workload_runner.run_adapter_workload()` for
   scratch workload experiments. It composes `adapter-workload.v1` with the
   scratch runner and blocks read, write, or cost-mode drift.
+- `distill.doctor.adapter_commands.plan_adapter_command()` may record future
+  argv shapes, but a command plan is not eligible while blockers remain. The
+  Codex read-only plan is blocked until native manifest writing and route gates
+  exist.
 - Use `distill.doctor.adapter_runner.run_adapter_command()` for future adapter
   commands. It runs exact argv arrays with shell disabled, strips known
   metered API-key environment variables, enforces a timeout, and validates the

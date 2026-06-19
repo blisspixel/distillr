@@ -191,6 +191,13 @@ declared package, write outside declared outputs, or report a different cost
 mode. The manifest parser now also rejects read-only results that declare
 written files.
 
+Cycle 18 added a blocked adapter command planner. It records the future Codex
+read-only `codex exec --sandbox read-only` argv shape, inherits adapter doctor
+blockers, and remains ineligible until native `adapter-result.v1` manifest
+writing, current support proof, installed-session auth proof, and eval evidence
+exist.
+
 Remaining near-term gaps are official installed-session auth proof,
-adapter-specific command templates, real native usage collection for future
-plan-quota adapters, and eval-gated route graduation.
+native manifest writing, additional adapter command templates, real native
+usage collection for future plan-quota adapters, and eval-gated route
+graduation.
