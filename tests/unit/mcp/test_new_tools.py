@@ -157,7 +157,7 @@ class TestPapersTool:
             lambda *a, **k: ("# Insights", "# Paper"),
         )
         monkeypatch.setattr(
-            "distill.commands._logic._write_paper_artifacts",
+            "distill.commands._paper_artifacts.write_paper_artifacts",
             lambda *a, **k: tmp_path / "paper",
         )
         monkeypatch.setattr(

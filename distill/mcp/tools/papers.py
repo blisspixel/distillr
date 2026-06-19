@@ -19,11 +19,11 @@ _MAX_PAPERS = 25
 
 def _analyze_one(paper, topic, config, tracker, intent, *, analyze_paper) -> dict:
     """Analyze one paper into its result row; budget aborts re-raise."""
-    from distill.commands._logic import _write_paper_artifacts
+    from distill.commands._paper_artifacts import write_paper_artifacts
 
     try:
         insights, document = analyze_paper(paper, config, tracker=tracker, intent=intent)
-        _write_paper_artifacts(topic, paper, config, insights, document)
+        write_paper_artifacts(topic, paper, config, insights, document)
         return {"title": paper.title, "status": "ok"}
     except BudgetExceededError:
         raise  # the per-call spend cap is a hard stop; write_tool answers

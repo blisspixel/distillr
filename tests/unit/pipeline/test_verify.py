@@ -177,16 +177,16 @@ class TestSidecarAndHook:
 
 
 def test_paper_write_runs_verify_hook(tmp_path, monkeypatch):
-    """_write_paper_artifacts grounds the insight against the paper doc and
+    """write_paper_artifacts grounds the insight against the paper doc and
     leaves a _Verify.json sidecar beside the insight artifact."""
-    from distill import _cli_impl
+    from distill.commands._paper_artifacts import write_paper_artifacts
     from distill.config import DistillConfig
     from distill.ingestors.papers.arxiv import PaperRecord
 
     config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
     record = PaperRecord(paper_id="2601.00001v1", title="T", abstract="a")
 
-    paper_dir = _cli_impl._write_paper_artifacts(
+    paper_dir = write_paper_artifacts(
         "tkg",
         record,
         config,
@@ -203,7 +203,7 @@ def test_paper_write_runs_verify_hook(tmp_path, monkeypatch):
 
 
 def test_paper_write_verify_off_skips_sidecar(tmp_path, monkeypatch):
-    from distill import _cli_impl
+    from distill.commands._paper_artifacts import write_paper_artifacts
     from distill.config import DistillConfig
     from distill.ingestors.papers.arxiv import PaperRecord
 
@@ -212,7 +212,7 @@ def test_paper_write_verify_off_skips_sidecar(tmp_path, monkeypatch):
     )
     record = PaperRecord(paper_id="2601.00002v1", title="T2", abstract="a")
 
-    paper_dir = _cli_impl._write_paper_artifacts(
+    paper_dir = write_paper_artifacts(
         "tkg", record, config, insights="- 99.9 MRR.", document="72.6 MRR."
     )
 
@@ -222,7 +222,7 @@ def test_paper_write_verify_off_skips_sidecar(tmp_path, monkeypatch):
 def test_paper_write_strict_refuses_insight_but_keeps_receipt(tmp_path):
     """Strict mode: the unsupported insight is NOT committed; the paper doc
     (the receipt) and the sidecar (the why) still are."""
-    from distill import _cli_impl
+    from distill.commands._paper_artifacts import write_paper_artifacts
     from distill.config import DistillConfig
     from distill.ingestors.papers.arxiv import PaperRecord
 
@@ -231,7 +231,7 @@ def test_paper_write_strict_refuses_insight_but_keeps_receipt(tmp_path):
     )
     record = PaperRecord(paper_id="2601.00003v1", title="T3", abstract="a")
 
-    paper_dir = _cli_impl._write_paper_artifacts(
+    paper_dir = write_paper_artifacts(
         "tkg", record, config, insights="- Reaches 99.9 MRR.", document="reaches 72.6 MRR."
     )
 
@@ -243,7 +243,7 @@ def test_paper_write_strict_refuses_insight_but_keeps_receipt(tmp_path):
 
 
 def test_paper_write_strict_clean_insight_is_written(tmp_path):
-    from distill import _cli_impl
+    from distill.commands._paper_artifacts import write_paper_artifacts
     from distill.config import DistillConfig
     from distill.ingestors.papers.arxiv import PaperRecord
 
@@ -252,7 +252,7 @@ def test_paper_write_strict_clean_insight_is_written(tmp_path):
     )
     record = PaperRecord(paper_id="2601.00004v1", title="T4", abstract="a")
 
-    paper_dir = _cli_impl._write_paper_artifacts(
+    paper_dir = write_paper_artifacts(
         "tkg", record, config, insights="- Reaches 72.6 MRR.", document="reaches 72.6 MRR."
     )
 

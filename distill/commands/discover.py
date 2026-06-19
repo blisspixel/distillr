@@ -30,7 +30,6 @@ from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
 from distill.commands._logic import (
-    _ACCENT,
     _discover_fetch_videos,
     _discover_generate_queries,
     _discover_ingest_set,
@@ -79,6 +78,8 @@ __all__ = [
     "site_cmd",
     "synthesize_cmd",
 ]
+
+_ACCENT = "rgb(100,149,237)"
 
 
 def synthesize_cmd(

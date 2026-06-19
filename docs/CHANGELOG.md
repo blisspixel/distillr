@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Moved global output-mode setup into `distill.commands._helpers`, keeping `_logic.py` under its lowered module-size ratchet.
 - Moved watch-owned display helpers into `distill.commands.watch`, repointed the goal-refresh test, preserved the `distill.cli._format_date` compatibility export from `cli_shared`, and lowered the `_logic.py` module-size ratchet from 1444 to 1355 lines.
 - Moved site-ingest helpers into `distill.commands._site_ingest`, repointed CLI and MCP callers plus tests, preserved `distill.cli` compatibility re-exports, and lowered the `_logic.py` module-size ratchet from 1355 to 1077 lines.
+- Moved paper artifact writing into `distill.commands._paper_artifacts`, repointed CLI, MCP, discover, and verify tests, removed dead scaffold comments, brought `_logic.py` below the 1000-line cap at 981 lines, and removed the module-size allowlist entry.
 - Corrected the default report method label from 3-phase to 4-phase.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.

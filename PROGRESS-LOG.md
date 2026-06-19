@@ -300,6 +300,38 @@
 - Move the next small helper set, likely paper artifact writing or root callback
   setup, to get `_logic.py` below the 1000-line cap.
 
+### Cycle 44 - Paper Artifact Helper Decomposition
+
+- External spend: `$0.00`.
+- Added `distill.commands._paper_artifacts` as the canonical owner for paper
+  receipt writing, insight writing, and the write-time verify hook.
+- Repointed the paper CLI command, MCP paper tool, and verify/MCP tests to the
+  new paper artifact owner.
+- Preserved `_logic._write_paper_artifacts` as a compatibility alias for old
+  `_cli_impl` imports and the discover ingest bridge.
+- Removed dead `_logic.py` scaffold comments and the unused `_ACCENT` constant;
+  `discover.py`, `watch.py`, and `topic_watch.py` now own their accent values.
+- Removed the `_logic.py` module-size allowlist entry after the file crossed
+  below the 1000-line cap at 981 lines.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/pipeline/test_verify.py tests/unit/mcp/test_new_tools.py::TestPapersTool tests/unit/commands/test_ingest_failure_isolation.py::TestPaperLoopIsolation tests/unit/commands/test_cli_wiring.py::TestWatchCommands::test_papers_command_searches_and_writes_synthesis tests/unit/test_module_sizes.py -q`
+    passed: 43 passed.
+  - `uv run ruff check distill/commands/_logic.py distill/commands/_paper_artifacts.py distill/commands/papers.py distill/commands/discover.py distill/commands/watch.py distill/commands/topic_watch.py distill/mcp/tools/papers.py tests/unit/mcp/test_new_tools.py tests/unit/pipeline/test_verify.py tests/unit/test_module_sizes.py`
+    passed.
+  - `uv run ruff format --check distill/commands/_logic.py distill/commands/_paper_artifacts.py distill/commands/papers.py distill/commands/discover.py distill/commands/watch.py distill/commands/topic_watch.py distill/mcp/tools/papers.py tests/unit/mcp/test_new_tools.py tests/unit/pipeline/test_verify.py tests/unit/test_module_sizes.py`
+    passed: 10 files already formatted.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 449 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2511
+    passed, 8 deselected, 1 warning, 82.77% coverage.
+
+### Next
+
+- Continue shrinking the remaining learning, discover, and process helper body
+  toward deleting `_logic.py` as a named module.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

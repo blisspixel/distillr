@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: in progress (Phase 1 done; Phase 2 ~90% - `_logic.py` is down from
-> 9,373 to 1,077 lines, no command sub-apps left). Remediation #1 from
+> Status: in progress (Phase 1 done; Phase 2 ~92% - `_logic.py` is down from
+> 9,373 to 981 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,13 +11,13 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 1,077 lines and shrinking; see Phase 2). It
+command group per file" target (now 981 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
 the single worst offender. Goal: every command group in its own
-`distill/commands/<group>.py`, `_logic.py` shrinks to ≤1000 then disappears as a
-named module, the size-ratchet allowlist entry drops to zero.
+`distill/commands/<group>.py`, `_logic.py` shrinks below 1000 lines, disappears
+as a named module, and the size-ratchet allowlist stays empty.
 
 ## The hazard (why naïve "move the function" false-greens)
 
@@ -126,9 +126,13 @@ slice with the ratchet lowered to match:
 - **Site-ingest helpers** (`process_site_seed`, content hashing, and section
   change summaries) -> `commands/_site_ingest.py`; CLI, MCP, discover, and tests
   now patch the new owner.
+- **Paper artifact writing** (`write_paper_artifacts`) ->
+  `commands/_paper_artifacts.py`; CLI, MCP, discover, and verify tests now
+  patch the new owner, while `_logic` keeps only a compatibility alias.
 
-`_logic.py` is down from **9,373 -> 1,077 lines**; 13 dead scaffold modules were
-deleted along the way.
+`_logic.py` is down from **9,373 -> 981 lines**; 13 dead scaffold modules were
+deleted along the way, and the remaining dead scaffold comments in `_logic.py`
+were removed with the paper artifact move.
 
 **What still lives in `_logic.py`:**
 
@@ -137,14 +141,14 @@ deleted along the way.
   learning cluster (`_select_learning_videos`, `_expand_learning_queries`,
   `_process_learning_selection`, and the `_preview_learning_selection` /
   `_run_learning_command` injection wrappers), the
-  discover/process helpers (`_discover_*`, `_process_video`, `_process_site_seed`,
-  `_write_paper_artifacts`), topic-change bridge exports, and compatibility
+  discover/process helpers (`_discover_*`, `_process_video`), topic-change bridge exports, and compatibility
   re-exports still expected through `distill._cli_impl`.
 
 **Next slices (recommended order):**
 
-1. **The learning / discover / process helper body** folds into the foundation or
-   the command modules that own it, until `_logic.py` drops below the 1000-line cap.
+1. **The remaining learning / discover / process helper body** folds into the
+   foundation or the command modules that own it, keeping `_logic.py` under the
+   1000-line cap while it shrinks toward deletion.
 2. **The root callback** moves to `cli.py` / `distill/_app.py` and `_logic`
    disappears as a named module.
 
@@ -173,7 +177,7 @@ load-bearing (the home-screen tests pass *because* `dashboard.get_config` is
 patched, not by accident). The per-PR grep gate plus a periodic false-pass sweep
 are both part of the contract for Phase 2.
 
-The endpoint is unchanged: `_logic.py` shrinks below the 1000-line cap, then
-disappears as a named module, and the ratchet allowlist empties. `cli.py` becomes
+The endpoint is unchanged: `_logic.py` is now below the 1000-line cap and the
+ratchet allowlist is empty; next it disappears as a named module. `cli.py` becomes
 the wiring-only entry point the [target layout](../../ROADMAP.md#target-package-layout-10)
 describes.

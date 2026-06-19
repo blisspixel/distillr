@@ -1,9 +1,9 @@
 """arXiv paper ingestion commands, extracted from the _logic monolith.
 
 `distill paper` (single arXiv paper) and `distill papers` (query-expanded,
-LLM-reranked multi-paper ingest with cross-paper synthesis). The paper-writing
-and shared concept/artifact helpers stay in _logic (used by the MCP papers tool
-and other commands) and are imported back. Registered via register().
+LLM-reranked multi-paper ingest with cross-paper synthesis). Paper artifact
+writing lives in `_paper_artifacts`; shared concept helpers stay in _logic
+during the decomposition. Registered via register().
 """
 
 from __future__ import annotations
@@ -25,10 +25,8 @@ from distill.commands._learning import (
     _display_ranked_papers,
     _expand_paper_queries,
 )
-from distill.commands._logic import (
-    _run_concepts_after_ingest,
-    _write_paper_artifacts,
-)
+from distill.commands._logic import _run_concepts_after_ingest
+from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
 from distill.ingestors.papers.arxiv import (
     fetch_arxiv_paper,
     search_arxiv_multi,

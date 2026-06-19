@@ -390,3 +390,10 @@ site content hashing, and section-change summaries now live in
 `distill.commands._site_ingest`; CLI, MCP, discover, and tests patch that
 canonical owner. `distill.cli` keeps compatibility re-exports for the private
 site helper names, and `_logic.py` is down to the 1077-line ratchet.
+
+Cycle 44 crosses the sub-1000 `_logic.py` milestone. Paper artifact writing now
+lives in `distill.commands._paper_artifacts`; paper CLI, MCP paper tools,
+discover ingestion, and verify tests use the new canonical owner. `_logic.py`
+keeps only the private compatibility alias for old `_cli_impl` imports, dead
+scaffold comments were removed, and the module-size allowlist is empty because
+`_logic.py` is now 981 lines.

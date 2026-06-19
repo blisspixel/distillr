@@ -9,11 +9,9 @@ The ``app`` Typer instance defined here is the canonical top-level app used at
 runtime.
 """
 
-import json
 import os as os  # compatibility export for distill._cli_impl
 import sys
 from datetime import datetime
-from pathlib import Path
 from types import SimpleNamespace
 
 import typer
@@ -44,6 +42,7 @@ from distill.cli_shared import (
 from distill.commands import _discover_ingest as _discover_ingest_support
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
+from distill.commands import _paper_artifacts as _paper_artifacts_support
 from distill.commands import _site_ingest as _site_ingest_support
 from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import (
@@ -64,10 +63,7 @@ from distill.config import DistillConfig
 # Doctor check/probe helpers live in distill.doctor.checks; the two used by the
 # doctor command (still in this module) are re-imported so it finds them in this
 # namespace. init + the MCP doctor tool import from distill.doctor.checks directly.
-from distill.ingestors.papers.arxiv import (
-    PaperRecord,
-    build_paper_document,
-)
+from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.browser_search import search_youtube_results
 from distill.ingestors.youtube.discovery import (
@@ -78,12 +74,7 @@ from distill.ingestors.youtube.discovery import (
 )
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
-from distill.library.paths import (
-    base_frontmatter,
-    find_artifact,
-    tags_for,
-    write_markdown_artifact,
-)
+from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
@@ -128,6 +119,7 @@ _learning_flow_generate_and_export_topic_brief = (
     _learning_flow_support.generate_and_export_topic_brief
 )
 _RankedDiscoverItem = _discover_support.RankedDiscoverItem
+_write_paper_artifacts = _paper_artifacts_support.write_paper_artifacts
 
 _read_json_file = _topic_changes_support._read_json_file
 _topic_change_history_path = _topic_changes_support._topic_change_history_path
@@ -745,94 +737,6 @@ concepts_app = typer.Typer(
 app.add_typer(concepts_app, name="concepts", rich_help_panel="Library")
 # The `concepts build` command (and the log/diff/rollback recovery surface) live
 # in commands/concepts.py and are attached to concepts_app via its register().
-
-
-# ─── Cleanup ────────────────────────────────────────────────────────
-
-
-# `costs` + `cleanup` (and the cost-private telemetry helpers) moved to
-# commands/maintain.py (decomposition: Maintain slice 1).
-
-
-# ─── Migration ───────────────────────────────────────────────────────
-
-
-# ─── Topic Watch ────────────────────────────────────────────────────
-
-# ─── Watch List ──────────────────────────────────────────────────────
-
-
-_ACCENT = "rgb(100,149,237)"
-
-
-# ─── Catch-Up ────────────────────────────────────────────────────────
-
-
-def _write_paper_artifacts(
-    topic: str,
-    paper: PaperRecord,
-    config: DistillConfig,
-    insights: str,
-    document: str | None = None,
-) -> Path:
-    paper_dir = config.paper_dir(topic, paper.title, paper.paper_id)
-    paper_dir.mkdir(parents=True, exist_ok=True)
-    (paper_dir / "metadata.json").write_text(
-        json.dumps(paper.metadata(), indent=2),
-        encoding="utf-8",
-    )
-    paper_doc = document if document is not None else build_paper_document(paper)
-    paper_frontmatter = base_frontmatter(
-        artifact_type="paper",
-        title=paper.title,
-        topic=topic,
-        source=paper.source,
-        source_id=paper.paper_id,
-        url=paper.abs_url,
-        date=paper.published_at,
-        authors=paper.authors,
-        tags=[*tags_for(topic, paper.source), *paper.categories],
-        synthesis_scope="source-content",
-        extra={
-            "paper_id": paper.paper_id,
-            "pdf_url": paper.pdf_url,
-            "updated_at": paper.updated_at,
-            "categories": paper.categories,
-            "legacy_filename": "paper.md",
-        },
-    )
-    write_markdown_artifact(paper_dir, "paper", paper_doc, frontmatter=paper_frontmatter)
-    # Write-time verify hook: ground the insight's numeric claims against the
-    # paper text receipt *before* committing it; strict mode refuses the write.
-    from distill.library.paths import artifact_filename
-    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
-
-    outcome = run_verify_hook(
-        paper_dir,
-        insights,
-        paper_doc,
-        mode=resolve_verify_mode(config.distill_verify),
-        insight_name=artifact_filename(paper_dir.name, "insights"),
-        source_name=artifact_filename(paper_dir.name, "paper"),
-    )
-    if outcome is not None and not outcome.report.ok:
-        style = "red" if outcome.refused else "yellow"
-        console.print(f"    [{style}]{outcome.summary_line}[/{style}]")
-    if outcome is not None and outcome.refused:
-        return paper_dir
-
-    write_markdown_artifact(
-        paper_dir,
-        "insights",
-        insights,
-        frontmatter={
-            **paper_frontmatter,
-            "type": "insights",
-            "synthesis_scope": "single-paper",
-            "legacy_filename": "insights.md",
-        },
-    )
-    return paper_dir
 
 
 def _is_fresh_topic(config, topic_name: str) -> bool:

@@ -23,7 +23,6 @@ from distill.commands._helpers import (
     get_config,
 )
 from distill.commands._logic import (
-    _ACCENT,
     _preview_learning_selection,
     _run_learning_command,
 )
@@ -50,6 +49,8 @@ from distill.pipeline.dashboard_data import (
     topic_watch_budget_messages as _topic_watch_budget_messages,
 )
 from distill.pipeline.summary import log_preview_cost
+
+_ACCENT = "rgb(100,149,237)"
 
 topic_watch_app = typer.Typer(
     help="Manage your recurring topic watches",

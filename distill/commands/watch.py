@@ -3,7 +3,7 @@
 Extracted from the _logic.py monolith. ``watch`` manages a channel watch list;
 ``catch-up`` refreshes every watched channel. Shared helpers that other commands
 also use (_process_video, _ensure_channel_context, the shell-completion
-callbacks, _ACCENT) remain in _logic and are imported back.
+callbacks) remain in _logic and are imported back.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from distill.commands._helpers import (
     get_config,
 )
 from distill.commands._logic import (
-    _ACCENT,
     _ensure_channel_context,
     _process_video,
 )
@@ -45,6 +44,8 @@ from distill.pipeline.summary import (
     display_summary,
 )
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+
+_ACCENT = "rgb(100,149,237)"
 
 watch_app = typer.Typer(
     help="Manage your channel watch list",
