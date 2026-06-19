@@ -308,7 +308,8 @@ boundaries:
    rows, and checked workload runs verify manifest reads, writes, and cost mode
    against the package. A native result writer can write validated manifests
    from captured CLI output only when the caller supplies real native usage
-   signals. Command planners may record exact argv shapes while still blocked.
+   signals. Command planners may record exact argv shapes, staged prompt paths,
+   result capture paths, and allowed scratch capture files while still blocked.
    This does not bypass adapter support, auth, usage collection, or eval gates.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per

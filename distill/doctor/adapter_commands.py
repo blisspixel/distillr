@@ -21,6 +21,9 @@ class AdapterCommandPlan:
     adapter: str
     workload: str
     argv: tuple[str, ...] = ()
+    stdin_path: str = ""
+    result_text_path: str = ""
+    allowed_new_files: tuple[str, ...] = ()
     blocked_reasons: list[str] = field(default_factory=list)
 
     @property
@@ -32,6 +35,9 @@ class AdapterCommandPlan:
             "adapter": self.adapter,
             "workload": self.workload,
             "argv": list(self.argv),
+            "stdin_path": self.stdin_path,
+            "result_text_path": self.result_text_path,
+            "allowed_new_files": list(self.allowed_new_files),
             "blocked_reasons": self.blocked_reasons,
             "ok": self.ok,
         }
@@ -46,7 +52,9 @@ def plan_adapter_command(
     """Return the future exact argv for an adapter workload plus blockers."""
 
     blocked_reasons: list[str] = []
-    if probe is not None:
+    if probe is None:
+        blocked_reasons.append("adapter doctor probe is required")
+    else:
         blocked_reasons.extend(probe.blocked_reasons)
         if not probe.installed:
             blocked_reasons.append(f"{adapter} is not installed")
@@ -58,13 +66,25 @@ def plan_adapter_command(
             blocked_reasons.append("adapter is not no-metered eligible")
 
     if adapter == "codex":
-        argv, template_blockers = _codex_command(workload)
+        argv, template_blockers, metadata = _codex_command(workload)
         blocked_reasons.extend(template_blockers)
         return AdapterCommandPlan(
             adapter=adapter,
             workload=workload.workload,
             argv=argv,
             blocked_reasons=_dedupe(blocked_reasons),
+            **metadata,
+        )
+
+    if adapter == "grok":
+        argv, template_blockers, metadata = _grok_command(workload)
+        blocked_reasons.extend(template_blockers)
+        return AdapterCommandPlan(
+            adapter=adapter,
+            workload=workload.workload,
+            argv=argv,
+            blocked_reasons=_dedupe(blocked_reasons),
+            **metadata,
         )
 
     blocked_reasons.append(f"adapter command template is not implemented: {adapter}")
@@ -75,13 +95,15 @@ def plan_adapter_command(
     )
 
 
-def _codex_command(workload: AdapterWorkloadPackage) -> tuple[tuple[str, ...], list[str]]:
+def _codex_command(
+    workload: AdapterWorkloadPackage,
+) -> tuple[tuple[str, ...], list[str], dict[str, Any]]:
     blocked_reasons: list[str] = []
     if workload.command_class != "read-only":
         blocked_reasons.append("codex command template currently supports read-only workloads only")
     if not workload.output_schema_path:
         blocked_reasons.append("codex command template requires output_schema_path")
-    blocked_reasons.append("adapter-specific capture wiring is not implemented")
+    blocked_reasons.append("native usage collection is not implemented: codex")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
         (
@@ -98,6 +120,45 @@ def _codex_command(workload: AdapterWorkloadPackage) -> tuple[tuple[str, ...], l
             "-",
         ),
         blocked_reasons,
+        {
+            "stdin_path": workload.prompt_path,
+            "result_text_path": "result.txt",
+            "allowed_new_files": ("result.txt",),
+        },
+    )
+
+
+def _grok_command(
+    workload: AdapterWorkloadPackage,
+) -> tuple[tuple[str, ...], list[str], dict[str, Any]]:
+    blocked_reasons: list[str] = []
+    if workload.command_class != "read-only":
+        blocked_reasons.append("grok command template currently supports read-only workloads only")
+    if not workload.output_schema_path:
+        blocked_reasons.append("grok command template requires output_schema_path")
+    blocked_reasons.append("grok command template does not enforce output_schema_path natively")
+    blocked_reasons.append("native usage collection is not implemented: grok")
+    return (
+        (
+            "grok",
+            "--no-auto-update",
+            "--prompt-file",
+            workload.prompt_path,
+            "--output-format",
+            "json",
+            "--cwd",
+            ".",
+            "--disable-web-search",
+            "--no-subagents",
+            "--no-memory",
+            "--max-turns",
+            "1",
+        ),
+        blocked_reasons,
+        {
+            "result_text_path": "result.txt",
+            "allowed_new_files": ("result.txt",),
+        },
     )
 
 

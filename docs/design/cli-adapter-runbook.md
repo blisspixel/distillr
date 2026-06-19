@@ -419,8 +419,10 @@ manifests from captured CLI output, workload package hashes, and
 caller-supplied native usage. It does not invent usage data or make an adapter
 eligible.
 `distill.doctor.adapter_commands` records the Codex read-only argv template,
-but keeps it blocked until adapter-specific capture wiring, native usage
-collection, current support statement, auth proof, and eval evidence exist.
+plus the Grok read-only argv template. Command plans include staged prompt,
+result capture, and allowed scratch capture metadata, but keep templates
+blocked until native usage collection, current support statement, auth proof,
+and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

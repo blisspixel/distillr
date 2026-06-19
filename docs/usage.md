@@ -261,10 +261,12 @@ native result writer can turn captured CLI output plus caller-supplied native
 usage into a validated `adapter-result.v1` scratch manifest. A
 ledger helper can convert verified adapter manifests into cost-tracker rows and
 metadata. The Codex read-only command planner records the future
-`codex exec --sandbox read-only` argv shape, but keeps it blocked until
-adapter-specific capture wiring, native usage collection, and adapter gates
-exist. Distill still does not expose any plan-quota adapter as an eligible
-route by itself.
+`codex exec --sandbox read-only` argv shape, and the Grok planner records a
+blocked `grok --no-auto-update --prompt-file ... --output-format json` shape.
+Both plans include staged prompt, result capture, and allowed scratch capture
+metadata, but stay blocked until native usage collection and adapter gates
+exist. Distill still does not expose any plan-quota adapter as an eligible route
+by itself.
 
 ## Websites
 

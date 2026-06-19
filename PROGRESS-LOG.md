@@ -453,6 +453,38 @@
 - Continue adapter-specific capture wiring and native usage collection for
   read-only command templates.
 
+### Cycle 20 - Command-Plan Capture Metadata
+
+- External spend: `$0.00`.
+- Extended `AdapterCommandPlan` with staged prompt path, result capture path,
+  and allowed scratch capture files so future runner wiring can compose command
+  plans with the workload runner without guessing filesystem side effects.
+- Updated the Codex read-only plan to expose its `prompt.md` stdin path and
+  `result.txt` capture file, and shifted its hard blocker to native usage
+  collection.
+- Added a blocked Grok read-only command planner using
+  `grok --no-auto-update --prompt-file prompt.md --output-format json` with
+  no web search, no subagents, no memory, and a single-turn limit.
+- Kept all planned adapter routes ineligible. Command plans still require an
+  adapter doctor probe and remain blocked until native usage collection,
+  support proof, auth proof, and eval evidence exist.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_commands.py` passed: 2 files already formatted.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_commands.py` passed: 5 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 441 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2453
+    passed, 8 deselected, 1 warning, 82.16% coverage.
+
+### Next
+
+- Continue native usage collection and remaining adapter-specific command
+  templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

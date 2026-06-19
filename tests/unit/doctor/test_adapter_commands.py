@@ -41,7 +41,12 @@ def test_codex_command_plan_records_read_only_argv_but_stays_blocked():
         "-",
     )
     assert not plan.ok
-    assert "adapter-specific capture wiring is not implemented" in plan.blocked_reasons
+    assert plan.stdin_path == "prompt.md"
+    assert plan.result_text_path == "result.txt"
+    assert plan.allowed_new_files == ("result.txt",)
+    assert "adapter doctor probe is required" in plan.blocked_reasons
+    assert "native usage collection is not implemented: codex" in plan.blocked_reasons
+    assert plan.to_dict()["allowed_new_files"] == ["result.txt"]
     assert plan.to_dict()["ok"] is False
 
 
@@ -50,6 +55,34 @@ def test_codex_command_plan_requires_output_schema():
 
     assert "--output-schema" in plan.argv
     assert "codex command template requires output_schema_path" in plan.blocked_reasons
+    assert not plan.ok
+
+
+def test_grok_command_plan_records_read_only_argv_but_stays_blocked():
+    plan = plan_adapter_command("grok", _workload())
+
+    assert plan.argv == (
+        "grok",
+        "--no-auto-update",
+        "--prompt-file",
+        "prompt.md",
+        "--output-format",
+        "json",
+        "--cwd",
+        ".",
+        "--disable-web-search",
+        "--no-subagents",
+        "--no-memory",
+        "--max-turns",
+        "1",
+    )
+    assert plan.result_text_path == "result.txt"
+    assert plan.allowed_new_files == ("result.txt",)
+    assert "adapter doctor probe is required" in plan.blocked_reasons
+    assert (
+        "grok command template does not enforce output_schema_path natively" in plan.blocked_reasons
+    )
+    assert "native usage collection is not implemented: grok" in plan.blocked_reasons
     assert not plan.ok
 
 
@@ -78,5 +111,6 @@ def test_command_plan_blocks_unknown_adapter_template():
     plan = plan_adapter_command("claude", _workload())
 
     assert plan.argv == ()
-    assert plan.blocked_reasons == ["adapter command template is not implemented: claude"]
+    assert "adapter doctor probe is required" in plan.blocked_reasons
+    assert "adapter command template is not implemented: claude" in plan.blocked_reasons
     assert not plan.ok

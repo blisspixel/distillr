@@ -202,7 +202,13 @@ hashes, and caller-supplied native usage metadata, and the workload runner now
 allows declared capture files such as `result.txt` while blocking undeclared
 scratch writes.
 
+Cycle 20 added command-plan capture metadata and a blocked Grok read-only
+template. Codex and Grok plans now record future argv shapes plus staged prompt
+paths, result capture paths, and allowed scratch capture files, while remaining
+ineligible until native usage collection, support proof, auth proof, and eval
+evidence exist.
+
 Remaining near-term gaps are official installed-session auth proof,
-adapter-specific capture wiring, additional adapter command templates, real
-native usage collection for future plan-quota adapters, and eval-gated route
-graduation.
+remaining adapter-specific capture wiring, remaining adapter command templates,
+real native usage collection for future plan-quota adapters, and eval-gated
+route graduation.
