@@ -184,6 +184,13 @@ have a checked scratch-relative package shape before any CLI receives prompts
 or source files. The same cycle tightened manifest path normalization so raw
 `.` path segments cannot be normalized away.
 
+Cycle 17 added a checked adapter workload runner that composes
+`adapter-workload.v1` packages with the scratch adapter runner. It runs exact
+argv arrays only in scratch and blocks result manifests that read outside the
+declared package, write outside declared outputs, or report a different cost
+mode. The manifest parser now also rejects read-only results that declare
+written files.
+
 Remaining near-term gaps are official installed-session auth proof,
-adapter-specific workload execution, real native usage collection for future
+adapter-specific command templates, real native usage collection for future
 plan-quota adapters, and eval-gated route graduation.

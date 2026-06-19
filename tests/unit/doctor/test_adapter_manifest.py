@@ -81,6 +81,13 @@ def test_adapter_manifest_requires_usage_signal():
         validate_adapter_result_manifest(payload)
 
 
+def test_adapter_manifest_rejects_read_only_writes():
+    payload = _manifest(command_class="read-only", files_written=["result.json"])
+
+    with pytest.raises(ValidationError, match="read-only manifests cannot record"):
+        validate_adapter_result_manifest(payload)
+
+
 def test_adapter_manifest_accepts_quota_stop_metadata():
     manifest = validate_adapter_result_manifest(
         _manifest(

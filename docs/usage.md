@@ -254,11 +254,12 @@ values. The manifest contract includes the before/after scratch write check
 future runners must use, plus structured `quota_stop` metadata for future
 quota and rate-limit stops. A reusable runner primitive can execute exact argv
 arrays inside scratch with shell disabled and API-key environment variables
-stripped. A ledger helper can convert verified adapter manifests into
-cost-tracker rows and metadata. The JSON report also exposes the
-`adapter-workload.v1` package contract for future scratch-relative read-only
-adapter tasks. Distill still does not execute plan-quota adapter workloads or
-make plan-quota routes eligible by itself.
+stripped. A workload runner can load a checked `adapter-workload.v1` package,
+execute an exact argv in scratch, and reject results that read outside the
+package, write outside declared outputs, or report a different cost mode. A
+ledger helper can convert verified adapter manifests into cost-tracker rows and
+metadata. Distill still does not expose any plan-quota adapter as an eligible
+route by itself.
 
 ## Websites
 

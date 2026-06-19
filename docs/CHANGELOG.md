@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added strict `quota_stop` metadata to the future `adapter-result.v1` manifest so quota and rate-limit stops cannot hide in free-text stop reasons.
 - Added an adapter ledger helper that converts verified `adapter-result.v1` manifests into cost-tracker rows and metadata without making any adapter route live.
 - Added the strict `adapter-workload.v1` package parser and exposed its contract through `distill doctor --adapters` JSON for future scratch-relative read-only adapter tasks.
+- Added a checked adapter workload runner that loads `adapter-workload.v1`, runs exact argv arrays in scratch, and blocks result manifests that read, write, or report cost mode outside the package contract.
 
 ### Changed
 

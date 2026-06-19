@@ -350,9 +350,11 @@ primitive can execute exact argv arrays in scratch with shell disabled and
 API-key environment variables stripped. A ledger helper can convert verified
 adapter manifests into zero-dollar included-plan usage rows and metadata, but
 no plan-quota CLI route is live until auth proof, a current no-metered support
-statement, adapter workload execution wiring, and eval gates clear. The doctor
-JSON also exposes the `adapter-workload.v1` package contract for future
-scratch-relative read-only adapter tasks.
+statement, adapter-specific command templates, and eval gates clear. The
+doctor JSON also exposes the `adapter-workload.v1` package contract for future
+scratch-relative read-only adapter tasks, and a checked workload runner can
+verify declared reads, writes, cost mode, and result manifests for exact-argv
+experiments.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

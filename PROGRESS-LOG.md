@@ -368,6 +368,36 @@
 - Continue official installed-session auth proof and adapter-specific read-only
   workload execution.
 
+### Cycle 17 - Checked Adapter Workload Runner
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_workload_runner`, which composes a checked
+  `adapter-workload.v1` package with the scratch-only adapter runner.
+- The workload runner executes exact argv arrays only in scratch and blocks
+  result manifests that read outside the declared workload package, write
+  outside declared outputs, or report a different cost mode.
+- Tightened `adapter-result.v1` so read-only result manifests cannot declare
+  written files.
+- This still does not make any plan-quota route live. It is the checked
+  execution primitive needed before adapter-specific command templates and
+  eval fixtures can be wired.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_manifest.py distill\doctor\adapter_workload.py distill\doctor\adapter_workload_runner.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapter_workload.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_runner.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_manifest.py distill\doctor\adapter_workload.py distill\doctor\adapter_workload_runner.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapter_workload.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_runner.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapter_workload.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_runner.py` passed: 41 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 437 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2441
+    passed, 8 deselected, 1 warning, 82.05% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and adapter-specific command
+  templates for read-only workload prototypes.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

@@ -197,6 +197,8 @@ class AdapterResultManifest(BaseModel):
     def _enforce_policy(self) -> Self:
         if not self.usage.has_signal:
             raise ValueError("usage must include token counts or native usage metadata")
+        if self.command_class == "read-only" and self.files_written:
+            raise ValueError("read-only manifests cannot record files_written")
         if self.command_class == "scratch-write" and not self.files_written:
             raise ValueError("scratch-write manifests must record files_written")
         quota_stop_reason = _is_quota_stop_reason(self.stop_reason)
