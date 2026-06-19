@@ -21,6 +21,22 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity | Planned | Included quota only if proven | Not live providers yet. They need adapter doctor preflights, support statements, scratch manifests, complete usage ledgering, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
+## Cost modes
+
+`DISTILL_COST_MODE` accepts:
+
+- `auto` - the default. Use the configured route behavior and normal budget
+  gates.
+- `no-metered` - refuse routes that would bill an API or have ambiguous billing
+  semantics. Today that allows local Ollama and LM Studio routes, and blocks xAI,
+  Gemini, OpenAI, Anthropic, `agent`, and unproven adapter routes.
+- `paid-ok` - allow metered provider routes, subject to explicit workflow caps.
+
+This is a route-policy guard, not a quality judgment. Local routes still need
+`distill eval` evidence before becoming a recommended default for a workload.
+Plan-quota CLIs remain blocked in `no-metered` until adapter doctor, support
+statement, usage ledger, scratch manifest, and eval proof exist.
+
 ## Per-stage cost
 
 | Stage | Typical cost | Basis (@ grok-4.3) |

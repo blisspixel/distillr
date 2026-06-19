@@ -10,9 +10,10 @@ import time
 from dataclasses import dataclass, replace
 from typing import Any
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
+from distill.llm.cost_policy import CostMode, normalize_cost_mode, route_block_reason
 from distill.llm.metadata import LOCAL_PROVIDERS
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,8 @@ class RouterConfig(BaseSettings):
 
     # Global provider
     provider: str = "xai"
+    # DISTILL_COST_MODE: auto | no-metered | paid-ok
+    cost_mode: CostMode = "auto"
     # Tier defaults
     fast_model: str = "grok-4.3"
     premium_model: str = "grok-4.3"
@@ -122,6 +125,11 @@ class RouterConfig(BaseSettings):
 
     PREMIUM_WORKLOADS: tuple[str, ...] = ("site", "report")
 
+    @field_validator("cost_mode", mode="before")
+    @classmethod
+    def _normalize_cost_mode(cls, value: object) -> CostMode:
+        return normalize_cost_mode(value)
+
     @model_validator(mode="before")
     @classmethod
     def _populate_api_keys_from_env(cls, data: Any) -> Any:
@@ -154,15 +162,7 @@ class RouterConfig(BaseSettings):
 
     @model_validator(mode="after")
     def _default_ops_dir_to_library(self) -> RouterConfig:
-        """Fall back to ``<library_dir>/.distill`` when ops_dir is unset.
-
-        A bare ``RouterConfig()`` would otherwise leave ``ops_dir=""``, which
-        the agent provider resolves relative to the cwd and writes task files
-        (full prompts / transcripts) next to the user's shell. Anchoring to the
-        library keeps those inside the library boundary. The library path is
-        read from ``DISTILL_OUTPUT_DIR`` directly (not ``distill.config``) so
-        ``distill.llm`` stays decoupled per the import contract.
-        """
+        """Fall back to ``<library_dir>/.distill`` when ops_dir is unset."""
         if self.ops_dir:
             return self
         from pathlib import Path as _Path
@@ -212,10 +212,14 @@ class RouterConfig(BaseSettings):
 
     def validate_config(self, workload_tag: str = "") -> None:
         """Validate configuration eagerly.  Raise ``ConfigurationError`` early."""
-        if workload_tag:
-            provider_name, _ = self.resolve(workload_tag)
-        else:
-            provider_name = self.provider
+        provider_name = self.resolve(workload_tag)[0] if workload_tag else self.provider
+        blocked = route_block_reason(
+            cost_mode=self.cost_mode,
+            provider=provider_name,
+            workload=workload_tag,
+        )
+        if blocked:
+            raise ConfigurationError(blocked)
 
         key_map: dict[str, tuple[str | None, str | None]] = {
             "xai": ("xai_api_key", "XAI_API_KEY"),

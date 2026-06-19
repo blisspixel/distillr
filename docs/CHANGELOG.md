@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added the versioned recurring research profile parser and validator for `research-profile.v1` files, covering source declarations, freshness policy, output preferences, limits, and no-metered-cost profile invariants.
 - Added checked-in recurring profile examples for `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch`, each with a goal file and no-metered preview defaults.
 - Added `distill profile preview <name|path>` with JSON output and a human table, resolving current feed items, YouTube channel updates, domain seeds, repository seeds, and saved query preview commands without ingesting or analyzing anything.
+- Added the first `DISTILL_COST_MODE=auto|no-metered|paid-ok` foundation: config and router parsing, route classification, and fail-closed router refusal for API-billed or unknown routes in `no-metered`.
 
 ### Changed
 
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
 - Clarified the agentic-balance boundary for recurring profile preview: deterministic code owns fetch, parse, identity, freshness, limits, and cost refusal, while models own source fit, novelty, rumor classification, and priority.
 - Clarified local and plan-quota route policy: local Ollama/LM Studio still analyzes freshly fetched receipts, plan-quota CLIs remain adapter-gated external workers, and Copilot-style AI-credit CLIs are credit-metered unless a future support statement proves otherwise.
+- Documented the current no-metered behavior: local Ollama and LM Studio routes are allowed by topology, xAI/Gemini/API routes are blocked, and unproven adapter routes such as `agent` stay blocked until adapter doctor, ledger, scratch-manifest, support-statement, and eval proof exist.
 
 ### Fixed
 

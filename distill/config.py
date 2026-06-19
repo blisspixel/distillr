@@ -1,8 +1,20 @@
 import warnings
 from pathlib import Path
+from typing import Literal, cast
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings
+
+type CostMode = Literal["auto", "no-metered", "paid-ok"]
+_VALID_COST_MODES: frozenset[str] = frozenset({"auto", "no-metered", "paid-ok"})
+
+
+def _normalize_cost_mode(value: object) -> CostMode:
+    text = str(value or "").strip().lower()
+    if text not in _VALID_COST_MODES:
+        allowed = ", ".join(sorted(_VALID_COST_MODES))
+        raise ValueError(f"cost_mode must be one of: {allowed}")
+    return cast(CostMode, text)
 
 
 def _default_library_dir(package_parent: Path | None = None) -> Path:
@@ -74,6 +86,10 @@ class DistillConfig(BaseSettings):
     # claims the source receipt doesn't support and writes anyway; "strict"
     # refuses the write; "off" skips the check.
     distill_verify: str = "warn"
+    # Cost policy (DISTILL_COST_MODE): auto keeps today's route behavior,
+    # no-metered refuses API-billed or ambiguous routes, and paid-ok allows
+    # metered routes within explicit caps.
+    distill_cost_mode: CostMode = "auto"
     # MCP posture (DISTILL_MCP_READ_ONLY): serve only the read surface --
     # write-side tools (spend/ingest/mutation) refuse with a clear message.
     # The recommended setting for agent-facing deployments.
@@ -90,6 +106,11 @@ class DistillConfig(BaseSettings):
     distill_mcp_ingest_allowlist: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+
+    @field_validator("distill_cost_mode", mode="before")
+    @classmethod
+    def _normalize_distill_cost_mode(cls, value: object) -> CostMode:
+        return _normalize_cost_mode(value)
 
     @property
     def library_dir(self) -> Path:

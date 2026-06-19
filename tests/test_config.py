@@ -57,6 +57,7 @@ class TestDistillConfig:
         assert config.xai_api_key.get_secret_value() == ""
         assert config.gemini_api_key.get_secret_value() == ""
         assert config.distill_default_months == 1
+        assert config.distill_cost_mode == "auto"
         assert config.xai_model_for("analysis") == "grok-4.3"
         assert config.xai_model_for("site") == "grok-4.3"
 
@@ -69,6 +70,13 @@ class TestDistillConfig:
         )
         assert config.xai_api_key.get_secret_value() == "xai-test"
         assert config.distill_default_months == 6
+
+    def test_cost_mode_normalizes_env_value(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_COST_MODE", " NO-METERED ")
+
+        config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
+
+        assert config.distill_cost_mode == "no-metered"
 
     def test_xai_model_overrides(self, tmp_path):
         config = DistillConfig(
