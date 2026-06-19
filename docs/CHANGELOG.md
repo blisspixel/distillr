@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a blocked Antigravity read-only command planner based on local `antigravity chat --help` evidence.
 - Added a generic stdout capture writer for adapter CLIs that need captured stdout written to `result.txt` before manifest validation.
 - Added a Claude JSON usage parser and capture writer that turn captured Claude Code JSON stdout into `native-usage.json`, `result.txt`, and a validated `adapter-result.v1` scratch manifest.
+- Added staged stdin support to the scratch adapter runner and workload runner so future CLI adapter templates can receive prompt files without shell piping.
 
 ### Changed
 

@@ -117,7 +117,9 @@
   declared outputs and unexpected new files are blockers.
 - Use `distill.doctor.adapter_workload_runner.run_adapter_workload()` for
   scratch workload experiments. It composes `adapter-workload.v1` with the
-  scratch runner and blocks read, write, or cost-mode drift.
+  scratch runner and blocks read, write, or cost-mode drift. Use its
+  `stdin_path` field when a command should receive a staged scratch file on
+  stdin without shell piping.
 - `distill.doctor.adapter_commands.plan_adapter_command()` may record future
   argv shapes, staged prompt paths, schema paths, result capture paths, and
   allowed scratch capture files, but a command plan is not eligible while

@@ -50,6 +50,7 @@ def test_adapter_runner_scrubs_env_and_accepts_valid_manifest(tmp_path):
         cwd: Path,
         env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         seen_env.update(env)
         (cwd / "result.json").write_text("{}", encoding="utf-8")
@@ -82,6 +83,7 @@ def test_adapter_runner_blocks_missing_manifest(tmp_path):
         _cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         return AdapterProcessResult(exit_code=0)
 
@@ -104,6 +106,7 @@ def test_adapter_runner_blocks_unexpected_scratch_writes(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "result.json").write_text("{}", encoding="utf-8")
         (cwd / "extra.txt").write_text("unexpected", encoding="utf-8")
@@ -133,6 +136,7 @@ def test_adapter_runner_blocks_manifest_identity_mismatch(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "result.json").write_text("{}", encoding="utf-8")
         (cwd / "adapter-result.json").write_text(
@@ -160,11 +164,44 @@ def test_adapter_runner_blocks_empty_argv(tmp_path):
     result = run_adapter_command(
         AdapterRunSpec(adapter="codex", argv=(), scratch_root=tmp_path),
         environ={},
-        runner=lambda _argv, _cwd, _env, _timeout: AdapterProcessResult(exit_code=0),
+        runner=lambda _argv, _cwd, _env, _timeout, _stdin: AdapterProcessResult(exit_code=0),
     )
 
     assert not result.ok
     assert result.blocked_reasons == ["adapter argv is empty"]
+
+
+def test_adapter_runner_passes_stdin_text(tmp_path):
+    seen_stdin = ""
+    _stage_source(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        stdin: str,
+    ) -> AdapterProcessResult:
+        nonlocal seen_stdin
+        seen_stdin = stdin
+        (cwd / "result.json").write_text("{}", encoding="utf-8")
+        (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_command(
+        AdapterRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "-"),
+            scratch_root=tmp_path,
+            command_class="scratch-write",
+            stdin_text="staged prompt",
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert seen_stdin == "staged prompt"
 
 
 def _stage_source(root: Path) -> None:

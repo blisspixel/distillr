@@ -188,9 +188,6 @@ def test_gemini_command_plan_records_headless_argv_but_stays_blocked():
     assert plan.native_usage_path == "native-usage.json"
     assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
-    assert "gemini command template requires stdin prompt support in runner" in (
-        plan.blocked_reasons
-    )
     assert "gemini command template does not enforce output_schema_path natively" in (
         plan.blocked_reasons
     )

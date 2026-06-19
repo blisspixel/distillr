@@ -281,7 +281,6 @@ def _gemini_command(
         )
     if not workload.output_schema_path:
         blocked_reasons.append("gemini command template requires output_schema_path")
-    blocked_reasons.append("gemini command template requires stdin prompt support in runner")
     blocked_reasons.append("gemini command template does not enforce output_schema_path natively")
     blocked_reasons.append("adapter-specific native usage capture is not implemented: gemini-cli")
     return (

@@ -259,12 +259,13 @@ Cycle 27 added a blocked Gemini CLI read-only command plan. Local Gemini CLI
 0.46.0 help exposes headless `--prompt`, `--output-format json`, and
 `--approval-mode plan`, so Distill now records the future argv shape with
 staged prompt, schema, result capture, and native usage capture metadata. The
-plan remains blocked because the runner still needs stdin prompt piping,
-stdout-to-`result.txt` capture, native schema enforcement is not exposed by the
-local help, native usage capture is not implemented, and the support, auth, and
-eval gates remain closed. The same cycle tightened Gemini-family billing
-preflights so `GOOGLE_API_KEY` blocks no-metered Gemini and Antigravity claims
-alongside `GEMINI_API_KEY`.
+plan remained blocked at that point because the runner still needed staged
+prompt stdin, stdout-to-`result.txt` capture, native schema enforcement was not
+exposed by the local help, native usage capture was not implemented, and the
+support, auth, and eval gates remained closed. Cycle 31 later removed the
+staged-stdin blocker. The same cycle tightened Gemini-family billing preflights
+so `GOOGLE_API_KEY` blocks no-metered Gemini and Antigravity claims alongside
+`GEMINI_API_KEY`.
 
 Cycle 28 added a blocked Antigravity read-only command plan. Local Antigravity
 1.107.0 help exposes `antigravity chat --mode ask -`, so Distill now records
@@ -293,6 +294,14 @@ uses the shared manifest writer so prompt/source hashes, policy, and scratch
 paths are still enforced. The command planner no longer carries the obsolete
 Claude native-usage blocker after schema inlining, but Claude remains
 route-blocked by support, auth, and eval gates.
+
+Cycle 31 added staged stdin support to the adapter runner boundary. A workload
+run spec can now name a scratch-relative `stdin_path`; the workload runner reads
+that file, rejects path escapes, and passes the content to the exact-argv
+runner without shell piping. The low-level subprocess runner sends that text on
+stdin. This removes the obsolete Gemini stdin blocker while leaving Gemini
+blocked on native schema enforcement, native usage capture, support, auth, and
+eval gates.
 
 Remaining near-term gaps are official installed-session auth proof,
 native usage collection and capture wiring for Grok, Gemini, and Antigravity,

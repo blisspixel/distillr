@@ -43,6 +43,7 @@ class AdapterWorkloadRunSpec:
     argv: tuple[str, ...]
     scratch_root: Path
     workload_path: Path = Path("adapter-workload.json")
+    stdin_path: Path | None = None
     scrubbed_env_vars: tuple[str, ...] = METERED_API_ENV_VARS
     allowed_new_files: tuple[str, ...] = ()
     capture_writer: WorkloadCaptureWriter | None = None
@@ -112,6 +113,28 @@ def run_adapter_workload(
             blocked_reasons=[str(exc)],
         )
 
+    stdin_text = ""
+    if spec.stdin_path is not None:
+        stdin_path = _resolve_under_scratch(scratch_root, spec.stdin_path)
+        if stdin_path is None:
+            return AdapterWorkloadRunResult(
+                adapter=spec.adapter,
+                workload=workload,
+                adapter_result=None,
+                blocked_reasons=[
+                    f"adapter stdin path escapes scratch workspace: {spec.stdin_path}"
+                ],
+            )
+        try:
+            stdin_text = stdin_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return AdapterWorkloadRunResult(
+                adapter=spec.adapter,
+                workload=workload,
+                adapter_result=None,
+                blocked_reasons=[str(exc)],
+            )
+
     adapter_result = run_adapter_command(
         AdapterRunSpec(
             adapter=spec.adapter,
@@ -123,6 +146,7 @@ def run_adapter_workload(
             output_limit=workload.output_limit,
             scrubbed_env_vars=spec.scrubbed_env_vars,
             allowed_new_files=spec.allowed_new_files,
+            stdin_text=stdin_text,
             capture_writer=_bind_capture_writer(spec.capture_writer, workload),
         ),
         environ=environ,

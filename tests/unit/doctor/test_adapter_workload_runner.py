@@ -75,6 +75,7 @@ def test_adapter_workload_runner_accepts_read_only_manifest(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
         return AdapterProcessResult(exit_code=0, stdout="done")
@@ -106,6 +107,7 @@ def test_adapter_workload_runner_accepts_declared_capture_file(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "result.txt").write_text("captured stdout", encoding="utf-8")
         (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
@@ -139,6 +141,7 @@ def test_adapter_workload_runner_accepts_capture_writer_manifest(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "result.txt").write_text("captured result", encoding="utf-8")
         return AdapterProcessResult(
@@ -201,6 +204,7 @@ def test_adapter_workload_runner_accepts_claude_capture_writer_manifest(tmp_path
         _cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         return AdapterProcessResult(
             exit_code=0,
@@ -262,6 +266,71 @@ def test_adapter_workload_runner_accepts_claude_capture_writer_manifest(tmp_path
     )
 
 
+def test_adapter_workload_runner_passes_staged_stdin(tmp_path):
+    seen_stdin = ""
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        stdin: str,
+    ) -> AdapterProcessResult:
+        nonlocal seen_stdin
+        seen_stdin = stdin
+        (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "-"),
+            scratch_root=tmp_path,
+            stdin_path=Path("prompt.md"),
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert seen_stdin == "prompt"
+
+
+def test_adapter_workload_runner_blocks_stdin_path_escape(tmp_path):
+    called = False
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        _cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        _stdin: str,
+    ) -> AdapterProcessResult:
+        nonlocal called
+        called = True
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "-"),
+            scratch_root=tmp_path,
+            stdin_path=Path("..") / "prompt.md",
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert not result.ok
+    assert not called
+    assert any(
+        "adapter stdin path escapes scratch workspace" in reason
+        for reason in result.blocked_reasons
+    )
+
+
 def test_adapter_workload_runner_blocks_capture_writer_failure(tmp_path):
     _stage_workload(tmp_path)
 
@@ -270,6 +339,7 @@ def test_adapter_workload_runner_blocks_capture_writer_failure(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "result.txt").write_text("captured result", encoding="utf-8")
         return AdapterProcessResult(exit_code=0, stdout='{"type":"turn.started"}')
@@ -310,6 +380,7 @@ def test_adapter_workload_runner_blocks_undeclared_capture_file(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "result.txt").write_text("captured stdout", encoding="utf-8")
         (cwd / "adapter-result.json").write_text(json.dumps(_manifest()), encoding="utf-8")
@@ -338,6 +409,7 @@ def test_adapter_workload_runner_blocks_reads_outside_workload(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "adapter-result.json").write_text(
             json.dumps(_manifest(files_read=["sources/secret.md"])),
@@ -367,6 +439,7 @@ def test_adapter_workload_runner_blocks_writes_outside_workload(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         (cwd / "other.json").write_text("{}", encoding="utf-8")
         (cwd / "adapter-result.json").write_text(
@@ -400,6 +473,7 @@ def test_adapter_workload_runner_blocks_cost_mode_mismatch(tmp_path):
         cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         manifest = _manifest(
             policy={
@@ -430,6 +504,7 @@ def test_adapter_workload_runner_blocks_invalid_package_before_running(tmp_path)
         _cwd: Path,
         _env: Mapping[str, str],
         _timeout: int,
+        _stdin: str,
     ) -> AdapterProcessResult:
         nonlocal called
         called = True

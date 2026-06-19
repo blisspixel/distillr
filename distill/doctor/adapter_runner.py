@@ -40,7 +40,7 @@ class AdapterProcessResult:
 
 
 Runner = Callable[
-    [Sequence[str], Path, Mapping[str, str], int],
+    [Sequence[str], Path, Mapping[str, str], int, str],
     AdapterProcessResult,
 ]
 CaptureWriter = Callable[[AdapterProcessResult, Path], None]
@@ -59,6 +59,7 @@ class AdapterRunSpec:
     output_limit: int = 4000
     scrubbed_env_vars: tuple[str, ...] = METERED_API_ENV_VARS
     allowed_new_files: tuple[str, ...] = ()
+    stdin_text: str = ""
     capture_writer: CaptureWriter | None = None
 
 
@@ -122,7 +123,7 @@ def run_adapter_command(
     before = snapshot_scratch_files(scratch_root)
     env, scrubbed = _scrub_environment(environ, spec.scrubbed_env_vars)
     run = runner or _run_subprocess
-    process = run(spec.argv, scratch_root, env, spec.timeout_seconds)
+    process = run(spec.argv, scratch_root, env, spec.timeout_seconds, spec.stdin_text)
     if process.timed_out:
         blocked_reasons.append("adapter command timed out")
     if process.exit_code != 0:
@@ -173,12 +174,14 @@ def _run_subprocess(
     cwd: Path,
     env: Mapping[str, str],
     timeout_seconds: int,
+    stdin_text: str,
 ) -> AdapterProcessResult:
     try:
         result = subprocess.run(
             list(argv),
             cwd=cwd,
             env=dict(env),
+            input=stdin_text if stdin_text else None,
             capture_output=True,
             text=True,
             timeout=timeout_seconds,

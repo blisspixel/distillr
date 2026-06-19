@@ -774,6 +774,29 @@
 - Continue native usage collection and capture wiring for Grok, Gemini, and
   Antigravity, official auth proof, and eval-gated route graduation.
 
+### Cycle 31 - Adapter Runner Stdin Support
+
+- External spend: `$0.00`.
+- Added `stdin_text` support to the low-level scratch adapter runner.
+- Added `stdin_path` support to the checked workload runner so future adapter
+  command plans can pass staged scratch prompt files without shell piping.
+- The workload runner rejects stdin paths that escape the scratch workspace and
+  passes the staged file content into the exact-argv runner.
+- Removed the obsolete Gemini stdin blocker from the command planner. Gemini
+  remains blocked by native schema enforcement, native usage capture, support
+  proof, auth proof, and eval route gates.
+- Updated README, usage docs, changelog, current-state notes, adapter runbook,
+  and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_runner.py distill\doctor\adapter_workload_runner.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_runner.py distill\doctor\adapter_workload_runner.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed: 31 passed.
+
+### Next
+
+- Continue native usage collection and capture wiring for Grok, Gemini, and
+  Antigravity, official auth proof, and eval-gated route graduation.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

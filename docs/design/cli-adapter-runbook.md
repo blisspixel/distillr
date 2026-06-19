@@ -356,13 +356,15 @@ Headless JSON command shape:
 gemini \
   --approval-mode plan \
   --output-format json \
-  --prompt "<prompt>"
+  --prompt ""
 ```
+
+Distill passes the staged prompt file on stdin through the scratch workload
+runner. Local Gemini help says stdin is appended to `--prompt`, so the template
+keeps `--prompt` present while avoiding shell piping.
 
 Current blockers:
 
-- The Gemini template needs runner stdin prompt support before Distill can pass
-  staged `adapter-workload.v1` prompts without shell piping.
 - The local CLI has JSON output, but no observed native `--output-schema`
   enforcement in 0.46.0 help.
 - Adapter-specific native usage capture is not implemented.
@@ -487,6 +489,8 @@ The checked parser lives in `distill.doctor.adapter_workload`. It rejects
 absolute paths, drive-letter paths, empty paths, `.` segments, `..` segments,
 empty source sets, non-positive limits, unknown fields, and read-only workloads
 that declare write paths.
+The workload runner can pass a staged scratch file as stdin without shell
+piping, and rejects stdin paths outside scratch.
 
 ```yaml
 schema_version: adapter-result.v1

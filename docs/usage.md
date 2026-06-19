@@ -274,13 +274,12 @@ allowed scratch capture metadata; Claude schema paths can be inlined from
 staged JSON schema files. Plans stay blocked until support, auth, and eval
 adapter gates exist. Distill can parse Codex JSONL `turn.completed` usage and
 Claude JSON `usage` output into the native usage contract, then write scratch
-manifests through workload runner capture hooks. Gemini stays blocked on runner
-stdin prompt support, native schema enforcement, and native usage capture.
-Antigravity stays blocked because local help exposes no headless JSON, native
-schema, or usage surface. A generic stdout capture helper can write captured
-stdout to `result.txt`, but it still requires a real validated native usage
-file. Distill still does not expose any plan-quota adapter as an eligible route
-by itself.
+manifests through workload runner capture hooks. Gemini stays blocked on native
+schema enforcement and native usage capture. Antigravity stays blocked because
+local help exposes no headless JSON, native schema, or usage surface. A generic
+stdout capture helper can write captured stdout to `result.txt`, but it still
+requires a real validated native usage file. Distill still does not expose any
+plan-quota adapter as an eligible route by itself.
 
 ## Websites
 
