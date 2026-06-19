@@ -266,6 +266,16 @@ eval gates remain closed. The same cycle tightened Gemini-family billing
 preflights so `GOOGLE_API_KEY` blocks no-metered Gemini and Antigravity claims
 alongside `GEMINI_API_KEY`.
 
+Cycle 28 added a blocked Antigravity read-only command plan. Local Antigravity
+1.107.0 help exposes `antigravity chat --mode ask -`, so Distill now records
+the future argv shape with staged prompt, schema, result capture, native usage
+capture, and allowed scratch capture metadata. The plan remains blocked because
+local help exposes no headless JSON output, no native schema enforcement, and no
+native usage signal. The adapter doctor now also probes Antigravity chat help
+for mode support. This closes the current command-template set for the five
+planned included-plan adapters without making any route eligible.
+
 Remaining near-term gaps are official installed-session auth proof,
-the Antigravity command template, native usage collection from non-Codex CLI
-outputs for future plan-quota adapters, and eval-gated route graduation.
+native usage collection from non-Codex CLI outputs for future plan-quota
+adapters, stdout capture wrappers for adapters without native result files, and
+eval-gated route graduation.

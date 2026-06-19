@@ -124,6 +124,17 @@ def plan_adapter_command(
             **metadata,
         )
 
+    if adapter == "antigravity":
+        argv, template_blockers, metadata = _antigravity_command(workload)
+        blocked_reasons.extend(template_blockers)
+        return AdapterCommandPlan(
+            adapter=adapter,
+            workload=workload.workload,
+            argv=argv,
+            blocked_reasons=_dedupe(blocked_reasons),
+            **metadata,
+        )
+
     blocked_reasons.append(f"adapter command template is not implemented: {adapter}")
     return AdapterCommandPlan(
         adapter=adapter,
@@ -284,6 +295,41 @@ def _gemini_command(
             "json",
             "--prompt",
             "",
+        ),
+        blocked_reasons,
+        {
+            "stdin_path": workload.prompt_path,
+            "schema_path": workload.output_schema_path or "schemas/result.json",
+            "result_text_path": "result.txt",
+            "native_usage_path": "native-usage.json",
+            "allowed_new_files": ("result.txt", "native-usage.json"),
+        },
+    )
+
+
+def _antigravity_command(
+    workload: AdapterWorkloadPackage,
+) -> tuple[tuple[str, ...], list[str], dict[str, Any]]:
+    blocked_reasons: list[str] = []
+    if workload.command_class != "read-only":
+        blocked_reasons.append(
+            "antigravity command template currently supports read-only workloads only"
+        )
+    if not workload.output_schema_path:
+        blocked_reasons.append("antigravity command template requires output_schema_path")
+    blocked_reasons.append("antigravity command template lacks headless JSON output")
+    blocked_reasons.append("antigravity command template requires stdout result capture wrapper")
+    blocked_reasons.append(
+        "antigravity command template does not enforce output_schema_path natively"
+    )
+    blocked_reasons.append("adapter-specific native usage capture is not implemented: antigravity")
+    return (
+        (
+            "antigravity",
+            "chat",
+            "--mode",
+            "ask",
+            "-",
         ),
         blocked_reasons,
         {

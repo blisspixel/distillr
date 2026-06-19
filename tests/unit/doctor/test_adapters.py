@@ -158,6 +158,7 @@ def _runner_with_required_flags(command: Sequence[str], _timeout: int) -> tuple[
         ("gemini", "--help"): "--prompt --approval-mode --output-format",
         ("antigravity", "--version"): "antigravity 1.0.0",
         ("antigravity", "--help"): "",
+        ("antigravity", "chat", "--help"): "--mode",
         ("gh", "--version"): "gh 2.0.0",
         ("gh", "copilot", "--help"): "",
     }

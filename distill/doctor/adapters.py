@@ -300,6 +300,7 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             probes=(
                 CommandProbe("version", ("antigravity", "--version")),
                 CommandProbe("help", ("antigravity", "--help")),
+                CommandProbe("chat_help", ("antigravity", "chat", "--help"), ("--mode",)),
             ),
         ),
         AdapterSpec(

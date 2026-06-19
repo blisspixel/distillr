@@ -216,6 +216,43 @@ def test_gemini_command_plan_requires_output_schema():
     assert not plan.ok
 
 
+def test_antigravity_command_plan_records_chat_argv_but_stays_blocked():
+    plan = plan_adapter_command("antigravity", _workload())
+
+    assert plan.argv == (
+        "antigravity",
+        "chat",
+        "--mode",
+        "ask",
+        "-",
+    )
+    assert plan.stdin_path == "prompt.md"
+    assert plan.schema_path == "schemas/result.json"
+    assert plan.result_text_path == "result.txt"
+    assert plan.native_usage_path == "native-usage.json"
+    assert plan.allowed_new_files == ("result.txt", "native-usage.json")
+    assert "adapter doctor probe is required" in plan.blocked_reasons
+    assert "antigravity command template lacks headless JSON output" in plan.blocked_reasons
+    assert "antigravity command template requires stdout result capture wrapper" in (
+        plan.blocked_reasons
+    )
+    assert "antigravity command template does not enforce output_schema_path natively" in (
+        plan.blocked_reasons
+    )
+    assert "adapter-specific native usage capture is not implemented: antigravity" in (
+        plan.blocked_reasons
+    )
+    assert not plan.ok
+
+
+def test_antigravity_command_plan_requires_output_schema():
+    plan = plan_adapter_command("antigravity", _workload(output_schema_path=None))
+
+    assert "antigravity command template requires output_schema_path" in plan.blocked_reasons
+    assert plan.schema_path == "schemas/result.json"
+    assert not plan.ok
+
+
 def test_codex_command_plan_inherits_probe_blockers():
     probe = AdapterProbe(
         name="codex",
@@ -238,9 +275,9 @@ def test_codex_command_plan_inherits_probe_blockers():
 
 
 def test_command_plan_blocks_unknown_adapter_template():
-    plan = plan_adapter_command("antigravity", _workload())
+    plan = plan_adapter_command("copilot", _workload())
 
     assert plan.argv == ()
     assert "adapter doctor probe is required" in plan.blocked_reasons
-    assert "adapter command template is not implemented: antigravity" in plan.blocked_reasons
+    assert "adapter command template is not implemented: copilot" in plan.blocked_reasons
     assert not plan.ok

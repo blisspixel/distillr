@@ -376,6 +376,55 @@ Avoid in Distill automation:
 - `--include-directories <library>` because additional directories increase
   the readable surface. Stage sources into scratch instead.
 
+### Antigravity
+
+Antigravity is currently the weakest included-plan CLI candidate for Distill
+automation. Local 1.107.0 help exposes `antigravity chat --mode ask -`, but it
+does not expose headless JSON output, schema enforcement, or native usage
+signals in the local help surface.
+
+Preflight:
+
+- `antigravity --version`
+- `antigravity --help`
+- `antigravity chat --help`
+- Scan `~/.antigravity/settings.json` for API-key routing fields.
+- Remove `GEMINI_API_KEY` and `GOOGLE_API_KEY` from the subprocess
+  environment for plan-quota routing.
+- If auth cannot be classified as an included plan session, block in
+  `no-metered`.
+
+Blocked chat command shape:
+
+```text
+antigravity chat \
+  --mode ask \
+  -
+```
+
+Current blockers:
+
+- The local chat command lacks observed headless JSON output.
+- The template needs a stdout result-capture wrapper to write `result.txt`.
+- The local CLI has no observed native `--output-schema` enforcement in 1.107.0
+  help.
+- Adapter-specific native usage capture is not implemented.
+
+Useful flags observed locally in 1.107.0:
+
+- `chat [prompt]` for a chat session in the current working directory.
+- `--mode ask|edit|agent|<custom>` for mode selection.
+- `--add-file <path>` for context files, avoided until eval.
+- Stdin can be provided by appending `-`.
+
+Avoid in Distill automation:
+
+- `--mode edit` and `--mode agent` until scratch-write eval exists.
+- `--add-file <library>` because additional files increase the readable
+  surface. Stage sources into scratch instead.
+- Top-level editor window flags such as `--reuse-window`, `--new-window`, and
+  `--wait` for batch workloads.
+
 ## Credit-metered CLI candidates
 
 ### GitHub Copilot CLI
@@ -510,13 +559,13 @@ data or make an adapter eligible.
 The Codex writer converts captured JSONL stdout plus `result.txt` into a
 scratch native usage file and result manifest, and the workload runner can
 invoke it through a post-process capture hook before manifest validation.
-`distill.doctor.adapter_commands` records blocked Codex, Claude, Grok, and Gemini
-read-only argv templates. Command plans include staged prompt, schema, result
-capture, native usage capture, and allowed scratch capture metadata. Claude
-schema paths can be materialized into `--json-schema` argv arguments from
-staged scratch JSON schema files, but templates stay blocked until
-current support statement, auth proof, adapter-specific native usage capture
-where applicable, and eval evidence exist.
+`distill.doctor.adapter_commands` records blocked Codex, Claude, Grok, Gemini,
+and Antigravity read-only argv templates. Command plans include staged prompt,
+schema, result capture, native usage capture, and allowed scratch capture
+metadata. Claude schema paths can be materialized into `--json-schema` argv
+arguments from staged scratch JSON schema files, but templates stay blocked
+until current support statement, auth proof, adapter-specific native usage
+capture where applicable, and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

@@ -684,8 +684,37 @@
 
 ### Next
 
-- Continue the Antigravity command template, non-Codex native usage capture,
-  official auth proof, and eval-gated route graduation.
+- Continue non-Codex native usage capture, official auth proof, and
+  eval-gated route graduation.
+
+### Cycle 28 - Blocked Antigravity Command Planner
+
+- External spend: `$0.00`.
+- Added a blocked Antigravity read-only command plan based on local
+  Antigravity 1.107.0 `chat --help` output.
+- The plan records `antigravity chat --mode ask -` plus staged prompt, schema,
+  result capture, native usage capture, and allowed scratch capture metadata.
+- The plan remains blocked on lack of observed headless JSON output, stdout
+  `result.txt` capture, lack of native schema enforcement, native usage
+  capture, and the normal support, auth, and eval gates.
+- Added an adapter-doctor probe for `antigravity chat --help` mode support.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapters.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapters.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run pytest -q tests\unit\doctor\test_adapters.py tests\unit\doctor\test_adapter_commands.py` passed: 20 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2479
+    passed, 8 deselected, 1 warning, coverage above the 80% gate.
+
+### Next
+
+- Continue native usage collection for non-Codex CLI outputs, stdout capture
+  wrappers for adapters without native result files, official auth proof, and
+  eval-gated route graduation.
 
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 

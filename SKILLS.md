@@ -109,9 +109,9 @@
 - `distill.doctor.adapter_commands.plan_adapter_command()` may record future
   argv shapes, staged prompt paths, schema paths, result capture paths, and
   allowed scratch capture files, but a command plan is not eligible while
-  blockers remain. Codex, Claude, Grok, and Gemini read-only plans are blocked
-  until adapter-specific native usage capture, support proof, auth proof, and
-  eval route gates exist.
+  blockers remain. Codex, Claude, Grok, Gemini, and Antigravity read-only
+  plans are blocked until adapter-specific native usage capture, support proof,
+  auth proof, and eval route gates exist.
 - Use `distill.doctor.adapter_commands.inline_adapter_command_schema()` to
   materialize Claude schema paths into argv only after the schema file is
   staged inside scratch and parsed as a JSON object.
