@@ -203,6 +203,7 @@ def _append_youtube_sources(
                     discoverer=discoverer,
                     text_fetcher=text_fetcher,
                     start_order=order,
+                    cost_mode=profile.cost_mode,
                 )
             except Exception as exc:
                 warnings.append(ProfilePreviewWarning(source=source_ref, message=str(exc)))
@@ -217,6 +218,7 @@ def _append_youtube_sources(
                     topic=profile.topic,
                     order=order,
                     note="Channel seed. Run preview with source fetching enabled to list videos.",
+                    cost_mode=profile.cost_mode,
                 )
             )
             order += 1
@@ -259,6 +261,7 @@ def _append_feed_sources(
                             feed_url=source.url,
                             topic=profile.topic,
                             has_page=bool(episode.link),
+                            cost_mode=profile.cost_mode,
                         ),
                         note=_feed_item_note(bool(episode.link)),
                         order=order,
@@ -266,7 +269,15 @@ def _append_feed_sources(
                 )
                 order += 1
         else:
-            candidates.append(_feed_seed_candidate(source.url, source_label, profile.topic, order))
+            candidates.append(
+                _feed_seed_candidate(
+                    source.url,
+                    source_label,
+                    profile.topic,
+                    order,
+                    profile.cost_mode,
+                )
+            )
             order += 1
     return order
 
@@ -279,13 +290,15 @@ def _append_source_seeds(
 ) -> int:
     order = start_order
     for domain in profile.sources.domains:
-        candidates.append(_domain_seed_candidate(domain, profile.topic, order))
+        candidates.append(_domain_seed_candidate(domain, profile.topic, order, profile.cost_mode))
         order += 1
     for repository in profile.sources.repositories:
-        candidates.append(_repository_seed_candidate(repository, profile.topic, order))
+        candidates.append(
+            _repository_seed_candidate(repository, profile.topic, order, profile.cost_mode)
+        )
         order += 1
     for query in profile.queries:
-        candidates.append(_query_seed_candidate(query, profile.topic, order))
+        candidates.append(_query_seed_candidate(query, profile.topic, order, profile.cost_mode))
         order += 1
     return order
 
@@ -296,10 +309,19 @@ def _feed_item_command(
     feed_url: str,
     topic: str,
     has_page: bool,
+    cost_mode: str,
 ) -> list[str]:
     if has_page:
-        return ["distill", "site", item_url, "--topic", topic, "--seed-only"]
-    return ["distill", "ingest", feed_url, "--topic", topic, "--rss", "--episodes", "1"]
+        return _distill_command(cost_mode, "site", item_url, "--topic", topic, "--seed-only")
+    return _distill_command(
+        cost_mode, "ingest", feed_url, "--topic", topic, "--rss", "--episodes", "1"
+    )
+
+
+def _distill_command(cost_mode: str, *args: str) -> list[str]:
+    if cost_mode == "auto":
+        return ["distill", *args]
+    return ["distill", "--cost-mode", cost_mode, *args]
 
 
 def _feed_item_note(has_page: bool) -> str:
@@ -313,6 +335,7 @@ def _feed_seed_candidate(
     source_label: str,
     topic: str,
     order: int,
+    cost_mode: str,
 ) -> ProfilePreviewCandidate:
     return ProfilePreviewCandidate(
         kind="feed",
@@ -321,20 +344,18 @@ def _feed_seed_candidate(
         source=url,
         source_label=source_label,
         identity=f"feed:{url}",
-        command=[
-            "distill",
-            "ingest",
-            url,
-            "--topic",
-            topic,
-            "--rss",
-        ],
+        command=_distill_command(cost_mode, "ingest", url, "--topic", topic, "--rss"),
         note="Feed seed. Run with --rss to ingest latest posts or episodes.",
         order=order,
     )
 
 
-def _domain_seed_candidate(domain: str, topic: str, order: int) -> ProfilePreviewCandidate:
+def _domain_seed_candidate(
+    domain: str,
+    topic: str,
+    order: int,
+    cost_mode: str,
+) -> ProfilePreviewCandidate:
     url = f"https://{domain}"
     return ProfilePreviewCandidate(
         kind="domain",
@@ -343,7 +364,7 @@ def _domain_seed_candidate(domain: str, topic: str, order: int) -> ProfilePrevie
         source=domain,
         source_label=domain,
         identity=f"domain:{domain}",
-        command=["distill", "site", url, "--topic", topic, "--seed-only"],
+        command=_distill_command(cost_mode, "site", url, "--topic", topic, "--seed-only"),
         note="Domain seed. This captures the landing page unless a later profile run expands it.",
         order=order,
     )
@@ -353,6 +374,7 @@ def _repository_seed_candidate(
     repository: str,
     topic: str,
     order: int,
+    cost_mode: str,
 ) -> ProfilePreviewCandidate:
     url = f"https://github.com/{repository}"
     return ProfilePreviewCandidate(
@@ -362,13 +384,18 @@ def _repository_seed_candidate(
         source=repository,
         source_label=repository,
         identity=f"repository:{repository}",
-        command=["distill", "ingest", url, "--topic", topic],
+        command=_distill_command(cost_mode, "ingest", url, "--topic", topic),
         note="Repository seed. GitHub ingestion can summarize current repo metadata.",
         order=order,
     )
 
 
-def _query_seed_candidate(query: str, topic: str, order: int) -> ProfilePreviewCandidate:
+def _query_seed_candidate(
+    query: str,
+    topic: str,
+    order: int,
+    cost_mode: str,
+) -> ProfilePreviewCandidate:
     return ProfilePreviewCandidate(
         kind="query",
         title=query,
@@ -376,7 +403,7 @@ def _query_seed_candidate(query: str, topic: str, order: int) -> ProfilePreviewC
         source=query,
         source_label="saved query",
         identity=f"query:{query.casefold()}",
-        command=["distill", "latest", query, "--topic", topic, "--preview"],
+        command=_distill_command(cost_mode, "latest", query, "--topic", topic, "--preview"),
         note="Saved query. Preview uses current web and YouTube discovery when run.",
         order=order,
     )
@@ -391,6 +418,7 @@ def _youtube_candidates(
     discoverer: YoutubeDiscoverer,
     text_fetcher: TextFetcher,
     start_order: int,
+    cost_mode: str,
 ) -> list[ProfilePreviewCandidate]:
     if source.channel_id:
         videos = _parse_youtube_atom(text_fetcher(_youtube_atom_url(source.channel_id)))
@@ -403,7 +431,7 @@ def _youtube_candidates(
                 source_label=source_label,
                 published_at=video.published_at,
                 identity=f"youtube:{video.video_id or video.url}",
-                command=["distill", "video", video.url, "--topic", topic],
+                command=_distill_command(cost_mode, "video", video.url, "--topic", topic),
                 order=start_order + index,
             )
             for index, video in enumerate(videos)
@@ -420,7 +448,7 @@ def _youtube_candidates(
             source_label=source_label or video.channel_name,
             published_at=video.published_at or video.upload_date,
             identity=f"youtube:{video.video_id or video.url}",
-            command=["distill", "video", video.url, "--topic", topic],
+            command=_distill_command(cost_mode, "video", video.url, "--topic", topic),
             order=start_order + index,
         )
         for index, video in enumerate(videos)
@@ -434,6 +462,7 @@ def _channel_seed_candidate(
     topic: str,
     order: int,
     note: str,
+    cost_mode: str,
 ) -> ProfilePreviewCandidate:
     url = _youtube_channel_url(source)
     return ProfilePreviewCandidate(
@@ -443,7 +472,7 @@ def _channel_seed_candidate(
         source=_youtube_source_ref(source),
         source_label=source_label,
         identity=f"youtube_channel:{_youtube_source_ref(source)}",
-        command=["distill", "channel", url, "--topic", topic, "--limit", "5"],
+        command=_distill_command(cost_mode, "channel", url, "--topic", topic, "--limit", "5"),
         note=note,
         order=order,
     )

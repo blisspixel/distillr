@@ -73,6 +73,8 @@ def test_profile_preview_expands_feed_items_and_source_seeds():
     newest = result.candidates[0]
     assert newest.command == [
         "distill",
+        "--cost-mode",
+        "no-metered",
         "site",
         "https://example.com/new",
         "--topic",
@@ -81,6 +83,8 @@ def test_profile_preview_expands_feed_items_and_source_seeds():
     ]
     assert query.command == [
         "distill",
+        "--cost-mode",
+        "no-metered",
         "latest",
         "long running agent loops",
         "--topic",
@@ -125,6 +129,8 @@ def test_profile_preview_uses_youtube_atom_for_channel_id():
     assert candidate.title == "Loop demo"
     assert candidate.command == [
         "distill",
+        "--cost-mode",
+        "no-metered",
         "video",
         "https://www.youtube.com/watch?v=video123",
         "--topic",
@@ -243,6 +249,8 @@ def test_profile_preview_falls_back_to_seed_when_fetch_fails():
     assert result.candidates[0].kind == "feed"
     assert result.candidates[0].command == [
         "distill",
+        "--cost-mode",
+        "no-metered",
         "ingest",
         "https://example.com/feed.xml",
         "--topic",
@@ -265,3 +273,24 @@ def test_profile_preview_no_fetch_emits_source_seeds():
 
     assert [candidate.kind for candidate in result.candidates] == ["youtube_channel", "feed"]
     assert result.warnings == []
+
+
+def test_profile_preview_auto_cost_mode_keeps_commands_short():
+    profile = _profile(
+        {
+            "cost_mode": "auto",
+            "limits": {"max_new_items": 3, "max_metered_usd": 0},
+            "queries": ["agent loops"],
+        }
+    )
+
+    result = build_profile_preview(profile, fetch_sources=False)
+
+    assert result.candidates[0].command == [
+        "distill",
+        "latest",
+        "agent loops",
+        "--topic",
+        "agent-loops",
+        "--preview",
+    ]

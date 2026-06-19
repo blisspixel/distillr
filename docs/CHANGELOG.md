@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added checked-in recurring profile examples for `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch`, each with a goal file and no-metered preview defaults.
 - Added `distill profile preview <name|path>` with JSON output and a human table, resolving current feed items, YouTube channel updates, domain seeds, repository seeds, and saved query preview commands without ingesting or analyzing anything.
 - Added the first `DISTILL_COST_MODE=auto|no-metered|paid-ok` foundation: config and router parsing, route classification, and fail-closed router refusal for API-billed or unknown routes in `no-metered`.
+- Added global `distill --cost-mode <auto|no-metered|paid-ok>` overrides, with no-metered profile previews emitting replay commands that carry the override explicitly.
 
 ### Changed
 

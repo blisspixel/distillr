@@ -28,6 +28,9 @@
 - External spend budget for this loop is `$5.00`; current spend is `$0.00`.
 - Default to local tests and static checks. Do not make cloud/API calls unless
   the task truly requires them.
+- Use the global one-run form as `distill --cost-mode no-metered <command>`.
+  Profile preview commands should carry this form when the profile declares
+  `cost_mode: no-metered`.
 - In `no-metered`, local Ollama and LM Studio are allowed by topology.
   API-billed routes and ambiguous adapter routes must fail closed.
 - Plan-quota CLI routes are not no-metered defaults until adapter doctor,

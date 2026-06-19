@@ -52,6 +52,7 @@ from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import (
+    _apply_cost_mode_override,
     _apply_verify_override,  # noqa: F401 - compatibility export for distill._cli_impl
     _complete_topic_watch_names,  # noqa: F401 - compatibility export for distill._cli_impl
     _complete_topics,  # noqa: F401 - compatibility export for distill._cli_impl
@@ -519,6 +520,7 @@ def _default(
     debug: bool = typer.Option(False, "--debug", help="Enable DEBUG-level logging to console"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON to stdout"),
     model: str = typer.Option("", "--model", "-m", help="Override model for all workloads"),
+    cost_mode: str = typer.Option("", "--cost-mode", help="Override cost policy"),
     version: bool = typer.Option(
         False,
         "--version",
@@ -544,13 +546,11 @@ def _default(
 
     set_json_mode(json_output)
     set_json_active(json_output)
-
-    # Set model override as env var so pipeline functions pick it up
-    # without needing ctx passed through every layer
     if model:
         import os
 
         os.environ["DISTILL_MODEL"] = model
+    _apply_cost_mode_override(cost_mode)
 
     try:
         ops_dir = get_config().library_dir / ".distill"

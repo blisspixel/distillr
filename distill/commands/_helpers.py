@@ -50,6 +50,7 @@ from distill.ingestors.youtube.transcripts import get_transcript
 
 __all__ = [
     "SHORTS_THRESHOLD",
+    "_apply_cost_mode_override",
     "_apply_verify_override",
     "_complete_topic_watch_names",
     "_complete_topics",
@@ -114,6 +115,22 @@ def _apply_verify_override(verify: str) -> None:
         console.print(f"[red]Unknown --verify '{verify}'.[/red] Choose: warn, strict, off.")
         raise typer.Exit(1)
     os.environ["DISTILL_VERIFY"] = value
+
+
+def _apply_cost_mode_override(cost_mode: str) -> None:
+    """Apply a per-run ``--cost-mode`` override through the process environment."""
+    if not cost_mode:
+        return
+    from distill.llm.cost_policy import normalize_cost_mode
+
+    try:
+        value = normalize_cost_mode(cost_mode)
+    except ValueError:
+        console.print(
+            f"[red]Unknown --cost-mode '{cost_mode}'.[/red] Choose: auto, no-metered, paid-ok."
+        )
+        raise typer.Exit(1) from None
+    os.environ["DISTILL_COST_MODE"] = value
 
 
 def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:

@@ -37,6 +37,10 @@ This is a route-policy guard, not a quality judgment. Local routes still need
 Plan-quota CLIs remain blocked in `no-metered` until adapter doctor, support
 statement, usage ledger, scratch manifest, and eval proof exist.
 
+Use `distill --cost-mode no-metered <command>` for a one-run override without
+editing `.env`. Recurring profile previews include that global override in
+generated replay commands when the profile declares `cost_mode: no-metered`.
+
 ## Per-stage cost
 
 | Stage | Typical cost | Basis (@ grok-4.3) |
