@@ -14,6 +14,9 @@ import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
+from distill.commands._concept_ingest import (
+    run_concepts_after_ingest as _run_concepts_after_ingest,
+)
 from distill.commands._helpers import (
     _apply_verify_override,
     _persist_lens,
@@ -25,7 +28,6 @@ from distill.commands._learning import (
     _display_ranked_papers,
     _expand_paper_queries,
 )
-from distill.commands._logic import _run_concepts_after_ingest
 from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
 from distill.ingestors.papers.arxiv import (
     fetch_arxiv_paper,

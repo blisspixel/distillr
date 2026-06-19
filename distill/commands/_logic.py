@@ -39,6 +39,7 @@ from distill.cli_shared import (
 from distill.cli_shared import (
     tty_prompt as _tty_prompt,
 )
+from distill.commands import _concept_ingest as _concept_ingest_support
 from distill.commands import _discover_ingest as _discover_ingest_support
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
@@ -120,6 +121,7 @@ _learning_flow_generate_and_export_topic_brief = (
 )
 _RankedDiscoverItem = _discover_support.RankedDiscoverItem
 _write_paper_artifacts = _paper_artifacts_support.write_paper_artifacts
+_run_concepts_after_ingest = _concept_ingest_support.run_concepts_after_ingest
 
 _read_json_file = _topic_changes_support._read_json_file
 _topic_change_history_path = _topic_changes_support._topic_change_history_path
@@ -687,40 +689,6 @@ def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 
 
 
 # ─── Status & Doctor ──────────────────────────────────────────────────
-
-
-def _run_concepts_after_ingest(
-    topic: str,
-    *,
-    tracker: "CostTracker | None" = None,
-) -> None:
-    """Run the concept playbook over a topic after an ingest succeeds.
-
-    Helper for the ``--concepts`` opt-in flag on ``distill papers``,
-    ``distill latest``, and ``distill site-batch``. Best-effort: any
-    extraction failure logs but does not fail the ingest -- the freshly-
-    ingested insights are still valuable on their own.
-    """
-    from distill.concepts import run_concepts
-    from distill.llm import RouterConfig
-
-    config = get_config()
-    topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
-        console.print(f"[dim]--concepts skipped (topic dir missing: {topic_dir})[/dim]")
-        return
-    console.print("\n[bold]Concept playbook[/bold]")
-    try:
-        summary = run_concepts(topic=topic, topic_dir=topic_dir, rc=RouterConfig(), tracker=tracker)
-    except Exception as exc:
-        console.print(f"[yellow]Concept extraction failed: {exc}[/yellow]")
-        return
-    console.print(
-        f"  scanned={summary.insights_scanned} "
-        f"extracted={summary.insights_extracted} "
-        f"mentions+={summary.mentions_added} "
-        f"notes={summary.notes_written} (concepts={summary.concepts_written}, entities={summary.entities_written}, unchanged={summary.concepts_unchanged})"
-    )
 
 
 concepts_app = typer.Typer(

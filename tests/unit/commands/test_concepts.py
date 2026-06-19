@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -62,6 +63,33 @@ class TestConceptsCommand:
         result = runner.invoke(cli.app, ["concepts", "build", "ghost-topic"])
         assert result.exit_code == 1
         assert "does not exist" in result.output.lower()
+
+    def test_post_ingest_helper_runs_concepts(self, fixture_config: DistillConfig, monkeypatch):
+        from distill.commands import _concept_ingest
+        from distill.pipeline.costs import CostTracker
+
+        _seed_topic(fixture_config.library_dir)
+        tracker = CostTracker()
+        calls = []
+
+        def fake_run_concepts(topic, topic_dir, rc, tracker=None, **kwargs):
+            calls.append((topic, topic_dir, tracker))
+            return SimpleNamespace(
+                insights_scanned=3,
+                insights_extracted=2,
+                mentions_added=2,
+                notes_written=1,
+                concepts_written=1,
+                entities_written=0,
+                concepts_unchanged=0,
+            )
+
+        monkeypatch.setattr(_concept_ingest, "get_config", lambda: fixture_config)
+        monkeypatch.setattr("distill.concepts.run_concepts", fake_run_concepts)
+
+        _concept_ingest.run_concepts_after_ingest("tkg", tracker=tracker)
+
+        assert calls == [("tkg", fixture_config.topic_dir("tkg"), tracker)]
 
     def test_runs_end_to_end(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)

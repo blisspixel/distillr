@@ -332,6 +332,36 @@
 - Continue shrinking the remaining learning, discover, and process helper body
   toward deleting `_logic.py` as a named module.
 
+### Cycle 45 - Concept Ingest Helper Decomposition
+
+- External spend: `$0.00`.
+- Added `distill.commands._concept_ingest` as the canonical owner for
+  post-ingest concept playbook execution.
+- Repointed paper, learn, and discover commands to the new concept-ingest
+  owner.
+- Preserved `_logic._run_concepts_after_ingest` as a compatibility alias for old
+  `_cli_impl` imports.
+- Added a direct unit test for `run_concepts_after_ingest`.
+- Reduced `_logic.py` from 981 to 949 lines.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_concepts.py tests/unit/commands/test_cli_wiring.py::TestLearnCommand::test_learn_searches_processes_and_saves_channels tests/unit/commands/test_cli_wiring.py::TestWatchCommands::test_papers_command_searches_and_writes_synthesis tests/unit/test_module_sizes.py -q`
+    passed: 18 passed.
+  - `uv run ruff check distill/commands/_logic.py distill/commands/_concept_ingest.py distill/commands/discover.py distill/commands/learn.py distill/commands/papers.py tests/unit/commands/test_concepts.py tests/unit/commands/test_cli_wiring.py`
+    passed.
+  - `uv run ruff format --check distill/commands/_logic.py distill/commands/_concept_ingest.py distill/commands/discover.py distill/commands/learn.py distill/commands/papers.py tests/unit/commands/test_concepts.py tests/unit/commands/test_cli_wiring.py`
+    passed: 7 files already formatted.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 450 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.78% coverage.
+
+### Next
+
+- Continue with the remaining learning, discover, and process helper body,
+  likely video-processing or root-callback ownership next.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

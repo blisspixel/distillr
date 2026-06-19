@@ -110,6 +110,8 @@
   for crawl, analysis, attachment, hash, and site-synthesis behavior.
 - Paper artifact writing now belongs to `distill.commands._paper_artifacts`;
   patch `write_paper_artifacts` there for paper receipt and insight emission.
+- Post-ingest concept playbook wiring now belongs to
+  `distill.commands._concept_ingest`; patch `run_concepts_after_ingest` there.
 
 ## Validation
 

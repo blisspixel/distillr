@@ -16,13 +16,15 @@ import typer
 from distill._console import console
 from distill.cli_shared import require_api_key as _require_api_key
 from distill.cli_shared import topic_from_query as _topic_from_query
+from distill.commands._concept_ingest import (
+    run_concepts_after_ingest as _run_concepts_after_ingest,
+)
 from distill.commands._helpers import _apply_verify_override, _persist_lens, _preflight, get_config
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
 from distill.commands._logic import (
     _preview_learning_selection,
-    _run_concepts_after_ingest,
     _run_learning_command,
 )
 from distill.llm.availability import model_available

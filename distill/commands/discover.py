@@ -19,6 +19,9 @@ from distill import cli_shared
 from distill._console import console
 from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
+from distill.commands._concept_ingest import (
+    run_concepts_after_ingest as _run_concepts_after_ingest,
+)
 from distill.commands._helpers import (
     _apply_verify_override,
     _detect_ramp_source,
@@ -38,7 +41,6 @@ from distill.commands._logic import (
     _display_ranked_discover,
     _is_fresh_topic,
     _preview_learning_selection,
-    _run_concepts_after_ingest,
     _run_learning_command,
     _run_scope_report,
 )
