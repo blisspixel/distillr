@@ -384,3 +384,9 @@ Cycle 42 resumes `_logic.py` decomposition. The watch-owned
 `distill.commands.watch`, and the goal-refresh test imports that canonical
 owner. `distill.cli._format_date` remains available by re-exporting
 `cli_shared.format_date`, while `_logic.py` drops to the 1355-line ratchet.
+
+Cycle 43 moves site-ingest ownership out of `_logic.py`. `process_site_seed`,
+site content hashing, and section-change summaries now live in
+`distill.commands._site_ingest`; CLI, MCP, discover, and tests patch that
+canonical owner. `distill.cli` keeps compatibility re-exports for the private
+site helper names, and `_logic.py` is down to the 1077-line ratchet.

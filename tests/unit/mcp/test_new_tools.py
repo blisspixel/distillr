@@ -217,7 +217,9 @@ class TestSiteBatchTool:
             seen.append((seed.url, seed.topic, config, summary.command))
             return "Example", 1
 
-        monkeypatch.setattr("distill.commands._logic._process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed", fake_process_site_seed
+        )
 
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
@@ -242,7 +244,9 @@ class TestSiteBatchTool:
             seen.append((seed.url, seed.max_depth, seed.max_pages))
             return "Example", 0
 
-        monkeypatch.setattr("distill.commands._logic._process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed", fake_process_site_seed
+        )
 
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch

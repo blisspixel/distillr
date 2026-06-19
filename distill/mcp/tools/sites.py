@@ -93,7 +93,7 @@ async def site_batch(  # noqa: C901
             return refusal
 
     try:
-        from distill.commands._logic import _process_site_seed
+        from distill.commands._site_ingest import process_site_seed
         from distill.ingestors.sites.scraper import SiteSeed
         from distill.pipeline.summary import RunSummary
     except ImportError as e:
@@ -108,7 +108,7 @@ async def site_batch(  # noqa: C901
             await ctx.report_progress(progress=i, total=len(page_urls))
         try:
             seed = SiteSeed(url=url, topic=topic, max_depth=0, max_pages=1)
-            site_name, page_count = _process_site_seed(seed, config, tracker, summary)
+            site_name, page_count = process_site_seed(seed, config, tracker, summary)
             results.append(
                 {
                     "url": url,

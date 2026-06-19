@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
 from distill.commands import _learning as _learning_support
+from distill.commands import _site_ingest
 from distill.commands import dashboard as _dashboard
 from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
@@ -2241,7 +2242,7 @@ class TestWatchCommands:
             return "topic synthesis"
 
         monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
-        monkeypatch.setattr(_cli_impl, "_process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(_site_ingest, "process_site_seed", fake_process_site_seed)
         monkeypatch.setattr(_cli_impl, "synthesize_site_topic", fake_synthesize_site_topic)
         monkeypatch.setattr(
             _cli_impl, "synthesize_corpus", lambda topic, config, tracker=None: None
@@ -2599,7 +2600,7 @@ class TestSiteCommands:
 
         try:
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "crawl_site",
                 lambda seed: [
                     SitePage(
@@ -2615,7 +2616,7 @@ class TestSiteCommands:
             )
             called = []
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "analyze_site_page",
                 lambda *args, **kwargs: called.append("analyze") or "should not run",
             )
@@ -2674,7 +2675,7 @@ class TestSiteCommands:
                 encoding="utf-8",
             )
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "crawl_site",
                 lambda seed: [
                     SitePage(
@@ -2725,7 +2726,7 @@ class TestSiteCommands:
 
         try:
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "crawl_site",
                 lambda seed: [
                     SitePage(
@@ -2740,7 +2741,7 @@ class TestSiteCommands:
                 ],
             )
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "ingest_page_attachments",
                 lambda page, page_dir, config: (
                     [
@@ -2759,14 +2760,16 @@ class TestSiteCommands:
                     "### PDF Attachment: https://example.com/guide.pdf\nPDF body",
                 ),
             )
-            monkeypatch.setattr(_cli_impl, "analyze_site_page", lambda *args, **kwargs: "# Insight")
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest, "analyze_site_page", lambda *args, **kwargs: "# Insight"
+            )
+            monkeypatch.setattr(
+                _site_ingest,
                 "synthesize_site",
                 lambda topic, site_name, config, tracker=None: "# Synthesis",
             )
             monkeypatch.setattr(
-                _cli_impl,
+                _discover,
                 "synthesize_site_topic",
                 lambda topic, config, tracker=None: "# Topic synthesis",
             )
@@ -2818,27 +2821,27 @@ class TestSiteCommands:
             )
             page_dir = config.site_page_dir("web", "example.com", "Agent Page", page.page_id)
             page_dir.mkdir(parents=True, exist_ok=True)
-            prior_doc = _cli_impl.build_page_document(page)
+            prior_doc = _site_ingest.build_page_document(page)
             (page_dir / "metadata.json").write_text(
-                json.dumps({"content_hash": _cli_impl._content_hash(prior_doc)}),
+                json.dumps({"content_hash": _site_ingest.content_hash(prior_doc)}),
                 encoding="utf-8",
             )
             (page_dir / "insights.md").write_text("# Existing insight", encoding="utf-8")
 
-            monkeypatch.setattr(_cli_impl, "crawl_site", lambda seed: [page])
+            monkeypatch.setattr(_site_ingest, "crawl_site", lambda seed: [page])
             called = []
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "analyze_site_page",
                 lambda *args, **kwargs: called.append("analyze") or "# New insight",
             )
             monkeypatch.setattr(
-                _cli_impl,
+                _site_ingest,
                 "synthesize_site",
                 lambda topic, site_name, config, tracker=None: "# Synthesis",
             )
             monkeypatch.setattr(
-                _cli_impl,
+                _discover,
                 "synthesize_site_topic",
                 lambda topic, config, tracker=None: "# Topic synthesis",
             )

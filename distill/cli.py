@@ -26,7 +26,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _apply_ranked_channel_cap,
     _auto_skeptical_mode,
     _collect_topic_change_details,
-    _content_hash,
     _dedupe_candidates,
     _dedupe_query_strings,
     _default_report_focus,
@@ -47,7 +46,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _preflight,
     _preview_learning_selection,
     _process_learning_selection,
-    _process_site_seed,
     _process_video,
     _RankedDiscoverItem,
     _read_json_file,
@@ -58,7 +56,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _run_learning_command,
     _run_scope_report,
     _select_learning_videos,
-    _site_section_change_summary,
     _strip_intent_terms,
     _strip_noise_terms,
     _topic_diff_output_path,
@@ -76,6 +73,7 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     get_config,
 )
 from distill.cli_shared import format_date as _format_date  # noqa: F401
+from distill.commands import _site_ingest as _site_ingest_support
 
 # _file_link's canonical home is _helpers; _logic no longer imports it, so
 # re-export from the source to preserve cli._file_link for tests.
@@ -128,6 +126,10 @@ from distill.commands.topic_watch import topic_watch_app  # noqa: F401
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
 from distill.commands.watch import register as _register_watch
+
+_content_hash = _site_ingest_support.content_hash
+_process_site_seed = _site_ingest_support.process_site_seed
+_site_section_change_summary = _site_ingest_support.site_section_change_summary
 
 _register_ingest(app)
 _register_concepts_recovery(concepts_app)

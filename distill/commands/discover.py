@@ -39,12 +39,12 @@ from distill.commands._logic import (
     _display_ranked_discover,
     _is_fresh_topic,
     _preview_learning_selection,
-    _process_site_seed,
     _run_concepts_after_ingest,
     _run_learning_command,
     _run_scope_report,
 )
 from distill.commands._site_batch import process_site_batch_seed, site_batch_seed
+from distill.commands._site_ingest import process_site_seed as _process_site_seed
 from distill.commands._topic_watch import (
     _normalize_topic_watch_ranking_mode,
     _topic_watch_name,

@@ -95,7 +95,7 @@ class TestPaperLoopIsolation:
 
 class TestSiteLoopIsolation:
     def test_site_progress_continues_after_seed_failure(self, tmp_path, capsys):
-        from distill.commands import _logic
+        from distill.commands import _logic, _site_ingest
 
         config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
         summary = RunSummary(command="discover")
@@ -117,7 +117,7 @@ class TestSiteLoopIsolation:
                 raise RuntimeError("crawl exploded")
 
         with (
-            patch.object(_logic, "_process_site_seed", side_effect=process),
+            patch.object(_site_ingest, "process_site_seed", side_effect=process),
             patch.object(_logic, "synthesize_site_topic", return_value=None),
         ):
             _logic._discover_ingest_sites(

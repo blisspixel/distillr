@@ -106,6 +106,8 @@
 - When a helper moves out of `_logic.py`, repoint tests to the canonical owner
   in the same slice and keep only explicit compatibility re-exports that callers
   still use.
+- Site ingest now belongs to `distill.commands._site_ingest`; patch that module
+  for crawl, analysis, attachment, hash, and site-synthesis behavior.
 
 ## Validation
 

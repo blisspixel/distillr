@@ -271,6 +271,35 @@
 - Continue extracting the learning, discover, and process helper body from
   `_logic.py` until it drops below the 1000-line cap.
 
+### Cycle 43 - Site Ingest Helper Decomposition
+
+- External spend: `$0.00`.
+- Added `distill.commands._site_ingest` as the canonical owner for
+  `process_site_seed`, site content hashing, and site section-change summaries.
+- Repointed discover, MCP site tools, CLI compatibility re-exports, and tests
+  to the new site-ingest owner.
+- Lowered the `_logic.py` module-size ratchet from 1355 to 1077.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_ingest_failure_isolation.py tests/unit/mcp/test_new_tools.py::TestSiteBatchTool tests/unit/commands/test_cli_wiring.py::TestSiteCommands tests/unit/test_module_sizes.py -q`
+    passed: 21 passed.
+  - `uv run pytest tests/unit/commands/test_cli_wiring.py -q -k "site_seed or site_seeds or site_ingest or site_batch or Agent365 or attachments"`
+    passed: 5 passed, 144 deselected.
+  - `uv run ruff check distill/commands/_logic.py distill/commands/_site_ingest.py distill/commands/discover.py distill/mcp/tools/sites.py distill/cli.py tests/unit/mcp/test_new_tools.py tests/unit/commands/test_ingest_failure_isolation.py tests/unit/commands/test_cli_wiring.py tests/unit/test_module_sizes.py`
+    passed.
+  - `uv run ruff format --check distill/commands/_logic.py distill/commands/_site_ingest.py distill/commands/discover.py distill/mcp/tools/sites.py distill/cli.py tests/unit/mcp/test_new_tools.py tests/unit/commands/test_ingest_failure_isolation.py tests/unit/commands/test_cli_wiring.py tests/unit/test_module_sizes.py`
+    passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 448 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2511
+    passed, 8 deselected, 1 warning, 82.74% coverage.
+
+### Next
+
+- Move the next small helper set, likely paper artifact writing or root callback
+  setup, to get `_logic.py` below the 1000-line cap.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.
