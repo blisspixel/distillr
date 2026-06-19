@@ -18,7 +18,7 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill | Uses local hardware, electricity, and time. Quality must clear `distill eval` before a workload should default to it. |
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
 | Opt-in Anthropic and OpenAI API routes | Partial | Metered API spend | Providers exist in-tree, but they are not calibrated defaults. |
-| Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, local config auth-marker scanning, and the strict `adapter-result.v1` manifest parser exist, but routes still need support statements, included-plan auth proof, runner-side manifest enforcement, native usage ledgering, and `distill eval` evidence. |
+| Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, and Gemini/Antigravity | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, local config auth-marker scanning, and the strict `adapter-result.v1` manifest and scratch write-check helpers exist, but routes still need support statements, included-plan auth proof, adapter runner integration, native usage ledgering, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
 ## Cost modes
@@ -35,8 +35,8 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 This is a route-policy guard, not a quality judgment. Local routes still need
 `distill eval` evidence before becoming a recommended default for a workload.
 Plan-quota CLIs remain blocked in `no-metered` until adapter doctor, support
-statement, included-plan auth proof, runner-side manifest enforcement, usage
-ledger, and eval proof exist.
+statement, included-plan auth proof, adapter runner integration, usage ledger,
+and eval proof exist.
 
 When a route is blocked, Distill reports the blocked provider, workload, route
 cost class, reason, required proof when applicable, and the next allowed action.

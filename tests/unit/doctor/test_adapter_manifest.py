@@ -9,7 +9,9 @@ from distill.doctor.adapter_manifest import (
     ADAPTER_RESULT_SCHEMA_VERSION,
     AdapterManifestError,
     adapter_result_manifest_contract,
+    check_adapter_workspace_writes,
     load_adapter_result_manifest,
+    snapshot_scratch_files,
     validate_adapter_result_manifest,
 )
 
@@ -123,3 +125,36 @@ def test_adapter_manifest_rejects_non_mapping_file(tmp_path):
 
     with pytest.raises(AdapterManifestError, match="must be a mapping"):
         load_adapter_result_manifest(manifest_path)
+
+
+def test_workspace_write_check_accepts_declared_adapter_outputs(tmp_path):
+    source_dir = tmp_path / "sources"
+    source_dir.mkdir()
+    (source_dir / "input.md").write_text("source", encoding="utf-8")
+    before = snapshot_scratch_files(tmp_path)
+    (tmp_path / "result.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "adapter-result.json").write_text("{}", encoding="utf-8")
+    manifest = validate_adapter_result_manifest(_manifest(), scratch_root=tmp_path)
+
+    check = check_adapter_workspace_writes(
+        manifest,
+        tmp_path,
+        before_files=before,
+        allowed_new_files=("adapter-result.json",),
+    )
+
+    assert check.ok
+    assert check.missing_files == ()
+    assert check.unexpected_files == ()
+    assert check.to_dict()["new_files"] == ["adapter-result.json", "result.json"]
+
+
+def test_workspace_write_check_reports_missing_and_unexpected_files(tmp_path):
+    (tmp_path / "extra.txt").write_text("unexpected", encoding="utf-8")
+    manifest = validate_adapter_result_manifest(_manifest(), scratch_root=tmp_path)
+
+    check = check_adapter_workspace_writes(manifest, tmp_path)
+
+    assert not check.ok
+    assert check.missing_files == ("result.json",)
+    assert check.unexpected_files == ("extra.txt",)

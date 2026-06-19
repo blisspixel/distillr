@@ -340,7 +340,8 @@ visible without network access. `distill doctor --adapters` adds read-only CLI
 adapter preflights for candidate plan-quota and credit-metered routes, including
 binary presence, version/help probes, required flags, API-key environment
 blockers, local config API-key markers, route class, support-statement status,
-and the required `adapter-result.v1` scratch manifest contract.
+and the required `adapter-result.v1` scratch manifest contract, including the
+before/after scratch write check future runners must use.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

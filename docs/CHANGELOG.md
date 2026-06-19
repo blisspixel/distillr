@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added `distill doctor --adapters` read-only CLI adapter preflights for candidate plan-quota and credit-metered routes.
 - Added the strict `adapter-result.v1` manifest parser for future CLI adapters, covering usage signals, cost policy, auth class, declared files, and scratch path safety.
 - Added local config auth-marker scanning to `distill doctor --adapters` so API-key config routes block no-metered claims without exposing secret values.
+- Added scratch before/after write-check helpers for future CLI adapter runners, rejecting missing declared outputs and unexpected new scratch files.
 
 ### Changed
 
@@ -31,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
 - Clarified the agentic-balance boundary for recurring profile preview: deterministic code owns fetch, parse, identity, freshness, limits, and cost refusal, while models own source fit, novelty, rumor classification, and priority.
 - Clarified local and plan-quota route policy: local Ollama/LM Studio still analyzes freshly fetched receipts, plan-quota CLIs remain adapter-gated external workers, and Copilot-style AI-credit CLIs are credit-metered unless a future support statement proves otherwise.
-- Documented the current no-metered behavior: local Ollama and LM Studio routes are allowed by topology, xAI/Gemini/API routes are blocked, and unproven adapter routes such as `agent` stay blocked until adapter doctor, included-plan auth proof, runner-side manifest enforcement, native usage ledgering, support-statement, and eval proof exist.
+- Documented the current no-metered behavior: local Ollama and LM Studio routes are allowed by topology, xAI/Gemini/API routes are blocked, and unproven adapter routes such as `agent` stay blocked until adapter doctor, included-plan auth proof, adapter runner integration, native usage ledgering, support-statement, and eval proof exist.
 
 ### Fixed
 

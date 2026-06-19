@@ -280,3 +280,30 @@
 
 - Continue official installed-session auth proof and runner-side manifest
   enforcement.
+
+### Cycle 11 - Adapter Scratch Write Checks
+
+- External spend: `$0.00`.
+- Added before/after scratch workspace write-check helpers to
+  `distill.doctor.adapter_manifest`.
+- Future adapter runners can snapshot staged source files before execution,
+  parse `adapter-result.v1` afterward, and reject missing declared outputs or
+  unexpected new scratch files.
+- The manifest contract exposed by `distill doctor --adapters` now advertises
+  the workspace write-check requirements.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_manifest.py tests\unit\doctor\test_adapter_manifest.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_manifest.py tests\unit\doctor\test_adapter_manifest.py` passed.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_manifest.py` passed: 13 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 429 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2410
+    passed, 8 deselected, 1 warning, 81.99% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and read-only adapter runner
+  integration.

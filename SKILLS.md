@@ -81,8 +81,10 @@
   manifest shape from `distill.doctor.adapter_manifest`. Keep writes scratch
   relative, include a usage signal, and fail closed on metered auth in
   `no-metered`.
-- Planned support statements remain blocked until official auth proof,
-  runner-side scratch-manifest enforcement, native usage ledger signals, and
-  eval evidence exist.
+- Future CLI adapter runners must snapshot scratch files before execution and
+  use `check_adapter_workspace_writes()` after parsing the manifest. Missing
+  declared outputs and unexpected new files are blockers.
+- Planned support statements remain blocked until official auth proof, adapter
+  runner integration, native usage ledger signals, and eval evidence exist.
 - API-key environment blockers keep plan-quota candidates out of no-metered
   routing.

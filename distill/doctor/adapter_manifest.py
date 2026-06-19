@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Self
 
@@ -197,6 +198,29 @@ class AdapterResultManifest(BaseModel):
         return self.model_dump(mode="json")
 
 
+@dataclass(frozen=True)
+class AdapterWorkspaceWriteCheck:
+    """Before/after scratch workspace write check for an adapter run."""
+
+    declared_files: tuple[str, ...]
+    new_files: tuple[str, ...]
+    missing_files: tuple[str, ...]
+    unexpected_files: tuple[str, ...]
+
+    @property
+    def ok(self) -> bool:
+        return not self.missing_files and not self.unexpected_files
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "declared_files": list(self.declared_files),
+            "new_files": list(self.new_files),
+            "missing_files": list(self.missing_files),
+            "unexpected_files": list(self.unexpected_files),
+        }
+
+
 def adapter_result_manifest_contract() -> dict[str, Any]:
     """Return the current manifest contract for doctor reports and docs."""
 
@@ -207,6 +231,11 @@ def adapter_result_manifest_contract() -> dict[str, Any]:
         "auth_classes": ["local", "included-plan", "metered-api", "unknown"],
         "command_classes": ["read-only", "scratch-write"],
         "no_metered_auth_classes": sorted(_NO_METERED_AUTH_CLASSES),
+        "workspace_write_check": {
+            "uses_before_snapshot": True,
+            "flags_missing_declared_files": True,
+            "flags_unexpected_new_files": True,
+        },
     }
 
 
@@ -240,6 +269,42 @@ def load_adapter_result_manifest(
     return validate_adapter_result_manifest(payload, scratch_root=scratch_root)
 
 
+def snapshot_scratch_files(scratch_root: Path) -> frozenset[str]:
+    """Return safe, relative file paths currently present under scratch_root."""
+
+    root = scratch_root.resolve()
+    if not root.exists():
+        return frozenset()
+    files: set[str] = set()
+    for path in root.rglob("*"):
+        if path.is_file():
+            files.add(_relative_scratch_path(root, path))
+    return frozenset(files)
+
+
+def check_adapter_workspace_writes(
+    manifest: AdapterResultManifest,
+    scratch_root: Path,
+    *,
+    before_files: set[str] | frozenset[str] | tuple[str, ...] = (),
+    allowed_new_files: tuple[str, ...] = (),
+) -> AdapterWorkspaceWriteCheck:
+    """Compare a manifest with before/after scratch file snapshots."""
+
+    manifest.resolve_written_paths(scratch_root)
+    before = {_normalize_manifest_path(path) for path in before_files}
+    allowed = {_normalize_manifest_path(path) for path in allowed_new_files}
+    after = set(snapshot_scratch_files(scratch_root))
+    declared = set(manifest.files_written)
+    new_files = after - before
+    return AdapterWorkspaceWriteCheck(
+        declared_files=tuple(sorted(declared)),
+        new_files=tuple(sorted(new_files)),
+        missing_files=tuple(sorted(path for path in declared if path not in after)),
+        unexpected_files=tuple(sorted(new_files - declared - allowed)),
+    )
+
+
 def _normalize_manifest_path(value: str) -> str:
     text = value.strip().replace("\\", "/")
     if not text:
@@ -254,3 +319,11 @@ def _normalize_manifest_path(value: str) -> str:
     if any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"manifest path must not traverse directories: {value!r}")
     return path.as_posix()
+
+
+def _relative_scratch_path(root: Path, path: Path) -> str:
+    try:
+        path.resolve().relative_to(root)
+    except ValueError as exc:
+        raise AdapterManifestError(f"scratch file escapes workspace: {path}") from exc
+    return path.relative_to(root).as_posix()

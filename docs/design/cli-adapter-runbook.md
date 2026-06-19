@@ -364,7 +364,9 @@ policy:
 The checked parser lives in `distill.doctor.adapter_manifest`. It rejects
 unknown fields, unsafe relative paths, missing usage signals, unknown adapters,
 and `no-metered` results that report metered auth, API-key blockers, or metered
-usage allowance.
+usage allowance. The same module also provides scratch before/after snapshot
+checks so a runner can reject missing declared files or unexpected new files
+without treating pre-staged source files as adapter writes.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,
