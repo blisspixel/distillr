@@ -94,6 +94,8 @@
   progress through `BatchProgress`.
 - Progress lines should expose phase, item count, completed count, failed
   count, running spend, and ETA when available.
+- Use `distill --quiet <command>` for external loops that only need exit codes,
+  artifacts, or JSON. Use `distill --verbose <command>` for debug logging.
 - Preserve JSON stdout purity by routing human progress through the shared
   `distill._console.console`.
 - Per-item failures should become structured run issues and the loop should

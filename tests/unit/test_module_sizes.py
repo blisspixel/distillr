@@ -72,7 +72,8 @@ ALLOWLIST: dict[str, int] = {
     # shared verify/lens/completion/source-rigor helpers -> support modules:
     # 1616 -> 1512.
     # discover ingest helpers -> commands/_discover_ingest.py: 1512 -> 1445.
-    "distill/commands/_logic.py": 1445,
+    # output-mode setup -> commands/_helpers.py: 1445 -> 1444.
+    "distill/commands/_logic.py": 1444,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

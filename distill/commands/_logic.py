@@ -54,6 +54,7 @@ from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import (
     _apply_cost_mode_override,
+    _apply_output_mode,
     _apply_verify_override,  # noqa: F401 - compatibility export for distill._cli_impl
     _complete_topic_watch_names,  # noqa: F401 - compatibility export for distill._cli_impl
     _complete_topics,  # noqa: F401 - compatibility export for distill._cli_impl
@@ -519,6 +520,8 @@ def _version_callback(value: bool) -> None:
 def _default(
     ctx: typer.Context,
     debug: bool = typer.Option(False, "--debug", help="Enable DEBUG-level logging to console"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress human output"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON to stdout"),
     model: str = typer.Option("", "--model", "-m", help="Override model for all workloads"),
     cost_mode: str = typer.Option("", "--cost-mode", help="Override cost policy"),
@@ -534,30 +537,26 @@ def _default(
     """Distill - YouTube channels to strategic intelligence."""
     from distill._logging import configure_logging
 
-    ctx.ensure_object(dict)
-    ctx.obj["json"] = json_output
-    ctx.obj["model"] = model
     # In --json mode, redirect all human/progress/diagnostic output to stderr so
     # stdout carries only the JSON envelope (commands write that envelope
     # directly to stdout). Called every invocation so a reused process resets
     # the stream rather than leaking a prior redirect. Supersedes the old
     # console.quiet approach, which dropped diagnostics entirely.
-    from distill._console import set_json_mode
-    from distill.commands._json import set_json_active
-
-    set_json_mode(json_output)
-    set_json_active(json_output)
-    if model:
-        import os
-
-        os.environ["DISTILL_MODEL"] = model
+    effective_debug = _apply_output_mode(
+        ctx,
+        quiet=quiet,
+        verbose=verbose,
+        debug=debug,
+        json_output=json_output,
+        model=model,
+    )
     _apply_cost_mode_override(cost_mode)
 
     try:
         ops_dir = get_config().library_dir / ".distill"
     except Exception:
         ops_dir = None
-    configure_logging(debug=debug, ops_dir=ops_dir)
+    configure_logging(debug=effective_debug, ops_dir=ops_dir)
 
     if ctx.invoked_subcommand is None:
         # Only clear the screen for an interactive terminal; clearing when output

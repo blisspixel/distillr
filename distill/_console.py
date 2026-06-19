@@ -25,7 +25,7 @@ from rich.console import Console
 # CLI's non-ASCII glyphs. Must stay first. Mirrors the guard _helpers.py had.
 from distill import _bootstrap  # noqa: F401  -- imported for stdio side effect
 
-__all__ = ["console", "err_console", "set_json_mode"]
+__all__ = ["console", "err_console", "is_quiet", "set_json_mode", "set_verbosity"]
 
 # The one shared human-output console. Modules import THIS object (not their own
 # Console()) so a single redirect governs every print.
@@ -34,6 +34,19 @@ console = Console()
 # Always-stderr console for the few callers that must write to the terminal
 # while stdout is reserved for structured output.
 err_console = Console(stderr=True)
+_quiet = False
+
+
+def set_verbosity(*, quiet: bool = False) -> None:
+    """Set process-local human-output verbosity for the shared console."""
+    global _quiet
+    _quiet = quiet
+    console.quiet = quiet
+
+
+def is_quiet() -> bool:
+    """Return whether the shared human console is currently quiet."""
+    return _quiet
 
 
 def set_json_mode(enabled: bool) -> None:

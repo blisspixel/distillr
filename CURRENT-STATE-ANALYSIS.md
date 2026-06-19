@@ -365,3 +365,10 @@ completed count, failed count, running spend, and ETA where available. The
 default report method label now says 4-phase, matching the research, section
 writing, assembly, and QA pipeline. The live progress item is now complete; the
 remaining CLI-UX follow-on is the verbosity dial.
+
+Cycle 40 ships that verbosity dial. The top-level callback now accepts
+`--quiet` / `-q` to suppress the shared human console for one invocation, and
+`--verbose` / `-v` as the debug-logging alias. The output-mode setup lives in
+`distill.commands._helpers`, so `_logic.py` stays under the lowered 1444-line
+ratchet. `--json` still owns stdout purity separately; quiet mode suppresses
+human console output without changing JSON emission.

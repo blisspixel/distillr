@@ -51,6 +51,7 @@ from distill.ingestors.youtube.transcripts import get_transcript
 __all__ = [
     "SHORTS_THRESHOLD",
     "_apply_cost_mode_override",
+    "_apply_output_mode",
     "_apply_verify_override",
     "_complete_topic_watch_names",
     "_complete_topics",
@@ -131,6 +132,41 @@ def _apply_cost_mode_override(cost_mode: str) -> None:
         )
         raise typer.Exit(1) from None
     os.environ["DISTILL_COST_MODE"] = value
+
+
+def _apply_output_mode(
+    ctx: typer.Context,
+    *,
+    quiet: bool,
+    verbose: bool,
+    debug: bool,
+    json_output: bool,
+    model: str,
+) -> bool:
+    """Apply global output options and return the effective debug flag."""
+    if quiet and (verbose or debug):
+        console.print("[red]--quiet cannot be combined with --verbose or --debug[/red]")
+        raise typer.Exit(2)
+
+    ctx.ensure_object(dict)
+    ctx.obj.update(
+        {
+            "json": json_output,
+            "model": model,
+            "quiet": quiet,
+            "verbose": verbose,
+        }
+    )
+
+    from distill._console import set_json_mode, set_verbosity
+    from distill.commands._json import set_json_active
+
+    set_json_mode(json_output)
+    set_verbosity(quiet=quiet)
+    set_json_active(json_output)
+    if model:
+        os.environ["DISTILL_MODEL"] = model
+    return debug or verbose
 
 
 def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:

@@ -52,10 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added persistent per-video progress output for video-backed loops such as `distill latest` and `distill catch-up`, showing completed count, failed count, running spend, and ETA after each processed video.
 - Added the same per-item progress surface to `distill discover` paper and site ingestion, while its video branch uses the shared video progress path.
 - Added report progress for the default 4-phase pipeline, covering report phases, section writing, and QA rewrites with completed count, failed count, running spend, and ETA when available.
+- Added global `distill --quiet/-q` and `distill --verbose/-v` output controls, with `--quiet` suppressing human console output for loop runners and `--verbose` enabling debug logging.
 
 ### Changed
 
-- Moved discover paper and site ingest loop bodies into `distill.commands._discover_ingest`, preserving the existing `_logic` wrappers and lowering the `_logic.py` module-size ratchet from 1512 to 1445 lines.
+- Moved discover paper and site ingest loop bodies into `distill.commands._discover_ingest`, preserving the existing `_logic` wrappers and lowering the `_logic.py` module-size ratchet from 1512 to 1444 lines.
+- Moved global output-mode setup into `distill.commands._helpers`, keeping `_logic.py` under its lowered module-size ratchet.
 - Corrected the default report method label from 3-phase to 4-phase.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.

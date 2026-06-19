@@ -187,6 +187,34 @@
 - Implement the `-q` / `-v` verbosity dial so the CLI-UX progress pass has a
   user-controlled output level before the contract freezes.
 
+### Cycle 40 - Global Verbosity Controls
+
+- External spend: `$0.00`.
+- Added global `--quiet` / `-q` to suppress the shared human console for one
+  invocation.
+- Added global `--verbose` / `-v` as the debug-logging alias.
+- Moved output-mode setup into `distill.commands._helpers`, keeping
+  `_logic.py` at 1444 lines and lowering the ratchet from 1445 to 1444.
+- Documented the global output controls in README, usage docs, roadmap,
+  changelog, skills, and current-state analysis.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_cli_wiring.py::TestTopLevelExperience tests/unit/test_module_sizes.py -q`
+    passed: 8 passed.
+  - `uv run ruff check distill/_console.py distill/commands/_logic.py distill/commands/_helpers.py tests/unit/commands/test_cli_wiring.py`
+    passed.
+  - `uv run ruff format --check distill/_console.py distill/commands/_logic.py distill/commands/_helpers.py tests/unit/commands/test_cli_wiring.py`
+    passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 447 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2510
+    passed, 8 deselected, 1 warning, 82.73% coverage.
+
+### Next
+
+- Normalize `--help` examples for recurring workflows or continue the next
+  local roadmap slice with no external spend.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

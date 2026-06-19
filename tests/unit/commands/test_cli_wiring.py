@@ -186,6 +186,40 @@ class TestTopLevelExperience:
         assert "Quick commands:" in result.output
         assert "Topics" in result.output
 
+    def test_quiet_suppresses_home_output_and_resets(self, mock_config, monkeypatch):
+        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(cli.console, "clear", lambda: None)
+
+        quiet = runner.invoke(cli.app, ["--quiet"])
+        normal = runner.invoke(cli.app, [])
+
+        assert quiet.exit_code == 0
+        assert quiet.output == ""
+        assert normal.exit_code == 0
+        assert "Distill Start" in normal.output
+
+    def test_quiet_conflicts_with_verbose(self):
+        result = runner.invoke(cli.app, ["--quiet", "--verbose", "alerts"])
+
+        assert result.exit_code == 2
+        assert "--quiet cannot be combined with --verbose" in result.output
+
+    def test_verbose_enables_debug_logging(self, mock_config, monkeypatch):
+        captured: dict[str, object] = {}
+
+        def configure_logging(*, debug, ops_dir):
+            captured["debug"] = debug
+            captured["ops_dir"] = ops_dir
+
+        monkeypatch.setattr("distill._logging.configure_logging", configure_logging)
+        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(cli.console, "clear", lambda: None)
+
+        result = runner.invoke(cli.app, ["--verbose"])
+
+        assert result.exit_code == 0
+        assert captured["debug"] is True
+
 
 class TestVideoCommand:
     def test_video_defaults_to_artifact_links(self, mock_config, monkeypatch):

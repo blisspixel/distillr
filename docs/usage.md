@@ -21,6 +21,7 @@ Full command reference. For the short version, see the README.
 - [Concept playbook and recovery](#concept-playbook-and-recovery)
 - [Viewing and exporting](#viewing-and-exporting)
 - [Diagnostics](#diagnostics)
+- [Global output controls](#global-output-controls)
 
 ## Goal-aware discovery (cross-source)
 
@@ -742,6 +743,21 @@ distill --version       # or -V; prints the installed version and exits 0
 
 Eager, so it works before any environment is configured — handy for bug reports and agent preflight.
 
+## Global output controls
+
+Global output flags go before the command:
+
+```bash
+distill --quiet catch-up              # suppress human console output
+distill --verbose doctor              # enable debug logging
+distill --json library                # machine-readable stdout
+```
+
+`--quiet` / `-q` is for external loops that only need exit codes, artifacts, or
+JSON output. It suppresses the shared human console for that invocation and
+resets on the next command. `--verbose` / `-v` enables debug logging. `--quiet`
+cannot be combined with `--verbose` or `--debug`.
+
 ## JSON Output
 
 Pass `--json` for machine-readable output. The read surface is covered —
@@ -769,6 +785,8 @@ Exit codes still apply (e.g. 3 for config errors), so a caller can branch on bot
 
 Distill is built to run in a loop or under an agent with no human at the keyboard:
 
+- **`--quiet` / `-q`** suppresses human console output when a loop only needs
+  exit codes, artifacts, or JSON.
 - **`--yes` / `-y`** skips confirmation on every spend- or mutation-gated command.
 - **`audit --report-only`** writes the report artifact and sets the exit code from findings without prompting.
 - **`audit --next-actions --json`** emits bounded action rows an external loop can run and verify without scraping console output.
