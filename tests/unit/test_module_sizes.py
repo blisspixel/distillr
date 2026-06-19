@@ -71,7 +71,8 @@ ALLOWLIST: dict[str, int] = {
     # topic-watch sub-app -> commands/topic_watch.py (Watch slice): 2612 -> 2210.
     # shared verify/lens/completion/source-rigor helpers -> support modules:
     # 1616 -> 1512.
-    "distill/commands/_logic.py": 1512,
+    # discover ingest helpers -> commands/_discover_ingest.py: 1512 -> 1445.
+    "distill/commands/_logic.py": 1445,
 }
 
 _DISTILL_DIR = pathlib.Path(distill.__file__).resolve().parent

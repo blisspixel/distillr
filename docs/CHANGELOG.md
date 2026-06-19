@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Moved discover paper and site ingest loop bodies into `distill.commands._discover_ingest`, keeping `_logic.py` below its module-size ratchet while preserving the existing `_logic` wrappers.
+- Moved discover paper and site ingest loop bodies into `distill.commands._discover_ingest`, preserving the existing `_logic` wrappers and lowering the `_logic.py` module-size ratchet from 1512 to 1445 lines.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
 - Clarified the agentic-balance boundary for recurring profile preview: deterministic code owns fetch, parse, identity, freshness, limits, and cost refusal, while models own source fit, novelty, rumor classification, and priority.

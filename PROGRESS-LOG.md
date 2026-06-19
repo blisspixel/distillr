@@ -117,7 +117,7 @@
   so mixed discovery has progress across all selected source types.
 - Extracted the discover paper and site ingest loop bodies into
   `distill.commands._discover_ingest`, leaving `_logic.py` at 1445 lines and
-  below its 1512-line ratchet.
+  lowering its ratchet from 1512 to 1445 lines.
 - The remaining CLI-UX work is report phase progress and a verbosity dial.
 - Targeted validation:
   - `uv run pytest tests/unit/commands/test_ingest_failure_isolation.py tests/unit/test_module_sizes.py -q`
@@ -135,6 +135,30 @@
 
 - Continue with report phase progress, the verbosity dial, or trusted-site
   discovery depending on the next highest-leverage local slice.
+
+### Cycle 38 - Logic Ratchet Truth-Up
+
+- External spend: `$0.00`.
+- Lowered the `_logic.py` module-size ratchet from 1512 to 1445 after the
+  discover ingest extraction.
+- Updated ROADMAP, detailed roadmap, and the logic-decomposition design note so
+  the documented `_logic.py` size matches the enforced test.
+- Updated the human+agent CLI-UX roadmap status so `discover` is no longer
+  listed as the remaining batch-progress gap.
+- Targeted validation:
+  - `uv run pytest tests/unit/test_module_sizes.py -q` passed.
+  - `uv run ruff check tests/unit/test_module_sizes.py` passed.
+  - `uv run ruff format tests/unit/test_module_sizes.py` reformatted the
+    updated ratchet comments.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed.
+
+### Next
+
+- Continue with report phase progress and then the verbosity dial so the
+  progress-visibility roadmap item can close cleanly.
 
 ### Cycle 0 - Orientation and Doc Truth-Up
 
