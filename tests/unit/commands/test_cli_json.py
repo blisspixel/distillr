@@ -238,6 +238,14 @@ class TestJsonDoctor:
                     no_metered_candidate=True,
                     no_metered_eligible=False,
                     support_statement="planned",
+                    support_statement_detail={
+                        "status": "planned",
+                        "checked_on": "2026-06-18",
+                        "sources": ["https://developers.openai.com/codex/cli/reference"],
+                        "required_evidence": ["official installed-session auth proof"],
+                        "no_metered_current": False,
+                        "notes": "Planned route.",
+                    },
                     blocked_reasons=["codex is not installed"],
                 )
             ],
@@ -255,6 +263,7 @@ class TestJsonDoctor:
         assert data["manifest_contract"]["schema_version"] == "adapter-result.v1"
         assert data["adapters"][0]["name"] == "codex"
         assert data["adapters"][0]["no_metered_eligible"] is False
+        assert data["adapters"][0]["support_statement_detail"]["no_metered_current"] is False
 
 
 class TestJsonAlerts:

@@ -161,6 +161,12 @@ argv arrays with shell disabled, strips known metered API-key environment
 variables, enforces a timeout, captures bounded output tails, parses the result
 manifest, and applies scratch write checks.
 
+Cycle 13 structured adapter support statements as data instead of prose-only
+status. Adapter doctor reports now include checked date, source URLs, required
+evidence, no-metered current status, and notes for each candidate route. Planned
+plan-quota routes remain blocked because their support records are not current,
+and Copilot remains a credit-metered candidate rather than a no-metered default.
+
 Remaining near-term gaps are official installed-session auth proof,
 adapter-specific workload wiring, native usage and quota-stop fields for future
 plan-quota adapters, and eval-gated route graduation.

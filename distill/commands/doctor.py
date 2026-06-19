@@ -641,6 +641,7 @@ def _doctor_adapter_report(*, json_output: bool) -> None:
         )
         if probe.version:
             console.print(f"    version: {probe.version}")
+        _doctor_adapter_support_statement(probe.support_statement_detail)
         if probe.auth_mode:
             console.print(f"    auth: {probe.auth_mode}")
         if probe.config_files_found:
@@ -653,6 +654,17 @@ def _doctor_adapter_report(*, json_output: bool) -> None:
             console.print(f"    missing flags: {', '.join(probe.missing_flags)}")
         if probe.blocked_reasons:
             console.print(f"    blocked: {'; '.join(probe.blocked_reasons)}")
+
+
+def _doctor_adapter_support_statement(detail: dict[str, object]) -> None:
+    if not detail:
+        return
+    console.print(
+        "    support statement: "
+        f"{detail.get('status')} "
+        f"(checked {detail.get('checked_on')}, "
+        f"no-metered current={detail.get('no_metered_current')})"
+    )
 
 
 def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:  # noqa: C901

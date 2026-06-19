@@ -18,6 +18,7 @@ __all__ = [
     "AdapterSpec",
     "CommandProbe",
     "ConfigProbe",
+    "SupportStatement",
     "adapter_doctor_report",
     "adapter_specs",
 ]
@@ -46,13 +47,35 @@ class CommandProbe:
 
 
 @dataclass(frozen=True)
+class SupportStatement:
+    """Support status for a candidate adapter route."""
+
+    status: str
+    checked_on: str
+    sources: tuple[str, ...]
+    required_evidence: tuple[str, ...]
+    no_metered_current: bool = False
+    notes: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "checked_on": self.checked_on,
+            "sources": list(self.sources),
+            "required_evidence": list(self.required_evidence),
+            "no_metered_current": self.no_metered_current,
+            "notes": self.notes,
+        }
+
+
+@dataclass(frozen=True)
 class AdapterSpec:
     """Static policy for a candidate adapter route."""
 
     name: str
     binary: str
     route_class: str
-    support_statement: str
+    support_statement: SupportStatement
     probes: tuple[CommandProbe, ...]
     env_blockers: tuple[str, ...] = ()
     config_probes: tuple[ConfigProbe, ...] = ()
@@ -70,6 +93,7 @@ class AdapterProbe:
     no_metered_candidate: bool
     no_metered_eligible: bool
     support_statement: str
+    support_statement_detail: dict[str, object] = field(default_factory=dict)
     version: str = ""
     auth_mode: str = "unknown"
     auth_evidence: list[str] = field(default_factory=list)
@@ -88,6 +112,7 @@ class AdapterProbe:
             "no_metered_candidate": self.no_metered_candidate,
             "no_metered_eligible": self.no_metered_eligible,
             "support_statement": self.support_statement,
+            "support_statement_detail": self.support_statement_detail,
             "version": self.version,
             "auth_mode": self.auth_mode,
             "auth_evidence": self.auth_evidence,
@@ -128,7 +153,15 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             name="codex",
             binary="codex",
             route_class="included-plan",
-            support_statement="planned",
+            support_statement=_support_statement(
+                status="planned",
+                sources=(
+                    "https://developers.openai.com/codex/cli/reference",
+                    "https://developers.openai.com/codex/noninteractive",
+                    "https://developers.openai.com/codex/concepts/sandboxing",
+                    "https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan",
+                ),
+            ),
             env_blockers=("OPENAI_API_KEY", "CODEX_API_KEY"),
             config_probes=(
                 ConfigProbe(
@@ -151,7 +184,14 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             name="claude",
             binary="claude",
             route_class="included-plan",
-            support_statement="planned",
+            support_statement=_support_statement(
+                status="planned",
+                sources=(
+                    "https://code.claude.com/docs/en/cli-reference",
+                    "https://code.claude.com/docs/en/settings",
+                    "https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan",
+                ),
+            ),
             env_blockers=("ANTHROPIC_API_KEY",),
             config_probes=(
                 ConfigProbe(
@@ -180,7 +220,14 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             name="grok",
             binary="grok",
             route_class="included-plan",
-            support_statement="planned",
+            support_statement=_support_statement(
+                status="planned",
+                sources=(
+                    "https://docs.x.ai/build/cli/headless-scripting",
+                    "https://docs.x.ai/build/enterprise",
+                    "https://docs.x.ai/build/modes-and-commands",
+                ),
+            ),
             env_blockers=("XAI_API_KEY",),
             config_probes=(
                 ConfigProbe(
@@ -199,7 +246,13 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             name="gemini-cli",
             binary="gemini",
             route_class="included-plan",
-            support_statement="planned",
+            support_statement=_support_statement(
+                status="planned",
+                sources=(
+                    "https://github.com/google-gemini/gemini-cli",
+                    "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
+                ),
+            ),
             env_blockers=("GEMINI_API_KEY",),
             config_probes=(
                 ConfigProbe(
@@ -218,7 +271,13 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             name="antigravity",
             binary="antigravity",
             route_class="included-plan",
-            support_statement="planned",
+            support_statement=_support_statement(
+                status="planned",
+                sources=(
+                    "https://antigravity.google/docs/cli-overview",
+                    "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
+                ),
+            ),
             env_blockers=("GEMINI_API_KEY",),
             config_probes=(
                 ConfigProbe(
@@ -237,7 +296,23 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             name="copilot",
             binary="gh",
             route_class="credit-metered",
-            support_statement="credit-metered candidate",
+            support_statement=SupportStatement(
+                status="credit-metered candidate",
+                checked_on="2026-06-18",
+                sources=(
+                    "https://docs.github.com/copilot/concepts/agents/about-copilot-cli",
+                    "https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference",
+                    "https://docs.github.com/en/copilot/concepts/usage-limits",
+                ),
+                required_evidence=(
+                    "explicit paid-ok or future plan-credit policy",
+                    "machine-readable output or adapter-result.v1 manifest",
+                    "native AI-credit usage signal",
+                    "eval evidence for the workload",
+                ),
+                no_metered_current=False,
+                notes="Credit-metered candidate only. Not a no-metered default.",
+            ),
             no_metered_candidate=False,
             probes=(
                 CommandProbe("version", ("gh", "--version")),
@@ -313,7 +388,7 @@ def _probe_adapter(
         blocked_reasons.append(f"missing required flag {flag}")
     if installed and spec.no_metered_candidate and auth_mode == "unknown":
         blocked_reasons.append("auth mode is unknown")
-    if spec.support_statement == "planned":
+    if spec.no_metered_candidate and not spec.support_statement.no_metered_current:
         blocked_reasons.append("support statement is not current")
 
     no_metered_eligible = (
@@ -329,7 +404,8 @@ def _probe_adapter(
         installed=installed,
         no_metered_candidate=spec.no_metered_candidate,
         no_metered_eligible=no_metered_eligible,
-        support_statement=spec.support_statement,
+        support_statement=spec.support_statement.status,
+        support_statement_detail=spec.support_statement.to_dict(),
         version=command_result.version,
         auth_mode=auth_mode,
         auth_evidence=sorted(config_result.metered_evidence + config_result.session_evidence),
@@ -353,6 +429,23 @@ def _run_command(command: Sequence[str], timeout_seconds: int) -> tuple[int, str
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 124, "", str(exc)
     return result.returncode, result.stdout, result.stderr
+
+
+def _support_statement(*, status: str, sources: tuple[str, ...]) -> SupportStatement:
+    return SupportStatement(
+        status=status,
+        checked_on="2026-06-18",
+        sources=sources,
+        required_evidence=(
+            "official installed-session auth proof",
+            "no API-key environment or config blockers",
+            "adapter-result.v1 manifest with native usage signal",
+            "scratch-only write check",
+            "distill eval evidence for the workload",
+        ),
+        no_metered_current=False,
+        notes="Planned route. Blocked until proof and eval evidence exist.",
+    )
 
 
 def _first_line(output: str) -> str:

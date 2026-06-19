@@ -90,5 +90,7 @@
   manifest plus scratch writes. It is not a route graduation gate by itself.
 - Planned support statements remain blocked until official auth proof, adapter
   workload wiring, native usage ledger signals, and eval evidence exist.
+- Treat `support_statement_detail.no_metered_current=false` as a hard block for
+  plan-quota routing, even when local binary and config probes look usable.
 - API-key environment blockers keep plan-quota candidates out of no-metered
   routing.

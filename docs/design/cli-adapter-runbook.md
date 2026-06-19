@@ -36,6 +36,10 @@ a command.
   user selected `paid-ok`.
 - Report only matched config marker names and display paths. Never emit secret
   values from provider config files.
+- Treat support statements as structured evidence records: status, checked date,
+  source URLs, required evidence, no-metered current flag, and notes. A
+  plan-quota route remains blocked unless the statement is current for
+  no-metered routing and the route clears eval.
 - Record every route on the ledger even when dollar cost is zero: adapter,
   version, auth class, model when known, prompt hash, source hash, elapsed time,
   native usage signal, stop reason, and files written.
@@ -371,6 +375,9 @@ The `distill.doctor.adapter_runner` primitive runs exact argv arrays with shell
 disabled inside scratch, strips known metered API-key environment variables,
 enforces a timeout, loads the result manifest, and applies the scratch write
 check. It is a boundary helper, not a route recommendation.
+The adapter doctor also emits structured support-statement details. Treat
+`no_metered_current=false` as a hard block even when the binary, auth markers,
+and manifest contract look compatible.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

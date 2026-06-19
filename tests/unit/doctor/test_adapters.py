@@ -16,6 +16,14 @@ def test_adapter_doctor_blocks_missing_binaries(monkeypatch):
     codex = next(probe for probe in report.adapters if probe.name == "codex")
     assert not codex.installed
     assert "codex is not installed" in codex.blocked_reasons
+    assert codex.support_statement == "planned"
+    assert codex.support_statement_detail["status"] == "planned"
+    assert codex.support_statement_detail["no_metered_current"] is False
+    assert (
+        "official installed-session auth proof"
+        in codex.support_statement_detail["required_evidence"]
+    )
+    assert any("codex" in source for source in codex.support_statement_detail["sources"])
 
 
 def test_adapter_doctor_records_required_flags_and_env_blockers(monkeypatch):
@@ -49,6 +57,12 @@ def test_credit_metered_copilot_is_not_no_metered_candidate(monkeypatch):
     assert copilot.auth_mode == "credit-metered"
     assert copilot.no_metered_candidate is False
     assert copilot.no_metered_eligible is False
+    assert copilot.support_statement_detail["status"] == "credit-metered candidate"
+    assert copilot.support_statement_detail["no_metered_current"] is False
+    assert (
+        "explicit paid-ok or future plan-credit policy"
+        in copilot.support_statement_detail["required_evidence"]
+    )
 
 
 def test_adapter_doctor_detects_metered_config_without_leaking_secret(monkeypatch, tmp_path):

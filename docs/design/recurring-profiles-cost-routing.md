@@ -337,11 +337,12 @@ boundaries:
 6. **Adapter doctor.** Add read-only preflights for local, Codex, Claude Code,
    Grok Build, Gemini CLI, and Antigravity routes: installed version, auth mode,
    dangerous environment variables, headless support, machine-readable output
-   support, and support statement version. Copilot can be reported separately
-   as a credit-metered CLI candidate under explicit paid policy.
+   support, support statement version, and structured support detail. Copilot
+   can be reported separately as a credit-metered CLI candidate under explicit
+   paid policy.
 7. **Adapter contracts.** Add plan-quota adapters only behind explicit support
-   statements, scratch-manifest writes, environment preflights, and
-   `distill eval` fixtures.
+   statements whose no-metered status is current, scratch-manifest writes,
+   environment preflights, and `distill eval` fixtures.
 8. **Cross-route eval.** Extend `distill eval` so local sunk-cost routes,
    plan-quota CLI routes, and metered API routes can be compared on the same
    fixture with an LLM-as-judge rubric, acceptance accounting, and a usage
@@ -357,7 +358,8 @@ boundaries:
 - No hidden daemon or built-in scheduler in the first profile slice.
 - No claim that subscription usage has no cost or no limits.
 - No automated YouTube anti-bot workaround.
-- No plan-quota adapter without eval evidence and a support statement.
+- No plan-quota adapter without eval evidence and a current structured support
+  statement.
 - No profile-only pipeline that bypasses existing verify, audit, cost, and
   corpus invariants.
 
