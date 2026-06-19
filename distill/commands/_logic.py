@@ -48,6 +48,7 @@ from distill.cli_shared import (
 from distill.cli_shared import (
     tty_prompt as _tty_prompt,
 )
+from distill.commands import _discover_ingest as _discover_ingest_support
 from distill.commands import _learning as _learning_support
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _topic_changes as _topic_changes_support
@@ -108,7 +109,7 @@ from distill.pipeline.analysis.video import (
     analyze_video,
     generate_channel_context,
 )
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.dashboard_data import _load_site_manifest as _load_site_manifest
 from distill.pipeline.dashboard_data import build_site_section_state as _build_site_section_state
 from distill.pipeline.ranking import chronological_rank, rerank_videos
@@ -1335,43 +1336,19 @@ def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_si
 
 
 def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers) -> None:
-    """Analyze and write the ranked papers, then refresh the paper synthesis.
-
-    One failed paper must not kill the run: the failure is recorded as a run
-    issue and the loop continues, so the synthesis still covers everything
-    that landed and a convergent re-run retries only the failures. (The
-    dogfood library carried the scar of the old behavior: a topic with five
-    papers newer than its last synthesis, from a run that died mid-loop.)
-    """
-    console.print(f"\n[bold]Ingesting {len(ranked_papers)} paper(s)[/bold]")
-    for idx, item in enumerate(ranked_papers, 1):
-        paper = item.paper
-        if paper is None:
-            continue
-        console.print(f"  [{idx}/{len(ranked_papers)}] [bold]{paper.title}[/bold]")
-        try:
-            insights, document = analyze_paper(
-                paper, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
-            )
-            paper_dir = _write_paper_artifacts(topic_name, paper, config, insights, document)
-        except BudgetExceededError:
-            raise  # the spend cap is a hard stop, never a per-item issue
-        except Exception as exc:
-            console.print(f"  [red]failed: {exc}[/red]")
-            cli_shared.record_exception_issue(
-                summary,
-                stage="paper-analysis",
-                exc=exc,
-                context=paper.title,
-                details={"topic": topic_name, "paper_id": getattr(paper, "paper_id", "")},
-            )
-            continue
-        summary.add_output(find_artifact(paper_dir, "paper"))
-        summary.add_output(find_artifact(paper_dir, "insights"))
-    if synthesize_papers(topic_name, config, tracker=tracker):
-        summary.add_output(
-            find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
-        )
+    """Analyze and write selected papers, then refresh paper synthesis."""
+    _discover_ingest_support.ingest_papers(
+        topic_name,
+        config,
+        tracker,
+        summary,
+        ranked_papers,
+        analyze_paper_fn=analyze_paper,
+        write_paper_artifacts_fn=_write_paper_artifacts,
+        synthesize_papers_fn=synthesize_papers,
+        resolve_intent_fn=_resolve_intent,
+        find_artifact_fn=find_artifact,
+    )
 
 
 def _discover_ingest_videos(topic_name, config, tracker, ranked_videos) -> None:
@@ -1397,63 +1374,19 @@ def _discover_ingest_videos(topic_name, config, tracker, ranked_videos) -> None:
 def _discover_ingest_sites(
     topic_name, config, tracker, summary, ranked_sites, ingest_attachments, *, has_videos
 ) -> None:
-    """Ingest the ranked site seeds (single page each)."""
-    console.print(f"\n[bold]Ingesting {len(ranked_sites)} site seed(s)[/bold]")
-    for idx, item in enumerate(ranked_sites, 1):
-        seed = item.site_seed
-        if seed is None:
-            continue
-        console.print(f"  [{idx}/{len(ranked_sites)}] [bold]{item.title}[/bold]")
-        adjusted_seed = SiteSeed(
-            url=seed.url,
-            topic=topic_name,
-            site_name=seed.site_name,
-            label=seed.label,
-            max_depth=0,
-            max_pages=1,
-            same_section_only=seed.same_section_only,
-        )
-        try:
-            _process_site_seed(
-                adjusted_seed,
-                config,
-                tracker,
-                summary,
-                scrape_only=False,
-                ingest_attachments=ingest_attachments,
-            )
-        except BudgetExceededError:
-            raise  # the spend cap is a hard stop, never a per-item issue
-        except Exception as exc:
-            console.print(f"  [red]failed: {exc}[/red]")
-            cli_shared.record_exception_issue(
-                summary,
-                stage="site-ingest",
-                exc=exc,
-                context=seed.url,
-                details={"topic": topic_name, "site": seed.site_name or ""},
-            )
-    # When videos were also ingested, they own the topic_synthesis artifact
-    # (written by synthesize_topic). Running the website topic synthesis here
-    # would overwrite it and drop the video story from the user-facing
-    # Topic_Synthesis.md. The website material is still bridged into the corpus
-    # synthesis via the per-site syntheses, so skip the site-level topic
-    # synthesis in mixed (video + site) runs.
-    if has_videos:
-        return
-    try:
-        if synthesize_site_topic(topic_name, config, tracker=tracker):
-            summary.add_output(
-                find_artifact(config.topic_dir(topic_name), "topic_synthesis", identity=topic_name)
-            )
-    except Exception as exc:
-        cli_shared.record_exception_issue(
-            summary,
-            stage="site-topic-synthesis",
-            exc=exc,
-            context=topic_name,
-            details={"topic": topic_name},
-        )
+    """Ingest selected site seeds, then refresh site topic synthesis."""
+    _discover_ingest_support.ingest_sites(
+        topic_name,
+        config,
+        tracker,
+        summary,
+        ranked_sites,
+        ingest_attachments,
+        has_videos=has_videos,
+        process_site_seed_fn=_process_site_seed,
+        synthesize_site_topic_fn=synthesize_site_topic,
+        find_artifact_fn=find_artifact,
+    )
 
 
 def _discover_ingest_set(

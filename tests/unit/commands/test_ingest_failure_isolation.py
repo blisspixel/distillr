@@ -9,6 +9,7 @@ defeat the MCP per-call budget.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -16,13 +17,12 @@ from rich.console import Console
 
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
+from distill.ingestors.sites.scraper import SiteSeed
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.summary import RunSummary, display_summary
 
 
 def _ranked_paper(paper_id: str, title: str):
-    from types import SimpleNamespace
-
     return SimpleNamespace(
         paper=PaperRecord(
             paper_id=paper_id,
@@ -68,12 +68,79 @@ class TestPaperLoopIsolation:
         # Synthesis still ran over what landed.
         synth.assert_called_once()
 
+    def test_paper_progress_includes_failures_and_spend(self, tmp_path, capsys):
+        def analyze(paper, config, tracker=None, intent=None):
+            if "bad" in paper.title:
+                raise RuntimeError("PDF extraction exploded")
+            return ("---\n---\ninsights", "document")
+
+        self._run(tmp_path, analyze)
+
+        captured = capsys.readouterr()
+        out = captured.out + captured.err
+        assert "paper 1/3" in out
+        assert "paper 2/3" in out
+        assert "paper 3/3" in out
+        assert "completed 2/3" in out
+        assert "failed 1" in out
+        assert "spent $0.0000" in out
+
     def test_budget_exceeded_is_a_hard_stop(self, tmp_path):
         def analyze(paper, config, tracker=None, intent=None):
             raise BudgetExceededError(0.6, 0.5)
 
         with pytest.raises(BudgetExceededError):
             self._run(tmp_path, analyze)
+
+
+class TestSiteLoopIsolation:
+    def test_site_progress_continues_after_seed_failure(self, tmp_path, capsys):
+        from distill.commands import _logic
+
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+        ranked = [
+            SimpleNamespace(
+                site_seed=SiteSeed(url="https://bad.example.com/a", topic="old"),
+                title="bad site",
+            ),
+            SimpleNamespace(
+                site_seed=SiteSeed(url="https://good.example.com/b", topic="old"),
+                title="good site",
+            ),
+        ]
+        calls: list[SiteSeed] = []
+
+        def process(seed, config, tracker, summary, scrape_only=False, ingest_attachments=False):
+            calls.append(seed)
+            if "bad" in seed.url:
+                raise RuntimeError("crawl exploded")
+
+        with (
+            patch.object(_logic, "_process_site_seed", side_effect=process),
+            patch.object(_logic, "synthesize_site_topic", return_value=None),
+        ):
+            _logic._discover_ingest_sites(
+                "web",
+                config,
+                CostTracker(),
+                summary,
+                ranked,
+                ingest_attachments=False,
+                has_videos=False,
+            )
+
+        captured = capsys.readouterr()
+        out = captured.out + captured.err
+        assert [seed.topic for seed in calls] == ["web", "web"]
+        assert "site 1/2" in out
+        assert "site 2/2" in out
+        assert "completed 1/2" in out
+        assert "failed 1" in out
+        assert "spent $0.0000" in out
+        issues = [i for i in summary.issues if i.stage == "site-ingest"]
+        assert len(issues) == 1
+        assert issues[0].context == "https://bad.example.com/a"
 
 
 class TestVideoLoopIsolation:

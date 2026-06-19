@@ -62,6 +62,11 @@ Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_sc
 
 The pre-run spend estimate scales per-video cost by duration and **self-calibrates** against your `cost_log.jsonl` history (per-source rates from clean single-source runs, falling back to defaults when history is thin), so it sharpens as you use the tool. Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
 
+During ingestion, selected papers and site seeds print per-item progress with
+phase, item count, completed count, failed count, running spend, and ETA once
+enough items have completed. Selected videos use the same video progress
+surface as `latest` and `catch-up`.
+
 ## Analysis lens (per-topic intent)
 
 Every per-source insight is written through an **analysis lens** that fits what the corpus is for, instead of one fixed persona. The lenses are `research`, `practitioner`, `competitive`, `academic`, and `general` (the neutral default). `competitive` is the enterprise pre-sales framing (Vendor Watch, Business Value Signals, Customer Conversation Starters); the others drop the sales sections for ones that match the subject matter.

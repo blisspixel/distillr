@@ -347,3 +347,13 @@ now records failed items, can include running spend in phase labels, and
 failure. This covers `latest`, `catch-up`, and the other shared video paths
 without changing ranking, analysis, or synthesis behavior. The remaining named
 batch-progress gap is `discover`.
+
+Cycle 37 closes that named `discover` gap. The paper branch and curated-site
+branch now use `BatchProgress`, so mixed discovery shows phase, item count,
+completed count, failed count, running spend, and ETA for selected papers and
+site seeds. The video branch already flows through the shared learning path
+from Cycle 36. The larger CLI-UX item remains partial only because report-phase
+visibility and the verbosity dial are separate follow-ons. The implementation
+also moved the paper and site ingest bodies into `distill.commands._discover_ingest`
+so `_logic.py` stays below the module-size ratchet instead of absorbing new
+loop code.

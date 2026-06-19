@@ -88,6 +88,8 @@
 - Use `ETATracker` for video loops. Its `progress_str(..., cost_tracker=...)`
   form carries completed count, failed count, running spend, and ETA without
   replacing the existing transcript and analysis phase labels.
+- Wire `discover` paper and site ingest through `BatchProgress`; its video
+  branch inherits `ETATracker` through the shared learning flow.
 - Progress lines should expose phase, item count, completed count, failed
   count, running spend, and ETA when available.
 - Preserve JSON stdout purity by routing human progress through the shared

@@ -106,6 +106,36 @@
   `discover`, then evaluate whether a verbosity dial is still needed before
   the CLI contract freezes.
 
+### Cycle 37 - Discover Ingest Progress
+
+- External spend: `$0.00`.
+- Wired `distill discover` paper ingestion through `BatchProgress`.
+- Wired `distill discover` curated-site ingestion through `BatchProgress`.
+- Discover now reports phase, item count, completed count, failed count,
+  running spend, and ETA for selected papers and site seeds.
+- The video branch already uses the shared video progress path from Cycle 36,
+  so mixed discovery has progress across all selected source types.
+- Extracted the discover paper and site ingest loop bodies into
+  `distill.commands._discover_ingest`, leaving `_logic.py` at 1445 lines and
+  below its 1512-line ratchet.
+- The remaining CLI-UX work is report phase progress and a verbosity dial.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_ingest_failure_isolation.py tests/unit/test_module_sizes.py -q`
+    passed: 9 passed.
+  - `uv run ruff check distill/commands/_logic.py distill/commands/_discover_ingest.py tests/unit/commands/test_ingest_failure_isolation.py`
+    passed.
+  - `uv run ruff format --check distill/commands/_logic.py distill/commands/_discover_ingest.py tests/unit/commands/test_ingest_failure_isolation.py`
+    passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed.
+
+### Next
+
+- Continue with report phase progress, the verbosity dial, or trusted-site
+  discovery depending on the next highest-leverage local slice.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

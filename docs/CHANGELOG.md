@@ -50,9 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added context-engineering contribution rules to `docs/CONTRIBUTING.md` so prompt, MCP, report, pipeline, and loop changes preserve provenance, keep default context small, and measure prompt-budget impact.
 - Added shared batch progress formatting and wired it into `distill papers` and `distill site-batch`, showing phase, item count, completed count, failed count, running spend, and ETA when enough items have completed.
 - Added persistent per-video progress output for video-backed loops such as `distill latest` and `distill catch-up`, showing completed count, failed count, running spend, and ETA after each processed video.
+- Added the same per-item progress surface to `distill discover` paper and site ingestion, while its video branch uses the shared video progress path.
 
 ### Changed
 
+- Moved discover paper and site ingest loop bodies into `distill.commands._discover_ingest`, keeping `_logic.py` below its module-size ratchet while preserving the existing `_logic` wrappers.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
 - Clarified the agentic-balance boundary for recurring profile preview: deterministic code owns fetch, parse, identity, freshness, limits, and cost refusal, while models own source fit, novelty, rumor classification, and priority.
