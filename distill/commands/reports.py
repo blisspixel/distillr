@@ -146,7 +146,7 @@ def report(  # noqa: C901 - legacy, will refactor
         if all_topics
         else (f"channel: {channel}" if channel else f"topic: {topic}")
     )
-    method = "Legacy (single-shot)" if legacy else "Accordion (3-phase)"
+    method = "Legacy (single-shot)" if legacy else "Accordion (4-phase)"
 
     tracker = CostTracker()
     summary = RunSummary(command="report")

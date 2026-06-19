@@ -204,8 +204,9 @@ distill audit memory --report-only
 distill audit memory --next-actions --json   # bounded loop handoff plan
 ```
 
-Long ingest runs print per-item progress with completed count, failed count,
-running spend, and ETA when enough items have completed.
+Long ingest and report runs print per-item or per-phase progress with
+completed count, failed count, running spend, and ETA when enough items have
+completed.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

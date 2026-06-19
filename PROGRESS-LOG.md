@@ -160,6 +160,33 @@
 - Continue with report phase progress and then the verbosity dial so the
   progress-visibility roadmap item can close cleanly.
 
+### Cycle 39 - Report Phase Progress
+
+- External spend: `$0.00`.
+- Added report-level `BatchProgress` to the default accordion report pipeline
+  for research, section writing, assembly, and QA.
+- Added per-section `BatchProgress` to report section writing.
+- Added per-fix `BatchProgress` to QA rewrites.
+- Corrected the report CLI method label from 3-phase to 4-phase.
+- Marked live mixed-source run progress complete in the detailed roadmap; the
+  remaining CLI-UX follow-on is the verbosity dial.
+- Targeted validation:
+  - `uv run pytest tests/unit/pipeline/report/test_accordion.py -q` passed:
+    67 passed.
+  - `uv run ruff check distill/pipeline/report/accordion.py distill/commands/reports.py tests/unit/pipeline/report/test_accordion.py`
+    passed.
+  - `uv run ruff format --check distill/pipeline/report/accordion.py distill/commands/reports.py tests/unit/pipeline/report/test_accordion.py`
+    passed after formatting.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed.
+
+### Next
+
+- Implement the `-q` / `-v` verbosity dial so the CLI-UX progress pass has a
+  user-controlled output level before the contract freezes.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

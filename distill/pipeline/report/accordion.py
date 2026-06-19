@@ -29,6 +29,7 @@ from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.deep_research import _get_report_path
 from distill.pipeline.report.file_search import create_research_store, delete_store
+from distill.pipeline.summary import BatchProgress
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import (
     REPORT_SECTIONS,
@@ -64,13 +65,21 @@ def run_accordion_research(
     skip_qa: bool = False,
 ) -> str | None:
     """Run the full accordion pipeline: research -> sections -> assembly -> QA."""
+    phase_total = 1 if dossier_only else 3 if skip_qa else 4
+    phase_progress = BatchProgress("report", phase_total, tracker)
 
     # ── Phase 1: Research ──
     console.print("\n[bold cyan]Phase 1: Research (Gemini Deep Research)[/bold cyan]")
 
+    phase_start = phase_progress.start_item()
+    console.print(phase_progress.item_line("research", "Gemini Deep Research"))
     dossier = _run_dossier_phase(topic, config, scope, channel_name, focus, test, tracker)
     if not dossier:
+        phase_progress.finish_item(phase_start, success=False)
+        console.print(phase_progress.status_line("failed"))
         return None
+    phase_progress.finish_item(phase_start, success=True)
+    console.print(phase_progress.status_line("done"))
 
     dossier_words = len(dossier.split())
     console.print(f"[green]Research complete: {dossier_words:,} words of validated facts[/green]")
@@ -115,6 +124,8 @@ def run_accordion_research(
         f"\n[bold cyan]Phase 2: Section Writing ({section_model} x {len(active_sections)} sections)[/bold cyan]"
     )
 
+    phase_start = phase_progress.start_item()
+    console.print(phase_progress.item_line("sections", "Section writing"))
     tagged_materials = _gather_tagged_materials(topic, config, scope, channel_name)
 
     written_sections = _write_sections(
@@ -130,12 +141,18 @@ def run_accordion_research(
     )
 
     if not written_sections:
+        phase_progress.finish_item(phase_start, success=False)
+        console.print(phase_progress.status_line("failed"))
         console.print("[red]No sections were written successfully[/red]")
         return None
+    phase_progress.finish_item(phase_start, success=True)
+    console.print(phase_progress.status_line("done"))
 
     # ── Phase 3: Assembly ──
     console.print("\n[bold cyan]Phase 3: Assembly[/bold cyan]")
 
+    phase_start = phase_progress.start_item()
+    console.print(phase_progress.item_line("assembly", "Report assembly"))
     report = _assemble_report(
         topic=topic,
         config=config,
@@ -143,11 +160,15 @@ def run_accordion_research(
         channel_name=channel_name,
         sections=written_sections,
     )
+    phase_progress.finish_item(phase_start, success=True)
+    console.print(phase_progress.status_line("done"))
 
     # ── Phase 4: QA ──
     if not skip_qa:
         console.print("\n[bold cyan]Phase 4: QA Review[/bold cyan]")
 
+        phase_start = phase_progress.start_item()
+        console.print(phase_progress.item_line("qa", "QA review"))
         written_sections, rewrote = _run_qa_phase(
             topic=topic,
             config=config,
@@ -156,6 +177,8 @@ def run_accordion_research(
             written_sections=written_sections,
             tracker=tracker,
         )
+        phase_progress.finish_item(phase_start, success=True)
+        console.print(phase_progress.status_line("done"))
 
         # Re-assemble if any sections were rewritten
         if rewrote:
@@ -275,7 +298,7 @@ def _run_dossier_phase(
 # ─── Phase 2: Section Writing ────────────────────────────────────────
 
 
-def _write_sections(  # noqa: C901 — retry integration adds necessary branching
+def _write_sections(
     topic: str,
     config: DistillConfig,
     dossier: str,
@@ -291,16 +314,20 @@ def _write_sections(  # noqa: C901 — retry integration adds necessary branchin
     written = []
     section_list = active_sections or REPORT_SECTIONS
     total = len(section_list)
+    selected_sections = [
+        (i, section_def)
+        for i, section_def in enumerate(section_list)
+        if not filter_sections or section_def["id"] in filter_sections
+    ]
+    progress = BatchProgress("section", len(selected_sections), tracker)
     consecutive_failures = 0
 
-    for i, section_def in enumerate(section_list):
-        if filter_sections and section_def["id"] not in filter_sections:
-            continue
-
+    for progress_index, (i, section_def) in enumerate(selected_sections):
         section_id = section_def["id"]
         section_title = section_def["title"]
 
-        console.print(f"\n  [{i + 1}/{total}] [bold]{section_title}[/bold]")
+        item_start = progress.start_item()
+        console.print(progress.item_line("write", section_title))
 
         tagged = tagged_materials.get(section_id)
 
@@ -431,6 +458,8 @@ def _write_sections(  # noqa: C901 — retry integration adds necessary branchin
 
         if not content:
             console.print(f"  [red]Failed to write {section_title}[/red]")
+            progress.finish_item(item_start, success=False)
+            console.print(progress.status_line("failed"))
             consecutive_failures += 1
             if consecutive_failures >= 3:
                 console.print("[red]3 consecutive failures -- stopping section writing[/red]")
@@ -449,8 +478,10 @@ def _write_sections(  # noqa: C901 — retry integration adds necessary branchin
             }
         )
         console.print(f"  [green]{word_count:,} words[/green]")
+        progress.finish_item(item_start, success=True)
+        console.print(progress.status_line("done"))
 
-        if i < total - 1:
+        if progress_index < len(selected_sections) - 1:
             time.sleep(3)
 
     return written
@@ -513,26 +544,31 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
     failed_norm = {_normalize_qa_title(t) for t in failed_sections}
     feedback_norm = {_normalize_qa_title(k): v for k, v in qa_by_section.items()}
 
-    rewrote = 0
     section_lookup = {s["id"]: s for s in REPORT_SECTIONS}
     for s in get_active_sections():
         section_lookup[s["id"]] = s
 
+    rewrite_targets = []
     for i, section in enumerate(written_sections):
-        title = section["title"]
-        if _normalize_qa_title(title) not in failed_norm:
+        if _normalize_qa_title(section["title"]) not in failed_norm:
             continue
 
         section_def = section_lookup.get(section["id"])
         if not section_def:
             continue
+        rewrite_targets.append((i, section, section_def))
 
+    rewrote = 0
+    progress = BatchProgress("qa-fix", len(rewrite_targets), tracker)
+    for i, section, section_def in rewrite_targets:
+        title = section["title"]
         feedback = feedback_norm.get(
             _normalize_qa_title(title),
             "Section failed QA review. Improve specificity, add confidence labels, and ground all claims in the research.",
         )
 
-        console.print(f"\n  Rewriting: [bold]{title}[/bold]")
+        item_start = progress.start_item()
+        console.print(progress.item_line("rewrite", title))
 
         try:
             fix_response = llm_call(
@@ -567,8 +603,12 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
             }
             console.print(f"  [green]Rewritten: {old_words} -> {new_words} words[/green]")
             rewrote += 1
+            progress.finish_item(item_start, success=True)
+            console.print(progress.status_line("done"))
         else:
             console.print(f"  [yellow]Rewrite failed for {title} -- keeping original[/yellow]")
+            progress.finish_item(item_start, success=False)
+            console.print(progress.status_line("failed"))
 
     return written_sections, rewrote
 

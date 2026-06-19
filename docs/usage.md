@@ -413,6 +413,11 @@ distill report ai --test                            # cheaper, faster validation
 
 See [architecture.md](architecture.md) for how the 4 phases interact.
 
+During the default 4-phase report, `distill report` prints report-phase
+progress for research, section writing, assembly, and QA. Section writing also
+prints per-section progress, and QA rewrites print per-fix progress. Each line
+includes completed count, failed count, running spend, and ETA when available.
+
 ## Evaluate models (cost × quality)
 
 Models change fast and there is no cheap xAI cloud tier anymore (the fast tiers retired 2026-05-15; `grok-4.3` is the cloud floor). `distill eval` measures whether a cheaper model — usually a **local** one — is good enough, instead of guessing.

@@ -3,8 +3,11 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from rich.console import Console
+
 from distill.library.paths import artifact_path, strip_frontmatter
 from distill.llm.router import LLM_Response
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.accordion import (
     _assemble_report,
     _clean_section_output,
@@ -414,6 +417,36 @@ class TestWriteSections:
             REPORT_SECTIONS[1]["id"],
         ]
 
+    @patch("distill.pipeline.report.accordion.time.sleep")
+    @patch("distill.pipeline.report.accordion.llm_call")
+    def test_writes_section_progress(self, mock_call, mock_sleep, config, monkeypatch):
+        progress_console = Console(record=True, width=160)
+        monkeypatch.setattr("distill.pipeline.report.accordion.console", progress_console)
+        mock_call.return_value = LLM_Response(
+            text="Progress section content.",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
+        )
+
+        _write_sections(
+            topic="ai",
+            config=config,
+            dossier="test dossier",
+            scope="topic",
+            channel_name=None,
+            tagged_materials={},
+            tracker=CostTracker(),
+            active_sections=[REPORT_SECTIONS[0], REPORT_SECTIONS[1]],
+        )
+
+        rendered = progress_console.export_text()
+        assert "section 1/2" in rendered
+        assert "section 2/2" in rendered
+        assert "phase write" in rendered
+        assert "completed 2/2" in rendered
+        assert "spent $" in rendered
+
 
 class TestQaHelpers:
     def test_parse_qa_failures_ignores_stray_fail_in_prose(self):
@@ -564,6 +597,41 @@ class TestQaPhase:
         assert rewrote == 1
         assert updated[0]["content"] == "rewritten content"
         assert updated[1]["content"] == "keep content"
+
+    @patch("distill.pipeline.report.accordion.llm_call")
+    def test_run_qa_phase_prints_rewrite_progress(self, mock_call, config, monkeypatch):
+        progress_console = Console(record=True, width=160)
+        monkeypatch.setattr("distill.pipeline.report.accordion.console", progress_console)
+        written_sections = [
+            {
+                "id": "executive_briefing",
+                "title": "Executive Briefing",
+                "content": "old content",
+                "word_count": 2,
+            },
+        ]
+        mock_call.side_effect = [
+            LLM_Response(
+                text="### Executive Briefing\n**Score**: FAIL\nFix this.",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
+            ),
+            LLM_Response(
+                text="rewritten content",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
+            ),
+        ]
+
+        _run_qa_phase("ai", config, "dossier", "report", written_sections, tracker=CostTracker())
+
+        rendered = progress_console.export_text()
+        assert "qa-fix 1/1" in rendered
+        assert "phase rewrite" in rendered
+        assert "completed 1/1" in rendered
+        assert "spent $" in rendered
 
     @patch("distill.pipeline.report.accordion.llm_call")
     def test_run_qa_phase_skips_when_review_fails(self, mock_call, config):
@@ -883,6 +951,43 @@ class TestAccordionRun:
 
         assert "section body" in result
         assert artifact_path(config.topic_dir("ai"), "report", identity="ai").exists()
+
+    def test_run_accordion_research_prints_phase_progress(self, config, monkeypatch):
+        progress_console = Console(record=True, width=160)
+        monkeypatch.setattr("distill.pipeline.report.accordion.console", progress_console)
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion._run_dossier_phase",
+            lambda *args, **kwargs: "dossier body",
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion._count_sources", lambda *args, **kwargs: (3, 2)
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion._gather_tagged_materials", lambda *args, **kwargs: {}
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion._write_sections",
+            lambda *args, **kwargs: [
+                {
+                    "id": "executive_briefing",
+                    "title": "Executive Briefing",
+                    "content": "section body",
+                    "word_count": 2,
+                },
+            ],
+        )
+
+        run_accordion_research("ai", config, tracker=CostTracker(), skip_qa=True)
+
+        rendered = progress_console.export_text()
+        assert "report 1/3" in rendered
+        assert "report 2/3" in rendered
+        assert "report 3/3" in rendered
+        assert "phase research" in rendered
+        assert "phase sections" in rendered
+        assert "phase assembly" in rendered
+        assert "completed 3/3" in rendered
+        assert "spent $" in rendered
 
     def test_run_accordion_research_reassembles_after_qa_rewrite(self, config, monkeypatch):
         monkeypatch.setattr(

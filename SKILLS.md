@@ -90,6 +90,8 @@
   replacing the existing transcript and analysis phase labels.
 - Wire `discover` paper and site ingest through `BatchProgress`; its video
   branch inherits `ETATracker` through the shared learning flow.
+- Wire default report phase progress, section writing progress, and QA rewrite
+  progress through `BatchProgress`.
 - Progress lines should expose phase, item count, completed count, failed
   count, running spend, and ETA when available.
 - Preserve JSON stdout purity by routing human progress through the shared

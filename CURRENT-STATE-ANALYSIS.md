@@ -357,3 +357,11 @@ visibility and the verbosity dial are separate follow-ons. The implementation
 also moved the paper and site ingest bodies into `distill.commands._discover_ingest`
 so `_logic.py` stays below the module-size ratchet instead of absorbing new
 loop code.
+
+Cycle 39 closes the report-phase side of the same visibility thread. The
+default accordion report now uses `BatchProgress` for report phases, section
+writing, and QA rewrites, so users can see current phase, current item,
+completed count, failed count, running spend, and ETA where available. The
+default report method label now says 4-phase, matching the research, section
+writing, assembly, and QA pipeline. The live progress item is now complete; the
+remaining CLI-UX follow-on is the verbosity dial.
