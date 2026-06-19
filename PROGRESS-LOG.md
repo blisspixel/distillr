@@ -337,6 +337,34 @@
 - Continue official installed-session auth proof and adapter-specific read-only
   workload wiring.
 
+### Cycle 15 - Adapter Manifest Ledger Bridge
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_ledger`, a small bridge from verified
+  `adapter-result.v1` manifests to cost-tracker rows plus cost-log metadata.
+- Included-plan adapter manifests now produce zero-dollar `TokenUsage` rows,
+  roll up under the `included-plan` route class, and preserve native usage and
+  quota-stop metadata for future run logs.
+- This does not make any plan-quota route live. It only closes the accounting
+  primitive future adapter workloads will need after support, auth, and eval
+  gates pass.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_ledger.py distill\pipeline\costs.py tests\unit\doctor\test_adapter_ledger.py tests\unit\pipeline\test_costs.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_ledger.py distill\pipeline\costs.py tests\unit\doctor\test_adapter_ledger.py tests\unit\pipeline\test_costs.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_ledger.py tests\unit\pipeline\test_costs.py::test_save_run_log_records_route_usage_for_zero_dollar_calls` passed: 4 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 433 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2422
+    passed, 8 deselected, 1 warning, 82.11% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and adapter-specific read-only
+  workload wiring.
+
 ### Cycle 14 - Adapter Quota-Stop Manifest Metadata
 
 - External spend: `$0.00`.

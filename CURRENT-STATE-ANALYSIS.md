@@ -172,6 +172,12 @@ Cycle 14 added structured `quota_stop` metadata to the future
 require a reached flag and reason, preventing adapter runners from hiding quota
 exhaustion in free-text stop output.
 
+Cycle 15 added an adapter ledger bridge. Verified `adapter-result.v1` manifests
+can now produce cost-tracker token rows and metadata, with included-plan auth
+classified as zero-dollar usage and rolled up separately from local and metered
+routes. This is an accounting primitive only; it does not select or enable any
+adapter route.
+
 Remaining near-term gaps are official installed-session auth proof,
-adapter-specific workload wiring, native usage collection and ledger integration
-for future plan-quota adapters, and eval-gated route graduation.
+adapter-specific workload wiring, real native usage collection for future
+plan-quota adapters, and eval-gated route graduation.

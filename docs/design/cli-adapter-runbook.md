@@ -386,6 +386,9 @@ check. It is a boundary helper, not a route recommendation.
 The adapter doctor also emits structured support-statement details. Treat
 `no_metered_current=false` as a hard block even when the binary, auth markers,
 and manifest contract look compatible.
+After a manifest is verified, `distill.doctor.adapter_ledger` can convert it
+into a `TokenUsage` row plus cost-log metadata. Included-plan rows are
+zero-dollar accounting records, not proof that the adapter should be selected.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

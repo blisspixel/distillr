@@ -90,6 +90,9 @@
   commands. It runs exact argv arrays with shell disabled, strips known
   metered API-key environment variables, enforces a timeout, and validates the
   manifest plus scratch writes. It is not a route graduation gate by itself.
+- Use `distill.doctor.adapter_ledger.adapter_manifest_ledger_record()` only
+  after a manifest has validated. It records included-plan usage as zero-dollar
+  ledger data, not as route eligibility proof.
 - Planned support statements remain blocked until official auth proof, adapter
   workload wiring, native usage ledger signals, and eval evidence exist.
 - Treat `support_statement_detail.no_metered_current=false` as a hard block for

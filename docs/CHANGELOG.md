@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a scratch-only exact-argv adapter runner primitive with shell disabled, timeout handling, API-key environment stripping, manifest parsing, and scratch write checks.
 - Added structured adapter support-statement details to `distill doctor --adapters`, including checked date, source URLs, required evidence, no-metered status, and notes.
 - Added strict `quota_stop` metadata to the future `adapter-result.v1` manifest so quota and rate-limit stops cannot hide in free-text stop reasons.
+- Added an adapter ledger helper that converts verified `adapter-result.v1` manifests into cost-tracker rows and metadata without making any adapter route live.
 
 ### Changed
 

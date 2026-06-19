@@ -347,9 +347,10 @@ evidence, notes, and `no_metered_current`. The manifest contract now includes
 structured quota-stop metadata for future rate-limit and quota exhaustion
 handling. The reusable adapter runner
 primitive can execute exact argv arrays in scratch with shell disabled and
-API-key environment variables stripped, but no plan-quota CLI route is live
-until auth proof, a current no-metered support statement, ledger, and eval
-gates clear.
+API-key environment variables stripped. A ledger helper can convert verified
+adapter manifests into zero-dollar included-plan usage rows and metadata, but
+no plan-quota CLI route is live until auth proof, a current no-metered support
+statement, adapter workload wiring, and eval gates clear.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

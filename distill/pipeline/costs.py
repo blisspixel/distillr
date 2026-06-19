@@ -26,6 +26,7 @@ from distill.llm.cost import (
 
 ACCORDION_GROK_ESTIMATE: float = 0.05
 NO_METERED_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio", "agent"})
+NO_METERED_PROVIDER_TYPES: frozenset[str] = frozenset({"local", "included-plan"})
 
 __all__ = [
     "ACCORDION_GROK_ESTIMATE",
@@ -101,7 +102,10 @@ class TokenUsage:
     @property
     def no_metered_cost(self) -> bool:
         """True when the call came from a local or deferred no-metered provider."""
-        return self.provider_type == "local" or self.provider_name in NO_METERED_PROVIDERS
+        return (
+            self.provider_type in NO_METERED_PROVIDER_TYPES
+            or self.provider_name in NO_METERED_PROVIDERS
+        )
 
 
 @dataclass
@@ -285,7 +289,7 @@ def save_run_log(
     full_videos: int = 0,
     shorts: int = 0,
     elapsed_seconds: float = 0,
-    metadata: dict[str, str] | None = None,
+    metadata: dict[str, Any] | None = None,
     preview: bool = False,
 ):
     """Append a run cost entry to the cost log for estimate calibration.
@@ -398,6 +402,8 @@ def _provider_key(entry: TokenUsage) -> str:
 def _route_class(entry: TokenUsage) -> str:
     if entry.provider_type == "local":
         return "local"
+    if entry.provider_type == "included-plan":
+        return "included-plan"
     if entry.no_metered_cost:
         return "no-metered"
     return "metered"

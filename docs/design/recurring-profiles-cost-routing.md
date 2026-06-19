@@ -303,6 +303,8 @@ boundaries:
    provider, model when available, auth mode, command class, usage signal,
    elapsed time, quota-stop metadata, files read, files written, output text,
    citations or receipts, and policy decisions.
+   Verified manifests can be transformed into cost-log rows, but this does not
+   bypass adapter support, auth, or eval gates.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per
    accepted change. No-metered routes still lose when they produce too much
