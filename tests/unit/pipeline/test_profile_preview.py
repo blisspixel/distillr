@@ -70,6 +70,15 @@ def test_profile_preview_expands_feed_items_and_source_seeds():
     kinds = {candidate.kind for candidate in result.candidates}
     assert {"domain", "repository", "query"}.issubset(kinds)
     query = next(candidate for candidate in result.candidates if candidate.kind == "query")
+    newest = result.candidates[0]
+    assert newest.command == [
+        "distill",
+        "site",
+        "https://example.com/new",
+        "--topic",
+        "agent-loops",
+        "--seed-only",
+    ]
     assert query.command == [
         "distill",
         "latest",
@@ -79,6 +88,9 @@ def test_profile_preview_expands_feed_items_and_source_seeds():
         "--preview",
     ]
     assert result.to_dict()["fresh_item_count"] == 2
+    assert [candidate.order for candidate in result.candidates] == list(
+        range(len(result.candidates))
+    )
 
 
 def test_profile_preview_uses_youtube_atom_for_channel_id():

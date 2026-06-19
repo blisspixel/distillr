@@ -8,7 +8,7 @@ import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -159,6 +159,7 @@ def build_profile_preview(
         warnings=warnings,
         fetch_sources=fetch_sources,
         feed_fetcher=feed_fetcher,
+        item_cap=limit,
         start_order=order,
     )
     _append_source_seeds(profile, candidates=candidates, start_order=order)
@@ -229,6 +230,7 @@ def _append_feed_sources(
     warnings: list[ProfilePreviewWarning],
     fetch_sources: bool,
     feed_fetcher: FeedFetcher,
+    item_cap: int,
     start_order: int,
 ) -> int:
     order = start_order
@@ -241,7 +243,7 @@ def _append_feed_sources(
             except Exception as exc:
                 warnings.append(ProfilePreviewWarning(source=source.url, message=str(exc)))
         if feed and feed.episodes:
-            for episode in feed.episodes:
+            for episode in feed.episodes[:item_cap]:
                 item_url = episode.link or episode.audio_url or source.url
                 candidates.append(
                     ProfilePreviewCandidate(
@@ -252,7 +254,13 @@ def _append_feed_sources(
                         source_label=source_label or feed.title or source.url,
                         published_at=episode.published,
                         identity=f"feed:{source.url}:{episode.guid or item_url}",
-                        command=["distill", "ingest", item_url, "--topic", profile.topic],
+                        command=_feed_item_command(
+                            item_url,
+                            feed_url=source.url,
+                            topic=profile.topic,
+                            has_page=bool(episode.link),
+                        ),
+                        note=_feed_item_note(bool(episode.link)),
                         order=order,
                     )
                 )
@@ -280,6 +288,24 @@ def _append_source_seeds(
         candidates.append(_query_seed_candidate(query, profile.topic, order))
         order += 1
     return order
+
+
+def _feed_item_command(
+    item_url: str,
+    *,
+    feed_url: str,
+    topic: str,
+    has_page: bool,
+) -> list[str]:
+    if has_page:
+        return ["distill", "site", item_url, "--topic", topic, "--seed-only"]
+    return ["distill", "ingest", feed_url, "--topic", topic, "--rss", "--episodes", "1"]
+
+
+def _feed_item_note(has_page: bool) -> str:
+    if has_page:
+        return "Feed item page. Captures this page without relying on a generic URL dispatcher."
+    return "Feed item without a page link. Command ingests the latest feed item until exact feed-item replay lands."
 
 
 def _feed_seed_candidate(
@@ -505,7 +531,8 @@ def _dedupe_and_order(
     static = [candidate for candidate in unique if candidate.kind not in _DYNAMIC_KINDS]
     dynamic.sort(key=_dynamic_sort_key)
     static.sort(key=lambda candidate: candidate.order)
-    return dynamic[:fresh_item_limit] + static
+    ordered = dynamic[:fresh_item_limit] + static
+    return [replace(candidate, order=index) for index, candidate in enumerate(ordered)]
 
 
 def _dynamic_sort_key(candidate: ProfilePreviewCandidate) -> tuple[int, float, int]:
