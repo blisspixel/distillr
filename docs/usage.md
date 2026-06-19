@@ -255,8 +255,10 @@ future runners must use, plus structured `quota_stop` metadata for future
 quota and rate-limit stops. A reusable runner primitive can execute exact argv
 arrays inside scratch with shell disabled and API-key environment variables
 stripped. A ledger helper can convert verified adapter manifests into
-cost-tracker rows and metadata. Distill still does not expose plan-quota
-adapter workloads or make plan-quota routes eligible by itself.
+cost-tracker rows and metadata. The JSON report also exposes the
+`adapter-workload.v1` package contract for future scratch-relative read-only
+adapter tasks. Distill still does not execute plan-quota adapter workloads or
+make plan-quota routes eligible by itself.
 
 ## Websites
 

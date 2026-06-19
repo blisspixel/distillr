@@ -178,6 +178,12 @@ classified as zero-dollar usage and rolled up separately from local and metered
 routes. This is an accounting primitive only; it does not select or enable any
 adapter route.
 
+Cycle 16 added the strict `adapter-workload.v1` input package boundary and
+exposed it through adapter doctor JSON. Future read-only adapter prototypes now
+have a checked scratch-relative package shape before any CLI receives prompts
+or source files. The same cycle tightened manifest path normalization so raw
+`.` path segments cannot be normalized away.
+
 Remaining near-term gaps are official installed-session auth proof,
-adapter-specific workload wiring, real native usage collection for future
+adapter-specific workload execution, real native usage collection for future
 plan-quota adapters, and eval-gated route graduation.

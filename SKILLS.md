@@ -83,6 +83,9 @@
   `no-metered`.
 - If an adapter manifest reports `quota`, `rate_limit`, or `rate-limit`, it
   must include structured `quota_stop` metadata instead of relying on free text.
+- Future adapter workloads must use the strict `adapter-workload.v1` package
+  parser before any CLI receives source paths. Keep paths scratch relative and
+  reject read-only workloads that declare writes.
 - Future CLI adapter runners must snapshot scratch files before execution and
   use `check_adapter_workspace_writes()` after parsing the manifest. Missing
   declared outputs and unexpected new files are blockers.

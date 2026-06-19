@@ -361,11 +361,11 @@ def _normalize_manifest_path(value: str) -> str:
         raise ValueError("manifest paths cannot contain NUL")
     if re.match(r"^[A-Za-z]:", text):
         raise ValueError(f"manifest path must be relative: {value!r}")
+    if any(part in {"", ".", ".."} for part in text.split("/")):
+        raise ValueError(f"manifest path must not traverse directories: {value!r}")
     path = PurePosixPath(text)
     if path.is_absolute():
         raise ValueError(f"manifest path must be relative: {value!r}")
-    if any(part in {"", ".", ".."} for part in path.parts):
-        raise ValueError(f"manifest path must not traverse directories: {value!r}")
     return path.as_posix()
 
 

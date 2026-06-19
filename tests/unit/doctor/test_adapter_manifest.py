@@ -168,6 +168,7 @@ def test_adapter_manifest_fails_closed_for_no_metered_policy(override):
         "../library/result.json",
         "/tmp/result.json",
         "C:/Users/nicks/result.json",
+        "./result.json",
         "result/../secret.json",
     ],
 )

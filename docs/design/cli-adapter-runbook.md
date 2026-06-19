@@ -337,7 +337,29 @@ Adapter shape:
 ## Cross-route eval
 
 Every candidate route should run the same fixture package and write the same
-manifest shape:
+manifest shape. Fixture packages use this checked input contract:
+
+```yaml
+schema_version: adapter-workload.v1
+workload: profile-enrichment|corpus-qa|candidate-classification|synthesis-planning
+command_class: read-only|scratch-write
+prompt_path: prompt.md
+source_paths:
+  - sources/input.md
+output_schema_path: schemas/result.json|null
+result_manifest_path: adapter-result.json
+allowed_write_paths:
+  - result.json
+cost_mode: no-metered|auto|paid-ok
+max_seconds: integer
+output_limit: integer
+metadata: object
+```
+
+The checked parser lives in `distill.doctor.adapter_workload`. It rejects
+absolute paths, drive-letter paths, empty paths, `.` segments, `..` segments,
+empty source sets, non-positive limits, unknown fields, and read-only workloads
+that declare write paths.
 
 ```yaml
 schema_version: adapter-result.v1

@@ -337,6 +337,37 @@
 - Continue official installed-session auth proof and adapter-specific read-only
   workload wiring.
 
+### Cycle 16 - Adapter Workload Package Boundary
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_workload`, a strict `adapter-workload.v1`
+  parser for future CLI adapter input packages.
+- The package boundary validates scratch-relative prompt paths, source paths,
+  output-schema paths, result-manifest paths, allowed write paths, workload
+  kind, command class, cost mode, positive limits, and metadata shape.
+- `distill doctor --adapters` JSON now exposes both the result-manifest
+  contract and the workload-package contract for external loops.
+- Tightened adapter result-manifest path normalization so raw `.` path segments
+  cannot be normalized away before validation.
+- This does not execute any plan-quota workload. It creates the checked input
+  boundary needed before read-only adapter prototypes can be wired safely.
+- Updated README, usage docs, roadmap, cost docs, changelog, current-state
+  notes, adapter runbook, recurring profile design notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_workload.py distill\doctor\adapter_manifest.py distill\doctor\adapters.py tests\unit\doctor\test_adapter_workload.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_workload.py distill\doctor\adapter_manifest.py distill\doctor\adapters.py tests\unit\doctor\test_adapter_workload.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed after formatting.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_workload.py tests\unit\doctor\test_adapter_manifest.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py::TestJsonDoctor::test_doctor_json_adapter_report` passed: 37 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 435 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2435
+    passed, 8 deselected, 1 warning, 82.09% coverage.
+
+### Next
+
+- Continue official installed-session auth proof and adapter-specific read-only
+  workload execution.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.
