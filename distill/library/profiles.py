@@ -348,6 +348,10 @@ def find_research_profile(library_dir: Path, name_or_path: str) -> Path:
     candidate = Path(name_or_path)
     if candidate.exists():
         return candidate
+    if candidate.suffix.lower() in {".yaml", ".yml"}:
+        if len(candidate.parts) == 1 and not candidate.is_absolute():
+            return library_dir / "profiles" / candidate.name
+        return candidate
     for suffix in (".yaml", ".yml"):
         path = library_dir / "profiles" / f"{sanitize_topic(name_or_path)}{suffix}"
         if path.exists():

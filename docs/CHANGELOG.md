@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Clarified the agentic-balance boundary for recurring profile preview: deterministic code owns fetch, parse, identity, freshness, limits, and cost refusal, while models own source fit, novelty, rumor classification, and priority.
 - Clarified local and plan-quota route policy: local Ollama/LM Studio still analyzes freshly fetched receipts, plan-quota CLIs remain adapter-gated external workers, and Copilot-style AI-credit CLIs are credit-metered unless a future support statement proves otherwise.
 
+### Fixed
+
+- Fixed recurring profile path resolution so `missing.yaml` resolves to `profiles/missing.yaml`, not `profiles/missing.yaml.yaml`, and explicit missing `.yaml` or `.yml` paths stay explicit.
+
 ## 0.16.3 - 2026-06-17
 
 ### Changed

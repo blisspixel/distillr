@@ -159,3 +159,7 @@ def test_profile_path_resolution_prefers_existing_files(tmp_path: Path) -> None:
     assert find_research_profile(tmp_path, "agent-news") == canonical
     assert find_research_profile(tmp_path, str(explicit)) == explicit
     assert find_research_profile(tmp_path, "missing") == tmp_path / "profiles" / "missing.yaml"
+    assert find_research_profile(tmp_path, "missing.yaml") == tmp_path / "profiles" / "missing.yaml"
+    assert find_research_profile(tmp_path, str(tmp_path / "missing.yml")) == (
+        tmp_path / "missing.yml"
+    )

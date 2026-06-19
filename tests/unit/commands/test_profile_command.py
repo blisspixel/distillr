@@ -63,3 +63,25 @@ def test_profile_preview_json_for_yaml_path(tmp_path, monkeypatch):
         "--limit",
         "5",
     ]
+
+
+def test_profile_preview_json_missing_yaml_keeps_single_suffix(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+
+    result = CliRunner().invoke(
+        cli.app,
+        ["--json", "profile", "preview", "missing.yaml", "--no-fetch"],
+    )
+
+    assert result.exit_code == 1
+    envelope = json.loads(result.stdout)
+    assert envelope["status"] == "error"
+    assert envelope["error"].endswith(r"library\profiles\missing.yaml") or envelope[
+        "error"
+    ].endswith("library/profiles/missing.yaml")
+    assert "missing.yaml.yaml" not in envelope["error"]

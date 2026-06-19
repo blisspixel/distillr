@@ -171,6 +171,60 @@ def test_profile_preview_uses_discovery_for_youtube_handle():
     assert result.candidates[0].source_label == "Example"
 
 
+def test_profile_preview_sorts_youtube_compact_dates_with_feed_dates():
+    profile = _profile(
+        {
+            "sources": {
+                "youtube_channels": [{"handle": "@Example", "label": "Example"}],
+                "feeds": ["https://example.com/feed.xml"],
+            },
+            "limits": {"max_new_items": 5, "max_metered_usd": 0},
+        }
+    )
+
+    def fake_discoverer(_channel_url: str, **_kwargs):
+        return [
+            VideoInfo(
+                "v1",
+                "Newer YouTube video",
+                "20260619",
+                600,
+                "https://youtube.com/watch?v=v1",
+                "Example",
+            )
+        ]
+
+    def fake_feed_fetcher(_url: str) -> PodcastFeed:
+        return PodcastFeed(
+            title="Example",
+            link="https://example.com",
+            description="",
+            episodes=[
+                PodcastEpisode(
+                    title="Older feed post",
+                    guid="old",
+                    published="Thu, 18 Jun 2026 10:00:00 GMT",
+                    audio_url="",
+                    audio_type="",
+                    duration_s=0,
+                    description="",
+                    link="https://example.com/old",
+                )
+            ],
+        )
+
+    result = build_profile_preview(
+        profile,
+        youtube_discoverer=fake_discoverer,
+        feed_fetcher=fake_feed_fetcher,
+    )
+
+    assert [candidate.title for candidate in result.candidates[:2]] == [
+        "Newer YouTube video",
+        "Older feed post",
+    ]
+
+
 def test_profile_preview_falls_back_to_seed_when_fetch_fails():
     profile = _profile(
         {
