@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from distill.doctor.adapter_manifest import adapter_result_manifest_contract
+from distill.doctor.adapter_native_usage import adapter_native_usage_contract
 from distill.doctor.adapter_workload import adapter_workload_contract
 
 __all__ = [
@@ -133,6 +134,7 @@ class AdapterDoctorReport:
     adapters: list[AdapterProbe]
     manifest_contract: dict[str, object] = field(default_factory=adapter_result_manifest_contract)
     workload_contract: dict[str, object] = field(default_factory=adapter_workload_contract)
+    usage_contract: dict[str, object] = field(default_factory=adapter_native_usage_contract)
 
     @property
     def no_metered_ready(self) -> list[str]:
@@ -144,6 +146,7 @@ class AdapterDoctorReport:
             "no_metered_ready": self.no_metered_ready,
             "manifest_contract": self.manifest_contract,
             "workload_contract": self.workload_contract,
+            "usage_contract": self.usage_contract,
             "adapters": [probe.to_dict() for probe in self.adapters],
         }
 

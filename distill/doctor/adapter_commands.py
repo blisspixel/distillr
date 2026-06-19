@@ -35,6 +35,7 @@ class AdapterCommandPlan:
     stdin_path: str = ""
     schema_path: str = ""
     result_text_path: str = ""
+    native_usage_path: str = ""
     allowed_new_files: tuple[str, ...] = ()
     blocked_reasons: list[str] = field(default_factory=list)
 
@@ -50,6 +51,7 @@ class AdapterCommandPlan:
             "stdin_path": self.stdin_path,
             "schema_path": self.schema_path,
             "result_text_path": self.result_text_path,
+            "native_usage_path": self.native_usage_path,
             "allowed_new_files": list(self.allowed_new_files),
             "blocked_reasons": self.blocked_reasons,
             "ok": self.ok,
@@ -150,7 +152,7 @@ def _codex_command(
         blocked_reasons.append("codex command template currently supports read-only workloads only")
     if not workload.output_schema_path:
         blocked_reasons.append("codex command template requires output_schema_path")
-    blocked_reasons.append("native usage collection is not implemented: codex")
+    blocked_reasons.append("adapter-specific native usage capture is not implemented: codex")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
         (
@@ -171,7 +173,8 @@ def _codex_command(
             "stdin_path": workload.prompt_path,
             "schema_path": schema_path,
             "result_text_path": "result.txt",
-            "allowed_new_files": ("result.txt",),
+            "native_usage_path": "native-usage.json",
+            "allowed_new_files": ("result.txt", "native-usage.json"),
         },
     )
 
@@ -187,7 +190,7 @@ def _claude_command(
     if not workload.output_schema_path:
         blocked_reasons.append("claude command template requires output_schema_path")
     blocked_reasons.append(CLAUDE_SCHEMA_INLINE_BLOCKER)
-    blocked_reasons.append("native usage collection is not implemented: claude")
+    blocked_reasons.append("adapter-specific native usage capture is not implemented: claude")
     schema_path = workload.output_schema_path or "schemas/result.json"
     return (
         (
@@ -206,7 +209,8 @@ def _claude_command(
             "stdin_path": workload.prompt_path,
             "schema_path": schema_path,
             "result_text_path": "result.txt",
-            "allowed_new_files": ("result.txt",),
+            "native_usage_path": "native-usage.json",
+            "allowed_new_files": ("result.txt", "native-usage.json"),
         },
     )
 
@@ -220,7 +224,7 @@ def _grok_command(
     if not workload.output_schema_path:
         blocked_reasons.append("grok command template requires output_schema_path")
     blocked_reasons.append("grok command template does not enforce output_schema_path natively")
-    blocked_reasons.append("native usage collection is not implemented: grok")
+    blocked_reasons.append("adapter-specific native usage capture is not implemented: grok")
     return (
         (
             "grok",
@@ -241,7 +245,8 @@ def _grok_command(
         {
             "schema_path": workload.output_schema_path or "schemas/result.json",
             "result_text_path": "result.txt",
-            "allowed_new_files": ("result.txt",),
+            "native_usage_path": "native-usage.json",
+            "allowed_new_files": ("result.txt", "native-usage.json"),
         },
     )
 

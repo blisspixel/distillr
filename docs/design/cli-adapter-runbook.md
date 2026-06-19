@@ -40,6 +40,9 @@ a command.
   source URLs, required evidence, no-metered current flag, and notes. A
   plan-quota route remains blocked unless the statement is current for
   no-metered routing and the route clears eval.
+- Normalize native usage through a strict `adapter-native-usage.v1` scratch
+  record before writing an `adapter-result.v1` manifest. The record must carry
+  token counts or native usage metadata and must stay scratch-relative.
 - Record every route on the ledger even when dollar cost is zero: adapter,
   version, auth class, model when known, prompt hash, source hash, elapsed time,
   native usage signal, stop reason, and files written.
@@ -401,6 +404,25 @@ the manifest must include `quota_stop.reached=true` with a reason. The same
 module also provides scratch before/after snapshot checks so a runner can
 reject missing declared files or unexpected new files without treating
 pre-staged source files as adapter writes.
+
+```yaml
+schema_version: adapter-native-usage.v1
+adapter: codex|claude|grok|gemini-cli|antigravity|copilot|ollama|lmstudio
+source: cli-json|usage-file|stdout-json|stderr-json|wrapper
+usage:
+  input_tokens: integer|null
+  output_tokens: integer|null
+  native: object
+model: string
+request_id: string
+stop_reason: string
+metadata: object
+```
+
+The checked parser lives in `distill.doctor.adapter_native_usage`. It rejects
+unknown fields, unknown adapters, missing usage signals, absolute paths, and
+scratch path escapes. `distill.doctor.adapter_result_writer` can consume the
+record from scratch when writing the result manifest.
 The `distill.doctor.adapter_runner` primitive runs exact argv arrays with shell
 disabled inside scratch, strips known metered API-key environment variables,
 enforces a timeout, loads the result manifest, and applies the scratch write
@@ -415,15 +437,16 @@ zero-dollar accounting records, not proof that the adapter should be selected.
 scratch runner. It blocks result manifests that read outside the workload
 package, write outside declared outputs, or return a different cost mode.
 `distill.doctor.adapter_result_writer` writes validated `adapter-result.v1`
-manifests from captured CLI output, workload package hashes, and
-caller-supplied native usage. It does not invent usage data or make an adapter
-eligible.
+manifests from captured CLI output, workload package hashes, and explicit
+native usage metadata or validated native usage files. It does not invent usage
+data or make an adapter eligible.
 `distill.doctor.adapter_commands` records blocked Codex, Claude, and Grok
 read-only argv templates. Command plans include staged prompt, schema, result
-capture, and allowed scratch capture metadata. Claude schema paths can be
-materialized into `--json-schema` argv arguments from staged scratch JSON schema
-files, but templates stay blocked until native usage collection, current support
-statement, auth proof, and eval evidence exist.
+capture, native usage capture, and allowed scratch capture metadata. Claude
+schema paths can be materialized into `--json-schema` argv arguments from
+staged scratch JSON schema files, but templates stay blocked until
+adapter-specific native usage capture, current support statement, auth proof,
+and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

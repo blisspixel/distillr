@@ -13,6 +13,7 @@ def test_adapter_doctor_blocks_missing_binaries(monkeypatch):
     assert report.schema_version == "adapter-doctor.v1"
     assert report.manifest_contract["schema_version"] == "adapter-result.v1"
     assert report.workload_contract["schema_version"] == "adapter-workload.v1"
+    assert report.usage_contract["schema_version"] == "adapter-native-usage.v1"
     assert report.no_metered_ready == []
     codex = next(probe for probe in report.adapters if probe.name == "codex")
     assert not codex.installed

@@ -340,16 +340,19 @@ visible without network access. `distill doctor --adapters` adds read-only CLI
 adapter preflights for candidate plan-quota and credit-metered routes, including
 binary presence, version/help probes, required flags, API-key environment
 blockers, local config API-key markers, route class, support-statement status,
-structured support details, and the required `adapter-result.v1` scratch
-manifest contract, including the before/after scratch write check future
-runners must use. Support details record `checked_on`, source URLs, required
-evidence, notes, and `no_metered_current`. The manifest contract now includes
-structured quota-stop metadata for future rate-limit and quota exhaustion
-handling. The reusable adapter runner
+structured support details, the required `adapter-workload.v1` input package
+contract, the required `adapter-native-usage.v1` usage contract, and the
+required `adapter-result.v1` scratch manifest contract, including the
+before/after scratch write check future runners must use. Support details
+record `checked_on`, source URLs, required evidence, notes, and
+`no_metered_current`. The manifest contract now includes structured quota-stop
+metadata for future rate-limit and quota exhaustion handling. The reusable
+adapter runner
 primitive can execute exact argv arrays in scratch with shell disabled and
 API-key environment variables stripped. A native result writer can turn
-captured CLI output plus caller-supplied native usage into a validated
-`adapter-result.v1` scratch manifest. A ledger helper can convert verified
+captured CLI output plus explicit native usage metadata or a validated
+`adapter-native-usage.v1` scratch file into a validated `adapter-result.v1`
+scratch manifest. A ledger helper can convert verified
 adapter manifests into zero-dollar included-plan usage rows and metadata, but
 no plan-quota CLI route is live until auth proof, a current no-metered support
 statement, adapter-specific capture wiring, adapter-specific command
@@ -358,10 +361,11 @@ doctor JSON also exposes the `adapter-workload.v1` package contract for future
 scratch-relative read-only adapter tasks, and a checked workload runner can
 verify declared reads, writes, cost mode, and result manifests for exact-argv
 experiments. Blocked Codex, Claude, and Grok read-only command planners record
-future argv shapes plus staged prompt, schema, result capture, and allowed
-scratch capture metadata. Claude schema paths can be inlined into argv from
-scratch JSON schema files, but the plans are deliberately blocked until native
-usage collection and the other adapter gates exist.
+future argv shapes plus staged prompt, schema, result capture, native usage
+capture, and allowed scratch capture metadata. Claude schema paths can be
+inlined into argv from scratch JSON schema files, but the plans are
+deliberately blocked until adapter-specific native usage capture and the other
+adapter gates exist.
 
 Full cost model in [`docs/cost.md`](docs/cost.md).
 

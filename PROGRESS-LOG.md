@@ -541,6 +541,34 @@
 
 - Continue native usage collection and remaining command templates.
 
+### Cycle 23 - Adapter Native Usage Contract
+
+- External spend: `$0.00`.
+- Added `distill.doctor.adapter_native_usage`, a strict
+  `adapter-native-usage.v1` parser for future CLI adapter usage signals.
+- Adapter doctor JSON now exposes the usage contract alongside the workload
+  and result-manifest contracts.
+- The native result writer can load a validated scratch usage file when writing
+  an `adapter-result.v1` manifest.
+- Codex, Claude, and Grok command plans now record a standard
+  `native-usage.json` capture path while remaining blocked on
+  adapter-specific native usage capture, support proof, auth proof, and eval
+  evidence.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_native_usage.py distill\doctor\adapter_result_writer.py distill\doctor\adapter_commands.py distill\doctor\adapters.py tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_native_usage.py distill\doctor\adapter_result_writer.py distill\doctor\adapter_commands.py distill\doctor\adapters.py tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py` passed after formatting two files.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_native_usage.py tests\unit\doctor\test_adapter_result_writer.py tests\unit\doctor\test_adapter_commands.py tests\unit\doctor\test_adapters.py tests\unit\commands\test_cli_json.py::TestJsonDoctor::test_doctor_json_adapter_report` passed: 28 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 443 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2464
+    passed, 8 deselected, 1 warning, 82.24% coverage.
+
+### Next
+
+- Continue adapter-specific native usage capture from real CLI outputs and
+  remaining command templates.
+
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
 - External spend: `$0.00`.

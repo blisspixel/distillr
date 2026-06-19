@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added command-plan capture metadata and a blocked Grok read-only command planner for future scratch adapter workloads.
 - Added schema-path command-plan metadata and a blocked Claude read-only command planner for future scratch adapter workloads.
 - Added deterministic Claude command-plan schema inlining from staged scratch JSON schema files.
+- Added the strict `adapter-native-usage.v1` usage contract and wired the adapter result writer to consume validated native usage files from scratch.
 
 ### Changed
 

@@ -53,11 +53,15 @@ def test_codex_command_plan_records_read_only_argv_but_stays_blocked():
     assert plan.stdin_path == "prompt.md"
     assert plan.schema_path == "schemas/result.json"
     assert plan.result_text_path == "result.txt"
-    assert plan.allowed_new_files == ("result.txt",)
+    assert plan.native_usage_path == "native-usage.json"
+    assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
-    assert "native usage collection is not implemented: codex" in plan.blocked_reasons
+    assert "adapter-specific native usage capture is not implemented: codex" in (
+        plan.blocked_reasons
+    )
     assert plan.to_dict()["schema_path"] == "schemas/result.json"
-    assert plan.to_dict()["allowed_new_files"] == ["result.txt"]
+    assert plan.to_dict()["native_usage_path"] == "native-usage.json"
+    assert plan.to_dict()["allowed_new_files"] == ["result.txt", "native-usage.json"]
     assert plan.to_dict()["ok"] is False
 
 
@@ -86,12 +90,15 @@ def test_claude_command_plan_records_read_only_argv_but_stays_blocked():
     assert plan.stdin_path == "prompt.md"
     assert plan.schema_path == "schemas/result.json"
     assert plan.result_text_path == "result.txt"
-    assert plan.allowed_new_files == ("result.txt",)
+    assert plan.native_usage_path == "native-usage.json"
+    assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert "claude command template requires schema inlining before execution" in (
         plan.blocked_reasons
     )
-    assert "native usage collection is not implemented: claude" in plan.blocked_reasons
+    assert "adapter-specific native usage capture is not implemented: claude" in (
+        plan.blocked_reasons
+    )
     assert not plan.ok
 
 
@@ -117,7 +124,9 @@ def test_inline_adapter_command_schema_materializes_claude_schema(tmp_path):
     assert "claude command template requires schema inlining before execution" not in (
         materialized.blocked_reasons
     )
-    assert "native usage collection is not implemented: claude" in materialized.blocked_reasons
+    assert "adapter-specific native usage capture is not implemented: claude" in (
+        materialized.blocked_reasons
+    )
     assert "claude command template requires schema inlining before execution" in (
         plan.blocked_reasons
     )
@@ -159,12 +168,13 @@ def test_grok_command_plan_records_read_only_argv_but_stays_blocked():
     )
     assert plan.schema_path == "schemas/result.json"
     assert plan.result_text_path == "result.txt"
-    assert plan.allowed_new_files == ("result.txt",)
+    assert plan.native_usage_path == "native-usage.json"
+    assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert (
         "grok command template does not enforce output_schema_path natively" in plan.blocked_reasons
     )
-    assert "native usage collection is not implemented: grok" in plan.blocked_reasons
+    assert "adapter-specific native usage capture is not implemented: grok" in plan.blocked_reasons
     assert not plan.ok
 
 

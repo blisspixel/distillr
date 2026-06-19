@@ -246,7 +246,8 @@ distill --json doctor --adapters
 The adapter doctor is read-only. It checks candidate CLI adapter binaries,
 version/help commands, required structured-output flags, route class, support
 statement status and detail, API-key environment blockers, and the required
-`adapter-result.v1` scratch manifest contract. Support details include the
+`adapter-workload.v1`, `adapter-native-usage.v1`, and `adapter-result.v1`
+scratch contracts. Support details include the
 checked date, source URLs, required evidence, notes, and whether the statement
 is current for no-metered routing. It also scans known local adapter config
 files for API-key and session markers, reporting marker names without secret
@@ -257,18 +258,19 @@ arrays inside scratch with shell disabled and API-key environment variables
 stripped. A workload runner can load a checked `adapter-workload.v1` package,
 execute an exact argv in scratch, and reject results that read outside the
 package, write outside declared outputs, or report a different cost mode. A
-native result writer can turn captured CLI output plus caller-supplied native
-usage into a validated `adapter-result.v1` scratch manifest. A
+native result writer can turn captured CLI output plus explicit native usage
+metadata or a validated `adapter-native-usage.v1` scratch file into a validated
+`adapter-result.v1` scratch manifest. A
 ledger helper can convert verified adapter manifests into cost-tracker rows and
 metadata. The Codex read-only command planner records the future
 `codex exec --sandbox read-only` argv shape, the Claude planner records a
 blocked `claude -p --input-format text --output-format json` shape, and the
 Grok planner records a blocked `grok --no-auto-update --prompt-file ...
 --output-format json` shape. Plans include staged prompt, schema, result
-capture, and allowed scratch capture metadata; Claude schema paths can be
-inlined from staged JSON schema files. Plans stay blocked until native usage
-collection and adapter gates exist. Distill still does not expose any
-plan-quota adapter as an eligible route by itself.
+capture, native usage capture, and allowed scratch capture metadata; Claude
+schema paths can be inlined from staged JSON schema files. Plans stay blocked
+until adapter-specific native usage capture and adapter gates exist. Distill
+still does not expose any plan-quota adapter as an eligible route by itself.
 
 ## Websites
 

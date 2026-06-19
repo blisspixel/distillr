@@ -83,7 +83,11 @@
   `no-metered`.
 - Use `distill.doctor.adapter_result_writer.write_adapter_result_manifest()`
   when wrapping captured CLI output. It hashes workload inputs and writes the
-  validated manifest, but the caller must supply real native usage signals.
+  validated manifest, but the caller must supply real native usage signals or a
+  validated `adapter-native-usage.v1` scratch file.
+- Use `distill.doctor.adapter_native_usage.load_adapter_native_usage()` for
+  scratch usage files. It requires token counts or native usage metadata and
+  rejects unknown adapters, unknown fields, absolute paths, and path escapes.
 - If an adapter manifest reports `quota`, `rate_limit`, or `rate-limit`, it
   must include structured `quota_stop` metadata instead of relying on free text.
 - Future adapter workloads must use the strict `adapter-workload.v1` package
@@ -99,7 +103,7 @@
   argv shapes, staged prompt paths, schema paths, result capture paths, and
   allowed scratch capture files, but a command plan is not eligible while
   blockers remain. Codex, Claude, and Grok read-only plans are blocked until
-  native usage collection and route gates exist.
+  adapter-specific native usage capture and route gates exist.
 - Use `distill.doctor.adapter_commands.inline_adapter_command_schema()` to
   materialize Claude schema paths into argv only after the schema file is
   staged inside scratch and parsed as a JSON object.

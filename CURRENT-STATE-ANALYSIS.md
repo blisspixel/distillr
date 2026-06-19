@@ -221,7 +221,16 @@ before Claude's `--tools` argument, rejects non-object schemas and path escapes,
 and removes only the schema-inlining blocker. Claude still remains blocked on
 native usage collection and route gates.
 
+Cycle 23 added the strict `adapter-native-usage.v1` boundary. Adapter doctor
+JSON now exposes the usage contract, command plans record the standard native
+usage capture path, and the native result writer can consume validated scratch
+usage files when writing `adapter-result.v1` manifests. The parser requires
+token counts or native usage metadata and rejects unknown adapters, unknown
+fields, absolute paths, and scratch path escapes. This is still not route
+graduation; adapter-specific wrappers must collect real CLI usage before any
+plan-quota route can run.
+
 Remaining near-term gaps are official installed-session auth proof,
 remaining adapter-specific capture wiring, remaining adapter command templates,
-real native usage collection for future plan-quota adapters, and eval-gated
-route graduation.
+real native usage collection from CLI outputs for future plan-quota adapters,
+and eval-gated route graduation.

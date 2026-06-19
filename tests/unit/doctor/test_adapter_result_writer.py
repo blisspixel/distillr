@@ -83,6 +83,43 @@ def test_adapter_result_writer_uses_native_usage_signal(tmp_path):
     assert manifest.usage.native == {"event_count": 1}
 
 
+def test_adapter_result_writer_loads_native_usage_path(tmp_path):
+    _stage_inputs(tmp_path)
+    (tmp_path / "native-usage.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "adapter-native-usage.v1",
+                "adapter": "codex",
+                "source": "usage-file",
+                "usage": {
+                    "input_tokens": 12,
+                    "output_tokens": 7,
+                    "native": {"event_count": 2},
+                },
+                "model": "gpt-5.1-codex",
+                "request_id": "run_123",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = write_adapter_result_manifest(
+        AdapterResultWriteSpec(
+            adapter="codex",
+            adapter_version="codex 0.140.0",
+            auth_class="included-plan",
+            scratch_root=tmp_path,
+            workload=_workload(),
+            native_usage_path=Path("native-usage.json"),
+        )
+    )
+
+    assert manifest.usage.input_tokens == 12
+    assert manifest.usage.output_tokens == 7
+    assert manifest.usage.native["event_count"] == 2
+    assert manifest.usage.native["distill_usage_signal"]["source"] == "usage-file"
+
+
 def test_adapter_result_writer_rejects_missing_usage_signal(tmp_path):
     _stage_inputs(tmp_path)
 

@@ -303,16 +303,18 @@ boundaries:
    provider, model when available, auth mode, command class, usage signal,
    elapsed time, quota-stop metadata, files read, files written, output text,
    citations or receipts, and policy decisions.
-   Workload packages are scratch-relative and validated before an adapter can
-   receive source packages. Verified manifests can be transformed into cost-log
-   rows, and checked workload runs verify manifest reads, writes, and cost mode
-   against the package. A native result writer can write validated manifests
-   from captured CLI output only when the caller supplies real native usage
-   signals. Command planners may record exact argv shapes, staged prompt paths,
-   schema paths, result capture paths, and allowed scratch capture files while
-   still blocked. Claude schema paths can be inlined from staged JSON schema
-   files, but this does not bypass adapter support, auth, usage collection, or
-   eval gates.
+   Workload packages and native usage records are scratch-relative and
+   validated before an adapter result can feed the ledger. Verified manifests
+   can be transformed into cost-log rows, and checked workload runs verify
+   manifest reads, writes, and cost mode against the package. A native result
+   writer can write validated manifests from captured CLI output only when the
+   caller supplies explicit native usage metadata or a validated
+   `adapter-native-usage.v1` file. Command planners may record exact argv
+   shapes, staged prompt paths, schema paths, result capture paths, native usage
+   capture paths, and allowed scratch capture files while still blocked. Claude
+   schema paths can be inlined from staged JSON schema files, but this does not
+   bypass adapter support, auth, adapter-specific native usage capture, or eval
+   gates.
 9. **Acceptance accounting.** Adapter eval records attempts, accepted outputs,
    rejected outputs, verifier failures, elapsed time, usage, and cost per
    accepted change. No-metered routes still lose when they produce too much
@@ -352,8 +354,8 @@ boundaries:
    paid policy.
 7. **Adapter contracts.** Add plan-quota adapters only behind explicit support
    statements whose no-metered status is current, adapter-specific capture
-   wiring, native usage collection, environment preflights, and `distill eval`
-   fixtures.
+   wiring, adapter-specific native usage capture, environment preflights, and
+   `distill eval` fixtures.
 8. **Cross-route eval.** Extend `distill eval` so local sunk-cost routes,
    plan-quota CLI routes, and metered API routes can be compared on the same
    fixture with an LLM-as-judge rubric, acceptance accounting, and a usage

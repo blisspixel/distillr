@@ -15,6 +15,7 @@ from distill.doctor.adapter_manifest import (
     AdapterUsage,
     validate_adapter_result_manifest,
 )
+from distill.doctor.adapter_native_usage import load_adapter_native_usage
 from distill.doctor.adapter_workload import AdapterWorkloadPackage
 
 __all__ = [
@@ -33,6 +34,7 @@ class AdapterResultWriteSpec:
     scratch_root: Path
     workload: AdapterWorkloadPackage
     result_text_path: Path = Path("result.txt")
+    native_usage_path: Path | None = None
     model: str = ""
     elapsed_ms: int = 0
     usage: AdapterUsage | None = None
@@ -54,11 +56,7 @@ def write_adapter_result_manifest(spec: AdapterResultWriteSpec) -> AdapterResult
     root = spec.scratch_root.resolve()
     result_path = _resolve_scratch_path(root, spec.result_text_path)
     output = spec.output if spec.output is not None else result_path.read_text(encoding="utf-8")
-    usage = spec.usage or AdapterUsage(
-        input_tokens=None,
-        output_tokens=None,
-        native=dict(spec.native),
-    )
+    usage = _usage_from_spec(spec, root)
     payload = {
         "schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
         "adapter": spec.adapter,
@@ -103,6 +101,21 @@ def _files_read(spec: AdapterResultWriteSpec) -> list[str]:
         files.append(spec.workload.output_schema_path)
     files.extend(spec.files_read)
     return sorted(set(files))
+
+
+def _usage_from_spec(spec: AdapterResultWriteSpec, root: Path) -> AdapterUsage:
+    if spec.usage is not None:
+        return spec.usage
+    if spec.native_usage_path is not None:
+        return load_adapter_native_usage(
+            spec.native_usage_path,
+            scratch_root=root,
+        ).to_adapter_usage()
+    return AdapterUsage(
+        input_tokens=None,
+        output_tokens=None,
+        native=dict(spec.native),
+    )
 
 
 def _hash_file(root: Path, rel_path: str) -> str:
