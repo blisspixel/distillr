@@ -81,6 +81,18 @@
   run. Standing seeds such as feeds, channels, domains, repositories, and saved
   queries must stay repeatable.
 
+## Batch Progress
+
+- Use `distill.pipeline.summary.BatchProgress` for long non-video CLI loops
+  instead of one-off progress strings.
+- Progress lines should expose phase, item count, completed count, failed
+  count, running spend, and ETA when available.
+- Preserve JSON stdout purity by routing human progress through the shared
+  `distill._console.console`.
+- Per-item failures should become structured run issues and the loop should
+  continue when re-running is convergent. `BudgetExceededError` remains a hard
+  stop.
+
 ## Validation
 
 - For code or docs changes, run:

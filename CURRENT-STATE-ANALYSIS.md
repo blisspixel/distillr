@@ -331,3 +331,12 @@ budget with biggest-prompts telemetry, compact evidence before wording, keep
 durable knowledge as structured deltas, clear stale intermediate context, and
 leave semantic judgment to model verdicts rather than deterministic proxy
 scores.
+
+Cycle 35 partially closed the live batch progress roadmap item. A shared
+`BatchProgress` helper now formats phase, item, completed, failed, running
+spend, and ETA for non-video loops. `distill papers` uses it for per-paper
+analysis progress, and `distill site-batch` uses it for per-seed progress.
+`site-batch` now also records unexpected seed-level exceptions as structured
+`site-ingest` issues and continues with later seeds, while `BudgetExceededError`
+still stops the run. Remaining progress work is to carry the same surface into
+`discover`, `latest`, and `catch-up`.

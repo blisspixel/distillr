@@ -39,7 +39,7 @@ from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.ranking import rerank_papers
-from distill.pipeline.summary import RunSummary, display_summary
+from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
 __all__ = ["paper", "papers", "register"]
@@ -248,8 +248,10 @@ def papers(  # noqa: C901 — legacy, will refactor
 
     records = [item.paper for item in ranked]
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
-    for idx, record in enumerate(records, 1):
-        console.print(f"  [{idx}/{len(records)}] [bold]{record.title}[/bold]")
+    progress = BatchProgress("paper", len(records), tracker)
+    for record in records:
+        item_start = progress.start_item()
+        console.print(progress.item_line("analyze", record.title))
         try:
             insights, document = analyze_paper(
                 record, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
@@ -266,9 +268,13 @@ def papers(  # noqa: C901 — legacy, will refactor
                 context=record.title,
                 details={"topic": topic_name, "paper_id": getattr(record, "paper_id", "")},
             )
+            progress.finish_item(item_start, success=False)
+            console.print(progress.status_line("failed"))
             continue
         summary.add_output(find_artifact(paper_dir, "paper"))
         summary.add_output(find_artifact(paper_dir, "insights"))
+        progress.finish_item(item_start, success=True)
+        console.print(progress.status_line("done"))
 
     synthesis = synthesize_papers(topic_name, config, tracker=tracker)
     if synthesis:

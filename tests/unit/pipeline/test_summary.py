@@ -2,6 +2,7 @@ from rich.console import Console
 
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.summary import (
+    BatchProgress,
     ETATracker,
     RunSummary,
     VideoResult,
@@ -208,6 +209,25 @@ def test_log_preview_cost_skips_when_log_dir_none():
     tracker = CostTracker()
     tracker.record(TokenUsage(prompt_tokens=10, completion_tokens=5, model="grok"))
     log_preview_cost(tracker, None, "latest")
+
+
+def test_batch_progress_formats_item_status_and_spend():
+    tracker = CostTracker()
+    progress = BatchProgress("paper", 2, tracker)
+
+    start = progress.start_item()
+    first_line = progress.item_line("analyze", "Agent Paper")
+    progress.finish_item(start, success=False)
+    failed_line = progress.status_line("failed")
+
+    assert "paper 1/2" in first_line
+    assert "phase analyze" in first_line
+    assert "completed 0/2" in first_line
+    assert "failed 0" in first_line
+    assert "spent $0.0000" in first_line
+    assert "Agent Paper" in first_line
+    assert "completed 0/2" in failed_line
+    assert "failed 1" in failed_line
 
 
 def test_file_size_formats_units(tmp_path):

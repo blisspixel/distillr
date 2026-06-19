@@ -311,6 +311,11 @@ Flags:
 - `--ingest-attachments` writes `attachments.json` per page and, when possible, extracts PDF text and supported embedded-video transcripts into the page corpus
 - `--same-section-only` allows shallow crawl but keeps discovery inside the same top-level section (`/topic`, `/partner`, `/lab`, `/docs`, etc.)
 
+During `site-batch`, each seed prints a progress line with the current phase,
+item count, completed count, failed count, and running spend. A seed-level
+exception records a `site-ingest` run issue and the next seed still runs. The
+spend cap remains a hard stop.
+
 See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 
 ## arXiv papers
@@ -342,6 +347,12 @@ Flags on `distill papers`:
 - `--rerank / --no-rerank` — LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
 - `--rigor strict|balanced|loose|off` — quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` — under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
 - `--preview` — show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
+
+During ingestion, `distill papers` prints per-paper progress with the current
+phase, item count, completed count, failed count, running spend, and ETA once
+enough items have completed. Per-paper analysis failures become structured
+`paper-analysis` run issues and the loop continues. The spend cap remains a
+hard stop.
 
 The default pipeline (expand + rerank + relevance-sorted) fixes the prior failure mode where generic queries like "music theory deep learning" or "automatic harmonization" pulled in unrelated subfields (physics, image processing) because arXiv's tokenizer has no concept of research intent.
 

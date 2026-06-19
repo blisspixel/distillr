@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added read-only JSON auth-command probes for adapter doctor, including Claude auth status and Grok inspect markers without exposing secret values.
 - Added a biggest-prompts view to `distill costs`, `distill costs --json`, and the local web costs page using per-call telemetry from `library/.distill/telemetry.jsonl`.
 - Added context-engineering contribution rules to `docs/CONTRIBUTING.md` so prompt, MCP, report, pipeline, and loop changes preserve provenance, keep default context small, and measure prompt-budget impact.
+- Added shared batch progress formatting and wired it into `distill papers` and `distill site-batch`, showing phase, item count, completed count, failed count, running spend, and ETA when enough items have completed.
 
 ### Changed
 
@@ -60,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Fixed recurring profile path resolution so `missing.yaml` resolves to `profiles/missing.yaml`, not `profiles/missing.yaml.yaml`, and explicit missing `.yaml` or `.yml` paths stay explicit.
+- Fixed `distill site-batch` seed handling so one unexpected seed-level exception records a `site-ingest` run issue and the remaining seeds continue. `BudgetExceededError` still stops the run.
 
 ## 0.16.3 - 2026-06-17
 

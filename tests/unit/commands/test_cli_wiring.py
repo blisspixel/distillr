@@ -1725,8 +1725,47 @@ class TestWatchCommands:
         )
 
         assert result.exit_code == 0
+        assert "paper 1/1" in result.output
+        assert "phase analyze" in result.output
+        assert "completed 1/1" in result.output
+        assert "spent $" in result.output
         assert (mock_config.topic_dir("papers") / "paper_synthesis.md").exists()
         assert (mock_config.topic_dir("papers") / "corpus_synthesis.md").exists()
+
+    def test_site_batch_progress_continues_after_seed_failure(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        seeds = tmp_path / "seeds.txt"
+        seeds.write_text(
+            "https://bad.example.com\nhttps://good.example.com\n",
+            encoding="utf-8",
+        )
+        calls: list[str] = []
+
+        def fake_process_site_seed(
+            seed, config, tracker, summary, scrape_only=False, ingest_attachments=False
+        ):
+            calls.append(seed.url)
+            if "bad" in seed.url:
+                raise RuntimeError("crawl exploded")
+
+        monkeypatch.setattr(_discover, "_process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(_discover, "synthesize_site_topic", lambda *a, **k: None)
+        monkeypatch.setattr(_discover, "synthesize_corpus", lambda *a, **k: None)
+
+        result = runner.invoke(
+            cli.app,
+            ["site-batch", str(seeds), "--topic", "web", "--seed-only"],
+        )
+
+        assert result.exit_code == 0
+        assert calls == ["https://bad.example.com", "https://good.example.com"]
+        assert "site 1/2" in result.output
+        assert "site 2/2" in result.output
+        assert "phase crawl" in result.output
+        assert "completed 1/2" in result.output
+        assert "failed 1" in result.output
+        assert "site-ingest" in result.output
 
     def test_papers_preview_shows_ranked_set(self, mock_config, monkeypatch):
         """--preview should display ranked papers and skip ingestion entirely."""

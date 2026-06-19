@@ -19,6 +19,7 @@ from distill.pipeline.costs import (
 )
 
 __all__ = [
+    "BatchProgress",
     "ETATracker",
     "RunIssue",
     "RunSummary",
@@ -208,6 +209,58 @@ class ETATracker:
             parts.append(eta)
         step = f"  {current_step}" if current_step else ""
         return f"[dim][{', '.join(parts)}][/dim]{step}"
+
+
+@dataclass
+class BatchProgress:
+    """Formats loop progress for non-video batch commands."""
+
+    unit: str
+    total: int
+    cost_tracker: Any | None = None
+    completed: int = 0
+    failed: int = 0
+    _eta: ETATracker = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._eta = ETATracker(total=max(self.total, 0))
+
+    def start_item(self) -> float:
+        return self._eta.start()
+
+    def finish_item(self, start_time: float, *, success: bool) -> None:
+        self._eta.tick(start_time)
+        if success:
+            self.completed += 1
+        else:
+            self.failed += 1
+
+    @property
+    def processed(self) -> int:
+        return self.completed + self.failed
+
+    def item_line(self, phase: str, title: str = "") -> str:
+        index = min(self.processed + 1, self.total) if self.total else 0
+        suffix = f" [bold]{title}[/bold]" if title else ""
+        return f"  [dim]{self._parts(phase, index=index)}[/dim]{suffix}"
+
+    def status_line(self, phase: str) -> str:
+        return f"  [dim]{self._parts(phase)}[/dim]"
+
+    def _parts(self, phase: str, *, index: int | None = None) -> str:
+        item = f"{self.unit} {index}/{self.total}" if index is not None else self.unit
+        parts = [
+            item,
+            f"phase {phase}",
+            f"completed {self.completed}/{self.total}",
+            f"failed {self.failed}",
+        ]
+        if self.cost_tracker is not None:
+            parts.append(f"spent {self.cost_tracker.format_cost()}")
+        eta = self._eta.eta_str
+        if eta:
+            parts.append(eta)
+        return " | ".join(parts)
 
 
 _ACCENT = "rgb(100,149,237)"

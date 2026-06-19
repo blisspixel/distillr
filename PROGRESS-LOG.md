@@ -53,6 +53,32 @@
 - Continue local roadmap work with either tool-result clearing in iterative
   loops, effective-context regression tests, or live batch progress.
 
+### Cycle 35 - Batch Progress for Papers and Site Batch
+
+- External spend: `$0.00`.
+- Added `BatchProgress` for long non-video CLI loops.
+- `distill papers` now prints per-paper phase, item count, completed count,
+  failed count, running spend, and ETA when enough items have completed.
+- `distill site-batch` now prints the same seed-level progress surface.
+- `distill site-batch` now isolates unexpected seed-level exceptions as
+  structured `site-ingest` run issues and continues with later seeds. The spend
+  cap remains a hard stop.
+- Marked the live mixed-source progress roadmap item partial, with `discover`,
+  `latest`, and `catch-up` still remaining.
+- Targeted validation:
+  - `uv run ruff check distill\commands\_site_batch.py distill\commands\discover.py distill\pipeline\summary.py distill\commands\papers.py tests\unit\pipeline\test_summary.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run pytest -q tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist tests\unit\pipeline\test_summary.py::test_batch_progress_formats_item_status_and_spend tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_papers_command_searches_and_writes_synthesis tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_site_batch_progress_continues_after_seed_failure` passed: 4 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 446 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2499
+    passed, 8 deselected, 1 warning, 82.61% coverage.
+
+### Next
+
+- Extend the same batch progress surface to `discover`, `latest`, and
+  `catch-up`, then consider a verbosity dial once all loops share the helper.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

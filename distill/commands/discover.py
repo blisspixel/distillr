@@ -44,6 +44,7 @@ from distill.commands._logic import (
     _run_learning_command,
     _run_scope_report,
 )
+from distill.commands._site_batch import process_site_batch_seed, site_batch_seed
 from distill.commands._topic_watch import (
     _normalize_topic_watch_ranking_mode,
     _topic_watch_name,
@@ -66,7 +67,7 @@ from distill.pipeline.discovery import (
     rigor_threshold,
 )
 from distill.pipeline.report.synthesize import run_synthesis
-from distill.pipeline.summary import RunSummary, display_summary, log_preview_cost
+from distill.pipeline.summary import BatchProgress, RunSummary, display_summary, log_preview_cost
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
 __all__ = [
@@ -464,30 +465,28 @@ def site_batch_cmd(
     if not scrape_only:
         _require_model()
     batch = load_site_batch(path, topic_override=topic)
+    target_topic = topic or batch.topic
     tracker = CostTracker()
     summary = RunSummary(command="site-batch")
-    summary.set_metadata(topic=topic, workflow="site-batch", source_type="website")
+    summary.set_metadata(topic=target_topic, workflow="site-batch", source_type="website")
 
+    progress = BatchProgress("site", len(batch.seeds), tracker)
     for seed in batch.seeds:
-        adjusted_seed = SiteSeed(
-            url=seed.url,
-            topic=seed.topic,
-            site_name=seed.site_name,
-            label=seed.label,
-            max_depth=0 if seed_only else seed.max_depth,
-            max_pages=1 if seed_only else seed.max_pages,
-            same_section_only=same_section_only or seed.same_section_only,
-        )
-        _process_site_seed(
-            adjusted_seed,
-            config,
-            tracker,
-            summary,
+        process_site_batch_seed(
+            site_batch_seed(
+                seed,
+                seed_only=seed_only,
+                same_section_only=same_section_only,
+            ),
+            config=config,
+            tracker=tracker,
+            summary=summary,
+            progress=progress,
             scrape_only=scrape_only,
             ingest_attachments=ingest_attachments,
+            process_site_seed=_process_site_seed,
         )
 
-    target_topic = topic or batch.topic
     if not scrape_only:
         try:
             topic_synth = synthesize_site_topic(target_topic, config, tracker=tracker)

@@ -21,11 +21,13 @@ That one command searches arXiv, downloads 20 PDFs, extracts full text, runs str
 
 ```
 Papers: temporal knowledge graph
-Topic: tkg | Selected papers: 20
+Topic: tkg | Sort: relevance | Expand: on | Rerank: on | Limit: 20
 
-  [1/20] Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge
-         Graphs and Agentic Memory
-  [2/20] Inductive Reasoning for Temporal Knowledge Graphs with Emerging Entities
+Analyzing 20 paper(s)
+
+  paper 1/20 | phase analyze | completed 0/20 | failed 0 | spent $0.0000 Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge Graphs and Agentic Memory
+  paper | phase done | completed 1/20 | failed 0 | spent $0.03 | ~6m left
+  paper 2/20 | phase analyze | completed 1/20 | failed 0 | spent $0.03 Inductive Reasoning for Temporal Knowledge Graphs with Emerging Entities
   ...
 
   6m 47s  ~$0.58 (391,278 in / 38,117 out)
