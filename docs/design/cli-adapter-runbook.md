@@ -187,9 +187,9 @@ Native usage capture:
 - `distill.doctor.adapter_capture.write_codex_captured_result()` writes that
   native usage file and the validated `adapter-result.v1` manifest from
   captured stdout JSONL plus `result.txt`.
-- These helpers do not make Codex route-eligible. The workload runner still has
-  to invoke the capture writer after the process exits, and auth/support/eval
-  gates still apply.
+- The workload runner can invoke this writer through a capture hook after a
+  successful process exit, but the helper does not make Codex route-eligible.
+  Auth, support, and eval gates still apply.
 
 Avoid in Distill automation:
 
@@ -454,15 +454,15 @@ native usage metadata or validated native usage files. It does not invent usage
 data or make an adapter eligible.
 `distill.doctor.adapter_capture` contains adapter-specific capture writers.
 The Codex writer converts captured JSONL stdout plus `result.txt` into a
-scratch native usage file and result manifest, but it is not wired into the
-workload runner yet.
+scratch native usage file and result manifest, and the workload runner can
+invoke it through a post-process capture hook before manifest validation.
 `distill.doctor.adapter_commands` records blocked Codex, Claude, and Grok
 read-only argv templates. Command plans include staged prompt, schema, result
 capture, native usage capture, and allowed scratch capture metadata. Claude
 schema paths can be materialized into `--json-schema` argv arguments from
 staged scratch JSON schema files, but templates stay blocked until
-workload-runner capture wiring, current support statement, auth proof, and eval
-evidence exist.
+current support statement, auth proof, adapter-specific native usage capture
+where applicable, and eval evidence exist.
 
 `distill eval` should judge local, plan-quota, and metered outputs head to head
 on the same fixtures. The rubric is faithfulness to receipts, specificity,

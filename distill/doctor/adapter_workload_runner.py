@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,8 +12,10 @@ from pydantic import ValidationError
 from distill.doctor.adapter_manifest import AdapterManifestError
 from distill.doctor.adapter_runner import (
     METERED_API_ENV_VARS,
+    AdapterProcessResult,
     AdapterRunResult,
     AdapterRunSpec,
+    CaptureWriter,
     Runner,
     run_adapter_command,
 )
@@ -26,8 +28,11 @@ from distill.doctor.adapter_workload import (
 __all__ = [
     "AdapterWorkloadRunResult",
     "AdapterWorkloadRunSpec",
+    "WorkloadCaptureWriter",
     "run_adapter_workload",
 ]
+
+WorkloadCaptureWriter = Callable[[AdapterProcessResult, Path, AdapterWorkloadPackage], None]
 
 
 @dataclass(frozen=True)
@@ -40,6 +45,7 @@ class AdapterWorkloadRunSpec:
     workload_path: Path = Path("adapter-workload.json")
     scrubbed_env_vars: tuple[str, ...] = METERED_API_ENV_VARS
     allowed_new_files: tuple[str, ...] = ()
+    capture_writer: WorkloadCaptureWriter | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +123,7 @@ def run_adapter_workload(
             output_limit=workload.output_limit,
             scrubbed_env_vars=spec.scrubbed_env_vars,
             allowed_new_files=spec.allowed_new_files,
+            capture_writer=_bind_capture_writer(spec.capture_writer, workload),
         ),
         environ=environ,
         runner=runner,
@@ -167,6 +174,19 @@ def _check_workload_result(
         blocked_reasons.append(
             "adapter manifest wrote files outside workload package: " + ", ".join(unexpected_writes)
         )
+
+
+def _bind_capture_writer(
+    writer: WorkloadCaptureWriter | None,
+    workload: AdapterWorkloadPackage,
+) -> CaptureWriter | None:
+    if writer is None:
+        return None
+
+    def capture(process: AdapterProcessResult, scratch_root: Path) -> None:
+        writer(process, scratch_root, workload)
+
+    return capture
 
 
 def _resolve_under_scratch(root: Path, path: Path) -> Path | None:

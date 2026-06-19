@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from pydantic import ValidationError
+
 from distill.doctor.adapter_manifest import (
     AdapterManifestError,
     AdapterResultManifest,
@@ -26,10 +28,22 @@ METERED_API_ENV_VARS: tuple[str, ...] = (
     "GOOGLE_API_KEY",
 )
 
+
+@dataclass(frozen=True)
+class AdapterProcessResult:
+    """Subprocess outcome for an adapter command."""
+
+    exit_code: int
+    stdout: str = ""
+    stderr: str = ""
+    timed_out: bool = False
+
+
 Runner = Callable[
     [Sequence[str], Path, Mapping[str, str], int],
-    "AdapterProcessResult",
+    AdapterProcessResult,
 ]
+CaptureWriter = Callable[[AdapterProcessResult, Path], None]
 
 
 @dataclass(frozen=True)
@@ -45,16 +59,7 @@ class AdapterRunSpec:
     output_limit: int = 4000
     scrubbed_env_vars: tuple[str, ...] = METERED_API_ENV_VARS
     allowed_new_files: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class AdapterProcessResult:
-    """Subprocess outcome for an adapter command."""
-
-    exit_code: int
-    stdout: str = ""
-    stderr: str = ""
-    timed_out: bool = False
+    capture_writer: CaptureWriter | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,11 @@ def run_adapter_command(
         blocked_reasons.append("adapter command timed out")
     if process.exit_code != 0:
         blocked_reasons.append(f"adapter command exited {process.exit_code}")
+    if process.exit_code == 0 and not process.timed_out and spec.capture_writer is not None:
+        try:
+            spec.capture_writer(process, scratch_root)
+        except (AdapterManifestError, OSError, ValidationError, ValueError) as exc:
+            blocked_reasons.append(f"adapter capture failed: {exc}")
 
     manifest: AdapterResultManifest | None = None
     workspace_check: AdapterWorkspaceWriteCheck | None = None

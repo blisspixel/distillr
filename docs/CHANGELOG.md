@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added the strict `adapter-native-usage.v1` usage contract and wired the adapter result writer to consume validated native usage files from scratch.
 - Added a strict Codex JSONL usage parser for `codex exec --json` `turn.completed` events.
 - Added a Codex capture writer that turns captured JSONL stdout plus `result.txt` into `native-usage.json` and a validated `adapter-result.v1` scratch manifest.
+- Added workload-runner capture hooks so tested adapter workloads can write captured results before manifest validation.
 
 ### Changed
 

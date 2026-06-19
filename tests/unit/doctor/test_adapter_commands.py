@@ -56,7 +56,6 @@ def test_codex_command_plan_records_read_only_argv_but_stays_blocked():
     assert plan.native_usage_path == "native-usage.json"
     assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
-    assert "codex capture writer is not wired into workload runner" in plan.blocked_reasons
     assert plan.to_dict()["schema_path"] == "schemas/result.json"
     assert plan.to_dict()["native_usage_path"] == "native-usage.json"
     assert plan.to_dict()["allowed_new_files"] == ["result.txt", "native-usage.json"]

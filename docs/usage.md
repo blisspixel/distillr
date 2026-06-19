@@ -271,9 +271,9 @@ capture, native usage capture, and allowed scratch capture metadata; Claude
 schema paths can be inlined from staged JSON schema files. Plans stay blocked
 until adapter-specific native usage capture and adapter gates exist. Distill
 can parse Codex JSONL `turn.completed` usage into the native usage contract and
-write the scratch manifest from captured stdout plus `result.txt`, but
-workload-runner capture wiring is still blocked. Distill still does not expose
-any plan-quota adapter as an eligible route by itself.
+write the scratch manifest from captured stdout plus `result.txt` through the
+workload runner capture hook. Distill still does not expose any plan-quota
+adapter as an eligible route by itself.
 
 ## Websites
 

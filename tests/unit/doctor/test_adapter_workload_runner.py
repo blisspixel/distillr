@@ -4,7 +4,12 @@ import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from distill.doctor.adapter_capture import (
+    CodexCaptureWriteSpec,
+    write_codex_captured_result,
+)
 from distill.doctor.adapter_runner import AdapterProcessResult
+from distill.doctor.adapter_workload import AdapterWorkloadPackage
 from distill.doctor.adapter_workload_runner import (
     AdapterWorkloadRunSpec,
     run_adapter_workload,
@@ -121,6 +126,108 @@ def test_adapter_workload_runner_accepts_declared_capture_file(tmp_path):
     assert result.adapter_result.workspace_check.new_files == (
         "adapter-result.json",
         "result.txt",
+    )
+
+
+def test_adapter_workload_runner_accepts_capture_writer_manifest(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+    ) -> AdapterProcessResult:
+        (cwd / "result.txt").write_text("captured result", encoding="utf-8")
+        return AdapterProcessResult(
+            exit_code=0,
+            stdout=(
+                '{"type":"turn.completed","usage":{"input_tokens":12,'
+                '"cached_input_tokens":8,"output_tokens":4,'
+                '"reasoning_output_tokens":1}}'
+            ),
+        )
+
+    def capture_writer(
+        process: AdapterProcessResult,
+        scratch_root: Path,
+        workload: AdapterWorkloadPackage,
+    ) -> None:
+        write_codex_captured_result(
+            CodexCaptureWriteSpec(
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=scratch_root,
+                workload=workload,
+                stdout_jsonl=process.stdout,
+                model="gpt-5.1-codex",
+                elapsed_ms=250,
+            )
+        )
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "--json"),
+            scratch_root=tmp_path,
+            allowed_new_files=("native-usage.json", "result.txt"),
+            capture_writer=capture_writer,
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.adapter_result is not None
+    assert result.adapter_result.manifest is not None
+    assert result.adapter_result.manifest.usage.input_tokens == 12
+    assert result.adapter_result.manifest.usage.output_tokens == 4
+    assert result.adapter_result.manifest.usage.native["cached_input_tokens"] == 8
+    assert result.adapter_result.workspace_check is not None
+    assert result.adapter_result.workspace_check.new_files == (
+        "adapter-result.json",
+        "native-usage.json",
+        "result.txt",
+    )
+
+
+def test_adapter_workload_runner_blocks_capture_writer_failure(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+    ) -> AdapterProcessResult:
+        (cwd / "result.txt").write_text("captured result", encoding="utf-8")
+        return AdapterProcessResult(exit_code=0, stdout='{"type":"turn.started"}')
+
+    def capture_writer(
+        _process: AdapterProcessResult,
+        _scratch_root: Path,
+        _workload: AdapterWorkloadPackage,
+    ) -> None:
+        raise ValueError("native usage unavailable")
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec", "--json"),
+            scratch_root=tmp_path,
+            capture_writer=capture_writer,
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert not result.ok
+    assert result.adapter_result is not None
+    assert "adapter capture failed: native usage unavailable" in (
+        result.adapter_result.blocked_reasons
+    )
+    assert "adapter manifest missing: adapter-result.json" in (
+        result.adapter_result.blocked_reasons
     )
 
 

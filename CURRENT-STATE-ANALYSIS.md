@@ -246,7 +246,15 @@ running Codex or enabling the route. The remaining Codex-specific gap is wiring
 the workload runner to call the capture writer after process exit and then
 apply the existing manifest and scratch-write checks.
 
+Cycle 26 added workload-runner capture hooks. The low-level scratch runner can
+invoke a post-process callback after a successful exact-argv process and before
+manifest loading, and the workload runner binds that callback to the parsed
+`adapter-workload.v1` package. Tests now run a simulated Codex JSONL process
+through the real Codex capture writer and verify the resulting
+`native-usage.json`, `adapter-result.v1` manifest, and scratch write check.
+Capture failures become explicit blocked reasons and do not bypass manifest
+validation.
+
 Remaining near-term gaps are official installed-session auth proof,
-workload-runner capture wiring, remaining adapter command templates, native
-usage collection from non-Codex CLI outputs for future plan-quota adapters, and
-eval-gated route graduation.
+remaining adapter command templates, native usage collection from non-Codex CLI
+outputs for future plan-quota adapters, and eval-gated route graduation.

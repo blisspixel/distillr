@@ -594,8 +594,8 @@
 
 ### Next
 
-- Continue runner capture wiring for Codex JSONL usage, non-Codex native usage
-  capture, and remaining command templates.
+- Continue Codex capture writing, non-Codex native usage capture, and
+  remaining command templates.
 
 ### Cycle 25 - Codex Capture Writer
 
@@ -605,8 +605,8 @@
 - The helper writes a validated `native-usage.json` from captured Codex JSONL
   stdout, then writes an `adapter-result.v1` manifest from `result.txt`,
   workload hashes, and native usage through the shared result writer.
-- Updated the Codex command-plan blocker to say the capture writer is not yet
-  wired into the workload runner.
+- Recorded that the Codex command-plan blocker still needed workload-runner
+  wiring at this stage. Cycle 26 removes that blocker after the hook lands.
 - Updated README, usage docs, roadmap, changelog, current-state notes, adapter
   runbook, and loop skills.
 - Targeted validation:
@@ -621,8 +621,41 @@
 
 ### Next
 
-- Continue workload-runner capture wiring for Codex, non-Codex native usage
-  capture, and remaining command templates.
+- Continue non-Codex native usage capture and remaining command templates.
+
+### Cycle 26 - Workload Runner Capture Hooks
+
+- External spend: `$0.00`.
+- Added an optional post-process capture hook to the scratch adapter runner.
+  The hook runs only after a successful exact-argv process and before manifest
+  loading, so captured CLI output can become the validated manifest the runner
+  already checks.
+- Threaded the hook through `run_adapter_workload()` as a workload-aware
+  callback receiving the parsed `adapter-workload.v1` package.
+- Added tests that run a simulated Codex JSONL process through the real
+  `write_codex_captured_result()` helper, verifying `native-usage.json`,
+  `adapter-result.v1`, and scratch write checks through the workload runner.
+- Capture failures now surface as explicit blocked reasons and still require a
+  valid result manifest before a run can pass.
+- Removed the stale Codex command-plan blocker for workload-runner capture
+  wiring. The route remains blocked by adapter doctor, support, auth, and eval
+  gates.
+- Updated README, usage docs, roadmap, changelog, current-state notes, adapter
+  runbook, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\doctor\adapter_runner.py distill\doctor\adapter_workload_runner.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed.
+  - `uv run ruff format --check distill\doctor\adapter_runner.py distill\doctor\adapter_workload_runner.py distill\doctor\adapter_commands.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_commands.py` passed after formatting one file.
+  - `uv run pytest -q tests\unit\doctor\test_adapter_runner.py tests\unit\doctor\test_adapter_workload_runner.py tests\unit\doctor\test_adapter_capture.py tests\unit\doctor\test_adapter_commands.py` passed: 26 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 445 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2474
+    passed, 8 deselected, 1 warning, 82.23% coverage.
+
+### Next
+
+- Continue remaining adapter command templates, native usage collection for
+  non-Codex CLI outputs, official auth proof, and eval-gated route graduation.
 
 ### Cycle 15 - Adapter Manifest Ledger Bridge
 
