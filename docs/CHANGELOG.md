@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.13 - 2026-06-20
+
 ### Added
 
 - Added video content stats to `distill discover` candidate output, showing
