@@ -61,6 +61,11 @@ Flags:
 
 Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, and curated site seeds are ranked in the same pool — a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are seed-driven: `discover` does not web-search for pages, it reranks the exact URLs you provide in `--site-seeds` and ingests the selected ones in exact-page mode.
 
+Video candidate discovery prints the free metadata summary before reranking,
+for example `Found 88 videos + 12 Shorts, ~47h of content across 5 search(es)`.
+When some durations are missing, the line labels the total as known content
+and reports the unknown-duration count.
+
 The pre-run spend estimate scales per-video cost by duration and **self-calibrates** against your `cost_log.jsonl` history (per-source rates from clean single-source runs, falling back to defaults when history is thin), so it sharpens as you use the tool. Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
 
 During ingestion, selected papers and site seeds print per-item progress with

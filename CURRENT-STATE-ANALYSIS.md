@@ -493,3 +493,10 @@ paper artifacts and renders BibTeX or RIS. The command
 `distill export <topic|all> --what citations --format bibtex|ris` writes the
 files under `output/`. This is structural metadata export for reference
 managers, not a paper-quality signal.
+
+Cycle 59 adds structural video content stats to `distill discover` candidate
+output. The helper in `distill.pipeline.discovery` summarizes full videos,
+Shorts, known watch time, and unknown-duration candidates from free YouTube
+metadata. The discover command prints that summary before reranking or preview
+approval, so users and loops see the size of a video candidate set without any
+new model judgment or ingest behavior.

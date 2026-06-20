@@ -50,12 +50,15 @@ def _format_date(date_str: str) -> str:
 __all__ = [
     "RankedDiscoverItem",
     "SizingOption",
+    "VideoContentStats",
     "build_sizing_options",
     "discover_fetch_videos",
     "discover_generate_queries",
     "discover_rerank",
     "display_ranked_discover",
     "filter_ingested_candidates",
+    "format_video_content_stats",
+    "summarize_video_content",
 ]
 
 
@@ -74,6 +77,77 @@ class RankedDiscoverItem:
     paper: PaperRecord | None = None
     video: VideoInfo | None = None
     site_seed: SiteSeed | None = None
+
+
+@dataclass(frozen=True)
+class VideoContentStats:
+    total: int
+    full_videos: int
+    shorts: int
+    known_duration_seconds: int
+    unknown_duration_count: int
+
+
+def summarize_video_content(videos: list[VideoInfo]) -> VideoContentStats:
+    """Summarize free YouTube metadata for preview and approval output."""
+    shorts = 0
+    known_duration_seconds = 0
+    unknown_duration_count = 0
+    for video in videos:
+        duration = getattr(video, "duration", 0) or 0
+        try:
+            seconds = int(duration)
+        except (TypeError, ValueError):
+            seconds = 0
+        if seconds > 0:
+            known_duration_seconds += seconds
+            if seconds <= SHORTS_THRESHOLD:
+                shorts += 1
+        else:
+            unknown_duration_count += 1
+    total = len(videos)
+    return VideoContentStats(
+        total=total,
+        full_videos=total - shorts,
+        shorts=shorts,
+        known_duration_seconds=known_duration_seconds,
+        unknown_duration_count=unknown_duration_count,
+    )
+
+
+def format_video_content_stats(stats: VideoContentStats) -> str:
+    """Format video candidate counts plus known watch time for console output."""
+    if stats.total <= 0:
+        return "0 videos"
+    count_parts: list[str] = []
+    if stats.full_videos:
+        count_parts.append(_plural(stats.full_videos, "video", "videos"))
+    if stats.shorts:
+        count_parts.append(_plural(stats.shorts, "Short", "Shorts"))
+    counts = " + ".join(count_parts) if count_parts else _plural(stats.total, "video", "videos")
+    if stats.known_duration_seconds <= 0:
+        return f"{counts}, duration unknown"
+    duration = _format_approx_duration(stats.known_duration_seconds)
+    qualifier = "known content" if stats.unknown_duration_count else "content"
+    text = f"{counts}, ~{duration} of {qualifier}"
+    if stats.unknown_duration_count:
+        text += f"; {_plural(stats.unknown_duration_count, 'unknown duration')}"
+    return text
+
+
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    word = singular if count == 1 else (plural or f"{singular}s")
+    return f"{count} {word}"
+
+
+def _format_approx_duration(seconds: int) -> str:
+    minutes = max(0, round(seconds / 60))
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, remainder = divmod(minutes, 60)
+    if remainder == 0:
+        return f"{hours}h"
+    return f"{hours}h {remainder}m"
 
 
 def _site_candidate_title(seed: SiteSeed) -> str:

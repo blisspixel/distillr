@@ -69,7 +69,9 @@ from distill.pipeline.discovery import (
     RIGOR_LEVELS,
     detect_score_cliff,
     filter_ingested_candidates,
+    format_video_content_stats,
     rigor_threshold,
+    summarize_video_content,
 )
 from distill.pipeline.report.synthesize import run_synthesis
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary, log_preview_cost
@@ -814,9 +816,8 @@ def discover(  # noqa: C901 — legacy, will refactor
         videos = _discover_fetch_videos(
             video_queries, effective_days=days, candidate_cap=20, shorts=shorts
         )
-        console.print(
-            f"[dim]Found {len(videos)} unique videos across {len(video_queries)} search(es)[/dim]"
-        )
+        video_stats = format_video_content_stats(summarize_video_content(videos))
+        console.print(f"[dim]Found {video_stats} across {len(video_queries)} search(es)[/dim]")
 
     # Corpus-aware dedup: drop searched candidates the topic already contains so
     # rerank slots and ingest spend go to new material, and gap-driven re-runs

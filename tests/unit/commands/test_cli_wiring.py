@@ -2095,6 +2095,7 @@ class TestWatchCommands:
         assert rerank_calls[0][0] == "help an AI compose music on a computer"
         assert rerank_calls[0][3] == 0
         assert "Goal-Ranked Corpus Plan" in result.stdout
+        assert "Found 1 video, ~20m of content across 1 search(es)" in result.stdout
         assert "paper" in result.stdout  # type column
         assert "video" in result.stdout
         assert "0.95" in result.stdout  # paper score

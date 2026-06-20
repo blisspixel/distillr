@@ -2,6 +2,42 @@
 
 ## 2026-06-20
 
+### Cycle 59 - Discovery Video Content Stats
+
+- External spend: `$0.00`.
+- Added `VideoContentStats`, `summarize_video_content`, and
+  `format_video_content_stats` to `distill.pipeline.discovery`.
+- `distill discover` now prints full-video count, Shorts count, known watch
+  time, and unknown-duration count for fetched YouTube candidates before
+  reranking and preview approval.
+- This is structural metadata aggregation, not relevance, source-fit, or
+  content-quality scoring.
+- Updated README, detailed roadmap, usage docs, changelog, current-state notes,
+  and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\pipeline\discovery.py distill\commands\discover.py tests\unit\pipeline\test_discovery.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run ruff format --check distill\pipeline\discovery.py distill\commands\discover.py tests\unit\pipeline\test_discovery.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run pytest -q tests\unit\pipeline\test_discovery.py tests\unit\commands\test_cli_wiring.py -k "video_content_stats or discover_preview_shows_goal_ranked_plan"` passed: 3 passed, 166 deselected.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 457 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2531
+    passed, 8 deselected, 1 warning, 82.92% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+
+### Next
+
+- Run full local gates, commit, push, verify CI, and publish the next PyPI
+  release if the main branch remains releasable.
+
 ### Cycle 58 - Paper Citation Export
 
 - External spend: `$0.00`.

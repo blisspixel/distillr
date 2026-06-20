@@ -143,6 +143,38 @@ def test_discover_fetch_videos_dedupes_filters_and_enriches(monkeypatch):
     assert enrich_calls == [1]
 
 
+def test_video_content_stats_formats_full_videos_shorts_and_duration():
+    videos = [
+        VideoInfo("v1", "Full", "20260421", 3600, "https://youtube.com/watch?v=v1"),
+        VideoInfo("v2", "Short", "20260421", 90, "https://youtube.com/watch?v=v2"),
+        VideoInfo("v3", "Unknown", "20260421", 0, "https://youtube.com/watch?v=v3"),
+    ]
+
+    stats = discover.summarize_video_content(videos)
+
+    assert stats.total == 3
+    assert stats.full_videos == 2
+    assert stats.shorts == 1
+    assert stats.known_duration_seconds == 3690
+    assert stats.unknown_duration_count == 1
+    assert (
+        discover.format_video_content_stats(stats)
+        == "2 videos + 1 Short, ~1h 2m of known content; 1 unknown duration"
+    )
+
+
+def test_video_content_stats_formats_zero_and_all_unknown():
+    assert discover.format_video_content_stats(discover.summarize_video_content([])) == "0 videos"
+    videos = [
+        VideoInfo("v1", "Unknown", "20260421", 0, "https://youtube.com/watch?v=v1"),
+    ]
+
+    assert (
+        discover.format_video_content_stats(discover.summarize_video_content(videos))
+        == "1 video, duration unknown"
+    )
+
+
 def test_discover_rerank_maps_ranked_items_and_sorts_by_score(config, monkeypatch):
     paper = PaperRecord(
         paper_id="p1",

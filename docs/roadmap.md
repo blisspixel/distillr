@@ -141,7 +141,9 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 ### 4. Tighten the YouTube experience
 
 - [ ] Live cost ticker during runs (estimated from token counts)
-- [ ] Total content stats in discovery ("Found 88 videos + 12 Shorts, ~47 hours of content")
+- [x] Total content stats in discovery - shipped 0.16.13: `distill discover`
+  candidate output now summarizes full videos, Shorts, and known watch time
+  from free YouTube metadata before preview approval or ingest.
 - [~] Research history - track how findings evolve over time, diff between runs
 - [ ] Multi-pass escalation on demand so catch-up can stay cheap by default and selectively deepen only the highest-signal items
 - [ ] Persist creator voice / bias cards so synthesis can account for recurring framing, reliability, and drift over time

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added video content stats to `distill discover` candidate output, showing
+  full videos, Shorts, and known watch time before preview approval or ingest.
+
 ## 0.16.12 - 2026-06-20
 
 ### Added

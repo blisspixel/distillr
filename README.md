@@ -212,6 +212,9 @@ completed. For external loops that only need files, exit codes, or JSON, use
 `distill --quiet <command>` to suppress human console output. DEBUG records are
 kept in `library/.distill/distill.log` for post-run review, and
 `distill --verbose <command>` mirrors them to stderr while a command runs.
+Discovery previews also summarize video candidate counts and known watch time
+before approval, so broad goals reveal the size of the video corpus before
+anything is ingested.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

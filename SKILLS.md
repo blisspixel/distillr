@@ -26,6 +26,9 @@
   it as content quality scoring.
 - Citation export is structural when it renders local paper metadata into
   BibTeX or RIS. Do not present DOI presence as a paper quality signal.
+- Discovery video content stats are structural when they aggregate free
+  metadata such as candidate count, duration, and Shorts classification. Do not
+  present them as relevance or quality scoring.
 - Semantic examples: relevance, novelty, source fit, faithfulness in prose,
   synthesis quality, contradiction interpretation, and route quality.
 - If no model route exists for a semantic task, label the fallback as structural
