@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.14 - 2026-06-20
+
 ### Added
 
 - Added `distill discover --trusted-site`, which enumerates candidate website
