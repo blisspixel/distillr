@@ -351,6 +351,10 @@ distill papers "agent memory systems" --topic my-research --limit 20 \
 
 # Mixed-source synthesis across videos, sites, and papers filed under one topic
 distill corpus my-research
+
+# Export citations for Zotero or a reference manager
+distill export my-research --what citations --format bibtex
+distill export my-research --what citations --format ris
 ```
 
 Flags on `distill papers`:
@@ -379,10 +383,11 @@ For a **goal-driven** corpus across papers *and* videos, use `distill discover` 
 Paper outputs land under:
 
 - `library/topics/<topic>/papers/<paper-slug>/metadata.json`
-- `library/topics/<topic>/papers/<paper-slug>/<paper-slug>_Paper.md` (abstract + extracted full text)
+- `library/topics/<topic>/papers/<paper-slug>/<paper-slug>_Paper.md` (abstract, extracted full text, DOI when arXiv supplies one)
 - `library/topics/<topic>/papers/<paper-slug>/<paper-slug>_Insights.md` (structured analysis)
 - `library/topics/<topic>/<topic>_Paper_Synthesis.md` (cross-paper synthesis)
 - `library/topics/<topic>/<topic>_Corpus_Synthesis.md` (mixed-source view)
+- `output/citations-<topic>.bib` or `output/citations-<topic>.ris` when exported with `distill export <topic> --what citations`
 
 ### Two-pass synthesis (`--two-pass`)
 
@@ -561,6 +566,8 @@ distill export SomeCreator --what synthesis
 distill export ai --what bundle --format deepr      # zipped corpus bundle
 distill export ai --format okf                      # OKF v0.1 directory bundle
 distill export all --format okf                     # OKF bundle for every topic
+distill export ai --what citations --format bibtex  # paper citations
+distill export ai --what citations --format ris     # Zotero-readable citations
 distill okf validate output/okf-ai                  # validate any OKF bundle
 
 # Open files / folders in the system file browser

@@ -1294,6 +1294,75 @@ class TestExportOpenCostsAndStatus:
         assert 'type: "Source Insight"' in text
         assert 'resource: "https://youtube.com/watch?v=1"' in text
 
+    def test_export_citations_writes_bibtex(self, mock_config):
+        paper_dir = mock_config.paper_dir("ai", "Agent Memory Systems", "2602.12670v1")
+        paper_dir.mkdir(parents=True, exist_ok=True)
+        artifact_path(paper_dir, "paper").write_text(
+            "\n".join(
+                [
+                    "---",
+                    'title: "Agent Memory Systems"',
+                    'type: "paper"',
+                    'topic: "ai"',
+                    'source: "arxiv"',
+                    'source_id: "2602.12670v1"',
+                    'paper_id: "2602.12670v1"',
+                    'url: "https://arxiv.org/abs/2602.12670v1"',
+                    'date: "2026-02-17T00:00:00Z"',
+                    'authors: ["Alice Example", "Bob Researcher"]',
+                    'categories: ["cs.AI"]',
+                    'doi: "10.5555/agent-memory"',
+                    "---",
+                    "",
+                    "# Agent Memory Systems",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["export", "ai", "--what", "citations"])
+
+        assert result.exit_code == 0
+        output_path = mock_config.library_dir.parent / "output" / "citations-ai.bib"
+        assert output_path.exists()
+        text = output_path.read_text(encoding="utf-8")
+        assert "@misc{" in text
+        assert "doi = {10.5555/agent-memory}" in text
+
+    def test_export_citations_writes_ris(self, mock_config):
+        paper_dir = mock_config.paper_dir("ai", "Agent Memory Systems", "2602.12670v1")
+        paper_dir.mkdir(parents=True, exist_ok=True)
+        artifact_path(paper_dir, "paper").write_text(
+            "\n".join(
+                [
+                    "---",
+                    'title: "Agent Memory Systems"',
+                    'type: "paper"',
+                    'topic: "ai"',
+                    'source: "arxiv"',
+                    'source_id: "2602.12670v1"',
+                    'paper_id: "2602.12670v1"',
+                    'url: "https://arxiv.org/abs/2602.12670v1"',
+                    'date: "2026-02-17T00:00:00Z"',
+                    'authors: ["Alice Example"]',
+                    'doi: "10.5555/agent-memory"',
+                    "---",
+                    "",
+                    "# Agent Memory Systems",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["export", "ai", "--what", "citations", "--format", "ris"])
+
+        assert result.exit_code == 0
+        output_path = mock_config.library_dir.parent / "output" / "citations-ai.ris"
+        assert output_path.exists()
+        text = output_path.read_text(encoding="utf-8")
+        assert "TY  - JOUR" in text
+        assert "DO  - 10.5555/agent-memory" in text
+
     def test_okf_validate_reports_invalid_bundle(self, tmp_path):
         bundle = tmp_path / "bundle"
         bundle.mkdir()

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added paper citation export with `distill export <topic|all> --what citations
+  --format bibtex|ris`, using local paper artifacts and DOI metadata captured
+  from arXiv when available.
+
 ## 0.16.11 - 2026-06-20
 
 ### Added

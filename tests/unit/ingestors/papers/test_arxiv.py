@@ -2,13 +2,14 @@ import importlib
 from types import SimpleNamespace
 
 SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
   <entry>
     <id>http://arxiv.org/abs/2602.12670v1</id>
     <updated>2026-02-18T00:00:00Z</updated>
     <published>2026-02-17T00:00:00Z</published>
     <title> Agent Memory Systems </title>
     <summary> A paper about memory systems. </summary>
+    <arxiv:doi>10.5555/agent-memory</arxiv:doi>
     <author><name>Alice</name></author>
     <author><name>Bob</name></author>
     <link rel="alternate" href="https://arxiv.org/abs/2602.12670v1" />
@@ -64,6 +65,7 @@ def test_search_arxiv_papers_parses_feed(monkeypatch):
     assert papers[0].paper_id == "2602.12670v1"
     assert papers[0].title == "Agent Memory Systems"
     assert papers[0].authors == ["Alice", "Bob"]
+    assert papers[0].doi == "10.5555/agent-memory"
 
 
 def test_parse_feed_skips_entries_without_id_or_title(monkeypatch):
@@ -168,6 +170,7 @@ def test_build_paper_document_contains_key_sections():
             published_at="2026-02-17",
             updated_at="2026-02-18",
             categories=["cs.AI"],
+            doi="10.5555/agent-memory",
             abs_url="https://arxiv.org/abs/2602.12670v1",
             pdf_url="https://arxiv.org/pdf/2602.12670v1.pdf",
         )
@@ -176,6 +179,7 @@ def test_build_paper_document_contains_key_sections():
     assert "# Agent Memory Systems" in doc
     assert "## Abstract" in doc
     assert "Alice, Bob" in doc
+    assert "10.5555/agent-memory" in doc
 
 
 def test_search_arxiv_multi_dedupes_and_continues_on_failures(monkeypatch):
@@ -310,9 +314,11 @@ def test_paper_record_metadata_round_trips():
         abstract="A paper about memory systems.",
         authors=["Alice", "Bob"],
         categories=["cs.AI"],
+        doi="10.5555/agent-memory",
     )
 
     metadata = record.metadata()
 
     assert metadata["paper_id"] == "2602.12670v1"
     assert metadata["authors"] == ["Alice", "Bob"]
+    assert metadata["doi"] == "10.5555/agent-memory"

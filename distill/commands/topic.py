@@ -483,10 +483,10 @@ def topic_export(
         "report",
         "--what",
         "-w",
-        help="What to export: report, synthesis, bundle",
+        help="What to export: report, synthesis, bundle, citations",
     ),
     bundle_format: str = typer.Option(
-        "bundle", "--format", help="Bundle format for --what bundle: bundle or deepr"
+        "bundle", "--format", help="Bundle or citation format: bundle, deepr, okf, bibtex, ris"
     ),
 ):
     """Export topic artifacts in the same formats as the lower-level export command."""

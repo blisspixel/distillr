@@ -21,6 +21,7 @@ from distill.commands.topic import (
 )
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.citations import collect_paper_citations, render_citations
 from distill.library.export import markdown_to_docx
 from distill.library.okf import export_okf_bundle
 from distill.library.paths import find_artifact
@@ -64,6 +65,23 @@ def _export_zip_bundle_cli(config: DistillConfig, topic: str, bundle_format: str
     console.print(f"\n  [dim]distill open {topic}  to inspect the source corpus[/dim]")
 
 
+def _export_citations_cli(config: DistillConfig, topic: str, export_format: str) -> None:
+    normalized_format = "bibtex" if export_format == "bundle" else export_format
+    try:
+        content = render_citations(collect_paper_citations(config, topic), normalized_format)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from None
+    if not content:
+        console.print(f"[yellow]No paper citations found for topic: {topic}[/yellow]")
+        raise typer.Exit(1)
+    extension = "ris" if normalized_format.strip().lower() == "ris" else "bib"
+    citation_path = _output_path(config, f"citations-{topic}.{extension}")
+    citation_path.write_text(content, encoding="utf-8")
+    console.print(f"[green]Exported citations: {citation_path}[/green]")
+    console.print(f"[dim]{len(content.splitlines())} lines[/dim]")
+
+
 def _export_markdown_source(
     config: DistillConfig,
     topic: str,
@@ -96,7 +114,9 @@ def _export_markdown_source(
             config.topic_dir(topic), "topic_synthesis", identity=topic
         ), f"Topic Synthesis: {topic}"
 
-    console.print(f"[red]Unknown export type: {what}. Use: report, synthesis, bundle[/red]")
+    console.print(
+        f"[red]Unknown export type: {what}. Use: report, synthesis, bundle, citations[/red]"
+    )
     raise typer.Exit(1)
 
 
@@ -279,11 +299,11 @@ def report(  # noqa: C901 - legacy, will refactor
 def export(
     topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
     what: str = typer.Option(
-        "report", "--what", "-w", help="What to export: report, synthesis, bundle"
+        "report", "--what", "-w", help="What to export: report, synthesis, bundle, citations"
     ),
     channel: str | None = typer.Option(None, "--channel", "-c", help="Specific channel"),
     bundle_format: str = typer.Option(
-        "bundle", "--format", help="Bundle format: bundle, deepr, or okf"
+        "bundle", "--format", help="Bundle or citation format: bundle, deepr, okf, bibtex, ris"
     ),
 ):
     """Export reports, syntheses, or a portable topic corpus bundle.
@@ -292,12 +312,16 @@ def export(
       distill export ai
       distill export ai --what synthesis
       distill export ai --what bundle --format okf
+      distill export ai --what citations --format bibtex
     """
     config = get_config()
     lib = Library(config)
     if bundle_format == "okf" and what == "report":
         what = "bundle"
-    if not (what == "bundle" and bundle_format == "okf" and topic.lower() == "all"):
+    if not (
+        (what == "bundle" and bundle_format == "okf" and topic.lower() == "all")
+        or (what == "citations" and topic.lower() == "all")
+    ):
         topic, channel = _resolve_topic_for_channel(lib, topic, channel)
 
     if what == "bundle":
@@ -305,6 +329,13 @@ def export(
             _export_okf_bundle_cli(config, topic)
         else:
             _export_zip_bundle_cli(config, topic, bundle_format)
+        return
+
+    if what == "citations":
+        if channel:
+            console.print("[red]Citation export is topic-level. Omit --channel.[/red]")
+            raise typer.Exit(1)
+        _export_citations_cli(config, topic, bundle_format)
         return
 
     md_path, title = _export_markdown_source(config, topic, channel, what)

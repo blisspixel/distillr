@@ -50,7 +50,7 @@ Three kinds of tools orbit this space, and distill is deliberately none of them:
 
 The short version: those are **report and search layers**; distill is the **corpus layer underneath repeated research** — capture, per-source insights, cross-source synthesis, refresh, receipts. And plain Markdown is the substrate, not the moat: anyone can write Markdown. The moat is the acquisition-and-maintenance loop that fills it and keeps it current.
 
-That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base — you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Reports and briefs also export to Word for stakeholder delivery (`distill export <topic> --what report`). Nothing is locked in anything.
+That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base: you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Reports and briefs export to Word for stakeholder delivery (`distill export <topic> --what report`), and paper topics export to BibTeX or RIS for Zotero and reference managers (`distill export <topic> --what citations`). Nothing is locked in anything.
 
 One honest scoping note: distill is a terminal tool for people comfortable installing a Python CLI and setting two API keys (or running a local model). If you want a one-click app, this isn't that — and the corpus it builds is plain files precisely so the tools you already use can be the interface.
 
@@ -64,7 +64,7 @@ Eight source types, same pipeline shape (capture -> analyze -> verify -> synthes
 |---|---|---|
 | YouTube | `distill latest`, `distill video`, `distill discover` | channels, topic searches, videos, Shorts |
 | Websites | `distill site`, `distill site-batch` | browser-first crawl; PDF/embedded-video ingestion |
-| arXiv papers | `distill papers` | query expansion, LLM rerank, full-PDF extraction, cross-paper synthesis |
+| arXiv papers | `distill papers` | query expansion, LLM rerank, full-PDF extraction, DOI metadata when arXiv supplies it, cross-paper synthesis, BibTeX/RIS export |
 | X (Twitter) posts | `distill ingest <tweet-url>` | public syndication endpoint (no anti-bot scraping); attached video transcribed via local-first Whisper |
 | GitHub repos | `distill ingest <repo-url>` | metadata + README + releases into a structured maturity/when-to-use insight |
 | Podcasts | `distill ingest <rss-url>` | RSS-first; publisher transcripts preferred over paid audio transcription |
@@ -189,6 +189,7 @@ distill latest "Microsoft Fabric best practices" --limit 10 --report
 # picks the top N (use --preview to see the shortlist without ingesting)
 distill papers "agent memory systems" --topic memory --limit 20
 distill papers "agent memory systems" --topic memory --limit 20 --preview
+distill export memory --what citations --format bibtex
 
 # Distill a vendor/research site
 distill site-batch configs/example_seeds.json --topic example --seed-only
@@ -271,6 +272,7 @@ topic: "tkg"
 source: "arxiv"
 source_id: "2604.11544v1"
 url: "https://arxiv.org/abs/2604.11544v1"
+doi: "10.5555/example-tkg"
 authors: ["Alice Example", "Bob Example"]
 tags: ["distill/tkg", "source/arxiv", "cs.AI"]
 synthesis_scope: "single-paper"

@@ -485,3 +485,11 @@ videos at least 1800 seconds long with transcript receipts under 500 stripped
 characters are flagged as likely capture failures. The check is advisory and
 structural, not a content-quality score, and `distill health` reuses the same
 collector so dashboard and audit wording stay aligned.
+
+Cycle 58 closes the paper citation identity and export slice. arXiv DOI values
+now travel through `PaperRecord`, metadata JSON, the paper receipt, and
+frontmatter when the feed supplies them. `distill.library.citations` reads local
+paper artifacts and renders BibTeX or RIS. The command
+`distill export <topic|all> --what citations --format bibtex|ris` writes the
+files under `output/`. This is structural metadata export for reference
+managers, not a paper-quality signal.

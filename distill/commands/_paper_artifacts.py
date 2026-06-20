@@ -46,6 +46,7 @@ def write_paper_artifacts(
         synthesis_scope="source-content",
         extra={
             "paper_id": paper.paper_id,
+            "doi": paper.doi,
             "pdf_url": paper.pdf_url,
             "updated_at": paper.updated_at,
             "categories": paper.categories,

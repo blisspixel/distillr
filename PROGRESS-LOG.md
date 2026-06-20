@@ -2,6 +2,42 @@
 
 ## 2026-06-20
 
+### Cycle 58 - Paper Citation Export
+
+- External spend: `$0.00`.
+- Added DOI capture to arXiv paper records, metadata JSON, paper receipt text,
+  and paper/insight frontmatter when the arXiv feed supplies a DOI.
+- Added `distill.library.citations` to collect citation metadata from local
+  paper artifacts and render BibTeX or RIS without network or model calls.
+- Added `distill export <topic|all> --what citations --format bibtex|ris`,
+  writing citation files under `output/` for Zotero and reference managers.
+- This is structural metadata export, not a semantic paper-quality judgment.
+- Updated README, root roadmap, detailed roadmap, usage docs, output docs,
+  changelog, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\ingestors\papers\arxiv.py distill\commands\_paper_artifacts.py distill\library\citations.py distill\commands\reports.py distill\commands\topic.py tests\unit\ingestors\papers\test_arxiv.py tests\unit\library\test_citations.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run ruff format --check distill\ingestors\papers\arxiv.py distill\commands\_paper_artifacts.py distill\library\citations.py distill\commands\reports.py distill\commands\topic.py tests\unit\ingestors\papers\test_arxiv.py tests\unit\library\test_citations.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run pytest -q tests\unit\ingestors\papers\test_arxiv.py tests\unit\library\test_citations.py tests\unit\commands\test_cli_wiring.py::TestExportOpenCostsAndStatus::test_export_citations_writes_bibtex tests\unit\commands\test_cli_wiring.py::TestExportOpenCostsAndStatus::test_export_citations_writes_ris` passed: 24 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 457 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2529
+    passed, 8 deselected, 1 warning, 82.90% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+
+### Next
+
+- Run release-adjacent checks, commit, push, verify CI, and publish the next
+  PyPI release if the main branch remains releasable.
+
 ### Cycle 57 - Thin Transcript Audit
 
 - External spend: `$0.00`.

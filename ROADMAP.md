@@ -25,7 +25,7 @@ Distill is a source-to-intelligence platform covering eight source types, all on
 
 - **YouTube** (stable) - channels, topic searches, videos, Shorts, with caption retry and local-first Whisper fallback
 - **Websites** (stable) - vendor sites, research hubs, curated URL sets, attachment-aware crawls
-- **arXiv papers** (stable) - query expansion, LLM rerank, full-PDF extraction, cross-paper synthesis
+- **arXiv papers** (stable) - query expansion, LLM rerank, full-PDF extraction, DOI metadata when arXiv supplies it, cross-paper synthesis, BibTeX/RIS export
 - **X posts** (beta) - `distill ingest <tweet-url>` via the public syndication endpoint, with local-first Whisper transcription for native video
 - **GitHub repos** (new adapter) - `distill ingest <github-url>` captures repo metadata, README, and releases into structured maturity / when-to-use insights
 - **Podcasts** (new adapter) - RSS-first ingestion, publisher transcripts preferred before audio transcription

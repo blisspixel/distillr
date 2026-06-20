@@ -87,11 +87,16 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 
 ## Per arXiv paper
 
-- **`metadata.json`** — arXiv ID, title, authors, categories, abstract URL, PDF URL
-- **`<paper-slug>_Paper.md`** — Full paper document (abstract + extracted PDF text, up to 100K chars)
-- **`<paper-slug>_Insights.md`** — Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
+- **`metadata.json`**: arXiv ID, title, authors, categories, DOI when arXiv supplies one, abstract URL, PDF URL
+- **`<paper-slug>_Paper.md`**: Full paper document (abstract + extracted PDF text, up to 100K chars) with DOI frontmatter when available
+- **`<paper-slug>_Insights.md`**: Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
 
-Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal (and short-circuited when `--preview` is set). The shortlist itself is not persisted as a file today — if you want to capture it, use `--preview` and copy the table, or re-run with `--yes` to commit directly to ingestion.
+Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal (and short-circuited when `--preview` is set). The shortlist itself is not persisted as a file today; use `--preview` and copy the table, or re-run with `--yes` to commit directly to ingestion.
+
+Citation exports are local and read from existing paper artifacts:
+
+- **`output/citations-<topic>.bib`**: BibTeX from `distill export <topic> --what citations --format bibtex`
+- **`output/citations-<topic>.ris`**: RIS from `distill export <topic> --what citations --format ris`
 
 ## Reports (any scope)
 
@@ -177,6 +182,7 @@ topic: "tkg"
 source: arxiv
 source_id: 2604.11544v1
 url: https://arxiv.org/abs/2604.11544v1
+doi: 10.5555/example-tkg
 tags: ["distill/tkg", "source/arxiv"]
 synthesis_scope: "single-paper"
 analyzed_by: grok-4.3

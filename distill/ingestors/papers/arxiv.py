@@ -37,7 +37,10 @@ __all__ = [
 ]
 
 ARXIV_API = "https://export.arxiv.org/api/query"
-ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
+ATOM_NS = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "arxiv": "http://arxiv.org/schemas/atom",
+}
 _PDF_TEXT_LIMIT = 100_000
 _PDF_PAGE_LIMIT = 40
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
@@ -55,6 +58,7 @@ class PaperRecord:
     published_at: str = ""
     updated_at: str = ""
     categories: list[str] = field(default_factory=list)
+    doi: str = ""
     abs_url: str = ""
     pdf_url: str = ""
     source: str = "arxiv"
@@ -68,6 +72,7 @@ class PaperRecord:
             "published_at": self.published_at,
             "updated_at": self.updated_at,
             "categories": self.categories,
+            "doi": self.doi,
             "abs_url": self.abs_url,
             "pdf_url": self.pdf_url,
             "source": self.source,
@@ -209,6 +214,7 @@ def build_paper_document(paper: PaperRecord, pdf_text: str = "") -> str:
         f"- Published: {paper.published_at or 'Unknown'}",
         f"- Updated: {paper.updated_at or 'Unknown'}",
         f"- Categories: {categories}",
+        f"- DOI: {paper.doi or 'Unknown'}",
         f"- Abstract URL: {paper.abs_url or 'Unknown'}",
         f"- PDF URL: {paper.pdf_url or 'Unknown'}",
         "",
@@ -371,6 +377,7 @@ def _parse_arxiv_feed(payload: str) -> list[PaperRecord]:
                 published_at=_entry_text(entry, "atom:published"),
                 updated_at=_entry_text(entry, "atom:updated"),
                 categories=[c for c in categories if c],
+                doi=_clean_space(_entry_text(entry, "arxiv:doi")),
                 abs_url=abs_url,
                 pdf_url=pdf_url,
             )
