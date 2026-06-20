@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added exact YouTube identity duplicate detection to `distill audit`, so the
+  trust report flags video artifact directories that point at the same source
+  video through `video_id` or normalized YouTube URLs.
+
 ## 0.16.8 - 2026-06-20
 
 ### Changed

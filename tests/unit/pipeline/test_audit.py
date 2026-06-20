@@ -8,9 +8,12 @@ from pathlib import Path
 from distill.library.links import BrokenLink
 from distill.pipeline.audit import (
     AuditReport,
+    ExactVideoDuplicateGroup,
     SynthesisFreshness,
     VerifyRollup,
+    VideoOccurrence,
     build_next_action_plan,
+    collect_exact_video_duplicates,
     collect_verify_rollup,
     render_audit_md,
     write_audit_artifact,
@@ -30,6 +33,12 @@ def _seed_insight(topic_dir: Path, rel: str, *, sidecar: dict | None = None) -> 
     (d / f"{d.name}_Insights.md").write_text('---\nsource_id: "x"\n---\n\nbody', encoding="utf-8")
     if sidecar is not None:
         (d / f"{d.name}_Verify.json").write_text(json.dumps(sidecar), encoding="utf-8")
+
+
+def _seed_video_metadata(topic_dir: Path, channel: str, slug: str, metadata: dict) -> None:
+    d = topic_dir / "channels" / channel / "videos" / slug
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
 
 
 class TestVerifyRollup:
@@ -104,6 +113,83 @@ class TestVerifyRollup:
         assert any(f["token"] == "9.9" for f in rollup.flagged)
 
 
+class TestExactVideoDuplicates:
+    def test_groups_same_video_id_across_artifact_dirs(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        _seed_video_metadata(
+            topic,
+            "CreatorA",
+            "old-title",
+            {
+                "video_id": "same123",
+                "title": "Old Title",
+                "url": "https://www.youtube.com/watch?v=same123",
+            },
+        )
+        _seed_video_metadata(
+            topic,
+            "CreatorB",
+            "new-title",
+            {
+                "video_id": "same123",
+                "title": "New Title",
+                "url": "https://youtu.be/same123",
+            },
+        )
+        _seed_video_metadata(
+            topic,
+            "CreatorA",
+            "other",
+            {
+                "video_id": "other456",
+                "title": "Other",
+                "url": "https://www.youtube.com/watch?v=other456",
+            },
+        )
+
+        groups = collect_exact_video_duplicates(topic)
+
+        assert len(groups) == 1
+        assert groups[0].identity == "youtube:same123"
+        assert groups[0].members == 2
+        assert [item.path for item in groups[0].occurrences] == [
+            "channels/CreatorA/videos/old-title",
+            "channels/CreatorB/videos/new-title",
+        ]
+
+    def test_uses_youtube_url_identity_when_video_id_missing(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        _seed_video_metadata(
+            topic,
+            "CreatorA",
+            "watch",
+            {"title": "Watch URL", "url": "https://www.youtube.com/watch?v=same123&t=30"},
+        )
+        _seed_video_metadata(
+            topic,
+            "CreatorB",
+            "shorts",
+            {"title": "Shorts URL", "url": "https://www.youtube.com/shorts/same123"},
+        )
+        _seed_video_metadata(
+            topic,
+            "CreatorC",
+            "embed",
+            {
+                "title": "Embed URL",
+                "url": "https://www.youtube-nocookie.com/embed/same123",
+            },
+        )
+        broken = topic / "channels" / "CreatorC" / "videos" / "broken"
+        broken.mkdir(parents=True, exist_ok=True)
+        (broken / "metadata.json").write_text("{bad json", encoding="utf-8")
+
+        groups = collect_exact_video_duplicates(topic)
+
+        assert [group.identity for group in groups] == ["youtube:same123"]
+        assert groups[0].members == 3
+
+
 def _report(**overrides) -> AuditReport:
     base = {
         "topic": "t",
@@ -144,6 +230,36 @@ class TestRenderAndWrite:
 
     def test_issue_count(self):
         assert _report().issue_count == 4  # 1 warning + 1 contested + 1 gap + 1 flagged
+
+    def test_render_exact_duplicate_video_section(self):
+        report = _report(
+            exact_video_duplicates=[
+                ExactVideoDuplicateGroup(
+                    identity="youtube:same123",
+                    occurrences=[
+                        VideoOccurrence(
+                            path="channels/A/videos/old",
+                            channel="A",
+                            title="Old",
+                            url="https://youtube.com/watch?v=same123",
+                        ),
+                        VideoOccurrence(
+                            path="channels/B/videos/new",
+                            channel="B",
+                            title="New",
+                            url="https://youtu.be/same123",
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        out = render_audit_md(report, now_iso=NOW)
+
+        assert report.issue_count == 5
+        assert "Exact duplicate videos" in out
+        assert "`youtube:same123` appears in 2 artifact directories" in out
+        assert "`channels/A/videos/old` - Old (A)" in out
 
     def test_write_artifact_with_frontmatter(self, tmp_path: Path):
         path = write_audit_artifact(tmp_path, _report(), now_iso=NOW)

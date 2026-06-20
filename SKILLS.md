@@ -18,6 +18,9 @@
 - Structural examples: schemas, paths, URLs, exact receipts, cost policy,
   action ids, ledgers, argv arrays, approval classes, and verifier stop
   conditions.
+- Exact duplicate video detection is structural when it keys on normalized
+  source identities such as `video_id` or YouTube URLs. Semantic duplicate
+  meaning remains a model judgment or an advisory near-duplicate signal.
 - Semantic examples: relevance, novelty, source fit, faithfulness in prose,
   synthesis quality, contradiction interpretation, and route quality.
 - If no model route exists for a semantic task, label the fallback as structural

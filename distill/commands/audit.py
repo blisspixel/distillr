@@ -24,6 +24,7 @@ from distill.pipeline.audit import (
     AuditReport,
     NextActionPlan,
     build_next_action_plan,
+    collect_exact_video_duplicates,
     collect_library_hygiene,
     collect_staleness,
     collect_synthesis_freshness,
@@ -90,6 +91,7 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         verify=collect_verify_rollup(topic_dir),
         staleness=collect_staleness(topic_dir),
         near_duplicates=collect_near_duplicates(topic_dir),
+        exact_video_duplicates=collect_exact_video_duplicates(topic_dir),
         freshness=collect_synthesis_freshness(topic_dir, topic),
     )
 
@@ -188,6 +190,7 @@ def _write_topic_audit_report(config, report: AuditReport, *, now_iso: str, quie
         f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
         f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
         f"{len(report.freshness.stale)} stale synthesis/es, "
+        f"{len(report.exact_video_duplicates)} exact video duplicate group(s), "
         f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
         f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
     )

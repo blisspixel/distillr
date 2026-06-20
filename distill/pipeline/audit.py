@@ -31,6 +31,12 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.pipeline.audit_video_duplicates import (
+    ExactVideoDuplicateGroup,
+    VideoOccurrence,
+    collect_exact_video_duplicates,
+    render_exact_video_duplicates_section,
+)
 from distill.pipeline.next_actions import (
     LoopMetadata,
     NextAction,
@@ -51,6 +57,7 @@ _loop = loop_metadata
 
 __all__ = [
     "AuditReport",
+    "ExactVideoDuplicateGroup",
     "LibraryHygiene",
     "LoopMetadata",
     "NextAction",
@@ -60,7 +67,9 @@ __all__ = [
     "StalenessRollup",
     "SynthesisFreshness",
     "VerifyRollup",
+    "VideoOccurrence",
     "build_next_action_plan",
+    "collect_exact_video_duplicates",
     "collect_library_hygiene",
     "collect_profile_health",
     "collect_staleness",
@@ -133,6 +142,7 @@ class AuditReport:
     verify: VerifyRollup
     staleness: StalenessRollup = field(default_factory=StalenessRollup)
     near_duplicates: list = field(default_factory=list)  # list[DuplicateGroup]
+    exact_video_duplicates: list = field(default_factory=list)  # list[ExactVideoDuplicateGroup]
     freshness: SynthesisFreshness = field(default_factory=SynthesisFreshness)
 
     @property
@@ -145,6 +155,7 @@ class AuditReport:
             + len(self.verify.flagged)
             + len(self.staleness.stale)
             + len(self.near_duplicates)
+            + len(self.exact_video_duplicates)
             + len(self.freshness.stale)
             + len(self.freshness.shadowed_legacy)
         )
@@ -709,6 +720,10 @@ def _duplicates_section(report: AuditReport) -> list[str]:
     return lines
 
 
+def _exact_video_duplicates_section(report: AuditReport) -> list[str]:
+    return render_exact_video_duplicates_section(report.exact_video_duplicates)
+
+
 def _health_section(report: AuditReport) -> list[str]:
     lines = ["## Corpus health", ""]
     if report.health_warnings:
@@ -773,6 +788,7 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
         _verify_section,
         _staleness_section,
         _freshness_section,
+        _exact_video_duplicates_section,
         _duplicates_section,
         _health_section,
         _contested_section,

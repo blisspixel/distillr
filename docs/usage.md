@@ -579,7 +579,8 @@ distill costs                                       # cost history, estimator ac
 distill health ai                                   # fast console view: stale syntheses + thin artifacts
 distill audit ai                                    # full trust report -> ai_Audit.md + action menu
                                                     #   (verify coverage, prompt staleness, synthesis freshness,
-                                                    #    near-duplicates, contested concepts, links, gaps; stale
+                                                    #    exact video duplicates, near-duplicate insights,
+                                                    #    contested concepts, links, gaps; stale
                                                     #    artifacts/syntheses get re-analysis commands -- printed,
                                                     #    never run)
 distill audit ai --next-actions --json             # machine-readable actions with commands,

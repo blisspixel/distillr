@@ -2,6 +2,46 @@
 
 ## 2026-06-19
 
+### Cycle 55 - Exact Video Duplicate Audit
+
+- External spend: `$0.00`.
+- Added exact YouTube identity duplicate detection to `distill audit`.
+- Kept the implementation in `distill.pipeline.audit_video_duplicates` so the
+  existing audit module stays below the hard module-size cap.
+- Audit now groups video artifact directories that share a `video_id` or a
+  normalized YouTube watch, shorts, embed, live, v, youtu.be, or
+  youtube-nocookie URL.
+- The report renders an "Exact duplicate videos" section and the console
+  summary includes the number of exact video duplicate groups.
+- This is a structural source-identity check, not semantic scoring. Existing
+  near-duplicate insight detection remains separate.
+- Updated README, root roadmap, detailed roadmap, usage docs, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill/pipeline/audit.py distill/pipeline/audit_video_duplicates.py distill/commands/audit.py tests/unit/pipeline/test_audit.py` passed.
+  - `uv run ruff format --check distill/pipeline/audit.py distill/pipeline/audit_video_duplicates.py distill/commands/audit.py tests/unit/pipeline/test_audit.py` passed.
+  - `uv run pytest -q tests\unit\pipeline\test_audit.py::TestExactVideoDuplicates tests\unit\pipeline\test_audit.py::TestRenderAndWrite::test_render_exact_duplicate_video_section tests\unit\pipeline\test_audit.py::test_audit_command_report_only tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed: 5 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 453 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2516
+    passed, 8 deselected, 1 warning, 82.91% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+  - `uv build` passed and the wheel contains the new audit helper module plus
+    web templates with no `distill/commands/_logic.py`.
+
+### Next
+
+- Run release-adjacent checks, commit, push, verify CI, and publish the next
+  PyPI release if the main branch remains releasable.
+
 ### Cycle 33 - Biggest Prompt Cost Surface
 
 - External spend: `$0.00`.

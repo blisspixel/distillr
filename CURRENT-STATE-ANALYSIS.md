@@ -462,3 +462,11 @@ module now formats a snapshot instead of rebuilding counts, cost rollups,
 topic changes, budget warnings, and corpus health warnings inline. A focused
 home-screen test patches `_dashboard_snapshot` directly to prove the CLI uses
 the shared data contract.
+
+Cycle 55 adds exact video duplicate detection to `distill audit` through
+`distill.pipeline.audit_video_duplicates`. This is a rule-owned source identity
+check over `metadata.json`: prefer `video_id`, fall back to normalized YouTube
+watch, shorts, embed, live, v, youtu.be, and youtube-nocookie URLs, then group
+artifact directories that point at the same source video. It deliberately does
+not score semantic similarity; near-duplicate insight detection and model
+judgment remain separate.
