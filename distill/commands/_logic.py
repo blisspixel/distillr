@@ -58,6 +58,7 @@ from distill.commands._helpers import (
     _persist_lens,  # noqa: F401 - compatibility export for distill._cli_impl
     _preflight,
     _resolve_intent,
+    _truncate_channel_list,  # noqa: F401 - compatibility export for distill._cli_impl
     get_config,
 )
 from distill.config import DistillConfig
@@ -638,24 +639,6 @@ def _run_scope_report(
         summary=summary,
         focus=focus,
     )
-
-
-def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 0) -> str:
-    """Build a comma-separated channel list that fits within max_width."""
-    if not names:
-        return ""
-    result = names[0]
-    shown = 1
-    for name in names[1:]:
-        candidate = result + ", " + name
-        if len(candidate) > max_width:
-            break
-        result = candidate
-        shown += 1
-    remaining = len(names) - shown + extra_count
-    if remaining > 0:
-        result += f" +{remaining} more"
-    return result
 
 
 # ─── Power Commands ──────────────────────────────────────────────────

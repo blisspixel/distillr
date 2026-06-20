@@ -114,6 +114,8 @@
   `distill.commands._concept_ingest`; patch `run_concepts_after_ingest` there.
 - Installed package version lookup now belongs to `distill._version`; import
   `get_version` there rather than reaching through `_logic`.
+- Channel-list display truncation now belongs to `distill.commands._helpers`;
+  import `_truncate_channel_list` there rather than reaching through `_logic`.
 
 ## Validation
 

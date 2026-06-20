@@ -26,7 +26,7 @@ from distill.commands import topic as _topic
 from distill.commands import topic_watch as _topic_watch
 from distill.commands import view as _view
 from distill.commands import watch as _watch
-from distill.commands._helpers import duration_str, format_date
+from distill.commands._helpers import _truncate_channel_list, duration_str, format_date
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
@@ -2343,24 +2343,24 @@ class TestResynthesize:
 
 class TestDashboard:
     def test_truncate_channel_list_empty(self):
-        assert cli._truncate_channel_list([], 80) == ""
+        assert _truncate_channel_list([], 80) == ""
 
     def test_truncate_channel_list_single(self):
-        result = cli._truncate_channel_list(["Alpha"], 80)
+        result = _truncate_channel_list(["Alpha"], 80)
         assert result == "Alpha"
 
     def test_truncate_channel_list_fits(self):
-        result = cli._truncate_channel_list(["Alpha", "Beta", "Gamma"], 80)
+        result = _truncate_channel_list(["Alpha", "Beta", "Gamma"], 80)
         assert result == "Alpha, Beta, Gamma"
 
     def test_truncate_channel_list_overflows(self):
-        result = cli._truncate_channel_list(
+        result = _truncate_channel_list(
             ["LongChannelName1", "LongChannelName2", "LongChannelName3"], 30
         )
         assert "+1 more" in result or "+2 more" in result
 
     def test_truncate_channel_list_extra_count(self):
-        result = cli._truncate_channel_list(["A", "B"], 80, extra_count=3)
+        result = _truncate_channel_list(["A", "B"], 80, extra_count=3)
         assert "+3 more" in result
 
     def test_show_dashboard_with_library(self, mock_config_with_library):

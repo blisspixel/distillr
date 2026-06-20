@@ -407,3 +407,8 @@ Cycle 46 moves installed package version lookup out of `_logic.py`. The
 canonical helper is now `distill._version.get_version`; dashboard, doctor,
 maintain, and version tests import that owner directly, while `_logic.py` keeps
 only the private compatibility alias. `_logic.py` is now 936 lines.
+
+Cycle 47 moves channel-list display truncation out of `_logic.py`.
+`_truncate_channel_list` now lives in `distill.commands._helpers`; dashboard
+tests call that canonical owner directly, while `_logic.py` keeps only the
+private compatibility alias. `_logic.py` is now 919 lines.

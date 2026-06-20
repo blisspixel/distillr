@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Moved paper artifact writing into `distill.commands._paper_artifacts`, repointed CLI, MCP, discover, and verify tests, removed dead scaffold comments, brought `_logic.py` below the 1000-line cap at 981 lines, and removed the module-size allowlist entry.
 - Moved the post-ingest concept playbook helper into `distill.commands._concept_ingest`, repointed paper, learn, and discover callers plus tests, and reduced `_logic.py` from 981 to 949 lines.
 - Moved installed package version lookup into `distill._version`, repointed dashboard, doctor, maintain, and tests to the canonical helper, and reduced `_logic.py` from 949 to 936 lines.
+- Moved channel-list display truncation into `distill.commands._helpers`, repointed dashboard tests to the canonical helper, and reduced `_logic.py` from 936 to 919 lines.
 - Corrected the default report method label from 3-phase to 4-phase.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.

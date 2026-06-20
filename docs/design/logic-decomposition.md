@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
 > Status: in progress (Phase 1 done; Phase 2 ~92% - `_logic.py` is down from
-> 9,373 to 936 lines, no command sub-apps left). Remediation #1 from
+> 9,373 to 919 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 936 lines and shrinking; see Phase 2). It
+command group per file" target (now 919 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -135,8 +135,11 @@ slice with the ratchet lowered to match:
 - **Installed version lookup** (`get_version`) -> `distill._version`;
   dashboard, doctor, maintain, and tests now import from the canonical owner,
   while `_logic` keeps only a compatibility alias.
+- **Channel-list display truncation** (`_truncate_channel_list`) ->
+  `commands/_helpers.py`; dashboard tests now call the canonical owner, while
+  `_logic` keeps only a compatibility alias.
 
-`_logic.py` is down from **9,373 -> 936 lines**; 13 dead scaffold modules were
+`_logic.py` is down from **9,373 -> 919 lines**; 13 dead scaffold modules were
 deleted along the way, and the remaining dead scaffold comments in `_logic.py`
 were removed with the paper artifact move.
 

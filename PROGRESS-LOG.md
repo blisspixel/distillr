@@ -388,6 +388,32 @@
 - Continue with the remaining learning, discover, and process helper body,
   likely video-processing or root-callback ownership next.
 
+### Cycle 47 - Channel List Helper Decomposition
+
+- External spend: `$0.00`.
+- Moved `_truncate_channel_list` into `distill.commands._helpers` as the
+  canonical display-helper owner.
+- Repointed the dedicated dashboard helper tests to import the canonical
+  helper directly.
+- Preserved `_logic._truncate_channel_list` as a private compatibility alias
+  for old `_cli_impl` and `distill.cli` imports.
+- Reduced `_logic.py` from 936 to 919 lines.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_cli_wiring.py::TestDashboard tests/unit/commands/test_cli_wiring.py::test_cli_misc_helpers_and_baseline_resolution tests/unit/commands/test_helpers.py::TestFormatDate -q` passed: 12 passed.
+  - `uv run ruff check distill/commands/_helpers.py distill/commands/_logic.py tests/unit/commands/test_cli_wiring.py` passed.
+  - `uv run ruff format --check distill/commands/_helpers.py distill/commands/_logic.py tests/unit/commands/test_cli_wiring.py` passed: 3 files already formatted.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 451 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.78% coverage.
+
+### Next
+
+- Continue shrinking the remaining learning, discover, and process helper body,
+  likely video-processing ownership next.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

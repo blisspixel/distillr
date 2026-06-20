@@ -57,6 +57,7 @@ __all__ = [
     "_complete_topics",
     "_complete_watched_channels",
     "_persist_lens",
+    "_truncate_channel_list",
     "console",
     "duration_str",
     "ensure_channel_context",
@@ -327,6 +328,24 @@ def format_date(date_str: str) -> str:
     except (ValueError, TypeError):
         pass
     return date_str
+
+
+def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 0) -> str:
+    """Build a comma-separated channel list that fits within max_width."""
+    if not names:
+        return ""
+    result = names[0]
+    shown = 1
+    for name in names[1:]:
+        candidate = result + ", " + name
+        if len(candidate) > max_width:
+            break
+        result = candidate
+        shown += 1
+    remaining = len(names) - shown + extra_count
+    if remaining > 0:
+        result += f" +{remaining} more"
+    return result
 
 
 def duration_str(seconds) -> str:
