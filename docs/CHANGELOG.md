@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.9 - 2026-06-20
+
 ### Added
 
 - Added exact YouTube identity duplicate detection to `distill audit`, so the
