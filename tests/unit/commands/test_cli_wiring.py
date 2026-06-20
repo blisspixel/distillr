@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import zipfile
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -39,6 +40,7 @@ def _recent(days_ago: int = 1) -> str:
 
 
 runner = CliRunner()
+ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @pytest.fixture
@@ -177,7 +179,7 @@ class TestTopLevelExperience:
             result = runner.invoke(cli.app, argv)
 
             assert result.exit_code == 0, result.output
-            assert expected in result.output
+            assert expected in ANSI_RE.sub("", result.output)
 
     def test_no_args_empty_library_shows_launcher(self, mock_config, monkeypatch):
         monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
