@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.15 - 2026-06-20
+
 ### Changed
 
 - Site candidates in `distill discover` now carry structural preview identity:

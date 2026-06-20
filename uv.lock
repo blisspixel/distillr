@@ -480,7 +480,7 @@ wheels = [
 
 [[package]]
 name = "distillr"
-version = "0.16.14"
+version = "0.16.15"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },
