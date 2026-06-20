@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.16 - 2026-06-20
+
 ### Changed
 
 - Trusted-site discovery now prefers public same-host links found in
