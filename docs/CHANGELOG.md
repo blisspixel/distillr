@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.4 - 2026-06-20
+
 ### Added
 
 - Added `distill audit <topic|all> --next-actions --json`, a loop-readable action plan over deterministic audit findings with action ids, exact commands, approval class, write scope, loop metadata, and verifier stop conditions.
