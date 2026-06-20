@@ -418,3 +418,9 @@ Cycle 48 moves the shared video helper wrappers out of `_logic.py`.
 directly to `distill.commands._helpers` owners; process, watch, discover, and
 learning tests call or patch those canonical owners. `_logic.py` keeps only the
 private compatibility aliases and is now 838 lines.
+
+Cycle 49 moves learning query expansion and video selection out of `_logic.py`.
+`_expand_learning_queries`, `_expand_paper_queries`, and
+`_select_learning_videos` now live in `distill.commands._learning`; learning and
+CLI wiring tests call or patch that canonical owner. `_logic.py` keeps only the
+private compatibility aliases and is now 704 lines.

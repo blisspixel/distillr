@@ -118,6 +118,10 @@
   import `_truncate_channel_list` there rather than reaching through `_logic`.
 - Shared video helpers now belong to `distill.commands._helpers`; import or
   patch `ensure_channel_context`, `process_video`, and `run_scope_report` there.
+- Learning query expansion and video selection now belong to
+  `distill.commands._learning`; patch `_expand_learning_queries`,
+  `_expand_paper_queries`, search/enrichment collaborators, rerank helpers, and
+  `_select_learning_videos` there rather than through `_logic` or `_cli_impl`.
 
 ## Validation
 

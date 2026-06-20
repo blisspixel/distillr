@@ -42,7 +42,7 @@ runner = CliRunner()
 
 
 @pytest.fixture
-def mock_config(tmp_path):
+def mock_config(tmp_path, monkeypatch):
     """Patch get_config to return a test config."""
     config = DistillConfig(
         xai_api_key="test-key",
@@ -89,6 +89,7 @@ def mock_config(tmp_path):
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
     if original_expand_impl is not None:
         _cli_impl._llm_expand_learning_queries = lambda *args, **kwargs: []
+    monkeypatch.setattr(_learning_support, "model_available", lambda *args, **kwargs: False)
     yield config
     cli.get_config = original
     _cli_impl.get_config = original_impl
@@ -565,13 +566,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_learning_support, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -604,12 +605,6 @@ class TestLearnCommand:
             "synthesize_corpus",
             lambda topic, config, tracker=None: None,
         )
-        # Prevent real LLM calls for query expansion
-        monkeypatch.setattr(_cli_impl, "_llm_expand_learning_queries", lambda *a, **kw: [])
-        monkeypatch.setattr(
-            "distill.cli_support.learning._llm_expand_learning_queries", lambda *a, **kw: []
-        )
-
         result = runner.invoke(cli.app, ["learn", "Microsoft Fabric best practices"])
 
         assert result.exit_code == 0
@@ -648,13 +643,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_learning_support, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -687,13 +682,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_learning_support, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -719,12 +714,6 @@ class TestLearnCommand:
                 config.channel_dir(topic, channel_name) / "synthesis.md"
             ).write_text("# Synth", encoding="utf-8"),
         )
-        # Prevent real LLM calls for query expansion
-        monkeypatch.setattr(_cli_impl, "_llm_expand_learning_queries", lambda *a, **kw: [])
-        monkeypatch.setattr(
-            "distill.cli_support.learning._llm_expand_learning_queries", lambda *a, **kw: []
-        )
-
         result = runner.invoke(cli.app, ["learn", "Microsoft Fabric", "--ephemeral"])
 
         assert result.exit_code == 0
@@ -762,13 +751,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_learning_support, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -863,13 +852,13 @@ class TestLearnCommand:
             ),
         ]
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: videos,
         )
-        monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
+        monkeypatch.setattr(_learning_support, "enrich_videos", lambda vids, max_videos=None: vids)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: (
                 self._ranked(vids)
@@ -903,12 +892,6 @@ class TestLearnCommand:
             "synthesize_corpus",
             lambda topic, config, tracker=None: None,
         )
-        # Prevent real LLM calls for query expansion
-        monkeypatch.setattr(_cli_impl, "_llm_expand_learning_queries", lambda *a, **kw: [])
-        monkeypatch.setattr(
-            "distill.cli_support.learning._llm_expand_learning_queries", lambda *a, **kw: []
-        )
-
         result = runner.invoke(cli.app, ["brief", "Microsoft Fabric best practices"])
 
         assert result.exit_code == 0
@@ -930,16 +913,16 @@ class TestLearnHelpers:
         from distill.ingestors.youtube.discovery import VideoInfo
 
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "search_youtube_results",
             lambda query, days=None, limit=None, hours=None: [
                 VideoInfo("v1", "New", "", 900, "https://youtube.com/watch?v=v1", "CreatorOne"),
                 VideoInfo("v2", "Old", "", 900, "https://youtube.com/watch?v=v2", "CreatorTwo"),
             ],
         )
-        monkeypatch.setattr(_cli_impl, "search_videos", lambda *args, **kwargs: [])
+        monkeypatch.setattr(_learning_support, "search_videos", lambda *args, **kwargs: [])
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "enrich_videos",
             lambda vids, max_videos=None: [
                 VideoInfo(
@@ -965,7 +948,7 @@ class TestLearnHelpers:
         from types import SimpleNamespace
 
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "rerank_videos",
             lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: [
                 SimpleNamespace(video=v, final_score=0.9, rationale="best fit") for v in vids
@@ -1893,6 +1876,7 @@ class TestWatchCommands:
             ]
 
         monkeypatch.setattr(_papers, "search_arxiv_multi", fake_multi)
+        monkeypatch.setattr(_learning_support, "model_available", lambda workload: True)
         monkeypatch.setattr(
             _learning_support,
             "_llm_expand_paper_queries",
@@ -3006,12 +2990,14 @@ def test_select_learning_videos_falls_back_and_filters_shorts(mock_config, monke
         view_count=2000,
     )
 
-    monkeypatch.setattr(_cli_impl, "_expand_learning_queries", lambda *args, **kwargs: ["query"])
-    monkeypatch.setattr(_cli_impl, "search_youtube_results", lambda *args, **kwargs: [])
-    monkeypatch.setattr(_cli_impl, "search_videos", lambda *args, **kwargs: [short, full])
-    monkeypatch.setattr(_cli_impl, "enrich_videos", lambda vids, max_videos=None: vids)
     monkeypatch.setattr(
-        _cli_impl,
+        _learning_support, "_expand_learning_queries", lambda *args, **kwargs: ["query"]
+    )
+    monkeypatch.setattr(_learning_support, "search_youtube_results", lambda *args, **kwargs: [])
+    monkeypatch.setattr(_learning_support, "search_videos", lambda *args, **kwargs: [short, full])
+    monkeypatch.setattr(_learning_support, "enrich_videos", lambda vids, max_videos=None: vids)
+    monkeypatch.setattr(
+        _learning_support,
         "rerank_videos",
         lambda query, vids, config, tracker=None, top_n=10, use_llm=True, skeptical=False: [
             SimpleNamespace(video=v, final_score=0.9, rationale="fit") for v in vids

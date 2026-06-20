@@ -17,7 +17,7 @@ from distill.llm import call as llm_call
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
-from distill.pipeline.ranking import RankedPaper, rerank_videos
+from distill.pipeline.ranking import RankedPaper, chronological_rank, rerank_videos
 from distill.prompts.discover import paper_query_expansion_prompt, search_query_expansion_prompt
 
 
@@ -357,16 +357,22 @@ def _select_learning_videos(
     hours: int | None = None,
     skeptical: bool = False,
     expand: bool = True,
+    top_by_date: bool = False,
+    rigor: str = "off",
 ):
     effective_days = _effective_days(days, hours)
     candidate_limit = max(limit * 2, 12)
     raw_candidates = []
+    # Strict chronological mode bypasses both rerank and the heuristic mix,
+    # which means query expansion would only burn tokens and leak the query
+    # to the LLM provider without ever influencing the final selection.
+    effective_expand = expand and not top_by_date
     queries = _expand_learning_queries(
         query,
         config,
         tracker,
         skeptical=skeptical,
-        expand=expand,
+        expand=effective_expand,
     )
     for idx, variant in enumerate(queries, 1):
         console.print(f"[dim]Candidate search {idx}/{len(queries)}: {variant}[/dim]")
@@ -399,15 +405,26 @@ def _select_learning_videos(
 
     enriched = enrich_videos(raw_candidates, max_videos=min(len(raw_candidates), 12))
     enriched = _filter_recent_candidates(enriched, effective_days, hours=hours)
-    ranked = rerank_videos(
-        query,
-        enriched,
-        config,
-        tracker=tracker,
-        top_n=max(limit * 2, 10),
-        use_llm=rerank,
-        skeptical=skeptical,
-    )
+    if top_by_date:
+        # Strict chronological pick: bypass both LLM rerank and the heuristic
+        # mix. Channel cap still applies to keep one prolific uploader from
+        # monopolizing the slate.
+        ranked = chronological_rank(enriched, top_n=max(limit * 2, 10))
+    else:
+        ranked = rerank_videos(
+            query,
+            enriched,
+            config,
+            tracker=tracker,
+            top_n=max(limit * 2, 10),
+            use_llm=rerank,
+            skeptical=skeptical,
+        )
+        # A rigor bar drops sub-threshold videos before the channel cap; chronological
+        # mode (top_by_date) bypasses scoring entirely, so rigor never applies there.
+        ranked = _apply_source_rigor(
+            ranked, source="video", rigor=rigor, rerank_on=rerank, limit=len(ranked)
+        )
     selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
     return enriched, selected
 

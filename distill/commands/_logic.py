@@ -21,7 +21,6 @@ from distill._app import app
 from distill._version import get_version as _get_version
 from distill.banner import show_banner
 from distill.cli_shared import (
-    SHORTS_THRESHOLD,
     console,
 )
 from distill.cli_shared import (
@@ -81,15 +80,12 @@ from distill.ingestors.youtube.discovery import (
     VideoInfo,
     enrich_videos,
     resolve_channel_name,
-    search_videos,
 )
 from distill.library import Library
 from distill.library.paths import find_artifact
-from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import CostTracker
-from distill.pipeline.ranking import chronological_rank, rerank_videos
 from distill.pipeline.report.briefing import generate_topic_brief
 from distill.pipeline.summary import (
     RunSummary,
@@ -114,6 +110,9 @@ _dedupe_query_strings = _learning_support._dedupe_query_strings
 _heuristic_learning_queries = _learning_support._heuristic_learning_queries
 _llm_expand_learning_queries = _learning_support._llm_expand_learning_queries
 _llm_expand_paper_queries = _learning_support._llm_expand_paper_queries
+_expand_learning_queries = _learning_support._expand_learning_queries
+_expand_paper_queries = _learning_support._expand_paper_queries
+_select_learning_videos = _learning_support._select_learning_videos
 _display_ranked_papers = _learning_support._display_ranked_papers
 _display_ranked_videos = _learning_support._display_ranked_videos
 
@@ -142,139 +141,6 @@ _write_watch_alert_digest = _topic_changes_support._write_watch_alert_digest
 _render_topic_trends_markdown = _topic_changes_support._render_topic_trends_markdown
 _write_topic_change_briefing = _topic_changes_support._write_topic_change_briefing
 _resolve_topic_diff_baseline = _topic_changes_support._resolve_topic_diff_baseline
-
-
-def _expand_learning_queries(
-    query: str,
-    config: DistillConfig | None = None,
-    tracker: CostTracker | None = None,
-    *,
-    skeptical: bool = False,
-    expand: bool = True,
-) -> list[str]:
-    query = query.strip()
-    if query.startswith("http://") or query.startswith("https://"):
-        return [query]
-
-    normalized = " ".join(query.split())
-    variants = _heuristic_learning_queries(normalized, skeptical=skeptical)
-    if expand and config and model_available("rerank"):
-        llm_variants = _llm_expand_learning_queries(
-            normalized,
-            config,
-            tracker=tracker,
-            skeptical=skeptical,
-        )
-        if llm_variants:
-            variants = [normalized, *llm_variants, *variants]
-    return _dedupe_query_strings(variants)[:6]
-
-
-def _expand_paper_queries(
-    query: str,
-    config: DistillConfig | None = None,
-    tracker: CostTracker | None = None,
-    *,
-    expand: bool = True,
-) -> list[str]:
-    normalized = " ".join(query.split())
-    if not normalized:
-        return []
-    variants = [normalized]
-    if expand and config and model_available("rerank"):
-        try:
-            llm_variants = _llm_expand_paper_queries(normalized, config, tracker=tracker)
-        except Exception as e:
-            console.print(f"  [yellow]Query expansion fallback: {e}[/yellow]")
-            llm_variants = []
-        variants.extend(llm_variants)
-    return _dedupe_query_strings(variants)[:6]
-
-
-def _select_learning_videos(
-    query: str,
-    config: DistillConfig,
-    tracker: CostTracker,
-    days: int,
-    limit: int,
-    sort: str,
-    per_channel_cap: int,
-    shorts: bool,
-    rerank: bool,
-    *,
-    hours: int | None = None,
-    skeptical: bool = False,
-    expand: bool = True,
-    top_by_date: bool = False,
-    rigor: str = "off",
-):
-    effective_days = _effective_days(days, hours)
-    candidate_limit = max(limit * 2, 12)
-    raw_candidates = []
-    # Strict chronological mode bypasses both rerank and the heuristic mix,
-    # which means query expansion would only burn tokens and leak the query
-    # to the LLM provider without ever influencing the final selection.
-    effective_expand = expand and not top_by_date
-    queries = _expand_learning_queries(
-        query,
-        config,
-        tracker,
-        skeptical=skeptical,
-        expand=effective_expand,
-    )
-    for idx, variant in enumerate(queries, 1):
-        console.print(f"[dim]Candidate search {idx}/{len(queries)}: {variant}[/dim]")
-        raw_candidates.extend(
-            search_youtube_results(
-                variant,
-                days=effective_days,
-                hours=hours,
-                limit=candidate_limit,
-            )
-        )
-    raw_candidates = _dedupe_candidates(raw_candidates)
-    if not raw_candidates:
-        console.print(
-            "[dim]Browser-based search returned no candidates; falling back to yt-dlp search[/dim]"
-        )
-        raw_candidates = search_videos(
-            query,
-            days=effective_days,
-            limit=candidate_limit,
-            sort=sort,
-            per_channel_cap=max(per_channel_cap * 2, 4),
-        )
-    if not shorts:
-        raw_candidates = [v for v in raw_candidates if v.duration > SHORTS_THRESHOLD]
-        console.print(f"[dim]Filtered to {len(raw_candidates)} full-length candidates[/dim]")
-
-    if not raw_candidates:
-        return [], []
-
-    enriched = enrich_videos(raw_candidates, max_videos=min(len(raw_candidates), 12))
-    enriched = _filter_recent_candidates(enriched, effective_days, hours=hours)
-    if top_by_date:
-        # Strict chronological pick — bypass both LLM rerank and the heuristic
-        # mix. Channel cap still applies to keep one prolific uploader from
-        # monopolizing the slate.
-        ranked = chronological_rank(enriched, top_n=max(limit * 2, 10))
-    else:
-        ranked = rerank_videos(
-            query,
-            enriched,
-            config,
-            tracker=tracker,
-            top_n=max(limit * 2, 10),
-            use_llm=rerank,
-            skeptical=skeptical,
-        )
-        # A rigor bar drops sub-threshold videos before the channel cap; chronological
-        # mode (top_by_date) bypasses scoring entirely, so rigor never applies there.
-        ranked = _apply_source_rigor(
-            ranked, source="video", rigor=rigor, rerank_on=rerank, limit=len(ranked)
-        )
-    selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
-    return enriched, selected
 
 
 def _preview_learning_selection(

@@ -441,6 +441,33 @@
 - Continue shrinking the remaining learning and discover helper body, likely
   the learning-flow injection wrappers next.
 
+### Cycle 49 - Learning Selection Alias Decomposition
+
+- External spend: `$0.00`.
+- Moved learning query expansion and video selection ownership into
+  `distill.commands._learning`.
+- Preserved `_logic._expand_learning_queries`, `_logic._expand_paper_queries`,
+  and `_logic._select_learning_videos` as private compatibility aliases for
+  old `_cli_impl` and `distill.cli` imports.
+- Repointed learning and CLI wiring tests to patch search, enrichment, rerank,
+  and selection collaborators on `distill.commands._learning`, the live owner.
+- Reduced `_logic.py` from 838 to 704 lines.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run ruff check distill/commands/_learning.py distill/commands/_logic.py tests/unit/commands/test_learning.py tests/unit/commands/test_cli_wiring.py` passed.
+  - `uv run ruff format --check distill/commands/_learning.py distill/commands/_logic.py tests/unit/commands/test_learning.py tests/unit/commands/test_cli_wiring.py` passed: 4 files already formatted.
+  - `uv run pytest tests/unit/commands/test_cli_wiring.py::TestWatchCommands::test_papers_expand_runs_multiple_searches tests/unit/commands/test_cli_wiring.py::TestLearnCommand tests/unit/commands/test_cli_wiring.py::TestLearnHelpers tests/unit/commands/test_learning.py -q` passed: 23 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 451 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.82% coverage.
+
+### Next
+
+- Continue shrinking the remaining learning-flow and discover helper body,
+  likely the learning-flow injection wrappers next.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

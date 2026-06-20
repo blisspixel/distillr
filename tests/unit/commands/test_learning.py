@@ -2,7 +2,6 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from distill.cli_support import learning
-from distill.commands import _logic as cli_logic
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.ranking import RankedPaper
@@ -233,11 +232,11 @@ def test_top_by_date_disables_query_expansion(config, monkeypatch):
         expand_flags.append(kwargs.get("expand"))
         return ["query"]
 
-    monkeypatch.setattr(cli_logic, "_expand_learning_queries", fake_expand)
-    monkeypatch.setattr(cli_logic, "search_youtube_results", lambda *args, **kwargs: [])
-    monkeypatch.setattr(cli_logic, "search_videos", lambda *args, **kwargs: [])
+    monkeypatch.setattr(learning, "_expand_learning_queries", fake_expand)
+    monkeypatch.setattr(learning, "search_youtube_results", lambda *args, **kwargs: [])
+    monkeypatch.setattr(learning, "search_videos", lambda *args, **kwargs: [])
 
-    enriched, selected = cli_logic._select_learning_videos(
+    enriched, selected = learning._select_learning_videos(
         "query",
         config,
         CostTracker(),

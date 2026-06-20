@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Moved installed package version lookup into `distill._version`, repointed dashboard, doctor, maintain, and tests to the canonical helper, and reduced `_logic.py` from 949 to 936 lines.
 - Moved channel-list display truncation into `distill.commands._helpers`, repointed dashboard tests to the canonical helper, and reduced `_logic.py` from 936 to 919 lines.
 - Moved shared video helper wrappers to direct `distill.commands._helpers` aliases, repointed process, watch, discover, and learning tests to the canonical owner, and reduced `_logic.py` from 919 to 838 lines.
+- Moved learning query expansion and video selection into `distill.commands._learning`, repointed learning and CLI wiring tests to the canonical helper, and reduced `_logic.py` from 838 to 704 lines.
 - Corrected the default report method label from 3-phase to 4-phase.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
