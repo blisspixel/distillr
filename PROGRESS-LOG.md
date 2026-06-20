@@ -2,6 +2,33 @@
 
 ## 2026-06-20
 
+### Cycle 73 - OKF Export / Validate Test Coverage
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Target: `distill/library/okf.py` (the freshly-shipped 0.17 OKF producer /
+  validator), 78.4% -> 99% branch coverage.
+- Added real behavioral tests for the untested surface: `validate_okf_bundle`
+  error paths (nonexistent path, path-is-a-file, missing index/log warnings,
+  unparseable reserved frontmatter, non-mapping frontmatter, missing
+  frontmatter, bundle-escaping link, absolute-path link resolution,
+  external/anchor/non-md link skipping); export edge cases (missing-topic
+  FileNotFoundError, native_type + verify-sidecar rendering, empty index when no
+  concept markdown, reserved/dotfile source exclusion, `_replace_output_dir`
+  refusing a path outside `output/`); the type/tag inference helpers
+  (AGENTS/CLAUDE orientation, okf_type override, marker-based types, list-style
+  tag parsing, all-topic tag omission); `_verify_sidecar_for`, `_display_path`,
+  and the `to_dict` round-trips.
+- The remaining 3 lines are near-unreachable (a non-file `*.md` match, the
+  "Untitled" title fallback, an empty-tag partial branch); chasing them would be
+  coverage-padding.
+- Floor held at 82: ubuntu is ~83.7% after this cycle, not yet a full point
+  above 83 to ratchet again.
+- Validation (free/local): full suite `2624 passed`; ruff + format clean;
+  targeted okf coverage 99%; overall 83.54% -> 83.78%. One unrelated
+  environmental flake -- `test_summary.py::test_file_size_megabytes` hit a
+  transient memory error writing a 2 MB temp file after two back-to-back
+  10-minute suite runs; it passes in isolation and is untouched by this cycle.
+
 ### Cycle 72 - Branch-Coverage Floor Ratchet 80 -> 82
 
 - External spend: `$0.00`.
