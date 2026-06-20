@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.6 - 2026-06-20
+
 ### Changed
 
 - Moved the top-level CLI callback into `distill.commands.root`, moved the `concepts` Typer app construction into `distill.commands.concepts`, repointed remaining command modules and tests off `_logic.py`, and reduced `_logic.py` from 201 to 113 lines.
