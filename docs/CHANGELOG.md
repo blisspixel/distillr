@@ -7,14 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.17.0 - 2026-06-20
+
+The OKF interop milestone. Distill's Open Knowledge Format producer and
+validator graduate from undocumented code to a documented, supported surface
+ahead of the 1.0 contract freeze, paired with a read-only `site_batch` planning
+path that lets loop runners inspect a plan before any mutation. The loop-ready
+stewardship surface this milestone also covers - `distill audit --next-actions
+--json` and `distill profile run` - shipped and was documented in earlier 0.16.x
+releases.
+
 ### Added
 
-- Added global `--json` support for `distill site-batch --preview`, returning
-  the resolved exact-page and shallow-crawl plan in the standard JSON envelope
-  without crawling, checking a model, or writing artifacts.
+- Documented `distill export <topic|all> --what bundle --format okf`: writes a
+  read-only Open Knowledge Format v0.1 bundle under `output/okf-<topic>` (or
+  `okf-all`), projecting each source Markdown file into an OKF concept document
+  with `type`, `title`, `description`, `tags`, `timestamp`, `source_path`, an
+  optional `resource` URL, and a `# Citations` section derived from source URLs
+  and verify sidecars. Generated `index.md` and `log.md` make the bundle
+  self-describing, and the native `library/` layout stays the source of truth.
+  The export surface shipped in 0.16.4; this release documents it and commits to
+  it as a supported contract.
+- Documented `distill okf validate <path>`: checks OKF v0.1 structural
+  conformance - every non-reserved Markdown file must carry parseable YAML
+  frontmatter with a non-empty `type`, reserved `index.md`/`log.md` frontmatter
+  must parse when present, and broken or bundle-escaping Markdown links surface
+  as warnings rather than errors (the spec's permissive consumer model). Global
+  `--json` emits the structured result and exits non-zero on an invalid bundle.
+  Also shipped in 0.16.4 and documented here.
+- Added `preview=true` to MCP `site_batch`, returning the resolved crawl plan
+  without model checks, crawling, writes, or spend. This structural preview is
+  allowed in `DISTILL_MCP_READ_ONLY=1` deployments so loop runners can inspect a
+  plan before any mutation.
 - Extended the MCP `site_batch` tool so relative JSON seed files use the same
   exact-page, shallow-crawl, crawl-prefix, and unsupported-mode handling as the
   CLI. Direct URL lists and TXT seed files remain exact-page by default.
+- Added global `--json` support for `distill site-batch --preview`, returning
+  the resolved exact-page and shallow-crawl plan in the standard JSON envelope
+  without crawling, checking a model, or writing artifacts.
 
 ## 0.16.20 - 2026-06-20
 
