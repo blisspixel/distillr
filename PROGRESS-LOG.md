@@ -362,6 +362,32 @@
 - Continue with the remaining learning, discover, and process helper body,
   likely video-processing or root-callback ownership next.
 
+### Cycle 46 - Version Helper Decomposition
+
+- External spend: `$0.00`.
+- Added `distill._version` as the canonical owner for installed package version
+  lookup.
+- Repointed dashboard, doctor, maintain, and version tests to import
+  `get_version` from the new owner.
+- Preserved `_logic._get_version` as a private compatibility alias for old
+  `_cli_impl` imports and root callback wiring.
+- Reduced `_logic.py` from 949 to 936 lines.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/test_config.py::TestVersion tests/unit/commands/test_cli_wiring.py::TestTopLevelExperience tests/unit/commands/test_cli_wiring.py::TestDashboard tests/unit/commands/test_cli_wiring.py::TestLibraryHints -q` passed: 16 passed.
+  - `uv run ruff check distill/_version.py distill/commands/_logic.py distill/commands/dashboard.py distill/commands/doctor.py distill/commands/maintain.py tests/test_config.py` passed after fixing import order.
+  - `uv run ruff format --check distill/_version.py distill/commands/_logic.py distill/commands/dashboard.py distill/commands/doctor.py distill/commands/maintain.py tests/test_config.py` passed: 6 files already formatted.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 451 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed on rerun:
+    2512 passed, 8 deselected, 1 warning, 82.78% coverage.
+
+### Next
+
+- Continue with the remaining learning, discover, and process helper body,
+  likely video-processing or root-callback ownership next.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

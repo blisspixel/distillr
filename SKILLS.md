@@ -112,6 +112,8 @@
   patch `write_paper_artifacts` there for paper receipt and insight emission.
 - Post-ingest concept playbook wiring now belongs to
   `distill.commands._concept_ingest`; patch `run_concepts_after_ingest` there.
+- Installed package version lookup now belongs to `distill._version`; import
+  `get_version` there rather than reaching through `_logic`.
 
 ## Validation
 

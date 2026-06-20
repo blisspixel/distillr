@@ -19,15 +19,14 @@ from rich import box
 from rich.table import Table
 
 from distill._console import console
+from distill._version import get_version as _get_version
 from distill.banner import show_banner
 from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import _complete_topics, _resolve_topic_for_channel, get_config
 from distill.commands._helpers import tty_confirm as _tty_confirm
 
-# Version probe stays in _logic; the dashboard renderers
-# live in commands/dashboard.py (the bare `distill` home screen uses them too).
-from distill.commands._logic import _get_version
+# Dashboard renderers live in commands/dashboard.py.
 from distill.commands.dashboard import (
     _dashboard_snapshot,
     _render_dashboard_html,

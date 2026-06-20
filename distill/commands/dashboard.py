@@ -8,9 +8,8 @@ data through ``_dashboard_snapshot`` and render it to HTML with
 
 Data collection lives in ``distill.pipeline.dashboard_data`` (shared and tested
 there); this module is the presentation layer only. Extracted verbatim from
-``_logic.py`` during the Phase 2 decomposition -- ``_get_version`` remains in
-``_logic`` (shared with other commands) and is imported back here; the
-ranking-strategy helper lives in the ``_topic_watch`` support module;
+``_logic.py`` during the Phase 2 decomposition. The version helper lives in
+``distill._version``; the ranking-strategy helper lives in the ``_topic_watch`` support module;
 ``_logic``'s root callback imports ``_show_dashboard`` lazily to avoid an
 import cycle.
 """
@@ -25,9 +24,9 @@ from rich.columns import Columns
 from rich.panel import Panel
 from rich.table import Table
 
+from distill._version import get_version as _get_version
 from distill.cli_shared import console
 from distill.commands._helpers import get_config
-from distill.commands._logic import _get_version
 from distill.commands._topic_changes import _topic_trend_label
 from distill.commands._topic_watch import _topic_watch_ranking_strategy
 from distill.config import DistillConfig

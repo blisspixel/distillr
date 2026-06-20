@@ -402,3 +402,8 @@ Cycle 45 moves the post-ingest concept playbook hook out of `_logic.py`.
 `run_concepts_after_ingest` now lives in `distill.commands._concept_ingest`;
 paper, learn, and discover commands use that canonical owner, and `_logic.py`
 keeps only the private compatibility alias. `_logic.py` is now 949 lines.
+
+Cycle 46 moves installed package version lookup out of `_logic.py`. The
+canonical helper is now `distill._version.get_version`; dashboard, doctor,
+maintain, and version tests import that owner directly, while `_logic.py` keeps
+only the private compatibility alias. `_logic.py` is now 936 lines.

@@ -19,6 +19,7 @@ import typer
 import distill.cli_shared as cli_shared
 import distill.pipeline.discovery as _discover_support
 from distill._app import app
+from distill._version import get_version as _get_version
 from distill.banner import show_banner
 from distill.cli_shared import (
     SHORTS_THRESHOLD,
@@ -637,20 +638,6 @@ def _run_scope_report(
         summary=summary,
         focus=focus,
     )
-
-
-def _get_version() -> str:
-    """Get package version from metadata. Distribution is named ``distillr``."""
-    from importlib.metadata import version
-
-    for dist in ("distillr", "distill"):
-        try:
-            v = version(dist)
-        except Exception:
-            continue
-        if v:  # guard against malformed metadata yielding an empty/None version
-            return v
-    return "dev"
 
 
 def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 0) -> str:

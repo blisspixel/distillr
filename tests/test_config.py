@@ -33,9 +33,9 @@ class TestVersion:
     def test_get_version_resolves_distillr_distribution(self):
         """The distribution is named ``distillr``; doctor must not report ``dev``
         when the package is installed (it queried the wrong name before)."""
-        from distill.commands._logic import _get_version
+        from distill._version import get_version
 
-        version = _get_version()
+        version = get_version()
         assert version != "dev"
         assert version[0].isdigit()  # looks like a real version, e.g. 0.9.13
 
