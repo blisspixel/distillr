@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Site ingest now returns structural result counts for analyzed pages and
+  unchanged-page reuse, and discover, site-batch, and MCP site-batch surfaces
+  report those skip outcomes in progress or JSON.
+
 ## 0.16.17 - 2026-06-20
 
 ### Added

@@ -314,9 +314,12 @@ default; the anti-AI-slop register guard._
   Sitemap `lastmod` values now surface as freshness hints when available.
   Operators can opt into bounded shallow crawls with `--site-crawl-depth` and
   `--site-crawl-pages`; trusted-site generated seeds remain section-scoped.
-- [ ] **Long-run visibility and failure surfacing.** The Agent365 mixed-source
+- [~] **Long-run visibility and failure surfacing.** The Agent365 mixed-source
   run kept working but emitted very little live output after planning, forcing
   filesystem inspection to confirm progress. Long `discover` / `report` runs
   should show current phase, current item, completed/failed counts by source
   type, and explicit reasons when a source stalls or skips (for example
   transcript rate limiting, empty crawl, reuse of unchanged site insights).
+  Site ingest now reports analyzed-page and unchanged-page counts as structural
+  outcomes, and MCP `site_batch` includes those counts in JSON. Remaining:
+  richer skip reasons for transcript acquisition and other video-backed stalls.

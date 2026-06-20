@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha1
 
@@ -29,7 +30,42 @@ from distill.pipeline.dashboard_data import _load_site_manifest
 from distill.pipeline.dashboard_data import build_site_section_state as _build_site_section_state
 from distill.pipeline.summary import RunSummary
 
-__all__ = ["content_hash", "process_site_seed", "site_section_change_summary"]
+__all__ = [
+    "SiteIngestResult",
+    "content_hash",
+    "process_site_seed",
+    "site_ingest_status_phase",
+    "site_section_change_summary",
+]
+
+
+@dataclass(frozen=True)
+class SiteIngestResult:
+    site_name: str
+    page_count: int
+    analyzed_pages: int = 0
+    skipped_pages: int = 0
+    scrape_only: bool = False
+
+    def __iter__(self):
+        yield self.site_name
+        yield self.page_count
+
+
+def site_ingest_status_phase(result: object) -> str:
+    if not isinstance(result, SiteIngestResult):
+        return "done"
+    if result.page_count <= 0:
+        return "skipped (empty crawl)"
+    if result.scrape_only:
+        return f"done ({result.page_count} scraped)"
+    if result.skipped_pages and result.analyzed_pages:
+        return f"done ({result.analyzed_pages} analyzed, {result.skipped_pages} unchanged)"
+    if result.skipped_pages:
+        return f"skipped ({result.skipped_pages} unchanged)"
+    if result.analyzed_pages:
+        return f"done ({result.analyzed_pages} analyzed)"
+    return "done"
 
 
 def site_section_change_summary(previous: dict, current_sections: list[dict]) -> list[str]:
@@ -74,7 +110,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     summary: RunSummary,
     scrape_only: bool = False,
     ingest_attachments: bool = False,
-) -> tuple[str, int]:
+) -> SiteIngestResult:
     site_name = seed.resolved_site_name()
     mode_label = "scrape-only" if scrape_only else "full"
     console.print(f"\n[bold]Site: {site_name}[/bold]")
@@ -90,7 +126,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             context=seed.url,
             details={"site": site_name, "topic": seed.topic, "scrape_only": scrape_only},
         )
-        return site_name, 0
+        return SiteIngestResult(site_name=site_name, page_count=0, scrape_only=scrape_only)
 
     site_dir = config.site_dir(seed.topic, site_name)
     pages_dir = config.site_pages_dir(seed.topic, site_name)
@@ -268,11 +304,22 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             )
 
     if scrape_only:
-        return site_name, len(pages)
+        return SiteIngestResult(
+            site_name=site_name,
+            page_count=len(pages),
+            scrape_only=True,
+        )
 
     manifest["analyzed_pages"] = analyzed_pages
     manifest["skipped_pages"] = skipped_pages
     site_manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    result = SiteIngestResult(
+        site_name=site_name,
+        page_count=len(pages),
+        analyzed_pages=analyzed_pages,
+        skipped_pages=skipped_pages,
+    )
+    console.print(f"  [dim]site result: {site_ingest_status_phase(result)}[/dim]")
 
     try:
         synthesis = synthesize_site(seed.topic, site_name, config, tracker=tracker)
@@ -293,4 +340,4 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             details={"site": site_name, "topic": seed.topic},
         )
 
-    return site_name, len(pages)
+    return result

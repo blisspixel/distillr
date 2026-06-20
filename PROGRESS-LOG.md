@@ -2,6 +2,53 @@
 
 ## 2026-06-20
 
+### Cycle 64 - Site Ingest Skip Visibility
+
+- External spend: `$0.00`.
+- Added a structured `SiteIngestResult` for website ingest runs.
+- Site results now carry pages crawled, pages analyzed, unchanged pages reused,
+  and scrape-only status while preserving two-value tuple unpacking for current
+  callers.
+- Discover and site-batch progress lines now surface unchanged-page reuse and
+  empty crawls as structural outcomes.
+- MCP `site_batch` JSON now includes `analyzed_pages` and `skipped_pages` when
+  the site pipeline returns structured counts.
+- This is run-state visibility and skip accounting, not source quality or
+  relevance scoring.
+- Updated README, detailed usage docs, roadmap, changelog, current-state notes,
+  and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\commands\_site_ingest.py distill\commands\_site_batch.py distill\commands\_discover_ingest.py distill\mcp\tools\sites.py tests\unit\commands\test_ingest_failure_isolation.py tests\unit\mcp\test_new_tools.py` passed.
+  - `uv run ruff format --check distill\commands\_site_ingest.py distill\commands\_site_batch.py distill\commands\_discover_ingest.py distill\mcp\tools\sites.py tests\unit\commands\test_ingest_failure_isolation.py tests\unit\mcp\test_new_tools.py` passed after formatting.
+  - `uv run pytest -q tests\unit\commands\test_ingest_failure_isolation.py::TestSiteLoopIsolation::test_site_progress_continues_after_seed_failure tests\unit\mcp\test_new_tools.py::TestSiteBatchTool::test_site_batch_reports_unchanged_counts tests\unit\commands\test_cli_wiring.py::TestSiteCommands::test_site_reuses_existing_insights_when_page_is_unchanged` passed:
+    3 passed.
+  - `uv run pytest -q tests\unit\mcp\test_new_tools.py::TestSiteBatchTool` passed:
+    6 passed.
+  - `uv run pytest -q tests\unit\commands\test_cli_wiring.py::TestSiteCommands` passed:
+    7 passed.
+  - `uv run pytest -q tests\unit\commands\test_ingest_failure_isolation.py` passed:
+    7 passed.
+  - `uv run pytest -q tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 461 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2539
+    passed, 8 deselected, 1 warning, 83.02% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, emojis, and attribution patterns passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI release if the main branch
+  remains releasable.
+
 ### Cycle 63 - Discover Website Shallow Crawl Controls
 
 - External spend: `$0.00`.

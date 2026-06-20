@@ -7,6 +7,7 @@ from typing import Any
 
 import distill.cli_shared as cli_shared
 from distill._console import console
+from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.pipeline.costs import BudgetExceededError
 from distill.pipeline.summary import BatchProgress
@@ -102,7 +103,7 @@ def ingest_sites(
             same_section_only=seed.same_section_only,
         )
         try:
-            process_site_seed_fn(
+            result = process_site_seed_fn(
                 adjusted_seed,
                 config,
                 tracker,
@@ -125,7 +126,7 @@ def ingest_sites(
             console.print(progress.status_line("failed"))
             continue
         progress.finish_item(item_start, success=True)
-        console.print(progress.status_line("done"))
+        console.print(progress.status_line(site_ingest_status_phase(result)))
 
     if has_videos:
         return

@@ -16,6 +16,7 @@ import pytest
 from rich.console import Console
 
 from distill.commands import _discover_flow
+from distill.commands._site_ingest import SiteIngestResult
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
@@ -118,6 +119,11 @@ class TestSiteLoopIsolation:
             calls.append(seed)
             if "bad" in seed.url:
                 raise RuntimeError("crawl exploded")
+            return SiteIngestResult(
+                site_name="good.example.com",
+                page_count=1,
+                skipped_pages=1,
+            )
 
         with (
             patch.object(_discover_flow, "_process_site_seed", side_effect=process),
@@ -145,6 +151,7 @@ class TestSiteLoopIsolation:
         assert "completed 1/2" in out
         assert "failed 1" in out
         assert "spent $0.0000" in out
+        assert "phase skipped (1 unchanged)" in out
         issues = [i for i in summary.issues if i.stage == "site-ingest"]
         assert len(issues) == 1
         assert issues[0].context == "https://bad.example.com/a"

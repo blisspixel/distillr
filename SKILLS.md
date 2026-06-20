@@ -115,6 +115,9 @@
   progress through `BatchProgress`.
 - Progress lines should expose phase, item count, completed count, failed
   count, running spend, and ETA when available.
+- Site ingest result counts are structural: crawled pages, analyzed pages,
+  unchanged-page reuse, and empty crawls. Surface them as skip/progress
+  reasons, not page quality judgments.
 - Use `distill --quiet <command>` for external loops that only need exit codes,
   artifacts, or JSON. Use `distill --verbose <command>` for debug logging.
 - Keep the `distill` logger level at DEBUG. Console and file handler levels own

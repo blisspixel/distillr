@@ -7,6 +7,7 @@ from typing import Any
 
 import distill.cli_shared as cli_shared
 from distill._console import console
+from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.summary import BatchProgress, RunSummary
@@ -50,7 +51,7 @@ def process_site_batch_seed(
     progress_title = seed.label or seed.resolved_site_name()
     console.print(progress.item_line("crawl", progress_title))
     try:
-        process_site_seed(
+        result = process_site_seed(
             seed,
             config,
             tracker,
@@ -73,4 +74,4 @@ def process_site_batch_seed(
         console.print(progress.status_line("failed"))
         return
     progress.finish_item(item_start, success=True)
-    console.print(progress.status_line("done"))
+    console.print(progress.status_line(site_ingest_status_phase(result)))

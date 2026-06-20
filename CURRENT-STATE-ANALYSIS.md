@@ -534,3 +534,10 @@ bounded crawl, and trusted-site generated seeds remain same-section scoped.
 Preview snapshots and goal refresh commands carry the crawl choice so replayed
 runs preserve the operator's explicit boundary instead of inferring crawl
 breadth from page metadata or model scores.
+
+Cycle 64 starts the remaining long-run visibility work by making site ingest
+return structural result counts: pages crawled, pages analyzed, and unchanged
+pages reused. Discover and site-batch progress lines can now distinguish
+completed work from unchanged-page reuse, and MCP `site_batch` JSON carries the
+same counts for external loops. This is a receipt-level skip reason, not a page
+quality or relevance judgment.

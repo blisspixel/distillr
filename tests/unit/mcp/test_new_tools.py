@@ -257,6 +257,38 @@ class TestSiteBatchTool:
         assert result["pages"][0]["status"] == "skipped"
         assert seen == [("https://example.com/guide", 0, 1)]
 
+    def test_site_batch_reports_unchanged_counts(self, mock_config, monkeypatch):
+        from distill.commands._site_ingest import SiteIngestResult
+
+        def fake_process_site_seed(seed, config, tracker, summary):
+            return SiteIngestResult(
+                site_name="Example",
+                page_count=1,
+                analyzed_pages=0,
+                skipped_pages=1,
+            )
+
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed", fake_process_site_seed
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", urls=["https://example.com/guide"])))
+
+        assert result["status"] == "complete"
+        assert result["pages"] == [
+            {
+                "url": "https://example.com/guide",
+                "site": "Example",
+                "pages": 1,
+                "status": "unchanged",
+                "analyzed_pages": 0,
+                "skipped_pages": 1,
+            }
+        ]
+
 
 class TestSynthesizeTool:
     def test_no_model(self, tmp_path, monkeypatch):

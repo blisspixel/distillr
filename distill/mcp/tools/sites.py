@@ -108,15 +108,22 @@ async def site_batch(  # noqa: C901
             await ctx.report_progress(progress=i, total=len(page_urls))
         try:
             seed = SiteSeed(url=url, topic=topic, max_depth=0, max_pages=1)
-            site_name, page_count = process_site_seed(seed, config, tracker, summary)
-            results.append(
-                {
-                    "url": url,
-                    "site": site_name,
-                    "pages": page_count,
-                    "status": "ok" if page_count else "skipped",
-                }
-            )
+            site_result = process_site_seed(seed, config, tracker, summary)
+            site_name, page_count = site_result
+            page_result = {
+                "url": url,
+                "site": site_name,
+                "pages": page_count,
+                "status": "ok" if page_count else "skipped",
+            }
+            analyzed_pages = getattr(site_result, "analyzed_pages", None)
+            skipped_pages = getattr(site_result, "skipped_pages", None)
+            if isinstance(analyzed_pages, int) and isinstance(skipped_pages, int):
+                page_result["analyzed_pages"] = analyzed_pages
+                page_result["skipped_pages"] = skipped_pages
+                if page_count and skipped_pages == page_count and not analyzed_pages:
+                    page_result["status"] = "unchanged"
+            results.append(page_result)
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:

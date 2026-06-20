@@ -340,7 +340,9 @@ Flags:
 During `site-batch`, each seed prints a progress line with the current phase,
 item count, completed count, failed count, and running spend. A seed-level
 exception records a `site-ingest` run issue and the next seed still runs. The
-spend cap remains a hard stop.
+spend cap remains a hard stop. Reused unchanged pages and empty crawls are
+surfaced as structural skip outcomes in progress lines and MCP `site_batch`
+JSON.
 
 See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 

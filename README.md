@@ -213,6 +213,8 @@ completed. For external loops that only need files, exit codes, or JSON, use
 `distill --quiet <command>` to suppress human console output. DEBUG records are
 kept in `library/.distill/distill.log` for post-run review, and
 `distill --verbose <command>` mirrors them to stderr while a command runs.
+Site ingest progress also reports unchanged-page reuse and empty crawls as
+structural outcomes, so repeated website runs show why work was skipped.
 Discovery previews also summarize video candidate counts and known watch time
 before approval, so broad goals reveal the size of the video corpus before
 anything is ingested. Website-heavy discovery can expand operator-trusted
