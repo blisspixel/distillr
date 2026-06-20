@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.18 - 2026-06-20
+
 ### Changed
 
 - Site ingest now returns structural result counts for analyzed pages and
