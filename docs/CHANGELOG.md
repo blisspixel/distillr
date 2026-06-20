@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added global `--json` support for `distill site-batch --preview`, returning
+  the resolved exact-page and shallow-crawl plan in the standard JSON envelope
+  without crawling, checking a model, or writing artifacts.
+
 ## 0.16.20 - 2026-06-20
 
 ### Added

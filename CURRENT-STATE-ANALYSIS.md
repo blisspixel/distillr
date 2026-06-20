@@ -557,3 +557,11 @@ depth, and boundary before any model check, crawl, or write. Unsupported mode
 names fail during seed-file loading instead of silently widening crawl scope.
 This is run-plan visibility and explicit operator intent, not page quality or
 relevance judgment.
+
+Cycle 67 makes that same site-batch preview loop-readable under global JSON
+mode. `distill --json site-batch <seeds> --preview` now returns the resolved
+topic, seed count, write intent, and exact per-seed plan rows in the standard
+JSON envelope while still skipping model checks, crawls, and writes. This keeps
+external runners on structured plan data instead of console scraping. It is a
+structural workflow handoff surface, not a semantic ranking or source-quality
+judgment.

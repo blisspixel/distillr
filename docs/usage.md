@@ -337,7 +337,8 @@ Flags:
 
 - `--scrape-only` writes raw capture only (no insights, synthesis, or reports)
 - `--preview` prints the resolved seed plan and exits before crawling, model
-  checks, or writes
+  checks, or writes. Use `distill --json site-batch ... --preview` to emit the
+  same plan as structured JSON for loop runners.
 - `--seed-only` processes only the exact input URLs (safest for curated lists)
 - `--ingest-attachments` writes `attachments.json` per page and, when possible, extracts PDF text and supported embedded-video transcripts into the page corpus
 - `--same-section-only` allows shallow crawl but keeps discovery inside the same top-level section (`/topic`, `/partner`, `/lab`, `/docs`, etc.)

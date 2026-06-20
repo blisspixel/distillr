@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import distill.cli_shared as cli_shared
@@ -22,6 +22,7 @@ __all__ = [
     "process_site_batch_seed",
     "resolve_site_batch_seeds",
     "run_site_batch_syntheses",
+    "site_batch_plan_payload",
     "site_batch_plan_rows",
     "site_batch_seed",
 ]
@@ -91,6 +92,18 @@ def print_site_batch_plan(*, topic: str, seeds: list[SiteSeed]) -> None:
             f"{row.index}. {row.mode} | pages={row.max_pages} depth={row.max_depth} "
             f"| topic={row.topic} | boundary={row.boundary}{label} | {row.url}"
         )
+
+
+def site_batch_plan_payload(*, topic: str, seeds: list[SiteSeed]) -> dict[str, Any]:
+    rows = site_batch_plan_rows(seeds)
+    return {
+        "workflow": "site-batch",
+        "preview": True,
+        "topic": topic,
+        "seed_count": len(rows),
+        "writes": False,
+        "seeds": [asdict(row) for row in rows],
+    }
 
 
 def _site_batch_plan_row(index: int, seed: SiteSeed) -> SiteBatchPlanRow:

@@ -265,3 +265,6 @@
   them to show exact-page versus shallow-crawl behavior before writes, not to
   judge whether a page is useful or relevant. Reject unsupported mode names
   during seed-file loading instead of widening crawl behavior silently.
+- Global `--json` on `site-batch --preview` returns the same resolved plan rows
+  in the standard JSON envelope. Keep it free, non-mutating, and aligned with
+  the human preview.

@@ -228,7 +228,8 @@ URL, section label, discovery source, and sitemap freshness date when
 available, so official-doc page candidates stay legible before approval.
 Website seed files can also mix `exact-page` and `shallow-crawl` modes, and
 `distill site-batch --preview` shows the resolved pages, depth, and crawl
-boundary before any crawl or write.
+boundary before any crawl or write. With global `--json`, the same preview
+emits loop-readable plan rows instead of console text.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

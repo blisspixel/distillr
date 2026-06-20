@@ -37,6 +37,7 @@ from distill.commands._helpers import (
 from distill.commands._helpers import (
     run_scope_report as _run_scope_report,
 )
+from distill.commands._json import emit_json, json_mode_active
 from distill.commands._learning import (
     _preview_learning_selection,
     _run_learning_command,
@@ -49,6 +50,7 @@ from distill.commands._site_batch import (
     process_site_batch_seed,
     resolve_site_batch_seeds,
     run_site_batch_syntheses,
+    site_batch_plan_payload,
 )
 from distill.commands._site_ingest import process_site_seed as _process_site_seed
 from distill.commands._topic_watch import (
@@ -490,7 +492,10 @@ def site_batch_cmd(
         same_section_only=same_section_only,
     )
     if preview:
-        print_site_batch_plan(topic=target_topic, seeds=planned_seeds)
+        if json_mode_active():
+            emit_json(site_batch_plan_payload(topic=target_topic, seeds=planned_seeds))
+        else:
+            print_site_batch_plan(topic=target_topic, seeds=planned_seeds)
         return
     if not scrape_only:
         _require_model()

@@ -2,6 +2,38 @@
 
 ## 2026-06-20
 
+### Cycle 67 - JSON Site Batch Preview Plan
+
+- External spend: `$0.00`.
+- Added global `--json` support for `distill site-batch --preview`.
+- JSON preview returns the standard envelope with workflow, preview flag,
+  topic, seed count, write intent, and the same resolved per-seed plan rows as
+  the human preview.
+- The preview path still skips model checks, crawling, and writes.
+- This is structural loop handoff data for external runners. It does not judge
+  page quality, source fit, or relevance.
+- Updated README, root roadmap, detailed usage docs, detailed roadmap,
+  changelog, current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\commands\_site_batch.py distill\commands\discover.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run ruff format --check distill\commands\_site_batch.py distill\commands\discover.py tests\unit\commands\test_cli_json.py` passed.
+  - `uv run pytest -q tests\unit\commands\test_cli_json.py::TestJsonSiteBatch::test_site_batch_preview_json_outputs_plan_without_writes tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_site_batch_preview_shows_mixed_crawl_plan_without_writes` passed:
+    2 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 461 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2546
+    passed, 8 deselected, 1 warning, 83.13% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed for package version `0.16.20`.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, emojis, and attribution patterns passed.
+
 ### Cycle 66 - Site Batch Mixed Crawl Preview
 
 - External spend: `$0.00`.
@@ -40,15 +72,15 @@
   - `git diff --check` passed.
   - Added-line scan for em dashes, emojis, and attribution patterns passed.
 - Release verification note:
-  - GitHub CI and Publish to PyPI passed for `v0.16.19`, and the
-    version-specific PyPI JSON endpoint shows the `0.16.19` wheel and sdist.
+  - GitHub CI and Publish to PyPI passed for `v0.16.20`, and the
+    version-specific PyPI JSON endpoint shows the `0.16.20` wheel and sdist.
     The project JSON and simple installer index still report `0.16.18`, so
     installer-facing PyPI verification is not yet complete.
 
 ### Next
 
-- Commit Cycle 66, push, verify CI, and publish the next release once the
-  package index path is healthy.
+- Continue local roadmap work while waiting for the installer-facing PyPI index
+  to expose `0.16.20`.
 
 ### Cycle 65 - Website Crawl Prefix Boundaries
 

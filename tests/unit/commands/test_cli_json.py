@@ -375,6 +375,90 @@ class TestJsonHealth:
         assert parsed["data"]["message"] == "No topics found to audit"
 
 
+class TestJsonSiteBatch:
+    """Test site-batch preview with global --json."""
+
+    def test_site_batch_preview_json_outputs_plan_without_writes(self, mock_config, tmp_path):
+        seeds = tmp_path / "sites.json"
+        seeds.write_text(
+            json.dumps(
+                {
+                    "topic": "web",
+                    "crawl": {
+                        "max_depth": 1,
+                        "max_pages_per_seed": 4,
+                        "same_section_only": True,
+                    },
+                    "collections": [
+                        {
+                            "name": "overview",
+                            "label": "Overview",
+                            "mode": "exact-page",
+                            "seeds": ["https://example.com/overview"],
+                        },
+                        {
+                            "name": "docs",
+                            "label": "Docs",
+                            "mode": "shallow-crawl",
+                            "crawl_prefix": "/docs",
+                            "seeds": ["https://example.com/docs/start"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        calls: list[str] = []
+
+        with (
+            patch("distill.commands.discover.get_config", return_value=mock_config),
+            patch(
+                "distill.commands.discover._require_model",
+                side_effect=lambda *args, **kwargs: calls.append("model"),
+            ),
+            patch(
+                "distill.commands.discover._process_site_seed",
+                side_effect=lambda *args, **kwargs: calls.append("process"),
+            ),
+        ):
+            result = runner.invoke(app, ["--json", "site-batch", str(seeds), "--preview"])
+
+        assert result.exit_code == 0
+        assert calls == []
+        assert "\x1b" not in result.output
+        parsed = json.loads(result.output)
+        assert parsed["status"] == "ok"
+
+        data = parsed["data"]
+        assert data["workflow"] == "site-batch"
+        assert data["preview"] is True
+        assert data["writes"] is False
+        assert data["topic"] == "web"
+        assert data["seed_count"] == 2
+
+        exact_seed, crawl_seed = data["seeds"]
+        assert exact_seed == {
+            "index": 1,
+            "url": "https://example.com/overview",
+            "topic": "web",
+            "label": "Overview",
+            "mode": "exact-page",
+            "max_depth": 0,
+            "max_pages": 1,
+            "boundary": "seed URL only",
+        }
+        assert crawl_seed == {
+            "index": 2,
+            "url": "https://example.com/docs/start",
+            "topic": "web",
+            "label": "Docs",
+            "mode": "shallow-crawl",
+            "max_depth": 1,
+            "max_pages": 4,
+            "boundary": "prefix /docs, same-section",
+        }
+
+
 class TestJsonErrorPaths:
     """Test that error paths produce JSON with error key."""
 
