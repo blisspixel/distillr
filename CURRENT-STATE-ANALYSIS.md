@@ -547,3 +547,13 @@ Cycle 65 starts the crawl-boundary roadmap item with explicit site seed
 selected shallow crawls, direct `distill site` runs can pass `--crawl-prefix`,
 and JSON site batches can set `crawl_prefix` on URL objects or collections.
 This is rule-owned URL scope control, not source relevance scoring.
+
+Cycle 66 starts the mixed website workflow item with structural batch planning.
+JSON site seed URL objects and collections can now declare `mode: "exact-page"`
+or `mode: "shallow-crawl"`, with `crawl: false` and `crawl: true` as boolean
+aliases. `distill site-batch --preview` resolves the same final seeds a real
+run would use, then prints exact-page versus shallow-crawl mode, page caps,
+depth, and boundary before any model check, crawl, or write. Unsupported mode
+names fail during seed-file loading instead of silently widening crawl scope.
+This is run-plan visibility and explicit operator intent, not page quality or
+relevance judgment.

@@ -1876,6 +1876,63 @@ class TestWatchCommands:
         assert "failed 1" in result.output
         assert "site-ingest" in result.output
 
+    def test_site_batch_preview_shows_mixed_crawl_plan_without_writes(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        seeds = tmp_path / "sites.json"
+        seeds.write_text(
+            json.dumps(
+                {
+                    "topic": "web",
+                    "crawl": {
+                        "max_depth": 1,
+                        "max_pages_per_seed": 4,
+                        "same_section_only": True,
+                    },
+                    "collections": [
+                        {
+                            "name": "overview",
+                            "label": "Overview",
+                            "mode": "exact-page",
+                            "seeds": ["https://example.com/overview"],
+                        },
+                        {
+                            "name": "docs",
+                            "label": "Docs",
+                            "mode": "shallow-crawl",
+                            "crawl_prefix": "/docs",
+                            "seeds": ["https://example.com/docs/start"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        calls: list[str] = []
+
+        monkeypatch.setattr(
+            _discover, "_require_model", lambda *args, **kwargs: calls.append("model")
+        )
+        monkeypatch.setattr(
+            _discover,
+            "_process_site_seed",
+            lambda *args, **kwargs: calls.append("process"),
+        )
+
+        result = runner.invoke(cli.app, ["site-batch", str(seeds), "--preview"])
+
+        assert result.exit_code == 0
+        assert calls == []
+        output = re.sub(r"\s+", " ", ANSI_RE.sub("", result.output))
+        assert "Site batch preview" in output
+        assert "writes: none" in output
+        assert "exact-page | pages=1 depth=0 | topic=web | boundary=seed URL only" in output
+        assert (
+            "shallow-crawl | pages=4 depth=1 | topic=web | boundary=prefix /docs, same-section"
+            in output
+        )
+        assert "label=Docs" in output
+
     def test_papers_preview_shows_ranked_set(self, mock_config, monkeypatch):
         """--preview should display ranked papers and skip ingestion entirely."""
         from distill.ingestors.papers.arxiv import PaperRecord

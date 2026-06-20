@@ -105,6 +105,86 @@ def test_load_site_batch_from_json_url_objects(tmp_path):
     assert batch.seeds[0].crawl_prefix == "/agents"
 
 
+def test_load_site_batch_from_json_explicit_modes(tmp_path):
+    path = tmp_path / "sites.json"
+    path.write_text(
+        json.dumps(
+            {
+                "topic": "web-ai",
+                "crawl": {
+                    "max_depth": 2,
+                    "max_pages_per_seed": 6,
+                    "same_section_only": True,
+                },
+                "collections": [
+                    {
+                        "name": "overview",
+                        "label": "Overview",
+                        "mode": "exact-page",
+                        "seeds": ["https://example.com/overview"],
+                    },
+                    {
+                        "name": "docs",
+                        "label": "Docs",
+                        "mode": "shallow-crawl",
+                        "crawl_prefix": "/docs",
+                        "seeds": ["https://example.com/docs/start"],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    batch = load_site_batch(path)
+
+    assert [(seed.max_depth, seed.max_pages) for seed in batch.seeds] == [(0, 1), (2, 6)]
+    assert [seed.same_section_only for seed in batch.seeds] == [True, True]
+    assert batch.seeds[1].crawl_prefix == "/docs"
+
+
+def test_load_site_batch_from_json_crawl_false_alias(tmp_path):
+    path = tmp_path / "sites.json"
+    path.write_text(
+        json.dumps(
+            {
+                "topic": "web-ai",
+                "crawl": {"max_depth": 2, "max_pages_per_seed": 6},
+                "urls": [
+                    {"url": "https://example.com/exact", "crawl": False},
+                    {"url": "https://example.com/docs", "crawl": True},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    batch = load_site_batch(path)
+
+    assert [(seed.max_depth, seed.max_pages) for seed in batch.seeds] == [(0, 1), (2, 6)]
+
+
+def test_load_site_batch_from_json_rejects_unknown_crawl_mode(tmp_path):
+    path = tmp_path / "sites.json"
+    path.write_text(
+        json.dumps(
+            {
+                "topic": "web-ai",
+                "urls": [
+                    {
+                        "url": "https://example.com/docs",
+                        "mode": "wide-open",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Unsupported site crawl mode"):
+        load_site_batch(path)
+
+
 def test_classify_page_type_prefers_video_when_flagged():
     assert classify_page_type("https://example.com/page", "Title", "", True) == "video"
     assert classify_page_type("https://example.com/topic/ai", "Title", "", False) == "topic"

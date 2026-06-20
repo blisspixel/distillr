@@ -3,16 +3,40 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
+from distill.library.paths import find_artifact
+from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.summary import BatchProgress, RunSummary
+from distill.pipeline.synthesis.corpus import synthesize_corpus
 
-__all__ = ["process_site_batch_seed", "site_batch_seed"]
+__all__ = [
+    "SiteBatchPlanRow",
+    "print_site_batch_plan",
+    "process_site_batch_seed",
+    "resolve_site_batch_seeds",
+    "run_site_batch_syntheses",
+    "site_batch_plan_rows",
+    "site_batch_seed",
+]
+
+
+@dataclass(frozen=True)
+class SiteBatchPlanRow:
+    index: int
+    url: str
+    topic: str
+    label: str
+    mode: str
+    max_depth: int
+    max_pages: int
+    boundary: str
 
 
 def site_batch_seed(
@@ -35,6 +59,70 @@ def site_batch_seed(
         max_pages=1 if seed_only else seed.max_pages,
         same_section_only=same_section_only or seed.same_section_only,
     )
+
+
+def resolve_site_batch_seeds(
+    seeds: list[SiteSeed],
+    *,
+    seed_only: bool,
+    same_section_only: bool,
+) -> list[SiteSeed]:
+    return [
+        site_batch_seed(
+            seed,
+            seed_only=seed_only,
+            same_section_only=same_section_only,
+        )
+        for seed in seeds
+    ]
+
+
+def site_batch_plan_rows(seeds: list[SiteSeed]) -> list[SiteBatchPlanRow]:
+    return [_site_batch_plan_row(index, seed) for index, seed in enumerate(seeds, 1)]
+
+
+def print_site_batch_plan(*, topic: str, seeds: list[SiteSeed]) -> None:
+    rows = site_batch_plan_rows(seeds)
+    console.print("[bold]Site batch preview[/bold]")
+    console.print(f"[dim]Topic: {topic} | seeds: {len(rows)} | writes: none[/dim]")
+    for row in rows:
+        label = f" | label={row.label}" if row.label else ""
+        console.print(
+            f"{row.index}. {row.mode} | pages={row.max_pages} depth={row.max_depth} "
+            f"| topic={row.topic} | boundary={row.boundary}{label} | {row.url}"
+        )
+
+
+def _site_batch_plan_row(index: int, seed: SiteSeed) -> SiteBatchPlanRow:
+    return SiteBatchPlanRow(
+        index=index,
+        url=seed.url,
+        topic=seed.topic,
+        label=seed.label,
+        mode=_site_batch_mode(seed),
+        max_depth=seed.max_depth,
+        max_pages=seed.max_pages,
+        boundary=_site_batch_boundary(seed),
+    )
+
+
+def _site_batch_mode(seed: SiteSeed) -> str:
+    if seed.max_depth <= 0 or seed.max_pages <= 1:
+        return "exact-page"
+    return "shallow-crawl"
+
+
+def _site_batch_boundary(seed: SiteSeed) -> str:
+    if seed.max_depth <= 0 or seed.max_pages <= 1:
+        return "seed URL only"
+    parts = []
+    if seed.crawl_prefix:
+        parts.append(f"prefix {seed.crawl_prefix}")
+    if seed.same_section_only:
+        parts.append("same-section")
+    if not parts:
+        parts.append("same-host")
+    return ", ".join(parts)
 
 
 def process_site_batch_seed(
@@ -76,3 +164,38 @@ def process_site_batch_seed(
         return
     progress.finish_item(item_start, success=True)
     console.print(progress.status_line(site_ingest_status_phase(result)))
+
+
+def run_site_batch_syntheses(
+    target_topic: str,
+    config: Any,
+    tracker: CostTracker,
+    summary: RunSummary,
+) -> None:
+    try:
+        topic_synth = synthesize_site_topic(target_topic, config, tracker=tracker)
+        if topic_synth:
+            summary.add_output(
+                find_artifact(
+                    config.topic_dir(target_topic),
+                    "topic_synthesis",
+                    identity=target_topic,
+                )
+            )
+        corpus_synth = synthesize_corpus(target_topic, config, tracker=tracker)
+        if corpus_synth:
+            summary.add_output(
+                find_artifact(
+                    config.topic_dir(target_topic),
+                    "corpus_synthesis",
+                    identity=target_topic,
+                )
+            )
+    except Exception as exc:
+        cli_shared.record_exception_issue(
+            summary,
+            stage="site-topic-synthesis",
+            exc=exc,
+            context=target_topic,
+            details={"topic": target_topic},
+        )

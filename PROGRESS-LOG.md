@@ -2,6 +2,54 @@
 
 ## 2026-06-20
 
+### Cycle 66 - Site Batch Mixed Crawl Preview
+
+- External spend: `$0.00`.
+- Added explicit JSON seed modes for website batches. URL objects and
+  collections can now use `mode: "exact-page"` or `mode: "shallow-crawl"`,
+  with `crawl: false` and `crawl: true` as boolean aliases.
+- Unsupported mode names now fail during seed-file loading instead of silently
+  falling back to a wider crawl.
+- Added `distill site-batch --preview` to show the resolved exact-page versus
+  shallow-crawl plan before any model check, crawl, or write.
+- Preview rows show URL, topic, label, pages, depth, and structural boundary
+  such as seed-only, crawl prefix, same-section, or same-host.
+- This is operator intent and run-plan visibility. Page usefulness and
+  relevance remain model-judged in the existing discovery and analysis paths.
+- Moved site-batch synthesis tail behavior into the site-batch helper module so
+  `discover.py` stays below the hard module-size cap.
+- Updated README, root roadmap, detailed usage docs, detailed roadmap,
+  changelog, current-state notes, seed examples, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\ingestors\sites\scraper.py distill\commands\_site_batch.py distill\commands\discover.py tests\unit\ingestors\sites\test_scraper.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run ruff format --check distill\ingestors\sites\scraper.py distill\commands\_site_batch.py distill\commands\discover.py tests\unit\ingestors\sites\test_scraper.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_scraper.py tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_site_batch_preview_shows_mixed_crawl_plan_without_writes tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_site_batch_progress_continues_after_seed_failure tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_site_crawl_flags_are_applied_to_selected_seeds tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed:
+    29 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 461 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2545
+    passed, 8 deselected, 1 warning, 83.08% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed for the current package version.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, emojis, and attribution patterns passed.
+- Release verification note:
+  - GitHub CI and Publish to PyPI passed for `v0.16.19`, and the
+    version-specific PyPI JSON endpoint shows the `0.16.19` wheel and sdist.
+    The project JSON and simple installer index still report `0.16.18`, so
+    installer-facing PyPI verification is not yet complete.
+
+### Next
+
+- Commit Cycle 66, push, verify CI, and publish the next release once the
+  package index path is healthy.
+
 ### Cycle 65 - Website Crawl Prefix Boundaries
 
 - External spend: `$0.00`.

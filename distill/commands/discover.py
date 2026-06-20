@@ -44,7 +44,12 @@ from distill.commands._learning import (
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
-from distill.commands._site_batch import process_site_batch_seed, site_batch_seed
+from distill.commands._site_batch import (
+    print_site_batch_plan,
+    process_site_batch_seed,
+    resolve_site_batch_seeds,
+    run_site_batch_syntheses,
+)
 from distill.commands._site_ingest import process_site_seed as _process_site_seed
 from distill.commands._topic_watch import (
     _normalize_topic_watch_ranking_mode,
@@ -457,6 +462,11 @@ def site_batch_cmd(
         "--ingest-attachments",
         help="Pull PDF text and supported embedded video transcripts into the page corpus",
     ),
+    preview: bool = typer.Option(
+        False,
+        "--preview",
+        help="Show the resolved exact-page or shallow-crawl plan without writes",
+    ),
     report: bool = typer.Option(
         False, "--report", help="Run Deep Research report after processing"
     ),
@@ -472,22 +482,26 @@ def site_batch_cmd(
     if report and scrape_only:
         console.print("[red]--report cannot be used with --scrape-only[/red]")
         raise typer.Exit(2)
-    if not scrape_only:
-        _require_model()
     batch = load_site_batch(path, topic_override=topic)
     target_topic = topic or batch.topic
+    planned_seeds = resolve_site_batch_seeds(
+        batch.seeds,
+        seed_only=seed_only,
+        same_section_only=same_section_only,
+    )
+    if preview:
+        print_site_batch_plan(topic=target_topic, seeds=planned_seeds)
+        return
+    if not scrape_only:
+        _require_model()
     tracker = CostTracker()
     summary = RunSummary(command="site-batch")
     summary.set_metadata(topic=target_topic, workflow="site-batch", source_type="website")
 
-    progress = BatchProgress("site", len(batch.seeds), tracker)
-    for seed in batch.seeds:
+    progress = BatchProgress("site", len(planned_seeds), tracker)
+    for seed in planned_seeds:
         process_site_batch_seed(
-            site_batch_seed(
-                seed,
-                seed_only=seed_only,
-                same_section_only=same_section_only,
-            ),
+            seed,
             config=config,
             tracker=tracker,
             summary=summary,
@@ -498,33 +512,7 @@ def site_batch_cmd(
         )
 
     if not scrape_only:
-        try:
-            topic_synth = synthesize_site_topic(target_topic, config, tracker=tracker)
-            if topic_synth:
-                summary.add_output(
-                    find_artifact(
-                        config.topic_dir(target_topic),
-                        "topic_synthesis",
-                        identity=target_topic,
-                    )
-                )
-            corpus_synth = synthesize_corpus(target_topic, config, tracker=tracker)
-            if corpus_synth:
-                summary.add_output(
-                    find_artifact(
-                        config.topic_dir(target_topic),
-                        "corpus_synthesis",
-                        identity=target_topic,
-                    )
-                )
-        except Exception as exc:
-            cli_shared.record_exception_issue(
-                summary,
-                stage="site-topic-synthesis",
-                exc=exc,
-                context=target_topic,
-                details={"topic": target_topic},
-            )
+        run_site_batch_syntheses(target_topic, config, tracker, summary)
 
     if concepts_flag:
         _run_concepts_after_ingest(target_topic, tracker=tracker)

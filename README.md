@@ -226,6 +226,9 @@ can opt into bounded shallow crawls with `--site-crawl-depth` and
 followed links under that source path branch. Site preview rows show the exact
 URL, section label, discovery source, and sitemap freshness date when
 available, so official-doc page candidates stay legible before approval.
+Website seed files can also mix `exact-page` and `shallow-crawl` modes, and
+`distill site-batch --preview` shows the resolved pages, depth, and crawl
+boundary before any crawl or write.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

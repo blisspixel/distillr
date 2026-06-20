@@ -261,3 +261,7 @@
 - Website crawl boundaries are structural URL rules. Use `crawl_prefix` when a
   site seed should stay under a specific path branch, and do not replace source
   fit or page quality judgment with path heuristics.
+- Site-batch preview and JSON `mode` fields are structural run planning. Use
+  them to show exact-page versus shallow-crawl behavior before writes, not to
+  judge whether a page is useful or relevant. Reject unsupported mode names
+  during seed-file loading instead of widening crawl behavior silently.

@@ -134,6 +134,12 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
     seeds: list[SiteSeed] = []
     crawl_config = data.get("crawl", {}) if isinstance(data, dict) else {}
     global_crawl_prefix = str(crawl_config.get("crawl_prefix", crawl_config.get("path_prefix", "")))
+    global_max_depth = (
+        int(crawl_config.get("max_depth", 1)) if isinstance(crawl_config, dict) else 1
+    )
+    global_max_pages = (
+        int(crawl_config.get("max_pages_per_seed", 8)) if isinstance(crawl_config, dict) else 8
+    )
 
     if isinstance(data, list):
         iterable = data
@@ -156,18 +162,8 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
                                 fallback=global_crawl_prefix,
                             ),
                             discover_crawl=bool(collection.get("discover_crawl", False)),
-                            max_depth=int(
-                                collection.get(
-                                    "max_depth",
-                                    data.get("crawl", {}).get("max_depth", 1),
-                                )
-                            ),
-                            max_pages=int(
-                                collection.get(
-                                    "max_pages",
-                                    data.get("crawl", {}).get("max_pages_per_seed", 8),
-                                )
-                            ),
+                            max_depth=_crawl_max_depth(collection, default=global_max_depth),
+                            max_pages=_crawl_max_pages(collection, default=global_max_pages),
                             same_section_only=bool(
                                 collection.get(
                                     "same_section_only",
@@ -194,8 +190,8 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
                     freshness_hint=item.get("freshness_hint", ""),
                     crawl_prefix=_crawl_prefix_from_mapping(item, fallback=global_crawl_prefix),
                     discover_crawl=bool(item.get("discover_crawl", False)),
-                    max_depth=int(item.get("max_depth", 1)),
-                    max_pages=int(item.get("max_pages", 8)),
+                    max_depth=_crawl_max_depth(item, default=global_max_depth),
+                    max_pages=_crawl_max_pages(item, default=global_max_pages),
                     same_section_only=bool(item.get("same_section_only", False)),
                 )
             )
@@ -480,6 +476,45 @@ def crawl_prefix_from_url(url: str) -> str:
 def _crawl_prefix_from_mapping(data: dict[str, Any], fallback: str = "") -> str:
     raw = data.get("crawl_prefix", data.get("path_prefix", fallback))
     return _normalize_crawl_prefix(str(raw or ""))
+
+
+def _crawl_mode(data: dict[str, Any]) -> str:
+    raw_value = data.get("mode", data.get("crawl_mode", ""))
+    raw = str(raw_value).strip().lower()
+    aliases = {
+        "exact": "exact-page",
+        "seed": "exact-page",
+        "seed-only": "exact-page",
+        "seed_only": "exact-page",
+        "page": "exact-page",
+        "exact-page": "exact-page",
+        "exact_page": "exact-page",
+        "crawl": "shallow-crawl",
+        "shallow": "shallow-crawl",
+        "shallow-crawl": "shallow-crawl",
+        "shallow_crawl": "shallow-crawl",
+    }
+    mode = aliases.get(raw, raw)
+    crawl_flag = data.get("crawl")
+    if isinstance(crawl_flag, bool):
+        return "shallow-crawl" if crawl_flag else "exact-page"
+    if mode and mode not in {"exact-page", "shallow-crawl"}:
+        raise ValueError(
+            f"Unsupported site crawl mode {raw_value!r}. Use exact-page or shallow-crawl."
+        )
+    return mode
+
+
+def _crawl_max_depth(data: dict[str, Any], *, default: int) -> int:
+    if _crawl_mode(data) == "exact-page":
+        return 0
+    return int(data.get("max_depth", default))
+
+
+def _crawl_max_pages(data: dict[str, Any], *, default: int) -> int:
+    if _crawl_mode(data) == "exact-page":
+        return 1
+    return int(data.get("max_pages", data.get("max_pages_per_seed", default)))
 
 
 def _normalize_crawl_prefix(value: str) -> str:

@@ -311,6 +311,9 @@ plan-quota adapter as an eligible route by itself.
 ## Websites
 
 ```bash
+# 0. Inspect exact-page versus shallow-crawl behavior before writing
+distill site-batch configs/example_seeds.json --topic example --preview
+
 # 1. Validate raw capture first (writes artifacts, no analysis)
 distill site-batch configs/example_seeds.json --topic example-raw --scrape-only --seed-only
 
@@ -333,6 +336,8 @@ distill site https://example.com/products/overview --topic example --scrape-only
 Flags:
 
 - `--scrape-only` writes raw capture only (no insights, synthesis, or reports)
+- `--preview` prints the resolved seed plan and exits before crawling, model
+  checks, or writes
 - `--seed-only` processes only the exact input URLs (safest for curated lists)
 - `--ingest-attachments` writes `attachments.json` per page and, when possible, extracts PDF text and supported embedded-video transcripts into the page corpus
 - `--same-section-only` allows shallow crawl but keeps discovery inside the same top-level section (`/topic`, `/partner`, `/lab`, `/docs`, etc.)
@@ -346,7 +351,7 @@ spend cap remains a hard stop. Reused unchanged pages and empty crawls are
 surfaced as structural skip outcomes in progress lines and MCP `site_batch`
 JSON.
 
-See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON seeds can set `crawl_prefix` on a URL object or collection to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
+See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON URL objects and collections can set `mode` to `exact-page` or `shallow-crawl`, or use `crawl: false` / `crawl: true` as a boolean alias. Unsupported mode names fail during seed-file loading instead of falling back to a wider crawl. They can also set `crawl_prefix` to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 
 ## arXiv papers
 

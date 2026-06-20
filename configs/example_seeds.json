@@ -1,5 +1,5 @@
 {
-  "_comment": "Seed file for `distill site-batch` / `distill ramp-up configs/example_seeds.json`. Copy this file, rename it, and replace the URLs below with pages you actually want to ingest. The seeds are the exact URLs distill will capture and analyze in --seed-only mode; with shallow crawl enabled, distill will follow links one hop deep inside the same section. Use crawl_prefix on a collection or URL object to keep crawl links under a specific path branch.",
+  "_comment": "Seed file for `distill site-batch` / `distill ramp-up configs/example_seeds.json`. Copy this file, rename it, and replace the URLs below with pages you actually want to ingest. Use `distill site-batch ... --preview` to inspect the resolved plan before writing. Collections or URL objects can set mode to exact-page or shallow-crawl. Use crawl_prefix to keep shallow crawl links under a specific path branch.",
   "topic": "example",
   "crawl": {
     "max_depth": 1,
@@ -10,6 +10,7 @@
     {
       "name": "overview",
       "label": "Overview and positioning",
+      "mode": "exact-page",
       "seeds": [
         "https://example.com/about",
         "https://example.com/products/overview",
@@ -19,6 +20,7 @@
     {
       "name": "docs",
       "label": "Product documentation",
+      "mode": "shallow-crawl",
       "crawl_prefix": "/docs",
       "seeds": [
         "https://example.com/docs/introduction",
@@ -29,6 +31,7 @@
     {
       "name": "thought-leadership",
       "label": "Thought leadership and blog",
+      "mode": "exact-page",
       "seeds": [
         "https://example.com/blog",
         "https://example.com/insights",

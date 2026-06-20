@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added `distill site-batch --preview` plus explicit JSON seed modes for
+  mixed website batches. Seed files can mark URL objects or collections as
+  `exact-page` or `shallow-crawl`, and preview shows the resolved pages, depth,
+  and crawl boundary before any model check, crawl, or write. Unsupported mode
+  names fail during seed-file loading.
+
 ## 0.16.19 - 2026-06-20
 
 ### Added
