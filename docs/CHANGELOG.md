@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added global `--json` support for `distill site-batch --preview`, returning
   the resolved exact-page and shallow-crawl plan in the standard JSON envelope
   without crawling, checking a model, or writing artifacts.
+- Extended the MCP `site_batch` tool so relative JSON seed files use the same
+  exact-page, shallow-crawl, crawl-prefix, and unsupported-mode handling as the
+  CLI. Direct URL lists and TXT seed files remain exact-page by default.
 
 ## 0.16.20 - 2026-06-20
 

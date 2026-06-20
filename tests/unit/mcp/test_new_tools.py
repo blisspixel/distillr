@@ -237,6 +237,98 @@ class TestSiteBatchTool:
         ]
         assert seen == [("https://example.com/guide", "ai", mock_config, "site-batch")]
 
+    def test_json_seed_file_honors_mixed_crawl_modes(self, mock_config, monkeypatch):
+        seed_file = mock_config.library_dir / "sites.json"
+        seed_file.write_text(
+            json.dumps(
+                {
+                    "topic": "web",
+                    "crawl": {
+                        "max_depth": 1,
+                        "max_pages_per_seed": 4,
+                        "same_section_only": True,
+                    },
+                    "collections": [
+                        {
+                            "name": "overview",
+                            "mode": "exact-page",
+                            "seeds": ["https://example.com/overview"],
+                        },
+                        {
+                            "name": "docs",
+                            "mode": "shallow-crawl",
+                            "crawl_prefix": "/docs",
+                            "seeds": ["https://example.com/docs/start"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        seen = []
+
+        def fake_process_site_seed(seed, config, tracker, summary):
+            seen.append(
+                (
+                    seed.url,
+                    seed.max_depth,
+                    seed.max_pages,
+                    seed.crawl_prefix,
+                    seed.same_section_only,
+                )
+            )
+            return "Example", 1
+
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed", fake_process_site_seed
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json")))
+
+        assert result["status"] == "complete"
+        assert [page["url"] for page in result["pages"]] == [
+            "https://example.com/overview",
+            "https://example.com/docs/start",
+        ]
+        assert seen == [
+            ("https://example.com/overview", 0, 1, "", True),
+            ("https://example.com/docs/start", 1, 4, "/docs", True),
+        ]
+
+    def test_json_seed_file_rejects_unknown_mode_without_processing(self, mock_config, monkeypatch):
+        seed_file = mock_config.library_dir / "sites.json"
+        seed_file.write_text(
+            json.dumps(
+                {
+                    "topic": "web",
+                    "urls": [
+                        {
+                            "url": "https://example.com/guide",
+                            "mode": "wide-open",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        calls = []
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            lambda *args, **kwargs: calls.append("process"),
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json")))
+
+        assert result["status"] == "error"
+        assert "Unsupported site crawl mode" in result["error"]
+        assert calls == []
+
     def test_direct_urls_use_existing_site_pipeline(self, mock_config, monkeypatch):
         seen = []
 

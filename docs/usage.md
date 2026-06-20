@@ -673,9 +673,11 @@ For deployments that do expose the write tools, two narrower guardrails:
   and verify-gated, and a re-run converges (already-ingested sources skip).
 - `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines the
   URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to
-  the listed hosts and their subdomains -- the corpus-poisoning guard. Hosts
-  match exactly or as subdomains (`www.youtube.com` passes `youtube.com`;
-  `evilyoutube.com` does not).
+  the listed hosts and their subdomains -- the corpus-poisoning guard.
+  `site_batch` applies the allowlist after expanding TXT or JSON seed files,
+  including mixed exact-page and shallow-crawl JSON seeds. Hosts match exactly
+  or as subdomains (`www.youtube.com` passes `youtube.com`; `evilyoutube.com`
+  does not).
 
 ### Ask the corpus (`distill ask`)
 

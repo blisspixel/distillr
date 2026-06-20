@@ -565,3 +565,11 @@ JSON envelope while still skipping model checks, crawls, and writes. This keeps
 external runners on structured plan data instead of console scraping. It is a
 structural workflow handoff surface, not a semantic ranking or source-quality
 judgment.
+
+Cycle 68 brings the same mixed website seed contract to the MCP write surface.
+MCP `site_batch` now expands relative JSON seed files inside the library root
+through the CLI seed parser, so `mode`, `crawl`, `crawl_prefix`, and unsupported
+mode handling match `distill site-batch`. Direct URL lists and TXT seed files
+stay exact-page by default. The MCP ingest allowlist still checks every expanded
+seed URL before processing. This is structural input parsing and guardrail
+parity for agent tools, not a source-fit or page-quality judgment.

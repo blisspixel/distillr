@@ -268,3 +268,7 @@
 - Global `--json` on `site-batch --preview` returns the same resolved plan rows
   in the standard JSON envelope. Keep it free, non-mutating, and aligned with
   the human preview.
+- MCP `site_batch` accepts relative JSON seed files inside the library root and
+  honors the same exact-page, shallow-crawl, crawl-prefix, and unsupported-mode
+  handling as the CLI. Direct URL lists and TXT seed files stay exact-page by
+  default.

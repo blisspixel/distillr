@@ -2,6 +2,47 @@
 
 ## 2026-06-20
 
+### Cycle 68 - MCP Site Batch JSON Seed Parity
+
+- External spend: `$0.00`.
+- Extended MCP `site_batch` so relative JSON seed files inside the library root
+  use the same parser as `distill site-batch`.
+- JSON seed files now honor `mode: "exact-page"`, `mode: "shallow-crawl"`,
+  `crawl: true/false`, and `crawl_prefix` through the MCP tool.
+- Direct URL lists and TXT seed files stay exact-page by default, preserving
+  the previous agent-facing behavior.
+- Unsupported JSON mode names return a structured MCP error before ingest work
+  starts.
+- The MCP ingest allowlist still checks every expanded seed URL before
+  processing.
+- This is structural input parsing and guardrail parity. Source fit, page
+  usefulness, and relevance remain model-owned.
+- Updated MCP docs, usage docs, root roadmap, detailed roadmap, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\mcp\tools\sites.py tests\unit\mcp\test_new_tools.py` passed.
+  - `uv run ruff format --check distill\mcp\tools\sites.py tests\unit\mcp\test_new_tools.py` passed after formatting.
+  - `uv run pytest -q tests\unit\mcp\test_new_tools.py::TestSiteBatchTool::test_json_seed_file_honors_mixed_crawl_modes tests\unit\mcp\test_new_tools.py::TestSiteBatchTool::test_json_seed_file_rejects_unknown_mode_without_processing tests\unit\mcp\test_new_tools.py::TestSiteBatchTool::test_seed_file_inside_library_processes_site_seed tests\unit\mcp\test_new_tools.py::TestSiteBatchTool::test_direct_urls_use_existing_site_pipeline tests\unit\mcp\test_write_guardrails.py::TestToolWiring::test_site_batch_refuses_when_any_url_off_list` passed:
+    5 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 461 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2548
+    passed, 8 deselected, 1 warning, 83.07% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed for package version `0.16.20`.
+- Carry-forward release verification:
+  - CI passed for `aca0fcc` on run `27871593364`.
+  - PyPI installer-facing project JSON, simple index, `pip index`, and pip
+    dry-run still see `0.16.18` as latest, although the release-specific
+    `0.16.20` endpoint exists. No new release is being cut while that index
+    remains stale.
+
 ### Cycle 67 - JSON Site Batch Preview Plan
 
 - External spend: `$0.00`.

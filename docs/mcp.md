@@ -41,8 +41,14 @@ Then ask Claude things like:
 | `learn_topic` | Find + process + synthesize best videos for a topic |
 | `search_videos` | Preview best YouTube videos for a topic (no ingest) |
 | `process_video_url` | Transcribe + analyze a single video |
-| `site_batch` | Ingest a curated website seed set |
+| `site_batch` | Ingest direct URLs or a curated website seed set |
 | `catch_up` | Refresh watched channels (scan for new videos) |
+
+`site_batch` accepts direct `urls` or a relative `seed_file` inside the library
+root. Direct URL lists and TXT seed files stay exact-page by default. JSON seed
+files use the same seed parser as the CLI, including `mode: "exact-page"`,
+`mode: "shallow-crawl"`, `crawl: true/false`, and `crawl_prefix`; unsupported
+mode names return a structured error before any ingest work starts.
 
 **Synthesize & report**
 

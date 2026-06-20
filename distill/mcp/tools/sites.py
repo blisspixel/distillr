@@ -43,6 +43,8 @@ async def site_batch(  # noqa: C901
     topic: str,
     urls: list[str] | None = None,
     seed_file: str | None = None,
+    seed_only: bool = False,
+    same_section_only: bool = False,
     ctx: Context = None,
 ) -> str:
     """Scrape and analyze pages from a site seed file or URL list.
@@ -51,6 +53,8 @@ async def site_batch(  # noqa: C901
         topic: Topic to file pages under
         urls: List of URLs to process
         seed_file: Path to a seed file with URLs
+        seed_only: Force exact-page processing for seed-file entries
+        same_section_only: Keep shallow crawls within the seed section
     """
     config = _server._config()
     if not model_available():
@@ -61,10 +65,20 @@ async def site_batch(  # noqa: C901
             }
         )
 
-    # Resolve URLs from seed file or direct list
-    page_urls: list[str] = []
+    try:
+        from distill.commands._site_batch import resolve_site_batch_seeds
+        from distill.commands._site_ingest import process_site_seed
+        from distill.ingestors.sites.scraper import SiteSeed, load_site_batch
+        from distill.pipeline.summary import RunSummary
+    except ImportError as e:
+        return json.dumps({"status": "error", "error": f"Site dependencies missing: {e}"})
+
+    seeds: list[SiteSeed] = []
     if urls:
-        page_urls = urls[:_MAX_SITE_BATCH_URLS]
+        seeds = [
+            SiteSeed(url=url, topic=topic, max_depth=0, max_pages=1)
+            for url in urls[:_MAX_SITE_BATCH_URLS]
+        ]
     elif seed_file:
         seed_path = _resolve_seed_file(config.library_dir, seed_file)
         if seed_path is None:
@@ -76,42 +90,50 @@ async def site_batch(  # noqa: C901
             )
         if seed_path.stat().st_size > _MAX_SEED_FILE_BYTES:
             return json.dumps({"status": "error", "error": "Seed file is too large."})
-        page_urls = [
-            line.strip()
-            for line in seed_path.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.strip().startswith("#")
-        ][:_MAX_SITE_BATCH_URLS]
+        try:
+            if seed_path.suffix.lower() == ".json":
+                seeds = load_site_batch(seed_path, topic_override=topic).seeds[
+                    :_MAX_SITE_BATCH_URLS
+                ]
+            else:
+                seeds = [
+                    SiteSeed(url=line, topic=topic, max_depth=0, max_pages=1)
+                    for line in (
+                        raw.strip() for raw in seed_path.read_text(encoding="utf-8").splitlines()
+                    )
+                    if line and not line.startswith("#")
+                ][:_MAX_SITE_BATCH_URLS]
+        except ValueError as e:
+            return json.dumps({"status": "error", "error": str(e)})
     else:
         return json.dumps({"status": "error", "error": "Provide either 'urls' or 'seed_file'."})
 
-    if not page_urls:
+    seeds = resolve_site_batch_seeds(
+        seeds,
+        seed_only=seed_only,
+        same_section_only=same_section_only,
+    )
+
+    if not seeds:
         return json.dumps({"status": "error", "error": "No URLs to process."})
 
-    for url in page_urls:
-        refusal = _server.refuse_if_host_not_allowed(url)
+    for seed in seeds:
+        refusal = _server.refuse_if_host_not_allowed(seed.url)
         if refusal is not None:
             return refusal
-
-    try:
-        from distill.commands._site_ingest import process_site_seed
-        from distill.ingestors.sites.scraper import SiteSeed
-        from distill.pipeline.summary import RunSummary
-    except ImportError as e:
-        return json.dumps({"status": "error", "error": f"Site dependencies missing: {e}"})
 
     tracker = _server.capped_tracker()
     summary = RunSummary(command="site-batch")
     results = []
 
-    for i, url in enumerate(page_urls):
+    for i, seed in enumerate(seeds):
         if ctx:
-            await ctx.report_progress(progress=i, total=len(page_urls))
+            await ctx.report_progress(progress=i, total=len(seeds))
         try:
-            seed = SiteSeed(url=url, topic=topic, max_depth=0, max_pages=1)
             site_result = process_site_seed(seed, config, tracker, summary)
             site_name, page_count = site_result
             page_result = {
-                "url": url,
+                "url": seed.url,
                 "site": site_name,
                 "pages": page_count,
                 "status": "ok" if page_count else "skipped",
@@ -127,10 +149,10 @@ async def site_batch(  # noqa: C901
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
-            results.append({"url": url, "status": "error", "error": str(e)})
+            results.append({"url": seed.url, "status": "error", "error": str(e)})
 
     if ctx:
-        await ctx.report_progress(progress=len(page_urls), total=len(page_urls))
+        await ctx.report_progress(progress=len(seeds), total=len(seeds))
 
     save_run_log(config.library_dir, "site-batch", tracker)
     return json.dumps(
