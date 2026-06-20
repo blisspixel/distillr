@@ -83,6 +83,9 @@ def _site_item() -> RankedDiscoverItem:
             topic="t",
             site_name="Example Docs",
             label="Guide",
+            section_label="guide",
+            source_hint="sitemap",
+            freshness_hint="2026-06-18",
         ),
     )
 
@@ -126,6 +129,9 @@ def test_save_then_load_round_trips_all_source_types(tmp_path):
     assert site.site_seed is not None
     assert site.site_seed.url == "https://learn.example.com/guide"
     assert site.site_seed.label == "Guide"
+    assert site.site_seed.section_label == "guide"
+    assert site.site_seed.source_hint == "sitemap"
+    assert site.site_seed.freshness_hint == "2026-06-18"
 
 
 def test_preview_id_is_content_addressed():

@@ -92,6 +92,9 @@ class SiteSeed:
     topic: str
     site_name: str = ""
     label: str = ""
+    section_label: str = ""
+    source_hint: str = ""
+    freshness_hint: str = ""
     max_depth: int = 1
     max_pages: int = 8
     same_section_only: bool = False
@@ -137,6 +140,9 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
                             topic=collection.get("topic", topic),
                             site_name=collection.get("site_name", ""),
                             label=collection.get("label", collection.get("name", "")),
+                            section_label=collection.get("section_label", ""),
+                            source_hint=collection.get("source_hint", ""),
+                            freshness_hint=collection.get("freshness_hint", ""),
                             max_depth=int(
                                 collection.get(
                                     "max_depth",
@@ -170,6 +176,9 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
                     topic=item.get("topic", topic),
                     site_name=item.get("site_name", ""),
                     label=item.get("label", item.get("name", "")),
+                    section_label=item.get("section_label", ""),
+                    source_hint=item.get("source_hint", ""),
+                    freshness_hint=item.get("freshness_hint", ""),
                     max_depth=int(item.get("max_depth", 1)),
                     max_pages=int(item.get("max_pages", 8)),
                     same_section_only=bool(item.get("same_section_only", False)),

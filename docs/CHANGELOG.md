@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Site candidates in `distill discover` now carry structural preview identity:
+  exact URL, section label, discovery source, and sitemap freshness hint when
+  available.
+
 ## 0.16.14 - 2026-06-20
 
 ### Added

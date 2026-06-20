@@ -198,6 +198,9 @@ def test_discover_rerank_maps_ranked_items_and_sorts_by_score(config, monkeypatc
         topic="agent365",
         site_name="learn.microsoft.com",
         label="Official Agent365 overview",
+        section_label="en-us/microsoft-365",
+        source_hint="sitemap",
+        freshness_hint="2026-06-18",
     )
     tracker = CostTracker()
 
@@ -218,6 +221,11 @@ def test_discover_rerank_maps_ranked_items_and_sorts_by_score(config, monkeypatc
     assert ranked[0].paper is paper
     assert ranked[1].video is video
     assert ranked[2].site_seed is site
+    assert ranked[2].subtitle == (
+        "learn.microsoft.com | section: en-us/microsoft-365 | sitemap | "
+        "https://learn.microsoft.com/en-us/microsoft-365/agents/overview"
+    )
+    assert ranked[2].date == "2026-06-18"
     assert ranked[1].date
     assert tracker.entries[0].call_type == "discover_rerank"
 

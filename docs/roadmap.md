@@ -152,11 +152,11 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 ### 5. Finish website productization
 
 - [ ] Website UX polish - checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
-- [~] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps and landing-page links for operator-trusted domains or section URLs, then feeds exact-page seeds into the existing LLM rerank. Remaining: TOC-specific extraction, freshness hints, and optional shallow section crawls.
+- [~] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps and landing-page links for operator-trusted domains or section URLs, then feeds exact-page seeds into the existing LLM rerank. Sitemap `lastmod` values now surface as freshness hints in previews when available. Remaining: TOC-specific extraction and optional shallow section crawls.
 - [ ] Better crawl boundary controls - keep site batches close to the intended section or branch by default
 - [~] Attachment ingestion - inventory embedded PDFs/videos and optionally pull PDF text or supported embedded-video transcripts into website runs
 - [ ] Mixed exact-page and shallow-crawl workflows that are easier to understand and safer by default
-- [ ] Better website candidate identity in preview/approval flows - show page-level titles, URLs, section labels, and freshness hints instead of collapsing multiple seeds under one collection label
+- [x] Better website candidate identity in preview/approval flows - preview rows now show page-level labels, exact URLs, section labels, discovery source hints, and sitemap freshness hints when available.
 - [~] Section-aware freshness so website refreshes focus on changed branches instead of re-crawling everything
 
 ### 6. Papers as a first-class source type
@@ -184,7 +184,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 ### 8. Expand cross-source intelligence
 
 - [~] Mixed-source topic synthesis that treats YouTube, websites, and papers as one corpus. `distill corpus` is live, MCP exposes `distill://topics/{topic}/corpus` and `distill://topics/{topic}/sources`, and `resynthesize_topic` refreshes corpus synthesis; near-duplicate detection shipped 0.12.4 (audit-surfaced), deeper cross-source reasoning still pending.
-- [ ] Trusted-domain website discovery inside `discover` - let the app expand "prefer Microsoft docs / vendor docs / official learn pages" into real page candidates from allowlisted domains, then rerank those page candidates with videos/papers in the same pool
+- [x] Trusted-domain website discovery inside `discover` - `--trusted-site` expands operator-trusted domains or section URLs into real page candidates from public same-host sitemaps and landing-page links, then reranks those page candidates with videos and papers in the same pool.
 - [x] Goal-file watch hook - shipped 0.12.7: goal-driven discover runs persist their goal<->topic association (`.distill/goals.json`, goal text + file + seeds), and `catch-up` surfaces each topic's exact `--preview` refresh command on the cadence; spend surfaced, never auto-committed. Detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [ ] Multi-topic channels - same channel filed under multiple topics with shared transcripts
 - [~] More source types - podcasts and feed/newsletter ingestion shipped in 0.11; conference talks and additional community adapters move behind the post-1.0 plugin boundary unless a dogfooded need promotes one.
@@ -300,18 +300,18 @@ rigor calibration with the `--rigor` knob; the metadata-aware self-calibrating
 cost estimator; preview-as-default sizing; synthesis register styles with PhD
 default; the anti-AI-slop register guard._
 
-- [~] **Page-level candidate identity for website-heavy discover runs.** Partly
-  shipped: preview rows for site seeds now show the seed label or a
-  host+path-derived title plus the hostname (`_site_candidate_title`).
-  Remaining: freshness hints and section context when known.
+- [x] **Page-level candidate identity for website-heavy discover runs.**
+  Preview rows for site seeds now show the seed label or host+path-derived
+  title, exact URL, section label, discovery source, and sitemap freshness hint
+  when available.
 - [~] **Trusted-site discovery for official-doc workflows.** `--site-seeds`
   still works for curated files, and `distill discover --trusted-site` now adds
   constrained page enumeration for operator-trusted domains or section URLs.
   The shipped slice reads public same-host sitemaps and landing-page links,
   keeps generated seeds exact-page by default, persists trusted-site refresh
   commands, and sends those candidates through the existing goal-aware rerank.
-  Remaining: TOC-specific extraction, freshness hints, and optional shallow
-  section crawls.
+  Sitemap `lastmod` values now surface as freshness hints when available.
+  Remaining: TOC-specific extraction and optional shallow section crawls.
 - [ ] **Long-run visibility and failure surfacing.** The Agent365 mixed-source
   run kept working but emitted very little live output after planning, forcing
   filesystem inspection to confirm progress. Long `discover` / `report` runs

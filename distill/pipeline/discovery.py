@@ -160,11 +160,34 @@ def _site_candidate_title(seed: SiteSeed) -> str:
     return f"{host}{path}"
 
 
+def _site_candidate_subtitle(seed: SiteSeed) -> str:
+    parts = [seed.resolved_site_name() or "website"]
+    if seed.section_label:
+        parts.append(f"section: {seed.section_label}")
+    if seed.source_hint:
+        parts.append(seed.source_hint)
+    parts.append(seed.url)
+    return " | ".join(part for part in parts if part)
+
+
 def _site_candidate_description(seed: SiteSeed) -> str:
+    parts = [f"URL: {seed.url}"]
+    if seed.section_label:
+        parts.append(f"section: {seed.section_label}")
+    if seed.source_hint:
+        parts.append(f"source: {seed.source_hint}")
+    if seed.freshness_hint:
+        parts.append(f"freshness: {seed.freshness_hint}")
     label = seed.label.strip()
     if label:
-        return f"{label} | URL: {seed.url}"
-    return f"Curated website seed | URL: {seed.url}"
+        parts.insert(0, label)
+    else:
+        parts.insert(0, "Curated website seed")
+    return " | ".join(parts)
+
+
+def _site_candidate_date(seed: SiteSeed) -> str:
+    return seed.freshness_hint or "-"
 
 
 def discover_generate_queries(
@@ -320,8 +343,8 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                 "kind": "site",
                 "identifier": seed.url,
                 "title": _site_candidate_title(seed),
-                "subtitle": seed.resolved_site_name() or "website",
-                "date": "",
+                "subtitle": _site_candidate_subtitle(seed),
+                "date": _site_candidate_date(seed),
                 "description": _site_candidate_description(seed),
             }
         )
@@ -415,8 +438,8 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                     kind="site",
                     identifier=identifier,
                     title=_site_candidate_title(seed),
-                    subtitle=seed.resolved_site_name() or "website",
-                    date="-",
+                    subtitle=_site_candidate_subtitle(seed),
+                    date=_site_candidate_date(seed),
                     final_score=float(entry.get("final_score", 0.0)),
                     goal_fit=float(entry.get("goal_fit", 0.0)),
                     depth_score=float(entry.get("depth_score", 0.0)),
@@ -440,8 +463,8 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                 kind="site",
                 identifier=seed.url,
                 title=_site_candidate_title(seed),
-                subtitle=seed.resolved_site_name() or "website",
-                date="-",
+                subtitle=_site_candidate_subtitle(seed),
+                date=_site_candidate_date(seed),
                 final_score=0.4,
                 goal_fit=0.0,
                 depth_score=0.0,

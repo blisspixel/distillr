@@ -217,7 +217,9 @@ Discovery previews also summarize video candidate counts and known watch time
 before approval, so broad goals reveal the size of the video corpus before
 anything is ingested. Website-heavy discovery can expand operator-trusted
 domains or section URLs with `--trusted-site`, using same-host sitemaps and
-landing-page links before the normal goal-aware rerank.
+landing-page links before the normal goal-aware rerank. Site preview rows show
+the exact URL, section label, discovery source, and sitemap freshness date when
+available, so official-doc page candidates stay legible before approval.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

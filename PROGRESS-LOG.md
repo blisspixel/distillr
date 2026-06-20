@@ -2,6 +2,45 @@
 
 ## 2026-06-20
 
+### Cycle 61 - Website Candidate Preview Identity
+
+- External spend: `$0.00`.
+- Extended `SiteSeed` with structural preview metadata for section label,
+  discovery source, and freshness hint.
+- Trusted-site discovery now records sitemap versus landing-page source hints,
+  section labels, and sitemap `lastmod` values when available.
+- `distill discover` site candidates now pass exact URL, section label,
+  discovery source, and freshness hint into the unified rerank prompt and the
+  preview table.
+- This is page identity and freshness metadata, not a relevance, quality, or
+  goal-fit scorer.
+- Updated README, root roadmap, detailed roadmap, usage docs, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\ingestors\sites\scraper.py distill\ingestors\sites\discovery.py distill\pipeline\discovery.py distill\commands\_discover_ingest.py distill\commands\_site_batch.py tests\unit\ingestors\sites\test_discovery.py tests\unit\pipeline\test_discovery.py tests\unit\pipeline\test_preview_cache.py` passed.
+  - `uv run ruff format --check distill\ingestors\sites\scraper.py distill\ingestors\sites\discovery.py distill\pipeline\discovery.py distill\commands\_discover_ingest.py distill\commands\_site_batch.py tests\unit\ingestors\sites\test_discovery.py tests\unit\pipeline\test_discovery.py tests\unit\pipeline\test_preview_cache.py` passed after formatting.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_discovery.py tests\unit\pipeline\test_discovery.py tests\unit\pipeline\test_discovery_rerank.py tests\unit\pipeline\test_preview_cache.py tests\unit\commands\test_ingest_failure_isolation.py` passed: 37 passed.
+  - `uv run pytest -q tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 460 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2535
+    passed, 8 deselected, 1 warning, 83.04% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check --cached` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI release if the main
+  branch remains releasable.
+
 ### Cycle 60 - Trusted-Site Discovery Candidates
 
 - External spend: `$0.00`.

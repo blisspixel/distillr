@@ -19,6 +19,7 @@ from distill.ingestors.sites.scraper import (
     dedupe_urls,
     is_crawlable_url,
     normalize_host,
+    site_section_key,
 )
 from distill.library.paths import site_name_from_url
 
@@ -122,6 +123,12 @@ class _LandingCandidates:
 
 
 @dataclass(frozen=True)
+class _SitemapPageCandidate:
+    url: str
+    freshness_hint: str = ""
+
+
+@dataclass(frozen=True)
 class _SourceDiscovery:
     seeds: list[SiteSeed]
     fetched_sitemaps: int
@@ -143,20 +150,48 @@ def _collect_source_seeds(
         fetch_text=fetch_text,
         max_sitemaps=max_sitemaps,
     )
-    for url in sitemap_urls:
+    for candidate in sitemap_urls:
         if (
-            _add_seed(seeds, seen, url, _label_from_url(url), source_url, topic)
+            _add_seed(
+                seeds,
+                seen,
+                candidate.url,
+                _label_from_url(candidate.url),
+                source_url,
+                topic,
+                source_hint="sitemap",
+                freshness_hint=candidate.freshness_hint,
+            )
             and len(seeds) >= remaining
         ):
             return _SourceDiscovery(seeds, sitemap_fetches, 0)
 
     landing = _candidate_urls_from_landing(source_url, fetch_text=fetch_text)
     for url, label in landing.urls:
-        if _add_seed(seeds, seen, url, label, source_url, topic) and len(seeds) >= remaining:
+        if (
+            _add_seed(
+                seeds,
+                seen,
+                url,
+                label,
+                source_url,
+                topic,
+                source_hint="landing link",
+            )
+            and len(seeds) >= remaining
+        ):
             return _SourceDiscovery(seeds, sitemap_fetches, landing.landing_fetches)
 
     if canonicalize_url(source_url) not in seen:
-        _add_seed(seeds, seen, source_url, _label_from_url(source_url), source_url, topic)
+        _add_seed(
+            seeds,
+            seen,
+            source_url,
+            _label_from_url(source_url),
+            source_url,
+            topic,
+            source_hint="trusted site",
+        )
     return _SourceDiscovery(seeds, sitemap_fetches, landing.landing_fetches)
 
 
@@ -167,6 +202,8 @@ def _add_seed(
     label: str,
     source_url: str,
     topic: str,
+    source_hint: str = "",
+    freshness_hint: str = "",
 ) -> bool:
     normalized = _trusted_candidate_url(url, source_url)
     if not normalized or normalized in seen:
@@ -178,6 +215,9 @@ def _add_seed(
             topic=topic,
             site_name=site_name_from_url(source_url),
             label=label or _label_from_url(normalized),
+            section_label=site_section_key(normalized),
+            source_hint=source_hint,
+            freshness_hint=freshness_hint,
             max_depth=0,
             max_pages=1,
             same_section_only=True,
@@ -191,11 +231,11 @@ def _candidate_urls_from_sitemaps(
     *,
     fetch_text: FetchText,
     max_sitemaps: int,
-) -> tuple[list[str], int]:
+) -> tuple[list[_SitemapPageCandidate], int]:
     queue: deque[str] = deque(_default_sitemap_urls(source_url))
     seen_sitemaps: set[str] = set()
     fetched = 0
-    found_urls: list[str] = []
+    found_urls: list[_SitemapPageCandidate] = []
     while queue and fetched < max_sitemaps:
         sitemap_url = queue.popleft()
         normalized_sitemap = _trusted_same_host_url(sitemap_url, source_url)
@@ -238,21 +278,56 @@ def _candidate_urls_from_landing(source_url: str, *, fetch_text: FetchText) -> _
     return _LandingCandidates(deduped, 1)
 
 
-def _parse_sitemap(text: str) -> tuple[list[str], list[str]]:
+def _parse_sitemap(text: str) -> tuple[list[str], list[_SitemapPageCandidate]]:
     try:
         root = xml_fromstring(text.encode("utf-8"))
     except Exception:
         locs = re.findall(r"<loc>\s*([^<]+?)\s*</loc>", text, flags=re.IGNORECASE)
-        return [], locs
+        return [], [_SitemapPageCandidate(url=loc) for loc in locs]
     root_name = _strip_namespace(root.tag).lower()
-    locs = [
+    if root_name == "sitemapindex":
+        return _sitemap_locs(root), []
+    entries = _sitemap_page_candidates(root)
+    if entries:
+        return [], entries
+    return [], [_SitemapPageCandidate(url=loc) for loc in _sitemap_locs(root)]
+
+
+def _sitemap_locs(root) -> list[str]:
+    return [
         (node.text or "").strip()
         for node in root.iter()
         if _strip_namespace(node.tag).lower() == "loc" and (node.text or "").strip()
     ]
-    if root_name == "sitemapindex":
-        return locs, []
-    return [], locs
+
+
+def _sitemap_page_candidates(root) -> list[_SitemapPageCandidate]:
+    entries: list[_SitemapPageCandidate] = []
+    for child in root:
+        if _strip_namespace(child.tag).lower() != "url":
+            continue
+        loc = ""
+        lastmod = ""
+        for node in child:
+            name = _strip_namespace(node.tag).lower()
+            text = (node.text or "").strip()
+            if name == "loc":
+                loc = text
+            elif name == "lastmod":
+                lastmod = text
+        if loc:
+            entries.append(_SitemapPageCandidate(loc, _clean_lastmod(lastmod)))
+    return entries
+
+
+def _clean_lastmod(value: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        return ""
+    match = re.match(r"^\d{4}-\d{2}-\d{2}", cleaned)
+    if match:
+        return match.group(0)
+    return cleaned[:32]
 
 
 def _strip_namespace(tag: str) -> str:

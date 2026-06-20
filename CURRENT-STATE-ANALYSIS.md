@@ -510,3 +510,11 @@ combines those generated seeds with curated `--site-seeds`, persists the
 trusted-site inputs in goal refresh metadata, and sends the resulting website
 pool through the existing model rerank. This is structural URL enumeration over
 an operator allowlist, not a page quality or goal-fit scorer.
+
+Cycle 61 makes those website candidates legible before approval. Site seeds now
+carry structural preview identity: section label, discovery source, and
+freshness hint. Trusted-site discovery fills those fields from sitemap or
+landing-page provenance and sitemap `lastmod` values when available, and the
+discover rerank/display path surfaces exact URL, section, source, and freshness
+in the prompt and preview table. This is identity and freshness metadata, not a
+semantic ranking signal.
