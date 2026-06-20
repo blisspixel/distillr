@@ -10,14 +10,39 @@ from rich.table import Table
 
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import format_date as _format_date
+from distill.commands import _learning_flow as _learning_flow_support
+from distill.commands._helpers import (
+    _preflight,
+    get_config,
+)
+from distill.commands._helpers import (
+    ensure_channel_context as _ensure_channel_context,
+)
+from distill.commands._helpers import (
+    output_path as _output_path,
+)
+from distill.commands._helpers import (
+    process_video as _process_video,
+)
+from distill.commands._helpers import (
+    run_scope_report as _run_scope_report,
+)
+from distill.commands._helpers import (
+    topic_from_query as _topic_from_query,
+)
 from distill.config import DistillConfig
 from distill.ingestors.youtube.browser_search import search_youtube_results
 from distill.ingestors.youtube.discovery import enrich_videos, search_videos
+from distill.library import Library
 from distill.llm import call as llm_call
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.ranking import RankedPaper, chronological_rank, rerank_videos
+from distill.pipeline.report.briefing import generate_topic_brief
+from distill.pipeline.summary import RunSummary
+from distill.pipeline.synthesis.corpus import synthesize_corpus
+from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 from distill.prompts.discover import paper_query_expansion_prompt, search_query_expansion_prompt
 
 
@@ -427,6 +452,153 @@ def _select_learning_videos(
         )
     selected = _apply_ranked_channel_cap(ranked, limit, per_channel_cap)
     return enriched, selected
+
+
+def _preview_learning_selection(
+    query: str,
+    *,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    header: str,
+    table_title: str,
+    hours: int | None = None,
+    skeptical: bool | None = None,
+    expand: bool = True,
+    top_by_date: bool = False,
+    rigor: str = "off",
+):
+    return _learning_flow_support.preview_learning_selection(
+        query,
+        days=days,
+        limit=limit,
+        sort=sort,
+        per_channel_cap=per_channel_cap,
+        shorts=shorts,
+        rerank=rerank,
+        header=header,
+        table_title=table_title,
+        get_config=get_config,
+        cost_tracker_factory=CostTracker,
+        auto_skeptical_mode=_auto_skeptical_mode,
+        window_label=_window_label,
+        select_learning_videos=_select_learning_videos,
+        display_ranked_videos=_display_ranked_videos,
+        hours=hours,
+        skeptical=skeptical,
+        expand=expand,
+        top_by_date=top_by_date,
+        rigor=rigor,
+    )
+
+
+def _run_learning_command(
+    query: str,
+    *,
+    topic: str | None,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    save: bool,
+    report: bool,
+    test: bool,
+    generate_brief: bool,
+    header: str,
+    hours: int | None = None,
+    skeptical: bool | None = None,
+    expand: bool = True,
+    focus: str | None = None,
+    top_by_date: bool = False,
+    post_ingest_callback=None,
+    rigor: str = "off",
+) -> None:
+    _preflight()
+    _learning_flow_support.run_learning_command(
+        query,
+        topic=topic,
+        days=days,
+        limit=limit,
+        sort=sort,
+        per_channel_cap=per_channel_cap,
+        shorts=shorts,
+        rerank=rerank,
+        save=save,
+        report=report,
+        test=test,
+        generate_brief=generate_brief,
+        header=header,
+        get_config=get_config,
+        cost_tracker_factory=CostTracker,
+        topic_from_query=_topic_from_query,
+        auto_skeptical_mode=_auto_skeptical_mode,
+        default_report_focus=_default_report_focus,
+        window_label=_window_label,
+        select_learning_videos=_select_learning_videos,
+        display_ranked_videos=_display_ranked_videos,
+        process_learning_selection=_process_learning_selection,
+        hours=hours,
+        skeptical=skeptical,
+        expand=expand,
+        focus=focus,
+        top_by_date=top_by_date,
+        post_ingest_callback=post_ingest_callback,
+        rigor=rigor,
+    )
+
+
+def _process_learning_selection(
+    topic_name: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    selected,
+    *,
+    save: bool,
+    report: bool,
+    test: bool,
+    generate_brief: bool,
+    report_focus: str | None = None,
+    post_ingest_callback=None,
+) -> None:
+    _learning_flow_support.process_learning_selection(
+        topic_name,
+        config,
+        tracker,
+        selected,
+        save=save,
+        report=report,
+        test=test,
+        generate_brief=generate_brief,
+        library_factory=Library,
+        run_summary_factory=RunSummary,
+        output_path=_output_path,
+        ensure_channel_context=_ensure_channel_context,
+        process_video=_process_video,
+        synthesize_channel=synthesize_channel,
+        synthesize_topic=synthesize_topic,
+        synthesize_corpus=synthesize_corpus,
+        run_scope_report=_run_scope_report,
+        generate_and_export_topic_brief=_generate_and_export_topic_brief,
+        report_focus=report_focus,
+        post_ingest_callback=post_ingest_callback,
+    )
+
+
+def _generate_and_export_topic_brief(
+    topic_name: str, config: DistillConfig, tracker: CostTracker
+) -> None:
+    _learning_flow_support.generate_and_export_topic_brief(
+        topic_name,
+        config,
+        tracker,
+        generate_topic_brief=generate_topic_brief,
+        output_path=_output_path,
+    )
 
 
 def _apply_ranked_channel_cap(ranked, limit: int, per_channel_cap: int):

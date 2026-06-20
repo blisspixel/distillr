@@ -122,6 +122,10 @@
   `distill.commands._learning`; patch `_expand_learning_queries`,
   `_expand_paper_queries`, search/enrichment collaborators, rerank helpers, and
   `_select_learning_videos` there rather than through `_logic` or `_cli_impl`.
+- Learning-flow wrappers now belong to `distill.commands._learning`; patch
+  `_preview_learning_selection`, `_run_learning_command`,
+  `_process_learning_selection`, and `_generate_and_export_topic_brief` there
+  rather than through `_logic` or `_cli_impl`.
 
 ## Validation
 

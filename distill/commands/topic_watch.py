@@ -22,7 +22,7 @@ from distill.commands._helpers import (
     _preflight,
     get_config,
 )
-from distill.commands._logic import (
+from distill.commands._learning import (
     _preview_learning_selection,
     _run_learning_command,
 )

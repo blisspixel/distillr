@@ -2,7 +2,7 @@
 
 `distill search` and `distill explore` preview the best recent YouTube videos
 Distill would learn from, without ingesting. They delegate to the learning-flow
-wrappers (still in _logic, which inject _logic-resident deps into
+wrappers in commands/_learning.py, which inject shared deps into
 commands/_learning_flow.py). First slice of the coupled-core Discover extraction.
 Registered via register() from distill.cli.
 """
@@ -32,6 +32,10 @@ from distill.commands._helpers import (
 from distill.commands._helpers import (
     run_scope_report as _run_scope_report,
 )
+from distill.commands._learning import (
+    _preview_learning_selection,
+    _run_learning_command,
+)
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
@@ -43,8 +47,6 @@ from distill.commands._logic import (
     _discover_sizing_flow,
     _display_ranked_discover,
     _is_fresh_topic,
-    _preview_learning_selection,
-    _run_learning_command,
 )
 from distill.commands._site_batch import process_site_batch_seed, site_batch_seed
 from distill.commands._site_ingest import process_site_seed as _process_site_seed

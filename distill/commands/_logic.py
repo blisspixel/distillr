@@ -24,13 +24,7 @@ from distill.cli_shared import (
     console,
 )
 from distill.cli_shared import (
-    output_path as _output_path,
-)
-from distill.cli_shared import (
     resolve_video_channel_name as _shared_resolve_video_channel_name,
-)
-from distill.cli_shared import (
-    topic_from_query as _topic_from_query,
 )
 from distill.cli_shared import (
     tty_confirm as _tty_confirm,
@@ -41,7 +35,6 @@ from distill.cli_shared import (
 from distill.commands import _concept_ingest as _concept_ingest_support
 from distill.commands import _discover_ingest as _discover_ingest_support
 from distill.commands import _learning as _learning_support
-from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands import _paper_artifacts as _paper_artifacts_support
 from distill.commands import _site_ingest as _site_ingest_support
 from distill.commands import _topic_changes as _topic_changes_support
@@ -54,19 +47,16 @@ from distill.commands._helpers import (
     _complete_watched_channels,  # noqa: F401 - compatibility export for distill._cli_impl
     _invoke_command,  # noqa: F401 - compatibility export for distill._cli_impl
     _persist_lens,  # noqa: F401 - compatibility export for distill._cli_impl
-    _preflight,
+    _preflight,  # noqa: F401 - compatibility export for distill._cli_impl
     _resolve_intent,
     _truncate_channel_list,  # noqa: F401 - compatibility export for distill._cli_impl
     get_config,
 )
 from distill.commands._helpers import (
-    ensure_channel_context as _ensure_channel_context,
+    process_video as _process_video,  # noqa: F401 - compatibility export for distill._cli_impl
 )
 from distill.commands._helpers import (
-    process_video as _process_video,
-)
-from distill.commands._helpers import (
-    run_scope_report as _run_scope_report,
+    run_scope_report as _run_scope_report,  # noqa: F401 - compatibility export for distill._cli_impl
 )
 from distill.config import DistillConfig
 
@@ -81,18 +71,15 @@ from distill.ingestors.youtube.discovery import (
     enrich_videos,
     resolve_channel_name,
 )
-from distill.library import Library
+from distill.library import Library  # noqa: F401 - compatibility export for distill.commands.audit
 from distill.library.paths import find_artifact
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import CostTracker
-from distill.pipeline.report.briefing import generate_topic_brief
 from distill.pipeline.summary import (
-    RunSummary,
     display_summary,
 )
 from distill.pipeline.synthesis.corpus import synthesize_corpus
-from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
 _replace_case_insensitive = _learning_support._replace_case_insensitive
 _strip_intent_terms = _learning_support._strip_intent_terms
@@ -113,12 +100,13 @@ _llm_expand_paper_queries = _learning_support._llm_expand_paper_queries
 _expand_learning_queries = _learning_support._expand_learning_queries
 _expand_paper_queries = _learning_support._expand_paper_queries
 _select_learning_videos = _learning_support._select_learning_videos
+_preview_learning_selection = _learning_support._preview_learning_selection
+_run_learning_command = _learning_support._run_learning_command
+_process_learning_selection = _learning_support._process_learning_selection
+_generate_and_export_topic_brief = _learning_support._generate_and_export_topic_brief
 _display_ranked_papers = _learning_support._display_ranked_papers
 _display_ranked_videos = _learning_support._display_ranked_videos
 
-_learning_flow_generate_and_export_topic_brief = (
-    _learning_flow_support.generate_and_export_topic_brief
-)
 _RankedDiscoverItem = _discover_support.RankedDiscoverItem
 _write_paper_artifacts = _paper_artifacts_support.write_paper_artifacts
 _run_concepts_after_ingest = _concept_ingest_support.run_concepts_after_ingest
@@ -141,153 +129,6 @@ _write_watch_alert_digest = _topic_changes_support._write_watch_alert_digest
 _render_topic_trends_markdown = _topic_changes_support._render_topic_trends_markdown
 _write_topic_change_briefing = _topic_changes_support._write_topic_change_briefing
 _resolve_topic_diff_baseline = _topic_changes_support._resolve_topic_diff_baseline
-
-
-def _preview_learning_selection(
-    query: str,
-    *,
-    days: int,
-    limit: int,
-    sort: str,
-    per_channel_cap: int,
-    shorts: bool,
-    rerank: bool,
-    header: str,
-    table_title: str,
-    hours: int | None = None,
-    skeptical: bool | None = None,
-    expand: bool = True,
-    top_by_date: bool = False,
-    rigor: str = "off",
-):
-    return _learning_flow_support.preview_learning_selection(
-        query,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        header=header,
-        table_title=table_title,
-        get_config=get_config,
-        cost_tracker_factory=CostTracker,
-        auto_skeptical_mode=_auto_skeptical_mode,
-        window_label=_window_label,
-        select_learning_videos=_select_learning_videos,
-        display_ranked_videos=_display_ranked_videos,
-        hours=hours,
-        skeptical=skeptical,
-        expand=expand,
-        top_by_date=top_by_date,
-        rigor=rigor,
-    )
-
-
-def _run_learning_command(
-    query: str,
-    *,
-    topic: str | None,
-    days: int,
-    limit: int,
-    sort: str,
-    per_channel_cap: int,
-    shorts: bool,
-    rerank: bool,
-    save: bool,
-    report: bool,
-    test: bool,
-    generate_brief: bool,
-    header: str,
-    hours: int | None = None,
-    skeptical: bool | None = None,
-    expand: bool = True,
-    focus: str | None = None,
-    top_by_date: bool = False,
-    post_ingest_callback=None,
-    rigor: str = "off",
-) -> None:
-    _preflight()
-    _learning_flow_support.run_learning_command(
-        query,
-        topic=topic,
-        days=days,
-        limit=limit,
-        sort=sort,
-        per_channel_cap=per_channel_cap,
-        shorts=shorts,
-        rerank=rerank,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=generate_brief,
-        header=header,
-        get_config=get_config,
-        cost_tracker_factory=CostTracker,
-        topic_from_query=_topic_from_query,
-        auto_skeptical_mode=_auto_skeptical_mode,
-        default_report_focus=_default_report_focus,
-        window_label=_window_label,
-        select_learning_videos=_select_learning_videos,
-        display_ranked_videos=_display_ranked_videos,
-        process_learning_selection=_process_learning_selection,
-        hours=hours,
-        skeptical=skeptical,
-        expand=expand,
-        focus=focus,
-        top_by_date=top_by_date,
-        post_ingest_callback=post_ingest_callback,
-        rigor=rigor,
-    )
-
-
-def _process_learning_selection(
-    topic_name: str,
-    config: DistillConfig,
-    tracker: CostTracker,
-    selected,
-    *,
-    save: bool,
-    report: bool,
-    test: bool,
-    generate_brief: bool,
-    report_focus: str | None = None,
-    post_ingest_callback=None,
-) -> None:
-    _learning_flow_support.process_learning_selection(
-        topic_name,
-        config,
-        tracker,
-        selected,
-        save=save,
-        report=report,
-        test=test,
-        generate_brief=generate_brief,
-        library_factory=Library,
-        run_summary_factory=RunSummary,
-        output_path=_output_path,
-        ensure_channel_context=_ensure_channel_context,
-        process_video=_process_video,
-        synthesize_channel=synthesize_channel,
-        synthesize_topic=synthesize_topic,
-        synthesize_corpus=synthesize_corpus,
-        run_scope_report=_run_scope_report,
-        generate_and_export_topic_brief=_generate_and_export_topic_brief,
-        report_focus=report_focus,
-        post_ingest_callback=post_ingest_callback,
-    )
-
-
-def _generate_and_export_topic_brief(
-    topic_name: str, config: DistillConfig, tracker: CostTracker
-) -> None:
-    _learning_flow_generate_and_export_topic_brief(
-        topic_name,
-        config,
-        tracker,
-        generate_topic_brief=generate_topic_brief,
-        output_path=_output_path,
-    )
 
 
 def _discover_generate_queries(

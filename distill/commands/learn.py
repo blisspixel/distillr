@@ -2,9 +2,9 @@
 
 Split out of discover.py (which grew past the module-size cap). These commands
 preview and ingest the best recent sources Distill would learn from. They
-delegate to the learning-flow wrappers still resident in _logic, which inject
-_logic-resident dependencies into commands/_learning_flow.py. Registered via
-register() from distill.cli.
+delegate to the learning-flow wrappers in commands/_learning.py, which inject
+shared dependencies into commands/_learning_flow.py. Registered via register()
+from distill.cli.
 """
 
 from __future__ import annotations
@@ -20,12 +20,12 @@ from distill.commands._concept_ingest import (
     run_concepts_after_ingest as _run_concepts_after_ingest,
 )
 from distill.commands._helpers import _apply_verify_override, _persist_lens, _preflight, get_config
-from distill.commands._learning_flow import (
-    validate_learning_options as _validate_learning_options,
-)
-from distill.commands._logic import (
+from distill.commands._learning import (
     _preview_learning_selection,
     _run_learning_command,
+)
+from distill.commands._learning_flow import (
+    validate_learning_options as _validate_learning_options,
 )
 from distill.llm.availability import model_available
 from distill.pipeline.costs import CostTracker

@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Moved channel-list display truncation into `distill.commands._helpers`, repointed dashboard tests to the canonical helper, and reduced `_logic.py` from 936 to 919 lines.
 - Moved shared video helper wrappers to direct `distill.commands._helpers` aliases, repointed process, watch, discover, and learning tests to the canonical owner, and reduced `_logic.py` from 919 to 838 lines.
 - Moved learning query expansion and video selection into `distill.commands._learning`, repointed learning and CLI wiring tests to the canonical helper, and reduced `_logic.py` from 838 to 704 lines.
+- Moved learning-flow injection wrappers into `distill.commands._learning`, repointed learn, discover, topic, topic-watch, and CLI wiring tests to the canonical helper, and reduced `_logic.py` from 704 to 470 lines.
 - Corrected the default report method label from 3-phase to 4-phase.
 - Documented Substack-class newsletter feeds as trusted recurring research profile sources, with page capture still available through `distill site` and durable refresh handled by feed ingestion.
 - Documented the external runner contract for loop handoffs: Distill emits state, argv commands, write scopes, approval class, and verifiers, while Codex, Claude Code, Grok Build, cron, GitHub Actions, or a human owns scheduling and execution.
@@ -76,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Raised the `pydantic-settings` runtime lower bound and the dev `msgpack` lower bound to fixed versions so dependency audit passes cleanly.
 - Fixed recurring profile path resolution so `missing.yaml` resolves to `profiles/missing.yaml`, not `profiles/missing.yaml.yaml`, and explicit missing `.yaml` or `.yml` paths stay explicit.
 - Fixed `distill site-batch` seed handling so one unexpected seed-level exception records a `site-ingest` run issue and the remaining seeds continue. `BudgetExceededError` still stops the run.
 

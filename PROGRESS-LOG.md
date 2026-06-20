@@ -468,6 +468,47 @@
 - Continue shrinking the remaining learning-flow and discover helper body,
   likely the learning-flow injection wrappers next.
 
+### Cycle 50 - Learning Flow Wrapper Decomposition
+
+- External spend: `$0.00`.
+- Moved the learning-flow injection wrappers into
+  `distill.commands._learning`.
+- Repointed learn, discover, topic, and topic-watch commands to import the
+  canonical learning owner directly.
+- Repointed CLI wiring tests to patch learning-flow synthesis, selection, and
+  brief-generation collaborators on `distill.commands._learning`.
+- Preserved `_logic._preview_learning_selection`,
+  `_logic._run_learning_command`, `_logic._process_learning_selection`, and
+  `_logic._generate_and_export_topic_brief` as private compatibility aliases
+  for old `_cli_impl` and `distill.cli` imports.
+- Reduced `_logic.py` from 704 to 470 lines.
+- Fixed the dependency audit by raising the runtime `pydantic-settings` lower
+  bound to 2.14.2 and adding a dev `msgpack` lower bound of 1.2.1.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_learning_flow.py tests/unit/commands/test_cli_wiring.py::TestLearnCommand tests/unit/commands/test_cli_wiring.py::TestTopicCommands tests/unit/commands/test_cli_wiring.py::TestWatchCommands tests/unit/commands/test_watch.py -q` passed: 65 passed.
+  - `uv run ruff check distill/commands/_learning.py distill/commands/_logic.py distill/commands/learn.py distill/commands/discover.py distill/commands/topic.py distill/commands/topic_watch.py` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 451 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed after the
+    lockfile update: 2512 passed, 8 deselected, 1 warning, 82.82% coverage.
+  - `uv run lint-imports` passed: 4 contracts kept, 0 broken.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed: no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed after the dependency updates:
+    no known vulnerabilities found.
+  - `uv run pyright distill/llm/` passed: 0 errors.
+  - `uv build` passed and produced `distillr-0.16.3` sdist and wheel.
+  - Verified `distill/web/templates/base.html` and
+    `distill/web/static/style.css` are present in
+    `dist/distillr-0.16.3-py3-none-any.whl`.
+
+### Next
+
+- Continue shrinking the remaining discover/process helper body, likely the
+  discover ranking and ingest bridges next.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

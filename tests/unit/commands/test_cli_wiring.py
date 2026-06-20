@@ -81,6 +81,7 @@ def mock_config(tmp_path, monkeypatch):
     _process.get_config = lambda: config
     _discover.get_config = lambda: config
     _learn.get_config = lambda: config
+    monkeypatch.setattr(_learning_support, "get_config", lambda: config)
     _watch.get_config = lambda: config
     _topic.get_config = lambda: config
     _topic_watch.get_config = lambda: config
@@ -598,10 +599,10 @@ class TestLearnCommand:
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
         )
-        monkeypatch.setattr(_cli_impl, "synthesize_channel", fake_synthesize_channel)
-        monkeypatch.setattr(_cli_impl, "synthesize_topic", fake_synthesize_topic)
+        monkeypatch.setattr(_learning_support, "synthesize_channel", fake_synthesize_channel)
+        monkeypatch.setattr(_learning_support, "synthesize_topic", fake_synthesize_topic)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "synthesize_corpus",
             lambda topic, config, tracker=None: None,
         )
@@ -708,7 +709,7 @@ class TestLearnCommand:
             lambda channel_name, titles, config, tracker=None: "# Context",
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "synthesize_channel",
             lambda topic, channel_name, config, tracker=None: (
                 config.channel_dir(topic, channel_name) / "synthesis.md"
@@ -802,7 +803,7 @@ class TestLearnCommand:
             )
             return [], [SimpleNamespace(video=video, final_score=0.91, rationale="best fit")]
 
-        monkeypatch.setattr(_cli_impl, "_select_learning_videos", fake_select)
+        monkeypatch.setattr(_learning_support, "_select_learning_videos", fake_select)
 
         result = runner.invoke(cli.app, ["explore", "Kubernetes"])
 
@@ -884,11 +885,11 @@ class TestLearnCommand:
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
         )
-        monkeypatch.setattr(_cli_impl, "synthesize_channel", fake_synthesize_channel)
-        monkeypatch.setattr(_cli_impl, "synthesize_topic", fake_synthesize_topic)
-        monkeypatch.setattr(_cli_impl, "generate_topic_brief", fake_generate_topic_brief)
+        monkeypatch.setattr(_learning_support, "synthesize_channel", fake_synthesize_channel)
+        monkeypatch.setattr(_learning_support, "synthesize_topic", fake_synthesize_topic)
+        monkeypatch.setattr(_learning_support, "generate_topic_brief", fake_generate_topic_brief)
         monkeypatch.setattr(
-            _cli_impl,
+            _learning_support,
             "synthesize_corpus",
             lambda topic, config, tracker=None: None,
         )

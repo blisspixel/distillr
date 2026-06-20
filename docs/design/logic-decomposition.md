@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: in progress (Phase 1 done; Phase 2 ~93% - `_logic.py` is down from
-> 9,373 to 704 lines, no command sub-apps left). Remediation #1 from
+> Status: in progress (Phase 1 done; Phase 2 ~95% - `_logic.py` is down from
+> 9,373 to 470 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 704 lines and shrinking; see Phase 2). It
+command group per file" target (now 470 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -147,8 +147,13 @@ slice with the ratchet lowered to match:
   `_expand_paper_queries`, `_select_learning_videos`) ->
   `commands/_learning.py`; learning and CLI wiring tests now call or patch the
   canonical owner, while `_logic` keeps only compatibility aliases.
+- **Learning-flow injection wrappers** (`_preview_learning_selection`,
+  `_run_learning_command`, `_process_learning_selection`,
+  `_generate_and_export_topic_brief`) -> `commands/_learning.py`; learn,
+  discover, topic, and topic-watch now import the canonical owner, while
+  `_logic` keeps only compatibility aliases.
 
-`_logic.py` is down from **9,373 -> 704 lines**; 13 dead scaffold modules were
+`_logic.py` is down from **9,373 -> 470 lines**; 13 dead scaffold modules were
 deleted along the way, and the remaining dead scaffold comments in `_logic.py`
 were removed with the paper artifact move.
 
@@ -156,17 +161,15 @@ were removed with the paper artifact move.
 
 - **The root `@app.callback` `_default`** (the bare-`distill` home-screen entry).
 - **The shared helper body** the extracted command modules import back: the
-  learning-flow bridge (`_process_learning_selection` plus the
-  `_preview_learning_selection` / `_run_learning_command` injection wrappers),
-  the discover/process helpers (`_discover_*`, `_resolve_video_channel_name`,
+  discover/process helpers (`_discover_*`, `_resolve_video_channel_name`,
   sizing and ingest bridges), topic-change bridge exports, and compatibility
   re-exports still expected through `distill._cli_impl`.
 
 **Next slices (recommended order):**
 
-1. **The remaining learning-flow / discover / process helper body** folds into
-   the foundation or the command modules that own it, keeping `_logic.py` under
-   the 1000-line cap while it shrinks toward deletion.
+1. **The remaining discover / process helper body** folds into the foundation
+   or the command modules that own it, keeping `_logic.py` under the 1000-line
+   cap while it shrinks toward deletion.
 2. **The root callback** moves to `cli.py` / `distill/_app.py` and `_logic`
    disappears as a named module.
 

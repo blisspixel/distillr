@@ -424,3 +424,10 @@ Cycle 49 moves learning query expansion and video selection out of `_logic.py`.
 `_select_learning_videos` now live in `distill.commands._learning`; learning and
 CLI wiring tests call or patch that canonical owner. `_logic.py` keeps only the
 private compatibility aliases and is now 704 lines.
+
+Cycle 50 moves learning-flow injection wrappers out of `_logic.py`.
+`_preview_learning_selection`, `_run_learning_command`,
+`_process_learning_selection`, and `_generate_and_export_topic_brief` now live
+in `distill.commands._learning`; learn, discover, topic, topic-watch, and CLI
+wiring tests call or patch that canonical owner. `_logic.py` keeps only the
+private compatibility aliases and is now 470 lines.
