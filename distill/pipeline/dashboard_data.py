@@ -9,6 +9,7 @@ from distill.ingestors.sites.scraper import site_section_key
 from distill.library import Library
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
+from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
 from distill.pipeline.costs import estimate_stage_cost, report_deep_research_estimate
 
 
@@ -428,6 +429,7 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
     topics: list[str],
     *,
     limit: int = 8,
+    include_thin_transcripts: bool = True,
 ) -> list[str]:
     warnings: list[str] = []
     stale_cutoff = datetime.now() - timedelta(days=90)
@@ -471,21 +473,6 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                 meta_path = video_dir / "metadata.json"
                 metadata = read_json_dict(meta_path) if meta_path.exists() else {}
                 title = str(metadata.get("title") or video_dir.name)
-                dur = int(metadata.get("duration") or 0)
-
-                transcript_path = find_artifact(video_dir, "transcript", extension="txt")
-                if transcript_path.exists():
-                    try:
-                        transcript_len = len(transcript_path.read_text(encoding="utf-8").strip())
-                    except OSError:
-                        transcript_len = 0
-                    if dur >= 1800 and transcript_len < 500:
-                        warnings.append(
-                            f"{topic} / {channel.name}: {title} transcript looks thin "
-                            f"({transcript_len} chars for {duration_str(dur)})"
-                        )
-                        if len(warnings) >= limit:
-                            return warnings
 
                 insights_path = find_artifact(video_dir, "insights")
                 if insights_path.exists():
@@ -502,6 +489,15 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                         )
                         if len(warnings) >= limit:
                             return warnings
+
+        if include_thin_transcripts:
+            for item in collect_thin_video_transcripts(topic_dir):
+                warnings.append(
+                    f"{topic} / {item.channel}: {item.title} transcript looks thin "
+                    f"({item.transcript_chars} chars for {duration_str(item.duration_seconds)})"
+                )
+                if len(warnings) >= limit:
+                    return warnings
 
         sites_dir = config.sites_dir(topic)
         if sites_dir.exists():

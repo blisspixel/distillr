@@ -478,3 +478,10 @@ added late when an ops directory becomes available, and reused CLI processes
 retarget `library/.distill/distill.log` to the current library instead of
 keeping a stale handler. This is structural run plumbing, so deterministic
 logging rules are the right boundary.
+
+Cycle 57 moves transcript validation from a dashboard-only warning into the
+durable audit report. `distill.pipeline.audit_transcripts` owns the rule:
+videos at least 1800 seconds long with transcript receipts under 500 stripped
+characters are flagged as likely capture failures. The check is advisory and
+structural, not a content-quality score, and `distill health` reuses the same
+collector so dashboard and audit wording stay aligned.

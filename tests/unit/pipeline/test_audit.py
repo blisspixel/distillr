@@ -10,10 +10,12 @@ from distill.pipeline.audit import (
     AuditReport,
     ExactVideoDuplicateGroup,
     SynthesisFreshness,
+    ThinTranscript,
     VerifyRollup,
     VideoOccurrence,
     build_next_action_plan,
     collect_exact_video_duplicates,
+    collect_thin_video_transcripts,
     collect_verify_rollup,
     render_audit_md,
     write_audit_artifact,
@@ -39,6 +41,19 @@ def _seed_video_metadata(topic_dir: Path, channel: str, slug: str, metadata: dic
     d = topic_dir / "channels" / channel / "videos" / slug
     d.mkdir(parents=True, exist_ok=True)
     (d / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+
+def _seed_video_transcript(
+    topic_dir: Path,
+    channel: str,
+    slug: str,
+    *,
+    metadata: dict,
+    transcript: str,
+) -> None:
+    _seed_video_metadata(topic_dir, channel, slug, metadata)
+    d = topic_dir / "channels" / channel / "videos" / slug
+    (d / "transcript.txt").write_text(transcript, encoding="utf-8")
 
 
 class TestVerifyRollup:
@@ -190,6 +205,59 @@ class TestExactVideoDuplicates:
         assert groups[0].members == 3
 
 
+class TestThinVideoTranscripts:
+    def test_flags_long_video_with_short_transcript(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        _seed_video_transcript(
+            topic,
+            "Creator",
+            "long-thin",
+            metadata={"title": "Long Thin", "duration": 3600},
+            transcript="too short",
+        )
+        _seed_video_transcript(
+            topic,
+            "Creator",
+            "long-good",
+            metadata={"title": "Long Good", "duration": 3600},
+            transcript="x" * 500,
+        )
+        _seed_video_transcript(
+            topic,
+            "Creator",
+            "short-thin",
+            metadata={"title": "Short Thin", "duration": 300},
+            transcript="short",
+        )
+
+        items = collect_thin_video_transcripts(topic)
+
+        assert items == [
+            ThinTranscript(
+                path="channels/Creator/videos/long-thin",
+                channel="Creator",
+                title="Long Thin",
+                duration_seconds=3600,
+                transcript_chars=9,
+            )
+        ]
+
+    def test_ignores_corrupt_metadata_and_missing_transcripts(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        broken = topic / "channels" / "Creator" / "videos" / "broken"
+        broken.mkdir(parents=True, exist_ok=True)
+        (broken / "metadata.json").write_text("{bad json", encoding="utf-8")
+        (broken / "transcript.txt").write_text("tiny", encoding="utf-8")
+        _seed_video_metadata(
+            topic,
+            "Creator",
+            "missing-transcript",
+            {"title": "Missing Transcript", "duration": 3600},
+        )
+
+        assert collect_thin_video_transcripts(topic) == []
+
+
 def _report(**overrides) -> AuditReport:
     base = {
         "topic": "t",
@@ -260,6 +328,25 @@ class TestRenderAndWrite:
         assert "Exact duplicate videos" in out
         assert "`youtube:same123` appears in 2 artifact directories" in out
         assert "`channels/A/videos/old` - Old (A)" in out
+
+    def test_render_thin_transcripts_section(self):
+        report = _report(
+            thin_transcripts=[
+                ThinTranscript(
+                    path="channels/A/videos/long",
+                    channel="A",
+                    title="Long Talk",
+                    duration_seconds=3600,
+                    transcript_chars=9,
+                )
+            ]
+        )
+
+        out = render_audit_md(report, now_iso=NOW)
+
+        assert report.issue_count == 5
+        assert "Thin video transcripts" in out
+        assert "`channels/A/videos/long` - Long Talk (A): 9 chars for 1h00m" in out
 
     def test_write_artifact_with_frontmatter(self, tmp_path: Path):
         path = write_audit_artifact(tmp_path, _report(), now_iso=NOW)
@@ -396,13 +483,23 @@ def test_audit_command_report_only(tmp_path, monkeypatch):
             "unsupported": [{"token": "5.5", "kind": "decimal", "context": "x"}],
         },
     )
+    _seed_video_transcript(
+        topic_dir,
+        "Creator",
+        "long-thin",
+        metadata={"title": "Long Thin", "duration": 3600},
+        transcript="too short",
+    )
 
     result = CliRunner().invoke(cli.app, ["audit", "t", "--report-only"])
 
     assert result.exit_code == 0, result.output
     audit_path = topic_dir / "t_Audit.md"
     assert audit_path.exists()
-    assert "5.5" in audit_path.read_text(encoding="utf-8")
+    audit_text = audit_path.read_text(encoding="utf-8")
+    assert "5.5" in audit_text
+    assert "Thin video transcripts" in audit_text
+    assert "Long Thin" in audit_text
     assert "finding(s)" in result.output
 
 

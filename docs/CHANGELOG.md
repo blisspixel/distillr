@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added a dedicated `distill audit` section for long videos whose transcript
+  receipts are suspiciously short, using the same deterministic duration and
+  character-count warning already surfaced in `distill health`.
+
 ## 0.16.10 - 2026-06-20
 
 ### Fixed

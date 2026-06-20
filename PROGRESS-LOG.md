@@ -2,6 +2,44 @@
 
 ## 2026-06-20
 
+### Cycle 57 - Thin Transcript Audit
+
+- External spend: `$0.00`.
+- Added `distill.pipeline.audit_transcripts` for deterministic transcript
+  health checks over local video metadata and transcript receipts.
+- `distill audit` now renders a dedicated "Thin video transcripts" section for
+  videos at least 1800 seconds long with transcript receipts under 500 stripped
+  characters.
+- `distill health` reuses the same collector, while audit suppresses the
+  generic health warning to avoid duplicate findings in the report.
+- This is a structural capture-failure tripwire, not a content-quality score.
+- Updated README, detailed roadmap, usage docs, changelog, current-state notes,
+  and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill/pipeline/audit.py distill/pipeline/audit_transcripts.py distill/pipeline/dashboard_data.py distill/commands/audit.py tests/unit/pipeline/test_audit.py` passed.
+  - `uv run ruff format --check distill/pipeline/audit.py distill/pipeline/audit_transcripts.py distill/pipeline/dashboard_data.py distill/commands/audit.py tests/unit/pipeline/test_audit.py` passed.
+  - `uv run pytest -q tests/unit/pipeline/test_audit.py::TestThinVideoTranscripts tests/unit/pipeline/test_audit.py::TestRenderAndWrite::test_render_thin_transcripts_section tests/unit/pipeline/test_audit.py::test_audit_command_report_only tests/unit/commands/test_cli_wiring.py::TestDoctorCleanupAndMigrate::test_health_flags_stale_and_thin_artifacts` passed: 5 passed.
+  - `uv run pytest -q tests/unit/test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 455 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2522
+    passed, 8 deselected, 1 warning, 82.88% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+  - `uv build` passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI release if the main branch
+  remains releasable.
+
 ### Cycle 56 - Structured Logging Reliability
 
 - External spend: `$0.00`.
@@ -32,11 +70,14 @@
   - `git diff --check` passed.
   - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
   - `uv build` passed.
+- Release status:
+  - Commit `c34b82e` passed CI run `27862096274`.
+  - Tag `v0.16.10` published through run `27862188373`.
+  - PyPI verified `0.16.10` with wheel and sdist.
 
 ### Next
 
-- Commit, push, verify CI, and publish the next PyPI release if the main branch
-  remains releasable.
+- Continue with structural audit quality items that do not need external spend.
 
 ## 2026-06-19
 

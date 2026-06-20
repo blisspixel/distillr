@@ -198,7 +198,7 @@ distill site-batch configs/example_seeds.json --topic example --seed-only
 distill ask "which checker should the verify tier use?" --topic memory
 
 # Trust report: verification coverage, prompt staleness, synthesis freshness,
-# exact duplicate videos, near-duplicate insights, contested concepts,
+# exact duplicate videos, thin long-video transcripts, near-duplicate insights, contested concepts,
 # link integrity, coverage gaps --
 # free, no model calls
 distill audit memory --report-only

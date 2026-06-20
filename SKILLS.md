@@ -21,6 +21,9 @@
 - Exact duplicate video detection is structural when it keys on normalized
   source identities such as `video_id` or YouTube URLs. Semantic duplicate
   meaning remains a model judgment or an advisory near-duplicate signal.
+- Thin transcript detection is structural when it compares video duration and
+  transcript character count to catch likely capture failures. Do not present
+  it as content quality scoring.
 - Semantic examples: relevance, novelty, source fit, faithfulness in prose,
   synthesis quality, contradiction interpretation, and route quality.
 - If no model route exists for a semantic task, label the fallback as structural

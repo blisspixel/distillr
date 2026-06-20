@@ -28,6 +28,7 @@ from distill.pipeline.audit import (
     collect_library_hygiene,
     collect_staleness,
     collect_synthesis_freshness,
+    collect_thin_video_transcripts,
     collect_verify_rollup,
     render_library_audit_md,
     write_audit_artifact,
@@ -83,7 +84,13 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         gap_summary = {"gaps": [], "next_actions": []}
     return AuditReport(
         topic=topic,
-        health_warnings=collect_corpus_health_warnings(config, lib, [topic], limit=50),
+        health_warnings=collect_corpus_health_warnings(
+            config,
+            lib,
+            [topic],
+            limit=50,
+            include_thin_transcripts=False,
+        ),
         contested=contested,
         broken_links=broken_by_topic.get(topic, []),
         gaps=list(gap_summary.get("gaps", [])),
@@ -92,6 +99,7 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         staleness=collect_staleness(topic_dir),
         near_duplicates=collect_near_duplicates(topic_dir),
         exact_video_duplicates=collect_exact_video_duplicates(topic_dir),
+        thin_transcripts=collect_thin_video_transcripts(topic_dir),
         freshness=collect_synthesis_freshness(topic_dir, topic),
     )
 
@@ -191,6 +199,7 @@ def _write_topic_audit_report(config, report: AuditReport, *, now_iso: str, quie
         f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
         f"{len(report.freshness.stale)} stale synthesis/es, "
         f"{len(report.exact_video_duplicates)} exact video duplicate group(s), "
+        f"{len(report.thin_transcripts)} thin transcript(s), "
         f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
         f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
     )

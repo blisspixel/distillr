@@ -31,6 +31,11 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.pipeline.audit_transcripts import (
+    ThinTranscript,
+    collect_thin_video_transcripts,
+    render_thin_video_transcripts_section,
+)
 from distill.pipeline.audit_video_duplicates import (
     ExactVideoDuplicateGroup,
     VideoOccurrence,
@@ -66,6 +71,7 @@ __all__ = [
     "ProfileHealth",
     "StalenessRollup",
     "SynthesisFreshness",
+    "ThinTranscript",
     "VerifyRollup",
     "VideoOccurrence",
     "build_next_action_plan",
@@ -74,6 +80,7 @@ __all__ = [
     "collect_profile_health",
     "collect_staleness",
     "collect_synthesis_freshness",
+    "collect_thin_video_transcripts",
     "collect_verify_rollup",
     "frontmatter_field",
     "reanalysis_commands",
@@ -143,6 +150,7 @@ class AuditReport:
     staleness: StalenessRollup = field(default_factory=StalenessRollup)
     near_duplicates: list = field(default_factory=list)  # list[DuplicateGroup]
     exact_video_duplicates: list = field(default_factory=list)  # list[ExactVideoDuplicateGroup]
+    thin_transcripts: list = field(default_factory=list)  # list[ThinTranscript]
     freshness: SynthesisFreshness = field(default_factory=SynthesisFreshness)
 
     @property
@@ -156,6 +164,7 @@ class AuditReport:
             + len(self.staleness.stale)
             + len(self.near_duplicates)
             + len(self.exact_video_duplicates)
+            + len(self.thin_transcripts)
             + len(self.freshness.stale)
             + len(self.freshness.shadowed_legacy)
         )
@@ -724,6 +733,10 @@ def _exact_video_duplicates_section(report: AuditReport) -> list[str]:
     return render_exact_video_duplicates_section(report.exact_video_duplicates)
 
 
+def _thin_transcripts_section(report: AuditReport) -> list[str]:
+    return render_thin_video_transcripts_section(report.thin_transcripts)
+
+
 def _health_section(report: AuditReport) -> list[str]:
     lines = ["## Corpus health", ""]
     if report.health_warnings:
@@ -789,6 +802,7 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
         _staleness_section,
         _freshness_section,
         _exact_video_duplicates_section,
+        _thin_transcripts_section,
         _duplicates_section,
         _health_section,
         _contested_section,
