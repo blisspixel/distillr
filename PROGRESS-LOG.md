@@ -2,6 +2,47 @@
 
 ## 2026-06-20
 
+### Cycle 62 - Trusted-Site TOC Link Extraction
+
+- External spend: `$0.00`.
+- Extended trusted-site landing-page parsing to tag links found inside
+  structural TOC/navigation containers as `toc link`.
+- TOC/navigation links are listed before generic landing links, and duplicate
+  URLs are promoted when a generic landing link is later found in the TOC.
+- Same-host, public URL, and section-scope filters still gate all generated
+  candidates before exact-page seeds reach the existing model rerank.
+- This is structural discovery provenance, not relevance, page-quality, or
+  source-fit scoring.
+- Updated README, root roadmap, detailed roadmap, usage docs, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\ingestors\sites\discovery.py tests\unit\ingestors\sites\test_discovery.py` passed.
+  - `uv run ruff format --check distill\ingestors\sites\discovery.py tests\unit\ingestors\sites\test_discovery.py` passed.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_discovery.py` passed:
+    3 passed.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_discovery.py tests\unit\pipeline\test_discovery.py tests\unit\pipeline\test_preview_cache.py` passed:
+    29 passed.
+  - `uv run pytest -q tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 460 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2536
+    passed, 8 deselected, 1 warning, 83.02% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI release if the main
+  branch remains releasable.
+
 ### Cycle 61 - Website Candidate Preview Identity
 
 - External spend: `$0.00`.

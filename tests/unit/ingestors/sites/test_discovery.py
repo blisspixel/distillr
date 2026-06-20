@@ -77,3 +77,61 @@ def test_discover_trusted_site_seeds_accepts_bare_domain_and_caps(monkeypatch):
     assert [seed.url for seed in result.seeds] == ["https://docs.example.com/guide"]
     assert result.seeds[0].site_name == "docs.example.com"
     assert result.seeds[0].source_hint == "landing link"
+
+
+def test_discover_trusted_site_seeds_prefers_toc_links_from_landing_page(monkeypatch):
+    monkeypatch.setattr(
+        "distill.ingestors.sites.discovery.is_public_web_url",
+        lambda url: url.startswith("https://learn.example.com/"),
+    )
+
+    landing = """
+    <html><body>
+      <main>
+        <a href="/docs/agents/install">Generic install link</a>
+        <a href="/docs/agents/body">Body link</a>
+      </main>
+      <nav aria-label="Table of contents">
+        <a href="/docs/agents/overview">Overview</a>
+        <a href="/docs/agents/install">Install from TOC</a>
+      </nav>
+      <div role="navigation">
+        <a href="/docs/agents/deploy">Deploy</a>
+      </div>
+    </body></html>
+    """
+    responses = {
+        "https://learn.example.com/sitemap.xml": "",
+        "https://learn.example.com/sitemap_index.xml": "",
+        "https://learn.example.com/docs/agents": landing,
+    }
+
+    result = discover_trusted_site_seeds(
+        ["https://learn.example.com/docs/agents"],
+        topic="agent365",
+        max_candidates=10,
+        fetch_text=lambda url: responses.get(url, ""),
+    )
+
+    assert [seed.url for seed in result.seeds] == [
+        "https://learn.example.com/docs/agents/overview",
+        "https://learn.example.com/docs/agents/install",
+        "https://learn.example.com/docs/agents/deploy",
+        "https://learn.example.com/docs/agents/body",
+        "https://learn.example.com/docs/agents",
+    ]
+    assert [seed.label for seed in result.seeds] == [
+        "Overview",
+        "Install from TOC",
+        "Deploy",
+        "Body link",
+        "agents",
+    ]
+    assert [seed.source_hint for seed in result.seeds] == [
+        "toc link",
+        "toc link",
+        "toc link",
+        "landing link",
+        "trusted site",
+    ]
+    assert result.fetched_landing_pages == 1

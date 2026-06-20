@@ -518,3 +518,11 @@ landing-page provenance and sitemap `lastmod` values when available, and the
 discover rerank/display path surfaces exact URL, section, source, and freshness
 in the prompt and preview table. This is identity and freshness metadata, not a
 semantic ranking signal.
+
+Cycle 62 adds TOC/navigation extraction to trusted-site discovery. The landing
+page parser now marks links found inside structural navigation or table of
+contents containers as `toc link`, lists them before generic landing links, and
+promotes duplicate URLs when a generic link is later found in the TOC. Same-host
+scope, public URL policy, section scope, exact-page seeds, and the existing
+model rerank still own the boundary between candidate enumeration and goal-fit
+judgment.

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Trusted-site discovery now prefers public same-host links found in
+  landing-page TOC/navigation containers before generic landing links, and
+  labels their preview source as `toc link`.
+
 ## 0.16.15 - 2026-06-20
 
 ### Changed

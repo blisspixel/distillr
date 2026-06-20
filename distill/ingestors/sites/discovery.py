@@ -29,6 +29,8 @@ __all__ = [
 ]
 
 FetchText = Callable[[str], str]
+_TOC_SOURCE_HINT = "toc link"
+_LANDING_SOURCE_HINT = "landing link"
 
 
 @dataclass(frozen=True)
@@ -42,12 +44,17 @@ class TrustedSiteDiscoveryResult:
 class _AnchorParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self.links: list[tuple[str, str]] = []
+        self.links: list[tuple[str, str, bool]] = []
+        self._element_stack: list[tuple[str, bool]] = []
         self._href_stack: list[str] = []
+        self._toc_link_stack: list[bool] = []
         self._text_stack: list[list[str]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() != "a":
+        lowered = tag.lower()
+        in_toc = self._in_toc_context() or _is_toc_container(lowered, attrs)
+        if lowered != "a":
+            self._element_stack.append((lowered, in_toc))
             return
         href = ""
         for key, value in attrs:
@@ -55,6 +62,7 @@ class _AnchorParser(HTMLParser):
                 href = value
                 break
         self._href_stack.append(href)
+        self._toc_link_stack.append(in_toc)
         self._text_stack.append([])
 
     def handle_data(self, data: str) -> None:
@@ -62,12 +70,26 @@ class _AnchorParser(HTMLParser):
             self._text_stack[-1].append(data)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() != "a" or not self._href_stack:
+        lowered = tag.lower()
+        if lowered != "a":
+            self._pop_element(lowered)
+            return
+        if not self._href_stack:
             return
         href = self._href_stack.pop()
+        in_toc = self._toc_link_stack.pop() if self._toc_link_stack else False
         text = " ".join("".join(self._text_stack.pop()).split())
         if href:
-            self.links.append((href, text))
+            self.links.append((href, text, in_toc))
+
+    def _in_toc_context(self) -> bool:
+        return any(in_toc for _, in_toc in self._element_stack)
+
+    def _pop_element(self, tag: str) -> None:
+        for index in range(len(self._element_stack) - 1, -1, -1):
+            if self._element_stack[index][0] == tag:
+                del self._element_stack[index:]
+                return
 
 
 def discover_trusted_site_seeds(
@@ -117,8 +139,15 @@ def discover_trusted_site_seeds(
 
 
 @dataclass(frozen=True)
+class _LandingPageCandidate:
+    url: str
+    label: str
+    source_hint: str
+
+
+@dataclass(frozen=True)
 class _LandingCandidates:
-    urls: list[tuple[str, str]]
+    urls: list[_LandingPageCandidate]
     landing_fetches: int
 
 
@@ -167,16 +196,16 @@ def _collect_source_seeds(
             return _SourceDiscovery(seeds, sitemap_fetches, 0)
 
     landing = _candidate_urls_from_landing(source_url, fetch_text=fetch_text)
-    for url, label in landing.urls:
+    for candidate in landing.urls:
         if (
             _add_seed(
                 seeds,
                 seen,
-                url,
-                label,
+                candidate.url,
+                candidate.label,
                 source_url,
                 topic,
-                source_hint="landing link",
+                source_hint=candidate.source_hint,
             )
             and len(seeds) >= remaining
         ):
@@ -263,19 +292,40 @@ def _candidate_urls_from_landing(source_url: str, *, fetch_text: FetchText) -> _
         parser.feed(html)
     except Exception:
         return _LandingCandidates([], 1)
-    urls: list[tuple[str, str]] = []
-    for href, text in parser.links:
+    candidates: list[_LandingPageCandidate] = []
+    for href, text, in_toc in parser.links:
         absolute = urllib.parse.urljoin(source_url, href)
-        urls.append((absolute, _clean_label(text) or _label_from_url(absolute)))
-    deduped: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for url, label in urls:
-        normalized = canonicalize_url(url)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        deduped.append((url, label))
+        candidates.append(
+            _LandingPageCandidate(
+                url=absolute,
+                label=_clean_label(text) or _label_from_url(absolute),
+                source_hint=_TOC_SOURCE_HINT if in_toc else _LANDING_SOURCE_HINT,
+            )
+        )
+    deduped = _dedupe_landing_candidates(candidates)
     return _LandingCandidates(deduped, 1)
+
+
+def _dedupe_landing_candidates(
+    candidates: list[_LandingPageCandidate],
+) -> list[_LandingPageCandidate]:
+    ordered_keys: list[str] = []
+    by_url: dict[str, _LandingPageCandidate] = {}
+    for candidate in candidates:
+        normalized = canonicalize_url(candidate.url)
+        current = by_url.get(normalized)
+        if current is None:
+            ordered_keys.append(normalized)
+            by_url[normalized] = candidate
+            continue
+        if current.source_hint != _TOC_SOURCE_HINT and candidate.source_hint == _TOC_SOURCE_HINT:
+            ordered_keys.remove(normalized)
+            ordered_keys.append(normalized)
+            by_url[normalized] = candidate
+    ordered = [by_url[key] for key in ordered_keys]
+    toc = [candidate for candidate in ordered if candidate.source_hint == _TOC_SOURCE_HINT]
+    landing = [candidate for candidate in ordered if candidate.source_hint != _TOC_SOURCE_HINT]
+    return toc + landing
 
 
 def _parse_sitemap(text: str) -> tuple[list[str], list[_SitemapPageCandidate]]:
@@ -392,6 +442,31 @@ def _label_from_url(url: str) -> str:
 
 def _clean_label(value: str) -> str:
     return " ".join(value.split())[:120]
+
+
+def _is_toc_container(tag: str, attrs: list[tuple[str, str | None]]) -> bool:
+    if tag in {"nav", "aside"}:
+        return True
+    values = {
+        key.lower(): value.lower()
+        for key, value in attrs
+        if value and key.lower() in {"aria-label", "class", "id", "role", "data-testid"}
+    }
+    if values.get("role") == "navigation":
+        return True
+    normalized = " ".join(values.values())
+    tokens = set(re.findall(r"[a-z0-9]+", normalized))
+    phrases = {
+        "table of contents",
+        "side nav",
+        "side navigation",
+        "docs nav",
+        "docs navigation",
+        "doc nav",
+        "doc navigation",
+    }
+    phrase_source = re.sub(r"[-_]+", " ", normalized)
+    return "toc" in tokens or any(phrase in phrase_source for phrase in phrases)
 
 
 def _fetch_text(url: str) -> str:

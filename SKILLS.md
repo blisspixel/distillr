@@ -30,9 +30,9 @@
   metadata such as candidate count, duration, and Shorts classification. Do not
   present them as relevance or quality scoring.
 - Trusted-site discovery is structural when it expands operator-trusted domains
-  or section URLs into public same-host page candidates from sitemaps and
-  landing-page links. Goal fit and page usefulness remain model-judged in the
-  existing discover rerank.
+  or section URLs into public same-host page candidates from sitemaps,
+  TOC/navigation links, and landing-page links. Goal fit and page usefulness
+  remain model-judged in the existing discover rerank.
 - Website candidate identity is structural when it shows exact URL, section
   label, discovery source, and sitemap freshness hints. Do not use those fields
   as semantic quality scores.
