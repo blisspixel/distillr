@@ -15,6 +15,11 @@ from distill.library.paths import artifact_path
 runner = CliRunner()
 
 
+class _DashboardSnapshotLib:
+    def get_channels(self, _topic):
+        return []
+
+
 def test_topic_watch_library_round_trip(config):
     lib = Library(config)
     result = lib.add_to_topic_watchlist(
@@ -348,6 +353,65 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
         _cli_impl.get_config = original
         _root.get_config = original_root
         _dashboard.get_config = original_dashboard
+
+
+def test_dashboard_cli_home_uses_shared_snapshot(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    calls = []
+
+    def fake_dashboard_snapshot(received_config):
+        calls.append(received_config)
+        return {
+            "lib": _DashboardSnapshotLib(),
+            "topics": ["snapshot-topic"],
+            "watchlist": [],
+            "topic_watchlist": [],
+            "total_channels": 0,
+            "total_videos": 0,
+            "full_videos": 0,
+            "scan_videos": 0,
+            "site_count": 0,
+            "page_count": 0,
+            "paper_count": 0,
+            "report_count": 0,
+            "brief_count": 0,
+            "synthesis_count": 0,
+            "all_cost_entries": [],
+            "recent_runs": [],
+            "recent_spend": 0.0,
+            "latest_results": {},
+            "latest_issues": [],
+            "recent_artifacts": [],
+            "topic_changes": [("snapshot-topic", "from shared snapshot")],
+            "topic_trends": {"snapshot-topic": "trend: steady"},
+            "stale_topic_watches": [],
+            "corpus_health_warnings": [],
+            "next_sweep_cost": 0.0,
+            "due_topic_watches": 0,
+            "topic_spend_rollups": [],
+            "source_spend_rollups": [],
+            "budget_messages": [],
+        }
+
+    monkeypatch.setattr(cli, "get_config", lambda: config)
+    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_root, "get_config", lambda: config)
+    monkeypatch.setattr(_dashboard, "get_config", lambda: config)
+    monkeypatch.setattr(_dashboard, "_dashboard_snapshot", fake_dashboard_snapshot)
+    monkeypatch.setattr(_root, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_root.console, "clear", lambda: None)
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 0
+    assert calls and calls[0] is config
+    assert "snapshot-topic" in result.output
+    assert "from shared snapshot" in result.output
+    assert "trend: steady" in result.output
 
 
 def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):

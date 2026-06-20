@@ -177,12 +177,11 @@ now lives directly in `distill._cli_impl`.
   learning/discover aliases, `concepts_app`, and other private compatibility
   re-exports.
 
-**A noted follow-up (behavior-touching, separate from the pure moves):** the
-dashboard slice was a pure relocation, so `_show_dashboard` still collects its
-data inline rather than consuming the shared `dashboard_snapshot()` that
-`_render_dashboard_html` already renders from. Consolidating it onto the shared
-snapshot would dissolve ~20 collector dependencies but changes the rendered
-warnings set, so it is a deliberate refactor with its own test, not a move slice.
+**Follow-up completed:** after the pure move slices landed, `_show_dashboard`
+was consolidated onto the shared `dashboard_snapshot()` that
+`_render_dashboard_html` already renders from. The CLI and web dashboards now
+share counts, spend rollups, topic changes, budget warnings, corpus health
+warnings, and synthesis freshness warnings through one tested data source.
 
 **The stale-patch hazard is sharper here** because these commands are the
 most-tested. The rule is to repoint every stale `monkeypatch.setattr` or

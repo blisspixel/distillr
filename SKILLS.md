@@ -106,6 +106,10 @@
 - `_logic.py` is gone. New command code imports canonical owners directly, and
   tests patch those owners in the same slice. Do not add imports or patch strings
   for `distill.commands._logic`.
+- CLI and web dashboard data flows through
+  `distill.pipeline.dashboard_data.dashboard_snapshot`. Keep
+  `distill.commands.dashboard` focused on presentation, and patch
+  `_dashboard_snapshot` when testing CLI home-screen snapshot wiring.
 - Site ingest now belongs to `distill.commands._site_ingest`; patch that module
   for crawl, analysis, attachment, hash, and site-synthesis behavior.
 - Paper artifact writing now belongs to `distill.commands._paper_artifacts`;

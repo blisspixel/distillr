@@ -114,6 +114,9 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 
 ### 2. Build a real dashboard and cost surface
 
+- [x] Shared dashboard data source for CLI and web. The CLI home dashboard now
+  renders from `dashboard_snapshot()`, so terminal and web views share counts,
+  spend rollups, topic changes, budget warnings, and corpus health warnings.
 - [~] Projected next-run cost by workflow, not just historical spend
 - [x] **Estimator calibration accountability** - shipped 0.12.3: estimate-of-record lands in `cost_log.jsonl`, and `distill costs` reports median absolute error, signed bias, and trend for comparable runs.
 - [~] Rolling cost by topic and source type so users can see where spend is going

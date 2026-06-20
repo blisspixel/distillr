@@ -612,6 +612,41 @@
     `distill/web/static/style.css`, and does not include
     `distill/commands/_logic.py`.
 
+### Cycle 54 - Shared Dashboard Snapshot
+
+- External spend: `$0.00`.
+- Made the CLI home dashboard render from the same
+  `distill.pipeline.dashboard_data.dashboard_snapshot()` source used by the web
+  dashboard.
+- Removed inline dashboard collection from `distill.commands.dashboard`, keeping
+  that module focused on terminal and HTML presentation.
+- Added a focused CLI home-screen regression test that patches
+  `_dashboard_snapshot` and verifies snapshot topic changes and trend labels
+  reach the rendered home screen.
+- Updated the changelog, detailed roadmap, decomposition design notes,
+  current-state notes, loop skills, and progress notes.
+- Targeted validation:
+  - `uv run ruff check distill/commands/dashboard.py tests/unit/commands/test_watch.py` passed.
+  - `uv run ruff format --check .` passed: 452 files already formatted.
+  - `uv run pytest -q tests\unit\commands\test_watch.py::test_dashboard_cli_home_uses_shared_snapshot tests\unit\commands\test_watch.py::test_dashboard_shows_topic_watch_recent_runs_and_attention tests\unit\commands\test_watch.py::test_dashboard_what_changed_is_topic_aware tests\unit\commands\test_watch.py::test_dashboard_shows_topic_and_source_spend_rollups tests\unit\commands\test_watch.py::test_dashboard_surfaces_corpus_health_warnings tests\unit\pipeline\test_dashboard_data.py tests\unit\web\test_web_server.py::test_web_routes_render_dashboard_topic_channel_video_and_watchlist` passed: 15 passed, 1 warning.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 452 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2513
+    passed, 8 deselected, 1 warning, 82.83% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept, 0 broken.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed: no medium or high issues identified.
+  - `uv run pip-audit --skip-editable` passed: no known vulnerabilities found.
+  - `uv run pyright distill/llm/` passed: 0 errors, 0 warnings.
+  - `git diff --check` and the added-line scan for em dashes and attribution
+    markers passed.
+  - `uv build` passed for `distillr-0.16.7`.
+  - Verified the wheel includes `distill/web/templates/base.html` and
+    `distill/web/static/style.css`, and does not include
+    `distill/commands/_logic.py`.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

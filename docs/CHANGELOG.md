@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Made the CLI home dashboard render from the shared
+  `dashboard_snapshot()` data source used by the web dashboard, leaving
+  `distill.commands.dashboard` as presentation code.
+
 ## 0.16.7 - 2026-06-20
 
 ### Changed

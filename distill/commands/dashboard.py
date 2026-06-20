@@ -2,21 +2,17 @@
 
 The no-argument ``distill`` invocation lands here: ``_show_dashboard`` is the
 operational home screen, falling back to ``_show_first_run_home`` when the
-library is empty. ``maintain``'s ``dashboard``/``serve`` commands reuse the same
-data through ``_dashboard_snapshot`` and render it to HTML with
-``_render_dashboard_html``.
+library is empty. ``maintain dashboard`` and ``maintain serve`` reuse the same
+shared snapshot and render it to HTML with ``_render_dashboard_html``.
 
 Data collection lives in ``distill.pipeline.dashboard_data`` (shared and tested
-there); this module is the presentation layer only. Extracted verbatim from
-``_logic.py`` during the Phase 2 decomposition. The version helper lives in
-``distill._version``; the ranking-strategy helper lives in the ``_topic_watch`` support module;
-``_logic``'s root callback imports ``_show_dashboard`` lazily to avoid an
-import cycle.
+there); this module formats the snapshot for the terminal and embedded HTML
+dashboard. The root callback in ``distill.commands.root`` imports
+``_show_dashboard`` lazily to avoid an import cycle.
 """
 
 from __future__ import annotations
 
-import json
 from html import escape
 
 from rich import box
@@ -27,35 +23,10 @@ from rich.table import Table
 from distill._version import get_version as _get_version
 from distill.cli_shared import console
 from distill.commands._helpers import get_config
-from distill.commands._topic_changes import _topic_trend_label
 from distill.commands._topic_watch import _topic_watch_ranking_strategy
 from distill.config import DistillConfig
-from distill.library import Library
-from distill.library.paths import artifact_exists
-from distill.pipeline.dashboard_data import (
-    collect_corpus_health_warnings as _collect_corpus_health_warnings,
-)
-from distill.pipeline.dashboard_data import collect_recent_artifacts as _collect_recent_artifacts
-from distill.pipeline.dashboard_data import (
-    collect_stale_topic_watches as _collect_stale_topic_watches,
-)
-from distill.pipeline.dashboard_data import collect_topic_changes as _collect_topic_changes
-from distill.pipeline.dashboard_data import count_paper_corpus as _count_paper_corpus
-from distill.pipeline.dashboard_data import count_site_corpus as _count_site_corpus
-from distill.pipeline.dashboard_data import count_topic_outputs as _count_topic_outputs
 from distill.pipeline.dashboard_data import dashboard_snapshot as _shared_dashboard_snapshot
-from distill.pipeline.dashboard_data import (
-    estimated_topic_watch_sweep as _estimated_topic_watch_sweep,
-)
 from distill.pipeline.dashboard_data import format_run_timestamp as _format_run_timestamp
-from distill.pipeline.dashboard_data import load_all_cost_runs as _load_all_cost_runs
-from distill.pipeline.dashboard_data import load_latest_run_payload as _load_latest_run_payload
-from distill.pipeline.dashboard_data import source_cost_rollups as _source_cost_rollups
-from distill.pipeline.dashboard_data import sum_recent_cost as _sum_recent_cost
-from distill.pipeline.dashboard_data import topic_cost_rollups as _topic_cost_rollups
-from distill.pipeline.dashboard_data import (
-    topic_watch_budget_messages as _topic_watch_budget_messages,
-)
 
 
 def _dashboard_metric(label: str, value: str, note: str = "") -> Panel:
@@ -119,7 +90,7 @@ def _show_first_run_home(version: str, help_hint: str = "distill --help for all 
     console.print(f"  [dim]{help_hint}[/dim]")
 
 
-def _show_dashboard():  # noqa: C901 — legacy, will refactor
+def _show_dashboard():  # noqa: C901
     """Show an operational home screen when running `distill` with no arguments."""
     version = _get_version()
 
@@ -129,61 +100,36 @@ def _show_dashboard():  # noqa: C901 — legacy, will refactor
         _show_first_run_home(version)
         return
 
-    lib = Library(config)
-    topics = lib.get_topics()
-    watchlist = lib.get_watchlist()
-    topic_watchlist = lib.get_topic_watchlist()
-
-    total_channels = sum(len(lib.get_channels(t)) for t in topics)
-    total_videos = 0
-    full_videos = 0
-    scan_videos = 0
-    for topic in topics:
-        for ch in lib.get_channels(topic):
-            vdir = config.channel_dir(topic, ch.name) / "videos"
-            if not vdir.exists():
-                continue
-            for d in vdir.iterdir():
-                if not d.is_dir() or not artifact_exists(d, "insights"):
-                    continue
-                total_videos += 1
-                meta_path = d / "metadata.json"
-                try:
-                    if meta_path.exists():
-                        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                        if meta.get("analysis_mode") == "scan":
-                            scan_videos += 1
-                        else:
-                            full_videos += 1
-                    else:
-                        full_videos += 1
-                except (OSError, json.JSONDecodeError):
-                    full_videos += 1
-
-    site_count, page_count = _count_site_corpus(config, topics)
-    paper_count = _count_paper_corpus(config, topics)
-    report_count, brief_count, synthesis_count = _count_topic_outputs(config, topics)
-    # Check new location first, fall back to old
-    _ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
-    _legacy_log = config.library_dir / "cost_log.jsonl"
-    _cost_log = _ops_log if _ops_log.exists() else _legacy_log
-    all_cost_entries = _load_all_cost_runs(_cost_log)
-    recent_runs = all_cost_entries[-6:]
-    recent_spend = _sum_recent_cost(recent_runs)
-    latest_run = _load_latest_run_payload(config.library_dir)
-    latest_results = latest_run.get("results", {}) if latest_run else {}
-    latest_issues = latest_run.get("issues", []) if latest_run else []
-    recent_artifacts = _collect_recent_artifacts(config, topics, limit=6)
-    topic_changes = _collect_topic_changes(config, lib, topics, topic_watchlist, limit=6)
-    stale_topic_watches = _collect_stale_topic_watches(topic_watchlist)
-    corpus_health_warnings = _collect_corpus_health_warnings(config, lib, topics, limit=6)
-    next_sweep_cost = _estimated_topic_watch_sweep(topic_watchlist)
-    due_topic_watches = len(stale_topic_watches)
-    topic_spend_rollups = _topic_cost_rollups(all_cost_entries, days=30, limit=4)
-    source_spend_rollups = _source_cost_rollups(all_cost_entries, days=30)
-    budget_messages = []
-    for entry in topic_watchlist:
-        budget_messages.extend(_topic_watch_budget_messages(entry, all_cost_entries))
+    snapshot = _dashboard_snapshot(config)
+    lib = snapshot["lib"]
+    topics = snapshot["topics"]
+    watchlist = snapshot["watchlist"]
+    topic_watchlist = snapshot["topic_watchlist"]
+    total_channels = snapshot["total_channels"]
+    total_videos = snapshot["total_videos"]
+    full_videos = snapshot["full_videos"]
+    scan_videos = snapshot["scan_videos"]
+    site_count = snapshot["site_count"]
+    page_count = snapshot["page_count"]
+    paper_count = snapshot["paper_count"]
+    report_count = snapshot["report_count"]
+    brief_count = snapshot["brief_count"]
+    synthesis_count = snapshot["synthesis_count"]
+    all_cost_entries = snapshot["all_cost_entries"]
+    recent_runs = snapshot["recent_runs"]
+    recent_spend = snapshot["recent_spend"]
+    latest_results = snapshot["latest_results"]
+    latest_issues = snapshot["latest_issues"]
+    recent_artifacts = snapshot["recent_artifacts"]
+    topic_changes = snapshot["topic_changes"]
+    topic_trends = snapshot.get("topic_trends") or {}
+    stale_topic_watches = snapshot["stale_topic_watches"]
+    corpus_health_warnings = snapshot["corpus_health_warnings"]
+    next_sweep_cost = snapshot["next_sweep_cost"]
+    due_topic_watches = snapshot["due_topic_watches"]
+    topic_spend_rollups = snapshot["topic_spend_rollups"]
+    source_spend_rollups = snapshot["source_spend_rollups"]
+    budget_messages = snapshot["budget_messages"]
 
     is_first_run = not any(
         [
@@ -274,7 +220,7 @@ def _show_dashboard():  # noqa: C901 — legacy, will refactor
         for entry in topic_watchlist[:5]:
             mode = "report" if entry.report else "learn"
             ranking_label = _topic_watch_ranking_strategy(entry.ranking_mode)["label"]
-            trend_label = _topic_trend_label(config, entry.topic)
+            trend_label = topic_trends.get(entry.topic)
             last = (
                 f" / last {_format_run_timestamp(entry.last_run_at)}" if entry.last_run_at else ""
             )
@@ -326,7 +272,7 @@ def _show_dashboard():  # noqa: C901 — legacy, will refactor
     changed.add_column()
     if topic_changes:
         for topic, summary in topic_changes:
-            trend_label = _topic_trend_label(config, topic)
+            trend_label = topic_trends.get(topic)
             if trend_label:
                 summary = f"{summary} [dim]({trend_label})[/dim]"
             changed.add_row(topic, summary)

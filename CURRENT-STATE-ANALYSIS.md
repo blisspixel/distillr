@@ -455,3 +455,10 @@ command implementations remain in focused `distill.commands.*` owners. Import
 sanity checks confirm `distill._cli_impl` still exports `get_config` and `main`,
 `distill.cli.app` still points at the shared Typer app, and
 `distill.commands._logic` no longer resolves.
+
+Cycle 54 consolidates the CLI home dashboard onto the shared
+`dashboard_snapshot()` source already used by the web dashboard. The command
+module now formats a snapshot instead of rebuilding counts, cost rollups,
+topic changes, budget warnings, and corpus health warnings inline. A focused
+home-screen test patches `_dashboard_snapshot` directly to prove the CLI uses
+the shared data contract.
