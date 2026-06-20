@@ -581,3 +581,35 @@ before model checks, crawling, writes, spend, progress, or run logs. The
 read-only bypass is opt-in at the write-tool wrapper and only applies to tools
 that declare preview as structurally non-mutating. This is a loop planning
 surface, not a model judgment or completion claim.
+
+Cycle 70 opens the maximum-performance quality-bar loop with a startup re-read
+and a validation pass. I re-internalized the bible: README, the reorganized
+ROADMAP (milestone map, the No-brittle-junk charter, the 1.0 quality bar),
+`docs/design/agentic-balance.md`, `docs/design/model-judgment-vs-brittle-fallbacks.md`,
+`docs/CONTRIBUTING.md`, and `SKILLS.md`. Alignment is confirmed: there is no
+separate CODE-QUALITY-STANDARDS file; the standard is those documents, and the
+supreme rule is that no quality, faithfulness, or robustness gate may be a
+deterministic score - every decision is classified structural rule, semantic
+judgment, or judgment-then-rule before any scorer or gate is written.
+
+State is validated, not assumed. Every shipped claim across 0.1-0.17 was
+re-checked against the implementation and its tests (28 load-bearing claims,
+all verified - `run_verify_hook` on every emit path, router-based
+`model_available()` replacing the `xai_api_key` gate, `_looks_like_rumor_query`
+and `infer_lens` deleted tree-wide, no `eval/stats.py` bootstrap, the `nh3`
+dashboard sanitizer), and a live grok-4.3 run ($0.06) exercised
+capture -> analyze -> verify -> synthesize end to end, writing schema-v2
+`_Verify.json` sidecars whose synthesis sidecar grounded 15/15 claims against
+its receipts. 0.17.0 was cut, tagged `v0.17.0`, and published to PyPI; the
+roadmap was reorganized so shipped detail points to the changelog and the
+forward map foregrounds the genuine remaining distance.
+
+That remaining distance is the 1.0 quality bar, not new feature surface: branch
+coverage 80 -> >=95% (ratcheted up-only), Pyright-strict beyond `distill/llm/`,
+parse-don't-validate strict domain types at every boundary, verification depth
+on the deterministic core (`deal` contracts, mutation testing, Hypothesis
+stateful tests, fault injection), the contract freeze, and the presentation
+pass. The loop advances these as atomic, test-first, locally-validated cycles,
+keeping external spend within the $5 budget (spent this session: $0.06). The
+0.19 no-metered graduation stays gated on external vendor support statements,
+so it is opportunistic rather than the critical path.
