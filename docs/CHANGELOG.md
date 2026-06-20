@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.8 - 2026-06-20
+
 ### Changed
 
 - Made the CLI home dashboard render from the shared
