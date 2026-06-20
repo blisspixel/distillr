@@ -2,6 +2,36 @@
 
 ## 2026-06-20
 
+### Cycle 70 - Transcribe Provider-Ladder Test Coverage
+
+- External spend: `$0.06` (one live `distill papers --limit 2` validation run
+  earlier this session; loop total `$0.06` of the `$5.00` cap).
+- Startup: re-read README, ROADMAP, agentic-balance, model-judgment,
+  CONTRIBUTING, and SKILLS; validated every shipped 0.1-0.17 claim (28 static +
+  one live run) and reorganized ROADMAP.md so shipped detail points to the
+  changelog and the forward map foregrounds the 1.0 quality bar.
+- Picked the lowest-covered core module from a fresh branch-coverage
+  measurement: `distill/ingestors/transcribe.py` at 49.6%.
+- Added real behavioral tests for the untested surface: the grok provider branch
+  and auto-ladder ordering, `_transcribe_grok` / `_transcribe_openai`
+  (key-absence + success notes), `_run_transcription` batched-vs-serial kwargs,
+  `_drain_segments` (accumulation, progress cadence, CUDA-OOM -> _LocalUnavailable,
+  non-OOM re-raise), `_pick_batch_size` (VRAM sizing + ceiling clamp),
+  `_pick_device` compute-type preference, and `_transcribe_local` via an injected
+  fake `faster_whisper` module (missing-dep, batched success, serial fallback,
+  batched-degrade).
+- `transcribe.py` branch coverage 49.6% -> 98%; overall 83.16% -> 83.44%. The
+  remaining 2% is the unreachable `prefer` fall-through raise; chasing it would
+  be coverage-padding.
+- Centralized the one `str -> SecretStr` construction in the `_config` test
+  helper instead of repeating it across new call sites.
+- Floor held at 80 deliberately: the CI comment documents ubuntu measured ~81%
+  with a ~1-point headroom against branch-selection jitter, so this cycle's
+  +0.28% is not enough to bump while preserving that headroom. This push's CI
+  log reports the authoritative ubuntu number for the next ratchet decision.
+- Validation (free/local): `2575 passed`; `ruff check .` clean;
+  `ruff format --check` clean; `--cov=distill.ingestors.transcribe` shows 98%.
+
 ### Cycle 69 - MCP Site Batch Read-Only Preview
 
 - External spend: `$0.00`.

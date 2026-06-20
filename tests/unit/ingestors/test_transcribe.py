@@ -6,7 +6,7 @@ import sys
 import types
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,7 +15,13 @@ from distill.ingestors.transcribe import (
     TranscriptionError,
     TranscriptionResult,
     _clip_for_whisper,
+    _drain_segments,
+    _pick_batch_size,
     _pick_device,
+    _run_transcription,
+    _transcribe_grok,
+    _transcribe_local,
+    _transcribe_openai,
     transcribe_media,
 )
 
@@ -91,8 +97,8 @@ def test_pick_device_cuda_probe_exception_returns_cpu() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _config(*, openai_key: str = "sk-test") -> DistillConfig:
-    return DistillConfig(openai_api_key=openai_key, xai_api_key="x")
+def _config(*, openai_key: str = "sk-test", xai_key: str = "x") -> DistillConfig:
+    return DistillConfig(openai_api_key=openai_key, xai_api_key=xai_key)
 
 
 def test_transcribe_media_missing_file_raises(tmp_path: Path) -> None:
@@ -170,8 +176,6 @@ def test_transcribe_media_local_only_raises_when_unavailable(tmp_path: Path) -> 
 
 
 def test_transcribe_media_cloud_only_skips_local(tmp_path: Path) -> None:
-    from unittest.mock import MagicMock
-
     media = tmp_path / "m.mp4"
     media.write_bytes(b"x")
 
@@ -270,3 +274,385 @@ def test_transcribe_media_vocab_hint_threads_through_to_local(tmp_path: Path) ->
         transcribe_media(media, _config(), vocabulary_hint="Claude, Anthropic")
 
     assert captured["hint"] == "Claude, Anthropic"
+
+
+def test_transcribe_media_grok_only_routes_to_grok(tmp_path: Path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    grok = MagicMock(
+        return_value=TranscriptionResult(text="g", provider="xai-grok-stt", model="grok-stt")
+    )
+    local = MagicMock()
+    openai = MagicMock()
+
+    with (
+        patch("distill.ingestors.transcribe._transcribe_local", local),
+        patch("distill.ingestors.transcribe._transcribe_grok", grok),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai),
+    ):
+        result = transcribe_media(media, _config(), prefer="grok")
+
+    assert result.provider == "xai-grok-stt"
+    assert grok.call_count == 1
+    assert local.call_count == 0
+    assert openai.call_count == 0
+
+
+def test_transcribe_media_auto_falls_back_to_grok_before_openai(tmp_path: Path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+
+    from distill.ingestors.transcribe import _LocalUnavailable
+
+    grok = MagicMock(
+        return_value=TranscriptionResult(text="grok", provider="xai-grok-stt", model="grok-stt")
+    )
+    openai = MagicMock()
+
+    with (
+        patch(
+            "distill.ingestors.transcribe._transcribe_local",
+            _make_local_raises(_LocalUnavailable("no local")),
+        ),
+        patch("distill.ingestors.transcribe._transcribe_grok", grok),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai),
+    ):
+        result = transcribe_media(media, _config())
+
+    assert result.provider == "xai-grok-stt"
+    assert grok.call_count == 1
+    assert openai.call_count == 0  # grok succeeded; openai never tried
+
+
+# ---------------------------------------------------------------------------
+# _pick_device — compute-type preference
+# ---------------------------------------------------------------------------
+
+
+def test_pick_device_prefers_int8_float16_when_float16_absent() -> None:
+    fake_ct = types.SimpleNamespace(
+        get_cuda_device_count=lambda: 1,
+        get_supported_compute_types=lambda dev: {"int8_float16", "float32"},
+    )
+    with patch.dict(sys.modules, {"ctranslate2": fake_ct}):
+        assert _pick_device() == ("cuda", "int8_float16")
+
+
+def test_pick_device_unknown_compute_types_falls_back_to_float16() -> None:
+    fake_ct = types.SimpleNamespace(
+        get_cuda_device_count=lambda: 1,
+        get_supported_compute_types=lambda dev: {"int8"},
+    )
+    with patch.dict(sys.modules, {"ctranslate2": fake_ct}):
+        assert _pick_device() == ("cuda", "float16")
+
+
+# ---------------------------------------------------------------------------
+# _pick_batch_size
+# ---------------------------------------------------------------------------
+
+
+def test_pick_batch_size_cpu_returns_small() -> None:
+    assert _pick_batch_size("cpu") == 4
+
+
+def test_pick_batch_size_cuda_without_ctranslate2_returns_small() -> None:
+    with patch.dict(sys.modules, {"ctranslate2": None}):
+        assert _pick_batch_size("cuda") == 4
+
+
+def test_pick_batch_size_cuda_without_torch_returns_small() -> None:
+    with patch.dict(sys.modules, {"ctranslate2": types.SimpleNamespace(), "torch": None}):
+        assert _pick_batch_size("cuda") == 4
+
+
+def test_pick_batch_size_cuda_with_torch_computes_from_free_vram() -> None:
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(
+            is_available=lambda: True,
+            mem_get_info=lambda: (11 * 1024**3, 16 * 1024**3),
+        )
+    )
+    with patch.dict(sys.modules, {"ctranslate2": types.SimpleNamespace(), "torch": fake_torch}):
+        # usable = (11 - 3) * 0.7 = 5.6 GB; slots = int(5.6 / 0.25) = 22
+        assert _pick_batch_size("cuda") == 22
+
+
+def test_pick_batch_size_clamps_to_ceiling() -> None:
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(
+            is_available=lambda: True,
+            mem_get_info=lambda: (80 * 1024**3, 80 * 1024**3),
+        )
+    )
+    with patch.dict(sys.modules, {"ctranslate2": types.SimpleNamespace(), "torch": fake_torch}):
+        assert _pick_batch_size("cuda") == 32  # clamped, not 200+
+
+
+# ---------------------------------------------------------------------------
+# _run_transcription — kwargs for batched vs serial
+# ---------------------------------------------------------------------------
+
+
+class _RecordingTranscriber:
+    def __init__(self) -> None:
+        self.kwargs: dict[str, Any] = {}
+        self.path = ""
+
+    def transcribe(self, media_path: str, **kwargs: Any) -> tuple[str, str]:
+        self.path = media_path
+        self.kwargs = kwargs
+        return ("SEGMENTS", "INFO")
+
+
+def test_run_transcription_batched_includes_batch_size() -> None:
+    t = _RecordingTranscriber()
+    segments, info = _run_transcription(
+        t, "a.mp4", initial_prompt="hint", batch_size=8, batched=True
+    )
+    assert (segments, info) == ("SEGMENTS", "INFO")
+    assert t.path == "a.mp4"
+    assert t.kwargs["batch_size"] == 8
+    assert t.kwargs["beam_size"] == 1
+    assert t.kwargs["vad_filter"] is True
+    assert t.kwargs["without_timestamps"] is True
+    assert t.kwargs["initial_prompt"] == "hint"
+
+
+def test_run_transcription_serial_omits_batch_size() -> None:
+    t = _RecordingTranscriber()
+    _run_transcription(t, "a.mp4", initial_prompt=None, batch_size=None, batched=False)
+    assert "batch_size" not in t.kwargs
+    assert t.kwargs["initial_prompt"] is None
+
+
+# ---------------------------------------------------------------------------
+# _drain_segments
+# ---------------------------------------------------------------------------
+
+
+def _seg(text: str, end: float) -> Any:
+    return types.SimpleNamespace(text=text, end=end)
+
+
+def test_drain_segments_accumulates_text_and_word_count() -> None:
+    segments = [_seg(" hello world ", 1.0), _seg("foo", 2.5), _seg("   ", 3.0)]
+    parts, words, last_end = _drain_segments(
+        segments, progress=None, progress_interval_s=30.0, total_audio_s=3.0
+    )
+    assert parts == ["hello world", "foo"]  # blank segment dropped
+    assert words == 3
+    assert last_end == 3.0
+
+
+def test_drain_segments_emits_progress_each_segment_when_interval_zero() -> None:
+    calls: list[tuple[float, float, int]] = []
+    segments = [_seg("a", 1.0), _seg("b", 2.0)]
+    _drain_segments(
+        segments,
+        progress=lambda a, t, w: calls.append((a, t, w)),
+        progress_interval_s=0.0,
+        total_audio_s=5.0,
+    )
+    assert calls == [(1.0, 5.0, 1), (2.0, 5.0, 2)]
+
+
+def test_drain_segments_cuda_oom_raises_local_unavailable() -> None:
+    from distill.ingestors.transcribe import _LocalUnavailable
+
+    def _segments() -> Any:
+        yield _seg("partial", 1.0)
+        raise RuntimeError("CUDA failed with error out of memory")
+
+    with pytest.raises(_LocalUnavailable, match="out of memory"):
+        _drain_segments(_segments(), progress=None, progress_interval_s=30.0, total_audio_s=5.0)
+
+
+def test_drain_segments_non_cuda_runtime_error_is_reraised() -> None:
+    def _segments() -> Any:
+        yield _seg("partial", 1.0)
+        raise RuntimeError("disk full")
+
+    with pytest.raises(RuntimeError, match="disk full"):
+        _drain_segments(_segments(), progress=None, progress_interval_s=30.0, total_audio_s=5.0)
+
+
+# ---------------------------------------------------------------------------
+# _transcribe_grok / _transcribe_openai
+# ---------------------------------------------------------------------------
+
+
+def test_transcribe_grok_without_key_raises_provider_unavailable() -> None:
+    from distill.ingestors.transcribe import _ProviderUnavailable
+
+    config = _config(openai_key="", xai_key="")
+    with pytest.raises(_ProviderUnavailable, match="XAI_API_KEY"):
+        _transcribe_grok(Path("a.mp4"), config)
+
+
+def test_transcribe_grok_success_builds_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "distill.llm.grok_stt.transcribe_with_grok",
+        lambda media_path, **kwargs: "grok transcript",
+    )
+    config = _config(openai_key="", xai_key="xk")
+    result = _transcribe_grok(Path("a.mp4"), config, vocabulary_hint="Anthropic")
+
+    assert result.provider == "xai-grok-stt"
+    assert result.model == "grok-stt"
+    assert result.text == "grok transcript"
+    assert any("vocab_hint" in note for note in result.notes)
+    assert any("language=en" in note for note in result.notes)
+
+
+def test_transcribe_grok_passes_clipped_hint_and_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def _fake(media_path: Path, **kwargs: Any) -> str:
+        seen.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr("distill.llm.grok_stt.transcribe_with_grok", _fake)
+    config = _config(openai_key="", xai_key="xk")
+    _transcribe_grok(Path("a.mp4"), config, vocabulary_hint="Claude", language="")
+
+    assert seen["api_key"] == "xk"
+    assert seen["vocabulary_hint"] == "Claude"
+    assert seen["language"] == ""
+
+
+def test_transcribe_openai_without_key_raises_provider_unavailable() -> None:
+    from distill.ingestors.transcribe import _ProviderUnavailable
+
+    config = _config(openai_key="", xai_key="")
+    with pytest.raises(_ProviderUnavailable, match="OPENAI_API_KEY"):
+        _transcribe_openai(Path("a.mp4"), config)
+
+
+def test_transcribe_openai_success_builds_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "distill.llm.whisper.transcribe_with_openai",
+        lambda media_path, **kwargs: "openai transcript",
+    )
+    config = _config(openai_key="sk", xai_key="")
+    result = _transcribe_openai(Path("a.mp4"), config, vocabulary_hint="Anthropic")
+
+    assert result.provider == "openai"
+    assert result.model == "whisper-1"
+    assert result.text == "openai transcript"
+    assert any("vocab_hint" in note for note in result.notes)
+
+
+def test_transcribe_openai_success_without_hint_has_no_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "distill.llm.whisper.transcribe_with_openai", lambda media_path, **kwargs: "t"
+    )
+    config = _config(openai_key="sk", xai_key="")
+    result = _transcribe_openai(Path("a.mp4"), config)
+    assert result.notes == []
+
+
+# ---------------------------------------------------------------------------
+# _transcribe_local — faster-whisper path (fake module injected)
+# ---------------------------------------------------------------------------
+
+
+def _fake_faster_whisper(
+    *,
+    with_batched: bool = True,
+    batched_raises: bool = False,
+    segments: list[Any] | None = None,
+    info: Any | None = None,
+) -> types.ModuleType:
+    """Build a stand-in ``faster_whisper`` module for the local path tests."""
+    seg_list = segments if segments is not None else [_seg("hello", 1.0)]
+    info_obj = info if info is not None else types.SimpleNamespace(duration=1.0, language="en")
+
+    class _Model:
+        def __init__(self, model_name: str, device: str = "", compute_type: str = "") -> None:
+            self.model_name = model_name
+
+        def transcribe(self, media_path: str, **kwargs: Any) -> tuple[Any, Any]:
+            return iter(seg_list), info_obj
+
+    module = types.ModuleType("faster_whisper")
+    module.WhisperModel = _Model  # type: ignore[attr-defined]
+
+    if with_batched:
+
+        class _Batched:
+            def __init__(self, model: Any = None) -> None:
+                self.model = model
+
+            def transcribe(self, media_path: str, **kwargs: Any) -> tuple[Any, Any]:
+                if batched_raises:
+                    raise RuntimeError("batched kernel failed")
+                return iter(seg_list), info_obj
+
+        module.BatchedInferencePipeline = _Batched  # type: ignore[attr-defined]
+
+    return module
+
+
+def test_transcribe_local_missing_dependency_raises_local_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from distill.ingestors.transcribe import _LocalUnavailable
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", None)
+    with pytest.raises(_LocalUnavailable, match="faster-whisper not installed"):
+        _transcribe_local(Path("a.mp4"), model_name="large-v3")
+
+
+def test_transcribe_local_batched_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("distill.ingestors.transcribe._pick_device", lambda: ("cpu", "int8"))
+    monkeypatch.setattr("distill.ingestors.transcribe._pick_batch_size", lambda device: 8)
+    monkeypatch.setitem(sys.modules, "faster_whisper", _fake_faster_whisper())
+
+    final_progress: list[tuple[float, float, int]] = []
+    result = _transcribe_local(
+        Path("a.mp4"),
+        model_name="large-v3",
+        vocabulary_hint="Anthropic",
+        progress=lambda a, t, w: final_progress.append((a, t, w)),
+    )
+
+    assert result.provider == "faster-whisper"
+    assert result.model == "large-v3"
+    assert result.text == "hello"
+    assert result.language == "en"
+    assert result.duration_s == 1.0
+    assert any("batched(size=8)" in note for note in result.notes)
+    assert any("vocab_hint" in note for note in result.notes)
+    assert final_progress  # final 100% heartbeat fired
+
+
+def test_transcribe_local_serial_when_batched_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("distill.ingestors.transcribe._pick_device", lambda: ("cpu", "int8"))
+    monkeypatch.setattr("distill.ingestors.transcribe._pick_batch_size", lambda device: 4)
+    monkeypatch.setitem(sys.modules, "faster_whisper", _fake_faster_whisper(with_batched=False))
+
+    result = _transcribe_local(Path("a.mp4"), model_name="large-v3", progress=None)
+
+    assert "serial" in result.notes
+    assert result.text == "hello"
+
+
+def test_transcribe_local_degrades_to_serial_when_batched_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("distill.ingestors.transcribe._pick_device", lambda: ("cpu", "int8"))
+    monkeypatch.setattr("distill.ingestors.transcribe._pick_batch_size", lambda device: 8)
+    monkeypatch.setitem(sys.modules, "faster_whisper", _fake_faster_whisper(batched_raises=True))
+
+    result = _transcribe_local(Path("a.mp4"), model_name="large-v3", progress=None)
+
+    assert any("batched_failed:RuntimeError" in note for note in result.notes)
+    assert "serial" in result.notes
+    assert result.text == "hello"

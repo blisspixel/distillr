@@ -44,6 +44,27 @@
 - If no model route exists for a semantic task, label the fallback as structural
   ordering. Do not present keyword or length heuristics as quality ranking.
 
+## Testing and Coverage
+
+- Pick coverage targets from a fresh `pytest --cov=distill --cov-branch
+  --cov-report=json` measurement, lowest-covered CORE module first (`pipeline/`,
+  `library/`, `concepts/`, `llm/`, `ingestors/`); the roadmap accepts thinner
+  coverage on presentation code (`web/`, dashboards). Write tests that assert
+  real behavior, never coverage-padding, and stop before contriving a test for
+  an unreachable branch.
+- Test import-guarded provider ladders by injecting a fake module into
+  `sys.modules` (e.g. a stand-in `faster_whisper` exposing `WhisperModel` /
+  `BatchedInferencePipeline`) and patching the module's own `_pick_device` /
+  `_pick_batch_size` helpers to isolate the routing under test. Set
+  `sys.modules["dep"] = None` to force the ImportError branch.
+- The branch-coverage floor (`--cov-fail-under` in `.github/workflows/ci.yml`)
+  is ratcheted up-only but keeps ~1 point of headroom against per-run
+  branch-selection jitter. Ubuntu CI measures lower than a local Windows run, so
+  bump the floor from the CI log's "Total coverage" number, not the local one,
+  and only when cumulative gains preserve the headroom.
+- Keep the one `str -> SecretStr` config construction behind a single test
+  helper rather than repeating it at each call site.
+
 ## Context Engineering
 
 - Treat prompt context as working memory and the corpus as durable memory.
@@ -62,7 +83,7 @@
 
 ## Cost Policy
 
-- External spend budget for this loop is `$5.00`; current spend is `$0.00`.
+- External spend budget for this loop is `$5.00`; current spend is `$0.06`.
 - Default to local tests and static checks. Do not make cloud/API calls unless
   the task truly requires them.
 - Use the global one-run form as `distill --cost-mode no-metered <command>`.
