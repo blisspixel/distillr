@@ -38,13 +38,14 @@ def _resolve_seed_file(library_dir: Path, seed_file: str) -> Path | None:
 
 
 @_server.mcp.tool()
-@_server.write_tool("site_batch")
+@_server.write_tool("site_batch", allow_preview=True)
 async def site_batch(  # noqa: C901
     topic: str,
     urls: list[str] | None = None,
     seed_file: str | None = None,
     seed_only: bool = False,
     same_section_only: bool = False,
+    preview: bool = False,
     ctx: Context = None,
 ) -> str:
     """Scrape and analyze pages from a site seed file or URL list.
@@ -55,18 +56,15 @@ async def site_batch(  # noqa: C901
         seed_file: Path to a seed file with URLs
         seed_only: Force exact-page processing for seed-file entries
         same_section_only: Keep shallow crawls within the seed section
+        preview: Return the resolved plan without model checks, crawling, or writes
     """
     config = _server._config()
-    if not model_available():
-        return json.dumps(
-            {
-                "status": "error",
-                "error": "No model configured (set a cloud key or DISTILL_PROVIDER).",
-            }
-        )
 
     try:
-        from distill.commands._site_batch import resolve_site_batch_seeds
+        from distill.commands._site_batch import (
+            resolve_site_batch_seeds,
+            site_batch_plan_payload,
+        )
         from distill.commands._site_ingest import process_site_seed
         from distill.ingestors.sites.scraper import SiteSeed, load_site_batch
         from distill.pipeline.summary import RunSummary
@@ -121,6 +119,23 @@ async def site_batch(  # noqa: C901
         refusal = _server.refuse_if_host_not_allowed(seed.url)
         if refusal is not None:
             return refusal
+
+    if preview:
+        return json.dumps(
+            {
+                "status": "preview",
+                "plan": site_batch_plan_payload(topic=topic, seeds=seeds),
+            },
+            indent=2,
+        )
+
+    if not model_available():
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "No model configured (set a cloud key or DISTILL_PROVIDER).",
+            }
+        )
 
     tracker = _server.capped_tracker()
     summary = RunSummary(command="site-batch")

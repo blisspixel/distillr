@@ -2,6 +2,27 @@
 
 ## 2026-06-20
 
+### Cycle 69 - MCP Site Batch Read-Only Preview
+
+- External spend: `$0.00`.
+- Added `preview=true` to MCP `site_batch`.
+- Preview resolves direct URLs, TXT seed files, and JSON seed files into the
+  same plan payload used by CLI JSON preview.
+- Preview skips model checks, crawling, writes, spend, progress callbacks, and
+  run-log writes.
+- Updated the MCP write-tool wrapper so only explicitly opted-in tools can pass
+  through read-only mode when `preview=true`.
+- Regular `site_batch` ingest still refuses in `DISTILL_MCP_READ_ONLY=1`.
+- This is structural plan inspection for loop runners. It is not a semantic
+  source-fit judgment, a page-quality score, or a completion signal.
+- Updated README, MCP docs, usage docs, root roadmap, detailed roadmap,
+  changelog, current-state notes, and loop skills.
+- Targeted validation so far:
+  - `uv run ruff check distill\mcp\server.py distill\mcp\tools\sites.py tests\unit\mcp\test_new_tools.py tests\unit\mcp\test_read_only.py` passed.
+  - `uv run ruff format --check distill\mcp\server.py distill\mcp\tools\sites.py tests\unit\mcp\test_new_tools.py tests\unit\mcp\test_read_only.py` passed after formatting.
+  - `uv run pytest -q tests\unit\mcp\test_new_tools.py::TestSiteBatchTool::test_preview_returns_plan_without_model_or_processing tests\unit\mcp\test_read_only.py::test_site_batch_preview_allowed_in_read_only tests\unit\mcp\test_read_only.py::test_write_tools_refuse_in_read_only tests\unit\mcp\test_tools.py::TestMissingConfigErrors::test_site_batch_missing_model` passed:
+    15 passed.
+
 ### Cycle 68 - MCP Site Batch JSON Seed Parity
 
 - External spend: `$0.00`.

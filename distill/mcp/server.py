@@ -92,14 +92,26 @@ def _budget_response(action: str, exc: BudgetExceededError) -> str:
     )
 
 
-def write_tool(action: str):
+def _write_tool_read_only_refusal(
+    action: str,
+    *,
+    allow_preview: bool,
+    kwargs: dict,
+) -> str | None:
+    if allow_preview and kwargs.get("preview") is True:
+        return None
+    return _refuse_if_read_only(action)
+
+
+def write_tool(action: str, *, allow_preview: bool = False):
     """Decorator marking an MCP tool as write-side (spend, ingest, or mutation).
 
     Stacks *under* ``@mcp.tool()`` so the registered callable carries the
     read-only gate and the per-call spend cap (a ``BudgetExceededError`` from
     the tool's ``capped_tracker()`` becomes a structured response instead of a
-    protocol error). ``functools.wraps`` preserves the signature FastMCP
-    introspects for the schema.
+    protocol error). Tools can opt into read-only preview calls when
+    ``preview=True`` is structurally non-mutating. ``functools.wraps`` preserves
+    the signature FastMCP introspects for the schema.
     """
     import functools
     import inspect
@@ -109,7 +121,11 @@ def write_tool(action: str):
 
             @functools.wraps(fn)
             async def async_wrapper(*args, **kwargs):
-                refusal = _refuse_if_read_only(action)
+                refusal = _write_tool_read_only_refusal(
+                    action,
+                    allow_preview=allow_preview,
+                    kwargs=kwargs,
+                )
                 if refusal is not None:
                     return refusal
                 try:
@@ -121,7 +137,11 @@ def write_tool(action: str):
 
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
-            refusal = _refuse_if_read_only(action)
+            refusal = _write_tool_read_only_refusal(
+                action,
+                allow_preview=allow_preview,
+                kwargs=kwargs,
+            )
             if refusal is not None:
                 return refusal
             try:

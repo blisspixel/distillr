@@ -662,6 +662,8 @@ every spend/ingest/mutation tool (`papers`, `discover`, `site_batch`,
 `synthesize`, `ask`, watch management, reports) refuses with a clear message
 pointing at the CLI. The recommended posture when agents you don't fully
 control can reach the server: ingest happens via the CLI by a named operator.
+One exception is structural planning: `site_batch(preview=true)` returns the
+resolved crawl plan without model checks, crawling, writes, or spend.
 
 For deployments that do expose the write tools, two narrower guardrails:
 

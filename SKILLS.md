@@ -272,3 +272,6 @@
   honors the same exact-page, shallow-crawl, crawl-prefix, and unsupported-mode
   handling as the CLI. Direct URL lists and TXT seed files stay exact-page by
   default.
+- MCP `site_batch(preview=true)` is a structural, non-mutating plan inspection
+  path. It skips model checks, crawling, writes, and spend, and it is allowed
+  through read-only MCP mode.

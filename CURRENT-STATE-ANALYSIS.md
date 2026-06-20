@@ -573,3 +573,11 @@ mode handling match `distill site-batch`. Direct URL lists and TXT seed files
 stay exact-page by default. The MCP ingest allowlist still checks every expanded
 seed URL before processing. This is structural input parsing and guardrail
 parity for agent tools, not a source-fit or page-quality judgment.
+
+Cycle 69 makes that MCP site-batch plan inspection usable in read-only agent
+deployments. `site_batch(preview=true)` now resolves direct URLs, TXT seed files,
+and JSON seed files into the same plan payload as CLI JSON preview, then exits
+before model checks, crawling, writes, spend, progress, or run logs. The
+read-only bypass is opt-in at the write-tool wrapper and only applies to tools
+that declare preview as structurally non-mutating. This is a loop planning
+surface, not a model judgment or completion claim.

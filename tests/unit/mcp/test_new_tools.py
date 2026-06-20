@@ -329,6 +329,56 @@ class TestSiteBatchTool:
         assert "Unsupported site crawl mode" in result["error"]
         assert calls == []
 
+    def test_preview_returns_plan_without_model_or_processing(self, mock_config, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        seed_file = mock_config.library_dir / "sites.json"
+        seed_file.write_text(
+            json.dumps(
+                {
+                    "topic": "web",
+                    "crawl": {
+                        "max_depth": 1,
+                        "max_pages_per_seed": 4,
+                        "same_section_only": True,
+                    },
+                    "collections": [
+                        {
+                            "name": "overview",
+                            "mode": "exact-page",
+                            "seeds": ["https://example.com/overview"],
+                        },
+                        {
+                            "name": "docs",
+                            "mode": "shallow-crawl",
+                            "crawl_prefix": "/docs",
+                            "seeds": ["https://example.com/docs/start"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        calls = []
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            lambda *args, **kwargs: calls.append("process"),
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json", preview=True)))
+
+        assert result["status"] == "preview"
+        assert result["plan"]["workflow"] == "site-batch"
+        assert result["plan"]["writes"] is False
+        assert result["plan"]["seed_count"] == 2
+        assert [seed["mode"] for seed in result["plan"]["seeds"]] == [
+            "exact-page",
+            "shallow-crawl",
+        ]
+        assert calls == []
+
     def test_direct_urls_use_existing_site_pipeline(self, mock_config, monkeypatch):
         seen = []
 

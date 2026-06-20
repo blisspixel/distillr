@@ -354,7 +354,8 @@ operator. Deployments that do expose write tools get two narrower guardrails:
 `DISTILL_MCP_MAX_SPEND_PER_CALL` (per-call spend ceiling, enforced on actual
 recorded spend) and `DISTILL_MCP_INGEST_ALLOWLIST` (URL ingest confined to
 operator-approved domains). The MCP `site_batch` tool accepts relative JSON
-seed files with the same exact-page and shallow-crawl modes as the CLI. See
+seed files with the same exact-page and shallow-crawl modes as the CLI, and its
+`preview=true` mode returns the plan even in read-only deployments. See
 [`docs/mcp.md`](docs/mcp.md) for the list.
 
 **Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard — so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.

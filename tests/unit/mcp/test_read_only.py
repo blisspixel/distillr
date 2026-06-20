@@ -74,6 +74,24 @@ def test_read_surface_stays_available_in_read_only(monkeypatch, tmp_path):
     assert result["count"] >= 1
 
 
+def test_site_batch_preview_allowed_in_read_only(monkeypatch, tmp_path):
+    from distill.config import DistillConfig
+    from distill.mcp import server as _server
+    from distill.mcp.tools.sites import site_batch
+
+    monkeypatch.setenv("DISTILL_MCP_READ_ONLY", "1")
+    config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+    monkeypatch.setattr(_server, "_config", lambda: config)
+
+    result = json.loads(
+        asyncio.run(site_batch("t", urls=["https://example.com/guide"], preview=True))
+    )
+
+    assert result["status"] == "preview"
+    assert result["plan"]["writes"] is False
+    assert result["plan"]["seeds"][0]["mode"] == "exact-page"
+
+
 def test_write_tools_proceed_when_not_read_only(monkeypatch):
     """Gate off: the wrapper falls through to the body (which then errors on
     its own preconditions, proving execution went past the gate)."""

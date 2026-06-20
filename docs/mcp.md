@@ -48,7 +48,10 @@ Then ask Claude things like:
 root. Direct URL lists and TXT seed files stay exact-page by default. JSON seed
 files use the same seed parser as the CLI, including `mode: "exact-page"`,
 `mode: "shallow-crawl"`, `crawl: true/false`, and `crawl_prefix`; unsupported
-mode names return a structured error before any ingest work starts.
+mode names return a structured error before any ingest work starts. With
+`preview=true`, the tool returns the resolved plan without model checks,
+crawling, writes, or spend, and that preview is allowed even when
+`DISTILL_MCP_READ_ONLY=1`.
 
 **Synthesize & report**
 
