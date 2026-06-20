@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.12 - 2026-06-20
+
 ### Added
 
 - Added paper citation export with `distill export <topic|all> --what citations
