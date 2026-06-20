@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.5 - 2026-06-20
+
 ### Changed
 
 - Moved discover planning, sizing, display, and mixed-source ingest helper body into `distill.commands._discover_flow`, re-exported command-level helpers through `distill.commands.discover`, and reduced `_logic.py` from 470 to 201 lines.
