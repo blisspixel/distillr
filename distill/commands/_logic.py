@@ -11,8 +11,6 @@ runtime.
 
 import os as os  # compatibility export for distill._cli_impl
 import sys
-from datetime import datetime
-from types import SimpleNamespace
 
 import typer
 
@@ -26,17 +24,8 @@ from distill.cli_shared import (
 from distill.cli_shared import (
     resolve_video_channel_name as _shared_resolve_video_channel_name,
 )
-from distill.cli_shared import (
-    tty_confirm as _tty_confirm,
-)
-from distill.cli_shared import (
-    tty_prompt as _tty_prompt,
-)
-from distill.commands import _concept_ingest as _concept_ingest_support
-from distill.commands import _discover_ingest as _discover_ingest_support
+from distill.commands import _discover_flow as _discover_flow_support
 from distill.commands import _learning as _learning_support
-from distill.commands import _paper_artifacts as _paper_artifacts_support
-from distill.commands import _site_ingest as _site_ingest_support
 from distill.commands import _topic_changes as _topic_changes_support
 from distill.commands._helpers import (
     _apply_cost_mode_override,
@@ -48,7 +37,7 @@ from distill.commands._helpers import (
     _invoke_command,  # noqa: F401 - compatibility export for distill._cli_impl
     _persist_lens,  # noqa: F401 - compatibility export for distill._cli_impl
     _preflight,  # noqa: F401 - compatibility export for distill._cli_impl
-    _resolve_intent,
+    _resolve_intent,  # noqa: F401 - compatibility export for distill._cli_impl
     _truncate_channel_list,  # noqa: F401 - compatibility export for distill._cli_impl
     get_config,
 )
@@ -58,28 +47,12 @@ from distill.commands._helpers import (
 from distill.commands._helpers import (
     run_scope_report as _run_scope_report,  # noqa: F401 - compatibility export for distill._cli_impl
 )
-from distill.config import DistillConfig
 
 # Doctor check/probe helpers live in distill.doctor.checks; the two used by the
 # doctor command (still in this module) are re-imported so it finds them in this
 # namespace. init + the MCP doctor tool import from distill.doctor.checks directly.
-from distill.ingestors.papers.arxiv import PaperRecord
-from distill.ingestors.sites.scraper import SiteSeed
-from distill.ingestors.youtube.browser_search import search_youtube_results
-from distill.ingestors.youtube.discovery import (
-    VideoInfo,
-    enrich_videos,
-    resolve_channel_name,
-)
+from distill.ingestors.youtube.discovery import resolve_channel_name
 from distill.library import Library  # noqa: F401 - compatibility export for distill.commands.audit
-from distill.library.paths import find_artifact
-from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
-from distill.pipeline.analysis.site import synthesize_site_topic
-from distill.pipeline.costs import CostTracker
-from distill.pipeline.summary import (
-    display_summary,
-)
-from distill.pipeline.synthesis.corpus import synthesize_corpus
 
 _replace_case_insensitive = _learning_support._replace_case_insensitive
 _strip_intent_terms = _learning_support._strip_intent_terms
@@ -108,8 +81,18 @@ _display_ranked_papers = _learning_support._display_ranked_papers
 _display_ranked_videos = _learning_support._display_ranked_videos
 
 _RankedDiscoverItem = _discover_support.RankedDiscoverItem
-_write_paper_artifacts = _paper_artifacts_support.write_paper_artifacts
-_run_concepts_after_ingest = _concept_ingest_support.run_concepts_after_ingest
+_discover_generate_queries = _discover_flow_support._discover_generate_queries
+_discover_fetch_videos = _discover_flow_support._discover_fetch_videos
+_discover_rerank = _discover_flow_support._discover_rerank
+_display_ranked_discover = _discover_flow_support._display_ranked_discover
+_is_fresh_topic = _discover_flow_support._is_fresh_topic
+_sizing_option_line = _discover_flow_support._sizing_option_line
+_discover_sizing_flow = _discover_flow_support._discover_sizing_flow
+_confirm_discover_ingest = _discover_flow_support._confirm_discover_ingest
+_discover_ingest_papers = _discover_flow_support._discover_ingest_papers
+_discover_ingest_videos = _discover_flow_support._discover_ingest_videos
+_discover_ingest_sites = _discover_flow_support._discover_ingest_sites
+_discover_ingest_set = _discover_flow_support._discover_ingest_set
 
 _read_json_file = _topic_changes_support._read_json_file
 _topic_change_history_path = _topic_changes_support._topic_change_history_path
@@ -129,57 +112,6 @@ _write_watch_alert_digest = _topic_changes_support._write_watch_alert_digest
 _render_topic_trends_markdown = _topic_changes_support._render_topic_trends_markdown
 _write_topic_change_briefing = _topic_changes_support._write_topic_change_briefing
 _resolve_topic_diff_baseline = _topic_changes_support._resolve_topic_diff_baseline
-
-
-def _discover_generate_queries(
-    goal: str,
-    config: DistillConfig,
-    tracker: CostTracker | None,
-    *,
-    paper_count: int,
-    video_count: int,
-) -> tuple[list[str], list[str]]:
-    return _discover_support.discover_generate_queries(
-        goal,
-        config,
-        tracker,
-        paper_count=paper_count,
-        video_count=video_count,
-        dedupe_query_strings=_dedupe_query_strings,
-    )
-
-
-def _discover_fetch_videos(
-    queries: list[str],
-    effective_days: int,
-    candidate_cap: int,
-    shorts: bool,
-) -> list[VideoInfo]:
-    return _discover_support.discover_fetch_videos(
-        queries,
-        effective_days,
-        candidate_cap,
-        shorts,
-        search_youtube_results=search_youtube_results,
-        dedupe_candidates=_dedupe_candidates,
-        enrich_videos=enrich_videos,
-        filter_recent_candidates=_filter_recent_candidates,
-    )
-
-
-def _discover_rerank(
-    goal: str,
-    papers: list[PaperRecord],
-    videos: list[VideoInfo],
-    sites: list[SiteSeed],
-    config: DistillConfig,
-    tracker: CostTracker | None,
-) -> list[_RankedDiscoverItem]:
-    return _discover_support.discover_rerank(goal, papers, videos, sites, config, tracker)
-
-
-def _display_ranked_discover(items: list[_RankedDiscoverItem], title: str) -> None:
-    _discover_support.display_ranked_discover(items, title)
 
 
 # `app` (the top-level Typer instance + its did-you-mean group class) is defined
@@ -301,239 +233,6 @@ concepts_app = typer.Typer(
 app.add_typer(concepts_app, name="concepts", rich_help_panel="Library")
 # The `concepts build` command (and the log/diff/rollback recovery surface) live
 # in commands/concepts.py and are attached to concepts_app via its register().
-
-
-def _is_fresh_topic(config, topic_name: str) -> bool:
-    """True when the topic has no ingested artifacts yet (drives sizing-as-default)."""
-    topic_dir = config.topic_dir(topic_name)
-    if not topic_dir.exists():
-        return True
-    return not any(topic_dir.rglob("*.md"))
-
-
-def _sizing_option_line(index: int, opt) -> str:
-    """Format one sizing-menu row: number, label, source breakdown, basis, spend."""
-    parts = []
-    if opt.papers:
-        parts.append(f"{opt.papers} paper(s)")
-    if opt.videos:
-        parts.append(f"{opt.videos} video(s)")
-    if opt.sites:
-        parts.append(f"{opt.sites} site(s)")
-    breakdown = ", ".join(parts) if parts else "0 items"
-    return (
-        f"  [bold]{index}[/bold]. {opt.label} — {len(opt.items)} item(s) "
-        f"({breakdown}); {opt.basis} — {opt.estimate.format()}"
-    )
-
-
-def _discover_sizing_flow(
-    *,
-    goal: str,
-    topic_name: str,
-    config,
-    tracker,
-    summary,
-    ranked: list,
-    paper_limit: int,
-    video_limit: int,
-    site_limit: int,
-    ingest_attachments: bool,
-) -> None:
-    """Preview-as-default: show ranked candidates, offer sized options, ingest the pick.
-
-    The chosen set is saved to the preview cache so the exact selection is
-    re-runnable with ``--from-preview``. The menu choice is itself the
-    confirmation, so the downstream ingest runs without a second prompt.
-    """
-    from distill.pipeline.costs import load_cost_calibration
-    from distill.pipeline.discovery import build_sizing_options
-    from distill.pipeline.preview_cache import preview_cache_dir, save_preview
-
-    _display_ranked_discover(
-        sorted(ranked, key=lambda r: r.final_score, reverse=True)[:25],
-        title=f"Goal-Ranked Candidates ({len(ranked)} reranked)",
-    )
-    options = build_sizing_options(
-        ranked,
-        paper_limit=paper_limit,
-        video_limit=video_limit,
-        site_limit=site_limit,
-        calibration=load_cost_calibration(config.library_dir),
-    )
-    if not options:
-        console.print(
-            "[yellow]No candidates worth ingesting at any quality bar. "
-            "Broaden the goal or widen --days.[/yellow]"
-        )
-        return
-
-    console.print("\n[bold]How much of this should I ingest?[/bold]")
-    for i, opt in enumerate(options, 1):
-        console.print(_sizing_option_line(i, opt))
-    console.print("  [bold]n[/bold]. Cancel")
-
-    # Interactive default is option 1; with no TTY, cancel instead -- proceeding
-    # would ingest (spend) unattended. A loop ingests via --yes (rigor path).
-    choice = _tty_prompt("\nChoose a size", default="1", non_tty_default="n").strip().lower()
-    if choice in ("n", "no", "cancel", ""):
-        console.print("[yellow]Aborted by user.[/yellow]")
-        return
-    try:
-        idx = int(choice)
-    except ValueError:
-        idx = 0
-    if idx < 1 or idx > len(options):
-        console.print(f"[yellow]'{choice}' is not a listed option. Aborted.[/yellow]")
-        return
-
-    chosen = options[idx - 1]
-    est = chosen.estimate
-    # The accepted menu option's spend is the estimate of record for this run.
-    summary.estimated_cost = est.expected
-    snapshot = save_preview(
-        preview_cache_dir(config.library_dir),
-        goal=goal,
-        model="",
-        rigor=chosen.label,
-        items=chosen.items,
-        estimate={
-            "expected": est.expected,
-            "low": est.low,
-            "high": est.high,
-            "calibrated": est.calibrated,
-        },
-        now_iso=datetime.now().isoformat(),
-    )
-    console.print(
-        f"[dim]Selected '{chosen.label}' set, saved as {snapshot.id} "
-        f"(re-runnable with --from-preview {snapshot.id}).[/dim]"
-    )
-    _discover_ingest_set(
-        topic_name=topic_name,
-        config=config,
-        tracker=tracker,
-        summary=summary,
-        ranked_papers=[it for it in chosen.items if it.kind == "paper"],
-        ranked_videos=[it for it in chosen.items if it.kind == "video"],
-        ranked_sites=[it for it in chosen.items if it.kind == "site"],
-        ingest_attachments=ingest_attachments,
-        yes=True,  # the menu selection IS the confirmation
-    )
-
-
-def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_sites) -> bool:
-    """Prompt before ingesting; return True to proceed."""
-    parts = []
-    if ranked_papers:
-        parts.append(f"{len(ranked_papers)} paper(s)")
-    if ranked_videos:
-        parts.append(f"{len(ranked_videos)} video(s)")
-    if ranked_sites:
-        parts.append(f"{len(ranked_sites)} site seed(s)")
-    ingest_summary = ", ".join(parts) if parts else "0 items"
-    return _tty_confirm(f"\nIngest {ingest_summary} into topic '{topic_name}'?", default=False)
-
-
-def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers) -> None:
-    """Analyze and write selected papers, then refresh paper synthesis."""
-    _discover_ingest_support.ingest_papers(
-        topic_name,
-        config,
-        tracker,
-        summary,
-        ranked_papers,
-        analyze_paper_fn=analyze_paper,
-        write_paper_artifacts_fn=_write_paper_artifacts,
-        synthesize_papers_fn=synthesize_papers,
-        resolve_intent_fn=_resolve_intent,
-        find_artifact_fn=find_artifact,
-    )
-
-
-def _discover_ingest_videos(topic_name, config, tracker, ranked_videos) -> None:
-    """Ingest the ranked videos through the shared learning pipeline."""
-    console.print(f"\n[bold]Ingesting {len(ranked_videos)} video(s)[/bold]")
-    video_items = [
-        SimpleNamespace(video=r.video, final_score=r.final_score, rationale=r.rationale)
-        for r in ranked_videos
-        if r.video is not None
-    ]
-    _process_learning_selection(
-        topic_name,
-        config,
-        tracker,
-        video_items,
-        save=True,
-        report=False,
-        test=False,
-        generate_brief=False,
-    )
-
-
-def _discover_ingest_sites(
-    topic_name, config, tracker, summary, ranked_sites, ingest_attachments, *, has_videos
-) -> None:
-    """Ingest selected site seeds, then refresh site topic synthesis."""
-    _discover_ingest_support.ingest_sites(
-        topic_name,
-        config,
-        tracker,
-        summary,
-        ranked_sites,
-        ingest_attachments,
-        has_videos=has_videos,
-        process_site_seed_fn=_site_ingest_support.process_site_seed,
-        synthesize_site_topic_fn=synthesize_site_topic,
-        find_artifact_fn=find_artifact,
-    )
-
-
-def _discover_ingest_set(
-    *,
-    topic_name: str,
-    config,
-    tracker,
-    summary,
-    ranked_papers: list,
-    ranked_videos: list,
-    ranked_sites: list,
-    ingest_attachments: bool,
-    yes: bool,
-) -> None:
-    """Ingest an already-ranked discover set (papers + videos + site seeds).
-
-    Shared by the live discover flow and ``--from-preview`` replay so a previewed
-    set ingests through the exact same path it would on a fresh run. Each ranked
-    item carries its source payload (``.paper`` / ``.video`` / ``.site_seed``).
-    """
-    if not yes and not _confirm_discover_ingest(
-        topic_name, ranked_papers, ranked_videos, ranked_sites
-    ):
-        console.print("[yellow]Aborted by user.[/yellow]")
-        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        return
-
-    if ranked_papers:
-        _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers)
-    if ranked_videos:
-        _discover_ingest_videos(topic_name, config, tracker, ranked_videos)
-    if ranked_sites:
-        _discover_ingest_sites(
-            topic_name,
-            config,
-            tracker,
-            summary,
-            ranked_sites,
-            ingest_attachments,
-            has_videos=bool(ranked_videos),
-        )
-
-    if synthesize_corpus(topic_name, config, tracker=tracker):
-        summary.add_output(
-            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
-        )
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
 def main():

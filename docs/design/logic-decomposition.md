@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: in progress (Phase 1 done; Phase 2 ~95% - `_logic.py` is down from
-> 9,373 to 470 lines, no command sub-apps left). Remediation #1 from
+> Status: in progress (Phase 1 done; Phase 2 ~98% - `_logic.py` is down from
+> 9,373 to 201 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 470 lines and shrinking; see Phase 2). It
+command group per file" target (now 201 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -152,26 +152,31 @@ slice with the ratchet lowered to match:
   `_generate_and_export_topic_brief`) -> `commands/_learning.py`; learn,
   discover, topic, and topic-watch now import the canonical owner, while
   `_logic` keeps only compatibility aliases.
+- **Discover helper body** (`_discover_generate_queries`,
+  `_discover_fetch_videos`, `_discover_rerank`, `_display_ranked_discover`,
+  sizing flow, confirmation, and mixed-source ingest bridges) ->
+  `commands/_discover_flow.py`, re-exported through `commands/discover.py`
+  for command-level monkeypatches; ingest isolation tests patch the support
+  owner, while `_logic` keeps only compatibility aliases.
 
-`_logic.py` is down from **9,373 -> 470 lines**; 13 dead scaffold modules were
+`_logic.py` is down from **9,373 -> 201 lines**; 13 dead scaffold modules were
 deleted along the way, and the remaining dead scaffold comments in `_logic.py`
 were removed with the paper artifact move.
 
 **What still lives in `_logic.py`:**
 
 - **The root `@app.callback` `_default`** (the bare-`distill` home-screen entry).
-- **The shared helper body** the extracted command modules import back: the
-  discover/process helpers (`_discover_*`, `_resolve_video_channel_name`,
-  sizing and ingest bridges), topic-change bridge exports, and compatibility
-  re-exports still expected through `distill._cli_impl`.
+- **Small compatibility bridge surface** still expected through
+  `distill._cli_impl`: `_resolve_video_channel_name`, topic-change bridge
+  exports, learning/discover aliases, and other private compatibility
+  re-exports.
 
 **Next slices (recommended order):**
 
-1. **The remaining discover / process helper body** folds into the foundation
-   or the command modules that own it, keeping `_logic.py` under the 1000-line
-   cap while it shrinks toward deletion.
-2. **The root callback** moves to `cli.py` / `distill/_app.py` and `_logic`
-   disappears as a named module.
+1. **The root callback** moves to `cli.py` or `distill/_app.py`, with the
+   dashboard import cycle kept lazy or dissolved.
+2. **The final compatibility bridge** moves to explicit owners or gets deleted
+   after call sites and patch strings no longer reach through `_logic`.
 
 **A noted follow-up (behavior-touching, separate from the pure moves):** the
 dashboard slice was a pure relocation, so `_show_dashboard` still collects its

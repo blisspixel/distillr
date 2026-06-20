@@ -504,10 +504,43 @@
     `distill/web/static/style.css` are present in
     `dist/distillr-0.16.3-py3-none-any.whl`.
 
+### Cycle 51 - Discover Helper Body Decomposition
+
+- External spend: `$0.00`.
+- Moved discover query generation, YouTube candidate fetch, rerank display,
+  sizing flow, confirmation, and mixed-source ingest bridge helpers into
+  `distill.commands._discover_flow`.
+- Kept command-level helper aliases re-exported through
+  `distill.commands.discover`, leaving that command module at 908 lines and
+  the support module at 271 lines.
+- Preserved `_logic` compatibility aliases for old `_cli_impl` and
+  `distill.cli` imports.
+- Repointed discover preview, discover wiring, and ingest isolation tests to
+  patch the command or support owner instead of `_logic` or `_cli_impl`.
+- Reduced `_logic.py` from 470 to 201 lines.
+- Updated roadmap, design, changelog, current-state, skills, and progress
+  notes.
+- Targeted validation:
+  - `uv run ruff check distill/commands/discover.py distill/commands/_discover_flow.py distill/commands/_logic.py distill/cli.py tests/unit/commands/test_cli_wiring.py tests/unit/commands/test_discover_preview.py tests/unit/commands/test_ingest_failure_isolation.py` passed.
+  - `uv run pytest tests/unit/commands/test_discover_preview.py tests/unit/commands/test_ingest_failure_isolation.py tests/unit/commands/test_cli_wiring.py::TestLearnHelpers::test_select_learning_videos_filters_old_enriched_candidates tests/unit/commands/test_cli_wiring.py::TestWatchCommands::test_papers_preview_shows_ranked_set tests/unit/commands/test_cli_wiring.py::TestSiteCommands::test_latest_preview_uses_stay_current_defaults tests/unit/commands/test_cli_wiring.py::TestSiteCommands::test_search_passes_hours_to_preview tests/unit/commands/test_cli_wiring.py::test_select_learning_videos_falls_back_and_filters_shorts tests/unit/test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist -q` passed: 21 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 452 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.89% coverage.
+  - `uv run lint-imports` passed: 4 contracts kept, 0 broken.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed: no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed: no known vulnerabilities found.
+  - `uv run pyright distill/llm/` passed: 0 errors.
+  - `uv build` passed and produced the 0.16.4 sdist and wheel.
+  - Verified the 0.16.4 wheel contains `distill/web/templates/base.html` and
+    `distill/web/static/style.css`.
+
 ### Next
 
-- Continue shrinking the remaining discover/process helper body, likely the
-  discover ranking and ingest bridges next.
+- Move the root callback and final compatibility bridge out of `_logic.py`,
+  then delete the named facade once call sites and patch strings are clean.
 
 ### Cycle 0 - Orientation and Doc Truth-Up
 

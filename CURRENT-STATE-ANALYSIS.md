@@ -431,3 +431,10 @@ Cycle 50 moves learning-flow injection wrappers out of `_logic.py`.
 in `distill.commands._learning`; learn, discover, topic, topic-watch, and CLI
 wiring tests call or patch that canonical owner. `_logic.py` keeps only the
 private compatibility aliases and is now 470 lines.
+
+Cycle 51 moves the remaining discover helper body out of `_logic.py`.
+Discovery query generation, YouTube candidate fetch, rerank display, sizing
+menu, confirmation, and mixed-source ingest bridges now live in
+`distill.commands._discover_flow`, with command-level helpers re-exported
+through `distill.commands.discover`; discover and ingest tests patch the owning
+module. `_logic.py` keeps compatibility aliases only and is now 201 lines.

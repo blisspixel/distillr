@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 from rich.console import Console
 
+from distill.commands import _discover_flow
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
@@ -36,8 +37,6 @@ def _ranked_paper(paper_id: str, title: str):
 
 class TestPaperLoopIsolation:
     def _run(self, tmp_path, analyze_side_effect):
-        from distill.commands import _logic
-
         config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
         summary = RunSummary(command="discover")
         ranked = [
@@ -46,10 +45,10 @@ class TestPaperLoopIsolation:
             _ranked_paper("2601.00003v1", "good two"),
         ]
         with (
-            patch.object(_logic, "analyze_paper", side_effect=analyze_side_effect),
-            patch.object(_logic, "synthesize_papers", return_value="synth") as synth,
+            patch.object(_discover_flow, "analyze_paper", side_effect=analyze_side_effect),
+            patch.object(_discover_flow, "synthesize_papers", return_value="synth") as synth,
         ):
-            _logic._discover_ingest_papers("t", config, CostTracker(), summary, ranked)
+            _discover_flow._discover_ingest_papers("t", config, CostTracker(), summary, ranked)
         return summary, synth
 
     def test_one_failed_paper_does_not_kill_the_run(self, tmp_path):
@@ -95,8 +94,6 @@ class TestPaperLoopIsolation:
 
 class TestSiteLoopIsolation:
     def test_site_progress_continues_after_seed_failure(self, tmp_path, capsys):
-        from distill.commands import _logic, _site_ingest
-
         config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
         summary = RunSummary(command="discover")
         ranked = [
@@ -117,10 +114,10 @@ class TestSiteLoopIsolation:
                 raise RuntimeError("crawl exploded")
 
         with (
-            patch.object(_site_ingest, "process_site_seed", side_effect=process),
-            patch.object(_logic, "synthesize_site_topic", return_value=None),
+            patch.object(_discover_flow, "_process_site_seed", side_effect=process),
+            patch.object(_discover_flow, "synthesize_site_topic", return_value=None),
         ):
-            _logic._discover_ingest_sites(
+            _discover_flow._discover_ingest_sites(
                 "web",
                 config,
                 CostTracker(),

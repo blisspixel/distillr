@@ -126,6 +126,7 @@ from distill.commands.topic_watch import topic_watch_app  # noqa: F401
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
 from distill.commands.watch import register as _register_watch
+from distill.pipeline.costs import CostTracker  # noqa: F401
 
 _content_hash = _site_ingest_support.content_hash
 _process_site_seed = _site_ingest_support.process_site_seed

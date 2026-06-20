@@ -126,6 +126,14 @@
   `_preview_learning_selection`, `_run_learning_command`,
   `_process_learning_selection`, and `_generate_and_export_topic_brief` there
   rather than through `_logic` or `_cli_impl`.
+- Discover planning and ingest bridges now belong to
+  `distill.commands._discover_flow`; command-level helper aliases are
+  re-exported through `distill.commands.discover`. Patch
+  `_discover_generate_queries`, `_discover_fetch_videos`, `_discover_rerank`,
+  `_display_ranked_discover`, `_discover_sizing_flow`, and
+  `_discover_ingest_set` on the command module when testing command routing.
+  Patch paper/site analysis collaborators and `_process_learning_selection` on
+  `_discover_flow` when testing helper internals.
 
 ## Validation
 

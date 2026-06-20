@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
-from distill.commands import _helpers, _site_ingest
+from distill.commands import _discover_flow, _helpers, _site_ingest
 from distill.commands import _learning as _learning_support
 from distill.commands import dashboard as _dashboard
 from distill.commands import discover as _discover
@@ -1835,7 +1835,7 @@ class TestWatchCommands:
 
         monkeypatch.setattr(_papers, "search_arxiv_papers", fake_search)
         monkeypatch.setattr(
-            _cli_impl, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
+            _papers, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
         )
 
         result = runner.invoke(
@@ -1995,11 +1995,11 @@ class TestWatchCommands:
         # Must not execute ingestion under --preview
         analyze_calls: list = []
         monkeypatch.setattr(
-            _cli_impl, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
+            _discover_flow, "analyze_paper", lambda *a, **k: analyze_calls.append(a) or ("", "")
         )
         process_calls: list = []
         monkeypatch.setattr(
-            _cli_impl,
+            _discover_flow,
             "_process_learning_selection",
             lambda *a, **k: process_calls.append(a),
         )
@@ -2229,10 +2229,10 @@ class TestWatchCommands:
             return "topic synthesis"
 
         monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
-        monkeypatch.setattr(_site_ingest, "process_site_seed", fake_process_site_seed)
-        monkeypatch.setattr(_cli_impl, "synthesize_site_topic", fake_synthesize_site_topic)
+        monkeypatch.setattr(_discover_flow, "_process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(_discover_flow, "synthesize_site_topic", fake_synthesize_site_topic)
         monkeypatch.setattr(
-            _cli_impl, "synthesize_corpus", lambda topic, config, tracker=None: None
+            _discover_flow, "synthesize_corpus", lambda topic, config, tracker=None: None
         )
 
         result = runner.invoke(

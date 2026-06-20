@@ -22,6 +22,15 @@ from distill.cli_shared import topic_from_query as _topic_from_query
 from distill.commands._concept_ingest import (
     run_concepts_after_ingest as _run_concepts_after_ingest,
 )
+from distill.commands._discover_flow import (
+    _discover_fetch_videos,
+    _discover_generate_queries,
+    _discover_ingest_set,
+    _discover_rerank,
+    _discover_sizing_flow,
+    _display_ranked_discover,
+    _is_fresh_topic,
+)
 from distill.commands._helpers import (
     _apply_verify_override,
     _detect_ramp_source,
@@ -38,15 +47,6 @@ from distill.commands._learning import (
 )
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
-)
-from distill.commands._logic import (
-    _discover_fetch_videos,
-    _discover_generate_queries,
-    _discover_ingest_set,
-    _discover_rerank,
-    _discover_sizing_flow,
-    _display_ranked_discover,
-    _is_fresh_topic,
 )
 from distill.commands._site_batch import process_site_batch_seed, site_batch_seed
 from distill.commands._site_ingest import process_site_seed as _process_site_seed

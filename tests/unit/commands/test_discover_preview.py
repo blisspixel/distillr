@@ -4,6 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import _discover_flow
 from distill.commands import discover as _discover
 from distill.commands import topic as _topic
 from distill.config import DistillConfig
@@ -146,9 +147,7 @@ def _patch_discover_pipeline(monkeypatch):
 def test_fresh_topic_defaults_to_sizing_menu(mock_config, monkeypatch):
     _patch_discover_pipeline(monkeypatch)
     captured = {}
-    # The sizing menu's ingest runs inside _discover_sizing_flow (still in _logic),
-    # which resolves _discover_ingest_set from the _logic namespace.
-    monkeypatch.setattr(_cli_impl, "_discover_ingest_set", lambda **k: captured.update(k))
+    monkeypatch.setattr(_discover_flow, "_discover_ingest_set", lambda **k: captured.update(k))
     # The sizing menu is interactive; force the TTY path so CliRunner's input is read.
     monkeypatch.setattr("distill.commands._helpers._isatty", lambda: True)
 
