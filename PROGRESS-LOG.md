@@ -2,6 +2,21 @@
 
 ## 2026-06-20
 
+### Cycle 72 - Branch-Coverage Floor Ratchet 80 -> 82
+
+- External spend: `$0.00`.
+- Evidence-based ratchet: read the authoritative ubuntu CI coverage from the
+  cycle-70 run -- 83.38% (3.12/3.13), 83.34% (3.14) -- which showed the CI
+  comment's "~81%" was stale and the Windows <-> ubuntu gap is ~0.1%, not ~2%.
+- Raised `--cov-fail-under` 80 -> 82 in `.github/workflows/ci.yml`, preserving
+  the documented ~1-point headroom against branch-selection jitter below the
+  83.34% matrix minimum. Updated the CI comment, `docs/CONTRIBUTING.md` (3
+  command refs), `AGENTS.md`, and the `SKILLS.md` validation command to match.
+- Historical PROGRESS-LOG cycle records keep their original
+  `--cov-fail-under=80` (immutable run history); only live guidance moved.
+- Advances the 1.0 quality gate (branch coverage ratcheted up-only toward
+  >=95%) on real CI evidence, not a blind bump.
+
 ### Cycle 71 - Network / SSRF Helper Test Coverage
 
 - External spend: `$0.00` (free/local validation only; loop total `$0.06` of

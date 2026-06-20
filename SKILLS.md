@@ -204,7 +204,7 @@
 - For code or docs changes, run:
   - `uv run ruff check .`
   - `uv run ruff format --check .`
-  - `uv run pytest -q --cov=distill --cov-fail-under=80`
+  - `uv run pytest -q --cov=distill --cov-fail-under=82`
 - If the full coverage run exceeds a short command timeout, rerun with a longer
   timeout before treating it as a failure.
 
