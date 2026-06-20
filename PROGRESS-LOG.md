@@ -2,6 +2,31 @@
 
 ## 2026-06-20
 
+### Cycle 71 - Network / SSRF Helper Test Coverage
+
+- External spend: `$0.00` (free/local validation only; loop total `$0.06` of
+  the `$5.00` cap).
+- Target: `distill/ingestors/net.py` (security-critical SSRF + retry helpers),
+  71.2% -> 97% branch coverage.
+- Added real behavioral tests for the untested core: `resolve_public_ip`
+  fail-closed branches (DNS failure, unparseable resolved address,
+  any-private-addr rejection, hostname -> public-IP success), `pin_host_to_ip`
+  case / trailing-dot normalization, the `_PublicWebRedirectHandler` per-hop
+  re-validation (refuse non-public redirect, allow public), and `safe_urlopen`'s
+  whole retry/backoff state machine (success, Request-object input, 5xx
+  retry-then-succeed, 429 longer backoff, 4xx immediate raise, 5xx exhaustion,
+  URLError retry-then-raise, TimeoutError retry) plus `_truncate_url`.
+- The retry tests run offline: mock `net._SSRF_SAFE_OPENER.open` and
+  `net.time.sleep`, and use a literal public-IP URL to pass the SSRF guard
+  without DNS; resolution-branch tests monkeypatch `net.socket.getaddrinfo`.
+- The remaining 2 lines are the near-unreachable `urlparse` ValueError branch
+  and the documented "should be unreachable" final raise; chasing them would be
+  coverage-padding.
+- Floor still held at 80: cumulative gain is not yet enough to ratchet while
+  preserving the documented ubuntu jitter headroom.
+- Validation (free/local): full suite `2592 passed`; `ruff check` + `format`
+  clean; targeted net coverage 97%; overall 83.44% -> 83.54%.
+
 ### Cycle 70 - Transcribe Provider-Ladder Test Coverage
 
 - External spend: `$0.06` (one live `distill papers --limit 2` validation run

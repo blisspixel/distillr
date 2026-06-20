@@ -64,6 +64,11 @@
   and only when cumulative gains preserve the headroom.
 - Keep the one `str -> SecretStr` config construction behind a single test
   helper rather than repeating it at each call site.
+- For SSRF / retry network helpers, drive the retry state machine offline by
+  patching the module's opener (`net._SSRF_SAFE_OPENER.open`) and `time.sleep`,
+  and use a literal public-IP URL to pass the SSRF guard without DNS; force the
+  fail-closed resolution branches by monkeypatching `socket.getaddrinfo` to
+  raise `gaierror` or return private / unparseable addresses.
 
 ## Context Engineering
 
