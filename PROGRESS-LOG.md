@@ -582,6 +582,36 @@
   `_logic.py` once import and patch-string checks prove no remaining caller
   depends on it.
 
+### Cycle 53 - Delete the Logic Facade
+
+- External spend: `$0.00`.
+- Moved the remaining private compatibility exports from
+  `distill.commands._logic` into `distill._cli_impl`.
+- Deleted `distill/commands/_logic.py`.
+- Updated `cli.py` wording to describe `_cli_impl` as a compatibility export
+  surface, not a business-logic owner.
+- Updated roadmap, detailed roadmap, decomposition design notes,
+  current-state notes, loop skills, changelog, and progress notes to mark the
+  monolith removal complete.
+- Targeted validation:
+  - `uv run python -c "import importlib.util; from distill import _cli_impl, cli; print(hasattr(_cli_impl, 'get_config'), hasattr(_cli_impl, 'main'), cli.app is _cli_impl.app, importlib.util.find_spec('distill.commands._logic'))"` passed: `True True True None`.
+  - `uv run pytest -q tests\unit\commands\test_discover_preview.py tests\unit\commands\test_discover_dedup.py tests\unit\commands\test_intent_cli.py tests\unit\pipeline\test_repo_ingest.py::test_ingest_command_routes_github tests\unit\commands\test_json_read_surface.py tests\unit\commands\test_rigor_cli.py tests\unit\commands\test_watch.py tests\unit\commands\test_cli_wiring.py::TestTopLevelExperience` passed: 60 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 452 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.82% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept, 0 broken.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed: no medium or high issues identified.
+  - `uv run pip-audit --skip-editable` passed: no known vulnerabilities found.
+  - `uv run pyright distill/llm/` passed: 0 errors, 0 warnings.
+  - `uv build` passed for `distillr-0.16.6`.
+  - Verified the wheel includes `distill/web/templates/base.html` and
+    `distill/web/static/style.css`, and does not include
+    `distill/commands/_logic.py`.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

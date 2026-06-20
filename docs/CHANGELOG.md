@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Deleted the remaining `distill.commands._logic` facade and moved its private
+  compatibility exports into `distill._cli_impl`, leaving command
+  implementations in focused owner modules.
+
 ## 0.16.6 - 2026-06-20
 
 ### Changed

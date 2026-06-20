@@ -448,3 +448,10 @@ cost-mode override, and home-screen banner now live in
 patch those owners instead of `_logic` or `_cli_impl`. `_logic.py` is now a
 113-line `_cli_impl` compatibility target only; no production command module
 imports it.
+
+Cycle 53 deletes the remaining `distill.commands._logic` facade. The private
+compatibility export surface now lives directly in `distill._cli_impl`, while
+command implementations remain in focused `distill.commands.*` owners. Import
+sanity checks confirm `distill._cli_impl` still exports `get_config` and `main`,
+`distill.cli.app` still points at the shared Typer app, and
+`distill.commands._logic` no longer resolves.

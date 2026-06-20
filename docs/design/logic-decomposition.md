@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: in progress (Phase 1 done; Phase 2 ~99% - `_logic.py` is down from
-> 9,373 to 113 lines, no command sub-apps left). Remediation #1 from
+> Status: complete. `_logic.py` was reduced from 9,373 lines to zero and
+> deleted, with command ownership moved to focused modules. Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,13 +11,13 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 113 lines and shrinking; see Phase 2). It
+command group per file" target (now deleted; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
 the single worst offender. Goal: every command group in its own
-`distill/commands/<group>.py`, `_logic.py` shrinks below 1000 lines, disappears
-as a named module, and the size-ratchet allowlist stays empty.
+`distill/commands/<group>.py`, `_logic.py` disappears as a named module, and the
+size-ratchet allowlist stays empty.
 
 ## The hazard (why naïve "move the function" false-greens)
 
@@ -36,13 +36,13 @@ remediation.
 
 The target pattern already exists: `commands/update.py` / `audit.py` are
 full implementations with a `register(app)` (or `@app.command`) entry, *not* thin
-wrappers over `_logic`. Migrate each old monolith group into that shape:
+wrappers over `_logic`. During the migration, each old monolith group moved into
+that shape:
 
 1. **Move** the command function(s) + their *group-private* helpers into
-   `distill/commands/<group>.py`. Shared helpers stay in `_logic` (or move to
-   `_helpers.py`) and are imported back — the facade points *into* the new module,
-   shared utilities still flow *from* the foundation.
-2. **Facade:** `_logic.py` re-exports the moved names
+   `distill/commands/<group>.py`. Shared helpers moved to `_helpers.py` or a
+   focused support owner and were imported back by commands.
+2. **Facade:** during migration, `_logic.py` re-exported the moved names
    (`from distill.commands.<group> import <names>`) so every existing
    `from distill.commands._logic import <name>` keeps working *unchanged* during
    migration.
@@ -98,9 +98,9 @@ failure is unambiguously a wiring problem, not a logic regression.
 (`commands/reports.py`), and the top-level app + did-you-mean group
 (`distill/_app.py`). The size ratchet's allowlist tracked every step down.
 
-**Phase 2 is most of the way through the coupled core.** Since the Phase 1
-boundary the following have left the monolith, each as a green, pure-relocation
-slice with the ratchet lowered to match:
+**Phase 2 is complete.** Since the Phase 1 boundary the following left the
+monolith, each as a green, pure-relocation slice with the ratchet lowered to
+match:
 
 - **Discover / Process / Papers** → `commands/discover.py`, `commands/process.py`,
   `commands/papers.py`, with the learning family split into `commands/learn.py`
@@ -108,8 +108,9 @@ slice with the ratchet lowered to match:
 - **Watch** (the `watch` sub-app + `catch-up`) → `commands/watch.py`.
 - **View leftovers** (`diff`, `trends`, `add`, `remove`) → `commands/view.py`.
 - **Intent / Concepts** sub-apps → `commands/intent.py`, `commands/concepts.py`.
-- **Home screen + HTML dashboard renderers** → `commands/dashboard.py`
-  (`_logic`'s root callback lazy-imports `_show_dashboard` to avoid the cycle).
+- **Home screen + HTML dashboard renderers** → `commands/dashboard.py`, with
+  the root callback now in `commands/root.py` and still importing the dashboard
+  lazily to avoid the cycle.
 - **Foundation moves** that settle the shared seam so later moves import a stable
   symbol instead of a moving target: `_preflight` / `_invoke_command` /
   `_resolve_intent` / `_detect_ramp_source` / `_apply_verify_override` /
@@ -129,35 +130,31 @@ slice with the ratchet lowered to match:
   now patch the new owner.
 - **Paper artifact writing** (`write_paper_artifacts`) ->
   `commands/_paper_artifacts.py`; CLI, MCP, discover, and verify tests now
-  patch the new owner, while `_logic` keeps only a compatibility alias.
+  patch the new owner.
 - **Post-ingest concept playbook hook** (`run_concepts_after_ingest`) ->
   `commands/_concept_ingest.py`; paper, learn, discover, and tests now patch
-  the new owner, while `_logic` keeps only a compatibility alias.
+  the new owner.
 - **Installed version lookup** (`get_version`) -> `distill._version`;
-  dashboard, doctor, maintain, and tests now import from the canonical owner,
-  while `_logic` keeps only a compatibility alias.
+  dashboard, doctor, maintain, and tests now import from the canonical owner.
 - **Channel-list display truncation** (`_truncate_channel_list`) ->
-  `commands/_helpers.py`; dashboard tests now call the canonical owner, while
-  `_logic` keeps only a compatibility alias.
+  `commands/_helpers.py`; dashboard tests now call the canonical owner.
 - **Shared video helpers** (`_ensure_channel_context`, `_process_video`,
   `_run_scope_report`) -> `commands/_helpers.py`; process, watch, discover,
-  and learning tests now call or patch the canonical owner, while `_logic`
-  keeps only compatibility aliases.
+  and learning tests now call or patch the canonical owner.
 - **Learning query expansion and video selection** (`_expand_learning_queries`,
   `_expand_paper_queries`, `_select_learning_videos`) ->
   `commands/_learning.py`; learning and CLI wiring tests now call or patch the
-  canonical owner, while `_logic` keeps only compatibility aliases.
+  canonical owner.
 - **Learning-flow injection wrappers** (`_preview_learning_selection`,
   `_run_learning_command`, `_process_learning_selection`,
   `_generate_and_export_topic_brief`) -> `commands/_learning.py`; learn,
-  discover, topic, and topic-watch now import the canonical owner, while
-  `_logic` keeps only compatibility aliases.
+  discover, topic, and topic-watch now import the canonical owner.
 - **Discover helper body** (`_discover_generate_queries`,
   `_discover_fetch_videos`, `_discover_rerank`, `_display_ranked_discover`,
   sizing flow, confirmation, and mixed-source ingest bridges) ->
   `commands/_discover_flow.py`, re-exported through `commands/discover.py`
   for command-level monkeypatches; ingest isolation tests patch the support
-  owner, while `_logic` keeps only compatibility aliases.
+  owner.
 - **Root callback and final direct command imports** -> `commands/root.py`,
   `commands/concepts.py`, and existing command owners. The bare `distill`
   callback, version flag, global output/cost mode handling, and home-screen
@@ -166,24 +163,19 @@ slice with the ratchet lowered to match:
   `process`, and `view` import their canonical helper owners directly instead
   of reaching through `_logic`.
 
-`_logic.py` is down from **9,373 -> 113 lines**; 13 dead scaffold modules were
-deleted along the way, the remaining dead scaffold comments in `_logic.py`
-were removed with the paper artifact move, and no production command module now
-imports `_logic`.
+`_logic.py` is down from **9,373 -> 0 lines** and is deleted. Thirteen dead
+scaffold modules were deleted along the way, the remaining dead scaffold
+comments in `_logic.py` were removed with the paper artifact move, no production
+command module imports `_logic`, and the private compatibility bridge surface
+now lives directly in `distill._cli_impl`.
 
-**What still lives in `_logic.py`:**
+**Remaining compatibility surface:**
 
-- **Small compatibility bridge surface** still expected through
-  `distill._cli_impl`: `app`, `main`, `get_config`, `_default`,
+- `distill._cli_impl` still exports private names used by `distill.cli` and
+  legacy tests, including `app`, `main`, `get_config`, `_default`,
   `_resolve_video_channel_name`, topic-change bridge exports,
   learning/discover aliases, `concepts_app`, and other private compatibility
   re-exports.
-
-**Next slices (recommended order):**
-
-1. **The final compatibility bridge** moves to `distill._cli_impl` or explicit
-   owners, then `_logic.py` is deleted after call sites and patch strings no
-   longer reach through it.
 
 **A noted follow-up (behavior-touching, separate from the pure moves):** the
 dashboard slice was a pure relocation, so `_show_dashboard` still collects its
@@ -210,7 +202,6 @@ load-bearing (the home-screen tests pass *because* `dashboard.get_config` is
 patched, not by accident). The per-PR grep gate plus a periodic false-pass sweep
 are both part of the contract for Phase 2.
 
-The endpoint is unchanged: `_logic.py` is now below the 1000-line cap and the
-ratchet allowlist is empty; next it disappears as a named module. `cli.py`
-becomes the wiring-only entry point the
+The endpoint is reached: `_logic.py` is gone and the ratchet allowlist is empty.
+`cli.py` remains the wiring-only entry point the
 [target layout](../../ROADMAP.md#target-package-layout-10) describes.

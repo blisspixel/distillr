@@ -1,8 +1,8 @@
-"""Distill CLI — thin wiring module.
+"""Distill CLI - thin wiring module.
 
 This module is the public entry point for the ``distill`` command.
-All business logic lives in ``distill._cli_impl``; command groups are
-also available as standalone Typer sub-apps in ``distill.commands.*``.
+Command groups live in focused ``distill.commands.*`` modules, while
+``distill._cli_impl`` preserves private compatibility exports.
 
 The ``app`` and ``main()`` exported here are the canonical runtime
 instances used by ``pyproject.toml [project.scripts]``.
@@ -16,12 +16,12 @@ the test suite patches the canonical module paths directly.
 
 from __future__ import annotations
 
-import distill._bootstrap  # noqa: F401 — UTF-8 stdio side-effect
+import distill._bootstrap  # noqa: F401 - UTF-8 stdio side-effect
 
 # Re-export everything from _cli_impl so tests that monkeypatch
 # attributes on ``distill.cli`` keep working.
 from distill._cli_impl import *  # noqa: F403
-from distill._cli_impl import (  # noqa: F401 — private names needed by tests
+from distill._cli_impl import (  # noqa: F401 - private names needed by tests
     _append_topic_change_history,
     _apply_ranked_channel_cap,
     _auto_skeptical_mode,

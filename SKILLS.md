@@ -103,9 +103,9 @@
 - Per-item failures should become structured run issues and the loop should
   continue when re-running is convergent. `BudgetExceededError` remains a hard
   stop.
-- When a helper moves out of `_logic.py`, repoint tests to the canonical owner
-  in the same slice and keep only explicit compatibility re-exports that callers
-  still use.
+- `_logic.py` is gone. New command code imports canonical owners directly, and
+  tests patch those owners in the same slice. Do not add imports or patch strings
+  for `distill.commands._logic`.
 - Site ingest now belongs to `distill.commands._site_ingest`; patch that module
   for crawl, analysis, attachment, hash, and site-synthesis behavior.
 - Paper artifact writing now belongs to `distill.commands._paper_artifacts`;
@@ -140,8 +140,7 @@
   `_cli_impl`.
 - `ask`, `audit`, `claude-md`, `concepts`, `ingest`, `eval`, `process`, and
   `view` no longer import `_logic`; patch their own modules or canonical helper
-  owners. `_logic.py` is only the `_cli_impl` compatibility bridge until it is
-  deleted.
+  owners. Private legacy compatibility exports now live in `distill._cli_impl`.
 
 ## Validation
 
