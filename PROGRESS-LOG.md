@@ -542,6 +542,46 @@
 - Move the root callback and final compatibility bridge out of `_logic.py`,
   then delete the named facade once call sites and patch strings are clean.
 
+### Cycle 52 - Root Callback and Final Direct Imports
+
+- External spend: `$0.00`.
+- Moved the bare `distill` root callback, eager `--version`, output-mode setup,
+  cost-mode override, and home-screen banner into `distill.commands.root`.
+- Moved `concepts_app` construction into `distill.commands.concepts`; `cli.py`
+  now wires that sub-app explicitly before registering concept commands.
+- Repointed `ask`, `audit`, `claude-md`, `ingest`, `eval`, `process`, and
+  `view` off `_logic.py` to their canonical helper or command owners.
+- Repointed home-screen, ask, audit, claude-md, and concepts tests to patch the
+  owning modules instead of `_logic` or `_cli_impl`.
+- Reduced `_logic.py` from 201 to 113 lines. No production command module now
+  imports `_logic.py`; it remains only as the `_cli_impl` compatibility target.
+- Updated roadmap, detailed roadmap, decomposition design notes, changelog,
+  current-state notes, loop skills, and progress notes.
+- Targeted validation:
+  - `uv run ruff check distill\commands\root.py distill\commands\_logic.py distill\commands\concepts.py distill\commands\claude_md.py distill\commands\ask.py distill\commands\audit.py distill\commands\ingest.py distill\commands\eval.py distill\commands\process.py distill\commands\view.py distill\cli.py tests\unit\commands\test_cli_wiring.py tests\unit\commands\test_watch.py tests\unit\commands\test_claude_md.py tests\unit\commands\test_concepts.py tests\unit\pipeline\test_ask.py tests\unit\pipeline\test_audit.py` passed.
+  - `uv run ruff format --check distill\commands\root.py distill\commands\_logic.py distill\commands\concepts.py distill\commands\claude_md.py distill\commands\ask.py distill\commands\audit.py distill\commands\ingest.py distill\commands\eval.py distill\commands\process.py distill\commands\view.py distill\cli.py tests\unit\commands\test_cli_wiring.py tests\unit\commands\test_watch.py tests\unit\commands\test_claude_md.py tests\unit\commands\test_concepts.py tests\unit\pipeline\test_ask.py tests\unit\pipeline\test_audit.py` passed.
+  - `uv run pytest -q tests\unit\commands\test_cli_wiring.py::TestTopLevelExperience tests\unit\commands\test_watch.py::test_dashboard_shows_topic_watch_recent_runs_and_attention tests\unit\commands\test_watch.py::test_dashboard_what_changed_is_topic_aware tests\unit\commands\test_watch.py::test_dashboard_shows_topic_and_source_spend_rollups tests\unit\commands\test_watch.py::test_dashboard_surfaces_corpus_health_warnings tests\unit\commands\test_claude_md.py tests\unit\commands\test_concepts.py tests\unit\pipeline\test_ask.py::test_ask_command_wiring tests\unit\pipeline\test_audit.py::test_audit_command_report_only tests\unit\pipeline\test_audit.py::test_audit_command_next_actions_json` passed: 33 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 453 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.89% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept, 0 broken.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed: no medium or high issues identified.
+  - `uv run pip-audit --skip-editable` passed: no known vulnerabilities found.
+  - `uv run pyright distill/llm/` passed: 0 errors, 0 warnings.
+  - `uv build` passed for `distillr-0.16.5`.
+  - Verified the wheel includes `distill/web/templates/base.html` and
+    `distill/web/static/style.css`.
+
+### Next
+
+- Move the `_cli_impl` compatibility bridge to direct owners and delete
+  `_logic.py` once import and patch-string checks prove no remaining caller
+  depends on it.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

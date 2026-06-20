@@ -3,8 +3,8 @@
 Extracted from the _logic.py monolith (Process slice). These commands
 transcribe and analyze YouTube videos and channels and drive the multi-step
 ``run`` pipeline. Shared helpers that other commands also use
-(_process_video, _resolve_video_channel_name, _ensure_channel_context,
-_run_scope_report) live in helper modules and are imported back here.
+(_process_video, _ensure_channel_context, _run_scope_report) live in helper
+modules and are imported back here.
 """
 
 from __future__ import annotations
@@ -40,10 +40,10 @@ from distill.commands._helpers import (
     process_video as _process_video,
 )
 from distill.commands._helpers import (
-    run_scope_report as _run_scope_report,
+    resolve_video_channel_name as _resolve_video_channel_name,
 )
-from distill.commands._logic import (
-    _resolve_video_channel_name,
+from distill.commands._helpers import (
+    run_scope_report as _run_scope_report,
 )
 from distill.ingestors.youtube.discovery import (
     discover_videos,
@@ -108,7 +108,7 @@ def video(
         console.print("[red]Could not get video info. Check the URL.[/red]")
         raise typer.Exit(1)
 
-    channel_name = _resolve_video_channel_name(url, info)
+    channel_name = _resolve_video_channel_name(url, info, resolve_channel_name)
     console.print(f"[bold]{info.title}[/bold]")
     console.print(f"[dim]{_format_date(info.upload_date)} | {_duration_str(info.duration)}[/dim]\n")
 

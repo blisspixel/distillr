@@ -116,10 +116,10 @@ class TestAsk:
 def test_ask_command_wiring(config, monkeypatch):
     from typer.testing import CliRunner
 
-    from distill import _cli_impl, cli
+    from distill import cli
 
     _seed_corpus(config)
-    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
     # The ask gate asks the router for a model (cloud key OR local provider), not
     # config.xai_api_key; a keyless local provider keeps this offline + deterministic.
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")

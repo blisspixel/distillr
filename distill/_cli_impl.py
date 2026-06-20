@@ -1,7 +1,8 @@
-"""CLI implementation — backward-compatible re-export shim.
+"""CLI implementation compatibility shim.
 
-All business logic now lives in ``distill/commands/_logic.py``.
-This module aliases itself to that module via ``sys.modules`` so that:
+Most business logic now lives in focused ``distill.commands`` modules.
+This module still aliases itself to ``distill.commands._logic`` via
+``sys.modules`` so that:
 
 1. Existing tests that patch ``distill._cli_impl.get_config`` etc. keep working
    (the patch targets the same module object that command functions use).
@@ -9,7 +10,7 @@ This module aliases itself to that module via ``sys.modules`` so that:
 3. Any third-party code importing from ``distill._cli_impl`` is unaffected.
 
 After this shim executes, ``distill._cli_impl`` and ``distill.commands._logic``
-refer to the **same** module object in ``sys.modules``.
+refer to the same module object in ``sys.modules``.
 """
 
 import sys

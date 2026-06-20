@@ -17,9 +17,9 @@ from datetime import UTC, datetime
 import typer
 
 from distill._console import console, set_json_mode
-from distill.commands import _logic
-from distill.commands._helpers import _complete_topics, tty_prompt
+from distill.commands._helpers import _complete_topics, get_config, tty_prompt
 from distill.commands._json import emit_json, json_mode_active, set_json_active
+from distill.library import Library
 from distill.pipeline.audit import (
     AuditReport,
     NextActionPlan,
@@ -132,8 +132,8 @@ def audit_cmd(
 
     next_actions, wants_json = _resolve_next_action_mode(json_output, next_actions)
 
-    config = _logic.get_config()
-    lib = _logic.Library(config)
+    config = get_config()
+    lib = Library(config)
     topics = lib.get_topics() if topic == "all" else [topic]
     now_iso = _now_iso()
     if not topics:

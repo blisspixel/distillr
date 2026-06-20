@@ -134,6 +134,14 @@
   `_discover_ingest_set` on the command module when testing command routing.
   Patch paper/site analysis collaborators and `_process_learning_selection` on
   `_discover_flow` when testing helper internals.
+- The bare `distill` root callback now belongs to `distill.commands.root`.
+  Patch root-level `get_config`, `show_banner`, and shared console behavior on
+  that module for home-screen tests rather than through `_logic` or
+  `_cli_impl`.
+- `ask`, `audit`, `claude-md`, `concepts`, `ingest`, `eval`, `process`, and
+  `view` no longer import `_logic`; patch their own modules or canonical helper
+  owners. `_logic.py` is only the `_cli_impl` compatibility bridge until it is
+  deleted.
 
 ## Validation
 

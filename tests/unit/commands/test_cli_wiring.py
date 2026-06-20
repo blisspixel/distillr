@@ -23,6 +23,7 @@ from distill.commands import process as _process
 from distill.commands import profile as _profile
 from distill.commands import reports as _reports
 from distill.commands import reprocess as _reprocess
+from distill.commands import root as _root
 from distill.commands import topic as _topic
 from distill.commands import topic_watch as _topic_watch
 from distill.commands import view as _view
@@ -68,6 +69,7 @@ def mock_config(tmp_path, monkeypatch):
     original_watch = _watch.get_config  # watch sub-app + catch-up moved to commands/watch.py
     original_topic = _topic.get_config  # topic sub-app moved to commands/topic.py
     original_topic_watch = _topic_watch.get_config  # topic-watch moved to commands/topic_watch.py
+    original_root = _root.get_config  # top-level callback moved to commands/root.py
     original_dashboard = _dashboard.get_config  # home screen moved to commands/dashboard.py
     original_expand = getattr(cli, "_llm_expand_learning_queries", None)
     original_expand_impl = getattr(_cli_impl, "_llm_expand_learning_queries", None)
@@ -87,6 +89,7 @@ def mock_config(tmp_path, monkeypatch):
     _watch.get_config = lambda: config
     _topic.get_config = lambda: config
     _topic_watch.get_config = lambda: config
+    _root.get_config = lambda: config
     _dashboard.get_config = lambda: config
     if original_expand is not None:
         cli._llm_expand_learning_queries = lambda *args, **kwargs: []
@@ -109,6 +112,7 @@ def mock_config(tmp_path, monkeypatch):
     _watch.get_config = original_watch
     _topic.get_config = original_topic
     _topic_watch.get_config = original_topic_watch
+    _root.get_config = original_root
     _dashboard.get_config = original_dashboard
     if original_expand is not None:
         cli._llm_expand_learning_queries = original_expand
@@ -182,8 +186,7 @@ class TestTopLevelExperience:
             assert expected in ANSI_RE.sub("", result.output)
 
     def test_no_args_empty_library_shows_launcher(self, mock_config, monkeypatch):
-        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
-        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(_root, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)
 
         result = runner.invoke(cli.app, [])
@@ -197,8 +200,7 @@ class TestTopLevelExperience:
     def test_no_args_with_library_shows_operational_dashboard(
         self, mock_config_with_library, monkeypatch
     ):
-        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
-        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(_root, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)
 
         result = runner.invoke(cli.app, [])
@@ -209,7 +211,7 @@ class TestTopLevelExperience:
         assert "Topics" in result.output
 
     def test_quiet_suppresses_home_output_and_resets(self, mock_config, monkeypatch):
-        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(_root, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)
 
         quiet = runner.invoke(cli.app, ["--quiet"])
@@ -234,7 +236,7 @@ class TestTopLevelExperience:
             captured["ops_dir"] = ops_dir
 
         monkeypatch.setattr("distill._logging.configure_logging", configure_logging)
-        monkeypatch.setattr(_cli_impl, "show_banner", lambda console: None)
+        monkeypatch.setattr(_root, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)
 
         result = runner.invoke(cli.app, ["--verbose"])

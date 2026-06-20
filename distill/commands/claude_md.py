@@ -16,8 +16,7 @@ from datetime import UTC, datetime
 import typer
 
 from distill._console import console
-from distill.commands import _logic
-from distill.commands._helpers import _complete_topics
+from distill.commands._helpers import _complete_topics, get_config
 from distill.library import claude_md
 
 __all__ = ["claude_md_cmd", "register"]
@@ -47,7 +46,7 @@ def claude_md_cmd(
     `AGENTS.md`. distillr writes identical content under both names, per topic
     and at the library root, so any agent that `cd`s in gets oriented.
     """
-    config = _logic.get_config()
+    config = get_config()
     library_dir = config.library_dir
     now_iso = _now_iso()
 

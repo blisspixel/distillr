@@ -30,7 +30,7 @@ def _seed_topic(library_dir: Path, topic: str = "tkg") -> Path:
 @pytest.fixture
 def fixture_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DistillConfig:
     cfg = DistillConfig(xai_api_key="test", distill_output_dir=tmp_path / "library")
-    monkeypatch.setattr("distill.commands._logic.get_config", lambda: cfg)
+    monkeypatch.setattr("distill.commands.concepts.get_config", lambda: cfg)
     # `health` resolves get_config from its own module (commands/doctor.py) now.
     monkeypatch.setattr("distill.commands.doctor.get_config", lambda: cfg)
     return cfg

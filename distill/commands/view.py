@@ -33,7 +33,7 @@ from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import format_date as _format_date
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
-from distill.commands._logic import (
+from distill.commands._topic_changes import (
     _append_topic_change_history,
     _collect_topic_change_details,
     _load_topic_change_history,

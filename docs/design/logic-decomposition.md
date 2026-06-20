@@ -1,7 +1,7 @@
 # Decomposing `_logic.py` (design / Frame)
 
-> Status: in progress (Phase 1 done; Phase 2 ~98% - `_logic.py` is down from
-> 9,373 to 201 lines, no command sub-apps left). Remediation #1 from
+> Status: in progress (Phase 1 done; Phase 2 ~99% - `_logic.py` is down from
+> 9,373 to 113 lines, no command sub-apps left). Remediation #1 from
 > [`how-we-build.md`](how-we-build.md). This is the architectural-change case the
 > operating model says gets a design doc before code. It executes as many small
 > green PRs across sessions, not one big bang. Live status is in the
@@ -11,7 +11,7 @@
 
 `distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
-command group per file" target (now 201 lines and shrinking; see Phase 2). It
+command group per file" target (now 113 lines and shrinking; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
 because **agent-context-fit is legibility for the dominant reader**: a 9k-line
 module can't be loaded or reasoned about in an agent's context window, and it's
@@ -158,25 +158,32 @@ slice with the ratchet lowered to match:
   `commands/_discover_flow.py`, re-exported through `commands/discover.py`
   for command-level monkeypatches; ingest isolation tests patch the support
   owner, while `_logic` keeps only compatibility aliases.
+- **Root callback and final direct command imports** -> `commands/root.py`,
+  `commands/concepts.py`, and existing command owners. The bare `distill`
+  callback, version flag, global output/cost mode handling, and home-screen
+  banner now live in `commands/root.py`; the `concepts` Typer app now lives in
+  `commands/concepts.py`; `ask`, `audit`, `claude-md`, `ingest`, `eval`,
+  `process`, and `view` import their canonical helper owners directly instead
+  of reaching through `_logic`.
 
-`_logic.py` is down from **9,373 -> 201 lines**; 13 dead scaffold modules were
-deleted along the way, and the remaining dead scaffold comments in `_logic.py`
-were removed with the paper artifact move.
+`_logic.py` is down from **9,373 -> 113 lines**; 13 dead scaffold modules were
+deleted along the way, the remaining dead scaffold comments in `_logic.py`
+were removed with the paper artifact move, and no production command module now
+imports `_logic`.
 
 **What still lives in `_logic.py`:**
 
-- **The root `@app.callback` `_default`** (the bare-`distill` home-screen entry).
 - **Small compatibility bridge surface** still expected through
-  `distill._cli_impl`: `_resolve_video_channel_name`, topic-change bridge
-  exports, learning/discover aliases, and other private compatibility
+  `distill._cli_impl`: `app`, `main`, `get_config`, `_default`,
+  `_resolve_video_channel_name`, topic-change bridge exports,
+  learning/discover aliases, `concepts_app`, and other private compatibility
   re-exports.
 
 **Next slices (recommended order):**
 
-1. **The root callback** moves to `cli.py` or `distill/_app.py`, with the
-   dashboard import cycle kept lazy or dissolved.
-2. **The final compatibility bridge** moves to explicit owners or gets deleted
-   after call sites and patch strings no longer reach through `_logic`.
+1. **The final compatibility bridge** moves to `distill._cli_impl` or explicit
+   owners, then `_logic.py` is deleted after call sites and patch strings no
+   longer reach through it.
 
 **A noted follow-up (behavior-touching, separate from the pure moves):** the
 dashboard slice was a pure relocation, so `_show_dashboard` still collects its
@@ -204,6 +211,6 @@ patched, not by accident). The per-PR grep gate plus a periodic false-pass sweep
 are both part of the contract for Phase 2.
 
 The endpoint is unchanged: `_logic.py` is now below the 1000-line cap and the
-ratchet allowlist is empty; next it disappears as a named module. `cli.py` becomes
-the wiring-only entry point the [target layout](../../ROADMAP.md#target-package-layout-10)
-describes.
+ratchet allowlist is empty; next it disappears as a named module. `cli.py`
+becomes the wiring-only entry point the
+[target layout](../../ROADMAP.md#target-package-layout-10) describes.

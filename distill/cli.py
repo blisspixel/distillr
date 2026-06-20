@@ -68,7 +68,6 @@ from distill._cli_impl import (  # noqa: F401 — private names needed by tests
     _write_topic_change_briefing,
     _write_watch_alert_digest,
     app,
-    concepts_app,
     console,
     get_config,
 )
@@ -79,11 +78,12 @@ from distill.commands import _site_ingest as _site_ingest_support
 # re-export from the source to preserve cli._file_link for tests.
 from distill.commands._helpers import _file_link  # noqa: F401
 
-# Register commands defined in dedicated modules (kept out of the 7k-line
-# _logic.py). The import side-effect attaches the command to ``app``.
+# Register commands defined in dedicated modules. The import side-effect
+# attaches each command to ``app``.
 from distill.commands.ask import register as _register_ask
 from distill.commands.audit import register as _register_audit
 from distill.commands.claude_md import register as _register_claude_md
+from distill.commands.concepts import concepts_app
 from distill.commands.concepts import register as _register_concepts_recovery
 
 # Home-screen/dashboard renderers moved to commands/dashboard.py; re-export
@@ -133,6 +133,7 @@ _process_site_seed = _site_ingest_support.process_site_seed
 _site_section_change_summary = _site_ingest_support.site_section_change_summary
 
 _register_ingest(app)
+app.add_typer(concepts_app, name="concepts", rich_help_panel="Library")
 _register_concepts_recovery(concepts_app)
 _register_claude_md(app)
 _register_audit(app)

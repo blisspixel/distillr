@@ -1,10 +1,9 @@
 """``distill concepts`` subcommands: build + the recovery surface (log/diff/rollback).
 
-The ``concepts_app`` group itself is still constructed in ``_logic.py`` (alongside
-the other sub-apps) and passed to :func:`register`; this module owns the *commands*
-attached to it. ``build`` (extraction + merge) and the recovery surface over the
-``.history/`` snapshots ``build`` writes on every overwrite both live here now,
-registered via :func:`register` (called from ``distill.cli``, mirroring ``ingest``).
+This module owns the ``concepts_app`` group plus the commands attached to it.
+``build`` extracts and merges concept notes; ``log``, ``diff``, and
+``rollback`` operate over the ``.history/`` snapshots ``build`` writes on every
+overwrite.
 
 All logic lives in ``distill.concepts.*``; these functions are the thin Typer +
 rich presentation layer over it.
@@ -17,8 +16,7 @@ from pathlib import Path
 import typer
 
 from distill._console import console
-from distill.commands import _logic
-from distill.commands._helpers import _complete_topics, tty_confirm
+from distill.commands._helpers import _complete_topics, get_config, tty_confirm
 from distill.commands._json import emit_json, json_mode_active
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
@@ -27,9 +25,23 @@ __all__ = [
     "concept_diff_cmd",
     "concept_log_cmd",
     "concept_rollback_cmd",
+    "concepts_app",
     "concepts_build",
     "register",
 ]
+
+
+concepts_app = typer.Typer(
+    help=(
+        "Concept and entity playbook for a topic.\n\n"
+        "  distill concepts build <topic>            extract + merge playbook notes\n"
+        "  distill concepts log <topic> <slug>       list a note's history snapshots\n"
+        "  distill concepts diff <topic> <slug>      diff a note against its history\n"
+        "  distill concepts rollback <topic> <slug> <timestamp>   restore a snapshot\n"
+    ),
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+)
 
 
 def concepts_build(
@@ -68,7 +80,7 @@ def concepts_build(
     from distill.llm import RouterConfig
     from distill.pipeline.costs import CostTracker
 
-    config = _logic.get_config()
+    config = get_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
@@ -110,7 +122,7 @@ def concepts_build(
 
 def _resolve_topic_dir(topic: str) -> Path:
     """Return the topic directory, erroring out cleanly if it's missing."""
-    config = _logic.get_config()
+    config = get_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")

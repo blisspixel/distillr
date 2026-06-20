@@ -12,8 +12,7 @@ import typer
 from rich.markdown import Markdown
 
 from distill._console import console
-from distill.commands import _logic
-from distill.commands._helpers import _complete_topics
+from distill.commands._helpers import _complete_topics, get_config
 from distill.commands._helpers import require_model as _require_model
 from distill.pipeline.ask import ask_corpus
 from distill.pipeline.costs import CostTracker, save_run_log
@@ -44,7 +43,7 @@ def ask_cmd(
     the retrieved excerpts. `--save` re-ingests a clean answer so synthesis
     and future answers build on it -- the compounding step, verify-gated.
     """
-    config = _logic.get_config()
+    config = get_config()
     _require_model("qa")
     tracker = CostTracker()
 

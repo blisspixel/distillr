@@ -438,3 +438,13 @@ menu, confirmation, and mixed-source ingest bridges now live in
 `distill.commands._discover_flow`, with command-level helpers re-exported
 through `distill.commands.discover`; discover and ingest tests patch the owning
 module. `_logic.py` keeps compatibility aliases only and is now 201 lines.
+
+Cycle 52 moves the root callback and last direct command-module imports out of
+`_logic.py`. The bare `distill` callback, eager `--version`, output-mode setup,
+cost-mode override, and home-screen banner now live in
+`distill.commands.root`. The `concepts` Typer app now lives in
+`distill.commands.concepts`. `ask`, `audit`, `claude-md`, `ingest`, `eval`,
+`process`, and `view` import canonical helper owners directly, and their tests
+patch those owners instead of `_logic` or `_cli_impl`. `_logic.py` is now a
+113-line `_cli_impl` compatibility target only; no production command module
+imports it.

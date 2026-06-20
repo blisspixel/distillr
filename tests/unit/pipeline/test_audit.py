@@ -266,11 +266,11 @@ def test_audit_command_report_only(tmp_path, monkeypatch):
     """End-to-end command run over a seeded topic: report artifact lands, no prompt."""
     from typer.testing import CliRunner
 
-    from distill import _cli_impl, cli
+    from distill import cli
     from distill.config import DistillConfig
 
     config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
-    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.audit.get_config", lambda: config)
     topic_dir = config.topic_dir("t")
     _seed_insight(
         topic_dir,
@@ -294,11 +294,11 @@ def test_audit_command_next_actions_json(tmp_path, monkeypatch):
     """Command-local JSON emits a clean next-action envelope for loop runners."""
     from typer.testing import CliRunner
 
-    from distill import _cli_impl, cli
+    from distill import cli
     from distill.config import DistillConfig
 
     config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
-    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.audit.get_config", lambda: config)
     topic_dir = config.topic_dir("t")
     _seed_insight(topic_dir, "papers/p1", sidecar={"checked": 1, "unsupported": []})
 

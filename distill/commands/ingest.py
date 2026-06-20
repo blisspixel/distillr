@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import typer
 
 from distill._console import console
-from distill.commands._logic import get_config
+from distill.commands._helpers import get_config
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
 from distill.ingestors.podcasts import PodcastFetchError, fetch_feed, looks_like_feed_url

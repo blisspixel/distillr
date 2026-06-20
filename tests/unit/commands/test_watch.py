@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
 from distill.commands import dashboard as _dashboard
+from distill.commands import root as _root
 from distill.commands import topic_watch as _topic_watch_cmd
 from distill.commands import view as _view
 from distill.config import DistillConfig
@@ -323,11 +324,14 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
     )
 
     original = cli.get_config
+    original_root = _root.get_config
+    original_dashboard = _dashboard.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _root.get_config = lambda: config
     _dashboard.get_config = lambda: config
-    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
+    monkeypatch.setattr(_root, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_root.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -342,7 +346,8 @@ def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeyp
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
-        _dashboard.get_config = original
+        _root.get_config = original_root
+        _dashboard.get_config = original_dashboard
 
 
 def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
@@ -380,11 +385,14 @@ def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
     )
 
     original = cli.get_config
+    original_root = _root.get_config
+    original_dashboard = _dashboard.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _root.get_config = lambda: config
     _dashboard.get_config = lambda: config
-    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
+    monkeypatch.setattr(_root, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_root.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -397,7 +405,8 @@ def test_dashboard_what_changed_is_topic_aware(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
-        _dashboard.get_config = original
+        _root.get_config = original_root
+        _dashboard.get_config = original_dashboard
 
 
 def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
@@ -424,11 +433,14 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
     )
 
     original = cli.get_config
+    original_root = _root.get_config
+    original_dashboard = _dashboard.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _root.get_config = lambda: config
     _dashboard.get_config = lambda: config
-    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
+    monkeypatch.setattr(_root, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_root.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -440,7 +452,8 @@ def test_dashboard_shows_topic_and_source_spend_rollups(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
-        _dashboard.get_config = original
+        _root.get_config = original_root
+        _dashboard.get_config = original_dashboard
 
 
 def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
@@ -462,11 +475,14 @@ def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
     (video_dir / "insights.md").write_text("brief", encoding="utf-8")
 
     original = cli.get_config
+    original_root = _root.get_config
+    original_dashboard = _dashboard.get_config
     cli.get_config = lambda: config
     _cli_impl.get_config = lambda: config
+    _root.get_config = lambda: config
     _dashboard.get_config = lambda: config
-    monkeypatch.setattr(_cli_impl, "show_banner", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(_cli_impl.console, "clear", lambda: None)
+    monkeypatch.setattr(_root, "show_banner", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_root.console, "clear", lambda: None)
 
     try:
         result = runner.invoke(cli.app, [])
@@ -476,7 +492,8 @@ def test_dashboard_surfaces_corpus_health_warnings(tmp_path, monkeypatch):
     finally:
         cli.get_config = original
         _cli_impl.get_config = original
-        _dashboard.get_config = original
+        _root.get_config = original_root
+        _dashboard.get_config = original_dashboard
 
 
 def test_diff_command_uses_topic_watch_baseline_and_writes_artifacts(tmp_path, monkeypatch):

@@ -12,9 +12,8 @@ import typer
 
 from distill._console import console
 from distill.cli_shared import require_api_key as _require_api_key
-from distill.commands._helpers import get_config
+from distill.commands._helpers import _preflight, get_config
 from distill.commands._helpers import tty_confirm as _tty_confirm
-from distill.commands._logic import _preflight  # shared preflight, still owned by _logic
 
 __all__ = ["eval_cmd", "register"]
 
