@@ -116,6 +116,8 @@
   `get_version` there rather than reaching through `_logic`.
 - Channel-list display truncation now belongs to `distill.commands._helpers`;
   import `_truncate_channel_list` there rather than reaching through `_logic`.
+- Shared video helpers now belong to `distill.commands._helpers`; import or
+  patch `ensure_channel_context`, `process_video`, and `run_scope_report` there.
 
 ## Validation
 

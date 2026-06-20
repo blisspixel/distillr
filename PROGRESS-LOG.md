@@ -414,6 +414,33 @@
 - Continue shrinking the remaining learning, discover, and process helper body,
   likely video-processing ownership next.
 
+### Cycle 48 - Video Helper Alias Decomposition
+
+- External spend: `$0.00`.
+- Repointed process, watch, and discover commands to import shared video helper
+  aliases from `distill.commands._helpers`.
+- Preserved `_logic._ensure_channel_context`, `_logic._process_video`, and
+  `_logic._run_scope_report` as private compatibility aliases for old
+  `_cli_impl` and `distill.cli` imports.
+- Repointed learning tests that patched transcript, analysis, and channel
+  context helpers to patch `distill.commands._helpers`, the live owner.
+- Reduced `_logic.py` from 919 to 838 lines.
+- Updated roadmap, design, changelog, skills, and current-state notes.
+- Targeted validation:
+  - `uv run pytest tests/unit/commands/test_helpers.py tests/unit/commands/test_cli_wiring.py::TestVideoCommand tests/unit/commands/test_cli_wiring.py::TestLearnCommand tests/unit/commands/test_cli_wiring.py::TestWatchCommands tests/unit/commands/test_cli_wiring.py::TestWatchDisplay tests/unit/commands/test_ingest_failure_isolation.py::TestVideoLoopIsolation -q` passed: 89 passed.
+  - `uv run ruff check distill/commands/_logic.py distill/commands/process.py distill/commands/watch.py distill/commands/discover.py tests/unit/commands/test_cli_wiring.py tests/unit/commands/test_helpers.py tests/unit/commands/test_ingest_failure_isolation.py` passed.
+  - `uv run ruff format --check distill/commands/_logic.py distill/commands/process.py distill/commands/watch.py distill/commands/discover.py tests/unit/commands/test_cli_wiring.py tests/unit/commands/test_helpers.py tests/unit/commands/test_ingest_failure_isolation.py` passed: 7 files already formatted.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 451 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2512
+    passed, 8 deselected, 1 warning, 82.79% coverage.
+
+### Next
+
+- Continue shrinking the remaining learning and discover helper body, likely
+  the learning-flow injection wrappers next.
+
 ### Cycle 0 - Orientation and Doc Truth-Up
 
 - External spend: `$0.00`.

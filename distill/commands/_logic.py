@@ -16,7 +16,6 @@ from types import SimpleNamespace
 
 import typer
 
-import distill.cli_shared as cli_shared
 import distill.pipeline.discovery as _discover_support
 from distill._app import app
 from distill._version import get_version as _get_version
@@ -61,6 +60,15 @@ from distill.commands._helpers import (
     _truncate_channel_list,  # noqa: F401 - compatibility export for distill._cli_impl
     get_config,
 )
+from distill.commands._helpers import (
+    ensure_channel_context as _ensure_channel_context,
+)
+from distill.commands._helpers import (
+    process_video as _process_video,
+)
+from distill.commands._helpers import (
+    run_scope_report as _run_scope_report,
+)
 from distill.config import DistillConfig
 
 # Doctor check/probe helpers live in distill.doctor.checks; the two used by the
@@ -75,24 +83,15 @@ from distill.ingestors.youtube.discovery import (
     resolve_channel_name,
     search_videos,
 )
-from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
 from distill.library.paths import find_artifact
-from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import synthesize_site_topic
-from distill.pipeline.analysis.video import (
-    analyze_scan,
-    analyze_short,
-    analyze_video,
-    generate_channel_context,
-)
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.ranking import chronological_rank, rerank_videos
 from distill.pipeline.report.briefing import generate_topic_brief
 from distill.pipeline.summary import (
-    ETATracker,
     RunSummary,
     display_summary,
 )
@@ -559,86 +558,6 @@ def get_model_override(ctx: typer.Context | None = None) -> str:
 
 def _resolve_video_channel_name(url: str, video_info) -> str:
     return _shared_resolve_video_channel_name(url, video_info, resolve_channel_name)
-
-
-def _ensure_channel_context(
-    topic: str,
-    channel_name: str,
-    videos: list,
-    config: DistillConfig,
-    tracker: CostTracker,
-) -> None:
-    from distill.commands import _helpers
-
-    _helpers.generate_channel_context = generate_channel_context
-    _helpers.console = console
-    cli_shared.generate_channel_context = generate_channel_context
-    cli_shared.console = console
-    return cli_shared.ensure_channel_context(topic, channel_name, videos, config, tracker)
-
-
-def _process_video(
-    topic: str,
-    channel_name: str,
-    video,
-    config: DistillConfig,
-    tracker: CostTracker,
-    summary: RunSummary,
-    state: ChannelState | None = None,
-    analysis_mode: str = "auto",
-    custom_instructions: str = "",
-    eta: ETATracker | None = None,
-) -> bool:
-    from distill.commands import _helpers
-
-    _helpers.analyze_short = analyze_short
-    _helpers.analyze_video = analyze_video
-    _helpers.analyze_scan = analyze_scan
-    _helpers.get_transcript = get_transcript
-    _helpers.console = console
-    cli_shared.analyze_short = analyze_short
-    cli_shared.analyze_video = analyze_video
-    cli_shared.analyze_scan = analyze_scan
-    cli_shared.get_transcript = get_transcript
-    cli_shared.console = console
-    return cli_shared.process_video(
-        topic,
-        channel_name,
-        video,
-        config,
-        tracker,
-        summary,
-        state=state,
-        analysis_mode=analysis_mode,
-        custom_instructions=custom_instructions,
-        eta=eta,
-    )
-
-
-def _run_scope_report(
-    topic: str,
-    config: DistillConfig,
-    tracker: CostTracker,
-    scope: str,
-    channel_name: str | None = None,
-    test: bool = False,
-    summary: RunSummary | None = None,
-    focus: str | None = None,
-) -> None:
-    from distill.commands import _helpers
-
-    _helpers.console = console
-    cli_shared.console = console
-    return cli_shared.run_scope_report(
-        topic,
-        config,
-        tracker,
-        scope,
-        channel_name=channel_name,
-        test=test,
-        summary=summary,
-        focus=focus,
-    )
 
 
 # ─── Power Commands ──────────────────────────────────────────────────

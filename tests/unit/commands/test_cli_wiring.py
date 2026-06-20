@@ -10,8 +10,8 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import _helpers, _site_ingest
 from distill.commands import _learning as _learning_support
-from distill.commands import _site_ingest
 from distill.commands import dashboard as _dashboard
 from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
@@ -577,23 +577,23 @@ class TestLearnCommand:
                 self._ranked(vids)
             ),
         )
-        monkeypatch.setattr(_cli_impl, "get_transcript", fake_transcript)
+        monkeypatch.setattr(_helpers, "get_transcript", fake_transcript)
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "analyze_video",
             lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nInsight"
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "analyze_short",
             lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nShort"
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
         )
@@ -699,16 +699,16 @@ class TestLearnCommand:
                 self._ranked(vids)
             ),
         )
-        monkeypatch.setattr(_cli_impl, "get_transcript", fake_transcript)
+        monkeypatch.setattr(_helpers, "get_transcript", fake_transcript)
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "analyze_video",
             lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 "# Insight"
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: "# Context",
         )
@@ -875,23 +875,23 @@ class TestLearnCommand:
                 self._ranked(vids)
             ),
         )
-        monkeypatch.setattr(_cli_impl, "get_transcript", fake_transcript)
+        monkeypatch.setattr(_helpers, "get_transcript", fake_transcript)
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "analyze_video",
             lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nInsight"
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "analyze_short",
             lambda title, upload_date, channel_name, transcript, config, tracker=None, intent=None: (
                 f"# {title}\n\nShort"
             ),
         )
         monkeypatch.setattr(
-            _cli_impl,
+            _helpers,
             "generate_channel_context",
             lambda channel_name, titles, config, tracker=None: f"# {channel_name}\n\nContext",
         )

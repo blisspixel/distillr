@@ -29,6 +29,9 @@ from distill.commands._helpers import (
     _preflight,
     get_config,
 )
+from distill.commands._helpers import (
+    run_scope_report as _run_scope_report,
+)
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
@@ -42,7 +45,6 @@ from distill.commands._logic import (
     _is_fresh_topic,
     _preview_learning_selection,
     _run_learning_command,
-    _run_scope_report,
 )
 from distill.commands._site_batch import process_site_batch_seed, site_batch_seed
 from distill.commands._site_ingest import process_site_seed as _process_site_seed

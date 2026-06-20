@@ -4,7 +4,7 @@ Extracted from the _logic.py monolith (Process slice). These commands
 transcribe and analyze YouTube videos and channels and drive the multi-step
 ``run`` pipeline. Shared helpers that other commands also use
 (_process_video, _resolve_video_channel_name, _ensure_channel_context,
-_run_scope_report) remain in _logic and are imported back here.
+_run_scope_report) live in helper modules and are imported back here.
 """
 
 from __future__ import annotations
@@ -33,11 +33,17 @@ from distill.commands._helpers import (
     _resolve_topic_for_channel,
     get_config,
 )
+from distill.commands._helpers import (
+    ensure_channel_context as _ensure_channel_context,
+)
+from distill.commands._helpers import (
+    process_video as _process_video,
+)
+from distill.commands._helpers import (
+    run_scope_report as _run_scope_report,
+)
 from distill.commands._logic import (
-    _ensure_channel_context,
-    _process_video,
     _resolve_video_channel_name,
-    _run_scope_report,
 )
 from distill.ingestors.youtube.discovery import (
     discover_videos,

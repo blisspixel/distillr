@@ -3,7 +3,7 @@
 Extracted from the _logic.py monolith. ``watch`` manages a channel watch list;
 ``catch-up`` refreshes every watched channel. Shared helpers that other commands
 also use (_process_video, _ensure_channel_context, the shell-completion
-callbacks) remain in _logic and are imported back.
+callbacks) live in helper modules and are imported back.
 """
 
 from __future__ import annotations
@@ -24,9 +24,11 @@ from distill.commands._helpers import (
     _preflight,
     get_config,
 )
-from distill.commands._logic import (
-    _ensure_channel_context,
-    _process_video,
+from distill.commands._helpers import (
+    ensure_channel_context as _ensure_channel_context,
+)
+from distill.commands._helpers import (
+    process_video as _process_video,
 )
 from distill.ingestors.youtube.discovery import (
     discover_videos,

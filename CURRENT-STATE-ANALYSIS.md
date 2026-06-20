@@ -412,3 +412,9 @@ Cycle 47 moves channel-list display truncation out of `_logic.py`.
 `_truncate_channel_list` now lives in `distill.commands._helpers`; dashboard
 tests call that canonical owner directly, while `_logic.py` keeps only the
 private compatibility alias. `_logic.py` is now 919 lines.
+
+Cycle 48 moves the shared video helper wrappers out of `_logic.py`.
+`_ensure_channel_context`, `_process_video`, and `_run_scope_report` now resolve
+directly to `distill.commands._helpers` owners; process, watch, discover, and
+learning tests call or patch those canonical owners. `_logic.py` keeps only the
+private compatibility aliases and is now 838 lines.
