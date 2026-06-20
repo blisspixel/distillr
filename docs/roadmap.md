@@ -152,7 +152,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 ### 5. Finish website productization
 
 - [ ] Website UX polish - checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
-- [~] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links for operator-trusted domains or section URLs, then feeds exact-page seeds into the existing LLM rerank. Sitemap `lastmod` values now surface as freshness hints in previews when available. Remaining: optional shallow section crawls.
+- [x] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links for operator-trusted domains or section URLs, then feeds seeds into the existing LLM rerank. Sitemap `lastmod` values now surface as freshness hints in previews when available. Selected website candidates ingest exact pages by default, with opt-in bounded shallow crawls through `--site-crawl-depth` and `--site-crawl-pages`.
 - [ ] Better crawl boundary controls - keep site batches close to the intended section or branch by default
 - [~] Attachment ingestion - inventory embedded PDFs/videos and optionally pull PDF text or supported embedded-video transcripts into website runs
 - [ ] Mixed exact-page and shallow-crawl workflows that are easier to understand and safer by default
@@ -304,15 +304,16 @@ default; the anti-AI-slop register guard._
   Preview rows for site seeds now show the seed label or host+path-derived
   title, exact URL, section label, discovery source, and sitemap freshness hint
   when available.
-- [~] **Trusted-site discovery for official-doc workflows.** `--site-seeds`
+- [x] **Trusted-site discovery for official-doc workflows.** `--site-seeds`
   still works for curated files, and `distill discover --trusted-site` now adds
   constrained page enumeration for operator-trusted domains or section URLs.
   The shipped slice reads public same-host sitemaps, TOC/navigation links, and
-  landing-page links,
-  keeps generated seeds exact-page by default, persists trusted-site refresh
-  commands, and sends those candidates through the existing goal-aware rerank.
+  landing-page links. It keeps generated seeds exact-page by default, persists
+  trusted-site refresh commands, and sends those candidates through the existing
+  goal-aware rerank.
   Sitemap `lastmod` values now surface as freshness hints when available.
-  Remaining: optional shallow section crawls.
+  Operators can opt into bounded shallow crawls with `--site-crawl-depth` and
+  `--site-crawl-pages`; trusted-site generated seeds remain section-scoped.
 - [ ] **Long-run visibility and failure surfacing.** The Agent365 mixed-source
   run kept working but emitted very little live output after planning, forcing
   filesystem inspection to confirm progress. Long `discover` / `report` runs

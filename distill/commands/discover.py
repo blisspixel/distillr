@@ -22,7 +22,17 @@ from distill.commands._discover_flow import (
     _display_ranked_discover,
     _is_fresh_topic,
 )
-from distill.commands._discover_sites import load_discover_site_candidates
+from distill.commands._discover_options import (
+    SITE_CRAWL_DEPTH_OPTION,
+    SITE_CRAWL_PAGES_OPTION,
+    SITE_LIMIT_OPTION,
+    SITE_SEEDS_OPTION,
+    TRUSTED_SITE_OPTION,
+)
+from distill.commands._discover_sites import (
+    load_discover_site_candidates,
+    show_discover_site_summary,
+)
 from distill.commands._helpers import (
     _apply_verify_override,
     _detect_ramp_source,
@@ -541,21 +551,11 @@ def discover(  # noqa: C901 — legacy, will refactor
     topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
     paper_limit: int = typer.Option(10, "--paper-limit", help="Max papers to ingest (default: 10)"),
     video_limit: int = typer.Option(10, "--video-limit", help="Max videos to ingest (default: 10)"),
-    site_seeds: Path | None = typer.Option(
-        None,
-        "--site-seeds",
-        help="Optional JSON/TXT seed file of curated website URLs to include in the goal-aware rerank",
-    ),
-    trusted_site: list[str] | None = typer.Option(
-        None,
-        "--trusted-site",
-        help="Trusted domain or section URL to enumerate website page candidates from. May repeat.",
-    ),
-    site_limit: int = typer.Option(
-        10,
-        "--site-limit",
-        help="Max website seeds to ingest when --site-seeds or --trusted-site is provided (default: 10)",
-    ),
+    site_seeds: Path | None = SITE_SEEDS_OPTION,
+    trusted_site: list[str] | None = TRUSTED_SITE_OPTION,
+    site_limit: int = SITE_LIMIT_OPTION,
+    site_crawl_depth: int = SITE_CRAWL_DEPTH_OPTION,
+    site_crawl_pages: int = SITE_CRAWL_PAGES_OPTION,
     papers_only: bool = typer.Option(
         False,
         "--papers-only",
@@ -659,6 +659,9 @@ def discover(  # noqa: C901 — legacy, will refactor
     if paper_limit < 0 or video_limit < 0 or site_limit < 0:
         console.print("[red]Source limits cannot be negative.[/red]")
         raise typer.Exit(1)
+    if site_crawl_depth < 0 or site_crawl_pages < 1:
+        console.print("[red]Site crawl depth must be >= 0 and crawl pages must be >= 1.[/red]")
+        raise typer.Exit(1)
     if goal_file is not None:
         if not goal_file.exists():
             console.print(f"[red]Goal file not found: {goal_file}[/red]")
@@ -748,6 +751,8 @@ def discover(  # noqa: C901 — legacy, will refactor
             goal_file=str(goal_file) if goal_file is not None else "",
             site_seeds=str(site_seeds) if site_seeds is not None else "",
             trusted_sites=trusted_site or [],
+            site_crawl_depth=site_crawl_depth,
+            site_crawl_pages=site_crawl_pages,
             now_iso=datetime.now().isoformat(),
         )
     trusted_site_sources = trusted_site or []
@@ -770,6 +775,8 @@ def discover(  # noqa: C901 — legacy, will refactor
                 site_seeds=site_seeds,
                 trusted_sites=trusted_site_sources,
                 trusted_site_cap=trusted_site_cap,
+                site_crawl_depth=site_crawl_depth,
+                site_crawl_pages=site_crawl_pages,
                 trusted_site_discoverer=_discover_trusted_site_seeds,
             )
         except FileNotFoundError as exc:
@@ -786,17 +793,13 @@ def discover(  # noqa: C901 — legacy, will refactor
         f"[dim]Topic: {topic_name} | Papers: {paper_limit} | Videos: {video_limit} | Sites: {effective_site_limit} "
         f"| Days: {days}[/dim]\n"
     )
-    if site_candidates is not None and site_seeds is not None:
-        console.print(
-            f"[dim]Curated site seeds: {site_candidates.curated_count} loaded from {site_seeds}[/dim]"
-        )
-    if site_candidates is not None and trusted_site_sources:
-        console.print(
-            f"[dim]Trusted-site candidates: {site_candidates.trusted_count} from "
-            f"{site_candidates.trusted_sources} source(s)[/dim]"
-        )
-    if site_candidates is not None and (site_seeds is not None or trusted_site_sources):
-        console.print()
+    show_discover_site_summary(
+        site_candidates=site_candidates,
+        site_seeds=site_seeds,
+        trusted_site_sources=trusted_site_sources,
+        site_crawl_depth=site_crawl_depth,
+        site_crawl_pages=site_crawl_pages,
+    )
 
     # When the user has restricted to a single source via --papers-only / --videos-only,
     # don't pay for query generation on the disabled side.
@@ -896,7 +899,6 @@ def discover(  # noqa: C901 — legacy, will refactor
         return
 
     # --rigor: drop candidates below the level's rerank-score (final_score) threshold.
-
     threshold = rigor_threshold(rigor)
     kept = [r for r in ranked if r.final_score >= threshold]
     if not kept:
@@ -928,7 +930,6 @@ def discover(  # noqa: C901 — legacy, will refactor
     # metadata-aware, self-calibrating cost estimate shows the likely spend
     # before committing (per-video duration scales the estimate; rates calibrate
     # against cost_log.jsonl history once enough runs accrue).
-
     cliff = detect_score_cliff([r.final_score for r in shortlist])
     calibration = load_cost_calibration(config.library_dir)
     estimate = estimate_discover_items(

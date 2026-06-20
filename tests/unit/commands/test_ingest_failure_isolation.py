@@ -98,7 +98,13 @@ class TestSiteLoopIsolation:
         summary = RunSummary(command="discover")
         ranked = [
             SimpleNamespace(
-                site_seed=SiteSeed(url="https://bad.example.com/a", topic="old"),
+                site_seed=SiteSeed(
+                    url="https://bad.example.com/a",
+                    topic="old",
+                    discover_crawl=True,
+                    max_depth=1,
+                    max_pages=3,
+                ),
                 title="bad site",
             ),
             SimpleNamespace(
@@ -130,6 +136,10 @@ class TestSiteLoopIsolation:
         captured = capsys.readouterr()
         out = captured.out + captured.err
         assert [seed.topic for seed in calls] == ["web", "web"]
+        assert calls[0].max_depth == 1
+        assert calls[0].max_pages == 3
+        assert calls[1].max_depth == 0
+        assert calls[1].max_pages == 1
         assert "site 1/2" in out
         assert "site 2/2" in out
         assert "completed 1/2" in out

@@ -32,7 +32,7 @@ Distill is a source-to-intelligence platform covering eight source types, all on
 - **Newsletters / feeds** (new adapter) - full feed bodies when available, routed by substance rather than attached narration
 - **Local files and media** (new adapter) - PDF / Markdown / text / HTML documents, plus local audio/video through the transcription ladder
 
-`distill discover` is the goal-aware front door across papers, videos, curated website seed files, and trusted-site page expansion. Docs-heavy workflows can pass repeated `--trusted-site` domains or section URLs so Distill enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links before the goal-aware rerank, instead of requiring every page seed by hand. Website preview rows now include exact URL, section label, discovery source, and sitemap freshness date when known.
+`distill discover` is the goal-aware front door across papers, videos, curated website seed files, and trusted-site page expansion. Docs-heavy workflows can pass repeated `--trusted-site` domains or section URLs so Distill enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links before the goal-aware rerank, instead of requiring every page seed by hand. Selected website candidates ingest exact pages by default, with opt-in bounded shallow crawls for operators who want one section hop. Website preview rows now include exact URL, section label, discovery source, and sitemap freshness date when known.
 
 Everything produces plain markdown in a local `library/` directory. An MCP server exposes the corpus to AI assistants and agent systems.
 

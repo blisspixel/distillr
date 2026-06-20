@@ -53,6 +53,7 @@ Flags:
 - `--paper-limit` / `--video-limit` — max per-source ingestion targets (default 10 each)
 - `--site-seeds` / `--site-limit` - optional curated website seed file plus max site seeds to ingest after rerank (default 10 when supplied)
 - `--trusted-site` - trusted domain or section URL to enumerate page candidates from before rerank. May be repeated. Enumeration is bounded to public same-host URLs from sitemaps, TOC/navigation links, and landing-page links; selected pages ingest in exact-page mode.
+- `--site-crawl-depth` / `--site-crawl-pages` - opt selected website candidates into bounded shallow crawls. Defaults are depth `0` and pages `1`, which keep exact-page ingest. Trusted-site generated seeds stay section-scoped when depth is above `0`.
 - `--papers-only` / `--videos-only` — mutually exclusive, skip the other source type entirely (also short-circuits the LLM query-generation call for the disabled side, so you don't pay for queries the run will throw away). Useful when one source type has thin coverage of the topic.
 - `--days / -d` — YouTube recency window (default 365)
 - `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
@@ -65,7 +66,7 @@ Flags:
 - `--yes / -y` — skip the interactive confirmation / sizing menu (rigor-filtered auto-ingest)
 - `--goal-file` — load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
 
-Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, curated site seeds, and trusted-site page candidates are ranked in the same pool - a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are allowlist-driven: `discover` does not perform arbitrary web search. It reranks the exact URLs from `--site-seeds` plus public same-host candidates enumerated from repeated `--trusted-site` domains or section URLs, then ingests selected pages in exact-page mode. Site preview rows include the exact URL, section label, discovery source, and sitemap freshness date when known. Links found in landing-page TOC/navigation containers are labeled `toc link` and listed before generic landing links.
+Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, curated site seeds, and trusted-site page candidates are ranked in the same pool - a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are allowlist-driven: `discover` does not perform arbitrary web search. It reranks the exact URLs from `--site-seeds` plus public same-host candidates enumerated from repeated `--trusted-site` domains or section URLs, then ingests selected pages in exact-page mode unless `--site-crawl-depth` opts into a bounded shallow crawl. Site preview rows include the exact URL, section label, discovery source, and sitemap freshness date when known. Links found in landing-page TOC/navigation containers are labeled `toc link` and listed before generic landing links.
 
 Video candidate discovery prints the free metadata summary before reranking,
 for example `Found 88 videos + 12 Shorts, ~47h of content across 5 search(es)`.

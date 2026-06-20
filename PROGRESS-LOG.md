@@ -2,6 +2,49 @@
 
 ## 2026-06-20
 
+### Cycle 63 - Discover Website Shallow Crawl Controls
+
+- External spend: `$0.00`.
+- Added `distill discover --site-crawl-depth` and `--site-crawl-pages` for
+  explicit bounded shallow crawls of selected website candidates.
+- Kept exact-page ingest as the default for `discover` site candidates.
+- Added an explicit `discover_crawl` seed flag so old preview snapshots and
+  raw `SiteSeed` defaults do not silently widen crawl scope.
+- Persisted non-default crawl flags into goal refresh commands.
+- Trusted-site generated seeds remain same-section scoped when shallow crawl is
+  enabled.
+- This is operator-owned crawl boundary structure, not page quality, relevance,
+  or source-fit scoring.
+- Updated README, root roadmap, detailed roadmap, usage docs, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\commands\_discover_sites.py distill\commands\_discover_ingest.py distill\commands\discover.py distill\pipeline\goals.py distill\ingestors\sites\scraper.py distill\ingestors\sites\discovery.py distill\commands\_site_batch.py tests\unit\commands\test_cli_wiring.py tests\unit\pipeline\test_goals.py tests\unit\commands\test_ingest_failure_isolation.py` passed.
+  - `uv run ruff format --check distill\commands\_discover_sites.py distill\commands\_discover_ingest.py distill\commands\discover.py distill\pipeline\goals.py distill\ingestors\sites\scraper.py distill\ingestors\sites\discovery.py distill\commands\_site_batch.py tests\unit\commands\test_cli_wiring.py tests\unit\pipeline\test_goals.py tests\unit\commands\test_ingest_failure_isolation.py` passed after formatting.
+  - `uv run pytest -q tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_preview_can_expand_trusted_site_candidates tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_ingests_selected_site_seeds_safely tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_site_crawl_flags_are_applied_to_selected_seeds tests\unit\pipeline\test_goals.py tests\unit\commands\test_ingest_failure_isolation.py::TestSiteLoopIsolation::test_site_progress_continues_after_seed_failure tests\unit\pipeline\test_preview_cache.py::test_save_then_load_round_trips_all_source_types` passed:
+    16 passed.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_discovery.py tests\unit\ingestors\sites\test_scraper.py tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_preview_can_rank_curated_site_seeds tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_preview_can_expand_trusted_site_candidates tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_ingests_selected_site_seeds_safely tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_site_crawl_flags_are_applied_to_selected_seeds tests\unit\pipeline\test_goals.py tests\unit\pipeline\test_preview_cache.py` passed:
+    46 passed.
+  - `uv run pytest -q tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 461 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2538
+    passed, 8 deselected, 1 warning, 83.02% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed for the current version.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, emojis, and attribution patterns passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI release if the main branch
+  remains releasable.
+
 ### Cycle 62 - Trusted-Site TOC Link Extraction
 
 - External spend: `$0.00`.

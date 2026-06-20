@@ -33,6 +33,9 @@
   or section URLs into public same-host page candidates from sitemaps,
   TOC/navigation links, and landing-page links. Goal fit and page usefulness
   remain model-judged in the existing discover rerank.
+- Discover website crawl depth is structural when it is an explicit operator
+  flag, with exact-page ingest as the default and trusted-site generated seeds
+  staying section-scoped. Do not infer crawl breadth from page quality.
 - Website candidate identity is structural when it shows exact URL, section
   label, discovery source, and sitemap freshness hints. Do not use those fields
   as semantic quality scores.

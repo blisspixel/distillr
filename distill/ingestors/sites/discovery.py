@@ -247,6 +247,7 @@ def _add_seed(
             section_label=site_section_key(normalized),
             source_hint=source_hint,
             freshness_hint=freshness_hint,
+            discover_crawl=False,
             max_depth=0,
             max_pages=1,
             same_section_only=True,

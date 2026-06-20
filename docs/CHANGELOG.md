@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added `distill discover --site-crawl-depth` and `--site-crawl-pages`, keeping
+  website candidates exact-page by default while allowing explicit bounded
+  shallow crawls for selected site seeds.
+
 ## 0.16.16 - 2026-06-20
 
 ### Changed

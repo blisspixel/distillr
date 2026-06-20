@@ -48,6 +48,8 @@ def save_topic_goal(
     goal_file: str = "",
     site_seeds: str = "",
     trusted_sites: list[str] | None = None,
+    site_crawl_depth: int = 0,
+    site_crawl_pages: int = 1,
     now_iso: str = "",
 ) -> None:
     """Persist (or update) one topic's goal association."""
@@ -59,6 +61,8 @@ def save_topic_goal(
         "goal_file": goal_file,
         "site_seeds": site_seeds,
         "trusted_sites": trusted_sites or [],
+        "site_crawl_depth": max(0, site_crawl_depth),
+        "site_crawl_pages": max(1, site_crawl_pages),
         "saved_at": now_iso,
     }
     path = _goals_path(library_dir)
@@ -97,4 +101,17 @@ def goal_refresh_command(topic: str, entry: dict) -> str:
         source_text = str(source or "")
         if source_text:
             cmd += f" --trusted-site {_quoted(source_text)}"
+    site_crawl_depth = _int_value(entry.get("site_crawl_depth"), default=0)
+    site_crawl_pages = _int_value(entry.get("site_crawl_pages"), default=1)
+    if site_crawl_depth > 0:
+        cmd += f" --site-crawl-depth {site_crawl_depth}"
+        if site_crawl_pages > 1:
+            cmd += f" --site-crawl-pages {site_crawl_pages}"
     return cmd
+
+
+def _int_value(value, *, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default

@@ -14,12 +14,16 @@ class TestGoalPersistence:
             goal_file="private/goal.md",
             site_seeds="private/seeds.json",
             trusted_sites=["https://learn.example.com/docs"],
+            site_crawl_depth=1,
+            site_crawl_pages=3,
             now_iso="2026-06-12T05:00:00",
         )
         goals = load_topic_goals(tmp_path)
         assert goals["music"]["goal"] == "help an AI become a great composer"
         assert goals["music"]["goal_file"] == "private/goal.md"
         assert goals["music"]["trusted_sites"] == ["https://learn.example.com/docs"]
+        assert goals["music"]["site_crawl_depth"] == 1
+        assert goals["music"]["site_crawl_pages"] == 3
 
     def test_update_replaces_topic_entry(self, tmp_path):
         save_topic_goal(tmp_path, "t", "old goal")
@@ -82,6 +86,18 @@ class TestRefreshCommand:
             },
         )
         assert '--trusted-site "https://example.com/docs path"' in cmd
+
+    def test_site_crawl_flags_are_replayed_when_non_default(self):
+        cmd = goal_refresh_command(
+            "t",
+            {
+                "goal_file": "private/goal.md",
+                "trusted_sites": ["https://example.com/docs"],
+                "site_crawl_depth": 1,
+                "site_crawl_pages": 3,
+            },
+        )
+        assert "--site-crawl-depth 1 --site-crawl-pages 3" in cmd
 
     def test_plain_paths_stay_unquoted(self):
         cmd = goal_refresh_command("t", {"goal_file": "private/goal.md"})

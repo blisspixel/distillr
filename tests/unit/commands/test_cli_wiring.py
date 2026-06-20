@@ -2412,6 +2412,86 @@ class TestWatchCommands:
         ]
         assert synth_calls == ["agent365"]
 
+    def test_discover_site_crawl_flags_are_applied_to_selected_seeds(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        seeds_path = tmp_path / "agent365_sites.json"
+        seeds_path.write_text(
+            json.dumps(
+                {
+                    "urls": [
+                        {
+                            "url": "https://learn.microsoft.com/en-us/microsoft-365/agents/overview",
+                            "same_section_only": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        def fake_rerank(goal, papers, videos, sites, config, tracker):
+            return [
+                cli._RankedDiscoverItem(
+                    kind="site",
+                    identifier=sites[0].url,
+                    title="Official Agent365 docs",
+                    subtitle="learn.microsoft.com",
+                    date="-",
+                    final_score=0.91,
+                    goal_fit=0.95,
+                    depth_score=0.82,
+                    complementarity_score=0.78,
+                    rationale="official implementation guidance",
+                    site_seed=sites[0],
+                )
+            ]
+
+        process_calls: list[dict[str, object]] = []
+
+        def fake_process_site_seed(
+            seed, config, tracker, summary, scrape_only=False, ingest_attachments=False
+        ):
+            process_calls.append(
+                {
+                    "max_depth": seed.max_depth,
+                    "max_pages": seed.max_pages,
+                    "same_section_only": seed.same_section_only,
+                }
+            )
+
+        monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
+        monkeypatch.setattr(_discover_flow, "_process_site_seed", fake_process_site_seed)
+        monkeypatch.setattr(_discover_flow, "synthesize_site_topic", lambda *args, **kwargs: None)
+        monkeypatch.setattr(_discover_flow, "synthesize_corpus", lambda *args, **kwargs: None)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "discover",
+                "learn Microsoft Agent365 architecture and best practices",
+                "--topic",
+                "agent365",
+                "--paper-limit",
+                "0",
+                "--video-limit",
+                "0",
+                "--site-seeds",
+                str(seeds_path),
+                "--site-limit",
+                "1",
+                "--site-crawl-depth",
+                "1",
+                "--site-crawl-pages",
+                "3",
+                "--yes",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert process_calls == [{"max_depth": 1, "max_pages": 3, "same_section_only": True}]
+        assert "Website crawl: depth 1, max 3 page(s) per selected seed" in result.stdout
+
     def test_corpus_command_writes_output(self, mock_config, monkeypatch):
         topic_dir = mock_config.topic_dir("mixed")
         topic_dir.mkdir(parents=True, exist_ok=True)

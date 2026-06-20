@@ -218,9 +218,11 @@ before approval, so broad goals reveal the size of the video corpus before
 anything is ingested. Website-heavy discovery can expand operator-trusted
 domains or section URLs with `--trusted-site`, using same-host sitemaps,
 TOC/navigation links, and landing-page links before the normal goal-aware
-rerank. Site preview rows show the exact URL, section label, discovery source,
-and sitemap freshness date when available, so official-doc page candidates stay
-legible before approval.
+rerank. Selected website candidates ingest exact pages by default; operators
+can opt into bounded shallow crawls with `--site-crawl-depth` and
+`--site-crawl-pages`. Site preview rows show the exact URL, section label,
+discovery source, and sitemap freshness date when available, so official-doc
+page candidates stay legible before approval.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

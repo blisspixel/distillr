@@ -526,3 +526,11 @@ promotes duplicate URLs when a generic link is later found in the TOC. Same-host
 scope, public URL policy, section scope, exact-page seeds, and the existing
 model rerank still own the boundary between candidate enumeration and goal-fit
 judgment.
+
+Cycle 63 adds explicit shallow website crawl controls to `distill discover`.
+The default remains exact-page ingest for every selected website candidate.
+Operators can pass `--site-crawl-depth` and `--site-crawl-pages` to opt into a
+bounded crawl, and trusted-site generated seeds remain same-section scoped.
+Preview snapshots and goal refresh commands carry the crawl choice so replayed
+runs preserve the operator's explicit boundary instead of inferring crawl
+breadth from page metadata or model scores.
