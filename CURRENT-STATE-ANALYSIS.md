@@ -541,3 +541,9 @@ pages reused. Discover and site-batch progress lines can now distinguish
 completed work from unchanged-page reuse, and MCP `site_batch` JSON carries the
 same counts for external loops. This is a receipt-level skip reason, not a page
 quality or relevance judgment.
+
+Cycle 65 starts the crawl-boundary roadmap item with explicit site seed
+`crawl_prefix` support. Trusted-site section URLs carry their source path into
+selected shallow crawls, direct `distill site` runs can pass `--crawl-prefix`,
+and JSON site batches can set `crawl_prefix` on URL objects or collections.
+This is rule-owned URL scope control, not source relevance scoring.

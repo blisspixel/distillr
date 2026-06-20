@@ -2,6 +2,44 @@
 
 ## 2026-06-20
 
+### Cycle 65 - Website Crawl Prefix Boundaries
+
+- External spend: `$0.00`.
+- Added explicit site seed `crawl_prefix` support for branch-scoped website
+  crawling.
+- Trusted-site section URLs now carry their source path into shallow discover
+  crawls when selected with `--site-crawl-depth`.
+- Direct `distill site` runs can pass `--crawl-prefix`, and JSON site batches
+  can set `crawl_prefix` on URL objects or collections.
+- This is structural URL scope control. Source fit, page quality, and ranking
+  remain model-judged where applicable.
+- Updated README, detailed usage docs, roadmap, changelog, current-state notes,
+  seed examples, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\ingestors\sites\scraper.py distill\ingestors\sites\discovery.py distill\commands\discover.py distill\commands\_discover_options.py distill\commands\_discover_ingest.py distill\commands\_discover_sites.py distill\commands\_site_batch.py distill\commands\_site_ingest.py tests\unit\ingestors\sites\test_scraper.py tests\unit\ingestors\sites\test_discovery.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run ruff format --check distill\ingestors\sites\scraper.py distill\ingestors\sites\discovery.py distill\commands\discover.py distill\commands\_discover_options.py distill\commands\_discover_ingest.py distill\commands\_discover_sites.py distill\commands\_site_batch.py distill\commands\_site_ingest.py tests\unit\ingestors\sites\test_scraper.py tests\unit\ingestors\sites\test_discovery.py tests\unit\commands\test_cli_wiring.py` passed.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_scraper.py tests\unit\ingestors\sites\test_discovery.py tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_site_crawl_flags_are_applied_to_selected_seeds tests\unit\commands\test_cli_wiring.py::TestSiteCommands::test_site_scrape_only_does_not_require_xai tests\unit\pipeline\test_preview_cache.py::test_save_then_load_round_trips_all_source_types tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed:
+    29 passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 461 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2541
+    passed, 8 deselected, 1 warning, 83.04% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, emojis, and attribution patterns passed.
+
+### Next
+
+- Validate the crawl prefix slice, then commit, push, verify CI, and publish
+  the next PyPI release if the main branch remains releasable.
+
 ### Cycle 64 - Site Ingest Skip Visibility
 
 - External spend: `$0.00`.

@@ -336,6 +336,8 @@ Flags:
 - `--seed-only` processes only the exact input URLs (safest for curated lists)
 - `--ingest-attachments` writes `attachments.json` per page and, when possible, extracts PDF text and supported embedded-video transcripts into the page corpus
 - `--same-section-only` allows shallow crawl but keeps discovery inside the same top-level section (`/topic`, `/partner`, `/lab`, `/docs`, etc.)
+- `--crawl-prefix /path/branch` on `distill site` keeps followed same-host
+  links under a specific path branch.
 
 During `site-batch`, each seed prints a progress line with the current phase,
 item count, completed count, failed count, and running spend. A seed-level
@@ -344,7 +346,7 @@ spend cap remains a hard stop. Reused unchanged pages and empty crawls are
 surfaced as structural skip outcomes in progress lines and MCP `site_batch`
 JSON.
 
-See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
+See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON seeds can set `crawl_prefix` on a URL object or collection to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 
 ## arXiv papers
 

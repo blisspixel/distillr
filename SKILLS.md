@@ -258,3 +258,6 @@
 - API-key environment blockers keep plan-quota candidates out of no-metered
   routing. Gemini-family routes must treat both `GEMINI_API_KEY` and
   `GOOGLE_API_KEY` as blockers.
+- Website crawl boundaries are structural URL rules. Use `crawl_prefix` when a
+  site seed should stay under a specific path branch, and do not replace source
+  fit or page quality judgment with path heuristics.

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added explicit website `crawl_prefix` boundaries for site seeds. Trusted-site
+  section URLs now carry their source path into shallow discover crawls, direct
+  `distill site` runs can pass `--crawl-prefix`, and JSON site batches can set
+  `crawl_prefix` on URL objects or collections.
+
 ## 0.16.18 - 2026-06-20
 
 ### Changed

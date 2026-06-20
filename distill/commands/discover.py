@@ -10,6 +10,7 @@ from distill import cli_shared
 from distill._console import console
 from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import topic_from_query as _topic_from_query
+from distill.commands import _discover_options
 from distill.commands._concept_ingest import (
     run_concepts_after_ingest as _run_concepts_after_ingest,
 )
@@ -21,13 +22,6 @@ from distill.commands._discover_flow import (
     _discover_sizing_flow,
     _display_ranked_discover,
     _is_fresh_topic,
-)
-from distill.commands._discover_options import (
-    SITE_CRAWL_DEPTH_OPTION,
-    SITE_CRAWL_PAGES_OPTION,
-    SITE_LIMIT_OPTION,
-    SITE_SEEDS_OPTION,
-    TRUSTED_SITE_OPTION,
 )
 from distill.commands._discover_sites import (
     load_discover_site_candidates,
@@ -377,6 +371,7 @@ def site_cmd(
         "--same-section-only",
         help="When crawling, stay within the seed URL's top-level section (for example /topic, /partner, /lab, /docs)",
     ),
+    crawl_prefix: str = _discover_options.SITE_CRAWL_PREFIX_OPTION,
     ingest_attachments: bool = typer.Option(
         False,
         "--ingest-attachments",
@@ -403,6 +398,7 @@ def site_cmd(
         site_name=name or site_name_from_url(url),
         max_depth=0 if seed_only else max_depth,
         max_pages=1 if seed_only else max_pages,
+        crawl_prefix=crawl_prefix,
         same_section_only=same_section_only,
     )
     _process_site_seed(
@@ -551,11 +547,11 @@ def discover(  # noqa: C901 — legacy, will refactor
     topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
     paper_limit: int = typer.Option(10, "--paper-limit", help="Max papers to ingest (default: 10)"),
     video_limit: int = typer.Option(10, "--video-limit", help="Max videos to ingest (default: 10)"),
-    site_seeds: Path | None = SITE_SEEDS_OPTION,
-    trusted_site: list[str] | None = TRUSTED_SITE_OPTION,
-    site_limit: int = SITE_LIMIT_OPTION,
-    site_crawl_depth: int = SITE_CRAWL_DEPTH_OPTION,
-    site_crawl_pages: int = SITE_CRAWL_PAGES_OPTION,
+    site_seeds: Path | None = _discover_options.SITE_SEEDS_OPTION,
+    trusted_site: list[str] | None = _discover_options.TRUSTED_SITE_OPTION,
+    site_limit: int = _discover_options.SITE_LIMIT_OPTION,
+    site_crawl_depth: int = _discover_options.SITE_CRAWL_DEPTH_OPTION,
+    site_crawl_pages: int = _discover_options.SITE_CRAWL_PAGES_OPTION,
     papers_only: bool = typer.Option(
         False,
         "--papers-only",

@@ -31,3 +31,9 @@ SITE_CRAWL_PAGES_OPTION = typer.Option(
     "--site-crawl-pages",
     help="Max pages to crawl per selected website candidate when --site-crawl-depth is above 0.",
 )
+
+SITE_CRAWL_PREFIX_OPTION = typer.Option(
+    "",
+    "--crawl-prefix",
+    help="When crawling, only follow same-host links under this path prefix.",
+)

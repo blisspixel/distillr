@@ -13,6 +13,7 @@ from distill.ingestors.sites.scraper import (
     build_page_document,
     canonicalize_url,
     classify_page_type,
+    crawl_prefix_from_url,
     crawl_site,
     dedupe_urls,
     is_crawlable_url,
@@ -48,7 +49,11 @@ def test_load_site_batch_from_json_with_collections(tmp_path):
         json.dumps(
             {
                 "topic": "web-ai",
-                "crawl": {"max_depth": 2, "max_pages_per_seed": 5},
+                "crawl": {
+                    "max_depth": 2,
+                    "max_pages_per_seed": 5,
+                    "crawl_prefix": "/topic/applied-ai",
+                },
                 "collections": [
                     {
                         "name": "example",
@@ -68,6 +73,7 @@ def test_load_site_batch_from_json_with_collections(tmp_path):
     assert batch.seeds[0].max_depth == 2
     assert batch.seeds[0].max_pages == 5
     assert batch.seeds[0].label == "Example Vendor"
+    assert batch.seeds[0].crawl_prefix == "/topic/applied-ai"
 
 
 def test_load_site_batch_from_json_url_objects(tmp_path):
@@ -82,6 +88,7 @@ def test_load_site_batch_from_json_url_objects(tmp_path):
                         "topic": "agents",
                         "max_depth": 2,
                         "max_pages": 4,
+                        "crawl_prefix": "https://example.com/agents",
                     }
                 ],
             }
@@ -95,6 +102,7 @@ def test_load_site_batch_from_json_url_objects(tmp_path):
     assert batch.seeds[0].topic == "agents"
     assert batch.seeds[0].max_depth == 2
     assert batch.seeds[0].max_pages == 4
+    assert batch.seeds[0].crawl_prefix == "/agents"
 
 
 def test_classify_page_type_prefers_video_when_flagged():
@@ -204,6 +212,14 @@ def test_site_section_key_uses_first_two_segments():
         site_section_key("https://www.example.com/partner/windsurf/explore") == "partner/windsurf"
     )
     assert site_section_key("https://example.com") == "root"
+
+
+def test_crawl_prefix_from_url_uses_path_only():
+    assert (
+        crawl_prefix_from_url("https://learn.example.com/en-us/microsoft-365/agents?view=x")
+        == "/en-us/microsoft-365/agents"
+    )
+    assert crawl_prefix_from_url("https://example.com") == ""
 
 
 def test_dedupe_urls_canonicalizes_query_order():
@@ -447,3 +463,102 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: 
     assert [page.url for page in pages] == ["https://example.com/start", "https://example.com/next"]
     assert pages[1].source_url == "https://example.com/start"
     assert pages[1].depth == 1
+
+
+def test_crawl_site_respects_crawl_prefix(monkeypatch):  # noqa: C901
+    pages_by_url = {
+        "https://example.com/docs/agents": SitePage(
+            url="https://example.com/docs/agents",
+            title="Agents",
+            site_name="example.com",
+            page_type="page",
+            text="Agents body",
+            links=[
+                "https://example.com/docs/agents/build",
+                "https://example.com/docs/other",
+            ],
+        ),
+        "https://example.com/docs/agents/build": SitePage(
+            url="https://example.com/docs/agents/build",
+            title="Build",
+            site_name="example.com",
+            page_type="page",
+            text="Build body",
+        ),
+        "https://example.com/docs/other": SitePage(
+            url="https://example.com/docs/other",
+            title="Other",
+            site_name="example.com",
+            page_type="page",
+            text="Other body",
+        ),
+    }
+
+    def fake_extract(page, url, site_name, source_url, depth):
+        result = pages_by_url.get(url)
+        if result is None:
+            return None
+        result.source_url = source_url
+        result.depth = depth
+        return result
+
+    class FakeBrowserPage:
+        def set_default_timeout(self, timeout):
+            return None
+
+    class FakeContext:
+        def route(self, pattern, handler):
+            return None
+
+        def new_page(self):
+            return FakeBrowserPage()
+
+        def close(self):
+            return None
+
+    class FakeBrowser:
+        def new_context(self):
+            return FakeContext()
+
+        def close(self):
+            return None
+
+    class FakeChromium:
+        def launch(self, headless=True):
+            return FakeBrowser()
+
+    class FakePlaywright:
+        chromium = FakeChromium()
+
+    class FakePlaywrightContextManager:
+        def __enter__(self):
+            return FakePlaywright()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setitem(
+        sys.modules,
+        "playwright.sync_api",
+        SimpleNamespace(sync_playwright=lambda: FakePlaywrightContextManager()),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.net.is_public_web_url",
+        lambda url: url.startswith("https://example.com"),
+    )
+    monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
+
+    pages = crawl_site(
+        SiteSeed(
+            url="https://example.com/docs/agents",
+            topic="web",
+            max_depth=1,
+            max_pages=5,
+            crawl_prefix="/docs/agents",
+        )
+    )
+
+    assert [page.url for page in pages] == [
+        "https://example.com/docs/agents",
+        "https://example.com/docs/agents/build",
+    ]

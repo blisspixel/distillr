@@ -29,6 +29,7 @@ def site_batch_seed(
         section_label=seed.section_label,
         source_hint=seed.source_hint,
         freshness_hint=seed.freshness_hint,
+        crawl_prefix=seed.crawl_prefix,
         discover_crawl=seed.discover_crawl,
         max_depth=0 if seed_only else seed.max_depth,
         max_pages=1 if seed_only else seed.max_pages,

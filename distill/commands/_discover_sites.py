@@ -110,6 +110,7 @@ def _with_discover_crawl(
             section_label=seed.section_label,
             source_hint=seed.source_hint,
             freshness_hint=seed.freshness_hint,
+            crawl_prefix=seed.crawl_prefix,
             discover_crawl=depth > 0,
             max_depth=depth,
             max_pages=pages,

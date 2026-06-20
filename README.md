@@ -222,9 +222,10 @@ domains or section URLs with `--trusted-site`, using same-host sitemaps,
 TOC/navigation links, and landing-page links before the normal goal-aware
 rerank. Selected website candidates ingest exact pages by default; operators
 can opt into bounded shallow crawls with `--site-crawl-depth` and
-`--site-crawl-pages`. Site preview rows show the exact URL, section label,
-discovery source, and sitemap freshness date when available, so official-doc
-page candidates stay legible before approval.
+`--site-crawl-pages`. If a trusted site is a section URL, shallow crawls keep
+followed links under that source path branch. Site preview rows show the exact
+URL, section label, discovery source, and sitemap freshness date when
+available, so official-doc page candidates stay legible before approval.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

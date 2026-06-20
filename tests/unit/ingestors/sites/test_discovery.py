@@ -59,6 +59,7 @@ def test_discover_trusted_site_seeds_enumerates_sitemaps_and_landing_links(monke
     ]
     assert result.seeds[0].freshness_hint == "2026-06-18"
     assert all(seed.max_depth == 0 and seed.max_pages == 1 for seed in result.seeds)
+    assert {seed.crawl_prefix for seed in result.seeds} == {"/docs/agents"}
 
 
 def test_discover_trusted_site_seeds_accepts_bare_domain_and_caps(monkeypatch):
@@ -77,6 +78,7 @@ def test_discover_trusted_site_seeds_accepts_bare_domain_and_caps(monkeypatch):
     assert [seed.url for seed in result.seeds] == ["https://docs.example.com/guide"]
     assert result.seeds[0].site_name == "docs.example.com"
     assert result.seeds[0].source_hint == "landing link"
+    assert result.seeds[0].crawl_prefix == ""
 
 
 def test_discover_trusted_site_seeds_prefers_toc_links_from_landing_page(monkeypatch):

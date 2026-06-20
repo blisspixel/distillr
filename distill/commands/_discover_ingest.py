@@ -97,6 +97,7 @@ def ingest_sites(
             section_label=seed.section_label,
             source_hint=seed.source_hint,
             freshness_hint=seed.freshness_hint,
+            crawl_prefix=seed.crawl_prefix,
             discover_crawl=seed.discover_crawl,
             max_depth=max(0, seed.max_depth) if seed.discover_crawl else 0,
             max_pages=max(1, seed.max_pages) if seed.discover_crawl else 1,

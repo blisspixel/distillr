@@ -153,7 +153,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 
 - [ ] Website UX polish - checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
 - [x] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links for operator-trusted domains or section URLs, then feeds seeds into the existing LLM rerank. Sitemap `lastmod` values now surface as freshness hints in previews when available. Selected website candidates ingest exact pages by default, with opt-in bounded shallow crawls through `--site-crawl-depth` and `--site-crawl-pages`.
-- [ ] Better crawl boundary controls - keep site batches close to the intended section or branch by default
+- [~] Better crawl boundary controls - keep site batches close to the intended section or branch by default. Trusted-site section URLs now carry a path prefix into selected shallow crawls, `distill site` accepts `--crawl-prefix`, and JSON site batches can set `crawl_prefix` on URL objects or collections. Remaining: richer section freshness and broader branch defaults for recurring site profiles.
 - [~] Attachment ingestion - inventory embedded PDFs/videos and optionally pull PDF text or supported embedded-video transcripts into website runs
 - [ ] Mixed exact-page and shallow-crawl workflows that are easier to understand and safer by default
 - [x] Better website candidate identity in preview/approval flows - preview rows now show page-level labels, exact URLs, section labels, discovery source hints, and sitemap freshness hints when available.

@@ -2423,6 +2423,7 @@ class TestWatchCommands:
                         {
                             "url": "https://learn.microsoft.com/en-us/microsoft-365/agents/overview",
                             "same_section_only": True,
+                            "crawl_prefix": "/en-us/microsoft-365/agents",
                         }
                     ]
                 }
@@ -2457,6 +2458,7 @@ class TestWatchCommands:
                     "max_depth": seed.max_depth,
                     "max_pages": seed.max_pages,
                     "same_section_only": seed.same_section_only,
+                    "crawl_prefix": seed.crawl_prefix,
                 }
             )
 
@@ -2489,7 +2491,14 @@ class TestWatchCommands:
         )
 
         assert result.exit_code == 0
-        assert process_calls == [{"max_depth": 1, "max_pages": 3, "same_section_only": True}]
+        assert process_calls == [
+            {
+                "max_depth": 1,
+                "max_pages": 3,
+                "same_section_only": True,
+                "crawl_prefix": "/en-us/microsoft-365/agents",
+            }
+        ]
         assert "Website crawl: depth 1, max 3 page(s) per selected seed" in result.stdout
 
     def test_corpus_command_writes_output(self, mock_config, monkeypatch):
@@ -2835,7 +2844,16 @@ class TestSiteCommands:
 
             result = runner.invoke(
                 cli.app,
-                ["site", "https://example.com", "--topic", "web", "--scrape-only", "--seed-only"],
+                [
+                    "site",
+                    "https://example.com",
+                    "--topic",
+                    "web",
+                    "--scrape-only",
+                    "--seed-only",
+                    "--crawl-prefix",
+                    "/docs/agents",
+                ],
             )
 
             assert result.exit_code == 0
@@ -2849,6 +2867,7 @@ class TestSiteCommands:
             assert (page_dir / "metadata.json").exists()
             assert (page_dir / "attachments.json").exists()
             assert site_manifest["sections"][0]["section"] == "root"
+            assert site_manifest["crawl_prefix"] == "/docs/agents"
             assert not find_artifact(page_dir, "insights").exists()
         finally:
             cli.get_config = original

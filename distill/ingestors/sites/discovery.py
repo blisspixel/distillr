@@ -16,6 +16,7 @@ from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
 from distill.ingestors.sites.scraper import (
     SiteSeed,
     canonicalize_url,
+    crawl_prefix_from_url,
     dedupe_urls,
     is_crawlable_url,
     normalize_host,
@@ -247,6 +248,7 @@ def _add_seed(
             section_label=site_section_key(normalized),
             source_hint=source_hint,
             freshness_hint=freshness_hint,
+            crawl_prefix=crawl_prefix_from_url(source_url),
             discover_crawl=False,
             max_depth=0,
             max_pages=1,

@@ -19,6 +19,7 @@ __all__ = [
     "build_page_document",
     "canonicalize_url",
     "classify_page_type",
+    "crawl_prefix_from_url",
     "crawl_site",
     "dedupe_urls",
     "is_crawlable_url",
@@ -95,10 +96,14 @@ class SiteSeed:
     section_label: str = ""
     source_hint: str = ""
     freshness_hint: str = ""
+    crawl_prefix: str = ""
     discover_crawl: bool = False
     max_depth: int = 1
     max_pages: int = 8
     same_section_only: bool = False
+
+    def __post_init__(self) -> None:
+        self.crawl_prefix = _normalize_crawl_prefix(self.crawl_prefix)
 
     def resolved_site_name(self) -> str:
         return self.site_name or site_name_from_url(self.url)
@@ -127,6 +132,8 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
         else topic_override or "web"
     )
     seeds: list[SiteSeed] = []
+    crawl_config = data.get("crawl", {}) if isinstance(data, dict) else {}
+    global_crawl_prefix = str(crawl_config.get("crawl_prefix", crawl_config.get("path_prefix", "")))
 
     if isinstance(data, list):
         iterable = data
@@ -144,6 +151,10 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
                             section_label=collection.get("section_label", ""),
                             source_hint=collection.get("source_hint", ""),
                             freshness_hint=collection.get("freshness_hint", ""),
+                            crawl_prefix=_crawl_prefix_from_mapping(
+                                collection,
+                                fallback=global_crawl_prefix,
+                            ),
                             discover_crawl=bool(collection.get("discover_crawl", False)),
                             max_depth=int(
                                 collection.get(
@@ -181,6 +192,7 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
                     section_label=item.get("section_label", ""),
                     source_hint=item.get("source_hint", ""),
                     freshness_hint=item.get("freshness_hint", ""),
+                    crawl_prefix=_crawl_prefix_from_mapping(item, fallback=global_crawl_prefix),
                     discover_crawl=bool(item.get("discover_crawl", False)),
                     max_depth=int(item.get("max_depth", 1)),
                     max_pages=int(item.get("max_pages", 8)),
@@ -211,6 +223,8 @@ def _link_is_crawlable_for_seed(
     if not is_crawlable_url(link) or not is_public_web_url(link):
         return None
     link_norm = canonicalize_url(link)
+    if seed.crawl_prefix and not _is_within_crawl_prefix(link_norm, seed.crawl_prefix):
+        return None
     if seed.same_section_only and not is_same_section(link_norm, seed.url):
         return None
     if link_norm in visited:
@@ -457,6 +471,33 @@ def page_id_from_url(url: str) -> str:
     parsed = urlparse(url)
     base = parsed.path.strip("/") or parsed.netloc
     return slugify_title(base, max_len=20)
+
+
+def crawl_prefix_from_url(url: str) -> str:
+    return _normalize_crawl_prefix(urlparse(url).path)
+
+
+def _crawl_prefix_from_mapping(data: dict[str, Any], fallback: str = "") -> str:
+    raw = data.get("crawl_prefix", data.get("path_prefix", fallback))
+    return _normalize_crawl_prefix(str(raw or ""))
+
+
+def _normalize_crawl_prefix(value: str) -> str:
+    raw = value.strip()
+    if "://" in raw:
+        raw = urlparse(raw).path
+    tokens = [token for token in raw.strip("/").split("/") if token]
+    if not tokens:
+        return ""
+    return "/" + "/".join(tokens)
+
+
+def _is_within_crawl_prefix(url: str, crawl_prefix: str) -> bool:
+    prefix = _normalize_crawl_prefix(crawl_prefix)
+    if not prefix:
+        return True
+    path = urlparse(url).path.rstrip("/") or "/"
+    return path == prefix or path.startswith(prefix + "/")
 
 
 def site_section_key(url: str) -> str:

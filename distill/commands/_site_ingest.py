@@ -114,8 +114,9 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     site_name = seed.resolved_site_name()
     mode_label = "scrape-only" if scrape_only else "full"
     console.print(f"\n[bold]Site: {site_name}[/bold]")
+    boundary = f" | crawl_prefix={seed.crawl_prefix}" if seed.crawl_prefix else ""
     console.print(
-        f"[dim]Seed: {seed.url} | max_pages={seed.max_pages} depth={seed.max_depth} mode={mode_label} | attachments={'on' if ingest_attachments else 'inventory-only'}[/dim]"
+        f"[dim]Seed: {seed.url} | max_pages={seed.max_pages} depth={seed.max_depth}{boundary} mode={mode_label} | attachments={'on' if ingest_attachments else 'inventory-only'}[/dim]"
     )
 
     pages = crawl_site(seed)
@@ -144,6 +145,8 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         "page_count": len(pages),
         "max_depth": seed.max_depth,
         "max_pages": seed.max_pages,
+        "crawl_prefix": seed.crawl_prefix,
+        "same_section_only": seed.same_section_only,
         "scrape_only": scrape_only,
         "ingest_attachments": ingest_attachments,
         "generated_at": crawled_at,
