@@ -1,0 +1,332 @@
+"""Trusted website candidate discovery for goal-aware mixed-source runs."""
+
+from __future__ import annotations
+
+import re
+import urllib.parse
+import urllib.request
+from collections import deque
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from html.parser import HTMLParser
+
+from defusedxml.ElementTree import fromstring as xml_fromstring
+
+from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
+from distill.ingestors.sites.scraper import (
+    SiteSeed,
+    canonicalize_url,
+    dedupe_urls,
+    is_crawlable_url,
+    normalize_host,
+)
+from distill.library.paths import site_name_from_url
+
+__all__ = [
+    "TrustedSiteDiscoveryResult",
+    "discover_trusted_site_seeds",
+]
+
+FetchText = Callable[[str], str]
+
+
+@dataclass(frozen=True)
+class TrustedSiteDiscoveryResult:
+    seeds: list[SiteSeed]
+    source_count: int
+    fetched_sitemaps: int
+    fetched_landing_pages: int
+
+
+class _AnchorParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[tuple[str, str]] = []
+        self._href_stack: list[str] = []
+        self._text_stack: list[list[str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "a":
+            return
+        href = ""
+        for key, value in attrs:
+            if key.lower() == "href" and value:
+                href = value
+                break
+        self._href_stack.append(href)
+        self._text_stack.append([])
+
+    def handle_data(self, data: str) -> None:
+        if self._text_stack:
+            self._text_stack[-1].append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "a" or not self._href_stack:
+            return
+        href = self._href_stack.pop()
+        text = " ".join("".join(self._text_stack.pop()).split())
+        if href:
+            self.links.append((href, text))
+
+
+def discover_trusted_site_seeds(
+    sources: Sequence[str],
+    *,
+    topic: str,
+    max_candidates: int = 40,
+    max_sitemaps_per_source: int = 4,
+    fetch_text: FetchText | None = None,
+) -> TrustedSiteDiscoveryResult:
+    """Enumerate page candidates from operator-trusted domains or sections.
+
+    The operator supplies the trust boundary. This helper only enumerates public
+    same-host URLs from sitemaps and landing-page links, then returns exact-page
+    seeds for the existing model reranker to judge against the goal.
+    """
+    if max_candidates <= 0:
+        return TrustedSiteDiscoveryResult([], 0, 0, 0)
+    fetch = fetch_text or _fetch_text
+    seeds: list[SiteSeed] = []
+    seen: set[str] = set()
+    fetched_sitemaps = 0
+    fetched_landing_pages = 0
+    normalized_sources = [src for src in (_normalize_source(s) for s in sources) if src]
+
+    for source_url in normalized_sources:
+        if len(seeds) >= max_candidates:
+            break
+        source_result = _collect_source_seeds(
+            source_url,
+            topic=topic,
+            fetch_text=fetch,
+            seen=seen,
+            remaining=max_candidates - len(seeds),
+            max_sitemaps=max_sitemaps_per_source,
+        )
+        seeds.extend(source_result.seeds)
+        fetched_sitemaps += source_result.fetched_sitemaps
+        fetched_landing_pages += source_result.fetched_landing_pages
+
+    return TrustedSiteDiscoveryResult(
+        seeds=seeds[:max_candidates],
+        source_count=len(normalized_sources),
+        fetched_sitemaps=fetched_sitemaps,
+        fetched_landing_pages=fetched_landing_pages,
+    )
+
+
+@dataclass(frozen=True)
+class _LandingCandidates:
+    urls: list[tuple[str, str]]
+    landing_fetches: int
+
+
+@dataclass(frozen=True)
+class _SourceDiscovery:
+    seeds: list[SiteSeed]
+    fetched_sitemaps: int
+    fetched_landing_pages: int
+
+
+def _collect_source_seeds(
+    source_url: str,
+    *,
+    topic: str,
+    fetch_text: FetchText,
+    seen: set[str],
+    remaining: int,
+    max_sitemaps: int,
+) -> _SourceDiscovery:
+    seeds: list[SiteSeed] = []
+    sitemap_urls, sitemap_fetches = _candidate_urls_from_sitemaps(
+        source_url,
+        fetch_text=fetch_text,
+        max_sitemaps=max_sitemaps,
+    )
+    for url in sitemap_urls:
+        if (
+            _add_seed(seeds, seen, url, _label_from_url(url), source_url, topic)
+            and len(seeds) >= remaining
+        ):
+            return _SourceDiscovery(seeds, sitemap_fetches, 0)
+
+    landing = _candidate_urls_from_landing(source_url, fetch_text=fetch_text)
+    for url, label in landing.urls:
+        if _add_seed(seeds, seen, url, label, source_url, topic) and len(seeds) >= remaining:
+            return _SourceDiscovery(seeds, sitemap_fetches, landing.landing_fetches)
+
+    if canonicalize_url(source_url) not in seen:
+        _add_seed(seeds, seen, source_url, _label_from_url(source_url), source_url, topic)
+    return _SourceDiscovery(seeds, sitemap_fetches, landing.landing_fetches)
+
+
+def _add_seed(
+    seeds: list[SiteSeed],
+    seen: set[str],
+    url: str,
+    label: str,
+    source_url: str,
+    topic: str,
+) -> bool:
+    normalized = _trusted_candidate_url(url, source_url)
+    if not normalized or normalized in seen:
+        return False
+    seen.add(normalized)
+    seeds.append(
+        SiteSeed(
+            url=normalized,
+            topic=topic,
+            site_name=site_name_from_url(source_url),
+            label=label or _label_from_url(normalized),
+            max_depth=0,
+            max_pages=1,
+            same_section_only=True,
+        )
+    )
+    return True
+
+
+def _candidate_urls_from_sitemaps(
+    source_url: str,
+    *,
+    fetch_text: FetchText,
+    max_sitemaps: int,
+) -> tuple[list[str], int]:
+    queue: deque[str] = deque(_default_sitemap_urls(source_url))
+    seen_sitemaps: set[str] = set()
+    fetched = 0
+    found_urls: list[str] = []
+    while queue and fetched < max_sitemaps:
+        sitemap_url = queue.popleft()
+        normalized_sitemap = _trusted_same_host_url(sitemap_url, source_url)
+        if not normalized_sitemap or normalized_sitemap in seen_sitemaps:
+            continue
+        seen_sitemaps.add(normalized_sitemap)
+        text = _try_fetch(fetch_text, normalized_sitemap)
+        if not text:
+            continue
+        fetched += 1
+        nested, sitemap_page_urls = _parse_sitemap(text)
+        for nested_url in nested:
+            if _trusted_same_host_url(nested_url, source_url):
+                queue.append(nested_url)
+        found_urls.extend(sitemap_page_urls)
+    return found_urls, fetched
+
+
+def _candidate_urls_from_landing(source_url: str, *, fetch_text: FetchText) -> _LandingCandidates:
+    html = _try_fetch(fetch_text, source_url)
+    if not html:
+        return _LandingCandidates([], 0)
+    parser = _AnchorParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        return _LandingCandidates([], 1)
+    urls: list[tuple[str, str]] = []
+    for href, text in parser.links:
+        absolute = urllib.parse.urljoin(source_url, href)
+        urls.append((absolute, _clean_label(text) or _label_from_url(absolute)))
+    deduped: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for url, label in urls:
+        normalized = canonicalize_url(url)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append((url, label))
+    return _LandingCandidates(deduped, 1)
+
+
+def _parse_sitemap(text: str) -> tuple[list[str], list[str]]:
+    try:
+        root = xml_fromstring(text.encode("utf-8"))
+    except Exception:
+        locs = re.findall(r"<loc>\s*([^<]+?)\s*</loc>", text, flags=re.IGNORECASE)
+        return [], locs
+    root_name = _strip_namespace(root.tag).lower()
+    locs = [
+        (node.text or "").strip()
+        for node in root.iter()
+        if _strip_namespace(node.tag).lower() == "loc" and (node.text or "").strip()
+    ]
+    if root_name == "sitemapindex":
+        return locs, []
+    return [], locs
+
+
+def _strip_namespace(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _trusted_candidate_url(url: str, source_url: str) -> str:
+    normalized = _trusted_same_host_url(url, source_url)
+    if not normalized or not _within_source_scope(normalized, source_url):
+        return ""
+    return normalized
+
+
+def _trusted_same_host_url(url: str, source_url: str) -> str:
+    normalized = canonicalize_url(url)
+    if normalize_host(normalized) != normalize_host(source_url):
+        return ""
+    if not is_crawlable_url(normalized) or not is_public_web_url(normalized):
+        return ""
+    return normalized
+
+
+def _within_source_scope(url: str, source_url: str) -> bool:
+    source_path = urllib.parse.urlparse(source_url).path.rstrip("/")
+    if not source_path or source_path == "/":
+        return True
+    candidate_path = urllib.parse.urlparse(url).path.rstrip("/")
+    return candidate_path == source_path or candidate_path.startswith(source_path + "/")
+
+
+def _default_sitemap_urls(source_url: str) -> list[str]:
+    parsed = urllib.parse.urlparse(source_url)
+    origin = parsed._replace(path="", params="", query="", fragment="").geturl().rstrip("/")
+    return dedupe_urls([f"{origin}/sitemap.xml", f"{origin}/sitemap_index.xml"])
+
+
+def _normalize_source(value: str) -> str:
+    raw = value.strip().rstrip("/")
+    if not raw:
+        return ""
+    parsed = urllib.parse.urlparse(raw)
+    if not parsed.scheme:
+        raw = f"https://{raw}"
+        parsed = urllib.parse.urlparse(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    if parsed.scheme == "http":
+        parsed = parsed._replace(scheme="https")
+    normalized = canonicalize_url(parsed.geturl())
+    return normalized if is_public_web_url(normalized) else ""
+
+
+def _label_from_url(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    path = parsed.path.strip("/")
+    if not path:
+        return site_name_from_url(url)
+    leaf = path.split("/")[-1] or path
+    label = re.sub(r"[-_]+", " ", leaf).strip()
+    return _clean_label(label) or path
+
+
+def _clean_label(value: str) -> str:
+    return " ".join(value.split())[:120]
+
+
+def _fetch_text(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with safe_urlopen(req, timeout=20, retries=1) as resp:
+        return resp.read().decode("utf-8", "ignore")
+
+
+def _try_fetch(fetch_text: FetchText, url: str) -> str:
+    try:
+        return fetch_text(url)
+    except (NetworkError, OSError, UnicodeError, ValueError):
+        return ""

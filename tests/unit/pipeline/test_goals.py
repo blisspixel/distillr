@@ -13,11 +13,13 @@ class TestGoalPersistence:
             "help an AI become a great composer",
             goal_file="private/goal.md",
             site_seeds="private/seeds.json",
+            trusted_sites=["https://learn.example.com/docs"],
             now_iso="2026-06-12T05:00:00",
         )
         goals = load_topic_goals(tmp_path)
         assert goals["music"]["goal"] == "help an AI become a great composer"
         assert goals["music"]["goal_file"] == "private/goal.md"
+        assert goals["music"]["trusted_sites"] == ["https://learn.example.com/docs"]
 
     def test_update_replaces_topic_entry(self, tmp_path):
         save_topic_goal(tmp_path, "t", "old goal")
@@ -44,11 +46,16 @@ class TestGoalPersistence:
 class TestRefreshCommand:
     def test_goal_file_form_with_seeds(self):
         cmd = goal_refresh_command(
-            "music", {"goal_file": "private/goal.md", "site_seeds": "private/seeds.json"}
+            "music",
+            {
+                "goal_file": "private/goal.md",
+                "site_seeds": "private/seeds.json",
+                "trusted_sites": ["https://learn.example.com/docs"],
+            },
         )
         assert cmd == (
             "distill discover --goal-file private/goal.md --topic music --preview "
-            "--site-seeds private/seeds.json"
+            "--site-seeds private/seeds.json --trusted-site https://learn.example.com/docs"
         )
 
     def test_inline_goal_form_uses_headline(self):
@@ -65,6 +72,16 @@ class TestRefreshCommand:
         )
         assert '--goal-file "private/my goals.md"' in cmd
         assert '--site-seeds "private/seed list.json"' in cmd
+
+    def test_trusted_sites_with_whitespace_are_quoted(self):
+        cmd = goal_refresh_command(
+            "t",
+            {
+                "goal_file": "private/goal.md",
+                "trusted_sites": ["https://example.com/docs path"],
+            },
+        )
+        assert '--trusted-site "https://example.com/docs path"' in cmd
 
     def test_plain_paths_stay_unquoted(self):
         cmd = goal_refresh_command("t", {"goal_file": "private/goal.md"})

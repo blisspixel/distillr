@@ -47,6 +47,7 @@ def save_topic_goal(
     *,
     goal_file: str = "",
     site_seeds: str = "",
+    trusted_sites: list[str] | None = None,
     now_iso: str = "",
 ) -> None:
     """Persist (or update) one topic's goal association."""
@@ -57,6 +58,7 @@ def save_topic_goal(
         "goal": goal.strip(),
         "goal_file": goal_file,
         "site_seeds": site_seeds,
+        "trusted_sites": trusted_sites or [],
         "saved_at": now_iso,
     }
     path = _goals_path(library_dir)
@@ -88,4 +90,11 @@ def goal_refresh_command(topic: str, entry: dict) -> str:
     site_seeds = str(entry.get("site_seeds", "") or "")
     if site_seeds:
         cmd += f" --site-seeds {_quoted(site_seeds)}"
+    trusted_sites = entry.get("trusted_sites", []) or []
+    if isinstance(trusted_sites, str):
+        trusted_sites = [trusted_sites]
+    for source in trusted_sites:
+        source_text = str(source or "")
+        if source_text:
+            cmd += f" --trusted-site {_quoted(source_text)}"
     return cmd

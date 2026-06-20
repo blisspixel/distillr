@@ -181,6 +181,7 @@ Then try any of:
 distill discover "help an AI become a great music composer" --topic music --preview
 distill discover --goal-file private/my-goal.md --topic research --yes
 distill discover --goal-file private/agent365-goal.md --topic agent365 --site-seeds private/agent365_sites.json --site-limit 10 --preview
+distill discover --goal-file private/agent365-goal.md --topic agent365 --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents --site-limit 10 --preview
 
 # Get smart on a YouTube topic, fast
 distill latest "Microsoft Fabric best practices" --limit 10 --report
@@ -214,7 +215,9 @@ kept in `library/.distill/distill.log` for post-run review, and
 `distill --verbose <command>` mirrors them to stderr while a command runs.
 Discovery previews also summarize video candidate counts and known watch time
 before approval, so broad goals reveal the size of the video corpus before
-anything is ingested.
+anything is ingested. Website-heavy discovery can expand operator-trusted
+domains or section URLs with `--trusted-site`, using same-host sitemaps and
+landing-page links before the normal goal-aware rerank.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

@@ -6,6 +6,10 @@ from distill.ingestors.sites.attachments import (
     ingest_page_attachments,
     write_attachment_manifest,
 )
+from distill.ingestors.sites.discovery import (
+    TrustedSiteDiscoveryResult,
+    discover_trusted_site_seeds,
+)
 from distill.ingestors.sites.scraper import (
     SiteBatch,
     SitePage,
@@ -28,12 +32,14 @@ __all__ = [
     "SiteBatch",
     "SitePage",
     "SiteSeed",
+    "TrustedSiteDiscoveryResult",
     "build_page_document",
     "canonicalize_url",
     "classify_page_type",
     "collect_page_attachments",
     "crawl_site",
     "dedupe_urls",
+    "discover_trusted_site_seeds",
     "ingest_page_attachments",
     "is_crawlable_url",
     "is_same_section",

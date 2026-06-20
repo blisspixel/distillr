@@ -2233,6 +2233,79 @@ class TestWatchCommands:
         assert "site" in result.stdout
         assert "0.91" in result.stdout
 
+    def test_discover_preview_can_expand_trusted_site_candidates(self, mock_config, monkeypatch):
+        from distill.ingestors.sites.discovery import TrustedSiteDiscoveryResult
+        from distill.ingestors.sites.scraper import SiteSeed
+
+        trusted_seed = SiteSeed(
+            url="https://learn.example.com/docs/agents/overview",
+            topic="agent365",
+            site_name="learn.example.com",
+            label="Agents overview",
+            max_depth=0,
+            max_pages=1,
+            same_section_only=True,
+        )
+        trusted_calls: list[tuple[list[str], str, int]] = []
+
+        def fake_trusted(sources, *, topic, max_candidates):
+            trusted_calls.append((list(sources), topic, max_candidates))
+            return TrustedSiteDiscoveryResult(
+                seeds=[trusted_seed],
+                source_count=len(sources),
+                fetched_sitemaps=1,
+                fetched_landing_pages=1,
+            )
+
+        rerank_calls: list[tuple[int, int, int]] = []
+
+        def fake_rerank(goal, papers, videos, sites, config, tracker):
+            rerank_calls.append((len(papers), len(videos), len(sites)))
+            return [
+                cli._RankedDiscoverItem(
+                    kind="site",
+                    identifier=sites[0].url,
+                    title="Agents overview",
+                    subtitle="learn.example.com",
+                    date="-",
+                    final_score=0.88,
+                    goal_fit=0.9,
+                    depth_score=0.8,
+                    complementarity_score=0.7,
+                    rationale="official docs page",
+                    site_seed=sites[0],
+                )
+            ]
+
+        monkeypatch.setattr(_discover, "_discover_trusted_site_seeds", fake_trusted)
+        monkeypatch.setattr(_discover, "_discover_rerank", fake_rerank)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "discover",
+                "learn Microsoft Agent365 architecture and best practices",
+                "--topic",
+                "agent365",
+                "--paper-limit",
+                "0",
+                "--video-limit",
+                "0",
+                "--trusted-site",
+                "https://learn.example.com/docs/agents",
+                "--site-limit",
+                "1",
+                "--preview",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert trusted_calls == [(["https://learn.example.com/docs/agents"], "agent365", 20)]
+        assert rerank_calls == [(0, 0, 1)]
+        assert "Trusted-site candidates: 1 from 1 source(s)" in result.stdout
+        assert "Website candidates: 1" in result.stdout
+        assert "0.88" in result.stdout
+
     def test_discover_ingests_selected_site_seeds_safely(self, mock_config, monkeypatch, tmp_path):
         seeds_path = tmp_path / "agent365_sites.json"
         seeds_path.write_text(

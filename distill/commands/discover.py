@@ -1,12 +1,3 @@
-"""Discover-panel preview commands, extracted from the _logic monolith.
-
-`distill search` and `distill explore` preview the best recent YouTube videos
-Distill would learn from, without ingesting. They delegate to the learning-flow
-wrappers in commands/_learning.py, which inject shared deps into
-commands/_learning_flow.py). First slice of the coupled-core Discover extraction.
-Registered via register() from distill.cli.
-"""
-
 from __future__ import annotations
 
 import re
@@ -31,6 +22,7 @@ from distill.commands._discover_flow import (
     _display_ranked_discover,
     _is_fresh_topic,
 )
+from distill.commands._discover_sites import load_discover_site_candidates
 from distill.commands._helpers import (
     _apply_verify_override,
     _detect_ramp_source,
@@ -57,6 +49,9 @@ from distill.commands._topic_watch import (
 )
 from distill.commands.topic_watch import topic_watch_run
 from distill.ingestors.papers.arxiv import PaperRecord, search_arxiv_multi
+from distill.ingestors.sites.discovery import (
+    discover_trusted_site_seeds as _discover_trusted_site_seeds,
+)
 from distill.ingestors.sites.scraper import SiteSeed, load_site_batch
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
@@ -551,10 +546,15 @@ def discover(  # noqa: C901 — legacy, will refactor
         "--site-seeds",
         help="Optional JSON/TXT seed file of curated website URLs to include in the goal-aware rerank",
     ),
+    trusted_site: list[str] | None = typer.Option(
+        None,
+        "--trusted-site",
+        help="Trusted domain or section URL to enumerate website page candidates from. May repeat.",
+    ),
     site_limit: int = typer.Option(
         10,
         "--site-limit",
-        help="Max curated website seeds to ingest when --site-seeds is provided (default: 10)",
+        help="Max website seeds to ingest when --site-seeds or --trusted-site is provided (default: 10)",
     ),
     papers_only: bool = typer.Option(
         False,
@@ -747,25 +747,35 @@ def discover(  # noqa: C901 — legacy, will refactor
             goal,
             goal_file=str(goal_file) if goal_file is not None else "",
             site_seeds=str(site_seeds) if site_seeds is not None else "",
+            trusted_sites=trusted_site or [],
             now_iso=datetime.now().isoformat(),
         )
-    effective_site_limit = site_limit if site_seeds is not None else 0
+    trusted_site_sources = trusted_site or []
+    effective_site_limit = site_limit if site_seeds is not None or trusted_site_sources else 0
     if paper_limit <= 0 and video_limit <= 0 and effective_site_limit <= 0:
         console.print(
-            "[red]Specify at least one source: papers, videos, or --site-seeds with --site-limit > 0.[/red]"
+            "[red]Specify at least one source: papers, videos, --site-seeds, or --trusted-site with --site-limit > 0.[/red]"
         )
         raise typer.Exit(1)
     summary = RunSummary(command="discover")
     summary.set_metadata(topic=topic_name, workflow="discover", source_type="mixed")
 
     sites: list[SiteSeed] = []
-    if site_seeds is not None:
-        if not site_seeds.exists():
+    site_candidates = None
+    if effective_site_limit > 0:
+        trusted_site_cap = max(20, effective_site_limit * 4)
+        try:
+            site_candidates = load_discover_site_candidates(
+                topic_name=topic_name,
+                site_seeds=site_seeds,
+                trusted_sites=trusted_site_sources,
+                trusted_site_cap=trusted_site_cap,
+                trusted_site_discoverer=_discover_trusted_site_seeds,
+            )
+        except FileNotFoundError as exc:
             console.print(f"[red]Site seed file not found: {site_seeds}[/red]")
-            raise typer.Exit(1)
-        site_batch = load_site_batch(site_seeds, topic_override=topic_name)
-        if effective_site_limit > 0:
-            sites = site_batch.seeds
+            raise typer.Exit(1) from exc
+        sites = site_candidates.sites
 
     # Goal files can be multi-line; keep console header compact.
     goal_headline = goal.splitlines()[0][:120] if goal else ""
@@ -776,8 +786,16 @@ def discover(  # noqa: C901 — legacy, will refactor
         f"[dim]Topic: {topic_name} | Papers: {paper_limit} | Videos: {video_limit} | Sites: {effective_site_limit} "
         f"| Days: {days}[/dim]\n"
     )
-    if site_seeds is not None:
-        console.print(f"[dim]Curated site seeds: {len(sites)} loaded from {site_seeds}[/dim]")
+    if site_candidates is not None and site_seeds is not None:
+        console.print(
+            f"[dim]Curated site seeds: {site_candidates.curated_count} loaded from {site_seeds}[/dim]"
+        )
+    if site_candidates is not None and trusted_site_sources:
+        console.print(
+            f"[dim]Trusted-site candidates: {site_candidates.trusted_count} from "
+            f"{site_candidates.trusted_sources} source(s)[/dim]"
+        )
+    if site_candidates is not None and (site_seeds is not None or trusted_site_sources):
         console.print()
 
     # When the user has restricted to a single source via --papers-only / --videos-only,
@@ -800,7 +818,7 @@ def discover(  # noqa: C901 — legacy, will refactor
             f"[dim]Video queries ({len(video_queries)}): {', '.join(video_queries)}[/dim]"
         )
     if sites:
-        console.print(f"[dim]Curated site candidates: {len(sites)}[/dim]")
+        console.print(f"[dim]Website candidates: {len(sites)}[/dim]")
     console.print()
 
     papers: list[PaperRecord] = []

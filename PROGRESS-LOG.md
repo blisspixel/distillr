@@ -2,6 +2,47 @@
 
 ## 2026-06-20
 
+### Cycle 60 - Trusted-Site Discovery Candidates
+
+- External spend: `$0.00`.
+- Added `distill.ingestors.sites.discovery` to expand operator-trusted domains
+  or section URLs into exact-page `SiteSeed` candidates from public same-host
+  sitemaps and landing-page links.
+- Added `distill discover --trusted-site`, repeatable alongside
+  `--site-seeds`, with generated website candidates flowing through the
+  existing goal-aware rerank and the existing `--site-limit` write cap.
+- Trusted section URLs stay scoped to that section path, generated seeds ingest
+  in exact-page mode, and trusted-site inputs persist into goal refresh
+  commands.
+- This is structural URL enumeration over an operator allowlist, not relevance,
+  source-fit, or page-quality scoring.
+- Updated README, root roadmap, detailed roadmap, usage docs, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run ruff check distill\ingestors\sites\discovery.py distill\ingestors\sites\__init__.py distill\commands\_discover_sites.py distill\commands\discover.py distill\pipeline\goals.py tests\unit\ingestors\sites\test_discovery.py tests\unit\commands\test_cli_wiring.py tests\unit\pipeline\test_goals.py` passed.
+  - `uv run ruff format --check distill\ingestors\sites\discovery.py distill\ingestors\sites\__init__.py distill\commands\_discover_sites.py distill\commands\discover.py distill\pipeline\goals.py tests\unit\ingestors\sites\test_discovery.py tests\unit\commands\test_cli_wiring.py tests\unit\pipeline\test_goals.py` passed.
+  - `uv run pytest -q tests\unit\ingestors\sites\test_discovery.py tests\unit\pipeline\test_goals.py tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_preview_can_expand_trusted_site_candidates tests\unit\commands\test_cli_wiring.py::TestWatchCommands::test_discover_preview_can_rank_curated_site_seeds` passed: 14 passed.
+  - `uv run pytest -q tests\unit\test_module_sizes.py::test_no_module_exceeds_cap_except_shrinking_allowlist` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 460 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2535
+    passed, 8 deselected, 1 warning, 83.02% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `uv build` passed.
+  - `git diff --check --cached` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI
+  release if the main branch remains releasable.
+
 ### Cycle 59 - Discovery Video Content Stats
 
 - External spend: `$0.00`.

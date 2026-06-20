@@ -152,7 +152,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 ### 5. Finish website productization
 
 - [ ] Website UX polish - checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
-- [ ] Trusted-site discovery for docs-heavy research workflows - given allowlisted domains (for example `learn.microsoft.com`, `microsoft.com`), enumerate candidate pages from TOCs, landing pages, sitemaps, and shallow section crawls before the LLM rerank so users do not have to hand-curate every page seed
+- [~] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps and landing-page links for operator-trusted domains or section URLs, then feeds exact-page seeds into the existing LLM rerank. Remaining: TOC-specific extraction, freshness hints, and optional shallow section crawls.
 - [ ] Better crawl boundary controls - keep site batches close to the intended section or branch by default
 - [~] Attachment ingestion - inventory embedded PDFs/videos and optionally pull PDF text or supported embedded-video transcripts into website runs
 - [ ] Mixed exact-page and shallow-crawl workflows that are easier to understand and safer by default
@@ -304,13 +304,14 @@ default; the anti-AI-slop register guard._
   shipped: preview rows for site seeds now show the seed label or a
   host+path-derived title plus the hostname (`_site_candidate_title`).
   Remaining: freshness hints and section context when known.
-- [ ] **Trusted-site discovery for official-doc workflows.** The current
-  `--site-seeds` support works, but it still makes the user curate every page
-  manually. Add a constrained discovery mode where the user supplies trusted
-  domains (for example `learn.microsoft.com`, `microsoft.com`) and Distill
-  enumerates real candidate pages from TOCs, landing pages, sitemaps, and
-  shallow section crawls before the goal-aware rerank. Keep this allowlist- and
-  evidence-driven; this is not a license for arbitrary web search.
+- [~] **Trusted-site discovery for official-doc workflows.** `--site-seeds`
+  still works for curated files, and `distill discover --trusted-site` now adds
+  constrained page enumeration for operator-trusted domains or section URLs.
+  The shipped slice reads public same-host sitemaps and landing-page links,
+  keeps generated seeds exact-page by default, persists trusted-site refresh
+  commands, and sends those candidates through the existing goal-aware rerank.
+  Remaining: TOC-specific extraction, freshness hints, and optional shallow
+  section crawls.
 - [ ] **Long-run visibility and failure surfacing.** The Agent365 mixed-source
   run kept working but emitted very little live output after planning, forcing
   filesystem inspection to confirm progress. Long `discover` / `report` runs

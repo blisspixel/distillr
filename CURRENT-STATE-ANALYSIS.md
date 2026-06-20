@@ -500,3 +500,13 @@ Shorts, known watch time, and unknown-duration candidates from free YouTube
 metadata. The discover command prints that summary before reranking or preview
 approval, so users and loops see the size of a video candidate set without any
 new model judgment or ingest behavior.
+
+Cycle 60 adds the first trusted-site discovery slice for website-heavy
+`distill discover` runs. The new site ingestor helper expands repeated
+`--trusted-site` domains or section URLs into exact-page `SiteSeed` candidates
+from public same-host sitemaps and landing-page links, with section scope
+preserved when the operator supplies a section URL. The discover command
+combines those generated seeds with curated `--site-seeds`, persists the
+trusted-site inputs in goal refresh metadata, and sends the resulting website
+pool through the existing model rerank. This is structural URL enumeration over
+an operator allowlist, not a page quality or goal-fit scorer.

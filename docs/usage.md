@@ -25,7 +25,7 @@ Full command reference. For the short version, see the README.
 
 ## Goal-aware discovery (cross-source)
 
-When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, lets you optionally add curated website seed files, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
+When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, lets you optionally add curated website seed files or trusted website sections, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
 
 On a **fresh topic** (no artifacts yet), discover leads with a *size-then-approve* menu instead of auto-ingesting: it shows the ranked candidates and 2–3 sized options — *Excellent / Including good / Everything worthwhile* — each with its source breakdown and its own spend estimate, and ingests the option you pick. `--yes` skips the menu (rigor-filtered auto-ingest); `--size` forces the menu on a topic that already has artifacts.
 
@@ -40,13 +40,19 @@ distill discover --goal-file private/ai-composer-goal.md --topic music --yes
 # Goal file + curated sites (official docs / vendor pages / labs)
 distill discover --goal-file private/agent365-goal.md --topic agent365 \
   --site-seeds private/agent365_sites.json --site-limit 10 --preview
+
+# Goal file + trusted site expansion
+distill discover --goal-file private/agent365-goal.md --topic agent365 \
+  --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents \
+  --site-limit 10 --preview
 ```
 
 Flags:
 
 - `--topic / -t` — topic folder to file outputs under (defaults to a slug of the goal)
 - `--paper-limit` / `--video-limit` — max per-source ingestion targets (default 10 each)
-- `--site-seeds` / `--site-limit` — optional curated website seed file plus max site seeds to ingest after rerank (default 10 when supplied)
+- `--site-seeds` / `--site-limit` - optional curated website seed file plus max site seeds to ingest after rerank (default 10 when supplied)
+- `--trusted-site` - trusted domain or section URL to enumerate page candidates from before rerank. May be repeated. Enumeration is bounded to public same-host URLs from sitemaps and landing-page links; selected pages ingest in exact-page mode.
 - `--papers-only` / `--videos-only` — mutually exclusive, skip the other source type entirely (also short-circuits the LLM query-generation call for the disabled side, so you don't pay for queries the run will throw away). Useful when one source type has thin coverage of the topic.
 - `--days / -d` — YouTube recency window (default 365)
 - `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
@@ -59,7 +65,7 @@ Flags:
 - `--yes / -y` — skip the interactive confirmation / sizing menu (rigor-filtered auto-ingest)
 - `--goal-file` — load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
 
-Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, and curated site seeds are ranked in the same pool — a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are seed-driven: `discover` does not web-search for pages, it reranks the exact URLs you provide in `--site-seeds` and ingests the selected ones in exact-page mode.
+Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, curated site seeds, and trusted-site page candidates are ranked in the same pool - a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are allowlist-driven: `discover` does not perform arbitrary web search. It reranks the exact URLs from `--site-seeds` plus public same-host candidates enumerated from repeated `--trusted-site` domains or section URLs, then ingests selected pages in exact-page mode.
 
 Video candidate discovery prints the free metadata summary before reranking,
 for example `Found 88 videos + 12 Shorts, ~47h of content across 5 search(es)`.

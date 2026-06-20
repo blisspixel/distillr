@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added `distill discover --trusted-site`, which enumerates candidate website
+  pages from operator-trusted domains or section URLs using public same-host
+  sitemaps and landing-page links, then feeds those exact-page seeds into the
+  existing goal-aware rerank.
+
 ## 0.16.13 - 2026-06-20
 
 ### Added

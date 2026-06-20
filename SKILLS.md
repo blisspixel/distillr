@@ -29,6 +29,10 @@
 - Discovery video content stats are structural when they aggregate free
   metadata such as candidate count, duration, and Shorts classification. Do not
   present them as relevance or quality scoring.
+- Trusted-site discovery is structural when it expands operator-trusted domains
+  or section URLs into public same-host page candidates from sitemaps and
+  landing-page links. Goal fit and page usefulness remain model-judged in the
+  existing discover rerank.
 - Semantic examples: relevance, novelty, source fit, faithfulness in prose,
   synthesis quality, contradiction interpretation, and route quality.
 - If no model route exists for a semantic task, label the fallback as structural
