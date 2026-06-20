@@ -1,5 +1,43 @@
 # Progress Log
 
+## 2026-06-20
+
+### Cycle 56 - Structured Logging Reliability
+
+- External spend: `$0.00`.
+- Fixed `configure_logging()` so the `distill` logger stays at DEBUG while
+  console verbosity is controlled by handler levels.
+- `library/.distill/distill.log` now captures DEBUG records even when console
+  output remains warning-only.
+- Reused CLI processes now add a file handler when an ops directory becomes
+  available and retarget the file handler when the active library changes.
+- This is deterministic run plumbing, not semantic scoring or model judgment.
+- Updated README, root roadmap, detailed roadmap, usage docs, changelog,
+  current-state notes, and loop skills.
+- Targeted validation:
+  - `uv run pytest tests/unit/test_logging.py tests/unit/commands/test_cli_wiring.py::TestTopLevelExperience::test_verbose_enables_debug_logging -q` passed: 4 passed.
+  - `uv run ruff check distill/_logging.py tests/unit/test_logging.py` passed.
+  - `uv run ruff format --check distill/_logging.py tests/unit/test_logging.py` passed.
+- Full validation:
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed: 454 files already formatted.
+  - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2519
+    passed, 8 deselected, 1 warning, 82.83% coverage.
+- Release-adjacent validation:
+  - `uv run lint-imports` passed: 4 contracts kept.
+  - `uv run bandit -r distill/ -c pyproject.toml --severity-level medium`
+    passed with no medium or high issues.
+  - `uv run pip-audit --skip-editable` passed with no known vulnerabilities.
+  - `uv run pyright distill/llm/` passed with 0 errors.
+  - `git diff --check` passed.
+  - Added-line scan for em dashes, attribution, and tool-credit trailers passed.
+  - `uv build` passed.
+
+### Next
+
+- Commit, push, verify CI, and publish the next PyPI release if the main branch
+  remains releasable.
+
 ## 2026-06-19
 
 ### Cycle 55 - Exact Video Duplicate Audit

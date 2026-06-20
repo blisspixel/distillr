@@ -756,8 +756,10 @@ distill --json library                # machine-readable stdout
 
 `--quiet` / `-q` is for external loops that only need exit codes, artifacts, or
 JSON output. It suppresses the shared human console for that invocation and
-resets on the next command. `--verbose` / `-v` enables debug logging. `--quiet`
-cannot be combined with `--verbose` or `--debug`.
+resets on the next command. `--verbose` / `-v` enables debug logging on stderr,
+matching `--debug`. The run log at `library/.distill/distill.log` captures DEBUG
+records for post-run review even when console output remains warning-only.
+`--quiet` cannot be combined with `--verbose` or `--debug`.
 
 ## JSON Output
 
@@ -788,6 +790,8 @@ Distill is built to run in a loop or under an agent with no human at the keyboar
 
 - **`--quiet` / `-q`** suppresses human console output when a loop only needs
   exit codes, artifacts, or JSON.
+- **`library/.distill/distill.log`** captures DEBUG logging for post-run review
+  without requiring verbose console output.
 - **`--yes` / `-y`** skips confirmation on every spend- or mutation-gated command.
 - **`audit --report-only`** writes the report artifact and sets the exit code from findings without prompting.
 - **`audit --next-actions --json`** emits bounded action rows an external loop can run and verify without scraping console output.

@@ -470,3 +470,11 @@ watch, shorts, embed, live, v, youtu.be, and youtube-nocookie URLs, then group
 artifact directories that point at the same source video. It deliberately does
 not score semantic similarity; near-duplicate insight detection and model
 judgment remain separate.
+
+Cycle 56 closes the structured logging roadmap item by making the documented
+file-log invariant true. The `distill` logger now stays at DEBUG while the
+console handler owns warning-only versus DEBUG visibility. File handlers are
+added late when an ops directory becomes available, and reused CLI processes
+retarget `library/.distill/distill.log` to the current library instead of
+keeping a stale handler. This is structural run plumbing, so deterministic
+logging rules are the right boundary.

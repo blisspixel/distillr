@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Kept the `distill` logger at DEBUG while controlling console verbosity
+  through handler levels, so `library/.distill/distill.log` captures DEBUG
+  records even when console output remains warning-only. Reused CLI processes
+  now add or retarget the file handler for the current library instead of
+  keeping a stale log destination.
+
 ## 0.16.9 - 2026-06-20
 
 ### Added

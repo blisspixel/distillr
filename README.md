@@ -208,7 +208,9 @@ distill audit memory --next-actions --json   # bounded loop handoff plan
 Long ingest and report runs print per-item or per-phase progress with
 completed count, failed count, running spend, and ETA when enough items have
 completed. For external loops that only need files, exit codes, or JSON, use
-`distill --quiet <command>` to suppress human console output.
+`distill --quiet <command>` to suppress human console output. DEBUG records are
+kept in `library/.distill/distill.log` for post-run review, and
+`distill --verbose <command>` mirrors them to stderr while a command runs.
 
 The full command reference lives in [`docs/usage.md`](docs/usage.md).
 

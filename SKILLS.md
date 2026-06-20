@@ -99,6 +99,9 @@
   count, running spend, and ETA when available.
 - Use `distill --quiet <command>` for external loops that only need exit codes,
   artifacts, or JSON. Use `distill --verbose <command>` for debug logging.
+- Keep the `distill` logger level at DEBUG. Console and file handler levels own
+  visibility, so `library/.distill/distill.log` can capture DEBUG records even
+  when console output stays warning-only.
 - Keep recurring workflow examples in rendered command help for preview,
   approval, ingest, audit, next-action, and export paths.
 - Preserve JSON stdout purity by routing human progress through the shared
