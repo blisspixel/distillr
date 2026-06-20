@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.16.19 - 2026-06-20
+
 ### Added
 
 - Added explicit website `crawl_prefix` boundaries for site seeds. Trusted-site
