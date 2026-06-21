@@ -308,6 +308,9 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
     return provider
 
 
+get_provider = _get_provider
+
+
 _VALID_REASONING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high"})
 
 

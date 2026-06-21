@@ -122,10 +122,17 @@ cost log, optional `llms.txt` pointer, and `okf_export: true` on approved
 profile runs. `docs/roadmap.md` backlog checkboxes updated for chunk-and-rerank
 and OKF concept/entity projection.
 
-Quality gate: 2689 passed, 84% coverage, ruff clean. External spend: `$0.00`.
-Remaining near-term: audit next-action for stale OKF re-export, MCP OKF
-export/validate tools, 100K char cap lift once multipass is dogfooded, 1.0
-quality ratchets (branch coverage, Pyright-strict, parse-don't-validate).
+Quality gate: 2694+ passed, 84% branch coverage, ruff clean. External spend:
+`$0.00` (loop total `$0.06` of `$5` cap).
+
+Cycles 85-88 (2026-06-21): paper multipass + OKF follow-ons, stale OKF audit
+next-action, MCP `okf_export`/`okf_validate` (26 tools), 100K PDF char cap lift.
+
+Cycle 89: restored blocking `pyright distill/llm/` to zero errors by exporting
+public `get_provider()` and tightening strict types in `chunk_selection.py`.
+
+Remaining near-term: branch coverage ratchet 83 toward 95%, expand Pyright-strict
+beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
 ## Subsequent Implementation Updates
 

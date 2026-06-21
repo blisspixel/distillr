@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 89 - Pyright Strict Fixes for Blocking CI
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Restored blocking `pyright distill/llm/` to zero errors: exported public
+  `get_provider()` in `router.py` so `metadata.py` no longer imports a private
+  symbol; tightened strict typing in `chunk_selection.py` with typed defaults,
+  `Sequence` pass lists, and boundary `cast()` after JSON parse checks.
+- Updated `CURRENT-STATE-ANALYSIS.md`.
+- Validation (free/local): pyright clean on `distill/llm/` and
+  `chunk_selection.py`; full suite green at floor 83.
+
 ### Cycle 88 - Lift 100K Paper PDF Char Cap
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

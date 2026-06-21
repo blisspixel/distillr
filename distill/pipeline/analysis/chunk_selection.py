@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 from distill.llm.availability import model_available
 from distill.llm.json_extract import extract_json
@@ -52,6 +53,14 @@ _PREVIEW_CHARS = 400
 _BATCH_MODEL_SECTION_THRESHOLD = 2
 
 
+def _empty_by_section() -> dict[str, list[ScoredChunk]]:
+    return {}
+
+
+def _empty_modes() -> dict[str, ChunkSelectionMode]:
+    return {}
+
+
 @dataclass(frozen=True)
 class PassSelectionSpec:
     """One multipass section's structural selection hints."""
@@ -65,8 +74,8 @@ class PassSelectionSpec:
 class ChunkSelectionPlan:
     """Per-section chunk picks for one multipass document."""
 
-    by_section: dict[str, list[ScoredChunk]] = field(default_factory=dict)
-    modes: dict[str, ChunkSelectionMode] = field(default_factory=dict)
+    by_section: dict[str, list[ScoredChunk]] = field(default_factory=_empty_by_section)
+    modes: dict[str, ChunkSelectionMode] = field(default_factory=_empty_modes)
 
 
 def build_chunk_selection_plan(
@@ -197,7 +206,7 @@ def _select_positional_order(
 
 def _batch_select_with_model(
     chunks: list[Chunk],
-    passes: tuple[PassSelectionSpec, ...],
+    passes: Sequence[PassSelectionSpec],
     context_window: int,
     config: RouterConfig,
 ) -> dict[str, list[ScoredChunk]]:
@@ -233,15 +242,17 @@ def _batch_select_with_model(
     if not isinstance(parsed, dict):
         return {}
 
-    assignments = parsed.get("assignments")
-    if not isinstance(assignments, dict):
+    assignments_obj = parsed.get("assignments")
+    if not isinstance(assignments_obj, dict):
         return {}
+    assignments = cast(dict[str, object], assignments_obj)
 
     batched: dict[str, list[ScoredChunk]] = {}
     for spec in passes:
-        raw_indices = assignments.get(spec.section)
-        if not isinstance(raw_indices, list):
+        raw_value = assignments.get(spec.section)
+        if not isinstance(raw_value, list):
             continue
+        raw_indices = cast(list[object], raw_value)
         selected = _indices_to_scored_chunks(
             chunks,
             raw_indices,
@@ -279,10 +290,11 @@ def _select_with_model(
     if not isinstance(parsed, dict):
         return []
 
-    raw_indices = parsed.get("indices")
-    if not isinstance(raw_indices, list):
+    raw_value = parsed.get("indices")
+    if not isinstance(raw_value, list):
         return []
 
+    raw_indices = cast(list[object], raw_value)
     return _indices_to_scored_chunks(chunks, raw_indices, category, context_window)
 
 
@@ -312,7 +324,7 @@ def _indices_to_scored_chunks(
 
 def _build_batch_chunk_rank_prompt(
     chunks: list[Chunk],
-    passes: tuple[PassSelectionSpec, ...],
+    passes: Sequence[PassSelectionSpec],
 ) -> str:
     section_lines = "\n".join(
         f'- "{spec.section}": {spec.focus or spec.section}' for spec in passes

@@ -59,9 +59,9 @@ def resolve_metadata_for_router(
     provider_name, model_id = config.resolve(workload_tag)
     provider: Any = None
     try:
-        from distill.llm.router import _get_provider
+        from distill.llm.router import get_provider
 
-        provider = _get_provider(provider_name, config)
+        provider = get_provider(provider_name, config)
     except Exception:
         provider = None
     return resolve_metadata_sync(provider_name, model_id, provider=provider)
