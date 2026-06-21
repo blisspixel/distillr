@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from distill.config import DistillConfig
+from distill.library import Library
+from distill.pipeline.costs import BudgetExceededError
+
+_FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0, "calls": 0}
 
 
 @pytest.fixture
@@ -23,6 +27,12 @@ def mock_config(tmp_path):
     )
     config.library_dir.mkdir(parents=True, exist_ok=True)
     return config
+
+
+def _setup_library(config, topic="ai", channel="TestChannel"):
+    lib = Library(config)
+    lib.add_channel(topic, f"https://www.youtube.com/@{channel}", channel)
+    return lib
 
 
 # ── Property 10: Progress events have valid structure ──
@@ -445,6 +455,246 @@ class TestSynthesizeTool:
             result = json.loads(asyncio.run(synthesize("ai")))
         assert result["status"] == "error"
         assert "model" in result["error"].lower()
+
+    def test_unknown_style(self, mock_config):
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai", style="bogus")))
+
+        assert result["status"] == "error"
+        assert "Unknown style" in result["error"]
+        assert "exec" in result["error"]
+
+    def test_happy_path_all_scopes_ok(self, mock_config):
+        _setup_library(mock_config, "ai", "TestChannel")
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel") as mock_ch,
+            patch("distill.pipeline.synthesis.topic.synthesize_topic") as mock_tp,
+            patch(
+                "distill.pipeline.synthesis.corpus.synthesize_corpus",
+                return_value="# Corpus",
+            ) as mock_corpus,
+            patch("distill.mcp.tools.synthesis.save_run_log") as mock_log,
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai", style="exec")))
+
+        mock_ch.assert_called_once_with(
+            "ai", "TestChannel", mock_config, tracker=mock_ch.call_args.kwargs["tracker"]
+        )
+        mock_tp.assert_called_once()
+        assert mock_tp.call_args.kwargs["style"] == "exec"
+        mock_corpus.assert_called_once()
+        assert mock_corpus.call_args.kwargs["style"] == "exec"
+        assert mock_corpus.call_args.kwargs["two_pass"] is False
+        mock_log.assert_called_once_with(
+            mock_config.library_dir, "synthesize", mock_log.call_args[0][2]
+        )
+        assert result["status"] == "complete"
+        assert result["cost"] == _FAKE_COST
+        assert any(
+            r.get("channel") == "TestChannel" and r["status"] == "ok" for r in result["results"]
+        )
+        assert any(r.get("scope") == "topic" and r["status"] == "ok" for r in result["results"])
+        assert any(
+            r.get("scope") == "corpus" and r["status"] == "ok" and r["two_pass"] is False
+            for r in result["results"]
+        )
+
+    def test_two_pass_corpus(self, mock_config):
+        _setup_library(mock_config)
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic"),
+            patch(
+                "distill.pipeline.synthesis.corpus.synthesize_corpus",
+                return_value="# Corpus",
+            ) as mock_corpus,
+            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai", two_pass=True)))
+
+        assert mock_corpus.call_args.kwargs["two_pass"] is True
+        corpus_row = next(r for r in result["results"] if r.get("scope") == "corpus")
+        assert corpus_row["status"] == "ok"
+        assert corpus_row["two_pass"] is True
+
+    def test_channel_error_is_reported(self, mock_config):
+        _setup_library(mock_config)
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch(
+                "distill.pipeline.synthesis.topic.synthesize_channel",
+                side_effect=RuntimeError("channel fail"),
+            ),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic"),
+            patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value="# Corpus"),
+            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        channel_row = next(r for r in result["results"] if r.get("channel") == "TestChannel")
+        assert channel_row["status"] == "error"
+        assert channel_row["error"] == "channel fail"
+        assert result["status"] == "complete"
+
+    def test_topic_error_is_reported(self, mock_config):
+        _setup_library(mock_config)
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch(
+                "distill.pipeline.synthesis.topic.synthesize_topic",
+                side_effect=RuntimeError("topic fail"),
+            ),
+            patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value="# Corpus"),
+            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        topic_row = next(r for r in result["results"] if r.get("scope") == "topic")
+        assert topic_row["status"] == "error"
+        assert topic_row["error"] == "topic fail"
+
+    def test_corpus_skipped_when_no_mixed_sources(self, mock_config):
+        _setup_library(mock_config)
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic"),
+            patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value=""),
+            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        corpus_row = next(r for r in result["results"] if r.get("scope") == "corpus")
+        assert corpus_row["status"] == "skipped"
+        assert corpus_row["reason"] == "no mixed sources"
+
+    def test_corpus_error_is_reported(self, mock_config):
+        _setup_library(mock_config)
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic"),
+            patch(
+                "distill.pipeline.synthesis.corpus.synthesize_corpus",
+                side_effect=RuntimeError("corpus fail"),
+            ),
+            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        corpus_row = next(r for r in result["results"] if r.get("scope") == "corpus")
+        assert corpus_row["status"] == "error"
+        assert corpus_row["error"] == "corpus fail"
+
+    def test_budget_exceeded_stops_at_channel(self, mock_config, monkeypatch):
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        _setup_library(mock_config)
+        mock_config.distill_mcp_max_spend_per_call = 0.5
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch(
+                "distill.pipeline.synthesis.topic.synthesize_channel",
+                side_effect=BudgetExceededError(0.61, 0.5),
+            ),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic") as mock_tp,
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        mock_tp.assert_not_called()
+        assert result["status"] == "budget_exceeded"
+        assert result["cap"] == 0.5
+
+    def test_budget_exceeded_stops_at_topic(self, mock_config, monkeypatch):
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        _setup_library(mock_config)
+        mock_config.distill_mcp_max_spend_per_call = 0.5
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch(
+                "distill.pipeline.synthesis.topic.synthesize_topic",
+                side_effect=BudgetExceededError(0.61, 0.5),
+            ),
+            patch("distill.pipeline.synthesis.corpus.synthesize_corpus") as mock_corpus,
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        mock_corpus.assert_not_called()
+        assert result["status"] == "budget_exceeded"
+
+    def test_budget_exceeded_stops_at_corpus(self, mock_config, monkeypatch):
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        _setup_library(mock_config)
+        mock_config.distill_mcp_max_spend_per_call = 0.5
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic"),
+            patch(
+                "distill.pipeline.synthesis.corpus.synthesize_corpus",
+                side_effect=BudgetExceededError(0.61, 0.5),
+            ),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            result = json.loads(asyncio.run(synthesize("ai")))
+
+        assert result["status"] == "budget_exceeded"
+
+    def test_reports_progress_when_ctx_provided(self, mock_config):
+        _setup_library(mock_config)
+        ctx = MagicMock()
+        ctx.report_progress = AsyncMock()
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.pipeline.synthesis.topic.synthesize_channel"),
+            patch("distill.pipeline.synthesis.topic.synthesize_topic"),
+            patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value="# Corpus"),
+            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            from distill.mcp.tools.synthesis import synthesize
+
+            asyncio.run(synthesize("ai", ctx=ctx))
+
+        assert ctx.report_progress.await_count == 4  # 1 channel + topic + corpus + final
 
 
 class TestDiscoverTool:

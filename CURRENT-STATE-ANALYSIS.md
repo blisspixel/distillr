@@ -131,7 +131,15 @@ next-action, MCP `okf_export`/`okf_validate` (26 tools), 100K PDF char cap lift.
 Cycle 89: restored blocking `pyright distill/llm/` to zero errors by exporting
 public `get_provider()` and tightening strict types in `chunk_selection.py`.
 
-Remaining near-term: branch coverage ratchet 83 toward 95%, expand Pyright-strict
+Cycle 90: expanded chunk-selection tests and ratcheted branch coverage floor
+83 -> 84.
+
+Cycle 91: expanded MCP `synthesize` tests to 100% module coverage (unknown
+style, happy path, per-scope errors, corpus skip/two_pass, budget hard stops,
+progress reporting).
+
+Remaining near-term: branch coverage ratchet 84 toward 95% (next low modules:
+`summaries.py`, `audit.py`, `doctor.py`, `process.py`), expand Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
 ## Subsequent Implementation Updates

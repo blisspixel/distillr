@@ -2,6 +2,15 @@
 
 ## 2026-06-21
 
+### Cycle 91 - MCP Synthesize Tool Tests (100% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Expanded `TestSynthesizeTool` in `test_new_tools.py` with happy path, unknown
+  style, per-scope errors, corpus skip/two_pass, budget-exceeded hard stops at
+  channel/topic/corpus, and progress reporting when `ctx` is provided.
+- `distill/mcp/tools/synthesis.py` branch coverage rises from ~19% to 100%.
+- Validation (free/local): 2718 passed at floor 84 (84.30%); ruff clean.
+
 ### Cycle 90 - Chunk Selection Tests + Branch Coverage Ratchet 83→84
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
@@ -77,6 +86,9 @@
 
 ### Next
 
+- Branch coverage ratchet toward 95%: `mcp/tools/summaries.py`, `commands/audit.py`,
+  `commands/doctor.py`, `commands/process.py`.
+- Pyright-strict expansion beyond `distill/llm/`.
 - Audit next-action for stale OKF re-export; MCP OKF export/validate tools;
   lift 100K char cap after multipass dogfood; continue 1.0 quality ratchets.
 
