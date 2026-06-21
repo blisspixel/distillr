@@ -2,6 +2,30 @@
 
 ## 2026-06-21
 
+### Cycle 83 - Route Orchestration: Ensemble Strategy
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Built the ensemble (best-of-N) strategy in `distill/pipeline/orchestrate.py`:
+  fan the same task out to several routes, then pick the best faithful output.
+- Pairwise belongs here (comparing independent candidates), but only with a
+  neutral judge, applying the maker-checker lesson: `select_best` (faithfulness
+  veto then pairwise) runs only when `judge_model` is neutral to every
+  candidate's family; when the judge shares a candidate's family, the faithful
+  candidates are returned in route order, unranked and labeled, never picked by a
+  biased judge.
+- Context-safe: the judge sees candidates one or two at a time (per-candidate
+  faithfulness, two-at-a-time pairwise), so the orchestrator never accumulates all
+  N outputs into one prompt (the 4+-worker context blowup the research names).
+  Routes run sequentially; parallel fan-out is a later perf optimization.
+- Degrades honestly: no model route returns nothing (`no-judge-model`); no
+  faithful candidate returns None.
+- Route-agnostic and fully tested with fake routes and mocked judges (zero spend):
+  neutral-judge pairwise winner, conflicted-judge unranked faithful, conflicted
+  no-faithful, neutral no-faithful, and no-model.
+- Validation (free/local): targeted orchestrate coverage 100%; ruff, format,
+  import contracts (4 kept) clean; full suite `2667 passed`; overall coverage
+  84.21% at floor 83.
+
 ### Cycle 82 - Route Orchestration: Maker-Checker Strategy
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).

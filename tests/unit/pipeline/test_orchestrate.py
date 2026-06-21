@@ -13,7 +13,13 @@ import pytest
 from distill.eval.judge import FaithfulnessVerdict, PairwiseResult
 from distill.llm.router import LLM_Response
 from distill.pipeline.costs import CostTracker
-from distill.pipeline.orchestrate import Candidate, LlmRoute, maker_checker, select_best
+from distill.pipeline.orchestrate import (
+    Candidate,
+    LlmRoute,
+    ensemble,
+    maker_checker,
+    select_best,
+)
 
 
 class _FakeRoute:
@@ -278,3 +284,75 @@ def test_maker_checker_no_model_degrades(monkeypatch) -> None:
     assert result.method == "no-judge-model"
     assert result.output is None
     assert maker.calls == []  # nothing ran without a judge
+
+
+# ---------------------------------------------------------------------------
+# ensemble
+# ---------------------------------------------------------------------------
+
+
+def test_ensemble_neutral_judge_picks_pairwise_winner(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    _patch_pairwise(
+        monkeypatch,
+        lambda src, challenger, anchor, **kw: PairwiseResult(
+            win_rate=1.0 if "WIN" in challenger else 0.0, comparisons=2, rationale=""
+        ),
+    )
+    routes = [
+        _FakeRoute("grok-4.3", "A"),
+        _FakeRoute("gemini-3", "B WIN"),
+        _FakeRoute("ollama", "C"),
+    ]
+
+    result = ensemble("SRC", "task", routes=routes, judge_model="qwen3")
+
+    assert result.method == "ensemble-pairwise"
+    assert result.output == "B WIN"
+    assert len(result.candidates) == 3
+    assert result.selection is not None
+
+
+def test_ensemble_conflicted_judge_returns_unranked_faithful(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    routes = [_FakeRoute("grok-4.3", "A"), _FakeRoute("gemini-3", "B")]
+
+    # The judge shares candidate A's family (grok), so a pairwise pick would be biased.
+    result = ensemble("SRC", "task", routes=routes, judge_model="grok-4.3")
+
+    assert result.method == "ensemble-faithful-unranked"
+    assert result.output == "A"  # first faithful in route order, not quality-ranked
+    assert "not quality-ranked" in result.notice
+    assert result.selection is None
+
+
+def test_ensemble_conflicted_judge_no_faithful(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("unfaithful"))
+    routes = [_FakeRoute("grok-4.3", "A"), _FakeRoute("gemini-3", "B")]
+
+    result = ensemble("SRC", "task", routes=routes, judge_model="grok-4.3")
+
+    assert result.method == "no-faithful-candidate"
+    assert result.output is None
+
+
+def test_ensemble_neutral_judge_no_faithful(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("unfaithful"))
+    routes = [_FakeRoute("grok-4.3", "A"), _FakeRoute("gemini-3", "B")]
+
+    result = ensemble("SRC", "task", routes=routes, judge_model="qwen3")
+
+    assert result.method == "no-faithful-candidate"
+    assert result.output is None
+
+
+def test_ensemble_no_model_degrades(monkeypatch) -> None:
+    monkeypatch.setattr("distill.pipeline.orchestrate.model_available", lambda workload: False)
+    routes = [_FakeRoute("grok-4.3", "A")]
+
+    result = ensemble("SRC", "task", routes=routes)
+
+    assert result.method == "no-judge-model"
+    assert result.output is None
+    assert result.candidates == ()
+    assert routes[0].calls == []  # nothing ran without a judge

@@ -41,10 +41,12 @@ from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
 
 __all__ = [
     "Candidate",
+    "EnsembleResult",
     "LlmRoute",
     "MakerCheckerResult",
     "Route",
     "Selection",
+    "ensemble",
     "maker_checker",
     "select_best",
 ]
@@ -411,4 +413,137 @@ def maker_checker(
         refined=refined,
         method="none-faithful",
         notice="neither the draft nor the refinement was faithful to the source",
+    )
+
+
+@dataclass(frozen=True)
+class EnsembleResult:
+    """Outcome of :func:`ensemble`.
+
+    ``method`` is one of: ``"ensemble-pairwise"`` (a neutral judge ranked the
+    faithful candidates), ``"ensemble-faithful-unranked"`` (the judge was not
+    neutral to every candidate, so the faithful candidates are returned in route
+    order without a biased pairwise ranking), ``"no-faithful-candidate"``, or
+    ``"no-judge-model"``.
+    """
+
+    output: str | None
+    candidates: tuple[Candidate, ...]
+    selection: Selection | None  # the select_best outcome when a neutral judge ranked
+    method: str
+    notice: str
+
+
+def _judge_is_neutral(judge_model: str, candidates: Sequence[Candidate]) -> bool:
+    """True when ``judge_model`` shares no candidate's family (safe to pairwise-rank)."""
+    return not any(judge_shares_family(judge_model, candidate.model) for candidate in candidates)
+
+
+def _unranked_faithful(
+    source_excerpt: str,
+    candidates: Sequence[Candidate],
+    *,
+    judge_model: str,
+    tracker: CostTracker | None,
+    router_config: RouterConfig | None,
+) -> EnsembleResult:
+    """Ground each candidate and return the faithful ones in route order, unranked.
+
+    Used when the judge is not neutral to every candidate: a pairwise pick would be
+    biased, so fall back to the family-bias-resistant faithfulness floor and an
+    honest, clearly-labeled route order rather than a biased quality ranking.
+    """
+    faithful = [
+        candidate
+        for candidate in candidates
+        if _is_faithful(
+            source_excerpt,
+            candidate.output,
+            judge_model=judge_model,
+            tracker=tracker,
+            router_config=router_config,
+        )
+    ]
+    if not faithful:
+        return EnsembleResult(
+            output=None,
+            candidates=tuple(candidates),
+            selection=None,
+            method="no-faithful-candidate",
+            notice="judge not neutral to all candidates; no candidate was faithful to the source",
+        )
+    return EnsembleResult(
+        output=faithful[0].output,
+        candidates=tuple(candidates),
+        selection=None,
+        method="ensemble-faithful-unranked",
+        notice=(
+            "judge shares a candidate's family; returned the first faithful candidate "
+            "in route order, not quality-ranked"
+        ),
+    )
+
+
+def ensemble(
+    source_excerpt: str,
+    task_prompt: str,
+    *,
+    routes: Sequence[Route],
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    tracker: CostTracker | None = None,
+    router_config: RouterConfig | None = None,
+) -> EnsembleResult:
+    """Fan the same task out to several routes, then pick the best faithful output.
+
+    Each route drafts the same ``task_prompt`` independently; the candidates are
+    ranked by :func:`select_best` (faithfulness veto, then pairwise) -- but pairwise
+    is trusted only when ``judge_model`` is neutral to every candidate's family,
+    since pairwise is where self-preference bias is large. When the judge shares a
+    candidate's family the faithful candidates are returned in route order,
+    unranked and labeled, rather than picked by a biased judge.
+
+    The judge sees candidates one or two at a time (faithfulness is per-candidate,
+    pairwise is two at a time), so the orchestrator never accumulates all N outputs
+    into a single prompt. Routes run sequentially; they are independent, so parallel
+    fan-out is a later performance optimization, not a correctness concern.
+
+    Degradation: with no model route to judge, nothing runs (``"no-judge-model"``);
+    with no faithful candidate, the output is ``None``.
+    """
+    if not model_available("qa"):
+        return EnsembleResult(
+            output=None,
+            candidates=(),
+            selection=None,
+            method="no-judge-model",
+            notice="no model route available; ensemble skipped",
+        )
+
+    candidates = [
+        Candidate(route.run(task_prompt, tracker=tracker), route.model) for route in routes
+    ]
+
+    if not _judge_is_neutral(judge_model, candidates):
+        return _unranked_faithful(
+            source_excerpt,
+            candidates,
+            judge_model=judge_model,
+            tracker=tracker,
+            router_config=router_config,
+        )
+
+    selection = select_best(
+        source_excerpt,
+        candidates,
+        judge_model=judge_model,
+        tracker=tracker,
+        router_config=router_config,
+    )
+    winner = selection.winner
+    return EnsembleResult(
+        output=winner.output if winner is not None else None,
+        candidates=tuple(candidates),
+        selection=selection,
+        method="ensemble-pairwise" if winner is not None else "no-faithful-candidate",
+        notice=selection.notice,
     )
