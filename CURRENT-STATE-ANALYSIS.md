@@ -138,8 +138,11 @@ Cycle 91: expanded MCP `synthesize` tests to 100% module coverage (unknown
 style, happy path, per-scope errors, corpus skip/two_pass, budget hard stops,
 progress reporting).
 
+Cycle 92: expanded MCP `find_insights_summary` and `list_topic_summary` tests
+to 100% module coverage on `summaries.py`.
+
 Remaining near-term: branch coverage ratchet 84 toward 95% (next low modules:
-`summaries.py`, `audit.py`, `doctor.py`, `process.py`), expand Pyright-strict
+`audit.py`, `doctor.py`, `process.py`, `update.py`), expand Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
 ## Subsequent Implementation Updates

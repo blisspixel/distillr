@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 import pytest
 
 from distill.config import DistillConfig
 from distill.llm.router import LLM_Response
 from distill.pipeline import summary_query as sq_mod
+from distill.pipeline.summary_query import QuerySummary
 
 
 @pytest.fixture
@@ -107,6 +109,9 @@ class TestSummarizeQuery:
         assert len(calls) == 2
 
 
+_FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0, "calls": 0}
+
+
 class TestMcpTools:
     def test_find_insights_summary_gated_in_read_only(self, monkeypatch):
         from distill.mcp.tools.summaries import find_insights_summary
@@ -114,6 +119,167 @@ class TestMcpTools:
         monkeypatch.setenv("DISTILL_MCP_READ_ONLY", "1")
         result = json.loads(find_insights_summary("t", "q"))
         assert result["status"] == "read_only"
+
+    def test_find_insights_summary_no_model(self, tmp_path, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import find_insights_summary
+
+        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        result = json.loads(find_insights_summary("t", "q"))
+
+        assert result["status"] == "error"
+        assert "model" in result["error"].lower()
+
+    def test_find_insights_summary_topic_not_found(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import find_insights_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        result = json.loads(find_insights_summary("missing", "q"))
+
+        assert result["status"] == "error"
+        assert "not found" in result["error"]
+
+    def test_find_insights_summary_no_matches(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import find_insights_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+
+        with patch("distill.pipeline.summary_query.summarize_query", return_value=None):
+            result = json.loads(find_insights_summary("t", "q"))
+
+        assert result["status"] == "no_matches"
+
+    def test_find_insights_summary_happy_path(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import find_insights_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+        summary = QuerySummary(
+            summary="Brief [checker_Insights].",
+            sources=["checker_Insights"],
+            cached=True,
+            model="grok-4.3",
+        )
+
+        with (
+            patch("distill.pipeline.summary_query.summarize_query", return_value=summary),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(find_insights_summary("t", "grounding", max_tokens=4000))
+
+        assert result["summary"] == summary.summary
+        assert result["sources"] == summary.sources
+        assert result["cached"] is True
+        assert result["model"] == "grok-4.3"
+        assert result["cost"] == _FAKE_COST
+
+    def test_find_insights_summary_clamps_max_tokens(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import find_insights_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+        seen: list[int] = []
+
+        def capture(_config, topic, query, *, max_tokens, tracker):
+            seen.append(max_tokens)
+            return
+
+        with patch("distill.pipeline.summary_query.summarize_query", side_effect=capture):
+            json.loads(find_insights_summary("t", "q", max_tokens=100))
+            json.loads(find_insights_summary("t", "q", max_tokens=99_999))
+
+        assert seen == [500, 16_000]
+
+    def test_list_topic_summary_topic_not_found(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topic_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        result = json.loads(list_topic_summary("missing"))
+
+        assert result["status"] == "error"
+        assert "not found" in result["error"]
+
+    def test_list_topic_summary_uses_newest_synthesis_file(self, config, monkeypatch):
+        import os
+
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topic_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+        older = config.topic_dir("t") / "t_Topic_Synthesis.md"
+        older.write_text(
+            "---\n---\n\nOlder topic synthesis paragraph should lose.\n",
+            encoding="utf-8",
+        )
+        newer = config.topic_dir("t") / "t_Corpus_Synthesis.md"
+        newer.write_text(
+            "---\n---\n\n# Overview\n\nNewest corpus synthesis paragraph wins.\n",
+            encoding="utf-8",
+        )
+        os.utime(older, (1_000_000, 1_000_000))
+        os.utime(newer, (2_000_000, 2_000_000))
+
+        result = json.loads(list_topic_summary("t"))
+
+        assert "Newest corpus synthesis paragraph wins." in result["summary"]
+        assert result["from"] == "t_Corpus_Synthesis.md"
+
+    def test_list_topic_summary_skips_unreadable_synthesis(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topic_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+        unreadable = config.topic_dir("t") / "t_Topic_Synthesis.md"
+        unreadable.write_text("---\n---\n\nShould not be read.\n", encoding="utf-8")
+        fallback = config.topic_dir("t") / "t_Paper_Synthesis.md"
+        fallback.write_text(
+            "---\n---\n\nReadable paper synthesis paragraph after read failure.\n",
+            encoding="utf-8",
+        )
+
+        original_read_text = type(unreadable).read_text
+
+        def flaky_read_text(self, *args, **kwargs):
+            if self.name == "t_Topic_Synthesis.md":
+                raise OSError("denied")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(type(unreadable), "read_text", flaky_read_text)
+
+        result = json.loads(list_topic_summary("t"))
+
+        assert "Readable paper synthesis paragraph after read failure." in result["summary"]
+        assert result["from"] == "t_Paper_Synthesis.md"
+
+    def test_list_topic_summary_skips_heading_only_blocks(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topic_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+        synth = config.topic_dir("t") / "t_Paper_Synthesis.md"
+        synth.write_text(
+            "---\n---\n\n# Only Headings\n\n## Still Not Prose\n\n",
+            encoding="utf-8",
+        )
+
+        result = json.loads(list_topic_summary("t"))
+
+        assert "No synthesis artifact yet" in result["summary"]
+        assert result["from"] == ""
 
     def test_list_topic_summary_free_and_available_in_read_only(
         self, config, monkeypatch, tmp_path

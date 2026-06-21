@@ -2,6 +2,16 @@
 
 ## 2026-06-21
 
+### Cycle 92 - MCP Summaries Tool Tests (100% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Expanded `TestMcpTools` in `test_summary_query.py` for `find_insights_summary`
+  (no model, topic missing, no matches, happy path, max_tokens clamp) and
+  `list_topic_summary` (topic missing, newest synthesis selection, OSError skip,
+  heading-only fallback).
+- `distill/mcp/tools/summaries.py` branch coverage rises from ~63% to 100%.
+- Validation (free/local): 2727 passed at floor 84 (84.38%); ruff clean.
+
 ### Cycle 91 - MCP Synthesize Tool Tests (100% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
