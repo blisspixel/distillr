@@ -2,6 +2,15 @@
 
 ## 2026-06-21
 
+### Cycle 98 - Learn Command Tests (23% -> 100% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_learn_commands.py` covering `search`, `explore`,
+  `research-brief`, `learn`, `brief`, and `latest` (preview, rigor validation,
+  rerank fallback, top-by-date, concepts callback, lens/verify hooks).
+- `distill/commands/learn.py` branch coverage rises from ~23% to 100%.
+- Validation (free/local): 2900 passed at floor 84 (87.35%); ruff clean.
+
 ### Cycle 97 - Reprocess Command Tests (17% -> 97% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

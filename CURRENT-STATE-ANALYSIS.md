@@ -160,8 +160,12 @@ Cycle 97: added `tests/unit/commands/test_reprocess.py`; `commands/reprocess.py`
 now 99% covered (`resynthesize`, `reanalyze`, dry-run, deep upgrade, two-pass
 corpus, and post-analysis synthesis failure paths).
 
-Remaining near-term: branch coverage ratchet 86 toward 95% (next low modules:
-`commands/learn.py`, `commands/profile.py`, `commands/reports.py`), expand
+Cycle 98: added `tests/unit/commands/test_learn_commands.py`; `commands/learn.py`
+now 100% covered (`search`, `explore`, `research-brief`, `learn`, `brief`,
+`latest` preview and processing delegation paths).
+
+Remaining near-term: branch coverage ratchet 87 toward 95% (next low modules:
+`commands/profile.py`, `commands/reports.py`, `commands/watch.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
