@@ -1,3 +1,7 @@
+License: Apache 2.0 + Commons Clause  
+Personal/research/sharing use free.  
+Commercial/enterprise products require separate license from Nick Seal.
+
 # Distill
 
 *Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI command is `distill` (plus `distill-mcp`).*
@@ -5,7 +9,7 @@
 [![CI](https://github.com/blisspixel/distillr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/distillr/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/distillr.svg)](https://pypi.org/project/distillr/)
 [![Python](https://img.shields.io/pypi/pyversions/distillr.svg)](https://pypi.org/project/distillr/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/License-Apache%202.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
@@ -458,4 +462,4 @@ See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for dev setup, quality gates,
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+Apache 2.0 + Commons Clause — see [`LICENSE`](LICENSE). Personal/research/sharing use is free; commercial or enterprise products require a separate license from Nick Seal.
