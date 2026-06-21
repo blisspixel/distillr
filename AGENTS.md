@@ -16,7 +16,7 @@ These instructions apply to the whole repository.
 - If you change code or docs, run the relevant quality gate before handing off.
   For normal repo work, that means `uv run ruff check .`,
   `uv run ruff format --check .`, and
-  `uv run pytest -q --cov=distill --cov-fail-under=83`.
+  `uv run pytest -q --cov=distill --cov-fail-under=84`.
 - Treat generated corpus files as outputs. Fix the pipeline or rerun the
   command instead of hand-editing generated `_Insights.md`, syntheses,
   `CLAUDE.md`, or generated topic `AGENTS.md` files.

@@ -43,7 +43,7 @@ jobs:
         # requires explicit review. (A fixed floor beats a stored-baseline
         # "must-not-decrease" gate here, which would flake on normal
         # branch-coverage jitter.)
-        run: uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=83
+        run: uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=84
 
   test-os:
     name: Test (${{ matrix.os }} smoke)

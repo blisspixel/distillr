@@ -9,6 +9,8 @@ from distill.llm.router import LLM_Response, RouterConfig
 from distill.pipeline.analysis.chunk_selection import (
     PassSelectionSpec,
     build_chunk_selection_plan,
+    format_selection_modes,
+    parse_section_blocks,
     select_chunks_for_category,
 )
 from distill.pipeline.analysis.chunking import Chunk
@@ -145,3 +147,116 @@ class TestHonestDegradation:
         )
         assert mode == "keyword_fallback"
         assert any(sc.chunk.index == 1 for sc in selected)
+
+
+class TestHelpers:
+    def test_format_selection_modes_sorts_sections(self) -> None:
+        serialized = format_selection_modes(
+            {"Methods": "model", "Summary": "structural"},
+        )
+        assert serialized == "Methods:model; Summary:structural"
+
+    def test_parse_section_blocks_extracts_bodies(self) -> None:
+        text = "## Summary\nOne line.\n\n## Methods\nFirst.\nSecond."
+        blocks = parse_section_blocks(text)
+        assert blocks == {"Summary": "One line.", "Methods": "First.\nSecond."}
+
+    def test_parse_section_blocks_skips_empty_sections(self) -> None:
+        assert parse_section_blocks("## Empty\n\n## Filled\nBody") == {"Filled": "Body"}
+        assert parse_section_blocks("No headers here") == {}
+
+
+class TestPlanBuilder:
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=False)
+    def test_empty_chunks_returns_empty_plan(self, _model_available) -> None:
+        plan = build_chunk_selection_plan(
+            [],
+            (PassSelectionSpec(section="Summary"),),
+            10_000,
+            RouterConfig(xai_api_key="t"),
+        )
+        assert plan.by_section == {}
+        assert plan.modes == {}
+
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=False)
+    def test_token_budget_limits_positional_selection(self, _model_available) -> None:
+        chunks = [_chunk("x" * 100, index=index, total=3) for index in range(3)]
+        selected, mode = select_chunks_for_category(
+            chunks,
+            "Summary",
+            30,
+            RouterConfig(xai_api_key="t"),
+        )
+        assert mode == "positional_order"
+        assert len(selected) == 1
+
+
+class TestBatchModelSelection:
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
+    @patch("distill.pipeline.analysis.chunk_selection.call")
+    def test_model_batch_assigns_multiple_sections(self, mock_call, _model_available) -> None:
+        mock_call.return_value = LLM_Response(
+            text='{"assignments": {"limits": [1], "summary": [0]}}',
+            input_tokens=10,
+            output_tokens=5,
+            model="grok-4.3",
+        )
+        chunks = [
+            _chunk("Opening summary text.", index=0, total=2, heading_context="## Intro"),
+            _chunk(
+                "Limitations and future work.", index=1, total=2, heading_context="## Discussion"
+            ),
+        ]
+        plan = build_chunk_selection_plan(
+            chunks,
+            (
+                PassSelectionSpec(
+                    section="summary",
+                    heading_patterns=("abstract",),
+                ),
+                PassSelectionSpec(
+                    section="limits",
+                    heading_patterns=("limitation",),
+                ),
+            ),
+            10_000,
+            RouterConfig(xai_api_key="t"),
+        )
+        assert plan.modes["summary"] == "model_batch"
+        assert plan.modes["limits"] == "model_batch"
+        assert plan.by_section["summary"][0].chunk.index == 0
+        assert plan.by_section["limits"][0].chunk.index == 1
+
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
+    @patch("distill.pipeline.analysis.chunk_selection.call", side_effect=RuntimeError("down"))
+    def test_model_failure_falls_back_to_positional(self, _mock_call, _model_available) -> None:
+        chunks = [_chunk(f"body {index}", index=index, total=2) for index in range(2)]
+        selected, mode = select_chunks_for_category(
+            chunks,
+            "Core Contribution",
+            10_000,
+            RouterConfig(xai_api_key="t"),
+            heading_patterns=("missing",),
+        )
+        assert mode == "positional_order"
+        assert selected
+
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
+    @patch("distill.pipeline.analysis.chunk_selection.call")
+    def test_invalid_model_json_falls_back_to_positional(self, mock_call, _model_available) -> None:
+        mock_call.return_value = LLM_Response(
+            text="not json",
+            input_tokens=1,
+            output_tokens=1,
+            model="grok-4.3",
+        )
+        chunks = [_chunk("only chunk", index=0, total=1)]
+        selected, mode = select_chunks_for_category(
+            chunks,
+            "Summary",
+            10_000,
+            RouterConfig(xai_api_key="t"),
+            heading_patterns=("nope",),
+        )
+        assert mode == "positional_order"
+        assert selected

@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 90 - Chunk Selection Tests + Branch Coverage Ratchet 83→84
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Expanded `test_chunk_selection.py` with helpers (`format_selection_modes`,
+  `parse_section_blocks`), plan-builder edge cases, `model_batch` assignments,
+  and model-failure degradation paths. `chunk_selection.py` branch coverage
+  rises from ~78% to ~92%.
+- Ratcheted `--cov-fail-under` 83 -> 84 in CI, `AGENTS.md`, `CONTRIBUTING.md`,
+  and `SKILLS.md` after measured suite total reached 84.13%.
+- Validation (free/local): 2707 passed at floor 84; ruff clean.
+
 ### Cycle 89 - Pyright Strict Fixes for Blocking CI
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

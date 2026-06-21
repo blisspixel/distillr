@@ -30,7 +30,7 @@ You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test s
 ```bash
 uv run pytest -q                   # default — unit + contract tests, no network
 uv run pytest -m integration       # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
-uv run pytest --cov=distill --cov-fail-under=83   # branch coverage gate
+uv run pytest --cov=distill --cov-fail-under=84   # branch coverage gate
 ```
 
 ## Quality gates
@@ -39,7 +39,7 @@ CI enforces the following on every push. Before opening a PR, at least run:
 
 ```bash
 uv run pytest -q                                              # unit + contract tests pass
-uv run pytest --cov=distill --cov-fail-under=83               # branch coverage stays above the floor
+uv run pytest --cov=distill --cov-fail-under=84               # branch coverage stays above the floor
 uv run ruff check .                                           # lint clean
 uv run ruff format --check .                                  # formatting clean
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
@@ -163,7 +163,7 @@ Before pushing to main or tagging a release, run the full gate locally. CI catch
 
 ```bash
 # 1. Tests — including property-based tests (hypothesis)
-uv run pytest -q --cov=distill --cov-fail-under=83
+uv run pytest -q --cov=distill --cov-fail-under=84
 
 # 2. Lint — both check and format
 uv run ruff check .
