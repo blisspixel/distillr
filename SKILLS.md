@@ -43,6 +43,17 @@
   synthesis quality, contradiction interpretation, and route quality.
 - If no model route exists for a semantic task, label the fallback as structural
   ordering. Do not present keyword or length heuristics as quality ranking.
+- Judge in the mode the evidence supports: coarse absolute faithfulness
+  (faithful/minor/unfaithful, anchor-free) for GROUNDING, pairwise comparison for
+  RANKING among the faithful. Never a fine-grained absolute "quality score" and
+  never argmax over judge scores; that is the brittle proxy wearing a model's
+  clothing (see `docs/design/model-judgment-vs-brittle-fallbacks.md`).
+- Pairwise is where self-preference bias is large, so a pairwise judge must be
+  neutral (a different family than every candidate it compares). For
+  correct-then-verify shapes (maker-checker), do not pairwise-rank at all: the
+  cross-family correction is the deliverable, so verify it with the
+  family-bias-resistant faithfulness floor. Reserve pairwise for picking among
+  independent candidates (ensemble), and only with a neutral judge.
 
 ## Testing and Coverage
 
