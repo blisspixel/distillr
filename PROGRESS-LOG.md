@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 96 - Self-Update Module Tests (44% -> 99% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Expanded `tests/unit/commands/test_update.py` covering version metadata,
+  PyPI fetch failures, editable install detection, `run_self_update` success
+  and error paths, cache TTL behavior, CLI `--check`/JSON/human branches, and
+  already-latest plus noop upgrade reporting.
+- `distill/update.py` branch coverage rises from ~44% to 99%;
+  `distill/commands/update.py` rises to 99%.
+- Validation (free/local): 2850 passed at floor 84 (86.65%); ruff clean.
+
 ### Cycle 95 - Process Command Tests (38% -> 98% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
