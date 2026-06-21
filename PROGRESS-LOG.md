@@ -2,6 +2,30 @@
 
 ## 2026-06-21
 
+### Cycle 78 - Stateful Property Test of the Concept-Playbook Lifecycle
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- First 1.0 "Verification depth" item shipped (beyond the coverage ratchet): a
+  Hypothesis RuleBasedStateMachine that drives the real concept-playbook
+  lifecycle (append mentions, rebuild via group/filter/merge, write notes,
+  snapshot to `.history/`, roll back, re-merge) across arbitrary operation
+  orderings, asserting the invariants that single-shot example tests miss.
+- Invariants guarded after every step: merge consistency (the persisted note
+  equals the deterministic render of the merge), idempotence (an immediate
+  identical rebuild rewrites nothing), order independence (the reversed mention
+  log yields identical concepts), rollback round-trip (the restored note
+  byte-matches the snapshot and the rewritten rollup row reconstructs the
+  snapshot frontmatter), and evidence intervals never invert.
+- Drives the same non-LLM sequence `run_concepts` uses, so no model mocking is
+  needed. From this one test alone: merge.py 94%, normalize.py 89%, notes.py
+  76%, recovery.py 58% branch coverage, confirming the rollback-after-merge path
+  actually fires.
+- Marked the roadmap "Stateful property testing of the playbook lifecycle" item
+  shipped.
+- Validation (free/local): the test passes 30 Hypothesis runs of up to 24
+  interleaved steps; full suite `2647 passed`; ruff and format clean; overall
+  coverage 84.13% at floor 83.
+
 ### Cycle 77 - Branch-Coverage Floor Ratchet 82 -> 83
 
 - External spend: `$0.00`.
