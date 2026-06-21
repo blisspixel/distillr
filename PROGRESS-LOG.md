@@ -2,6 +2,30 @@
 
 ## 2026-06-21
 
+### Cycle 84 - Route Orchestration: Critic-Refine Strategy
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Built critic-refine, the fourth and final route-orchestration strategy, in
+  `distill/pipeline/orchestrate.py`. All four strategies (the `select_best` core,
+  maker-checker, ensemble, critic-refine) are now built and 100% covered.
+- The maker drafts; the two cross-family routes then alternate as reviewer
+  (whichever route did not produce the current text reviews and corrects it), so
+  every refinement is external, different-family feedback, never intra-model
+  self-refine (the documented failure mode). The loop stops as soon as the
+  faithfulness floor grounds the current text or after `max_rounds` refinements.
+  `max_rounds` is the bounded budget per the loop-admission test: it caps the
+  model calls and thus the spend.
+- Degrades honestly: same-family routes cannot alternate, so only the draft is
+  verified (`single-route-same-family`); no model route returns nothing
+  (`no-judge-model`); ungrounded after the bound returns None with a labeled
+  notice.
+- Fully tested with fake routes and mocked judges (zero spend):
+  stops-when-draft-faithful, refines-until-faithful, exhausts-rounds-with-
+  alternation, same-family-degrade, and no-model-degrade.
+- Validation (free/local): targeted orchestrate coverage 100%; ruff, format,
+  import contracts (4 kept) clean; full suite `2672 passed`; overall coverage
+  84.22% at floor 83.
+
 ### Cycle 83 - Route Orchestration: Ensemble Strategy
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).

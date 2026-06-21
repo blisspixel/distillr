@@ -41,11 +41,13 @@ from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
 
 __all__ = [
     "Candidate",
+    "CriticRefineResult",
     "EnsembleResult",
     "LlmRoute",
     "MakerCheckerResult",
     "Route",
     "Selection",
+    "critic_refine",
     "ensemble",
     "maker_checker",
     "select_best",
@@ -546,4 +548,106 @@ def ensemble(
         selection=selection,
         method="ensemble-pairwise" if winner is not None else "no-faithful-candidate",
         notice=selection.notice,
+    )
+
+
+@dataclass(frozen=True)
+class CriticRefineResult:
+    """Outcome of :func:`critic_refine`.
+
+    ``method`` is ``"critic-refine"``, ``"single-route-same-family"`` (the two
+    routes share a family, so cross-family alternation is impossible and only the
+    draft is verified), or ``"no-judge-model"``.
+    """
+
+    output: str | None
+    rounds: int  # refinement rounds actually run
+    final_model: str  # the model that produced the final output
+    method: str
+    notice: str
+
+
+def critic_refine(
+    source_excerpt: str,
+    task_prompt: str,
+    *,
+    maker: Route,
+    checker: Route,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    max_rounds: int = 2,
+    tracker: CostTracker | None = None,
+    router_config: RouterConfig | None = None,
+) -> CriticRefineResult:
+    """Maker-checker iterated: refine until the verifier is satisfied or the bound.
+
+    The maker drafts; then the two cross-family routes alternate as the reviewer --
+    each round, whichever route did NOT produce the current text reviews and
+    corrects it, so every refinement is external, different-family feedback (the
+    mode the research says works; a model cannot correct the identical error in its
+    own output). The loop stops as soon as the coarse faithfulness floor grounds the
+    current text, or after ``max_rounds`` refinements. ``max_rounds`` is the bounded
+    budget: it caps the number of model calls and therefore the spend.
+
+    Degradation: when the two routes share a family there is no cross-family
+    alternation, so only the maker's draft is verified
+    (``"single-route-same-family"``). With no model route to judge, nothing runs
+    (``"no-judge-model"``).
+    """
+    if not model_available("qa"):
+        return CriticRefineResult(
+            output=None,
+            rounds=0,
+            final_model="",
+            method="no-judge-model",
+            notice="no model route available; critic-refine skipped",
+        )
+
+    if judge_shares_family(maker.model, checker.model):
+        draft = maker.run(task_prompt, tracker=tracker)
+        grounded = _is_faithful(
+            source_excerpt,
+            draft,
+            judge_model=judge_model,
+            tracker=tracker,
+            router_config=router_config,
+        )
+        return CriticRefineResult(
+            output=draft if grounded else None,
+            rounds=0,
+            final_model=maker.model,
+            method="single-route-same-family",
+            notice="maker and checker share a family; no cross-family refinement, verified the draft only",
+        )
+
+    current = maker.run(task_prompt, tracker=tracker)
+    current_model = maker.model
+    rounds = 0
+    grounded = _is_faithful(
+        source_excerpt,
+        current,
+        judge_model=judge_model,
+        tracker=tracker,
+        router_config=router_config,
+    )
+    while not grounded and rounds < max_rounds:
+        # The reviewer is whichever route did NOT produce the current text, so the
+        # feedback is always cross-family (external), never intra-model self-refine.
+        reviewer = checker if judge_shares_family(current_model, maker.model) else maker
+        current = reviewer.run(_refine_prompt(source_excerpt, current), tracker=tracker)
+        current_model = reviewer.model
+        rounds += 1
+        grounded = _is_faithful(
+            source_excerpt,
+            current,
+            judge_model=judge_model,
+            tracker=tracker,
+            router_config=router_config,
+        )
+
+    return CriticRefineResult(
+        output=current if grounded else None,
+        rounds=rounds,
+        final_model=current_model,
+        method="critic-refine",
+        notice="" if grounded else f"not grounded after {rounds} refinement round(s)",
     )

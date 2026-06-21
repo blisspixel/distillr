@@ -16,6 +16,7 @@ from distill.pipeline.costs import CostTracker
 from distill.pipeline.orchestrate import (
     Candidate,
     LlmRoute,
+    critic_refine,
     ensemble,
     maker_checker,
     select_best,
@@ -356,3 +357,81 @@ def test_ensemble_no_model_degrades(monkeypatch) -> None:
     assert result.output is None
     assert result.candidates == ()
     assert routes[0].calls == []  # nothing ran without a judge
+
+
+# ---------------------------------------------------------------------------
+# critic_refine
+# ---------------------------------------------------------------------------
+
+
+def test_critic_refine_stops_when_draft_faithful(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = critic_refine("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "critic-refine"
+    assert result.rounds == 0
+    assert result.output == "DRAFT"
+    assert checker.calls == []  # already grounded, no refinement needed
+
+
+def test_critic_refine_refines_until_faithful(monkeypatch) -> None:
+    _patch_faithfulness(
+        monkeypatch,
+        lambda src, out, **kw: _faith("faithful" if out == "REFINED" else "unfaithful"),
+    )
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = critic_refine("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "critic-refine"
+    assert result.rounds == 1
+    assert result.output == "REFINED"
+    assert result.final_model == "gemini-3"
+    assert len(maker.calls) == 1
+    assert len(checker.calls) == 1
+
+
+def test_critic_refine_exhausts_rounds_and_alternates(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("unfaithful"))
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = critic_refine(
+        "SRC", "task", maker=maker, checker=checker, judge_model="qwen3", max_rounds=2
+    )
+
+    assert result.rounds == 2
+    assert result.output is None
+    assert "not grounded after 2" in result.notice
+    # draft (maker), round 1 reviewer checker, round 2 reviewer maker
+    assert len(maker.calls) == 2
+    assert len(checker.calls) == 1
+
+
+def test_critic_refine_same_family_degrades(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("grok-4.1-fast", "REFINED")
+
+    result = critic_refine("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "single-route-same-family"
+    assert result.rounds == 0
+    assert result.output == "DRAFT"
+    assert checker.calls == []
+
+
+def test_critic_refine_no_model_degrades(monkeypatch) -> None:
+    monkeypatch.setattr("distill.pipeline.orchestrate.model_available", lambda workload: False)
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = critic_refine("SRC", "task", maker=maker, checker=checker)
+
+    assert result.method == "no-judge-model"
+    assert result.output is None
+    assert maker.calls == []
