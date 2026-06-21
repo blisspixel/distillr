@@ -144,8 +144,12 @@ to 100% module coverage on `summaries.py`.
 Cycle 93: added `tests/unit/commands/test_audit.py`; `commands/audit.py` now
 98% covered (helpers, action menu, JSON/console next-action paths).
 
-Remaining near-term: branch coverage ratchet 84 toward 95% (next low modules:
-`doctor.py`, `process.py`, `update.py`, `reprocess.py`), expand Pyright-strict
+Cycle 94: added `tests/unit/commands/test_doctor.py`; `commands/doctor.py` now
+90% covered (links/migration modes, human output branches, health paths).
+
+Remaining near-term: branch coverage ratchet 86 toward 95% (next low modules:
+`process.py`, `update.py`, `reprocess.py`, `commands/learn.py`), expand
+Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
 ## Subsequent Implementation Updates

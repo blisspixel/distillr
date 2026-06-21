@@ -2,6 +2,15 @@
 
 ## 2026-06-21
 
+### Cycle 94 - Doctor Command Tests (47% -> 90% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_doctor.py` covering flag validation, link check
+  and fix modes, legacy/frontmatter migration, human and JSON output branches,
+  adapter console report, local inference section, and health command paths.
+- `distill/commands/doctor.py` branch coverage rises from ~47% to 90%.
+- Validation (free/local): 2792 passed at floor 84 (86.00%); ruff clean.
+
 ### Cycle 93 - Audit Command Tests (43% -> 98% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
