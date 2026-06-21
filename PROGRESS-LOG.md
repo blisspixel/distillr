@@ -2,6 +2,15 @@
 
 ## 2026-06-21
 
+### Cycle 99 - Profile Command Tests (44% -> 99% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Expanded `tests/unit/commands/test_profile_command.py` covering human preview/run
+  rendering, validation and value-error JSON paths, OKF export failure handling,
+  failed-run messaging, and sub-app registration.
+- `distill/commands/profile.py` branch coverage rises from ~44% to 99%.
+- Validation (free/local): 2910 passed at floor 84 (87.60%); ruff clean.
+
 ### Cycle 98 - Learn Command Tests (23% -> 100% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

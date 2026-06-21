@@ -164,8 +164,12 @@ Cycle 98: added `tests/unit/commands/test_learn_commands.py`; `commands/learn.py
 now 100% covered (`search`, `explore`, `research-brief`, `learn`, `brief`,
 `latest` preview and processing delegation paths).
 
+Cycle 99: expanded `tests/unit/commands/test_profile_command.py`;
+`commands/profile.py` now 99% covered (human preview/run tables, error JSON
+paths, OKF export skip/failure, failed-run and warning rendering).
+
 Remaining near-term: branch coverage ratchet 87 toward 95% (next low modules:
-`commands/profile.py`, `commands/reports.py`, `commands/watch.py`), expand
+`commands/reports.py`, `commands/watch.py`, `commands/view.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
