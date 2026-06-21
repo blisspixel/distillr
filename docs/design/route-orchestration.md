@@ -50,19 +50,24 @@ plan-quota route already clears the bar on its own.
 
 ### S2. Ensemble, best-of-N (your "fan out the same thing to all")
 
-Dispatch the same task to every live route, then a cross-family judge scores
-each candidate against the source receipts and picks the winner, or synthesizes
-the best parts into one output that is itself re-verified.
+Dispatch the same task to every live route. Selection is two steps, each in the
+judging mode the evidence supports (discipline 6). First, a coarse,
+source-anchored faithfulness check (faithful / minor / unfaithful, the reliable
+absolute mode, used only as a floor) drops any candidate unfaithful to the
+receipts. Then, among the survivors, a cross-family pairwise judge (the reliable
+comparative mode) picks the winner, or a synthesis step merges the best parts
+into one output that is itself re-verified. There is no per-candidate quality
+score and no argmax over scores.
 
 - Wins on: bursty, high-judgment, hard-to-get-right work where the user holds
   free quota on several plans and the variance between routes is real
   (synthesis planning, a contested-concept read, a one-shot brief). Best-of-N
   raises the ceiling; a single weak draft no longer caps quality.
 - Rule-owned: fan-out dispatch, collecting the N scratch manifests, the
-  selection arithmetic (argmax of the judge scores, or the synthesis merge step),
-  the budget stop.
-- Model-owned: each candidate, and the per-candidate faithfulness/quality
-  verdict that ranks them.
+  faithfulness-veto filter, the pairwise-tournament bookkeeping (or the synthesis
+  merge plumbing), the budget stop.
+- Model-owned: each candidate, the coarse faithfulness verdict per candidate, and
+  the pairwise comparisons that order the faithful survivors.
 - Cost: N x route usage. Only earns its place where the acceptance-rate or
   quality lift pays for the quota multiply (measured, not assumed).
 
@@ -129,6 +134,16 @@ straight from the existing charter and adapter contract.
    only scratch manifests; Distill still does the verification, the usage
    ledger, and the final corpus write. An orchestration strategy is a plan over
    adapter calls, not a new write path.
+6. **Judge in the mode the evidence supports.** Grounding is a coarse,
+   source-anchored faithfulness verdict (faithful / minor / unfaithful) used as a
+   veto floor, the absolute mode where model judging is reliable. Ranking among
+   the faithful (which ensemble candidate wins, whether a refinement is an
+   improvement) is pairwise comparison, the reliable comparative mode. No strategy
+   ranks candidates or refinements by a fine-grained absolute quality score: that
+   is the brittle proxy wearing a model's clothing (the eval-gate case study in
+   [`model-judgment-vs-brittle-fallbacks.md`](model-judgment-vs-brittle-fallbacks.md)),
+   relocated from a regex onto the model. Pairwise for ranking, coarse absolute
+   for grounding, never a quality number.
 
 ## The eval contract
 
@@ -137,7 +152,11 @@ The extension is that a **strategy** is an eval subject too:
 
 - A fixture run produces, per `(workload, strategy)`: attempts, accepted
   outputs, rejected/quarantined outputs, verifier failures, elapsed time, usage
-  per route, and total cost per accepted change.
+  per route, and total cost per accepted change. An output is *accepted* by the
+  same gate the rest of distillr uses: the coarse source-anchored faithfulness
+  veto plus pairwise at-par against the reference, both model-judged, never a
+  deterministic composite score. Cost and counts are ground-truth ledger
+  arithmetic over those model-judged acceptances.
 - The recommendation per workload is the cheapest strategy whose accepted output
   clears the quality bar. S2/S3/S4 only win where their accept-rate or quality
   lift outweighs their quota multiply; otherwise S1 stays.
