@@ -2,6 +2,30 @@
 
 ## 2026-06-21
 
+### Cycle 85 - Paper Multipass Chunk Selection + OKF Producer Follow-On
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Shipped effective-context-aware paper multipass analysis:
+  - `distill/pipeline/analysis/chunk_selection.py` with structural heading match,
+    at most one batched model rerank, honest positional order, and tier-4 keyword
+    fallback only for legacy insight category names.
+  - Three focused paper passes in `multipass.py` with `chunk_selection_modes`
+    recorded in paper frontmatter.
+  - `distill/llm/async_compat.py` for nested asyncio safety on Windows and Unix.
+  - `LOCAL_FALLBACK_CONTEXT_WINDOW = 32_768` when local providers are unreachable.
+- Shipped OKF producer follow-ons:
+  - `Concept Playbook` and `Entity Playbook` OKF types, wikilink rewriting,
+    grouped `index.md`, living `log.md` from profile run state and cost log,
+    optional `llms.txt` pointer, and `okf_export: true` on approved profile runs.
+- Updated `docs/roadmap.md` and `docs/CHANGELOG.md` for both slices.
+- Validation (free/local): ruff check/format clean; full suite `2689 passed`;
+  overall coverage 83.98% at floor 83.
+
+### Next
+
+- Audit next-action for stale OKF re-export; MCP OKF export/validate tools;
+  lift 100K char cap after multipass dogfood; continue 1.0 quality ratchets.
+
 ### Cycle 84 - Route Orchestration: Critic-Refine Strategy
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).

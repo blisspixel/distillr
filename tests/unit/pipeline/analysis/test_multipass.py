@@ -12,10 +12,14 @@ from distill.llm.metadata import ProviderMetadata
 from distill.llm.router import LLM_Response, RouterConfig
 from distill.pipeline.analysis.chunking import Chunk
 from distill.pipeline.analysis.multipass import (
+    CATEGORY_DESCRIPTIONS,
     INSIGHT_CATEGORIES,
+    PAPER_ANALYSIS_PASSES,
+    PAPER_CANONICAL_SECTIONS,
     PassResult,
     _build_focused_prompt,
     _deduplicate_content,
+    merge_paper_pass_results,
     merge_pass_results,
     multi_pass_analysis,
 )
@@ -51,6 +55,30 @@ def _make_metadata(context_window: int = 32768) -> ProviderMetadata:
 # ---------------------------------------------------------------------------
 # Tests: merge_pass_results
 # ---------------------------------------------------------------------------
+
+
+class TestMergePaperPassResults:
+    def test_produces_paper_section_headings(self) -> None:
+        results = [
+            PassResult(
+                category="front matter",
+                insights="## Summary\n\nPlain summary.\n\n## Core Contribution\n\nNovel idea.",
+                chunks_used=1,
+            ),
+            PassResult(
+                category="methods and evidence",
+                insights="## Methods and Evidence\n\nUsed X.",
+                chunks_used=2,
+            ),
+        ]
+        merged = merge_paper_pass_results(results, body="")
+        assert "## Summary" in merged
+        assert "Plain summary." in merged
+        assert "## Methods and Evidence" in merged
+        assert "Used X." in merged
+        for section in PAPER_CANONICAL_SECTIONS:
+            assert f"## {section}" in merged
+        assert len(PAPER_ANALYSIS_PASSES) == 3
 
 
 class TestMergePassResults:
@@ -121,17 +149,28 @@ class TestBuildFocusedPrompt:
     """Tests for focused prompt construction."""
 
     def test_includes_category_name(self) -> None:
-        prompt = _build_focused_prompt("Methods", ["chunk text here"])
+        prompt = _build_focused_prompt(
+            "Methods",
+            ["chunk text here"],
+            description=CATEGORY_DESCRIPTIONS["Methods"],
+        )
         assert "Methods" in prompt
 
     def test_includes_chunk_content(self) -> None:
-        prompt = _build_focused_prompt("Methods", ["first chunk", "second chunk"])
+        prompt = _build_focused_prompt(
+            "Methods",
+            ["first chunk", "second chunk"],
+            description=CATEGORY_DESCRIPTIONS["Methods"],
+        )
         assert "first chunk" in prompt
         assert "second chunk" in prompt
 
     def test_includes_category_description(self) -> None:
-        prompt = _build_focused_prompt("Methods", ["text"])
-        # At least part of the description should be in the prompt
+        prompt = _build_focused_prompt(
+            "Methods",
+            ["text"],
+            description=CATEGORY_DESCRIPTIONS["Methods"],
+        )
         assert "approaches" in prompt or "algorithms" in prompt
 
 
@@ -171,8 +210,9 @@ class TestDeduplicateContent:
 class TestMultiPassAnalysisIntegration:
     """Integration test for full multi-pass flow with mocked LLM."""
 
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=False)
     @patch("distill.pipeline.analysis.multipass.call")
-    def test_full_flow_with_mocked_llm(self, mock_call: MagicMock) -> None:
+    def test_full_flow_with_mocked_llm(self, mock_call: MagicMock, _model_available) -> None:
         """Full multi-pass flow produces results for relevant categories."""
         # Create chunks with method-related content
         chunks = [
@@ -210,7 +250,8 @@ class TestMultiPassAnalysisIntegration:
         config = _make_config()
         metadata = _make_metadata(context_window=100000)
 
-        results = multi_pass_analysis(chunks, config, metadata)
+        multipass = multi_pass_analysis(chunks, config, metadata)
+        results = multipass.passes
 
         # Should have produced results for categories with relevant chunks
         assert len(results) > 0
@@ -220,8 +261,9 @@ class TestMultiPassAnalysisIntegration:
             assert result.chunks_used > 0
             assert result.category in INSIGHT_CATEGORIES
 
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=False)
     @patch("distill.pipeline.analysis.multipass.call")
-    def test_merge_after_multipass(self, mock_call: MagicMock) -> None:
+    def test_merge_after_multipass(self, mock_call: MagicMock, _model_available) -> None:
         """Merged output has correct structure."""
         mock_call.return_value = LLM_Response(
             text="Some insight content.",
@@ -243,8 +285,8 @@ class TestMultiPassAnalysisIntegration:
         config = _make_config()
         metadata = _make_metadata(context_window=100000)
 
-        results = multi_pass_analysis(chunks, config, metadata)
-        merged = merge_pass_results(results, "Test Paper", "2401.12345", "qwen2.5:14b")
+        multipass = multi_pass_analysis(chunks, config, metadata)
+        merged = merge_pass_results(multipass.passes, "Test Paper", "2401.12345", "qwen2.5:14b")
 
         # Verify structure
         assert merged.startswith("---\n")

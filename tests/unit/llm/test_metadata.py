@@ -13,8 +13,10 @@ from hypothesis import strategies as st
 
 from distill.llm.metadata import (
     DEFAULT_CONTEXT_WINDOW,
+    LOCAL_FALLBACK_CONTEXT_WINDOW,
     LOCAL_PROVIDERS,
     resolve_metadata,
+    resolve_metadata_sync,
 )
 
 # ---------------------------------------------------------------------------
@@ -90,9 +92,9 @@ def test_unknown_cloud_model_defaults() -> None:
 
 
 def test_local_provider_without_instance_defaults() -> None:
-    """Local provider without a provider instance gets default context window."""
+    """Local provider without a provider instance uses the local fallback window."""
     metadata = asyncio.run(resolve_metadata("ollama", "llama3:8b", provider=None))
-    assert metadata.context_window == DEFAULT_CONTEXT_WINDOW
+    assert metadata.context_window == LOCAL_FALLBACK_CONTEXT_WINDOW
     assert metadata.provider_type == "local"
 
 
@@ -107,12 +109,27 @@ def test_local_provider_with_context_window_method() -> None:
     assert metadata.context_window == 131_072
 
 
+def test_resolve_metadata_sync_matches_async_cloud_path() -> None:
+    metadata = resolve_metadata_sync("xai", "grok-4.3")
+    assert metadata.context_window == 1_000_000
+    assert metadata.provider_type == "cloud"
+
+
 def test_local_provider_with_failing_context_window() -> None:
-    """Local provider that raises falls back to default."""
+    """Local provider that raises falls back to the local conservative window."""
 
     class FailingProvider:
         async def get_context_window(self, model: str) -> int:
             raise ConnectionError("Cannot reach server")
 
     metadata = asyncio.run(resolve_metadata("ollama", "llama3:8b", provider=FailingProvider()))
-    assert metadata.context_window == DEFAULT_CONTEXT_WINDOW
+    assert metadata.context_window == LOCAL_FALLBACK_CONTEXT_WINDOW
+
+
+def test_resolve_metadata_sync_local_unreachable() -> None:
+    class FailingProvider:
+        async def get_context_window(self, model: str) -> int:
+            raise ConnectionError("Cannot reach server")
+
+    metadata = resolve_metadata_sync("ollama", "llama3:8b", provider=FailingProvider())
+    assert metadata.context_window == LOCAL_FALLBACK_CONTEXT_WINDOW

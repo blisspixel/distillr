@@ -11,6 +11,7 @@ from distill._console import console
 from distill.commands._helpers import get_config
 from distill.commands._json import emit_json, json_mode_active
 from distill.config import DistillConfig
+from distill.library.okf import export_okf_bundle
 from distill.library.profiles import (
     ProfileValidationError,
     find_research_profile,
@@ -106,6 +107,7 @@ def profile_run_cmd(
 
     try:
         config, path, preview = _load_profile_preview(profile, limit, fetch_sources)
+        loaded = load_research_profile(path)
         result = run_profile_preview(
             preview,
             library_dir=config.library_dir,
@@ -113,6 +115,8 @@ def profile_run_cmd(
             profile_ref=profile,
             timeout_seconds=timeout_seconds,
         )
+        if yes and loaded.outputs.okf_export:
+            result = _maybe_export_okf_bundle(config, preview.topic, result)
     except ProfileValidationError as exc:
         _exit_with_error(str(exc))
     except ValueError as exc:
@@ -123,6 +127,51 @@ def profile_run_cmd(
         return
 
     _render_profile_run(result, path)
+
+
+def _maybe_export_okf_bundle(
+    config: DistillConfig,
+    topic: str,
+    result: ProfileRunResult,
+) -> ProfileRunResult:
+    from dataclasses import replace
+
+    try:
+        okf_result = export_okf_bundle(config, topic)
+    except (FileNotFoundError, ValueError) as exc:
+        if json_mode_active():
+            return replace(
+                result,
+                okf_bundle_dir="",
+                okf_bundle_valid=False,
+                warnings=[
+                    *result.warnings,
+                    {"source": "okf_export", "message": str(exc)},
+                ],
+            )
+        console.print(f"[yellow]OKF export skipped: {exc}[/yellow]")
+        return result
+
+    return replace(
+        result,
+        okf_bundle_dir=str(okf_result.output_dir),
+        okf_bundle_valid=okf_result.validation.ok,
+        warnings=[
+            *result.warnings,
+            *(
+                [
+                    {
+                        "source": "okf_export",
+                        "message": (
+                            f"OKF bundle written with {len(okf_result.validation.warnings)} warning(s)"
+                        ),
+                    }
+                ]
+                if okf_result.validation.warnings
+                else []
+            ),
+        ],
+    )
 
 
 def _load_profile_preview(
@@ -214,6 +263,10 @@ def _render_profile_run(result: ProfileRunResult, path: Path) -> None:
         console.print(
             "\n[red]One or more profile commands failed. See the state file for tails.[/red]"
         )
+    if result.okf_bundle_dir:
+        status = "valid" if result.okf_bundle_valid else "invalid"
+        console.print(f"\n[green]OKF bundle ({status}):[/green] {result.okf_bundle_dir}")
+        console.print(f"[dim]  distill okf validate {result.okf_bundle_dir}[/dim]")
     if result.warnings:
         console.print("\n[yellow]Warnings[/yellow]")
         for warning in result.warnings:

@@ -1,9 +1,10 @@
 # pyright: strict
-"""Per-category chunk reranker for multi-pass analysis.
+"""Tier-4 keyword chunk ranking for multi-pass analysis.
 
-Scores chunks by relevance to each insight category using keyword matching
-and selects the top-k that fit within the context window. Fast, local,
-and does not require an LLM call.
+Primary chunk selection lives in ``chunk_selection.py`` (model judgment, then
+structural headings/position). This module is the honest last-resort fallback
+when no model route exists and structural signals are empty. Do not use it as
+a semantic quality gate. See docs/design/agentic-balance.md.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ __all__ = [
     "INSIGHT_CATEGORIES",
     "MINIMUM_RELEVANCE_THRESHOLD",
     "ScoredChunk",
+    "keyword_fallback_available",
     "rerank_for_category",
 ]
 
@@ -111,12 +113,16 @@ class ScoredChunk:
     category: str
 
 
+def keyword_fallback_available(category: str) -> bool:
+    """True when a tier-4 keyword table exists for this legacy category name."""
+    return bool(CATEGORY_KEYWORDS.get(category))
+
+
 def _score_chunk_for_category(chunk: Chunk, category: str) -> float:
-    """Score a chunk's relevance to a category using keyword matching.
+    """Tier-4 keyword overlap proxy. Not a semantic relevance judgment.
 
-    Score = (keyword_hits / total_keywords) * (1 + log(total_hits))
-
-    Returns 0.0 if no keywords match.
+    Used only when ``chunk_selection`` cannot model-rank or structurally select.
+    Score = (keyword_hits / total_keywords) * (1 + log(total_hits)).
     """
     keywords = CATEGORY_KEYWORDS.get(category, [])
     if not keywords:

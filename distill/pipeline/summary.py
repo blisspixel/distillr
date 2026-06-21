@@ -434,7 +434,8 @@ def display_summary(  # noqa: C901 — legacy, will refactor
         con.print()
         con.print(
             "  [dim]Re-run the same command to retry the failed source(s) -- "
-            "already-ingested sources are skipped.[/dim]"
+            "already-ingested sources are skipped.[/dim]",
+            soft_wrap=False,
         )
 
     con.print()

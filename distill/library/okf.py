@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +23,7 @@ from distill.library.paths import (
     sanitize_topic,
     strip_frontmatter,
 )
+from distill.library.wikilinks import WIKI_LINK_PATTERN
 
 IssueSeverity = Literal["error", "warning"]
 
@@ -29,6 +32,20 @@ _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+(?:\s[^)]*)?)\)")
 _URL_KEYS = ("url", "source_url", "resource", "video_url", "paper_url", "page_url", "repo_url")
 _TITLE_KEYS = ("title", "video_title", "paper_title", "page_title", "repo_name", "channel")
 _TAG_KEYS = ("tags", "source", "source_type", "topic")
+_INDEX_TYPE_ORDER: tuple[str, ...] = (
+    "Agent Orientation",
+    "Source Insight",
+    "Source Receipt",
+    "Synthesis",
+    "Concept Playbook",
+    "Entity Playbook",
+    "Derived Answer",
+    "Audit Report",
+    "Report",
+    "Brief",
+    "Distill Artifact",
+)
+_MAX_LOG_HISTORY = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,29 +183,42 @@ def export_okf_bundle(config: DistillConfig, topic: str) -> OkfExportResult:
 
     generated_at = utc_now_iso()
     source_files = _collect_markdown_sources(source_root)
+    stem_index = _build_stem_index(source_root, source_files)
+    index_entries: list[tuple[str, str, str]] = []
     written_docs: list[Path] = []
     for source_file in source_files:
         rel_path = source_file.relative_to(source_root)
         target = output_root / rel_path
-        okf_doc = _render_okf_document(
+        okf_doc, concept_type, title = _render_okf_document(
             source_root=source_root,
             source_file=source_file,
             rel_path=rel_path,
             topic=topic_label,
             generated_at=generated_at,
+            stem_index=stem_index,
         )
         atomic_write_text(target, okf_doc)
         written_docs.append(target)
+        index_entries.append((rel_path.as_posix(), concept_type, title))
 
-    _write_index(output_root, topic_label, source_root, written_docs, generated_at)
-    _write_log(output_root, topic_label, source_root, len(written_docs), generated_at)
+    history = _collect_log_history(config, topic_label)
+    _write_index(output_root, topic_label, source_root, index_entries, generated_at)
+    _write_log(
+        output_root,
+        topic_label,
+        source_root,
+        len(written_docs),
+        generated_at,
+        history=history,
+    )
+    _write_llms_txt(output_root, topic_label, len(written_docs))
 
     validation = validate_okf_bundle(output_root)
     return OkfExportResult(
         output_dir=output_root,
         source_root=source_root,
         topic=topic_label,
-        files_written=len(written_docs) + 2,
+        files_written=len(written_docs) + 3,
         validation=validation,
     )
 
@@ -269,6 +299,30 @@ def _collect_markdown_sources(source_root: Path) -> list[Path]:
     return files
 
 
+def _build_stem_index(source_root: Path, source_files: list[Path]) -> dict[str, str]:
+    """Map artifact stems to bundle-relative paths for wikilink rewriting."""
+    index: dict[str, str] = {}
+    for source_file in source_files:
+        rel = source_file.relative_to(source_root).as_posix()
+        index[source_file.stem] = rel
+    return index
+
+
+def _rewrite_wikilinks(body: str, stem_index: dict[str, str]) -> str:
+    """Convert Obsidian wiki-links into bundle-relative Markdown links when possible."""
+
+    def _replace(match: re.Match[str]) -> str:
+        slug_portion = match.group(1).strip()
+        display = match.group(2)
+        display_title = display.strip() if display else slug_portion.replace("_", " ")
+        target = stem_index.get(slug_portion)
+        if target:
+            return f"[{display_title}]({target})"
+        return display_title
+
+    return WIKI_LINK_PATTERN.sub(_replace, body)
+
+
 def _render_okf_document(
     *,
     source_root: Path,
@@ -276,12 +330,14 @@ def _render_okf_document(
     rel_path: Path,
     topic: str,
     generated_at: str,
-) -> str:
+    stem_index: dict[str, str],
+) -> tuple[str, str, str]:
     source_text = source_file.read_text(encoding="utf-8")
     native_meta = extract_frontmatter(source_text)
-    body = strip_frontmatter(source_text).strip()
+    raw_body = strip_frontmatter(source_text).strip()
     title = _title_for(source_file, native_meta)
-    concept_type = _type_for(source_file, native_meta)
+    concept_type = _type_for(source_file, native_meta, rel_path=rel_path)
+    body = _rewrite_wikilinks(raw_body, stem_index) if raw_body else ""
     source_url = _first_value(native_meta, _URL_KEYS)
     verify_sidecar = _verify_sidecar_for(source_file)
     rel_source = rel_path.as_posix()
@@ -308,14 +364,14 @@ def _render_okf_document(
     if verify_sidecar and verify_sidecar.exists():
         sections.append(f"- Verify sidecar: `{verify_sidecar.relative_to(source_root).as_posix()}`")
     sections.append("")
-    return "\n".join(sections).rstrip() + "\n"
+    return "\n".join(sections).rstrip() + "\n", concept_type, title
 
 
 def _write_index(
     output_root: Path,
     topic: str,
     source_root: Path,
-    written_docs: list[Path],
+    entries: list[tuple[str, str, str]],
     generated_at: str,
 ) -> None:
     frontmatter = {
@@ -329,16 +385,122 @@ def _write_index(
         "",
         f"# Distill OKF Bundle: {topic}",
         "",
-        "## Concepts",
+        "Progressive disclosure by concept type. Each entry links to one OKF concept document.",
         "",
     ]
-    if not written_docs:
-        lines.append("- No Markdown concepts were available in the source corpus.")
-    for doc in sorted(written_docs):
-        rel = doc.relative_to(output_root).as_posix()
-        lines.append(f"- [{doc.stem.replace('_', ' ')}]({rel})")
-    lines.append("")
+    if not entries:
+        lines.extend(
+            ["## Concepts", "", "- No Markdown concepts were available in the source corpus.", ""]
+        )
+        atomic_write_text(output_root / "index.md", "\n".join(lines))
+        return
+
+    grouped: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for rel_path, concept_type, title in entries:
+        grouped[concept_type].append((rel_path, title))
+
+    ordered_types = [ctype for ctype in _INDEX_TYPE_ORDER if ctype in grouped]
+    for concept_type in sorted(grouped):
+        if concept_type not in ordered_types:
+            ordered_types.append(concept_type)
+
+    for concept_type in ordered_types:
+        lines.extend([f"## {concept_type}", ""])
+        for rel_path, title in sorted(grouped[concept_type], key=lambda item: item[0]):
+            lines.append(f"- [{title}]({rel_path})")
+        lines.append("")
+
     atomic_write_text(output_root / "index.md", "\n".join(lines))
+
+
+def _collect_log_history(config: DistillConfig, topic: str) -> list[str]:
+    """Gather recent profile-run events for OKF log.md chronological history."""
+    if topic.lower() == "all":
+        return []
+
+    entries = _profile_log_entries(config.library_dir, topic)
+    entries.extend(_cost_log_entries(config.library_dir, topic))
+    entries.sort(key=lambda item: item[0])
+    return [message for _, message in entries[-_MAX_LOG_HISTORY:]]
+
+
+def _profile_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]:
+    entries: list[tuple[str, str]] = []
+    profiles_dir = library_dir / ".distill" / "profiles"
+    if not profiles_dir.is_dir():
+        return entries
+
+    for state_path in sorted(profiles_dir.glob("*/run_state.json")):
+        state = _read_json_object(state_path)
+        if state is None or state.get("topic") != topic:
+            continue
+        profile_name = str(state.get("profile", state_path.parent.name))
+        for attempt in state.get("attempts", [])[-_MAX_LOG_HISTORY:]:
+            if not isinstance(attempt, dict):
+                continue
+            when = str(attempt.get("attempted_at", "")).strip()
+            if not when:
+                continue
+            status = str(attempt.get("status", "unknown")).strip()
+            title = str(attempt.get("title", "")).strip() or str(attempt.get("key", ""))
+            entries.append((when, f"Profile `{profile_name}`: {status} `{title}`"))
+    return entries
+
+
+def _cost_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]:
+    entries: list[tuple[str, str]] = []
+    cost_log = library_dir / ".distill" / "cost_log.jsonl"
+    if not cost_log.is_file():
+        return entries
+
+    try:
+        lines = cost_log.read_text(encoding="utf-8").splitlines()[-_MAX_LOG_HISTORY:]
+    except OSError:
+        return entries
+
+    for line in lines:
+        row = _parse_json_line(line)
+        if row is None:
+            continue
+        command = str(row.get("command", ""))
+        if topic not in command and row.get("topic") != topic:
+            continue
+        when = str(row.get("timestamp", row.get("started_at", ""))).strip()
+        if when:
+            entries.append((when, f"Cost log: {command}"))
+    return entries
+
+
+def _read_json_object(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _parse_json_line(line: str) -> dict[str, Any] | None:
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_llms_txt(output_root: Path, topic: str, concept_count: int) -> None:
+    """Write a thin llms.txt pointer for tools that look for it at bundle root."""
+    lines = [
+        f"# Distill OKF Bundle: {topic}",
+        "> Verified research corpus exported from Distill. Start at index.md.",
+        "",
+        "## Primary",
+        "- [index.md](index.md): typed concept index and bundle navigation",
+        "- [log.md](log.md): export and stewardship history",
+        "",
+        f"Concept documents: {concept_count}",
+        "",
+    ]
+    atomic_write_text(output_root / "llms.txt", "\n".join(lines))
 
 
 def _write_log(
@@ -347,23 +509,25 @@ def _write_log(
     source_root: Path,
     concept_count: int,
     generated_at: str,
+    *,
+    history: list[str],
 ) -> None:
     frontmatter = {
         "okf_version": "0.1",
         "title": f"Distill OKF log: {topic}",
         "timestamp": generated_at,
     }
-    content = "\n".join(
-        [
-            dump_frontmatter(frontmatter),
-            "",
-            "# Log",
-            "",
-            f"- {generated_at}: Exported {concept_count} concept documents from `{source_root}`.",
-            "",
-        ]
-    )
-    atomic_write_text(output_root / "log.md", content)
+    lines = [
+        dump_frontmatter(frontmatter),
+        "",
+        "# Log",
+        "",
+        f"- {generated_at}: Exported {concept_count} concept documents from `{source_root}`.",
+    ]
+    for entry in history:
+        lines.append(f"- {entry}")
+    lines.append("")
+    atomic_write_text(output_root / "log.md", "\n".join(lines))
 
 
 def _okf_output_root(config: DistillConfig, output_name: str) -> Path:
@@ -392,11 +556,22 @@ def _title_for(source_file: Path, native_meta: dict[str, str]) -> str:
     return " ".join(part for part in stem.split()) or "Untitled"
 
 
-def _type_for(source_file: Path, native_meta: dict[str, str]) -> str:
+def _type_for(
+    source_file: Path,
+    native_meta: dict[str, str],
+    *,
+    rel_path: Path | None = None,
+) -> str:
     if concept_type := native_meta.get("okf_type"):
         return concept_type
     if source_file.name.upper() in {"AGENTS.MD", "CLAUDE.MD"}:
         return "Agent Orientation"
+    if rel_path is not None:
+        parts = {part.lower() for part in rel_path.parts}
+        if "concepts" in parts:
+            return "Concept Playbook"
+        if "entities" in parts:
+            return "Entity Playbook"
     if native_type := native_meta.get("type"):
         return native_type
 

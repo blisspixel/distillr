@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- **Effective-context-aware paper multipass analysis.** Long PDFs now run three
+  focused passes (`Summary and Contribution`, `Methods and Evidence`, `Limits
+  and Follow-Up`) over section-aware chunks. Chunk selection is structural
+  first (heading metadata), then at most one batched model rerank when gaps
+  remain, then honest positional order when no model is available. Keyword
+  overlap is tier-4 fallback only for legacy insight category names, never for
+  paper pass names. `chunk_selection_modes` is recorded in paper frontmatter.
+- **`distill/llm/async_compat.py`.** `run_coroutine_sync()` for safe nested
+  asyncio on Windows and Unix when multipass rerank runs from sync CLI paths.
+- **OKF export enrichment.** Concept and entity playbooks export as conformant
+  OKF types; wikilinks rewrite to bundle-relative Markdown links; `index.md`
+  groups entries by type; `log.md` includes profile run and cost-log history;
+  `llms.txt` points agents at `index.md` and `log.md`. Profile runs with
+  `okf_export: true` auto-export after `--yes` execution.
+
+### Changed
+
+- **Local metadata fallback.** When Ollama or LM Studio is unreachable,
+  `LOCAL_FALLBACK_CONTEXT_WINDOW` (32,768) is used so chunking and multipass
+  still plan honestly instead of assuming cloud-scale windows.
+
 ## 0.17.0 - 2026-06-20
 
 The OKF interop milestone. Distill's Open Knowledge Format producer and

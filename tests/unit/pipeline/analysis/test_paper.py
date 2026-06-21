@@ -107,8 +107,10 @@ def test_synthesize_papers_refreshes_orientation(tmp_path):
     assert "[[papers]]" in library_index.read_text(encoding="utf-8")
 
 
-def test_analyze_paper_chunks_oversized_document(monkeypatch, tmp_path):
+def test_analyze_paper_multipass_keeps_full_receipt(monkeypatch, tmp_path):
+    from distill.llm.metadata import ProviderMetadata
     from distill.pipeline.analysis.chunking import Chunk
+    from distill.pipeline.analysis.multipass import MultiPassAnalysisResult, PassResult
 
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     monkeypatch.setattr(
@@ -118,21 +120,51 @@ def test_analyze_paper_chunks_oversized_document(monkeypatch, tmp_path):
         "distill.pipeline.analysis.paper.build_paper_document",
         lambda paper, pdf_text: "FULL DOCUMENT",
     )
-    # Force the content over the 80%-of-window chunking threshold.
     monkeypatch.setattr("distill.pipeline.analysis.paper.estimate_tokens", lambda text: 900_000)
     monkeypatch.setattr(
+        "distill.pipeline.analysis.paper.resolve_metadata_for_router",
+        lambda rc, workload: ProviderMetadata(
+            context_window=1_000_000,
+            provider_type="cloud",
+            provider_name="xai",
+        ),
+    )
+    monkeypatch.setattr(
         "distill.pipeline.analysis.paper.chunk_content",
-        lambda content, window: [
-            Chunk(text="FIRST CHUNK", heading_context="", index=0, total_chunks=2)
+        lambda content, window, reserved_ratio=0.20: [
+            Chunk(text="FIRST CHUNK", heading_context="## Methods", index=0, total_chunks=2),
+            Chunk(text="SECOND CHUNK", heading_context="## Results", index=1, total_chunks=2),
         ],
     )
+    monkeypatch.setattr(
+        "distill.pipeline.analysis.paper.multi_pass_analysis",
+        lambda *args, **kwargs: MultiPassAnalysisResult(
+            passes=[
+                PassResult(
+                    category="front matter",
+                    insights="## Summary\n\nA multipass summary.\n\n## Core Contribution\n\nAdds X.",
+                    chunks_used=1,
+                    selection_mode="structural",
+                ),
+                PassResult(
+                    category="methods and evidence",
+                    insights="## Methods and Evidence\n\nMethods detail.",
+                    chunks_used=1,
+                    selection_mode="model",
+                ),
+            ],
+            selection_modes="front matter:structural; methods and evidence:model",
+        ),
+    )
 
-    with patch("distill.pipeline.analysis.paper.llm_call", _fake_llm_call("body")):
-        insights, document = analyze_paper(_paper(), config)
+    insights, document = analyze_paper(_paper(), config)
 
-    # Only the first chunk is analyzed (multi-pass assembly is a later phase).
-    assert document == "FIRST CHUNK"
-    assert "source_mode: full_pdf" in insights  # pdf text was present
+    assert document == "FULL DOCUMENT"
+    assert "source_mode: chunked_multipass" in insights
+    assert "## Summary" in insights
+    assert "A multipass summary." in insights
+    assert 'prompt_id: "analysis.paper.v3"' in insights
+    assert "chunk_selection_modes: front matter:structural; methods and evidence:model" in insights
 
 
 def test_analyze_paper_without_tracker_does_not_crash(monkeypatch, tmp_path):

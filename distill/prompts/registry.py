@@ -27,6 +27,7 @@ PROMPT_IDS: dict[str, str] = {
     "analysis.github_repo": "analysis.github_repo.v1",
     "analysis.newsletter": "analysis.newsletter.v1",
     "analysis.x_tweet": "analysis.x_tweet.v1",
+    "analysis.paper": "analysis.paper.v3",
     # Synthesis
     "synthesis.paper": "synthesis.paper.v3",
     "synthesis.site": "synthesis.site.v1",

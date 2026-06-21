@@ -141,6 +141,8 @@ class ProfileRunResult:
     events: list[ProfileRunEvent] = field(default_factory=list)
     next_actions: list[NextAction] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
+    okf_bundle_dir: str = ""
+    okf_bundle_valid: bool = False
 
     @property
     def selected_count(self) -> int:
@@ -200,6 +202,8 @@ class ProfileRunResult:
             "events": [event.to_dict() for event in self.events],
             "next_actions": [action.to_dict() for action in self.next_actions],
             "warnings": self.warnings,
+            "okf_bundle_dir": self.okf_bundle_dir,
+            "okf_bundle_valid": self.okf_bundle_valid,
         }
 
 

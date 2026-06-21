@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from distill.config import DistillConfig
 from distill.library.okf import (
     _display_path,
     _replace_output_dir,
+    _rewrite_wikilinks,
     _tags_for,
     _type_for,
     _verify_sidecar_for,
@@ -92,11 +94,86 @@ class TestExportOkfBundle:
         assert result.output_dir == tmp_path / "output" / "okf-ai"
         assert (result.output_dir / "index.md").exists()
         assert (result.output_dir / "log.md").exists()
+        llms = (result.output_dir / "llms.txt").read_text(encoding="utf-8")
+        assert "index.md" in llms
+        assert "log.md" in llms
         exported = result.output_dir / "videos" / "example" / "example_Insights.md"
         text = exported.read_text(encoding="utf-8")
         assert 'type: "Source Insight"' in text
         assert 'resource: "https://example.com/watch"' in text
         assert "Distill source artifact" in text
+
+    def test_exports_concept_and_entity_playbook_types(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        _write(
+            topic_dir / "concepts" / "rotational_embedding.md",
+            "---\ntitle: Rotational Embedding\n---\n\n# Concept\n",
+        )
+        _write(
+            topic_dir / "entities" / "openai.md",
+            "---\ntitle: OpenAI\n---\n\n# Entity\n",
+        )
+
+        result = export_okf_bundle(config, "ai")
+        concept = (result.output_dir / "concepts" / "rotational_embedding.md").read_text(
+            encoding="utf-8"
+        )
+        entity = (result.output_dir / "entities" / "openai.md").read_text(encoding="utf-8")
+
+        assert 'type: "Concept Playbook"' in concept
+        assert 'type: "Entity Playbook"' in entity
+        index = (result.output_dir / "index.md").read_text(encoding="utf-8")
+        assert "## Concept Playbook" in index
+        assert "## Entity Playbook" in index
+
+    def test_rewrites_wikilinks_to_bundle_relative_markdown_links(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        _write(
+            topic_dir / "videos" / "a" / "a_Insights.md",
+            "---\ntitle: Alpha\n---\n\nSee [[b_Insights|Beta paper]].\n",
+        )
+        _write(
+            topic_dir / "papers" / "b" / "b_Insights.md",
+            "---\ntitle: Beta\n---\n\nBody.\n",
+        )
+
+        result = export_okf_bundle(config, "ai")
+        alpha = (result.output_dir / "videos" / "a" / "a_Insights.md").read_text(encoding="utf-8")
+
+        assert "[Beta paper](papers/b/b_Insights.md)" in alpha
+        assert "[[b_Insights" not in alpha
+
+    def test_log_includes_profile_run_history(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        _write(topic_dir / "ai_Topic_Synthesis.md", "# Synthesis\n")
+        state_dir = config.library_dir / ".distill" / "profiles" / "vendor-docs-watch"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_dir.joinpath("run_state.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "profile-run-state.v1",
+                    "profile": "vendor-docs-watch",
+                    "topic": "ai",
+                    "attempts": [
+                        {
+                            "attempted_at": "2026-06-18T12:00:00Z",
+                            "status": "succeeded",
+                            "title": "Example feed item",
+                            "key": "feed_item:1",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = export_okf_bundle(config, "ai")
+        log = (result.output_dir / "log.md").read_text(encoding="utf-8")
+
+        assert "Profile `vendor-docs-watch`: succeeded" in log
 
     def test_exports_all_topics_under_topic_directories(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -227,7 +304,7 @@ class TestExportEdgeCases:
         result = export_okf_bundle(config, "empty")
         index_text = (result.output_dir / "index.md").read_text(encoding="utf-8")
         assert "No Markdown concepts" in index_text
-        assert result.files_written == 2  # generated index.md + log.md only
+        assert result.files_written == 3  # generated index.md + log.md + llms.txt
 
     def test_to_dict_round_trips(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -287,6 +364,10 @@ class TestTypeAndTagInference:
     def test_unknown_stem_falls_back_to_distill_artifact(self) -> None:
         assert _type_for(Path("random.md"), {}) == "Distill Artifact"
 
+    def test_concepts_and_entities_dirs_override_stem_inference(self) -> None:
+        assert _type_for(Path("foo.md"), {}, rel_path=Path("concepts/foo.md")) == "Concept Playbook"
+        assert _type_for(Path("bar.md"), {}, rel_path=Path("entities/bar.md")) == "Entity Playbook"
+
     def test_tags_parse_list_style_and_topic(self) -> None:
         tags = _tags_for(
             "ai", {"tags": '["distill/ai", "cs.AI"]', "source": "arxiv"}, "Source Insight"
@@ -301,6 +382,18 @@ class TestTypeAndTagInference:
     def test_tags_for_all_topic_omits_topic_tag(self) -> None:
         tags = _tags_for("all", {}, "Synthesis")
         assert not any(t.startswith("topic:") for t in tags)
+
+
+class TestWikilinkRewrite:
+    def test_rewrites_known_target(self) -> None:
+        body = "See [[target_Insights|Target title]] for detail."
+        rewritten = _rewrite_wikilinks(body, {"target_Insights": "papers/t/target_Insights.md"})
+        assert rewritten == "See [Target title](papers/t/target_Insights.md) for detail."
+
+    def test_unknown_target_degrades_to_plain_text(self) -> None:
+        body = "See [[missing_Insights]] for detail."
+        rewritten = _rewrite_wikilinks(body, {})
+        assert rewritten == "See missing Insights for detail."
 
 
 class TestSmallHelpers:

@@ -19,8 +19,14 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.llm import call as llm_call
+from distill.llm.metadata import ProviderMetadata, resolve_metadata_for_router
 from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
+from distill.pipeline.analysis.multipass import (
+    PAPER_ANALYSIS_PASSES,
+    merge_paper_pass_results,
+    multi_pass_analysis,
+)
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import paper_insight_prompt, paper_topic_synthesis_prompt
@@ -31,6 +37,9 @@ __all__ = [
     "analyze_paper",
     "synthesize_papers",
 ]
+
+_CHUNK_RESERVED_RATIO = 0.20
+_PASSTHROUGH_THRESHOLD_RATIO = 0.80
 
 
 def analyze_paper(
@@ -45,8 +54,8 @@ def analyze_paper(
 
     Fetches the arXiv PDF and includes the extracted text in the document passed
     to the LLM. Falls back to abstract-only if PDF fetch/extract fails. The
-    returned paper_document is the exact content the LLM saw, suitable for
-    writing to the paper artifact so outputs match what was analyzed.
+    returned paper_document is always the full captured source (the receipt), even
+    when analysis runs over chunked multipass passes.
 
     ``router_config`` lets a caller (e.g. the eval harness) force a specific
     model/provider; defaults to the configured routing. ``intent`` selects the
@@ -57,58 +66,160 @@ def analyze_paper(
     lens = intent.lens if intent else ""
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
-    prompt = paper_insight_prompt(paper.title, paper.paper_id, document, goal=goal, lens=lens)
+    source_mode = "full_pdf" if pdf_text else "abstract_only"
 
-    # Check if content needs chunking based on context window
+    metadata = resolve_metadata_for_router(rc, "analysis")
+    provider_name = metadata.provider_name
     content_tokens = estimate_tokens(document)
-    # Default context window for cloud providers; adaptive chunking will be
-    # fully wired in Phase 4 with provider metadata resolution.
-    context_window = 1_000_000  # Conservative default for cloud
-    threshold = int(context_window * 0.80)
-    if content_tokens >= threshold:
-        chunks = chunk_content(document, context_window)
+    threshold = int(metadata.context_window * _PASSTHROUGH_THRESHOLD_RATIO)
+
+    if content_tokens < threshold:
         logger.debug(
-            "Chunking decision: content_tokens=%d, window=%d, threshold=%d, "
-            "decision=CHUNK, num_chunks=%d",
+            "Paper analysis passthrough: tokens=%d window=%d provider=%s",
             content_tokens,
-            context_window,
-            threshold,
-            len(chunks),
+            metadata.context_window,
+            provider_name,
         )
-        # For now, process first chunk only (multi-pass assembly comes in Phase 4)
-        document = chunks[0].text
-        prompt = paper_insight_prompt(paper.title, paper.paper_id, document, goal=goal, lens=lens)
+        body, model = _single_pass_analysis(
+            paper,
+            document,
+            rc,
+            goal=goal,
+            lens=lens,
+            tracker=tracker,
+        )
+        selection_modes = ""
     else:
         logger.debug(
-            "Chunking decision: content_tokens=%d, window=%d, threshold=%d, decision=PASSTHROUGH",
+            "Paper analysis multipass: tokens=%d window=%d chunks pending provider=%s",
             content_tokens,
-            context_window,
-            threshold,
+            metadata.context_window,
+            provider_name,
         )
+        body, model, selection_modes = _multipass_analysis(
+            paper,
+            document,
+            rc,
+            metadata,
+            goal=goal,
+            lens=lens,
+            tracker=tracker,
+        )
+        source_mode = "chunked_multipass"
 
+    insights = _build_paper_insights(
+        paper,
+        body,
+        model=model,
+        source_mode=source_mode,
+        lens=lens,
+        chunk_selection_modes=selection_modes,
+    )
+    return insights, document
+
+
+def _single_pass_analysis(
+    paper: PaperRecord,
+    document: str,
+    rc: RouterConfig,
+    *,
+    goal: str,
+    lens: str,
+    tracker: CostTracker | None,
+) -> tuple[str, str]:
+    prompt = paper_insight_prompt(paper.title, paper.paper_id, document, goal=goal, lens=lens)
     response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="paper")
-    result = response.text
-    if tracker:
+    if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="paper"))
+    return response.text.strip() + "\n", response.model
+
+
+def _multipass_analysis(
+    paper: PaperRecord,
+    document: str,
+    rc: RouterConfig,
+    metadata: ProviderMetadata,
+    *,
+    goal: str,
+    lens: str,
+    tracker: CostTracker | None,
+) -> tuple[str, str, str]:
+    chunks = chunk_content(
+        document,
+        metadata.context_window,
+        reserved_ratio=_CHUNK_RESERVED_RATIO,
+    )
+    multipass = multi_pass_analysis(
+        chunks,
+        rc,
+        metadata,
+        passes=PAPER_ANALYSIS_PASSES,
+        tracker=tracker,
+        goal=goal,
+        lens=lens,
+    )
+    results = multipass.passes
+    if not results:
+        logger.warning(
+            "Multipass produced no sections for %s; falling back to single pass on lead chunk",
+            paper.paper_id,
+        )
+        lead = chunks[0].text if chunks else document
+        body, model = _single_pass_analysis(
+            paper,
+            lead,
+            rc,
+            goal=goal,
+            lens=lens,
+            tracker=tracker,
+        )
+        return body, model, multipass.selection_modes
+
+    model = _multipass_model_from_tracker(tracker) or rc.resolve("analysis")[1]
+    body = merge_paper_pass_results(results, body="")
+    return body, model, multipass.selection_modes
+
+
+def _multipass_model_from_tracker(tracker: CostTracker | None) -> str:
+    if tracker is None or not tracker.entries:
+        return ""
+    for entry in reversed(tracker.entries):
+        if entry.call_type == "paper" and entry.model:
+            return entry.model
+    return tracker.entries[-1].model
+
+
+def _build_paper_insights(
+    paper: PaperRecord,
+    body: str,
+    *,
+    model: str,
+    source_mode: str,
+    lens: str,
+    chunk_selection_modes: str = "",
+) -> str:
     safe_title = paper.title.replace('"', '\\"')
-    source_mode = "full_pdf" if pdf_text else "abstract_only"
-    insights = (
+    prompt_id = PROMPT_IDS.get("analysis.paper", "analysis.paper.v2")
+    selection_line = (
+        f"chunk_selection_modes: {chunk_selection_modes}\n" if chunk_selection_modes else ""
+    )
+    return (
         f"---\n"
         f'paper_title: "{safe_title}"\n'
         f"paper_id: {paper.paper_id}\n"
         f"source: {paper.source}\n"
         f"url: {paper.abs_url}\n"
-        f"analyzed_by: {response.model}\n"
+        f"analyzed_by: {model}\n"
         f"source_mode: {source_mode}\n"
-        f"model: {response.model}\n"
-        f"model_version: {response.model}\n"
+        f"{selection_line}"
+        f"model: {model}\n"
+        f"model_version: {model}\n"
         f"temperature: 0.0\n"
-        f'prompt_id: "analysis.paper.v2"\n'
+        f'prompt_id: "{prompt_id}"\n'
         f"lens: {lens or 'general'}\n"
         "---\n\n"
-        f"{result}\n"
+        f"{body.rstrip()}\n"
     )
-    return insights, document
 
 
 def synthesize_papers(
@@ -139,14 +250,9 @@ def synthesize_papers(
         call_type="paper_synthesis",
     )
     synthesis = response.text
-    # Record spend before the verify gate can refuse the write: the call
-    # already happened, and a strict refusal must not leave it off-ledger.
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="paper_synthesis"))
 
-    # Verify the synthesis against its own inputs: cross-paper synthesis is
-    # the artifact most prone to attribution swaps. The receipt is the set of
-    # per-paper insights the prompt was built from; both verify tiers apply.
     from distill.pipeline.verify import run_synthesis_verify
 
     if run_synthesis_verify(

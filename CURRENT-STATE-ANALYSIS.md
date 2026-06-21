@@ -99,6 +99,34 @@ does not violate agentic balance. The slice in this branch:
 
 External spend used so far: `$0.00`.
 
+## Loop refresh (2026-06-21)
+
+Re-read README, ROADMAP, `docs/roadmap.md`, agentic-balance charter, and
+`docs/design/okf-loop-readiness.md`. Alignment confirmed: no semantic quality
+gates were added; chunk selection follows structural-first then model-judgment
+then honest positional order; OKF export remains a read-only projection.
+
+Cycle 71 ships effective-context-aware paper multipass analysis.
+`distill/pipeline/analysis/chunk_selection.py` owns the selection plan:
+structural heading match on captured metadata, at most one batched model rerank
+when gaps remain, positional spread as the labeled no-model order, and keyword
+fallback only for legacy `INSIGHT_CATEGORIES` names. `multipass.py` runs three
+paper passes and merges into the existing artifact shape. `async_compat.py`
+closes nested-event-loop safety on Windows. Local metadata uses
+`LOCAL_FALLBACK_CONTEXT_WINDOW = 32_768` when Ollama/LM Studio is unreachable.
+
+Cycle 72 ships OKF producer follow-ons from the Google OKF blog gaps:
+`Concept Playbook` and `Entity Playbook` types, wikilink to bundle-relative
+Markdown links, grouped `index.md`, living `log.md` from profile run state and
+cost log, optional `llms.txt` pointer, and `okf_export: true` on approved
+profile runs. `docs/roadmap.md` backlog checkboxes updated for chunk-and-rerank
+and OKF concept/entity projection.
+
+Quality gate: 2689 passed, 84% coverage, ruff clean. External spend: `$0.00`.
+Remaining near-term: audit next-action for stale OKF re-export, MCP OKF
+export/validate tools, 100K char cap lift once multipass is dogfooded, 1.0
+quality ratchets (branch coverage, Pyright-strict, parse-don't-validate).
+
 ## Subsequent Implementation Updates
 
 Cycle 2 added the top-level `distill --cost-mode <mode>` override and made

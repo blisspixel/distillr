@@ -232,15 +232,20 @@ class TestResumeHint:
         display_summary(summary, console=console)
         return console.export_text()
 
+    @staticmethod
+    def _normalize_console_text(text: str) -> str:
+        # Rich may soft-wrap long hint lines at narrow console widths.
+        return " ".join(text.split())
+
     def test_hint_printed_for_retryable_ingest_failures(self):
         summary = RunSummary(command="discover")
         summary.add_exception("paper-analysis", RuntimeError("x"), context="p")
-        out = self._render(summary)
+        out = self._normalize_console_text(self._render(summary))
         assert "Re-run the same command" in out
         assert "already-ingested sources are skipped" in out
 
     def test_no_hint_for_unrelated_issues(self):
         summary = RunSummary(command="discover")
         summary.add_exception("corpus-synthesis", RuntimeError("x"), context="t")
-        out = self._render(summary)
+        out = self._normalize_console_text(self._render(summary))
         assert "Re-run the same command" not in out

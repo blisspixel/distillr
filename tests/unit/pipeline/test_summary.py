@@ -373,3 +373,26 @@ def test_display_summary_long_elapsed(tmp_path, monkeypatch):
     display_summary(summary, console=console)
     rendered = console.export_text()
     assert "3m" in rendered
+
+
+def test_display_summary_retryable_ingest_hint(tmp_path):
+    summary = RunSummary(command="discover")
+    summary.add_exception("paper-analysis", RuntimeError("x"), context="p")
+
+    console = Console(record=True, width=100)
+    display_summary(summary, console=console)
+    rendered = " ".join(console.export_text().split())
+
+    assert "Re-run the same command" in rendered
+    assert "already-ingested sources are skipped" in rendered
+
+
+def test_display_summary_no_retry_hint_for_unrelated_issues(tmp_path):
+    summary = RunSummary(command="discover")
+    summary.add_exception("corpus-synthesis", RuntimeError("x"), context="t")
+
+    console = Console(record=True, width=100)
+    display_summary(summary, console=console)
+    rendered = " ".join(console.export_text().split())
+
+    assert "Re-run the same command" not in rendered

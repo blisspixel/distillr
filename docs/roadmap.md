@@ -164,7 +164,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [ ] OpenAlex (CC0, free dumps) and/or Ai2 Asta Scientific Corpus MCP integration for recency + citation-weighted ranking signals beyond arXiv. (Previously scoped as Semantic Scholar + Google Scholar; the classic Semantic Scholar API has been changelog-silent since late 2024 with restrictive keys, so OpenAlex/Asta are the durable paths.)
 - [x] **Citation identity + export** - shipped 0.16.12: arXiv DOI values are captured into paper metadata and frontmatter when the feed supplies them, and `distill export <topic|all> --what citations --format bibtex|ris` writes local citation files for Zotero and reference managers.
 - [ ] **PubMed / bioRxiv / medRxiv adapters** (same finding): arXiv-only excludes life-sciences labs entirely. Post-0.11 candidates on the adapter contract; OpenAlex metadata (above) is the shared discovery layer.
-- [ ] **Chunk-and-rerank paper analysis (effective-context-aware).** Today the full PDF (truncated at 100K chars) is dumped into a single Grok prompt, which is exactly the "Dump Truck" anti-pattern that LongBench v2 / RULER / ∞Bench / STRING benchmarks show degrades sharply when relevant evidence sits mid-document. Replace with: section-aware chunker (use PDF headings; fall back to page+window slicing); per-category rerank ("which chunks matter for *Methods*, *Limits*, *Open Questions*?"); small-window analysis loop assembling `<paper-slug>_Insights.md` from focused passes. Outcome: better fidelity on long papers without higher token spend; per-prompt token counts as a first-class telemetry surface.
+- [x] **Chunk-and-rerank paper analysis (effective-context-aware).** Shipped: structural heading match first, at most one batched model rerank when gaps remain, honest positional order when no model is available, and tier-4 keyword fallback only for legacy insight category names. Three focused paper passes assemble `<paper-slug>_Insights.md`; `chunk_selection_modes` is recorded in frontmatter for auditability. Design follows [`design/agentic-balance.md`](design/agentic-balance.md).
 - [ ] **Lift the 100K char cap once chunking is in place.** The cap was a defensive band-aid for the dump-truck pattern; once analysis runs over chunks, full long papers can be processed without prompt blowups.
 
 ### 7. Strengthen corpus quality and reuse
@@ -243,7 +243,7 @@ an 18K-token playbook compressed to 122 tokens lost most of its recall).
 - [x] Concept/entity graph export - shipped 0.8: `concepts.jsonl` and `entities.jsonl` rollups for downstream agent and programmatic consumption.
 - [x] Local file ingest - shipped 0.9: `distill ingest <path>` handles PDF, Markdown, text, clipped HTML, and later local media through the same verified pipeline.
 - [ ] Semantic alias resolution over `mentions.jsonl`: model-assisted grouping for cases mechanical normalization cannot safely resolve, with Python only owning graph assembly and invariant checks.
-- [ ] OKF projection of concept/entity playbooks: exported concept docs should be conformant OKF concepts without weakening Distill's richer native frontmatter.
+- [x] OKF projection of concept/entity playbooks: exported concept docs map to `Concept Playbook` and `Entity Playbook` OKF types, wikilinks rewrite to bundle-relative Markdown links, grouped `index.md` navigation, living `log.md` from profile run state and cost history, optional `llms.txt` pointer, and `okf_export: true` on profile runs.
 
 *Tier 3 - explicitly not in scope*
 

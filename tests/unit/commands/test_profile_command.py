@@ -157,6 +157,65 @@ def test_profile_run_json_without_yes_returns_approval_plan(tmp_path, monkeypatc
     assert not (config.library_dir / ".distill" / "profiles").exists()
 
 
+def test_profile_run_with_okf_export_writes_bundle(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    profile_path = tmp_path / "profile.yaml"
+    profile_path.write_text(
+        "\n".join(
+            [
+                "schema_version: research-profile.v1",
+                "name: agent-loops",
+                "topic: agent-loops",
+                "goal_file: goals/agent-loops.md",
+                "outputs:",
+                "  okf_export: true",
+                "queries:",
+                "  - long running agent loops",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    topic_dir = config.topic_dir("agent-loops")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "agent-loops_Topic_Synthesis.md").write_text("# Topic\n", encoding="utf-8")
+
+    def _fake_run(preview, **kwargs):
+        from distill.pipeline.profile_run import ProfileRunResult
+
+        return ProfileRunResult(
+            schema_version="profile-run.v1",
+            profile=preview.profile,
+            topic=preview.topic,
+            cost_mode=preview.cost_mode,
+            generated_at="2026-06-18T12:00:00Z",
+            state_path=str(
+                config.library_dir / ".distill" / "profiles" / "agent-loops" / "run_state.json"
+            ),
+            approved=kwargs.get("approved", False),
+            executed=kwargs.get("approved", False),
+            fresh_item_limit=preview.fresh_item_limit,
+            ordering=preview.ordering,
+        )
+
+    monkeypatch.setattr(_profile, "run_profile_preview", _fake_run)
+
+    result = CliRunner().invoke(
+        cli.app,
+        ["--json", "profile", "run", str(profile_path), "--yes", "--no-fetch"],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)["data"]
+    assert data["okf_bundle_valid"] is True
+    assert "okf-agent-loops" in data["okf_bundle_dir"]
+    assert (tmp_path / "output" / "okf-agent-loops" / "index.md").exists()
+
+
 def test_global_cost_mode_option_sets_process_policy(tmp_path, monkeypatch):
     old_cost_mode = os.environ.get("DISTILL_COST_MODE")
     monkeypatch.delenv("DISTILL_COST_MODE", raising=False)
