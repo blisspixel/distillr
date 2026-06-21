@@ -2,6 +2,16 @@
 
 ## 2026-06-21
 
+### Cycle 93 - Audit Command Tests (43% -> 98% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_audit.py` covering helper functions, all five
+  interactive action handlers, action-menu dispatch, empty-topic paths, audit
+  all library rollup, healthy-corpus message, console and global JSON next-action
+  plans, and command registration.
+- `distill/commands/audit.py` branch coverage rises from ~43% to 98%.
+- Validation (free/local): 2753 passed at floor 84 (84.73%); ruff clean.
+
 ### Cycle 92 - MCP Summaries Tool Tests (100% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

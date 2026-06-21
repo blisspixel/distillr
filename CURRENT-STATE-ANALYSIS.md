@@ -141,8 +141,11 @@ progress reporting).
 Cycle 92: expanded MCP `find_insights_summary` and `list_topic_summary` tests
 to 100% module coverage on `summaries.py`.
 
+Cycle 93: added `tests/unit/commands/test_audit.py`; `commands/audit.py` now
+98% covered (helpers, action menu, JSON/console next-action paths).
+
 Remaining near-term: branch coverage ratchet 84 toward 95% (next low modules:
-`audit.py`, `doctor.py`, `process.py`, `update.py`), expand Pyright-strict
+`doctor.py`, `process.py`, `update.py`, `reprocess.py`), expand Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
 ## Subsequent Implementation Updates
