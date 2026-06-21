@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Paper PDF extraction limits.** Removed the 100K-character truncation on arXiv
+  PDF text now that multipass chunk selection owns prompt sizing. Page limit
+  raised to 200; download-byte cap unchanged. Local PDF ingest matches (optional
+  `max_chars` on `extract_local_document` only when callers pass it).
 - **Local metadata fallback.** When Ollama or LM Studio is unreachable,
   `LOCAL_FALLBACK_CONTEXT_WINDOW` (32,768) is used so chunking and multipass
   still plan honestly instead of assuming cloud-scale windows.

@@ -2,6 +2,16 @@
 
 ## 2026-06-21
 
+### Cycle 88 - Lift 100K Paper PDF Char Cap
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Removed the 100K-character truncation on arXiv PDF extraction; page limit
+  raised to 200 with the 50MB download-byte cap unchanged. Local PDF ingest
+  matches; optional `max_chars` on `extract_local_document` only when callers
+  pass it explicitly. Multipass chunking owns prompt sizing when needed.
+- Updated `docs/roadmap.md`, `docs/CHANGELOG.md`, and `docs/outputs.md`.
+- Validation (free/local): targeted ingestor tests passed; ruff clean.
+
 ### Cycle 87 - MCP OKF Export and Validate Tools
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

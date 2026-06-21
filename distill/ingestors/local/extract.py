@@ -24,15 +24,10 @@ _MARKDOWN_EXTS = frozenset({".md", ".markdown", ".mdown"})
 _HTML_EXTS = frozenset({".html", ".htm"})
 _TEXT_EXTS = frozenset({".txt", ".text", ".rst", ""})
 
-# Default cap, mirroring the arXiv paper extractor's 100K-char ceiling so a huge
-# document does not blow the analysis prompt's context budget.
-_DEFAULT_MAX_CHARS = 100_000
-
 # Hard byte/page caps so a hostile or accidentally-huge local file can't exhaust
-# memory: the whole file is read into RAM before the char cap applies, so bound
-# the read itself. Mirrors the arXiv extractor's page limit for PDFs.
+# memory. Analysis chunks long documents when the provider window requires it.
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MB
-_PDF_PAGE_LIMIT = 50
+_PDF_PAGE_LIMIT = 200
 
 
 class LocalExtractionError(RuntimeError):
@@ -48,7 +43,7 @@ class LocalDocument:
     title: str
 
 
-def extract_local_document(path: Path, *, max_chars: int = _DEFAULT_MAX_CHARS) -> LocalDocument:
+def extract_local_document(path: Path, *, max_chars: int | None = None) -> LocalDocument:
     """Extract text from ``path``, dispatching on file extension.
 
     Supports PDF (``.pdf``), Markdown (``.md`` / ``.markdown``), plain text
@@ -88,7 +83,7 @@ def extract_local_document(path: Path, *, max_chars: int = _DEFAULT_MAX_CHARS) -
     text = _sanitize_surrogates(text).strip()
     if not text:
         raise LocalExtractionError(f"No extractable text in {path.name}.")
-    if len(text) > max_chars:
+    if max_chars is not None and len(text) > max_chars:
         text = text[:max_chars].rstrip()
     return LocalDocument(text=text, kind=kind, title=title)
 

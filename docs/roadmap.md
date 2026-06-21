@@ -165,7 +165,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [x] **Citation identity + export** - shipped 0.16.12: arXiv DOI values are captured into paper metadata and frontmatter when the feed supplies them, and `distill export <topic|all> --what citations --format bibtex|ris` writes local citation files for Zotero and reference managers.
 - [ ] **PubMed / bioRxiv / medRxiv adapters** (same finding): arXiv-only excludes life-sciences labs entirely. Post-0.11 candidates on the adapter contract; OpenAlex metadata (above) is the shared discovery layer.
 - [x] **Chunk-and-rerank paper analysis (effective-context-aware).** Shipped: structural heading match first, at most one batched model rerank when gaps remain, honest positional order when no model is available, and tier-4 keyword fallback only for legacy insight category names. Three focused paper passes assemble `<paper-slug>_Insights.md`; `chunk_selection_modes` is recorded in frontmatter for auditability. Design follows [`design/agentic-balance.md`](design/agentic-balance.md).
-- [ ] **Lift the 100K char cap once chunking is in place.** The cap was a defensive band-aid for the dump-truck pattern; once analysis runs over chunks, full long papers can be processed without prompt blowups.
+- [x] **Lift the 100K char cap once chunking is in place.** Shipped: arXiv PDF extraction no longer truncates at 100K chars; page limit raised to 200 with download-byte cap unchanged. Local PDF ingest matches. Multipass chunking owns prompt sizing when the provider window requires it.
 
 ### 7. Strengthen corpus quality and reuse
 

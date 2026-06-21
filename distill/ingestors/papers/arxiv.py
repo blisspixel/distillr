@@ -41,8 +41,7 @@ ATOM_NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
 }
-_PDF_TEXT_LIMIT = 100_000
-_PDF_PAGE_LIMIT = 40
+_PDF_PAGE_LIMIT = 200
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
 _PDF_MAX_REDIRECTS = 5
 _ARXIV_REQUEST_SPACING_SECONDS = 3.5
@@ -231,9 +230,9 @@ def build_paper_document(paper: PaperRecord, pdf_text: str = "") -> str:
 def fetch_paper_pdf_text(pdf_url: str) -> str:
     """Download an arXiv PDF and return extracted text, or empty string on failure.
 
-    Capped at _PDF_PAGE_LIMIT pages and _PDF_TEXT_LIMIT chars to keep per-paper
-    analysis cost predictable. Returns empty on any network or parse failure;
-    the analysis pipeline falls back to abstract-only in that case.
+    Capped at _PDF_PAGE_LIMIT pages and _PDF_DOWNLOAD_CAP_BYTES on download size.
+    Analysis chunks long documents when the provider window requires it. Returns
+    empty on any network or parse failure; the pipeline falls back to abstract-only.
     """
     if not pdf_url:
         return ""
@@ -252,7 +251,7 @@ def fetch_paper_pdf_text(pdf_url: str) -> str:
         # characters (e.g. math alphanumerics). These break JSON encoding for the
         # API call. Roundtrip through utf-8 with errors='replace' to strip them.
         combined = combined.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
-        return combined[:_PDF_TEXT_LIMIT]
+        return combined
     except Exception:
         return ""
 

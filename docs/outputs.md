@@ -88,7 +88,7 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 ## Per arXiv paper
 
 - **`metadata.json`**: arXiv ID, title, authors, categories, DOI when arXiv supplies one, abstract URL, PDF URL
-- **`<paper-slug>_Paper.md`**: Full paper document (abstract + extracted PDF text, up to 100K chars) with DOI frontmatter when available
+- **`<paper-slug>_Paper.md`**: Full paper document (abstract + extracted PDF text, up to 200 pages) with DOI frontmatter when available
 - **`<paper-slug>_Insights.md`**: Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
 
 Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal (and short-circuited when `--preview` is set). The shortlist itself is not persisted as a file today; use `--preview` and copy the table, or re-run with `--yes` to commit directly to ingestion.

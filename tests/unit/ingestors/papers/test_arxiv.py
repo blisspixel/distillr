@@ -210,7 +210,7 @@ def test_search_arxiv_multi_dedupes_and_continues_on_failures(monkeypatch):
     assert sleeps == [3.5, 3.5]
 
 
-def test_fetch_paper_pdf_text_reads_and_truncates(monkeypatch):
+def test_fetch_paper_pdf_text_reads_full_text_within_page_limit(monkeypatch):
     paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
 
     class FakePage:
@@ -228,7 +228,7 @@ def test_fetch_paper_pdf_text_reads_and_truncates(monkeypatch):
 
     text = paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf")
 
-    assert len(text) == 100000
+    assert len(text) == 150004  # 3 x 50k pages joined with \n\n
 
 
 def test_fetch_paper_pdf_text_rejects_non_arxiv_url(monkeypatch):
