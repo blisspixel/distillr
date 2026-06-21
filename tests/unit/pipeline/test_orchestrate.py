@@ -11,7 +11,20 @@ from __future__ import annotations
 import pytest
 
 from distill.eval.judge import FaithfulnessVerdict, PairwiseResult
-from distill.pipeline.orchestrate import Candidate, select_best
+from distill.llm.router import LLM_Response
+from distill.pipeline.costs import CostTracker
+from distill.pipeline.orchestrate import Candidate, LlmRoute, maker_checker, select_best
+
+
+class _FakeRoute:
+    def __init__(self, model: str, output: str) -> None:
+        self.model = model
+        self.output = output
+        self.calls: list[str] = []
+
+    def run(self, prompt: str, *, tracker=None) -> str:
+        self.calls.append(prompt)
+        return self.output
 
 
 @pytest.fixture(autouse=True)
@@ -161,3 +174,107 @@ def test_no_judge_model_degrades_honestly(monkeypatch) -> None:
     assert "no model route" in selection.notice
     assert selection.faithful == ()
     assert selection.vetoed == ()
+
+
+# ---------------------------------------------------------------------------
+# LlmRoute + maker_checker
+# ---------------------------------------------------------------------------
+
+
+def test_llm_route_forces_model_and_records_usage(monkeypatch) -> None:
+    seen = {}
+
+    def _fake_call(rc, *, workload_tag, prompt, **kwargs):
+        seen["workload_tag"] = workload_tag
+        seen["prompt"] = prompt
+        return LLM_Response(text="ROUTED", input_tokens=5, output_tokens=7, model="grok-4.3")
+
+    monkeypatch.setattr("distill.pipeline.orchestrate.llm_call", _fake_call)
+    tracker = CostTracker()
+
+    out = LlmRoute("grok-4.3").run("hello", tracker=tracker)
+
+    assert out == "ROUTED"
+    assert seen["workload_tag"] == "qa"
+    assert seen["prompt"] == "hello"
+    assert len(tracker.entries) == 1
+    # Also works without a tracker (the usage-record branch is skipped).
+    assert LlmRoute("grok-4.3").run("x") == "ROUTED"
+
+
+def test_maker_checker_keeps_refinement_when_it_wins(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    _patch_pairwise(
+        monkeypatch,
+        lambda src, challenger, anchor, **kw: PairwiseResult(
+            win_rate=1.0 if challenger == "REFINED" else 0.0, comparisons=2, rationale=""
+        ),
+    )
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = maker_checker("SRC", "do the task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "maker-checker"
+    assert result.output == "REFINED"
+    assert result.draft == "DRAFT"
+    assert result.refined == "REFINED"
+    assert len(maker.calls) == 1
+    assert len(checker.calls) == 1
+
+
+def test_maker_checker_keeps_draft_when_refinement_loses(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    _patch_pairwise(
+        monkeypatch,
+        lambda src, challenger, anchor, **kw: PairwiseResult(
+            win_rate=0.0, comparisons=2, rationale=""
+        ),
+    )
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.output == "DRAFT"  # the refinement did not beat the draft
+    assert result.method == "maker-checker"
+
+
+def test_maker_checker_vetoes_unfaithful_refinement(monkeypatch) -> None:
+    _patch_faithfulness(
+        monkeypatch,
+        lambda src, out, **kw: _faith("unfaithful" if out == "REFINED" else "faithful"),
+    )
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.output == "DRAFT"
+    assert result.selection is not None
+    assert result.selection.method == "single-faithful"  # refined was vetoed
+
+
+def test_maker_checker_same_family_skips_refinement(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("grok-4.1-fast", "REFINED")  # same grok family as the maker
+
+    result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "single-route-same-family"
+    assert result.refined is None
+    assert result.output == "DRAFT"
+    assert checker.calls == []  # the checker never ran
+
+
+def test_maker_checker_no_model_degrades(monkeypatch) -> None:
+    monkeypatch.setattr("distill.pipeline.orchestrate.model_available", lambda workload: False)
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = maker_checker("SRC", "task", maker=maker, checker=checker)
+
+    assert result.method == "no-judge-model"
+    assert result.output is None
+    assert maker.calls == []  # nothing ran without a judge

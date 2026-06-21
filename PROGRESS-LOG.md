@@ -2,6 +2,31 @@
 
 ## 2026-06-21
 
+### Cycle 82 - Route Orchestration: Maker-Checker Strategy
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Built the first full route-orchestration strategy, the evidence-backed
+  maker-checker (roadmap 0.19.6): a `Route` protocol, an `LlmRoute` router
+  wrapper, and `maker_checker` in `distill/pipeline/orchestrate.py`.
+- The maker drafts; a different-family checker reviews the draft against the
+  source receipts and returns a corrected version; `select_best`
+  faithfulness-vetoes both and keeps whichever faithful one wins pairwise, so a
+  refinement is kept only when it is grounded and an improvement, never on faith.
+  The refine prompt threads `UNTRUSTED_CONTENT_RULES` since the source receipt is
+  untrusted input.
+- Cross-family is mandatory, grounded in the 2026 research (a model corrects
+  errors presented externally but not the identical error in its own output).
+  Degrades honestly: a same-family checker skips the refinement and verifies the
+  draft alone (`single-route-same-family`); no model route returns nothing
+  (`no-judge-model`), never a crash or a faked pick.
+- Route-agnostic and fully tested with a fake route and mocked judges (zero
+  spend): refinement-wins, refinement-loses, unfaithful-refinement-vetoed,
+  same-family-degrade, no-model-degrade, and the LlmRoute model-forcing plus
+  usage recording.
+- Validation (free/local): targeted orchestrate coverage 100%; ruff, format, and
+  import contracts (4 kept) clean; full suite `2661 passed`; overall coverage
+  84.24% at floor 83.
+
 ### Cycle 81 - Route Orchestration: Online Research + No-Model Honesty Fix
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
