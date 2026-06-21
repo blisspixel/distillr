@@ -2,6 +2,26 @@
 
 ## 2026-06-21
 
+### Cycle 79 - Route Orchestration Design
+
+- External spend: `$0.00`.
+- Captured the multi-route orchestration design the operator asked for (use the
+  validated plan-quota / local routes *together*, not round robin or
+  single-route selection) as `docs/design/route-orchestration.md`.
+- Four strategies over the existing scratch-manifest adapter runner: single,
+  ensemble best-of-N (fan out, cross-family judge picks or synthesizes),
+  maker-checker (different-family route verifies and refines against receipts),
+  and bounded critic-refine. Disciplines from the charter: the verifier is
+  receipt-grounded and model-judged (never self-declared), judges never grade
+  their own family, live quota validation with `quota_stop` eviction (not blind
+  dispatch), rule owns the plan and the model owns the judgment, and no bypass of
+  verify/ledger/corpus invariants.
+- Reframes the eval unit from route to `(workload, strategy)`, scored on cost per
+  accepted change, so fan-out and refinement only win where the measured
+  accept-rate or quality lift pays for the quota multiply.
+- Buildable now against local plus mock routes, independent of vendor support
+  statements; added it to the roadmap as 0.19.6.
+
 ### Cycle 78 - Stateful Property Test of the Concept-Playbook Lifecycle
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
