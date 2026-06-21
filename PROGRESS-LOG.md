@@ -2,6 +2,27 @@
 
 ## 2026-06-21
 
+### Cycle 75 - Website Attachment Ingestion Test Coverage
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Target: `distill/ingestors/sites/attachments.py` (SSRF-guarded PDF download
+  plus YouTube attachment ingestion), 73.2% to 99% branch coverage.
+- Added deterministic tests for the previously-untested success and guard
+  paths: the PDF download state machine (successful stream, extract, and write;
+  wrong content-type rejection; oversized Content-Length rejection; mid-stream
+  size-cap enforcement; redirect-missing-Location failure; redirect-limit
+  exceeded), the no-extractable-text path, empty-chunk skipping, the YouTube
+  transcript success path, link de-duplication, and the youtube-host-without-id
+  branch.
+- Download tests run offline: a literal public-IP URL passes the SSRF guard
+  without DNS, `requests.get` is mocked with a streaming fake response, and
+  `PdfReader` / `get_transcript` are stubbed.
+- The single remaining partial branch is a non-video case in an else arm that
+  only video attachments reach; it is unreachable, so leaving it is correct
+  rather than padding.
+- Validation (free/local): full suite `2639 passed`; ruff and format clean;
+  targeted attachments coverage 99%; overall 83.85% to 84.07%.
+
 ### Cycle 74 - Adaptive Chunker Test Coverage
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
