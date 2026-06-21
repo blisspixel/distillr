@@ -43,7 +43,7 @@ decisions.
   The sharpest result for orchestration: a model can correct an error presented
   externally but fails to correct the identical error in its own output. This is
   the evidence base for maker-checker and critic-refine being **cross-family by
-  mandate** (S3/S4): the checker must be a different model than the maker, and a
+  mandate** (maker-checker and critic-refine): the checker must be a different model than the maker, and a
   single model looping on itself is the pattern the literature says fails.
 - **Self-preference bias is large, so a judge must not grade its own family.**
   Evaluators overrate their own outputs (roughly -38% to +90% on ArenaHard), and
@@ -87,7 +87,7 @@ Four shapes, smallest first. Each names what it is, when it wins, its
 rule-owned vs model-owned split, and its cost shape. All of them obey the
 disciplines in the next section without exception.
 
-### S1. Single route (the current default)
+### Single route (the current default)
 
 One route serves the workload; the receipt-grounded verifier accepts or rejects.
 This is the baseline and stays the default for cheap, well-calibrated work
@@ -99,7 +99,7 @@ plan-quota route already clears the bar on its own.
 - Model-owned: the analysis itself, and the faithfulness verdict.
 - Cost: 1x route usage.
 
-### S2. Ensemble, best-of-N (your "fan out the same thing to all")
+### Ensemble, best-of-N (your "fan out the same thing to all")
 
 Dispatch the same task to every live route. Selection is two steps, each in the
 judging mode the evidence supports (discipline 6). First, a coarse,
@@ -122,7 +122,7 @@ score and no argmax over scores.
 - Cost: N x route usage. Only earns its place where the acceptance-rate or
   quality lift pays for the quota multiply (measured, not assumed).
 
-### S3. Maker-checker (your "give that to the next and ask to check")
+### Maker-checker (your "give that to the next and ask to check")
 
 One route drafts; a **different-family** route verifies the draft against the
 receipts and proposes concrete refinements; the maker (or a third route) applies
@@ -138,7 +138,7 @@ them. The checker's output is itself receipt-grounded, never a "looks good."
 - Cost: about 2x route usage (maker + checker), often split cheap-maker plus
   one stronger-checker call.
 
-### S4. Critic-refine (your "is this right, give me refinements", iterated)
+### Critic-refine (your "is this right, give me refinements", iterated)
 
 Maker-checker run as a bounded loop: draft, critique, revise, re-verify, stop
 when the receipt-grounded verifier turns green or the round/spend ceiling is hit.
@@ -209,8 +209,9 @@ The extension is that a **strategy** is an eval subject too:
   deterministic composite score. Cost and counts are ground-truth ledger
   arithmetic over those model-judged acceptances.
 - The recommendation per workload is the cheapest strategy whose accepted output
-  clears the quality bar. S2/S3/S4 only win where their accept-rate or quality
-  lift outweighs their quota multiply; otherwise S1 stays.
+  clears the quality bar. Ensemble, maker-checker, and critic-refine only win
+  where their accept-rate or quality lift outweighs their quota multiply;
+  otherwise single route stays.
 - The comparison is honest about the pool: a strategy that needs three live
   routes is only recommended for users who have them, and the eval records what
   pool each result assumed.
@@ -225,7 +226,7 @@ The orchestration layer does not depend on any plan-quota vendor statement. It i
 a plan over the existing scratch-manifest adapter runner, so it can be built and
 tested today against local Ollama plus mock routes:
 
-- the strategy interface (S1-S4) over the existing adapter runner;
+- the strategy interface (the four strategies above) over the existing adapter runner;
 - the cross-family judge wiring (reuse the eval faithfulness judge and its
   family-exclusion rule);
 - the budget, round, and quota-eviction rules;
@@ -239,15 +240,15 @@ land and be proven now with local and mock routes.
 
 ## Build order
 
-1. **Strategy interface + S1.** Formalize a `RouteStrategy` over the adapter
-   runner that returns a verified, ledgered result; wire single-route through it
-   so it is the trivial strategy, not a special case.
-2. **S3 maker-checker.** The highest value per unit of work; cross-family
-   checker against the receipts, with the family-exclusion rule enforced.
-3. **S2 ensemble.** Fan-out + cross-family judge selection (and an optional
+1. **Strategy interface + single route.** Formalize a `RouteStrategy` over the
+   adapter runner that returns a verified, ledgered result; wire single-route
+   through it so it is the trivial strategy, not a special case.
+2. **Maker-checker.** The highest value per unit of work; cross-family checker
+   against the receipts, with the family-exclusion rule enforced.
+3. **Ensemble.** Fan-out + cross-family judge selection (and an optional
    synthesis merge that is itself re-verified).
-4. **S4 critic-refine.** S3 in a bounded loop with a verifier stop and spend
-   ceiling.
+4. **Critic-refine.** Maker-checker in a bounded loop with a verifier stop and
+   spend ceiling.
 5. **Eval extension.** Score `(workload, strategy)` on cost per accepted change;
    recommend the cheapest clearing strategy per workload, pool-aware.
 6. **Wiring.** Let a profile or workload declare a preferred strategy, defaulting
@@ -260,8 +261,8 @@ land and be proven now with local and mock routes.
   still gates the pool; orchestration only rearranges no-metered routes unless
   the user selected `paid-ok`.
 - No fan-out or refinement loop whose quota multiply is not justified by a
-  measured accept-rate or quality lift. The default stays S1 until eval says
-  otherwise.
+  measured accept-rate or quality lift. The default stays single route until eval
+  says otherwise.
 - No self-grading. A strategy with no cross-family route available degrades to
   single-route plus the structural verifier and labels it, rather than letting a
   model judge its own family.
@@ -276,6 +277,6 @@ land and be proven now with local and mock routes.
 
 A 0.19.x extension, sequenced after the read-only adapter prototypes (0.19.4) and
 the cross-route eval (0.19.3), since both the adapter runner and the eval
-comparison are its substrate. The strategy interface and S1/S3 plus their eval
-can be built and proven against local and mock routes before any plan-quota
-vendor statement is current.
+comparison are its substrate. The strategy interface and the single + maker-checker
+strategies plus their eval can be built and proven against local and mock routes
+before any plan-quota vendor statement is current.
