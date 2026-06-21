@@ -2,6 +2,30 @@
 
 ## 2026-06-21
 
+### Cycle 80 - Route Orchestration Selection Core
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- First production code of the route-orchestration layer (roadmap 0.19.6, design
+  `docs/design/route-orchestration.md`): `distill/pipeline/orchestrate.py`
+  `select_best`, the charter-critical "judge in the mode the evidence supports"
+  primitive every strategy shares.
+- A coarse source-anchored faithfulness veto (the reliable absolute mode,
+  fail-closed on an unparseable verdict) drops unfaithful candidates, then a
+  pairwise tournament (the reliable comparative mode) ranks the faithful
+  survivors. No per-candidate quality score and no argmax over scores. Honest
+  degradation: zero faithful means no winner; one wins by default; no pairwise
+  signal returns the unranked first faithful, labeled; a same-family judge bias
+  is surfaced in the notice.
+- Reuses the existing eval judges (`judge_faithfulness`, `judge_pairwise`,
+  `judge_shares_family`) rather than duplicating them. Pure selection over
+  outputs that already exist, so it is route-agnostic and fully testable with
+  mock judges. Built the hardest, most charter-sensitive piece first to de-risk
+  the strategy layer; refactored the veto and tournament loops into helpers to
+  stay under the C901 complexity cap.
+- Validation (free/local): targeted orchestrate coverage 100%; `lint-imports` 4
+  contracts kept (pipeline -> eval is clean); full suite `2654 passed`; ruff and
+  format clean; overall coverage 84.16% at floor 83.
+
 ### Cycle 79 - Route Orchestration Design
 
 - External spend: `$0.00`.
