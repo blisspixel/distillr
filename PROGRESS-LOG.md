@@ -2,6 +2,16 @@
 
 ## 2026-06-21
 
+### Cycle 97 - Reprocess Command Tests (17% -> 97% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_reprocess.py` covering `resynthesize` (channel
+  filter, synthesis failures, missing outputs, `--two-pass` corpus) and
+  `reanalyze` (dry-run, `--deep` scan upgrade, full/short paths, metadata-less
+  videos, synthesis failures, registration).
+- `distill/commands/reprocess.py` branch coverage rises from ~17% to 99%.
+- Validation (free/local): 2877 passed at floor 84 (87.18%); ruff clean.
+
 ### Cycle 96 - Self-Update Module Tests (44% -> 99% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

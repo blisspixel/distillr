@@ -156,8 +156,12 @@ Cycle 96: expanded `tests/unit/commands/test_update.py`; `update.py` and
 self-upgrade subprocess paths, cache TTL, CLI check/upgrade JSON and human
 output).
 
+Cycle 97: added `tests/unit/commands/test_reprocess.py`; `commands/reprocess.py`
+now 99% covered (`resynthesize`, `reanalyze`, dry-run, deep upgrade, two-pass
+corpus, and post-analysis synthesis failure paths).
+
 Remaining near-term: branch coverage ratchet 86 toward 95% (next low modules:
-`reprocess.py`, `commands/learn.py`), expand
+`commands/learn.py`, `commands/profile.py`, `commands/reports.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
