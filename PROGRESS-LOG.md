@@ -2,6 +2,16 @@
 
 ## 2026-06-21
 
+### Cycle 101 - Watch Command Tests (57% -> 99% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_watch_commands.py` covering the `watch` sub-app
+  (list, add with auto-instructions, remove, instructions, days), `catch-up`
+  (filters, discovery failure, dry-run, processing, synthesis failures, goal
+  refresh hints, latest-insights display), and sub-app registration.
+- `distill/commands/watch.py` branch coverage rises from ~57% to 99%.
+- Validation (free/local): 2968 passed at floor 84 (88.47%); ruff clean.
+
 ### Cycle 100 - Reports Command Tests (41% -> 98% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

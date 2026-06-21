@@ -172,8 +172,12 @@ Cycle 100: added `tests/unit/commands/test_reports.py`; `commands/reports.py`
 now 98% covered (`report` accordion/legacy paths, export OKF/zip/citations/
 synthesis helpers, and DOCX fallback messaging).
 
+Cycle 101: added `tests/unit/commands/test_watch_commands.py`; `commands/watch.py`
+now 99% covered (`watch` list/add/remove/instructions/days, `catch-up` discovery/
+processing/synthesis paths, latest-insights display, and goal-refresh surfacing).
+
 Remaining near-term: branch coverage ratchet 88 toward 95% (next low modules:
-`commands/watch.py`, `commands/view.py`, `commands/maintain.py`), expand
+`commands/view.py`, `commands/maintain.py`, `commands/discover.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
