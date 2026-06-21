@@ -2,6 +2,18 @@
 
 ## 2026-06-21
 
+### Cycle 77 - Branch-Coverage Floor Ratchet 82 -> 83
+
+- External spend: `$0.00`.
+- Evidence: cycle-75 CI measured ubuntu branch coverage at 84.00% (3.12 and
+  3.13) and 83.96% (3.14), and cycle 76 (paper.py to 100%) adds a little more.
+- Raised `--cov-fail-under` 82 -> 83 in `.github/workflows/ci.yml`, keeping the
+  documented ~1-point headroom against branch-selection jitter below the 83.96%
+  matrix minimum. Updated the CI comment, `docs/CONTRIBUTING.md` (3 command
+  refs), `AGENTS.md`, and the `SKILLS.md` validation command to match.
+- Advances the 1.0 quality gate (branch coverage ratcheted up-only toward
+  >=95%) on real CI evidence.
+
 ### Cycle 76 - Paper Analysis and Synthesis Test Coverage
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).

@@ -36,14 +36,14 @@ jobs:
 
       - name: Run tests with branch coverage
         # Branch coverage (stricter than line). --cov-fail-under is a manually
-        # ratcheted floor: measured ~83.3% across the matrix (2026-06-20, min on
-        # 3.14), floor held at 82 for ~1 point of headroom against per-run
-        # branch-selection jitter. Ratchet up-only toward the 1.0 target of 95 --
+        # ratcheted floor: measured ~84.0% across the matrix (2026-06-21, min on
+        # 3.14), floor held at 83 for ~1 point of headroom against per-run
+        # branch-selection jitter. Ratchet up-only toward the 1.0 target of 95;
         # raise as coverage improves on a coverage-improving PR; lowering it
         # requires explicit review. (A fixed floor beats a stored-baseline
         # "must-not-decrease" gate here, which would flake on normal
         # branch-coverage jitter.)
-        run: uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=82
+        run: uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=83
 
   test-os:
     name: Test (${{ matrix.os }} smoke)
