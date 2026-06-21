@@ -2,6 +2,23 @@
 
 ## 2026-06-21
 
+### Cycle 76 - Paper Analysis and Synthesis Test Coverage
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Target: `distill/pipeline/analysis/paper.py` (per-paper analysis plus
+  cross-paper synthesis), 76.5% to 100% branch coverage.
+- Added deterministic tests for the previously-untested branches: the
+  oversized-document chunking path (first chunk analyzed, full_pdf source mode),
+  analyze without a cost tracker, and the synthesize edge cases (missing papers
+  dir, non-dir and missing-insights entries skipped to an empty result, spend
+  recorded when a tracker is passed, strict-verify refusal writes nothing, and a
+  tolerated orientation-refresh failure).
+- Network and LLM boundaries are mocked (fetch_paper_pdf_text,
+  build_paper_document, llm_call, run_synthesis_verify,
+  claude_md.refresh_for_topic), so the tests stay offline and deterministic.
+- Validation (free/local): full suite `2646 passed`; ruff and format clean;
+  targeted paper coverage 100%; overall 84.07% to 84.13%.
+
 ### Cycle 75 - Website Attachment Ingestion Test Coverage
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
