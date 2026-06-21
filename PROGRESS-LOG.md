@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 95 - Process Command Tests (38% -> 98% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_process.py` covering `video` (info failure,
+  process failure, `--show`, panel render fallback), `channel` (add/skip/limit/
+  synthesis failure, `--report`), and `run` (topic validation, dry-run, refresh/
+  limit, full and short analysis paths, transcript skip/reuse, analysis failure,
+  channel filter, synthesis failures, registration).
+- `distill/commands/process.py` branch coverage rises from ~38% to 98%.
+- Validation (free/local): 2817 passed at floor 84 (86.32%); ruff clean.
+
 ### Cycle 94 - Doctor Command Tests (47% -> 90% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

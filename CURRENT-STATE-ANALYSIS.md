@@ -147,8 +147,12 @@ Cycle 93: added `tests/unit/commands/test_audit.py`; `commands/audit.py` now
 Cycle 94: added `tests/unit/commands/test_doctor.py`; `commands/doctor.py` now
 90% covered (links/migration modes, human output branches, health paths).
 
+Cycle 95: added `tests/unit/commands/test_process.py`; `commands/process.py`
+now 98% covered (`video`, `channel`, `run` CLI paths including dry-run,
+refresh, shorts, transcript reuse, and synthesis failure handling).
+
 Remaining near-term: branch coverage ratchet 86 toward 95% (next low modules:
-`process.py`, `update.py`, `reprocess.py`, `commands/learn.py`), expand
+`update.py`, `reprocess.py`, `commands/learn.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 
