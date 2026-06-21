@@ -168,8 +168,12 @@ Cycle 99: expanded `tests/unit/commands/test_profile_command.py`;
 `commands/profile.py` now 99% covered (human preview/run tables, error JSON
 paths, OKF export skip/failure, failed-run and warning rendering).
 
-Remaining near-term: branch coverage ratchet 87 toward 95% (next low modules:
-`commands/reports.py`, `commands/watch.py`, `commands/view.py`), expand
+Cycle 100: added `tests/unit/commands/test_reports.py`; `commands/reports.py`
+now 98% covered (`report` accordion/legacy paths, export OKF/zip/citations/
+synthesis helpers, and DOCX fallback messaging).
+
+Remaining near-term: branch coverage ratchet 88 toward 95% (next low modules:
+`commands/watch.py`, `commands/view.py`, `commands/maintain.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 

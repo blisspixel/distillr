@@ -2,6 +2,15 @@
 
 ## 2026-06-21
 
+### Cycle 100 - Reports Command Tests (41% -> 98% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_reports.py` covering `report` (accordion/legacy,
+  research-only, channel scope, DOCX fallback) and `export` (OKF, zip bundle,
+  citations, synthesis/report markdown, error paths).
+- `distill/commands/reports.py` branch coverage rises from ~41% to 98%.
+- Validation (free/local): 2936 passed at floor 84 (88.00%); ruff clean.
+
 ### Cycle 99 - Profile Command Tests (44% -> 99% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
