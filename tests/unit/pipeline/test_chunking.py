@@ -226,3 +226,48 @@ def test_token_estimation_identity(text: str) -> None:
     **Validates: Requirements 16.3**
     """
     assert estimate_tokens(text) == len(text) // 4
+
+
+# ---------------------------------------------------------------------------
+# Deterministic branch coverage: degenerate windows + paragraph splitting
+# ---------------------------------------------------------------------------
+
+
+def test_degenerate_window_is_guarded() -> None:
+    # context_window=1 -> available_tokens int(0.8)=0, which the guard lifts to 1
+    # so the function never divides by or compares against a non-positive budget.
+    chunks = chunk_content("x", 1)
+    assert len(chunks) == 1
+    assert chunks[0].text == "x"
+
+
+def test_oversized_section_splits_at_paragraph_boundaries() -> None:
+    paragraphs = ["word " * 50 for _ in range(5)]
+    content = "# Big Section\n" + "\n\n".join(paragraphs)
+    available = int(200 * 0.80)
+
+    chunks = chunk_content(content, 200)
+
+    assert len(chunks) > 1
+    assert all(c.heading_context == "# Big Section" for c in chunks)
+    assert any("[continued from: # Big Section]" in c.text for c in chunks)
+    for chunk in chunks:
+        assert estimate_tokens(chunk.text) <= available
+
+
+def test_section_without_heading_is_chunked() -> None:
+    # Body before the first heading produces a ("", body) section, exercising the
+    # no-heading branch of the section loop.
+    body = "lead " * 120
+    content = f"{body}\n\n# Later Heading\nshort tail\n"
+
+    chunks = chunk_content(content, 150)
+
+    assert len(chunks) > 1
+    assert any("lead" in c.text for c in chunks)
+
+
+def test_split_into_paragraphs_strips_and_drops_blanks() -> None:
+    from distill.pipeline.analysis.chunking import _split_into_paragraphs
+
+    assert _split_into_paragraphs("one\n\ntwo\n\n\n  three  \n\n") == ["one", "two", "three"]

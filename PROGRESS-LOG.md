@@ -1,5 +1,38 @@
 # Progress Log
 
+## 2026-06-21
+
+### Cycle 74 - Adaptive Chunker Test Coverage
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Target: `distill/pipeline/analysis/chunking.py` (adaptive section-aware
+  chunker for local context windows), 72.6% to 98% branch coverage.
+- The existing tests are property-based (Hypothesis) and stochastically miss
+  several branches. Added deterministic example tests for: the degenerate-window
+  guard (context_window=1 lifts available tokens to 1), oversized-section
+  splitting at paragraph boundaries (the "[continued from: ...]" continuation
+  path, with the per-chunk size invariant asserted), a body section before the
+  first heading (the no-heading branch), and `_split_into_paragraphs` stripping
+  plus blank-dropping.
+- The 2 remaining partial branches (a loop-continuation edge and a defensively
+  unreachable last-section flush) are near-unreachable; chasing them would be
+  coverage-padding.
+- Floor held at 82: ubuntu is ~83.8% after this cycle, not yet a full point
+  above 83 to ratchet again.
+- Validation (free/local): full suite `2629 passed`; ruff and format clean;
+  added tests stay pyright-strict clean; targeted chunking coverage 98%;
+  overall 83.78% to 83.85%.
+
+### Note on git history (2026-06-21)
+
+- Removed AI co-author attribution from all 7 session commits via a contained
+  history rewrite (`ce96981..HEAD`), re-pointed the `v0.17.0` tag to the clean
+  Release commit, and force-pushed. Branch protection was temporarily relaxed
+  for the force-push and restored to its exact prior state (verified). PyPI was
+  untouched; the tag re-point re-triggered publish, which failed closed at the
+  CI-verify gate without uploading. No attribution on commits or PRs going
+  forward.
+
 ## 2026-06-20
 
 ### Cycle 73 - OKF Export / Validate Test Coverage
