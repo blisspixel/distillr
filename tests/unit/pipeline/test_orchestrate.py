@@ -202,14 +202,9 @@ def test_llm_route_forces_model_and_records_usage(monkeypatch) -> None:
     assert LlmRoute("grok-4.3").run("x") == "ROUTED"
 
 
-def test_maker_checker_keeps_refinement_when_it_wins(monkeypatch) -> None:
+def test_maker_checker_keeps_faithful_refinement(monkeypatch) -> None:
+    # The cross-family correction is the deliverable; verify it is grounded and ship it.
     _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
-    _patch_pairwise(
-        monkeypatch,
-        lambda src, challenger, anchor, **kw: PairwiseResult(
-            win_rate=1.0 if challenger == "REFINED" else 0.0, comparisons=2, rationale=""
-        ),
-    )
     maker = _FakeRoute("grok-4.3", "DRAFT")
     checker = _FakeRoute("gemini-3", "REFINED")
 
@@ -223,24 +218,7 @@ def test_maker_checker_keeps_refinement_when_it_wins(monkeypatch) -> None:
     assert len(checker.calls) == 1
 
 
-def test_maker_checker_keeps_draft_when_refinement_loses(monkeypatch) -> None:
-    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("faithful"))
-    _patch_pairwise(
-        monkeypatch,
-        lambda src, challenger, anchor, **kw: PairwiseResult(
-            win_rate=0.0, comparisons=2, rationale=""
-        ),
-    )
-    maker = _FakeRoute("grok-4.3", "DRAFT")
-    checker = _FakeRoute("gemini-3", "REFINED")
-
-    result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
-
-    assert result.output == "DRAFT"  # the refinement did not beat the draft
-    assert result.method == "maker-checker"
-
-
-def test_maker_checker_vetoes_unfaithful_refinement(monkeypatch) -> None:
+def test_maker_checker_falls_back_to_draft_when_refinement_unfaithful(monkeypatch) -> None:
     _patch_faithfulness(
         monkeypatch,
         lambda src, out, **kw: _faith("unfaithful" if out == "REFINED" else "faithful"),
@@ -250,9 +228,20 @@ def test_maker_checker_vetoes_unfaithful_refinement(monkeypatch) -> None:
 
     result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
 
+    assert result.method == "refinement-unfaithful-kept-draft"
     assert result.output == "DRAFT"
-    assert result.selection is not None
-    assert result.selection.method == "single-faithful"  # refined was vetoed
+    assert result.refined == "REFINED"  # produced but rejected as unfaithful
+
+
+def test_maker_checker_none_faithful_returns_no_output(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("unfaithful"))
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("gemini-3", "REFINED")
+
+    result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "none-faithful"
+    assert result.output is None
 
 
 def test_maker_checker_same_family_skips_refinement(monkeypatch) -> None:
@@ -266,6 +255,17 @@ def test_maker_checker_same_family_skips_refinement(monkeypatch) -> None:
     assert result.refined is None
     assert result.output == "DRAFT"
     assert checker.calls == []  # the checker never ran
+
+
+def test_maker_checker_same_family_unfaithful_draft_returns_none(monkeypatch) -> None:
+    _patch_faithfulness(monkeypatch, lambda src, out, **kw: _faith("unfaithful"))
+    maker = _FakeRoute("grok-4.3", "DRAFT")
+    checker = _FakeRoute("grok-4.1-fast", "REFINED")
+
+    result = maker_checker("SRC", "task", maker=maker, checker=checker, judge_model="qwen3")
+
+    assert result.method == "single-route-same-family"
+    assert result.output is None
 
 
 def test_maker_checker_no_model_degrades(monkeypatch) -> None:

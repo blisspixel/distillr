@@ -262,15 +262,16 @@ class LlmRoute:
 class MakerCheckerResult:
     """Outcome of :func:`maker_checker`.
 
-    ``method`` is ``"maker-checker"``, ``"single-route-same-family"`` (the checker
-    shared the maker's family, so the refinement was skipped), or
-    ``"no-judge-model"``.
+    ``method`` is one of: ``"maker-checker"`` (kept the faithful cross-family
+    refinement), ``"refinement-unfaithful-kept-draft"``,
+    ``"single-route-same-family"`` (the checker shared the maker's family, so the
+    refinement was skipped and only the draft was verified), ``"none-faithful"``
+    (neither draft nor refinement was grounded), or ``"no-judge-model"``.
     """
 
-    output: str | None  # the accepted output, or None if nothing was faithful
+    output: str | None  # the accepted, grounded output, or None if nothing was faithful
     draft: str  # the maker's draft
     refined: str | None  # the checker's refinement, or None when skipped
-    selection: Selection | None  # the select_best outcome over {draft, refined}
     method: str
     notice: str
 
@@ -293,8 +294,27 @@ DRAFT:
 """
 
 
-def _winner_output(selection: Selection) -> str | None:
-    return selection.winner.output if selection.winner is not None else None
+def _is_faithful(
+    source_excerpt: str,
+    output: str,
+    *,
+    judge_model: str,
+    tracker: CostTracker | None,
+    router_config: RouterConfig | None,
+) -> bool:
+    """True when the faithfulness floor grounds ``output`` in the source.
+
+    Coarse, absolute, anchor-free grounding -- the reliable, family-bias-resistant
+    mode. Fails closed: an ``unfaithful`` or unparseable verdict is not faithful.
+    """
+    verdict = judge_faithfulness(
+        source_excerpt,
+        output,
+        judge_model=judge_model,
+        tracker=tracker,
+        router_config=router_config,
+    )
+    return verdict is not None and verdict.label != "unfaithful"
 
 
 def maker_checker(
@@ -310,23 +330,29 @@ def maker_checker(
     """Draft on one route, then have a different-family route check and refine it.
 
     The maker drafts from ``task_prompt``; the checker -- which must be a different
-    model family, since a model corrects errors presented externally but not the
+    model family, since a model corrects an error presented externally but not the
     identical error in its own output -- reviews the draft against
-    ``source_excerpt`` and returns a corrected version. :func:`select_best` then
-    faithfulness-vetoes both and keeps whichever faithful one wins pairwise, so a
-    refinement is kept only when it is grounded and an improvement, never on faith.
+    ``source_excerpt`` and returns a corrected version. The correction is the
+    deliverable, verified against the source by the coarse faithfulness floor (the
+    reliable absolute mode): keep the refinement when it is grounded, otherwise
+    fall back to the faithful draft.
 
-    Degradation: when the checker shares the maker's family there is no independent
-    external feedback, so the refinement is skipped and only the maker's draft is
-    verified (method ``"single-route-same-family"``). When no model route is
-    available to judge, nothing runs (method ``"no-judge-model"``).
+    No pairwise here, on purpose. A pairwise "is the refinement better" comparison
+    would need a judge neutral to both routes to avoid self-preference bias, which
+    is large; that comparison is the ensemble strategy's job, not a
+    correct-then-verify pass. Grounding is the mode the evidence supports here, and
+    it is family-bias-resistant.
+
+    Degradation: a same-family checker cannot give independent feedback, so the
+    refinement is skipped and only the draft is verified
+    (``"single-route-same-family"``). With no model route to judge, nothing runs
+    (``"no-judge-model"``).
     """
     if not model_available("qa"):
         return MakerCheckerResult(
             output=None,
             draft="",
             refined=None,
-            selection=None,
             method="no-judge-model",
             notice="no model route available; maker-checker skipped",
         )
@@ -334,35 +360,55 @@ def maker_checker(
     draft = maker.run(task_prompt, tracker=tracker)
 
     if judge_shares_family(maker.model, checker.model):
-        selection = select_best(
+        grounded = _is_faithful(
             source_excerpt,
-            [Candidate(draft, maker.model)],
+            draft,
             judge_model=judge_model,
             tracker=tracker,
             router_config=router_config,
         )
         return MakerCheckerResult(
-            output=_winner_output(selection),
+            output=draft if grounded else None,
             draft=draft,
             refined=None,
-            selection=selection,
             method="single-route-same-family",
             notice="maker and checker share a family; refinement skipped (no independent feedback)",
         )
 
     refined = checker.run(_refine_prompt(source_excerpt, draft), tracker=tracker)
-    selection = select_best(
+
+    if _is_faithful(
         source_excerpt,
-        [Candidate(draft, maker.model), Candidate(refined, checker.model)],
+        refined,
         judge_model=judge_model,
         tracker=tracker,
         router_config=router_config,
-    )
+    ):
+        return MakerCheckerResult(
+            output=refined,
+            draft=draft,
+            refined=refined,
+            method="maker-checker",
+            notice="kept the faithful cross-family refinement",
+        )
+    if _is_faithful(
+        source_excerpt,
+        draft,
+        judge_model=judge_model,
+        tracker=tracker,
+        router_config=router_config,
+    ):
+        return MakerCheckerResult(
+            output=draft,
+            draft=draft,
+            refined=refined,
+            method="refinement-unfaithful-kept-draft",
+            notice="the refinement was not faithful to the source; kept the faithful draft",
+        )
     return MakerCheckerResult(
-        output=_winner_output(selection),
+        output=None,
         draft=draft,
         refined=refined,
-        selection=selection,
-        method="maker-checker",
-        notice=selection.notice,
+        method="none-faithful",
+        notice="neither the draft nor the refinement was faithful to the source",
     )

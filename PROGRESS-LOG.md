@@ -26,6 +26,16 @@
 - Validation (free/local): targeted orchestrate coverage 100%; ruff, format, and
   import contracts (4 kept) clean; full suite `2661 passed`; overall coverage
   84.24% at floor 83.
+- Follow-up (agentic-balance review): the first cut ranked draft vs refinement
+  with `select_best`'s pairwise judge, but pairwise is where self-preference bias
+  is large and the default judge was not guaranteed neutral to the maker/checker,
+  so a same-family judge would favor that family's candidate (the eval gate fails
+  closed on this; maker_checker did not). Replaced the pairwise pick with the
+  family-bias-resistant absolute faithfulness floor: maker-checker is
+  correct-then-verify, so keep the grounded cross-family correction, else fall
+  back to the faithful draft. Pairwise stays in `select_best` for ensemble, where
+  comparing independent candidates is the job. Full suite `2662 passed`; coverage
+  84.20%; orchestrate.py 100%.
 
 ### Cycle 81 - Route Orchestration: Online Research + No-Model Honesty Fix
 
