@@ -24,6 +24,7 @@ from pathlib import Path
 from distill.library.freshness import SynthesisFreshness, collect_synthesis_freshness
 from distill.library.insights import discover_insights
 from distill.library.links import BrokenLink
+from distill.library.okf import detect_okf_export_staleness
 from distill.library.paths import (
     artifact_path,
     base_frontmatter,
@@ -376,6 +377,28 @@ def _actions_for_report(library_dir: Path, report: AuditReport) -> list[NextActi
                 approval="none",
                 estimated_cost_usd=0.0,
                 writes=[f"topics/{topic}/*_Topic_Trends.md"],
+                verifier=NextActionVerifier(
+                    command=_audit_json_command(topic),
+                    expect=f"no action with id '{action_id}'",
+                ),
+                loop=_loop(action_id),
+            ),
+        )
+
+    stale_okf = detect_okf_export_staleness(library_dir, topic)
+    if stale_okf is not None:
+        action_id = _action_id(topic, "reexport-okf")
+        _append_action(
+            actions,
+            NextAction(
+                id=action_id,
+                kind="reexport_okf",
+                severity="info",
+                rationale="OKF bundle predates the native corpus and should be re-exported.",
+                command=["distill", "export", topic, "--what", "bundle", "--format", "okf"],
+                approval="none",
+                estimated_cost_usd=0.0,
+                writes=[f"output/{stale_okf.bundle_dir.name}/**"],
                 verifier=NextActionVerifier(
                     command=_audit_json_command(topic),
                     expect=f"no action with id '{action_id}'",

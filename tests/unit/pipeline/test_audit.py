@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 
 from distill.library.links import BrokenLink
@@ -463,6 +465,40 @@ class TestNextActionPlan:
                 "--json",
             ]
             assert action["loop"]["acceptance_metric"] == "verifier_passed"
+
+    def test_emits_reexport_okf_when_bundle_predates_native_corpus(self, tmp_path: Path) -> None:
+        library = tmp_path / "library"
+        topic_dir = library / "topics" / "t"
+        bundle_dir = tmp_path / "output" / "okf-t"
+        topic_dir.mkdir(parents=True)
+        (topic_dir / "fresh.md").write_text("# fresh\n", encoding="utf-8")
+        bundle_dir.mkdir(parents=True)
+        (bundle_dir / "index.md").write_text("---\n---\n", encoding="utf-8")
+        (bundle_dir / "log.md").write_text("---\n---\n", encoding="utf-8")
+        old = time.time() - 100
+        for path in (bundle_dir / "index.md", bundle_dir / "log.md"):
+            os.utime(path, (old, old))
+
+        report = _report(
+            contested=[],
+            gaps=["No major research gaps detected from the local corpus heuristics."],
+            next_actions=[],
+            verify=VerifyRollup(insights_total=0, checked=0, clean=0),
+        )
+        plan = build_next_action_plan(library, [report], topic="t", generated_at=NOW)
+        kinds = [action.kind for action in plan.actions]
+        assert "reexport_okf" in kinds
+        okf_action = next(action for action in plan.actions if action.kind == "reexport_okf")
+        assert okf_action.command == [
+            "distill",
+            "export",
+            "t",
+            "--what",
+            "bundle",
+            "--format",
+            "okf",
+        ]
+        assert okf_action.estimated_cost_usd == 0.0
 
 
 def test_audit_command_report_only(tmp_path, monkeypatch):

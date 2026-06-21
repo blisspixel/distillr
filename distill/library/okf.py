@@ -635,3 +635,60 @@ def _display_path(root: Path, path: Path) -> str:
         return path.relative_to(root).as_posix()
     except ValueError:
         return str(path)
+
+
+@dataclass(frozen=True, slots=True)
+class OkfExportStaleness:
+    """Structural staleness: native corpus newer than the exported OKF bundle."""
+
+    bundle_dir: Path
+    native_mtime: float
+    bundle_mtime: float
+
+
+def okf_bundle_output_dir(library_dir: Path, topic: str) -> Path:
+    """Return the default OKF export directory for one topic."""
+    return library_dir.parent / "output" / f"okf-{sanitize_topic(topic)}"
+
+
+def detect_okf_export_staleness(library_dir: Path, topic: str) -> OkfExportStaleness | None:
+    """Return staleness when an OKF bundle exists but predates the native corpus."""
+    topic_dir = library_dir / "topics" / topic
+    if not topic_dir.is_dir():
+        return None
+
+    bundle_dir = okf_bundle_output_dir(library_dir, topic)
+    if not bundle_dir.is_dir():
+        return None
+
+    native_mtime = _newest_markdown_mtime(topic_dir)
+    bundle_mtime = _bundle_anchor_mtime(bundle_dir)
+    if native_mtime is None or bundle_mtime is None:
+        return None
+    if native_mtime <= bundle_mtime:
+        return None
+    return OkfExportStaleness(
+        bundle_dir=bundle_dir,
+        native_mtime=native_mtime,
+        bundle_mtime=bundle_mtime,
+    )
+
+
+def _newest_markdown_mtime(root: Path) -> float | None:
+    latest: float | None = None
+    for path in root.rglob("*.md"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        mtime = path.stat().st_mtime
+        if latest is None or mtime > latest:
+            latest = mtime
+    return latest
+
+
+def _bundle_anchor_mtime(bundle_dir: Path) -> float | None:
+    anchors = (bundle_dir / "index.md", bundle_dir / "log.md")
+    times = [path.stat().st_mtime for path in anchors if path.is_file()]
+    return max(times) if times else None

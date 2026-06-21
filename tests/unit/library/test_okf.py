@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -15,7 +17,9 @@ from distill.library.okf import (
     _tags_for,
     _type_for,
     _verify_sidecar_for,
+    detect_okf_export_staleness,
     export_okf_bundle,
+    okf_bundle_output_dir,
     validate_okf_bundle,
 )
 
@@ -413,3 +417,44 @@ class TestSmallHelpers:
         other = tmp_path / "other" / "f.md"
         root = tmp_path / "root"
         assert _display_path(root, other) == str(other)
+
+
+class TestOkfExportStaleness:
+    def test_okf_bundle_output_dir_uses_sanitized_topic(self, tmp_path: Path) -> None:
+        library = tmp_path / "library"
+        assert okf_bundle_output_dir(library, "AI News") == tmp_path / "output" / "okf-AI News"
+        assert okf_bundle_output_dir(library, "../../etc") == tmp_path / "output" / "okf-etc"
+
+    def test_detect_staleness_when_native_corpus_is_newer(self, tmp_path: Path) -> None:
+        library = tmp_path / "library"
+        topic_dir = library / "topics" / "ai"
+        bundle_dir = tmp_path / "output" / "okf-ai"
+        _write(topic_dir / "fresh.md", "# fresh\n")
+        _write(bundle_dir / "index.md", "---\n---\n")
+        _write(bundle_dir / "log.md", "---\n---\n")
+        old = time.time() - 100
+        for path in (bundle_dir / "index.md", bundle_dir / "log.md"):
+            os.utime(path, (old, old))
+
+        result = detect_okf_export_staleness(library, "ai")
+
+        assert result is not None
+        assert result.bundle_dir == bundle_dir
+
+    def test_detect_staleness_none_when_bundle_missing(self, tmp_path: Path) -> None:
+        library = tmp_path / "library"
+        _write(library / "topics" / "ai" / "x.md", "# x\n")
+        assert detect_okf_export_staleness(library, "ai") is None
+
+    def test_detect_staleness_none_when_bundle_is_current(self, tmp_path: Path) -> None:
+        library = tmp_path / "library"
+        topic_dir = library / "topics" / "ai"
+        bundle_dir = tmp_path / "output" / "okf-ai"
+        _write(topic_dir / "x.md", "# x\n")
+        _write(bundle_dir / "index.md", "---\n---\n")
+        _write(bundle_dir / "log.md", "---\n---\n")
+        now = time.time() + 100
+        for path in (bundle_dir / "index.md", bundle_dir / "log.md"):
+            os.utime(path, (now, now))
+
+        assert detect_okf_export_staleness(library, "ai") is None
