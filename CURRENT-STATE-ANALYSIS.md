@@ -176,8 +176,12 @@ Cycle 101: added `tests/unit/commands/test_watch_commands.py`; `commands/watch.p
 now 99% covered (`watch` list/add/remove/instructions/days, `catch-up` discovery/
 processing/synthesis paths, latest-insights display, and goal-refresh surfacing).
 
+Cycle 102: added `tests/unit/commands/test_view_commands.py`; `commands/view.py`
+now 95% covered (`library`, `videos`, `show`, `package-latest`, `synthesis`,
+`findings`, `add`/`remove`, `diff`/`trends`, and JSON read paths).
+
 Remaining near-term: branch coverage ratchet 88 toward 95% (next low modules:
-`commands/view.py`, `commands/maintain.py`, `commands/discover.py`), expand
+`commands/maintain.py`, `commands/discover.py`), expand
 Pyright-strict
 beyond `distill/llm/`, parse-don't-validate at MCP and ingest boundaries.
 

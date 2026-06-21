@@ -343,8 +343,12 @@ class TestExportCommand:
         config = _config(tmp_path)
         _seed_topic(config)
         self._patch_config(monkeypatch, config)
-        monkeypatch.setattr(reports_mod, "collect_paper_citations", lambda *args, **kwargs: ["cite"])
-        monkeypatch.setattr(reports_mod, "render_citations", lambda *args, **kwargs: "@article{demo}")
+        monkeypatch.setattr(
+            reports_mod, "collect_paper_citations", lambda *args, **kwargs: ["cite"]
+        )
+        monkeypatch.setattr(
+            reports_mod, "render_citations", lambda *args, **kwargs: "@article{demo}"
+        )
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "citations"])
 

@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 102 - View Command Tests (66% -> 95% Module Coverage)
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added `tests/unit/commands/test_view_commands.py` covering `library`, `videos`,
+  `show`, `package-latest`, `synthesis`, `findings`, `add`/`remove`, `diff`/`trends`,
+  and registration.
+- `distill/commands/view.py` branch coverage rises from ~66% to 95%.
+- Fixed `pyproject.toml` license metadata (`Apache-2.0` SPDX string) so builds
+  work with `license-files`.
+- Validation (free/local): 3020 passed at floor 84 (89.09%); ruff clean.
+
 ### Cycle 101 - Watch Command Tests (57% -> 99% Module Coverage)
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

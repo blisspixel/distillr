@@ -7,7 +7,7 @@ name = "distillr"
 version = "0.17.0"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
-license = { text = "Apache-2.0 WITH Commons-Clause" }
+license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Nick Seal" }]
 keywords = ["research", "intelligence", "synthesis", "arxiv", "youtube", "rag", "knowledge-base", "mcp"]
