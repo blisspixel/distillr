@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 86 - Audit Next-Action for Stale OKF Re-Export
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added structural OKF export staleness detection in `distill/library/okf.py`.
+  When `output/okf-<topic>` exists but native Markdown is newer than bundle
+  `index.md` / `log.md`, `distill audit --next-actions` emits a
+  `reexport_okf` action with exact argv
+  `distill export <topic> --what bundle --format okf`, zero-dollar approval,
+  and verifier stop condition.
+- Validation (free/local): targeted tests passed; ruff clean.
+
 ### Cycle 85 - Paper Multipass Chunk Selection + OKF Producer Follow-On
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
