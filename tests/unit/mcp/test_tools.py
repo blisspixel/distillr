@@ -151,6 +151,8 @@ class TestToolRegistration:
             "synthesize",
             "costs",
             "doctor",
+            "okf_export",
+            "okf_validate",
         }
         registered = set(tools.keys())
         missing = expected - registered

@@ -1,0 +1,22 @@
+---
+pid: 56976
+cwd: "C:\GitHub\distillr"
+command: "cd C:\\GitHub\\distillr && uv run pytest -q --cov=distill --cov-report=term-missing:skip-covered 2>&1 | Select-Object -Last 15"
+started_at: 2026-06-21T16:16:38.567Z
+running_for_ms: 6929997  
+---
+distill\prompts\report.py                        61      1     20      1    98%   387
+distill\prompts\x.py                             23      1     10      1    94%   33
+distill\update.py                               147     61     40      7    59%   42->39, 44, 53-61, 79-80, 85-91, 128-133, 144-180, 188, 194, 198-199, 203-207, 213, 216-217, 234-237, 250
+distill\web\routes\channels.py                   44      0     12      2    96%   49->52, 54->57
+distill\web\routes\dashboard.py                  19      0      4      1    96%   24->19
+distill\web\routes\topics.py                     73      2     28     11    87%   20->18, 26->28, 30->34, 72->75, 77->81, 83->96, 86, 89->93, 98->114, 101, 105->107
+distill\web\routes\videos.py                     27      1      8      4    86%   23, 27->30, 32->35, 37->40
+distill\web\server.py                            52      0      2      1    98%   99->101
+-----------------------------------------------------------------------------------------
+TOTAL                                         24044   3145   7782   1231    84%
+
+72 files skipped due to complete coverage.
+=========================== short test summary info ===========================
+FAILED tests/unit/commands/test_ingest_failure_isolation.py::TestResumeHint::test_hint_printed_for_retryable_ingest_failures
+1 failed, 2671 passed, 8 deselected, 1 warning in 367.75s (0:06:07)

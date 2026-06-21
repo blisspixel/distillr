@@ -2,6 +2,17 @@
 
 ## 2026-06-21
 
+### Cycle 87 - MCP OKF Export and Validate Tools
+
+- External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
+- Added MCP `okf_export` (write-side, paths-not-payloads preview) and
+  `okf_validate` (read-only structural validation, works under
+  `DISTILL_MCP_READ_ONLY=1`). Workspace-relative path confinement mirrors other
+  MCP tools.
+- Updated README, `docs/mcp.md`, `docs/CHANGELOG.md`, and tool registration
+  tests. MCP surface is now 26 tools.
+- Validation (free/local): targeted tests passed; ruff clean.
+
 ### Cycle 86 - Audit Next-Action for Stale OKF Re-Export
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

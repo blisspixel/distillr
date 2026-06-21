@@ -237,6 +237,7 @@ import distill.mcp.tools.discover as _tools_discover  # noqa: E402, F401
 import distill.mcp.tools.doctor as _tools_doctor  # noqa: E402, F401
 import distill.mcp.tools.find as _tools_find  # noqa: E402, F401
 import distill.mcp.tools.gaps as _tools_gaps  # noqa: E402, F401
+import distill.mcp.tools.okf as _tools_okf  # noqa: E402, F401
 import distill.mcp.tools.papers as _tools_papers  # noqa: E402, F401
 import distill.mcp.tools.reports as _tools_reports  # noqa: E402, F401
 import distill.mcp.tools.sites as _tools_sites  # noqa: E402, F401

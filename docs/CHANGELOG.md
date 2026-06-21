@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **MCP OKF tools.** `okf_export` writes a read-only OKF bundle and returns
+  paths plus a short preview; `okf_validate` runs structural bundle validation
+  and stays available in read-only MCP deployments.
 - **Effective-context-aware paper multipass analysis.** Long PDFs now run three
   focused passes (`Summary and Contribution`, `Methods and Evidence`, `Limits
   and Follow-Up`) over section-aware chunks. Chunk selection is structural
