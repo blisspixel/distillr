@@ -31,6 +31,7 @@ from distill.eval.judge import (
     judge_pairwise,
     judge_shares_family,
 )
+from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker
 
@@ -151,12 +152,28 @@ def select_best(
     tournament: each survivor challenges the current best and wins only on a
     debiased win-rate above 0.5.
 
-    Honest degradation: with zero faithful candidates the winner is ``None``; with
-    exactly one it wins by default; when the pairwise judge yields no signal the
-    first faithful candidate is returned, labeled as unranked. ``notice`` surfaces
-    a same-family judge bias (the judge shares a compared candidate's family, so
-    the comparison is conservatively biased) rather than hiding it.
+    Honest degradation (charter discipline 5): when no model route is available to
+    judge, the winner is ``None`` with method ``"no-judge-model"`` -- the selection
+    is skipped, never faked or disguised as a quality verdict. With zero faithful
+    candidates the winner is ``None``; with exactly one it wins by default; when
+    the pairwise judge yields no signal the first faithful candidate is returned,
+    labeled as unranked. ``notice`` surfaces a same-family judge bias (the judge
+    shares a compared candidate's family, so the comparison is conservatively
+    biased) rather than hiding it.
+
+    The pairwise step is a sequential tournament, so under non-transitive judge
+    verdicts (A beats B, B beats C, C beats A) the winner can depend on candidate
+    order. That is a known limit of the king-of-the-hill reduction, not a quality
+    score.
     """
+    if not model_available("qa"):
+        return Selection(
+            None,
+            (),
+            (),
+            method="no-judge-model",
+            notice="no model route available to judge candidates; selection skipped",
+        )
     faithful, vetoed = _partition_faithful(
         source_excerpt,
         candidates,

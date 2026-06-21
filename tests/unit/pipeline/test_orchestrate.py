@@ -8,8 +8,17 @@ unparseable verdict, and honest degradation / bias labels.
 
 from __future__ import annotations
 
+import pytest
+
 from distill.eval.judge import FaithfulnessVerdict, PairwiseResult
 from distill.pipeline.orchestrate import Candidate, select_best
+
+
+@pytest.fixture(autouse=True)
+def _judge_model_available(monkeypatch):
+    # select_best gates on a judge model being available; default it True so the
+    # mocked judges run. The no-judge-model test overrides this to False.
+    monkeypatch.setattr("distill.pipeline.orchestrate.model_available", lambda workload: True)
 
 
 def _faith(label: str) -> FaithfulnessVerdict:
@@ -137,3 +146,18 @@ def test_same_family_judge_bias_is_surfaced(monkeypatch) -> None:
 
     assert selection.method == "pairwise"
     assert "conservatively biased" in selection.notice
+
+
+def test_no_judge_model_degrades_honestly(monkeypatch) -> None:
+    # No model route to judge: degrade to a labeled no-judge-model result, never
+    # a faked pick or a "no-faithful-candidate" that masquerades as a verdict.
+    monkeypatch.setattr("distill.pipeline.orchestrate.model_available", lambda workload: False)
+    candidates = [Candidate("a", "grok-4.3"), Candidate("b", "gemini-3")]
+
+    selection = select_best("SRC", candidates, judge_model="qwen3")
+
+    assert selection.winner is None
+    assert selection.method == "no-judge-model"
+    assert "no model route" in selection.notice
+    assert selection.faithful == ()
+    assert selection.vetoed == ()

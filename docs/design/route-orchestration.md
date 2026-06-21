@@ -30,6 +30,57 @@ over one or more routes plus a model-judged verifier. `distill eval` then scores
 `(workload, strategy)` pairs on **cost per accepted change**, and recommends the
 cheapest strategy that clears the bar, not merely the cheapest route.
 
+## Research signals (2026)
+
+The strategy choices below are grounded in current multi-agent and LLM-judge
+research, not intuition. The findings line up with the charter and sharpen a few
+decisions.
+
+- **Self-refine does not work intra-model; external, different-family feedback
+  does.** LLMs cannot reliably self-correct reasoning without external feedback,
+  and self-correction can flip a correct answer to an incorrect one ([Huang et
+  al. 2024, "LLMs Cannot Self-Correct Reasoning Yet"](https://arxiv.org/pdf/2310.01798)).
+  The sharpest result for orchestration: a model can correct an error presented
+  externally but fails to correct the identical error in its own output. This is
+  the evidence base for maker-checker and critic-refine being **cross-family by
+  mandate** (S3/S4): the checker must be a different model than the maker, and a
+  single model looping on itself is the pattern the literature says fails.
+- **Self-preference bias is large, so a judge must not grade its own family.**
+  Evaluators overrate their own outputs (roughly -38% to +90% on ArenaHard), and
+  larger models show stronger self-preference ([Do LLM Evaluators Prefer
+  Themselves for a Reason? 2025](https://arxiv.org/pdf/2504.03846)). That is the
+  quantitative basis for discipline 2.
+- **Pairwise is reliable but position-biased; debias by averaging both orders.**
+  Position bias is pervasive and pairwise comparison is especially exposed
+  ([Judging the Judges, 2024](https://arxiv.org/abs/2406.07791)). distillr's
+  pairwise judge already runs both orderings and averages (the recommended
+  mitigation); the coarse faithfulness floor is absolute and anchor-free, the one
+  mode without position bias.
+- **Non-transitivity (circular preferences) is real.** Pairwise judging produces
+  circular chains where A beats B, B beats C, and C beats A. The v1 sequential
+  tournament in ``select_best`` accepts this for a small candidate pool (its
+  result can depend on order under non-transitivity, documented in the code); a
+  panel-of-judges jury or a round-robin aggregation is the escalation for a
+  larger pool or a high-stakes pick, and a jury of diverse models is the emerging
+  answer to single-judge bias.
+- **Reject majority vote and consensus.** "Sycophancy cascade" is the documented
+  failure where agents converge on the majority position even when it is wrong,
+  manufacturing false consensus. Ensemble selection here is a receipt-grounded
+  faithfulness veto plus pairwise, never a vote or a consensus-of-agreement,
+  which would amplify a shared error instead of catching it.
+- **Bound the orchestrator's context.** Orchestrators that accumulate every
+  worker's full output overrun the context window at four or more workers.
+  Ensemble fan-out carries the receipts and the per-candidate verdicts, not all N
+  raw payloads, consistent with distillr's paths-not-payloads discipline.
+- **The CLI substrate supports the contract.** Claude Code headless
+  (`--print --output-format json`) returns `total_cost_usd` and a per-model cost
+  breakdown and supports `--json-schema` structured output; Codex has a
+  non-interactive mode; Gemini CLI has headless JSON but no custom output schema
+  yet ([Claude Code headless](https://code.claude.com/docs/en/headless),
+  [Gemini CLI headless](https://geminicli.com/docs/cli/headless/)). This is why
+  the adapter contract gates on machine-readable output plus a usage signal, and
+  why Gemini stays blocked on structured-output enforcement.
+
 ## The strategies
 
 Four shapes, smallest first. Each names what it is, when it wins, its
@@ -214,6 +265,10 @@ land and be proven now with local and mock routes.
 - No self-grading. A strategy with no cross-family route available degrades to
   single-route plus the structural verifier and labels it, rather than letting a
   model judge its own family.
+- No majority vote or consensus-of-agreement selection. Agreement across routes
+  (especially same-family routes) is the sycophancy-cascade failure mode, not a
+  signal of correctness; selection is the receipt-grounded faithfulness veto plus
+  pairwise, never a vote.
 - No new corpus write path. Strategies plan adapter calls; Distill still verifies,
   ledgers, and writes.
 

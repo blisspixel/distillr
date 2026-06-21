@@ -2,6 +2,38 @@
 
 ## 2026-06-21
 
+### Cycle 81 - Route Orchestration: Online Research + No-Model Honesty Fix
+
+- External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
+- Per "research online and plan more first": grounded the route-orchestration
+  design in current 2026 multi-agent and LLM-judge research; added a cited
+  "Research signals" section to `docs/design/route-orchestration.md`. Each
+  finding is tied to a design decision:
+  - LLMs cannot reliably self-correct intra-model and can flip correct to
+    incorrect, but correct errors presented externally (Huang et al. 2024) ->
+    cross-family maker-checker over self-refine (S3/S4 cross-family by mandate).
+  - Self-preference bias of roughly -38% to +90% (2025) -> a judge must not
+    grade its own family (discipline 2).
+  - Pairwise is reliable but position-biased -> the debiased both-orderings
+    average distillr already uses is the mitigation; the absolute faithfulness
+    floor is the one position-bias-free mode.
+  - Non-transitive circular preferences are real -> documented the v1 sequential
+    tournament's order-dependence honestly, with a panel-of-judges escalation.
+  - Sycophancy cascade / false consensus -> ensemble selection is veto +
+    pairwise, never a vote; added a matching non-goal.
+  - Orchestrators overrun context at 4+ workers -> fan-out carries receipts and
+    verdicts, not raw payloads.
+  - CLI substrate (Claude Code total_cost_usd + json-schema, Codex
+    non-interactive, Gemini headless-but-no-custom-schema) grounds the adapter
+    contract's machine-readable-output and usage-signal gates.
+- Applied the no-model honesty fix flagged in the agentic-balance review:
+  `select_best` degrades to a labeled `no-judge-model` result when no model route
+  is available (charter discipline 5), instead of crashing or masquerading as a
+  `no-faithful-candidate` verdict. Added a default-available autouse fixture and
+  a no-judge-model test.
+- Validation (free/local): targeted orchestrate coverage 100%; ruff and format
+  clean; full suite `2655 passed`; overall coverage 84.17% at floor 83.
+
 ### Cycle 80 - Route Orchestration Selection Core
 
 - External spend: `$0.00` (free/local; loop total `$0.06` of the `$5.00` cap).
