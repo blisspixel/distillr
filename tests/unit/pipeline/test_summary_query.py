@@ -113,6 +113,11 @@ _FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0
 
 
 class TestMcpTools:
+    @staticmethod
+    def _enable_model(monkeypatch):
+        """MCP summary tools check model availability before topic/query work."""
+        monkeypatch.setattr("distill.mcp.tools.summaries.model_available", lambda: True)
+
     def test_find_insights_summary_gated_in_read_only(self, monkeypatch):
         from distill.mcp.tools.summaries import find_insights_summary
 
@@ -137,6 +142,7 @@ class TestMcpTools:
         from distill.mcp import server as _server
         from distill.mcp.tools.summaries import find_insights_summary
 
+        self._enable_model(monkeypatch)
         monkeypatch.setattr(_server, "_config", lambda: config)
 
         result = json.loads(find_insights_summary("missing", "q"))
@@ -148,6 +154,7 @@ class TestMcpTools:
         from distill.mcp import server as _server
         from distill.mcp.tools.summaries import find_insights_summary
 
+        self._enable_model(monkeypatch)
         monkeypatch.setattr(_server, "_config", lambda: config)
         config.topic_dir("t").mkdir(parents=True)
 
@@ -160,6 +167,7 @@ class TestMcpTools:
         from distill.mcp import server as _server
         from distill.mcp.tools.summaries import find_insights_summary
 
+        self._enable_model(monkeypatch)
         monkeypatch.setattr(_server, "_config", lambda: config)
         config.topic_dir("t").mkdir(parents=True)
         summary = QuerySummary(
@@ -185,6 +193,7 @@ class TestMcpTools:
         from distill.mcp import server as _server
         from distill.mcp.tools.summaries import find_insights_summary
 
+        self._enable_model(monkeypatch)
         monkeypatch.setattr(_server, "_config", lambda: config)
         config.topic_dir("t").mkdir(parents=True)
         seen: list[int] = []
