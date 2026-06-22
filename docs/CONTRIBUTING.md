@@ -203,4 +203,4 @@ Open a GitHub issue before doing significant work on something new. A short desc
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same MIT License that covers the rest of the project (see [`../LICENSE`](../LICENSE)).
+By contributing, you agree that your contributions will be licensed under the same Apache License 2.0 + Commons Clause that covers the rest of the project (see [`../LICENSE`](../LICENSE)).

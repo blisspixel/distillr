@@ -80,8 +80,12 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
     ]
     try:
         gap_summary = topic_gap_summary(config, topic)
-    except Exception:
-        gap_summary = {"gaps": [], "next_actions": []}
+    except Exception as exc:
+        gap_summary = {
+            "gaps": [],
+            "next_actions": [],
+            "_error": f"gap summary unavailable: {exc}",
+        }
     return AuditReport(
         topic=topic,
         health_warnings=collect_corpus_health_warnings(

@@ -19,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env"
 ENV_EXAMPLE = ROOT / ".env.example"
 
@@ -229,8 +229,8 @@ def check_package(install: bool = True) -> bool:
     # Check if already installed
     installed = False
     try:
-        dist = importlib.metadata.version("distill")
-        _ok(f"distill {dist} installed")
+        dist = importlib.metadata.version("distillr")
+        _ok(f"distillr {dist} installed")
         installed = True
     except importlib.metadata.PackageNotFoundError:
         if install:

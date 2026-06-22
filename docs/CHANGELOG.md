@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.18.0 - 2026-06-21
+
+Quality, licensing, and release-hygiene release. No new product surface; raises
+test coverage across decomposed CLI modules, fixes first-run setup paths, and
+clarifies commercial-use licensing.
+
 ### Added
+
+- **CLI command test suites** for decomposed modules (`process`, `update`,
+  `reprocess`, `learn`, `profile`, `reports`, `watch`, `view`, `audit`, `doctor`,
+  MCP tools). Branch coverage floor ratcheted to 84% (measured ~89% on 3.12).
+
+### Changed
+
+- **License:** Apache License 2.0 + Commons Clause (replaces MIT). Personal,
+  research, and sharing use remain free; commercial or enterprise products that
+  substantially derive value from Distill require a separate license from Nick
+  Seal. See `LICENSE` and the notice at the top of `README.md`.
+- **`scripts/setup.py`:** Resolve the repository root correctly when invoked as
+  `python scripts/setup.py`; check installed `distillr` package metadata instead
+  of the obsolete `distill` distribution name.
+- **`docs/CONTRIBUTING.md`:** Contributor license agreement matches the new
+  `LICENSE`.
 
 - **MCP OKF tools.** `okf_export` writes a read-only OKF bundle and returns
   paths plus a short preview; `okf_validate` runs structural bundle validation
@@ -26,9 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   groups entries by type; `log.md` includes profile run and cost-log history;
   `llms.txt` points agents at `index.md` and `log.md`. Profile runs with
   `okf_export: true` auto-export after `--yes` execution.
-
-### Changed
-
 - **Paper PDF extraction limits.** Removed the 100K-character truncation on arXiv
   PDF text now that multipass chunk selection owns prompt sizing. Page limit
   raised to 200; download-byte cap unchanged. Local PDF ingest matches (optional
