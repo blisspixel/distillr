@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.18.1 - 2026-06-22
+
+### Changed
+
+- **License:** Standard Apache License 2.0 (Commons Clause removed). README
+  retains contact guidance for commercial or enterprise use (nick@pueo.io).
+
 ## 0.18.0 - 2026-06-21
 
 Quality, licensing, and release-hygiene release. No new product surface; raises

@@ -4,12 +4,12 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.18.0"
+version = "0.18.1"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Nick Seal" }]
+authors = [{ name = "Nick Seal", email = "nick@pueo.io" }]
 keywords = ["research", "intelligence", "synthesis", "arxiv", "youtube", "rag", "knowledge-base", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",
