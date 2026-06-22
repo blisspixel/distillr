@@ -595,17 +595,20 @@ def run(  # noqa: C901 — legacy, will refactor
         console.print(f"\n[bold]Dry run: {total_new} videos would be processed[/bold]")
     else:
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        t_name = topics[0]
-        console.print("\n  [dim]What's next:[/dim]")
-        console.print(
-            f"  [dim]  distill show {t_name}                       View video insights[/dim]"
-        )
-        console.print(
-            f"  [dim]  distill synthesis {t_name}                  Read the synthesis[/dim]"
-        )
-        console.print(
-            f"  [dim]  distill report {t_name}                     Deep research report[/dim]"
-        )
+        # `--all` against an empty library leaves `topics` empty; skip the
+        # "What's next" hints rather than indexing into an empty list.
+        if topics:
+            t_name = topics[0]
+            console.print("\n  [dim]What's next:[/dim]")
+            console.print(
+                f"  [dim]  distill show {t_name}                       View video insights[/dim]"
+            )
+            console.print(
+                f"  [dim]  distill synthesis {t_name}                  Read the synthesis[/dim]"
+            )
+            console.print(
+                f"  [dim]  distill report {t_name}                     Deep research report[/dim]"
+            )
 
 
 def register(app: typer.Typer) -> None:

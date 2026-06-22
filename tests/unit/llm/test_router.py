@@ -133,6 +133,27 @@ def test_known_workload_resolves_correctly() -> None:
     mock_prov.call.assert_called_once()
 
 
+def test_call_succeeds_inside_running_event_loop() -> None:
+    """Regression: ``call`` must work when invoked from an already-running event
+    loop (the async MCP server path drives sync pipeline code that calls the
+    router). The old nested-loop fallback always raised; ``run_coroutine_sync``
+    offloads the provider coroutine to a dedicated thread instead.
+    """
+    import asyncio
+
+    config = _make_config()
+    mock_prov = _mock_provider(text="from-loop")
+
+    async def _driver() -> LLM_Response:
+        return call(config, "analysis", "prompt")
+
+    with patch("distill.llm.router._get_provider", return_value=mock_prov):
+        result = asyncio.run(_driver())
+
+    assert result.text == "from-loop"
+    assert result.provider_name == "xai"
+
+
 def test_unknown_workload_tag_logs_warning(caplog: Any) -> None:
     """Unknown workload tag falls back with a warning logged."""
     config = _make_config()

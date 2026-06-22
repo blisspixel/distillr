@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.18.2 - 2026-06-22
+
+Bug-fix release. No new product surface; fixes five defects found in a
+bug-hunt pass and closes the release-automation gap that left GitHub Releases
+trailing PyPI.
+
+### Fixed
+
+- **Router crashed on every LLM call made from a running event loop** (the async
+  MCP server path: `papers`, `sites`, `discover`, `synthesis` tools). The
+  nested-loop fallback in `router.call` could never succeed — `asyncio.run`
+  raised inside a running loop, and `loop.run_until_complete` on the live loop
+  raised again. Now uses `run_coroutine_sync`, which offloads to a dedicated
+  thread.
+- **GitHub and podcast ingest raised raw `NetworkError` instead of a clean
+  domain error.** `safe_urlopen` wraps every HTTP/network failure in
+  `NetworkError`, but `github/fetch._get_json` and `podcasts/feed._fetch_bytes`
+  caught only `urllib` errors, so a 404 / rate-limit / dead host escaped past
+  the CLI handler as an unhandled traceback. Both now translate `NetworkError`
+  into `GitHubFetchError` / `PodcastFetchError` (with the original status code
+  preserved for the 404 and rate-limit messages).
+- **`distill run --all` against an empty library raised `IndexError`** on the
+  "What's next" hints (empty topic list). The hints are now skipped when there
+  are no topics.
+- **`distill catch-up` dropped goal-refresh hints for all but one topic.** The
+  topic-synthesis loop rebound the `--topic` filter variable, so
+  `_print_goal_refreshes` saw the last synthesized topic instead of the
+  intended `None` (all goals). The loop now uses a distinct variable.
+- **The adaptive chunker could emit an over-window chunk** when a single
+  paragraph was larger than the whole context window — it never hard-split
+  within a paragraph, violating the chunk-size invariant on small local-model
+  windows. It now hard-splits on word (then character) boundaries so no chunk
+  exceeds the window.
+
+### Changed
+
+- **`Publish to PyPI` workflow now creates a matching GitHub Release** after a
+  successful publish, attaching the built sdist/wheel and SBOM. Previously
+  releases were created by hand, which let the GitHub Releases page fall behind
+  the tags and PyPI.
+
 ## 0.18.1 - 2026-06-22
 
 ### Changed

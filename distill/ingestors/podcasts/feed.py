@@ -24,7 +24,7 @@ from pathlib import Path
 
 from defusedxml.ElementTree import fromstring as xml_fromstring
 
-from distill.ingestors.net import safe_urlopen
+from distill.ingestors.net import NetworkError, safe_urlopen
 
 __all__ = [
     "PodcastEpisode",
@@ -177,6 +177,7 @@ def _fetch_bytes(url: str, *, max_bytes: int, what: str) -> bytes:
         with safe_urlopen(request, timeout=60) as resp:
             data = resp.read(max_bytes + 1)
     except (
+        NetworkError,  # safe_urlopen wraps HTTP/network failures in this
         urllib.error.URLError,
         urllib.error.HTTPError,
         TimeoutError,

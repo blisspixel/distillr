@@ -5,12 +5,12 @@ from __future__ import annotations
 import base64
 import io
 import json
-import urllib.error
 
 import pytest
 
 from distill.ingestors.github import fetch as fetch_mod
 from distill.ingestors.github import fetch_repo, parse_github_url
+from distill.ingestors.net import NetworkError
 
 
 class TestParseGitHubUrl:
@@ -50,16 +50,22 @@ class _FakeResponse(io.BytesIO):
 
 
 def _fake_api(monkeypatch, responses: dict[str, object]):
-    """Map api path suffixes to JSON payloads (or HTTPError codes)."""
+    """Map api path suffixes to JSON payloads (or HTTP status codes).
+
+    Status codes surface as ``NetworkError`` carrying ``status_code`` — the way
+    the real ``safe_urlopen`` wraps every HTTP/network failure. (It never lets a
+    raw ``urllib.error.HTTPError`` escape, so mocking that would test a path that
+    cannot occur in production.)
+    """
 
     def fake_urlopen(request, timeout=30):
         path = request.full_url.removeprefix("https://api.github.com")
         for suffix, payload in responses.items():
             if path == suffix:
                 if isinstance(payload, int):
-                    raise urllib.error.HTTPError(request.full_url, payload, "err", {}, None)
+                    raise NetworkError(f"HTTP {payload} from {path}: err", status_code=payload)
                 return _FakeResponse(json.dumps(payload).encode("utf-8"))
-        raise urllib.error.HTTPError(request.full_url, 404, "not found", {}, None)
+        raise NetworkError(f"HTTP 404 from {path}: not found", status_code=404)
 
     monkeypatch.setattr(fetch_mod, "safe_urlopen", fake_urlopen)
 

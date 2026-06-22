@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import time
@@ -13,6 +12,7 @@ from typing import Any
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
+from distill.llm.async_compat import run_coroutine_sync
 from distill.llm.cost_policy import CostMode, normalize_cost_mode, route_block_reason
 from distill.llm.metadata import LOCAL_PROVIDERS
 
@@ -344,7 +344,7 @@ def _fallback_target(
     return config.fallback_provider, config.fallback_model
 
 
-def call(  # noqa: C901 — the credit/auth fallback adds one branch; keeping it inline keeps the hot path readable
+def call(
     config: RouterConfig,
     workload_tag: str,
     prompt: str,
@@ -384,14 +384,10 @@ def call(  # noqa: C901 — the credit/auth fallback adds one branch; keeping it
             call_type=call_type,
             reasoning_effort=reasoning_effort,
         )
-        try:
-            response = asyncio.run(coro)
-        except RuntimeError as rt_err:
-            if "cannot be called from a running event loop" in str(rt_err):
-                loop = asyncio.get_event_loop()
-                response = loop.run_until_complete(coro)
-            else:
-                raise
+        # Run the provider coroutine to completion from this sync path. When a
+        # loop is already running (e.g. the async MCP server), run_coroutine_sync
+        # offloads to a dedicated thread instead of failing on a nested loop.
+        response = run_coroutine_sync(coro)
         provider_type = "local" if p_name in LOCAL_PROVIDERS else "cloud"
         return replace(response, provider_name=p_name, provider_type=provider_type)
 

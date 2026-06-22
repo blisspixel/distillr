@@ -4,8 +4,25 @@ from __future__ import annotations
 
 import pytest
 
+from distill.ingestors.net import NetworkError
 from distill.ingestors.podcasts import feed as feed_mod
 from distill.ingestors.podcasts import looks_like_feed_url, parse_feed
+
+
+class TestFetchErrorTranslation:
+    def test_network_error_becomes_podcast_fetch_error(self, monkeypatch):
+        """Regression: ``safe_urlopen`` wraps every failure in ``NetworkError``;
+        ``fetch_feed`` must translate that into ``PodcastFetchError`` so a dead
+        or rate-limited feed host degrades cleanly instead of raising a raw
+        ``NetworkError`` past the CLI handler.
+        """
+
+        def boom(_request, timeout=60):
+            raise NetworkError("HTTP 429 from feed: rate limited", status_code=429)
+
+        monkeypatch.setattr(feed_mod, "safe_urlopen", boom)
+        with pytest.raises(feed_mod.PodcastFetchError, match="Could not fetch feed"):
+            feed_mod.fetch_feed("https://example.com/feed.xml")
 
 _RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"

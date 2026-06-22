@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 
-from distill.ingestors.net import safe_urlopen
+from distill.ingestors.net import NetworkError, safe_urlopen
 
 __all__ = ["GitHubFetchError", "RepoRecord", "fetch_repo", "parse_github_url"]
 
@@ -126,15 +126,20 @@ def _get_json(path: str) -> dict | list:
     try:
         with safe_urlopen(request, timeout=30) as resp:
             raw = resp.read(_MAX_RESPONSE_BYTES)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+    except NetworkError as exc:
+        # safe_urlopen wraps every failure (including HTTP status errors) in
+        # NetworkError, carrying the original status code when there was one.
+        if exc.status_code == 404:
             raise GitHubFetchError(f"Not found on GitHub: {path}") from exc
-        if exc.code in {403, 429}:
+        if exc.status_code in {403, 429}:
             raise GitHubFetchError(
                 "GitHub API rate limit hit. Set GITHUB_TOKEN to lift it, or retry later."
             ) from exc
-        raise GitHubFetchError(f"GitHub API error {exc.code} for {path}") from exc
+        if exc.status_code:
+            raise GitHubFetchError(f"GitHub API error {exc.status_code} for {path}") from exc
+        raise GitHubFetchError(f"Network error fetching {path}: {exc}") from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        # Raw read-time errors that escape safe_urlopen's retry wrapper.
         raise GitHubFetchError(f"Network error fetching {path}: {exc}") from exc
     try:
         return json.loads(raw.decode("utf-8"))

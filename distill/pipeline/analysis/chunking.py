@@ -65,47 +65,20 @@ def chunk_content(
             current_heading = heading
 
         section_text = f"{heading}\n{body}" if heading else body
-        section_tokens = estimate_tokens(section_text)
+        if estimate_tokens(section_text) <= available_tokens:
+            texts = [section_text.strip()]
+        else:
+            texts = _split_oversized_section(heading, body, current_heading, available_tokens)
 
-        if section_tokens <= available_tokens:
+        for text in texts:
             chunks.append(
                 Chunk(
-                    text=section_text.strip(),
+                    text=text,
                     heading_context=current_heading,
                     index=len(chunks),
                     total_chunks=0,  # will be updated
                 )
             )
-        else:
-            # Section too large — split at paragraph boundaries
-            paragraphs = _split_into_paragraphs(body)
-            para_chunk = heading + "\n" if heading else ""
-
-            for para in paragraphs:
-                candidate = para_chunk + para + "\n\n"
-                if estimate_tokens(candidate) > available_tokens and para_chunk.strip():
-                    # Flush current chunk
-                    chunks.append(
-                        Chunk(
-                            text=para_chunk.strip(),
-                            heading_context=current_heading,
-                            index=len(chunks),
-                            total_chunks=0,
-                        )
-                    )
-                    para_chunk = f"[continued from: {current_heading}]\n{para}\n\n"
-                else:
-                    para_chunk = candidate
-
-            if para_chunk.strip():
-                chunks.append(
-                    Chunk(
-                        text=para_chunk.strip(),
-                        heading_context=current_heading,
-                        index=len(chunks),
-                        total_chunks=0,
-                    )
-                )
 
     # Update total_chunks
     total = len(chunks)
@@ -150,3 +123,73 @@ def _split_into_paragraphs(text: str) -> list[str]:
     """Split text into paragraphs (double newline separated)."""
     paragraphs = re.split(r"\n\n+", text)
     return [p.strip() for p in paragraphs if p.strip()]
+
+
+def _split_oversized_section(
+    heading: str, body: str, current_heading: str, available_tokens: int
+) -> list[str]:
+    """Split a section that exceeds the window into within-budget chunk texts.
+
+    Splits at paragraph boundaries, prefixing continuation chunks with a
+    ``[continued from: ...]`` marker, and hard-splits any single paragraph that
+    is itself larger than the whole window so no emitted chunk ever overflows.
+    """
+    texts: list[str] = []
+    para_chunk = heading + "\n" if heading else ""
+
+    for para in _split_into_paragraphs(body):
+        candidate = para_chunk + para + "\n\n"
+        if estimate_tokens(candidate) <= available_tokens:
+            para_chunk = candidate
+            continue
+
+        # `candidate` overflows. Flush the accumulated chunk (if any), then
+        # place this paragraph in fresh chunk(s).
+        if para_chunk.strip():
+            texts.append(para_chunk.strip())
+        cont = f"[continued from: {current_heading}]\n"
+        if estimate_tokens(cont + para + "\n\n") <= available_tokens:
+            para_chunk = cont + para + "\n\n"
+            continue
+
+        # A single paragraph larger than the whole window: hard-split it.
+        texts.extend(piece.strip() for piece in _hard_split_text(para, cont, available_tokens))
+        para_chunk = ""
+
+    if para_chunk.strip():
+        texts.append(para_chunk.strip())
+    return texts
+
+
+def _hard_split_text(text: str, prefix: str, max_tokens: int) -> list[str]:
+    """Split over-budget ``text`` into chunks that each fit ``max_tokens``.
+
+    Each returned chunk carries ``prefix`` and stays within budget, splitting on
+    word boundaries first and falling back to a character cut for any single
+    word that alone exceeds the budget. Only reached when one paragraph is
+    larger than the whole available window — a local small-window concern the
+    section/paragraph passes above cannot resolve, so without this a single
+    giant paragraph would be emitted as one over-window chunk.
+    """
+    pieces: list[str] = []
+    current = prefix
+    for word in text.split():
+        candidate = f"{current}{word} "
+        if estimate_tokens(candidate) <= max_tokens:
+            current = candidate
+            continue
+        if current.strip() != prefix.strip():
+            pieces.append(current)
+            current = prefix
+        word_chunk = f"{prefix}{word} "
+        while estimate_tokens(word_chunk) > max_tokens:
+            # A single word over budget: keep the prefix, take as many chars as
+            # fit, and carry the rest forward.
+            budget_chars = max(1, max_tokens * 4 - len(prefix))
+            head, word = word[:budget_chars], word[budget_chars:]
+            pieces.append(f"{prefix}{head}")
+            word_chunk = f"{prefix}{word} "
+        current = word_chunk
+    if current.strip() != prefix.strip():
+        pieces.append(current)
+    return pieces

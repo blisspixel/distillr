@@ -262,6 +262,18 @@ class TestRunCommand:
         assert result.exit_code == 0
         assert "No channels found" in result.output
 
+    def test_run_all_empty_library_no_crash(self, tmp_path, monkeypatch):
+        """Regression: `run --all` against an empty library has no topics, so the
+        'What's next' hints must not index into an empty list (was IndexError).
+        """
+        config = _config(tmp_path)
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
+
+        result = runner.invoke(cli.app, ["run", "--all"])
+
+        assert result.exit_code == 0, result.output
+
     def test_run_dry_run_marks_skip_and_new(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_library(config)

@@ -463,25 +463,27 @@ def catch_up(  # noqa: C901 — legacy, will refactor
 
         topics_touched.add(entry.topic)
 
-    # Synthesize each topic
-    for topic in topics_touched:
+    # Synthesize each topic. Use a distinct loop variable: rebinding `topic`
+    # here would clobber the `--topic` filter that `_print_goal_refreshes`
+    # reads below, silently narrowing the goal-refresh output to one topic.
+    for touched in topics_touched:
         with console.status(
-            f"  [dim]synthesizing topic '{topic}'[/dim]",
+            f"  [dim]synthesizing topic '{touched}'[/dim]",
             spinner="dots",
         ):
             try:
-                synthesize_topic(topic, config, tracker=tracker)
+                synthesize_topic(touched, config, tracker=tracker)
                 topic_synth = find_artifact(
-                    config.topic_dir(topic),
+                    config.topic_dir(touched),
                     "topic_synthesis",
-                    identity=topic,
+                    identity=touched,
                 )
                 cli_shared.record_output_or_issue(
                     summary,
                     topic_synth,
                     stage="topic-synthesis",
-                    context=topic,
-                    details={"topic": topic},
+                    context=touched,
+                    details={"topic": touched},
                     missing_message="No topic synthesis output written",
                 )
             except Exception as e:
@@ -490,8 +492,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
                     summary,
                     stage="topic-synthesis",
                     exc=e,
-                    context=topic,
-                    details={"topic": topic},
+                    context=touched,
+                    details={"topic": touched},
                 )
 
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
