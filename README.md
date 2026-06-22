@@ -1,11 +1,4 @@
-License: Apache 2.0  
-Author: Nick Seal (nick@pueo.io)  
-Free to use, build on, fork, and share patterns.  
-For commercial or enterprise use, contact nick@pueo.io
-
 # Distill
-
-*Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI command is `distill` (plus `distill-mcp`).*
 
 [![CI](https://github.com/blisspixel/distillr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/distillr/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/distillr.svg)](https://pypi.org/project/distillr/)
@@ -16,6 +9,8 @@ For commercial or enterprise use, contact nick@pueo.io
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
 > Point distill at a research goal; it finds the papers, talks, repos, podcasts, and posts worth reading, analyzes each into structured insights with source receipts, verifies the claims against those receipts before writing, and synthesizes across them into a durable plain-Markdown corpus on your disk. You browse it in Obsidian, your agents read it as files or query it over MCP, you ask it questions and the cited answers can re-enter the corpus — and it refreshes on a cadence instead of going stale.
+
+*Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI command is `distill` (plus `distill-mcp`).*
 
 ```bash
 pip install distillr
