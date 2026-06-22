@@ -24,6 +24,7 @@ class TestFetchErrorTranslation:
         with pytest.raises(feed_mod.PodcastFetchError, match="Could not fetch feed"):
             feed_mod.fetch_feed("https://example.com/feed.xml")
 
+
 _RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
      xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
