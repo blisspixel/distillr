@@ -357,11 +357,11 @@ Re-read at cycle start per SKILLS.md and startup:
 
 Current focus: completing native usage + capture for grok/gemini-cli/antigravity to unblock ledger and eval for no-metered. All changes atomic, TDD via tests first in practice, structural only, local validated.
 
-Latest slice (this cycle): added full dataclasses + write_*_captured_result for the three + tests. 95% module cov, all gates green. 
+Latest slices: parsers (cycle 14), capture writers/specs (cycle 15), default in runner + test (cycle 18), SKILLS doc (cycle 19). Wiring for grok/gemini/antigravity complete and verified (parsers, writers, runner defaults, tests). 0.19 item advanced. All local gates (ruff, format, pytest) green, $0 spend.
 
 External spend this session: $0.00. 
 
-Next atomic in loop: workload runner integration or coverage on low core modules (e.g. discover/maintain) or pyright strict work. 
+Next atomic in loop: cross-route eval (0.19.3), read-only adapter prototypes, or coverage ratchet on low core (e.g. pipeline/synthesis/corpus 59%).
 
 Perfect alignment maintained. No slop. Continuing silent.
 exposed by the local help, native usage capture was not implemented, and the
