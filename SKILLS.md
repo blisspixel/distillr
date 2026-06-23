@@ -254,6 +254,14 @@
   future Claude process exits to write `native-usage.json`, `result.txt`, and
   `adapter-result.json` from captured JSON stdout. It is still not a route
   eligibility gate.
+- Use `distill.doctor.adapter_capture.write_grok_captured_result()` after a
+  future Grok process exits to write `native-usage.json` and
+  `adapter-result.json` from captured JSON stdout. It is still not a route
+  eligibility gate.
+- Use `distill.doctor.adapter_capture.write_gemini_cli_captured_result()` and
+  `write_antigravity_captured_result()` for the Gemini-family and Antigravity
+  plan-quota CLIs (same pattern, using their native usage parsers). Still not
+  route eligibility.
 - Use `distill.doctor.adapter_capture.write_stdout_captured_result()` for
   adapters that only expose useful stdout. It writes `result.txt` and the
   result manifest, but it requires a real validated `adapter-native-usage.v1`
