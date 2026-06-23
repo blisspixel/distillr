@@ -523,6 +523,39 @@ def test_adapter_workload_runner_blocks_invalid_package_before_running(tmp_path)
     assert any("at least one source path" in reason for reason in result.blocked_reasons)
 
 
+def test_adapter_workload_runner_blocks_workload_path_escape(tmp_path):
+    called = False
+
+    def runner(
+        _argv: Sequence[str],
+        _cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        _stdin: str,
+    ) -> AdapterProcessResult:
+        nonlocal called
+        called = True
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec"),
+            scratch_root=tmp_path,
+            workload_path=Path("..") / "adapter-workload.json",
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert not result.ok
+    assert result.adapter_result is None
+    assert not called
+    assert any(
+        "adapter workload escapes scratch workspace" in reason for reason in result.blocked_reasons
+    )
+
+
 def _stage_workload(root: Path, **overrides) -> None:
     (root / "sources").mkdir(parents=True)
     (root / "schemas").mkdir(parents=True)
