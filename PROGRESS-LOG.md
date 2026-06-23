@@ -2750,7 +2750,25 @@
 - This validates the capture wiring for Grok (and by symmetry the others) is functional for ledger use.
 - References: SKILLS.md "use distill.doctor.adapter_capture.write_* ", roadmap remaining for non-Codex native collection/wiring.
 
-### Next
+### Cycle 20 - Roadmap doc update for completed Grok/Gemini/Antigravity wiring (0.19)
 
-- Continue official installed-session auth proof and adapter-specific read-only
-  workload wiring. Full eval integration and support statements (vendor gated).
+- External spend: `$0.00`.
+- Updated docs/roadmap.md 0.19 billing preflights and complete usage ledger sections to note that native usage collection and capture wiring for Grok, Gemini, and Antigravity is complete (parsers, writers, runner defaults + tests for all three).
+- Removed the wiring item from "Remaining".
+- This advances the 0.19.2 description without claiming full route graduation (support statements and eval still pending).
+- Validation will confirm gates.
+- References: ROADMAP.md, docs/roadmap.md, previous cycles on wiring.
+
+### Cycle 19 - SKILLS.md update for new capture writers (0.19 docs)
+
+- External spend: `$0.00`.
+- Updated SKILLS.md adapter doctor guidance to list the new
+  write_grok_captured_result, write_gemini_cli_captured_result,
+  write_antigravity_captured_result (following the pattern for codex/claude).
+- Committed as part of completing the wiring surface.
+- References SKILLS.md section on adapter doctor.
+
+=== MILESTONE REACHED ===
+Completed parsers + capture writers + runner default binding + tests + SKILLS docs for grok/gemini-cli/antigravity native usage collection and wiring. This fulfills the "native usage collection and capture wiring for Grok, Gemini, and Antigravity" remaining item in 0.19 billing preflights / complete usage ledger (per ROADMAP and docs/roadmap). All structural, tested, gated locally with $0 spend. 
+
+Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 items such as cross-route eval or coverage ratchet on synthesis/corpus).
