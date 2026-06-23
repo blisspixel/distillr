@@ -9,8 +9,11 @@ from pydantic import ValidationError
 from distill.doctor.adapter_native_usage import (
     AdapterNativeUsageError,
     adapter_native_usage_contract,
+    antigravity_json_native_usage,
     claude_json_native_usage,
     codex_jsonl_native_usage,
+    gemini_cli_json_native_usage,
+    grok_json_native_usage,
     load_adapter_native_usage,
     validate_adapter_native_usage,
 )
@@ -232,3 +235,55 @@ def test_claude_json_native_usage_rejects_missing_usage():
 def test_claude_json_native_usage_rejects_bad_token_field():
     with pytest.raises(AdapterNativeUsageError, match="non-negative integer"):
         claude_json_native_usage('{"type":"result","usage":{"input_tokens":-1,"output_tokens":1}}')
+
+
+# --- New adapter parser tests (0.19 native usage wiring) ---
+
+
+def test_grok_json_native_usage_collects_top_level():
+    record = grok_json_native_usage(
+        json.dumps(
+            {
+                "model": "grok-4.3",
+                "usage": {"input_tokens": 1200, "output_tokens": 340},
+                "request_id": "grok_req_1",
+            }
+        )
+    )
+    usage = record.to_adapter_usage()
+    assert record.adapter == "grok"
+    assert record.request_id == "grok_req_1"
+    assert usage.input_tokens == 1200
+    assert usage.output_tokens == 340
+    assert usage.native["adapter_format"] == "grok-json"
+
+
+def test_gemini_cli_json_native_usage_normalizes_usage_metadata():
+    record = gemini_cli_json_native_usage(
+        json.dumps(
+            {
+                "model": "gemini-2.5-pro",
+                "usageMetadata": {
+                    "promptTokenCount": 850,
+                    "candidatesTokenCount": 210,
+                },
+            }
+        )
+    )
+    usage = record.to_adapter_usage()
+    assert record.adapter == "gemini-cli"
+    assert usage.input_tokens == 850
+    assert usage.output_tokens == 210
+
+
+def test_antigravity_json_native_usage_forces_adapter_name():
+    record = antigravity_json_native_usage('{"usage": {"input_tokens": 55, "output_tokens": 12}}')
+    assert record.adapter == "antigravity"
+    assert record.to_adapter_usage().input_tokens == 55
+
+
+def test_new_adapters_reject_missing_usage():
+    with pytest.raises(AdapterNativeUsageError, match="usage not found"):
+        grok_json_native_usage('{"model":"grok-4.3"}')
+    with pytest.raises(AdapterNativeUsageError, match="usage not found"):
+        gemini_cli_json_native_usage('{"foo":1}')

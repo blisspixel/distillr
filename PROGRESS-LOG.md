@@ -2688,6 +2688,23 @@
   - `uv run pytest -q --cov=distill --cov-fail-under=80` passed: 2415
     passed, 8 deselected, 1 warning, 81.98% coverage.
 
+### Cycle 14 - Native Usage Parsers for Grok/Gemini/Antigravity (0.19 wiring)
+
+- External spend: `$0.00` (loop total remains ~$0.06 of $5.00 cap).
+- Added `grok_json_native_usage`, `gemini_cli_json_native_usage`, `antigravity_json_native_usage` (and supporting tolerant parsers + _get_first_positive_int, _normalize..., _parse_generic, _generic_usage).
+- Follows exact adapter-native-usage.v1 contract, strict Pydantic, error shapes, and sum helpers from codex/claude.
+- Tolerant of common metadata shapes (usageMetadata, prompt/completion, direct tokens) per cli-adapter-runbook.
+- Updated imports and added 4 new tests (happy paths for three adapters + reject-missing) in test_adapter_native_usage.py.
+- All new code is structural (ledger/usage signal capture); model judgment never involved.
+- Validation (free/local, per SKILLS.md and CONTRIBUTING quality gates):
+  - `uv run ruff check distill/doctor/adapter_native_usage.py tests/unit/doctor/test_adapter_native_usage.py` clean (after C901/SIM/B007 fixes via extraction + rename).
+  - `uv run ruff format --check .` clean (full tree already formatted post-apply).
+  - `uv run pytest tests/unit/doctor/test_adapter_native_usage.py -q --cov=distill.doctor.adapter_native_usage --cov-branch` : 19 passed, 81% on new module.
+  - Full doctor tests: 151 passed.
+  - `uv run ruff check .` and format check passed.
+- References: SKILLS.md Adapter Doctor section (strict v1 contracts, no secret leak, scratch only), cli-adapter-runbook.md, agentic-balance.md (structural rule-owned), docs/roadmap.md 0.19 billing preflights / complete usage ledger items.
+- Does not claim route graduation; still requires support statements + eval + native ledger integration for full no-metered.
+
 ### Next
 
 - Continue official installed-session auth proof and adapter-specific read-only

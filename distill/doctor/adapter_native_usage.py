@@ -436,3 +436,211 @@ def _sum_optional_number_field(
 
 def _optional_text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _get_first_positive_int(d: dict[str, Any], *keys: str) -> int | None:
+    """Return first non-negative int value for any of the keys, or None."""
+    for k in keys:
+        if k in d and d[k] is not None:
+            v = d[k]
+            if isinstance(v, (int, float)) and v >= 0:
+                return int(v)
+    return None
+
+
+# --- Grok, Gemini CLI, Antigravity native usage parsers (0.19 plan-quota wiring) ---
+# These follow the same strict structural contract as codex/claude.
+# Formats are derived from typical CLI JSON/JSONL usage events for the respective
+# adapters (refine on official support statements + real capture). All paths are
+# rule-owned (parse + aggregate); no semantic judgment.
+
+
+def grok_json_native_usage(
+    json_output: str,
+    *,
+    model: str = "",
+    request_id: str = "",
+    stop_reason: str = "complete",
+) -> AdapterNativeUsageRecord:
+    """Collect native usage from Grok CLI JSON or JSONL output.
+
+    Expected shapes (tolerated):
+    - Top-level: {"usage": {"input_tokens": N, "output_tokens": N}, ...}
+    - Or message-wrapped usage events.
+    """
+    events = _parse_generic_json_events(json_output)
+    usage_events = _generic_usage_events(events, usage_key="usage")
+    if not usage_events:
+        usage_events = _generic_usage_events(events, usage_key="message")
+    if not usage_events:
+        raise AdapterNativeUsageError("grok JSON usage not found")
+
+    session_id = (
+        request_id.strip() or _first_text(events, "request_id") or _first_text(events, "id")
+    )
+    model_name = model.strip() or _first_text(events, "model")
+
+    return AdapterNativeUsageRecord(
+        schema_version=ADAPTER_NATIVE_USAGE_SCHEMA_VERSION,
+        adapter="grok",
+        source="stdout-json",
+        usage=AdapterUsage(
+            input_tokens=_sum_optional_usage_field(usage_events, "input_tokens", label="grok JSON"),
+            output_tokens=_sum_optional_usage_field(
+                usage_events, "output_tokens", label="grok JSON"
+            ),
+            native={
+                "adapter_format": "grok-json",
+                "event_count": len(events),
+                "usage_event_count": len(usage_events),
+                "raw_usage_events": usage_events,
+            },
+        ),
+        model=model_name,
+        request_id=session_id,
+        stop_reason=stop_reason,
+    )
+
+
+def gemini_cli_json_native_usage(
+    json_output: str,
+    *,
+    model: str = "",
+    request_id: str = "",
+    stop_reason: str = "complete",
+) -> AdapterNativeUsageRecord:
+    """Collect native usage from Gemini CLI / Antigravity-style JSON output.
+
+    Tolerates usageMetadata style or direct usage:
+    - {"usageMetadata": {"promptTokenCount": N, "candidatesTokenCount": N}}
+    - Or {"usage": {"input_tokens" or "prompt_tokens", "output_tokens" or "completion_tokens"}}
+    """
+    events = _parse_generic_json_events(json_output)
+    usage_events: list[dict[str, Any]] = []
+    for e in events:
+        if "usageMetadata" in e and isinstance(e["usageMetadata"], Mapping):
+            um = _normalize_gemini_usage_metadata(dict(e["usageMetadata"]))
+            usage_events.append(um)
+        elif "usage" in e and isinstance(e["usage"], Mapping):
+            usage_events.append(dict(e["usage"]))
+
+    if not usage_events and events and isinstance(events[0], Mapping) and "usage" in events[0]:
+        usage_events = [dict(events[0]["usage"])]
+    if not usage_events:
+        raise AdapterNativeUsageError("gemini-cli JSON usage not found")
+
+    model_name = model.strip() or _first_text(events, "model")
+    sid = (
+        request_id.strip() or _first_text(events, "request_id") or _first_text(events, "session_id")
+    )
+
+    input_toks = _get_first_positive_int(
+        usage_events[0], "input_tokens", "prompt_tokens", "promptTokenCount"
+    )
+    output_toks = _get_first_positive_int(
+        usage_events[0], "output_tokens", "completion_tokens", "candidatesTokenCount"
+    )
+
+    # if not in first, try sum from list
+    if input_toks is None:
+        input_toks = _sum_optional_usage_field(
+            usage_events, "input_tokens", label="gemini-cli JSON"
+        )
+    if output_toks is None:
+        output_toks = _sum_optional_usage_field(
+            usage_events, "output_tokens", label="gemini-cli JSON"
+        )
+
+    return AdapterNativeUsageRecord(
+        schema_version=ADAPTER_NATIVE_USAGE_SCHEMA_VERSION,
+        adapter="gemini-cli",
+        source="stdout-json",
+        usage=AdapterUsage(
+            input_tokens=input_toks,
+            output_tokens=output_toks,
+            native={
+                "adapter_format": "gemini-cli-json",
+                "event_count": len(events),
+                "usage_event_count": len(usage_events),
+                "raw_usage_events": usage_events,
+            },
+        ),
+        model=model_name,
+        request_id=sid,
+        stop_reason=stop_reason,
+    )
+
+
+def antigravity_json_native_usage(
+    json_output: str,
+    *,
+    model: str = "",
+    request_id: str = "",
+    stop_reason: str = "complete",
+) -> AdapterNativeUsageRecord:
+    """Collect native usage forcing adapter='antigravity' (reuses tolerant normalizer)."""
+    rec = gemini_cli_json_native_usage(
+        json_output, model=model, request_id=request_id, stop_reason=stop_reason
+    )
+    return AdapterNativeUsageRecord(
+        schema_version=rec.schema_version,
+        adapter="antigravity",
+        source=rec.source,
+        usage=rec.usage,
+        model=rec.model,
+        request_id=rec.request_id,
+        stop_reason=rec.stop_reason,
+        metadata=getattr(rec, "metadata", {}),
+    )
+
+
+def _parse_generic_json_events(text: str) -> list[dict[str, Any]]:
+    """Best-effort JSON or JSONL event list (shared helper for new adapters)."""
+    events: list[dict[str, Any]] = []
+    stripped = text.strip()
+    if not stripped:
+        return events
+    # Try as single JSON first
+    try:
+        obj = json.loads(stripped)
+        if isinstance(obj, list):
+            return [dict(e) for e in obj if isinstance(e, Mapping)]
+        if isinstance(obj, Mapping):
+            return [dict(obj)]
+    except Exception:
+        pass
+    # JSONL fallback
+    for _line_number, line in enumerate(stripped.splitlines(), start=1):
+        s = line.strip()
+        if not s:
+            continue
+        try:
+            e = json.loads(s)
+            if isinstance(e, Mapping):
+                events.append(dict(e))
+        except json.JSONDecodeError:
+            # tolerant; ignore noise lines
+            continue
+    return events
+
+
+def _generic_usage_events(
+    events: list[dict[str, Any]], *, usage_key: str = "usage"
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for e in events:
+        if usage_key in e and isinstance(e[usage_key], Mapping):
+            out.append(dict(e[usage_key]))
+        # also accept direct on event for top level
+        if "input_tokens" in e or "prompt_tokens" in e:
+            out.append(dict(e))
+    return out
+
+
+def _normalize_gemini_usage_metadata(um: dict[str, Any]) -> dict[str, Any]:
+    """Normalize Gemini usageMetadata keys to our internal input/output_tokens."""
+    if "promptTokenCount" in um or "input_tokens" not in um:
+        um.setdefault("input_tokens", um.get("promptTokenCount"))
+    if "candidatesTokenCount" in um or "output_tokens" not in um:
+        um.setdefault("output_tokens", um.get("candidatesTokenCount"))
+    return um

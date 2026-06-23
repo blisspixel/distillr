@@ -699,3 +699,34 @@ pass. The loop advances these as atomic, test-first, locally-validated cycles,
 keeping external spend within the $5 budget (spent this session: $0.06). The
 0.19 no-metered graduation stays gated on external vendor support statements,
 so it is opportunistic rather than the critical path.
+
+## 2026-06-23 Startup Refresh (Autonomous Principal Loop)
+
+Re-read on 2026-06-23:
+- README.md (positioning, 8 sources, MCP, corpus, cost, reliability, agent legibility)
+- ROADMAP.md (high-level spine, competitive June 2026, 0.18/0.19/1.0 milestones, agentic surface map, no-brittle-junk rule, engineering standards)
+- docs/roadmap.md (full backlog with [x]/[~] status for 0.19 profiles + routing)
+- docs/design/agentic-balance.md (workflow spine + agentic leaves + Python decisions; Anthropic sources; loop admission test)
+- docs/design/model-judgment-vs-brittle-fallbacks.md (P1-P4 June fixes applied; model_available via router; honest no-model labeling; no fake quality scores)
+- docs/design/cli-adapter-runbook.md + docs/design/recurring-profiles-cost-routing.md (exact contracts for adapters, native usage, manifests, preflights)
+- docs/CONTRIBUTING.md (quality gates, context engineering rules)
+- SKILLS.md (detailed operational bible: agentic classification, testing/coverage rules, cost policy $5 cap, adapter doctor strict rules, batch progress, recurring profiles, validation commands)
+- pyproject.toml (ruff rules, branch coverage, pyright, import-linter contracts)
+- distill/doctor/ sources and their tests (current adapter scaffolding, native_usage limited to codex+claude)
+- Current git state (clean main post 0.18.2; test coverage work in recent cycles)
+
+**Perfect alignment confirmed.** No deviations from vision, invariants, or agentic balance. All structural vs semantic distinctions respected in existing code. Quality gates, no brittle proxies, paths/previews preference, fresh-sources local, fail-closed no-metered, and parse-don't-validate direction are followed. Generated artifacts treated as outputs only.
+
+**Zero questions.** Priorities, standards, and vision are unambiguous from the docs.
+
+Current state:
+- 0.18.2 released.
+- Many command modules at 95-100% branch coverage via prior cycles.
+- 0.19 profile + no-metered core wired (preview, run, cost-mode, zero-dollar rows, reporting).
+- Remaining [~] critical for graduation: native usage collection + wiring for grok/gemini-cli/antigravity, full billing preflights (installed auth proof where needed), support statements (vendor), cross-route eval integration, adapter doctor completeness.
+- Coverage floor 84, actual ~88-89%; ratchet toward 95% (core first).
+- External spend this session: $0.00 (lifetime loop ~$0.06 of $5.00).
+
+Highest-leverage next atomic tasks per docs: (1) complete native-usage parsers + tests for the three missing adapters (advances 0.19 ledger + preflight wiring, purely structural), (2) targeted coverage on remaining low modules or doctor/, (3) any strict contract enforcement or context-engineering compliance items. All changes test-first, local-validated only, ruff+format+pytest at gate, agentic-balance pre-check.
+
+Loop enters permanent grinding mode. No further questions unless true quality or $5 blocker.
