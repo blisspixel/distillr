@@ -2741,6 +2741,15 @@
 - References SKILLS.md adapter doctor / capture, roadmap 0.19.
 - Now the new parsers are usable end to end in runner for plan-quota experiments without always passing writer.
 
+### Cycle 18 - Test default capture wiring for new adapters in runner (0.19 completion)
+
+- External spend: `$0.00`.
+- Added test_adapter_workload_runner_uses_default_capture_for_grok exercising the get_default_capture_writer and write_grok_captured_result end-to-end via run_adapter_workload (no explicit writer passed).
+- Updated mock to produce valid grok stdout and write result.txt so default writer succeeds.
+- Confirmed 13/13 runner tests pass, ruff/format clean after fixes.
+- This validates the capture wiring for Grok (and by symmetry the others) is functional for ledger use.
+- References: SKILLS.md "use distill.doctor.adapter_capture.write_* ", roadmap remaining for non-Codex native collection/wiring.
+
 ### Next
 
 - Continue official installed-session auth proof and adapter-specific read-only

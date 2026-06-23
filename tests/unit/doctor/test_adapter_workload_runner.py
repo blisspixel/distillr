@@ -10,6 +10,7 @@ from distill.doctor.adapter_capture import (
     write_claude_captured_result,
     write_codex_captured_result,
 )
+from distill.doctor.adapter_native_usage import load_adapter_native_usage
 from distill.doctor.adapter_runner import AdapterProcessResult
 from distill.doctor.adapter_workload import AdapterWorkloadPackage
 from distill.doctor.adapter_workload_runner import (
@@ -532,3 +533,49 @@ def _stage_workload(root: Path, **overrides) -> None:
         json.dumps(_workload(**overrides)),
         encoding="utf-8",
     )
+
+
+def test_adapter_workload_runner_uses_default_capture_for_grok(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        _stdin: str,
+    ) -> AdapterProcessResult:
+        (cwd / "adapter-result.json").write_text(
+            json.dumps(_manifest(adapter="grok", model="grok-4.3")),
+            encoding="utf-8",
+        )
+        (cwd / "result.txt").write_text(json.dumps({"summary": "ok"}), encoding="utf-8")
+        return AdapterProcessResult(
+            exit_code=0,
+            stdout=json.dumps(
+                {"model": "grok-4.3", "usage": {"input_tokens": 120, "output_tokens": 45}}
+            ),
+        )
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="grok",
+            argv=("grok", "run", "--json"),
+            scratch_root=tmp_path,
+            allowed_new_files=("native-usage.json", "result.txt"),
+            # no capture_writer -> uses default from get_default_capture_writer
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.adapter_result is not None
+    assert result.adapter_result.manifest is not None
+    assert result.adapter_result.manifest.adapter == "grok"
+    assert result.adapter_result.manifest.usage.input_tokens == 120
+    assert result.adapter_result.manifest.usage.output_tokens == 45
+    assert result.adapter_result.manifest.model == "grok-4.3"
+    # default writer should have written native-usage.json
+    usage = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage.adapter == "grok"
