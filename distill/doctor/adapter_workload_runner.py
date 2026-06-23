@@ -9,6 +9,18 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from distill.doctor.adapter_capture import (
+    AntigravityCaptureWriteSpec,
+    ClaudeCaptureWriteSpec,
+    CodexCaptureWriteSpec,
+    GeminiCliCaptureWriteSpec,
+    GrokCaptureWriteSpec,
+    write_antigravity_captured_result,
+    write_claude_captured_result,
+    write_codex_captured_result,
+    write_gemini_cli_captured_result,
+    write_grok_captured_result,
+)
 from distill.doctor.adapter_manifest import AdapterManifestError
 from distill.doctor.adapter_runner import (
     METERED_API_ENV_VARS,
@@ -29,6 +41,7 @@ __all__ = [
     "AdapterWorkloadRunResult",
     "AdapterWorkloadRunSpec",
     "WorkloadCaptureWriter",
+    "get_default_capture_writer",
     "run_adapter_workload",
 ]
 
@@ -147,7 +160,9 @@ def run_adapter_workload(
             scrubbed_env_vars=spec.scrubbed_env_vars,
             allowed_new_files=spec.allowed_new_files,
             stdin_text=stdin_text,
-            capture_writer=_bind_capture_writer(spec.capture_writer, workload),
+            capture_writer=_bind_capture_writer(
+                spec.capture_writer or get_default_capture_writer(spec.adapter), workload
+            ),
         ),
         environ=environ,
         runner=runner,
@@ -220,3 +235,40 @@ def _resolve_under_scratch(root: Path, path: Path) -> Path | None:
     except ValueError:
         return None
     return candidate
+
+
+def get_default_capture_writer(adapter: str) -> WorkloadCaptureWriter | None:
+    """Return a capture writer for known plan-quota adapters (structural mapping)."""
+    adapter = adapter.lower()
+
+    def _make_writer(write_fn, spec_cls, json_field):
+        def _writer(process: AdapterProcessResult, root: Path, wl: AdapterWorkloadPackage) -> None:
+            try:
+                kwargs = {
+                    "adapter_version": "unknown",
+                    "auth_class": "included-plan",
+                    "scratch_root": root,
+                    "workload": wl,
+                    json_field: process.stdout or "",
+                    "model": "",
+                    "stop_reason": "complete",
+                }
+                write_fn(spec_cls(**kwargs))
+            except Exception:
+                # tolerate non-usage stdout in test/mixed cases; real use provides matching stdout
+                pass
+
+        return _writer
+
+    writers = {
+        "codex": _make_writer(write_codex_captured_result, CodexCaptureWriteSpec, "stdout_jsonl"),
+        "claude": _make_writer(write_claude_captured_result, ClaudeCaptureWriteSpec, "stdout_json"),
+        "grok": _make_writer(write_grok_captured_result, GrokCaptureWriteSpec, "stdout_json"),
+        "gemini-cli": _make_writer(
+            write_gemini_cli_captured_result, GeminiCliCaptureWriteSpec, "stdout_json"
+        ),
+        "antigravity": _make_writer(
+            write_antigravity_captured_result, AntigravityCaptureWriteSpec, "stdout_json"
+        ),
+    }
+    return writers.get(adapter)

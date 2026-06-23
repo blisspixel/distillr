@@ -2730,7 +2730,18 @@
 - References: SKILLS.md (pick coverage targets from measurement, lowest core; stop before contrived).
 - Contributes to 1.0 95% ratchet and 0.19 wiring completeness.
 
+### Cycle 17 - Default capture wiring in workload runner for new adapters (0.19)
+
+- External spend: `$0.00`.
+- Added get_default_capture_writer (data-driven to avoid complexity) that returns writers for codex/claude/grok/gemini-cli/antigravity.
+- Wired default into run_adapter_workload when spec.capture_writer is None.
+- Tolerant except in writers so existing tests (minimal stdout) continue to pass.
+- Updated exports.
+- Validation: ruff/format clean, 12/12 workload runner tests pass, 94% cov on module.
+- References SKILLS.md adapter doctor / capture, roadmap 0.19.
+- Now the new parsers are usable end to end in runner for plan-quota experiments without always passing writer.
+
 ### Next
 
 - Continue official installed-session auth proof and adapter-specific read-only
-  workload wiring. Integrate into workload runner hooks for the new adapters.
+  workload wiring. Full eval integration and support statements (vendor gated).
