@@ -579,3 +579,93 @@ def test_adapter_workload_runner_uses_default_capture_for_grok(tmp_path):
     # default writer should have written native-usage.json
     usage = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
     assert usage.adapter == "grok"
+
+
+def test_adapter_workload_runner_uses_default_capture_for_gemini_cli(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        _stdin: str,
+    ) -> AdapterProcessResult:
+        (cwd / "adapter-result.json").write_text(
+            json.dumps(_manifest(adapter="gemini-cli", model="gemini-2.5-pro")),
+            encoding="utf-8",
+        )
+        (cwd / "result.txt").write_text(json.dumps({"summary": "ok"}), encoding="utf-8")
+        return AdapterProcessResult(
+            exit_code=0,
+            stdout=json.dumps(
+                {
+                    "model": "gemini-2.5-pro",
+                    "usageMetadata": {"promptTokenCount": 200, "candidatesTokenCount": 50},
+                }
+            ),
+        )
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="gemini-cli",
+            argv=("gemini", "run", "--json"),
+            scratch_root=tmp_path,
+            allowed_new_files=("native-usage.json", "result.txt"),
+            # no capture_writer -> uses default
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.adapter_result is not None
+    assert result.adapter_result.manifest is not None
+    assert result.adapter_result.manifest.adapter == "gemini-cli"
+    assert result.adapter_result.manifest.usage.input_tokens == 200
+    assert result.adapter_result.manifest.usage.output_tokens == 50
+    assert result.adapter_result.manifest.model == "gemini-2.5-pro"
+    usage = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage.adapter == "gemini-cli"
+
+
+def test_adapter_workload_runner_uses_default_capture_for_antigravity(tmp_path):
+    _stage_workload(tmp_path)
+
+    def runner(
+        _argv: Sequence[str],
+        cwd: Path,
+        _env: Mapping[str, str],
+        _timeout: int,
+        _stdin: str,
+    ) -> AdapterProcessResult:
+        (cwd / "adapter-result.json").write_text(
+            json.dumps(_manifest(adapter="antigravity", model="antigravity-1")),
+            encoding="utf-8",
+        )
+        (cwd / "result.txt").write_text(json.dumps({"summary": "ok"}), encoding="utf-8")
+        return AdapterProcessResult(
+            exit_code=0,
+            stdout=json.dumps({"usage": {"input_tokens": 80, "output_tokens": 30}}),
+        )
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="antigravity",
+            argv=("antigravity", "chat", "--mode", "ask", "-"),
+            scratch_root=tmp_path,
+            allowed_new_files=("native-usage.json", "result.txt"),
+            # no capture_writer -> uses default
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert result.ok
+    assert result.adapter_result is not None
+    assert result.adapter_result.manifest is not None
+    assert result.adapter_result.manifest.adapter == "antigravity"
+    assert result.adapter_result.manifest.usage.input_tokens == 80
+    assert result.adapter_result.manifest.usage.output_tokens == 30
+    usage = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage.adapter == "antigravity"
