@@ -2721,6 +2721,15 @@
 - This completes the capture wiring side of the native usage for the three plan-quota CLIs, advancing usage ledger and no-metered routing in 0.19.
 - References: SKILLS.md (exact capture writers, contracts), cli-adapter-runbook, roadmap 0.19.
 
+### Cycle 16 - Additional branch coverage for new native parsers (0.19 / quality ratchet)
+
+- External spend: `$0.00`.
+- Added 4 more tests for gemini/alternative keys, grok multi-event sum, antigravity metadata, to cover additional branches in the tolerant parsers (usageMetadata, prompt/completion, JSONL sum, etc.).
+- Coverage on adapter_native_usage.py raised (81% -> 85%).
+- All tests pass; ruff/format clean.
+- References: SKILLS.md (pick coverage targets from measurement, lowest core; stop before contrived).
+- Contributes to 1.0 95% ratchet and 0.19 wiring completeness.
+
 ### Next
 
 - Continue official installed-session auth proof and adapter-specific read-only

@@ -287,3 +287,29 @@ def test_new_adapters_reject_missing_usage():
         grok_json_native_usage('{"model":"grok-4.3"}')
     with pytest.raises(AdapterNativeUsageError, match="usage not found"):
         gemini_cli_json_native_usage('{"foo":1}')
+
+
+def test_gemini_cli_json_native_usage_accepts_alternative_keys():
+    record = gemini_cli_json_native_usage(
+        json.dumps({"usage": {"prompt_tokens": 100, "completion_tokens": 25}})
+    )
+    usage = record.to_adapter_usage()
+    assert usage.input_tokens == 100
+    assert usage.output_tokens == 25
+
+
+def test_grok_json_native_usage_sums_if_multiple():
+    # tolerant jsonl
+    record = grok_json_native_usage(
+        '\n{"usage": {"input_tokens": 10, "output_tokens": 2}}\n{"usage": {"input_tokens": 5, "output_tokens": 3}}'
+    )
+    usage = record.to_adapter_usage()
+    assert usage.input_tokens == 15
+    assert usage.output_tokens == 5
+
+
+def test_antigravity_json_native_usage_handles_metadata_style():
+    record = antigravity_json_native_usage(
+        json.dumps({"usageMetadata": {"promptTokenCount": 40, "candidatesTokenCount": 8}})
+    )
+    assert record.to_adapter_usage().input_tokens == 40
