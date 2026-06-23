@@ -2759,6 +2759,14 @@
 - Validation will confirm gates.
 - References: ROADMAP.md, docs/roadmap.md, previous cycles on wiring.
 
+### Cycle 21 - Runner test for workload_path escape (cov ratchet)
+
+- External spend: `$0.00`.
+- Added test for workload_path escape branch in run_adapter_workload (the return when path escapes scratch).
+- Improves adapter_workload_runner cov 94% -> 96%.
+- References SKILLS.md "pick coverage targets from fresh measurement, lowest-covered CORE", roadmap 1.0 quality bar.
+- 16 runner tests, ruff/format clean.
+
 ### Cycle 19 - SKILLS.md update for new capture writers (0.19 docs)
 
 - External spend: `$0.00`.
