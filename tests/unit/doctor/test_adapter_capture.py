@@ -6,11 +6,17 @@ from pathlib import Path
 import pytest
 
 from distill.doctor.adapter_capture import (
+    AntigravityCaptureWriteSpec,
     ClaudeCaptureWriteSpec,
     CodexCaptureWriteSpec,
+    GeminiCliCaptureWriteSpec,
+    GrokCaptureWriteSpec,
     StdoutCaptureWriteSpec,
+    write_antigravity_captured_result,
     write_claude_captured_result,
     write_codex_captured_result,
+    write_gemini_cli_captured_result,
+    write_grok_captured_result,
     write_stdout_captured_result,
 )
 from distill.doctor.adapter_native_usage import (
@@ -278,3 +284,72 @@ def _stage_native_usage(root: Path, *, adapter: str) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def test_write_grok_captured_result_writes_usage_and_manifest(tmp_path):
+    _stage_inputs(tmp_path)
+
+    manifest = write_grok_captured_result(
+        GrokCaptureWriteSpec(
+            adapter_version="grok 0.2.50",
+            auth_class="included-plan",
+            scratch_root=tmp_path,
+            workload=_workload(),
+            stdout_json=json.dumps(
+                {"model": "grok-4.3", "usage": {"input_tokens": 100, "output_tokens": 30}}
+            ),
+            model="grok-4.3",
+        )
+    )
+
+    usage_record = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage_record.adapter == "grok"
+    assert manifest.adapter == "grok"
+    assert manifest.usage.input_tokens == 100
+    assert manifest.usage.output_tokens == 30
+
+
+def test_write_gemini_cli_captured_result_writes_usage_and_manifest(tmp_path):
+    _stage_inputs(tmp_path)
+
+    manifest = write_gemini_cli_captured_result(
+        GeminiCliCaptureWriteSpec(
+            adapter_version="gemini 0.46.0",
+            auth_class="included-plan",
+            scratch_root=tmp_path,
+            workload=_workload(),
+            stdout_json=json.dumps(
+                {
+                    "model": "gemini-2.5-pro",
+                    "usageMetadata": {"promptTokenCount": 200, "candidatesTokenCount": 50},
+                }
+            ),
+            model="gemini-2.5-pro",
+        )
+    )
+
+    usage_record = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage_record.adapter == "gemini-cli"
+    assert manifest.adapter == "gemini-cli"
+    assert manifest.usage.input_tokens == 200
+    assert manifest.usage.output_tokens == 50
+
+
+def test_write_antigravity_captured_result_writes_usage_and_manifest(tmp_path):
+    _stage_inputs(tmp_path)
+
+    manifest = write_antigravity_captured_result(
+        AntigravityCaptureWriteSpec(
+            adapter_version="antigravity 1.0",
+            auth_class="included-plan",
+            scratch_root=tmp_path,
+            workload=_workload(),
+            stdout_json='{"usage": {"input_tokens": 50, "output_tokens": 10}}',
+        )
+    )
+
+    usage_record = load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+    assert usage_record.adapter == "antigravity"
+    assert manifest.adapter == "antigravity"
+    assert manifest.usage.input_tokens == 50
+    assert manifest.usage.output_tokens == 10

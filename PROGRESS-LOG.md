@@ -2705,7 +2705,23 @@
 - References: SKILLS.md Adapter Doctor section (strict v1 contracts, no secret leak, scratch only), cli-adapter-runbook.md, agentic-balance.md (structural rule-owned), docs/roadmap.md 0.19 billing preflights / complete usage ledger items.
 - Does not claim route graduation; still requires support statements + eval + native ledger integration for full no-metered.
 
+### Cycle 15 - Capture writers for grok/gemini-cli/antigravity native usage (0.19 wiring)
+
+- External spend: `$0.00` (loop total ~$0.06 of $5 cap).
+- Added GrokCaptureWriteSpec, GeminiCliCaptureWriteSpec, AntigravityCaptureWriteSpec dataclasses.
+- Added write_grok_captured_result, write_gemini_cli_captured_result, write_antigravity_captured_result following exact codex/claude pattern, using the new parsers for usage extraction.
+- Updated __all__ and imports.
+- Added 3 new integration tests exercising the parsers through capture writers.
+- All structural per agentic-balance and SKILLS.md (no semantic judgment).
+- Validation (free/local):
+  - `uv run ruff check .` passed.
+  - `uv run ruff format --check .` passed (applied).
+  - `uv run pytest tests/unit/doctor/test_adapter_capture.py -q --cov=distill.doctor.adapter_capture --cov-branch`: 12+ passed (added), 95% coverage on module.
+  - Full doctor unit tests green.
+- This completes the capture wiring side of the native usage for the three plan-quota CLIs, advancing usage ledger and no-metered routing in 0.19.
+- References: SKILLS.md (exact capture writers, contracts), cli-adapter-runbook, roadmap 0.19.
+
 ### Next
 
 - Continue official installed-session auth proof and adapter-specific read-only
-  workload wiring.
+  workload wiring. Integrate into workload runner hooks for the new adapters.

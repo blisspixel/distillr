@@ -9,8 +9,11 @@ from typing import Any, Literal
 
 from distill.doctor.adapter_manifest import AdapterQuotaStop, AdapterResultManifest
 from distill.doctor.adapter_native_usage import (
+    antigravity_json_native_usage,
     claude_json_native_usage,
     codex_jsonl_native_usage,
+    gemini_cli_json_native_usage,
+    grok_json_native_usage,
 )
 from distill.doctor.adapter_result_writer import (
     AdapterResultWriteSpec,
@@ -19,11 +22,17 @@ from distill.doctor.adapter_result_writer import (
 from distill.doctor.adapter_workload import AdapterWorkloadPackage
 
 __all__ = [
+    "AntigravityCaptureWriteSpec",
     "ClaudeCaptureWriteSpec",
     "CodexCaptureWriteSpec",
+    "GeminiCliCaptureWriteSpec",
+    "GrokCaptureWriteSpec",
     "StdoutCaptureWriteSpec",
+    "write_antigravity_captured_result",
     "write_claude_captured_result",
     "write_codex_captured_result",
+    "write_gemini_cli_captured_result",
+    "write_grok_captured_result",
     "write_stdout_captured_result",
 ]
 
@@ -82,6 +91,69 @@ class StdoutCaptureWriteSpec:
     stdout_text: str
     native_usage_path: Path = Path("native-usage.json")
     result_text_path: Path = Path("result.txt")
+    model: str = ""
+    elapsed_ms: int = 0
+    stop_reason: str = "complete"
+    quota_stop: AdapterQuotaStop | None = None
+    blocked_api_key_env: tuple[str, ...] = ()
+    metered_allowed: bool = False
+    citations: tuple[str, ...] = ()
+    receipts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GrokCaptureWriteSpec:
+    """Captured Grok CLI outputs needed to write adapter manifests."""
+
+    adapter_version: str
+    auth_class: Literal["local", "included-plan", "metered-api", "unknown"]
+    scratch_root: Path
+    workload: AdapterWorkloadPackage
+    stdout_json: str
+    result_text_path: Path = Path("result.txt")
+    native_usage_path: Path = Path("native-usage.json")
+    model: str = ""
+    elapsed_ms: int = 0
+    stop_reason: str = "complete"
+    quota_stop: AdapterQuotaStop | None = None
+    blocked_api_key_env: tuple[str, ...] = ()
+    metered_allowed: bool = False
+    citations: tuple[str, ...] = ()
+    receipts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GeminiCliCaptureWriteSpec:
+    """Captured Gemini CLI outputs needed to write adapter manifests."""
+
+    adapter_version: str
+    auth_class: Literal["local", "included-plan", "metered-api", "unknown"]
+    scratch_root: Path
+    workload: AdapterWorkloadPackage
+    stdout_json: str
+    result_text_path: Path = Path("result.txt")
+    native_usage_path: Path = Path("native-usage.json")
+    model: str = ""
+    elapsed_ms: int = 0
+    stop_reason: str = "complete"
+    quota_stop: AdapterQuotaStop | None = None
+    blocked_api_key_env: tuple[str, ...] = ()
+    metered_allowed: bool = False
+    citations: tuple[str, ...] = ()
+    receipts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AntigravityCaptureWriteSpec:
+    """Captured Antigravity CLI outputs needed to write adapter manifests."""
+
+    adapter_version: str
+    auth_class: Literal["local", "included-plan", "metered-api", "unknown"]
+    scratch_root: Path
+    workload: AdapterWorkloadPackage
+    stdout_json: str
+    result_text_path: Path = Path("result.txt")
+    native_usage_path: Path = Path("native-usage.json")
     model: str = ""
     elapsed_ms: int = 0
     stop_reason: str = "complete"
@@ -155,6 +227,99 @@ def write_claude_captured_result(spec: ClaudeCaptureWriteSpec) -> AdapterResultM
             blocked_api_key_env=spec.blocked_api_key_env,
             metered_allowed=spec.metered_allowed,
             output=output,
+            citations=spec.citations,
+            receipts=spec.receipts,
+        )
+    )
+
+
+def write_grok_captured_result(spec: GrokCaptureWriteSpec) -> AdapterResultManifest:
+    """Write native usage and result manifests from captured Grok JSON output."""
+
+    root = spec.scratch_root.resolve()
+    usage_record = grok_json_native_usage(
+        spec.stdout_json,
+        model=spec.model,
+        stop_reason=spec.stop_reason,
+    )
+    native_usage_path = _write_native_usage_file(root, spec.native_usage_path, usage_record)
+    return write_adapter_result_manifest(
+        AdapterResultWriteSpec(
+            adapter="grok",
+            adapter_version=spec.adapter_version,
+            auth_class=spec.auth_class,
+            scratch_root=root,
+            workload=spec.workload,
+            result_text_path=spec.result_text_path,
+            native_usage_path=native_usage_path,
+            model=spec.model or usage_record.model,
+            elapsed_ms=spec.elapsed_ms,
+            stop_reason=usage_record.stop_reason or spec.stop_reason,
+            quota_stop=spec.quota_stop,
+            blocked_api_key_env=spec.blocked_api_key_env,
+            metered_allowed=spec.metered_allowed,
+            citations=spec.citations,
+            receipts=spec.receipts,
+        )
+    )
+
+
+def write_gemini_cli_captured_result(spec: GeminiCliCaptureWriteSpec) -> AdapterResultManifest:
+    """Write native usage and result manifests from captured Gemini CLI JSON output."""
+
+    root = spec.scratch_root.resolve()
+    usage_record = gemini_cli_json_native_usage(
+        spec.stdout_json,
+        model=spec.model,
+        stop_reason=spec.stop_reason,
+    )
+    native_usage_path = _write_native_usage_file(root, spec.native_usage_path, usage_record)
+    return write_adapter_result_manifest(
+        AdapterResultWriteSpec(
+            adapter="gemini-cli",
+            adapter_version=spec.adapter_version,
+            auth_class=spec.auth_class,
+            scratch_root=root,
+            workload=spec.workload,
+            result_text_path=spec.result_text_path,
+            native_usage_path=native_usage_path,
+            model=spec.model or usage_record.model,
+            elapsed_ms=spec.elapsed_ms,
+            stop_reason=usage_record.stop_reason or spec.stop_reason,
+            quota_stop=spec.quota_stop,
+            blocked_api_key_env=spec.blocked_api_key_env,
+            metered_allowed=spec.metered_allowed,
+            citations=spec.citations,
+            receipts=spec.receipts,
+        )
+    )
+
+
+def write_antigravity_captured_result(spec: AntigravityCaptureWriteSpec) -> AdapterResultManifest:
+    """Write native usage and result manifests from captured Antigravity JSON output."""
+
+    root = spec.scratch_root.resolve()
+    usage_record = antigravity_json_native_usage(
+        spec.stdout_json,
+        model=spec.model,
+        stop_reason=spec.stop_reason,
+    )
+    native_usage_path = _write_native_usage_file(root, spec.native_usage_path, usage_record)
+    return write_adapter_result_manifest(
+        AdapterResultWriteSpec(
+            adapter="antigravity",
+            adapter_version=spec.adapter_version,
+            auth_class=spec.auth_class,
+            scratch_root=root,
+            workload=spec.workload,
+            result_text_path=spec.result_text_path,
+            native_usage_path=native_usage_path,
+            model=spec.model or usage_record.model,
+            elapsed_ms=spec.elapsed_ms,
+            stop_reason=usage_record.stop_reason or spec.stop_reason,
+            quota_stop=spec.quota_stop,
+            blocked_api_key_env=spec.blocked_api_key_env,
+            metered_allowed=spec.metered_allowed,
             citations=spec.citations,
             receipts=spec.receipts,
         )

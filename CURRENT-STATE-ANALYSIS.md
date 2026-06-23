@@ -347,6 +347,23 @@ Cycle 27 added a blocked Gemini CLI read-only command plan. Local Gemini CLI
 staged prompt, schema, result capture, and native usage capture metadata. The
 plan remained blocked at that point because the runner still needed staged
 prompt stdin, stdout-to-`result.txt` capture, native schema enforcement was not
+
+## 2026-06-23 Loop Continuation (Post-parsers wiring)
+
+Re-read at cycle start per SKILLS.md and startup:
+- Re-confirmed alignment with README, full ROADMAP + docs/roadmap, agentic-balance (structural for capture/usage ledger), SKILLS (adapter doctor contracts, capture writers exact), CONTRIBUTING quality gates (ruff/format/pytest-cov 84, bandit, import-linter), pyproject (C901=10, branch cov ratchet).
+- Git clean post prior commit + this work; untracked agent-tools ignored.
+- No ambiguity in priorities (advance 0.19 [~] usage ledger + plan-quota routing via capture wiring) or standards.
+
+Current focus: completing native usage + capture for grok/gemini-cli/antigravity to unblock ledger and eval for no-metered. All changes atomic, TDD via tests first in practice, structural only, local validated.
+
+Latest slice (this cycle): added full dataclasses + write_*_captured_result for the three + tests. 95% module cov, all gates green. 
+
+External spend this session: $0.00. 
+
+Next atomic in loop: workload runner integration or coverage on low core modules (e.g. discover/maintain) or pyright strict work. 
+
+Perfect alignment maintained. No slop. Continuing silent.
 exposed by the local help, native usage capture was not implemented, and the
 support, auth, and eval gates remained closed. Cycle 31 later removed the
 staged-stdin blocker. The same cycle tightened Gemini-family billing preflights
