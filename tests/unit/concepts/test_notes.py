@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from distill.concepts.notes import (
+    _extracted_sources_path,
     already_extracted_source_ids,
     append_mentions,
     concept_dir_for_topic,
@@ -13,7 +14,9 @@ from distill.concepts.notes import (
     history_path_for,
     mentions_jsonl_path,
     note_path_for,
+    read_extracted_sources,
     read_mentions,
+    record_extracted_sources,
     render_playbook,
     write_playbook,
 )
@@ -345,3 +348,30 @@ class TestMentionsJsonl:
             encoding="utf-8",
         )
         assert [r["source_id"] for r in read_mentions(tmp_path)] == ["A"]
+
+
+class TestExtractedSourcesLedger:
+    def test_read_missing_returns_empty(self, tmp_path: Path) -> None:
+        assert read_extracted_sources(tmp_path) == set()
+
+    def test_read_bad_json_or_oserror_returns_empty(self, tmp_path: Path, monkeypatch) -> None:
+        path = _extracted_sources_path(tmp_path)
+        path.parent.mkdir(parents=True)
+        path.write_text("not json", encoding="utf-8")
+        assert read_extracted_sources(tmp_path) == set()
+
+        # force OSError on read
+        monkeypatch.setattr(
+            Path, "read_text", lambda self, **k: (_ for _ in ()).throw(OSError("fail"))
+        )
+        assert read_extracted_sources(tmp_path) == set()
+
+    def test_record_merges_and_idempotent(self, tmp_path: Path) -> None:
+        record_extracted_sources(tmp_path, ["A", "B"])
+        assert read_extracted_sources(tmp_path) == {"A", "B"}
+        record_extracted_sources(tmp_path, ["B", "C"])
+        assert read_extracted_sources(tmp_path) == {"A", "B", "C"}
+
+    def test_record_empty_noop(self, tmp_path: Path) -> None:
+        record_extracted_sources(tmp_path, [])
+        assert not _extracted_sources_path(tmp_path).exists()
