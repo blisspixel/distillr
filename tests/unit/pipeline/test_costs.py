@@ -206,9 +206,9 @@ def test_load_cost_calibration_handles_missing_and_bad_json(tmp_path):
     # bad file content
     log = tmp_path / ".distill" / "cost_log.jsonl"
     log.parent.mkdir(parents=True)
-    log.write_text("not json\n{}\n", encoding="utf-8")
+    log.write_text("not json\n\n{}\n", encoding="utf-8")
     cal2 = load_cost_calibration(tmp_path)
-    assert cal2.per_paper > 0  # still defaults on bad data
+    assert cal2.per_paper > 0  # still defaults on bad data (blank line continue hit)
 
 
 def test_save_run_log_records_route_usage_for_zero_dollar_calls(tmp_path):
@@ -345,6 +345,40 @@ def test_projected_next_run_cost():
 
     # only zero-cost entries -> 0
     assert projected_next_run_cost([{"command": "z", "actual_cost": 0.0}]) == 0.0
+
+
+def test_estimate_run_cost_zero_items_no_accordion():
+    # Covers the false branches for if full_videos, if shorts, if accordion.
+    text = estimate_run_cost(0, 0, accordion=False)
+    assert text.startswith("Estimated cost: $0.00")
+    assert "()" in text or "0.00 ( )" in text or text.endswith("()")
+
+
+def test_classify_clean_run_site_zero_calls_is_none():
+    from distill.pipeline.costs import _classify_clean_run
+
+    site_zero = {
+        "actual_cost": 0.05,
+        "by_call_type": {"site_page": {"calls": 0}},
+    }
+    assert _classify_clean_run(site_zero) is None  # n==0 branch
+
+
+def test_load_cost_calibration_oserror_on_read_returns_default(tmp_path):
+    from unittest.mock import patch
+
+    from distill.pipeline.costs import load_cost_calibration
+
+    log = tmp_path / ".distill" / "cost_log.jsonl"
+    log.parent.mkdir(parents=True)
+    log.write_text(
+        '{"actual_cost": 0.1, "by_call_type": {"paper": {"calls": 1}}}\n', encoding="utf-8"
+    )
+
+    with patch.object(type(log), "read_text", side_effect=OSError("simulated read fail")):
+        cal = load_cost_calibration(tmp_path)
+    # hits the except OSError path -> default
+    assert cal.per_paper > 0
 
 
 def test_save_run_log_writes_to_ops_dir(tmp_path):
