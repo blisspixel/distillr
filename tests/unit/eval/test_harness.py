@@ -215,6 +215,14 @@ def test_estimate_adapter_plan_quota_is_free():
     assert est == 0.0
 
 
+def test_adapter_model_stubs_with_default_runner():
+    # When no custom analyze provided for adapter model, stub allows eval flow (graduation test).
+    # Uses default runner path.
+    rows = run_model_eval("paper", ["adapter:grok-4.3"], anchor="adapter:grok-4.3")
+    assert len(rows) == 3  # paper fixtures
+    assert all(r.cost == 0.0 for r in rows)
+
+
 def test_phase1_is_model_outer_to_avoid_vram_thrash(monkeypatch):
     # Analysis must process all of one model's fixtures before the next model, so
     # a local model stays loaded in VRAM instead of being swapped every fixture.

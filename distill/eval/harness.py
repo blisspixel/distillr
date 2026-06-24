@@ -169,6 +169,18 @@ def _analyze(
     local = _is_local(model) or model.startswith(
         "adapter:"
     )  # local + plan-quota adapter: free (no incremental metered)
+    if provider_for_model(model) == "adapter" and runner is _run_analysis:
+        # Adapter plan-quota routes graduate via eval when a custom analyze func is supplied
+        # that invokes the CLI adapter on the fixture's prompt and returns the insight text.
+        # Default runner here stubs so the rest of eval (judges, report, cost=0, flow) can exercise
+        # the graduation path without a live CLI in the test/CI env.
+        return _Analysis(
+            output="[stub-adapter-analysis for eval graduation test]",
+            cost=0.0,
+            input_tokens=0,
+            output_tokens=0,
+            cached=False,
+        )
     # A single model failing (timeout, provider error, OOM on a local model) must
     # not abort the whole sweep — record the partial cost, mark the row errored,
     # and let the run continue. Errored results are NOT cached (so a retry runs).
