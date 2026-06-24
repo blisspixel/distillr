@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
@@ -159,6 +161,26 @@ def test_synthesize_channel_writes_verify_sidecar(tmp_path):
     assert result  # warn mode writes anyway
     sidecar = channel_dir / "ai_Creator_Verify.json"
     assert sidecar.exists()
+
+
+def test_synthesize_topic_budget_exceeded_re_raises(tmp_path):
+    """Covers BudgetExceededError re-raise (line ~200) in synthesize_topic."""
+    from distill.pipeline.costs import BudgetExceededError
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    for name in ["C1", "C2"]:
+        d = config.channel_dir("ai", name)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "synthesis.md").write_text("# s", encoding="utf-8")
+
+    def _raise(*a, **k):
+        raise BudgetExceededError(1.0, 0.5)
+
+    with (
+        patch("distill.pipeline.synthesis.topic.llm_call", _raise),
+        pytest.raises(BudgetExceededError),
+    ):
+        synthesize_topic("ai", config)
 
 
 def test_synthesize_channel_strict_refuses_and_writes_sidecar(tmp_path):
