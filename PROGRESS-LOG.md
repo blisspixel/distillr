@@ -249,6 +249,13 @@
 - Enabled by core gains (costs 100%) + 89% runs. Per SKILLS ratchet rule (up-only from measured).
 - Ruff/format clean. Gate with 85 expected to pass. Commit 1121134.
 
+### Cycle 109 - Concepts recovery branch cov (core ratchet)
+
+- External spend: `$0.00`.
+- Added tests for safe_ts_to_iso no-T path and _is_safe_slug bad inputs (empty, traversal, null, dot).
+- recovery.py 80% -> 92% branch. Concepts core.
+- Ruff/format clean, tests pass. Commit 2918830.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
