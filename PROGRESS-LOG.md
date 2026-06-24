@@ -340,6 +340,14 @@
 - Structural + parse boundary work (parse, don't validate direction). High-leverage for 0.19 recurring profiles and 1.0 quality.
 - Targeted tests green; ruff + format clean on the file.
 
+### Cycle 121 - Library profiles additional validation for 0.19
+
+- External spend: `$0.00`.
+- Added tests for repo url not github and goal with drive letter.
+- Covers more raise paths in _normalize_repository and _validate_relative_path.
+- Profiles 84%->85% branch.
+- Commit 76476a9.
+
 ### Cycle 104 - Pipeline costs core branch ratchet (Budget, route, load, report paths)
 
 - External spend: `$0.00`.
