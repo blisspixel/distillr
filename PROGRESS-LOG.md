@@ -356,6 +356,14 @@
 - Ruff/format clean. Commit for docs.
 - Gate with 86 expected to pass.
 
+### Cycle 123 - Eval adapter prefix for 0.19
+
+- External spend: `$0.00`.
+- Added adapter: prefix support in provider_for_model.
+- Added test in test_judge for adapter route.
+- Enables eval for plan-quota adapters.
+- Commit 1b6eb0d and 26bf221.
+
 ### Cycle 104 - Pipeline costs core branch ratchet (Budget, route, load, report paths)
 
 - External spend: `$0.00`.
