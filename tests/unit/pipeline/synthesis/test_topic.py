@@ -40,9 +40,14 @@ def test_synthesize_channel_returns_empty_without_insights(tmp_path):
 def test_synthesize_channel_saves_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     channel_dir = config.channel_dir("ai", "Creator")
-    (channel_dir / "videos" / "video-1").mkdir(parents=True, exist_ok=True)
-    (channel_dir / "videos" / "video-1" / "insights.md").write_text("# Insight", encoding="utf-8")
+    vdir = channel_dir / "videos" / "video-1"
+    vdir.mkdir(parents=True, exist_ok=True)
+    (vdir / "insights.md").write_text("# Insight", encoding="utf-8")
     (channel_dir / "channel_context.md").write_text("# Context", encoding="utf-8")
+    # metadata to hit json/dict branch in _video_link_header
+    (vdir / "metadata.json").write_text(
+        '{"title": "My Video", "video_id": "vid1"}', encoding="utf-8"
+    )
 
     with patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("channel synthesis")):
         result = synthesize_channel("ai", "Creator", config)
