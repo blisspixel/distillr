@@ -794,7 +794,7 @@ Re-read and fully internalized every required document per prompt and SKILLS.md:
 Current observable state:
 - Git: main, ahead (several), clean (only untracked agent-tools/cov artifacts).
 - 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; ledger bridge now 100% branch tested; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
-- Quality: floor 86 (ratchet); adapter_ledger 100%; multipass 100% (core); harness now treats adapter: free for eval cost (0.19).
+- Quality: floor 89 (ratchet); adapter_ledger 100%; multipass 100% (core); harness now treats adapter: free for eval cost (0.19); pyright strict on checks/costs/profiles.
 - Spend: $0.00 (lifetime ~$0.06 of $5).
 - Focus: 0.19 eval + support; 1.0 ratchet + pyright + parse-dont-validate.
 
