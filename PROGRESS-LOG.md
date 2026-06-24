@@ -158,6 +158,14 @@
   and `SKILLS.md` after measured suite total reached 84.13%.
 - Validation (free/local): 2707 passed at floor 84; ruff clean.
 
+### Cycle 103 - Core costs projection branch coverage (projected_next_run_cost)
+
+- External spend: `$0.00` (loop total remains ~$0.06 of the `$5.00` cap).
+- Extended `test_projected_next_run_cost` in tests/unit/pipeline/test_costs.py with cases for zero-cost skips, non-numeric skips, >5 cap (averages exactly last 5 qualifying), and all-zero path. Directly exercises the reversed-filter-cap-avg logic and 0.0 returns in distill/pipeline/costs.py.
+- Structural test addition only (no impl change); advances roadmap "Projected next-run cost by workflow" and 1.0 core cov ratchet priority (pipeline first).
+- Validation (free/local): ruff clean, format clean, targeted test pass; prior full gates at floor 84. Commit 4417bf7.
+- CURRENT-STATE-ANALYSIS.md updated with full 2026-06-23 startup internalization and alignment confirmation. No questions. Silent loop mode.
+
 ### Cycle 89 - Pyright Strict Fixes for Blocking CI
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
