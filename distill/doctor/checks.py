@@ -8,6 +8,8 @@ canonical implementation and cannot drift. No console output here -- callers
 present the results.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill.config import DistillConfig
@@ -58,7 +60,7 @@ def _doctor_key_auth_rejected(exc: Exception) -> bool:
     return status in (401, 403)
 
 
-def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str]:
+def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str]:  # pyright: ignore[reportUnusedFunction] "called via doctor command (commands/doctor.py and mcp) through dynamic lookup; not direct in this module"
     """Live-validate one provider's API key with a minimal request.
 
     Returns ``(status, detail)`` where ``status`` is one of:
@@ -105,7 +107,7 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str
             from google import genai
 
             client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
-            client.models.generate_content(model="gemini-3.5-flash", contents="hi")
+            client.models.generate_content(model="gemini-3.5-flash", contents="hi")  # pyright: ignore[reportUnknownMemberType] "third-party google-genai stub is partially untyped; consistent with other providers in llm/"
             return ("ok", "Deep Research")
         except Exception as e:
             return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
@@ -127,7 +129,7 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str
     raise ValueError(f"unknown provider: {provider}")
 
 
-def _check_ollama_status() -> tuple[str, list[str]]:
+def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUnusedFunction] "called via doctor command through dynamic lookup; not direct in this module"
     """Check if Ollama server is running and list available models.
 
     Returns (status, model_names) where status is "running" or "unavailable".
@@ -149,7 +151,7 @@ def _check_ollama_status() -> tuple[str, list[str]]:
         return ("unavailable", [])
 
 
-def _check_lmstudio_status() -> str:
+def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "called via doctor command through dynamic lookup; not direct in this module"
     """Check if LM Studio server is running. Returns 'running' or 'unavailable'."""
     import httpx
 
