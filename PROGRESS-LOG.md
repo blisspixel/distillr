@@ -348,6 +348,14 @@
 - Profiles 84%->85% branch.
 - Commit 76476a9.
 
+### Cycle 122 - Cov floor ratchet 85 -> 86
+
+- External spend: `$0.00`.
+- Bumped --cov-fail-under to 86 in AGENTS.md, docs/CONTRIBUTING.md, SKILLS.md, .github/workflows/ci.yml (and comment).
+- Per SKILLS (up-only from measured 89%).
+- Ruff/format clean. Commit for docs.
+- Gate with 86 expected to pass.
+
 ### Cycle 104 - Pipeline costs core branch ratchet (Budget, route, load, report paths)
 
 - External spend: `$0.00`.
