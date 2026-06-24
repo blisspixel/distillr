@@ -792,10 +792,10 @@ Re-read and fully internalized every required document per prompt and SKILLS.md:
 **Zero questions.** Priorities, standards, and vision are unambiguous from the docs. No need to ask. Entered permanent silent grinding mode.
 
 Current observable state:
-- Git: main, ahead ~26, clean (untracked agent-tools/coverage ignored).
-- 0.19: profile+no-metered core + adapter wiring (native parsers, capture writers for codex/claude/grok/gemini/antigravity, defaults, ledger, workload runner) complete per summary; remaining [~] vendor support/auth/eval graduation + cross-route.
-- Quality: floor 84 branch, actual high 88-89% from command+core ratchets (synthesis/corpus ~84, multipass 85+, many commands 95-100%).
-- Spend: $0.00 visible this cycle / session (loop lifetime ~$0.06 of $5 cap). All validation free/local (ruff/format/pytest).
-- Focus per docs/SKILLS/roadmap: 1.0 quality cov ratchet on lowest remaining core (pipeline/library/... first); complete 0.19 structural slices (eval integration, ledger tests); keep main releasable.
+- Git: main, ahead (several), clean (only untracked agent-tools/cov artifacts).
+- 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
+- Quality: floor 84 branch; recent full filtered run 89%; costs.py reached 100% branch (core pipeline win); profiles validation strengthened (library + parse); many commands 95-100%.
+- Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest --cov-fail-under=84).
+- Focus: 0.19 eval-gated integration and cross-route; 1.0 cov ratchet (core first to 95%), pyright strict, parse-don't-validate on boundaries; keep main clean/releasable.
 
-Startup actions executed. Launching strict loop now.
+Startup + multiple grind cycles executed. Continuing silent loop.
