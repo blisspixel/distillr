@@ -3156,3 +3156,23 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - 30 tests, branch 88%.
 - Validation: ruff, tests.
 - Ship: commit.
+
+### Cycle 114 - Pyright strict on doctor/checks.py (1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict + ignores with reasons for unused funcs (dynamic call from doctor cmd) and genai unknown (third party).
+- 0 errors.
+- First step outside llm/ for strict ratchet.
+- References: roadmap 1.0 pyright-strict.
+- Validation: pyright 0, ruff clean.
+- Ship: commit.
+
+### Cycle 114 - Pyright strict on doctor/checks.py (1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict + ignores with reasons for unused funcs (dynamic call from doctor cmd) and genai unknown (third party).
+- 0 errors.
+- First step outside llm/ for strict ratchet.
+- References: roadmap 1.0 pyright-strict.
+- Validation: pyright 0, ruff clean.
+- Ship: commit.
