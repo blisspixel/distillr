@@ -1,5 +1,7 @@
 """Ledger helpers for verified external adapter manifests."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass
