@@ -82,6 +82,8 @@ class TestJsonCosts:
         assert parsed["status"] == "ok"
         assert parsed["data"]["runs"] == []
         assert "message" in parsed["data"]
+        assert "projected_next_run_cost" in parsed["data"]
+        assert parsed["data"]["projected_next_run_cost"] == 0.0
 
     def test_costs_json_with_history(self, mock_config):
         """costs --json with cost entries returns valid JSON with runs."""
@@ -106,6 +108,8 @@ class TestJsonCosts:
         assert parsed["status"] == "ok"
         assert len(parsed["data"]["runs"]) == 1
         assert parsed["data"]["total_cost"] == 0.1234
+        assert "projected_next_run_cost" in parsed["data"]
+        assert parsed["data"]["projected_next_run_cost"] == 0.1234
 
     def test_costs_json_includes_biggest_prompts(self, mock_config):
         """costs --json includes largest per-call telemetry records."""

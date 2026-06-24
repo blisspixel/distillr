@@ -237,6 +237,7 @@ def test_costs_pricing_delegates_to_llm_cost():
             call_type="analysis",
         )
     )
+
     rates = get_pricing("grok-4.3")
     expected = 1_000_000 * rates["input"] / 1_000_000 + 1_000_000 * rates["output"] / 1_000_000
     assert tracker.total_grok_cost == expected
@@ -245,6 +246,24 @@ def test_costs_pricing_delegates_to_llm_cost():
     assert "grok-4.3" in LLM_PRICING
     assert LLM_PRICING["grok-4.3"]["input"] == 1.25
     assert LLM_PRICING["grok-4.3"]["output"] == 2.50
+
+
+def test_projected_next_run_cost():
+    """projected_next_run_cost averages recent non-preview actuals."""
+    from distill.pipeline.costs import projected_next_run_cost
+
+    entries = [
+        {"command": "learn", "actual_cost": 0.1},
+        {"command": "learn_preview", "actual_cost": 0.01},  # ignored
+        {"command": "papers", "actual_cost": 0.2},
+        {"command": "discover", "actual_cost": 0.3},
+    ]
+    proj = projected_next_run_cost(entries)
+    # last 3 non-preview: 0.1,0.2,0.3 avg 0.2
+    assert abs(proj - 0.2) < 0.001
+
+    assert projected_next_run_cost([]) == 0.0
+    assert projected_next_run_cost([{"command": "x_preview", "actual_cost": 1}]) == 0.0
 
 
 def test_save_run_log_writes_to_ops_dir(tmp_path):

@@ -37,7 +37,7 @@ from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import CostTracker, projected_next_run_cost
 from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
@@ -88,6 +88,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                     "biggest_prompts": biggest_prompts,
+                    "projected_next_run_cost": 0.0,
                 }
             )
             import sys
@@ -120,6 +121,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                     "biggest_prompts": biggest_prompts,
+                    "projected_next_run_cost": 0.0,
                 }
             )
             import sys
@@ -139,6 +141,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
     from distill.pipeline.costs import estimator_accuracy
 
     accuracy = estimator_accuracy(entries)
+    projected = projected_next_run_cost(entries)
 
     if json_mode:
         # Compute local/cloud split from telemetry
@@ -147,6 +150,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
             {
                 "runs": recent,
                 "total_cost": round(total_cost, 4),
+                "projected_next_run_cost": round(projected, 4),
                 "runs_shown": len(recent),
                 "cloud_spend_usd": round(total_cost, 4),
                 "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
@@ -213,6 +217,11 @@ def costs(  # noqa: C901 -- legacy, will refactor
             f"[bold]Estimator accuracy[/bold] ({accuracy['runs_compared']} runs with estimates): "
             f"median error {accuracy['median_abs_pct_error']:.0f}%, typically {direction} "
             f"by {abs(bias):.0f}% (last 10 runs: {accuracy['recent10_median_abs_pct_error']:.0f}%)"
+        )
+
+    if projected > 0:
+        console.print(
+            f"[bold]Projected for next similar run[/bold] (avg last up to 5): ${projected:.4f}"
         )
 
     # Local vs Cloud split from telemetry

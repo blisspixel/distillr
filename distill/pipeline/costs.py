@@ -43,6 +43,7 @@ __all__ = [
     "estimate_stage_cost",
     "estimator_accuracy",
     "load_cost_calibration",
+    "projected_next_run_cost",
     "report_deep_research_estimate",
     "save_run_log",
 ]
@@ -446,6 +447,27 @@ def estimator_accuracy(entries: list[dict]) -> dict | None:
         "median_signed_pct_error": round(_median(signed_pct), 1),  # + = overestimates
         "recent10_median_abs_pct_error": round(_median([abs(x) for x in recent]), 1),
     }
+
+
+def projected_next_run_cost(entries: list[dict]) -> float:
+    """Projected cost for next similar run: average actual_cost of last up to 5 non-preview runs.
+
+    Simple history-based projection to address the roadmap item for
+    "Projected next-run cost by workflow, not just historical spend".
+    Excludes previews (no real spend). Returns 0.0 if no qualifying runs.
+    """
+    costs: list[float] = []
+    for row in reversed(entries):
+        if str(row.get("command", "")).endswith("_preview"):
+            continue
+        c = row.get("actual_cost")
+        if isinstance(c, (int, float)) and c > 0:
+            costs.append(float(c))
+        if len(costs) >= 5:
+            break
+    if not costs:
+        return 0.0
+    return sum(costs) / len(costs)
 
 
 def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) -> str:
