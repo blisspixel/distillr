@@ -213,6 +213,20 @@ def test_synthesize_channel_strict_refuses_and_writes_sidecar(tmp_path):
     assert any(c["token"] == "91.7" for c in data["unsupported"])
 
 
+def test_synthesize_channel_video_link_bad_metadata(tmp_path):
+    """Covers except json in _video_link_header for bad metadata."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    vdir = config.channel_dir("ai", "Creator") / "videos" / "v1"
+    vdir.mkdir(parents=True, exist_ok=True)
+    (vdir / "insights.md").write_text("# Insight", encoding="utf-8")
+    (vdir / "metadata.json").write_text("not json", encoding="utf-8")
+
+    with patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("synth")):
+        result = synthesize_channel("ai", "Creator", config)
+
+    assert result == "synth"
+
+
 def test_synthesize_topic_writes_verify_sidecar(tmp_path):
     """0.13.1: topic synthesis is verified against its channel syntheses, under a
     distinct sidecar identity so the three topic-level syntheses can't collide."""
