@@ -819,3 +819,5 @@ Cycle 115: pyright strict on costs.py (1.0 ratchet).
 Cycle 116: cov floor ratchet 86->87 (measured 88.50%). TDD/gates.
 
 Cycle 117: cov floor ratchet 87->88 (89.47%). TDD/gates.
+
+Cycle 118: pyright strict on profiles.py (1.0 ratchet, 0.19).

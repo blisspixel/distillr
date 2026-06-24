@@ -3218,3 +3218,25 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Validation: ruff/format clean; pytest under=88 passed 89.47%.
 - Self-review: exact per ratchet rule, no slop.
 - Ship: commit.
+
+### Cycle 118 - Pyright strict on library/profiles.py (1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict + casts in _coerce_* + ignores with reasons for pydantic/yaml Unknowns.
+- Removed unused Any.
+- 0 errors.
+- Ruff format applied, 16 tests pass.
+- 0.19 relevant.
+- References: roadmap 1.0 pyright-strict.
+- Ship: commit.
+
+### Cycle 118 - Pyright strict on library/profiles.py (1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict + casts in _coerce_* + ignores with reasons for pydantic/yaml Unknowns.
+- Removed unused Any.
+- 0 errors.
+- Ruff format applied, 16 tests pass.
+- 0.19 relevant.
+- References: roadmap 1.0 pyright-strict.
+- Ship: commit.
