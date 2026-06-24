@@ -2826,3 +2826,13 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - Further aligns with best practices (narrow, gotchas, disclosure, verification).
 - Ruff/format clean. Committed.
 - References: skills alignment cycle.
+
+### Cycle 24 - Projected next-run cost in `distill costs` (roadmap dashboard)
+
+- External spend: `$0.00`.
+- Added projected_next_run_cost() (avg last <=5 non-preview actuals) in pipeline/costs.
+- Surface in costs cmd (human + json).
+- Tests added/updated in pipeline and cli_json tests.
+- Advances [~] "Projected next-run cost by workflow, not just historical spend" in docs/roadmap.md section 2.
+- TDD, simple no-slop change per quality standards.
+- Full ruff/format, targeted pytest clean.
