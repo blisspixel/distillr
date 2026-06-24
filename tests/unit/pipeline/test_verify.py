@@ -356,3 +356,26 @@ def test_run_synthesis_verify_hits_notify_on_mismatch(tmp_path):
         notify=n,
     )
     assert res_none is False
+
+
+def test_run_synthesis_verify_strict_mismatch_refuses(tmp_path):
+    """Covers strict mismatch path for refused=True in run_synthesis_verify (to hit remaining branch)."""
+    from distill.pipeline.verify import run_synthesis_verify
+
+    notified = []
+
+    def n(s):
+        notified.append(s)
+
+    res = run_synthesis_verify(
+        tmp_path,
+        "The score is 99.9.",
+        "The score is 72.6.",
+        verify_mode="strict",
+        identity="i",
+        insight_name="i.md",
+        source_name="r.md",
+        notify=n,
+    )
+    assert res is True
+    assert len(notified) > 0
