@@ -125,8 +125,8 @@ def test_corpus_synthesis_claude_refresh_exception_still_succeeds(config: Distil
 
     with patch("distill.pipeline.synthesis.corpus.llm_call", return_value=_StubResponse("synth")):
         with patch("distill.pipeline.verify.run_synthesis_verify", return_value=False):
-            with patch("distill.library.claude_md.refresh_for_topic", side_effect=Exception("boom")):
+            with patch(
+                "distill.library.claude_md.refresh_for_topic", side_effect=Exception("boom")
+            ):
                 result = synthesize_corpus("ai", config)
     assert "synth" in result
-
-
