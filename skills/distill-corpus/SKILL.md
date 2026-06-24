@@ -1,12 +1,21 @@
 ---
 name: distill-corpus
-description: Query and curate a distillr research corpus - a local directory of plain-Markdown per-source insights, cross-source syntheses, and provenance metadata produced by the distill CLI. Use when the user asks about their research library, a distill topic, or wants to discover/ingest/refresh research sources.
+description: Use when the user refers to their distill research library, a specific topic, asks questions about what the corpus says, wants to "update my notes on X", "find papers about Y in my library", "refresh the topic on Z", "ingest new sources", "audit the corpus", or "discover more on this goal". Teaches reading the plain-file corpus and driving the distill CLI for curation while always verifying against receipts.
 ---
 
 # Working with a distillr research corpus
 
+This skill is distributed as a folder (`distill-corpus/`) containing this
+`SKILL.md`. Drop the whole folder into `~/.claude/skills/` (or equivalent)
+so the agent can discover the resources.
+
 A distillr library is plain files under `library/` - no database, no schema.
 `grep`, `cat`, and `ls` are first-class query primitives.
+
+Core orientation and live examples live in the generated `AGENTS.md` /
+`CLAUDE.md` files inside the corpus (and per-topic). Read those first for the
+current state of a specific library. This file stays small; the corpus itself
+provides the detailed, up-to-date references.
 
 ## Layout
 
@@ -39,6 +48,24 @@ library/
    - `rg "<term>" library/topics/<topic> --glob "*_Insights.md"` - search analysis
    - `rg "<term>" library/topics/<topic> --glob "*_Transcript.txt"` - search raw sources
    - `rg -l 'tags:.*<tag>' library/topics` - find topics/files by tag
+
+## Verification (highest-leverage practice)
+
+Verification skills and habits have the largest measurable impact.
+
+- Every claim an agent makes from the corpus must be traceable to a specific
+  receipt file sitting next to the `_Insights.md` (the `_Transcript.txt`,
+  `_Content.md`, or `_Paper.md`).
+- Prefer `distill ask "<q>" --topic <t> --save` for questions whose answers
+  should compound: it runs the same verify gate used on ingest.
+- Run `distill audit <t>` (free, deterministic) before trusting a body of work.
+  It surfaces verification coverage, staleness, thin transcripts, near-duplicates,
+  contested concepts, and gaps.
+- When writing new prose that cites the corpus, the agent must name the exact
+  file path(s) and be prepared to show the matching span in the receipt.
+
+Use the CLI for all repeatable, deterministic steps (ingest, audit, cost tracking,
+export). Do not re-implement parsing, slugging, or dedup logic in the agent.
 
 ## Curating with the CLI
 
@@ -73,3 +100,22 @@ respect the user's budget. Every run is cost-tracked (`distill costs`).
   source pipeline, not the artifact.
 - **Provenance is the contract.** When citing the corpus, give the file path
   and its `url`/`source_id` so the human can check the receipt.
+
+## Gotchas (from real failure modes)
+
+- Forgetting `--preview` before ingest or `distill discover` leads to surprise
+  spend. Always preview and read the cost estimate.
+- Stale syntheses or prompt versions produce confident but outdated prose.
+  Run `distill audit <topic>` regularly; re-analyze or re-synthesize when
+  flagged.
+- Thin transcripts on long videos. The audit reports duration vs transcript
+  length; do not trust analysis of videos where the transcript looks too short.
+- Treating synthesis as ground truth instead of a map. Always drill to the
+  per-source `_Insights.md` + its receipt file for load-bearing claims.
+- Inconsistent `--topic` names across runs splits the corpus. Pick one slug
+  and stick to it for a research area.
+- Ignoring cost mode. Use `DISTILL_COST_MODE=no-metered` (or `--cost-mode`) when
+  the operator has local or plan-quota routes; otherwise metered routes can
+  activate silently.
+- Prompting the agent to "summarize the insights" without receipts. Force the
+  agent to cite specific files and quote or reference the receipt content.

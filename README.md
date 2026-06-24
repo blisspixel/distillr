@@ -360,7 +360,13 @@ seed files with the same exact-page and shallow-crawl modes as the CLI, and its
 
 **Path 2 — file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives — no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content — `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard — so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
-There's also a canonical **Agent Skill** at [`skills/distill-corpus/SKILL.md`](skills/distill-corpus/SKILL.md) — one vendor-neutral file teaching an agent how to read the corpus and drive the CLI (drop it into `~/.claude/skills/` or `~/.agents/skills/`).
+There's also a canonical **Agent Skill** distributed as the folder
+[`skills/distill-corpus/`](skills/distill-corpus/) (containing `SKILL.md` plus the
+convention for additional resources). Drop the folder into `~/.claude/skills/`
+(or `~/.agents/skills/`). The skill is narrowly scoped to "use a distill corpus
+via its plain files and CLI", emphasizes verification against receipts, carries
+a Gotchas section derived from real failure modes, and uses the generated per-topic
+`AGENTS.md`/`CLAUDE.md` files for progressive disclosure of current state.
 
 ## Cost
 

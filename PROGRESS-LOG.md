@@ -1,5 +1,32 @@
 # Progress Log
 
+## Skills alignment (agent best practices)
+
+- Reviewed the canonical `skills/distill-corpus/SKILL.md` and README guidance on
+  how agents should work with distill corpora.
+- Updated the skill to better match current best practices for skills:
+  - Folder-based distribution (already a `distill-corpus/` folder; now documented
+    as such rather than "one file").
+  - Trigger-oriented description in frontmatter with example user phrasings.
+  - Added explicit high-signal ## Gotchas section drawn from real project
+    failure modes (cost surprises, stale synthesis, thin transcripts, hand-edits,
+    ignoring receipts, topic drift, cost-mode leakage).
+  - Strengthened Verification section as the highest-leverage habit (receipt
+    pairing, `distill audit`, `ask --save`, provenance).
+  - Explicit note to use the distill CLI for deterministic/repeatable work
+    (ingest, audit, export) rather than reimplementing.
+  - Progressive disclosure note: keep this lean; detailed live state and
+    examples are in the generated per-topic `AGENTS.md`/`CLAUDE.md` files that
+    the corpus ships.
+  - Composition note: works alongside per-topic orientation files and MCP.
+- Updated README to describe the skill as a folder and reference the practices
+  (narrow scope, verification focus, gotchas, triggers, progressive disclosure).
+- No behavior change to code or corpus format. Pure documentation and skill
+  content alignment.
+- Ruff and format gates passed. Pure-doc change has no effect on Python test
+  coverage (prior full runs met the 84% floor; targeted doctor runs were clean).
+- External spend: $0.
+
 ## 2026-06-21
 
 ### Cycle 102 - View Command Tests (66% -> 95% Module Coverage)
