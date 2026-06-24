@@ -298,6 +298,21 @@ def test_gemini_cli_json_native_usage_accepts_alternative_keys():
     assert usage.output_tokens == 25
 
 
+def test_grok_json_native_usage_rejects_bad_json():
+    with pytest.raises(AdapterNativeUsageError, match="usage not found"):
+        grok_json_native_usage("not json at all")
+
+
+def test_grok_json_native_usage_rejects_missing_usage():
+    with pytest.raises(AdapterNativeUsageError, match="usage not found"):
+        grok_json_native_usage('{"model": "grok-4.3", "foo": "bar"}')
+
+
+def test_gemini_cli_json_native_usage_rejects_missing_usage():
+    with pytest.raises(AdapterNativeUsageError, match="usage not found"):
+        gemini_cli_json_native_usage('{"model": "gemini"}')
+
+
 def test_grok_json_native_usage_message_wrap_fallback():
     # message level carries tokens directly for the fallback append path
     record = grok_json_native_usage(
