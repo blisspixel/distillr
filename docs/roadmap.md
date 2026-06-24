@@ -133,7 +133,7 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [~] Make the command model more intent-first around staying current, learning fast, and reporting
 - [~] Intent-first aliases or a lightweight wizard for recurring jobs such as monitor, ramp-up, and report
 - [ ] Make source-set inputs feel first-class instead of relying on one-off command choreography
-- [ ] **Zero-key tour / demo path** (from external QA 2026-06-11): a documented first-run that works before any API key - e.g. `--preview` against bundled example seeds plus the public example corpus from the proof-artifacts pass - so evaluation doesn't require setup. Constraint: no new verb (keep-surface-small); this is docs + bundled fixtures + existing flags, not a `demo` command.
+- [x] **Zero-key tour / demo path** (from external QA 2026-06-11): a documented first-run that works before any API key - e.g. `--preview` against bundled example seeds plus the public example corpus from the proof-artifacts pass - so evaluation doesn't require setup. Constraint: no new verb (keep-surface-small); this is docs + bundled fixtures + existing flags, not a `demo` command. Added dedicated section in docs/usage.md.
 - [ ] First-class research profiles for "prefer these channels + these trusted domains + this goal file" workflows so recurring analyst use cases (for example Microsoft-only research) do not require rebuilding the same command and seed setup by hand
 - [ ] Clarify corpus outputs and how to inspect or export them for downstream use
 - [~] Export / handoff presets for downstream agent roles and RAG pipelines (for example zipped MD/JSON bundles with clean metadata, confidence tags, and structured fields that consuming agents can act on without parsing prose)

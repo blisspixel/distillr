@@ -832,6 +832,25 @@ Distill is built to run in a loop or under an agent with no human at the keyboar
 - **No-TTY safety:** when stdin is not a terminal, interactive prompts resolve to their safe default instead of aborting on EOF — a confirmation with no safe default declines (and prints the `--yes` hint), and menu prompts take their listed default. Bare `distill` skips the screen-clear when stdout is piped.
 - **Exit codes** (above) distinguish config (3) and network (4) failures from generic runtime errors (1), so a loop can branch on the cause.
 
+## Zero-key tour / demo path
+
+Evaluation does not require API keys. Use `--preview` (or `--seed-only --preview`) against the bundled example seeds plus the example corpus shipped in `examples/`. These paths exercise discovery planning, site seed resolution, and corpus reading without any LLM analysis spend or keys.
+
+```bash
+# Zero-key preview of bundled site seeds (no analysis)
+distill site-batch configs/example_seeds.json --topic demo --seed-only --preview
+
+# Inspect the public example corpus (no keys needed)
+distill --help
+distill library --json   # or open examples/ in your editor/Obsidian
+
+# Read the example corpus orientation (generated AGENTS.md / CLAUDE.md style)
+ls examples/library/topics/
+cat examples/library/topics/*/AGENTS.md | head -20
+```
+
+The example seeds and corpus let you walk the preview, plan, and read surfaces with zero setup beyond the install. Full analysis paths still require keys or a local model server.
+
 ## Updating distill
 
 ```bash

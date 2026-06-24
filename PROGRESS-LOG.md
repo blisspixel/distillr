@@ -2836,3 +2836,12 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - Advances [~] "Projected next-run cost by workflow, not just historical spend" in docs/roadmap.md section 2.
 - TDD, simple no-slop change per quality standards.
 - Full ruff/format, targeted pytest clean.
+
+### Cycle 25 - Zero-key tour / demo path (roadmap productize)
+
+- External spend: `$0.00`.
+- Added dedicated "Zero-key tour / demo path" section in docs/usage.md documenting `--preview` on bundled example seeds and the public example corpus in examples/ (no keys, no new verb, per constraint).
+- Updated docs/roadmap.md to mark the item [x].
+- This is docs + bundled fixtures + existing flags as specified.
+- Ruff/format clean (docs change). Advances the [ ] item in 3. Productize.
+- References: roadmap, external QA note.
