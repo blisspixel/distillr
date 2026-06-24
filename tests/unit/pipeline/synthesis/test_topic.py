@@ -235,6 +235,23 @@ def test_synthesize_topic_writes_verify_sidecar(tmp_path):
     assert any(c["token"] == "88.8" for c in data["unsupported"])
 
 
+def test_synthesize_topic_claude_refresh_raises_swallowed(tmp_path):
+    """Covers the except around claude refresh (256-257)."""
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    for name in ["C1", "C2"]:
+        d = config.channel_dir("ai", name)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "synthesis.md").write_text("# s", encoding="utf-8")
+
+    with (
+        patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("synth")),
+        patch("distill.library.claude_md.refresh_for_topic", side_effect=Exception("boom")),
+    ):
+        result = synthesize_topic("ai", config)
+
+    assert result == "synth"
+
+
 def test_synthesize_topic_strict_refuses_flagged_write(tmp_path):
     """strict mode refuses the write and keeps any prior synthesis in place."""
     config = DistillConfig(
