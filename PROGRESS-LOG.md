@@ -228,6 +228,15 @@
 - Validation (free/local): ruff check/format clean; full suite `2689 passed`;
   overall coverage 83.98% at floor 83.
 
+### Cycle 104 - Pipeline costs core branch ratchet (Budget, route, load, report paths)
+
+- External spend: `$0.00`.
+- Added focused tests exercising remaining branches in `distill/pipeline/costs.py`:
+  BudgetExceededError small/large formatting + raise path, `_route_class` included-plan + no-metered, `report_deep_research_estimate(include=False)`, `load_cost_calibration` missing-file and bad-JSON paths.
+- Module branch coverage on costs moved significantly higher (core cost projection / ledger / no-metered surface).
+- All changes test-only, structural, TDD. Ruff/format/pytest gates re-run clean (full non-integration + cov floor).
+- Commit: 8ee43c8. Main kept releasable.
+
 ### Next
 
 - Branch coverage ratchet toward 95%: `mcp/tools/summaries.py`, `commands/audit.py`,
