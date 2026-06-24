@@ -3167,16 +3167,6 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Validation: pyright 0, ruff clean.
 - Ship: commit.
 
-### Cycle 114 - Pyright strict on doctor/checks.py (1.0 ratchet)
-
-- External spend: $0.00.
-- Added # pyright: strict + ignores with reasons for unused funcs (dynamic call from doctor cmd) and genai unknown (third party).
-- 0 errors.
-- First step outside llm/ for strict ratchet.
-- References: roadmap 1.0 pyright-strict.
-- Validation: pyright 0, ruff clean.
-- Ship: commit.
-
 ### Cycle 115 - Pyright strict on pipeline/costs.py (1.0 ratchet)
 
 - External spend: $0.00.
@@ -3187,12 +3177,22 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - References: roadmap 1.0 pyright-strict.
 - Ship: commit.
 
-### Cycle 115 - Pyright strict on pipeline/costs.py (1.0 ratchet)
+### Cycle 116 - Cov floor ratchet 86 -> 87
 
 - External spend: $0.00.
-- Added # pyright: strict + future annotations, casts for dicts, list[str].
-- 0 errors.
-- Ruff clean, tests 38 pass.
-- Second non-llm strict.
-- References: roadmap 1.0 pyright-strict.
+- Full filtered run measured 88.50% (exit 0 on under=86).
+- Bumped --cov-fail-under=87 in .github/workflows/ci.yml (and comment), SKILLS.md, docs/CONTRIBUTING.md (3 places), AGENTS.md.
+- Per SKILLS: up-only from CI total, preserve ~1pt headroom.
+- Validation: ruff check/format clean; prior full run confirms >87.
+- Self-review: simple threshold+comment, no slop.
+- Ship: commit.
+
+### Cycle 116 - Cov floor ratchet 86 -> 87
+
+- External spend: $0.00.
+- Full filtered run measured 88.50% (exit 0 on under=86).
+- Bumped --cov-fail-under=87 in .github/workflows/ci.yml (and comment), SKILLS.md, docs/CONTRIBUTING.md (3 places), AGENTS.md.
+- Per SKILLS: up-only from CI total, preserve ~1pt headroom.
+- Validation: ruff check/format clean; prior full run confirms >87.
+- Self-review: simple threshold+comment, no slop.
 - Ship: commit.

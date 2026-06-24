@@ -815,3 +815,5 @@ Cycle 113 extension: more native usage error tests, 88% (0.19).
 Cycle 114: pyright strict on doctor/checks.py (1.0 ratchet start).
 
 Cycle 115: pyright strict on costs.py (1.0 ratchet).
+
+Cycle 116: cov floor ratchet 86->87 (measured 88.50%). TDD/gates.
