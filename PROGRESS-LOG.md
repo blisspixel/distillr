@@ -3127,3 +3127,23 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - References: roadmap 0.19 billing preflights / adapter doctor.
 - Validation: ruff clean after fix, targeted tests.
 - Ship: commit.
+
+### Cycle 112 - Harness run test with adapter model (0.19 eval)
+
+- External spend: \.00.
+- Included 'adapter:grok-4.3' in test_run_model_eval_scores_costs_and_judges.
+- Updated len asserts (rows 9, judged 6).
+- Covers adapter in full eval flow.
+- References 0.19.3.
+- Validation: pass, clean.
+- Ship: commit.
+
+### Cycle 112 - Harness run test with adapter model (0.19 eval)
+
+- External spend: \.00.
+- Included 'adapter:grok-4.3' in test_run_model_eval_scores_costs_and_judges.
+- Updated len asserts (rows 9, judged 6).
+- Covers adapter in full eval flow.
+- References 0.19.3.
+- Validation: pass, clean.
+- Ship: commit.
