@@ -76,13 +76,20 @@ def test_synthesize_topic_saves_output(tmp_path):
         channel_dir.mkdir(parents=True, exist_ok=True)
         (channel_dir / "synthesis.md").write_text(f"# {name}", encoding="utf-8")
 
+    # extra non-synth dir to hit continue in _gather_channel_syntheses
+    no = config.channel_dir("ai", "NoSynth")
+    no.mkdir(parents=True, exist_ok=True)
+
+    tracker = CostTracker()
     with patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("topic synthesis")):
-        result = synthesize_topic("ai", config)
+        result = synthesize_topic("ai", config, tracker=tracker)
 
     assert result == "topic synthesis"
     output = find_artifact(config.topic_dir("ai"), "topic_synthesis", identity="ai")
     assert output.name == "ai_Topic_Synthesis.md"
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "topic synthesis"
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].call_type == "topic_synthesis"
 
 
 def test_synthesize_topic_handles_api_exception(tmp_path):
