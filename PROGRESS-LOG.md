@@ -2845,3 +2845,12 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - This is docs + bundled fixtures + existing flags as specified.
 - Ruff/format clean (docs change). Advances the [ ] item in 3. Productize.
 - References: roadmap, external QA note.
+
+### Cycle 26 - Corpus synthesis branch tests (cov ratchet on core)
+
+- External spend: `$0.00`.
+- Added tests in test_two_pass_synthesis for synthesize_corpus branches: verify strict return "", only-paper skip, no-sources return "".
+- Raises distill.pipeline.synthesis.corpus cov ~54% -> 60%.
+- Per SKILLS: lowest-covered CORE (pipeline first); real behavior tests.
+- 5/5 in file pass, ruff/format clean.
+- Advances 1.0 quality bar.
