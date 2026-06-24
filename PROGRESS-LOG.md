@@ -3196,3 +3196,25 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Validation: ruff check/format clean; prior full run confirms >87.
 - Self-review: simple threshold+comment, no slop.
 - Ship: commit.
+
+### Cycle 117 - Cov floor ratchet 87 -> 88 (measured 89.47%)
+
+- External spend: $0.00.
+- Follow-up run measured 89.47% (exit 0 on under=88).
+- Bumped --cov-fail-under=88 (from 87) in ci.yml, SKILLS, CONTRIBUTING (3), AGENTS.
+- Updated ci comment.
+- Per SKILLS: bump from measured total, preserve headroom (~1.5pt).
+- Validation: ruff/format clean; pytest under=88 passed 89.47%.
+- Self-review: exact per ratchet rule, no slop.
+- Ship: commit.
+
+### Cycle 117 - Cov floor ratchet 87 -> 88 (measured 89.47%)
+
+- External spend: $0.00.
+- Follow-up run measured 89.47% (exit 0 on under=88).
+- Bumped --cov-fail-under=88 (from 87) in ci.yml, SKILLS, CONTRIBUTING (3), AGENTS.
+- Updated ci comment.
+- Per SKILLS: bump from measured total, preserve headroom (~1.5pt).
+- Validation: ruff/format clean; pytest under=88 passed 89.47%.
+- Self-review: exact per ratchet rule, no slop.
+- Ship: commit.
