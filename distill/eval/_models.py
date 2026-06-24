@@ -22,6 +22,8 @@ def provider_for_model(model: str) -> str:
         return "anthropic"
     if m.startswith(("gpt", "o1", "o3")):
         return "openai"
+    if m.startswith("adapter:"):
+        return "adapter"
     return "ollama"
 
 
