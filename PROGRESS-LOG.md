@@ -3109,3 +3109,21 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Validation: ruff/format, pytest targeted pass.
 - Self-review: Strong, minimal extension.
 - Ship: commit follows.
+
+### Cycle 111 - Doctor checks direct branch tests (0.19)
+
+- External spend: $0.00.
+- Added direct tests for check_retired_models and _doctor_key_auth_rejected variants.
+- Covers branches in checks.py for doctor/adapter preflights.
+- References: roadmap 0.19 billing preflights / adapter doctor.
+- Validation: ruff clean after fix, targeted tests.
+- Ship: commit.
+
+### Cycle 111 - Doctor checks direct branch tests (0.19)
+
+- External spend: \.00.
+- Added direct tests for check_retired_models and _doctor_key_auth_rejected variants.
+- Covers branches in checks.py for doctor/adapter preflights.
+- References: roadmap 0.19 billing preflights / adapter doctor.
+- Validation: ruff clean after fix, targeted tests.
+- Ship: commit.

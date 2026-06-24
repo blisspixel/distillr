@@ -800,3 +800,8 @@ Current observable state:
 
 Cycle 104-106: ledger+multipass 100%. 107: eval adapter free. TDD, gates. Continuing.
 Cycle 108: native_usage parsers test coverage +87% for grok/gemini/antigravity (0.19). 27 tests. TDD/gates. Continuing.
+Cycle 109: adapter_runner blocked paths +87%. 0.19. Gates. Continuing.
+
+Cycle 110: harness test for adapter in local priced zero path (0.19 eval). TDD/gates.
+
+Cycle 111: doctor checks direct tests for 0.19. TDD/gates.
