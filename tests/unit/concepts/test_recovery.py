@@ -386,3 +386,15 @@ class TestRollback:
         assert result.backup_path is None  # nothing live to back up
         restored = recovery.note_path_for_slug(history_topic, "rotational_embedding")
         assert restored is not None and restored.is_file()
+
+
+def test_safe_ts_to_iso_no_t_returns_unchanged():
+    assert recovery.safe_ts_to_iso("2026-05-29") == "2026-05-29"
+
+
+def test_is_safe_slug_rejects_bad():
+    assert not recovery._is_safe_slug("")
+    assert not recovery._is_safe_slug("a/b")
+    assert not recovery._is_safe_slug("..")
+    assert not recovery._is_safe_slug("a\x00b")
+    assert recovery._is_safe_slug("rotational_embedding")
