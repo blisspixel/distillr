@@ -326,6 +326,13 @@
 - 95% topic (remaining 51,54,96,152 in gather).
 - Commit d3fe29b.
 
+### Cycle 124 - Synthesis topic v1 without insights
+
+- External spend: `$0.00`.
+- Added v1 dir without insights.md to hit if not exists continue in gather (54).
+- 97% topic (remaining 38-43,96,152).
+- Commit 14f7f67.
+
 ### Cycle 120 - Synthesis topic non dir in videos
 
 - External spend: `$0.00`.
