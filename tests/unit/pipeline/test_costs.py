@@ -265,6 +265,24 @@ def test_projected_next_run_cost():
     assert projected_next_run_cost([]) == 0.0
     assert projected_next_run_cost([{"command": "x_preview", "actual_cost": 1}]) == 0.0
 
+    # zero cost and non-numeric skipped; caps at last 5 qualifying
+    entries6 = [
+        {"command": "a", "actual_cost": 0.01},
+        {"command": "b", "actual_cost": 0.02},
+        {"command": "c", "actual_cost": 0.03},
+        {"command": "d", "actual_cost": 0.04},
+        {"command": "e", "actual_cost": 0.05},
+        {"command": "f", "actual_cost": 0.06},
+        {"command": "g", "actual_cost": 0},  # skipped
+        {"command": "h", "actual_cost": "nan"},  # skipped non num
+    ]
+    proj6 = projected_next_run_cost(entries6)
+    # last 5 non-zero: 0.02..0.06 avg 0.04
+    assert abs(proj6 - 0.04) < 0.0001
+
+    # only zero-cost entries -> 0
+    assert projected_next_run_cost([{"command": "z", "actual_cost": 0.0}]) == 0.0
+
 
 def test_save_run_log_writes_to_ops_dir(tmp_path):
     """save_run_log writes to <log_dir>/.distill/cost_log.jsonl."""

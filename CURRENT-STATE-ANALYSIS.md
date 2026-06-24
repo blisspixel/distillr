@@ -766,3 +766,36 @@ Current state:
 Highest-leverage next atomic tasks per docs: (1) complete native-usage parsers + tests for the three missing adapters (advances 0.19 ledger + preflight wiring, purely structural), (2) targeted coverage on remaining low modules or doctor/, (3) any strict contract enforcement or context-engineering compliance items. All changes test-first, local-validated only, ruff+format+pytest at gate, agentic-balance pre-check.
 
 Loop enters permanent grinding mode. No further questions unless true quality or $5 blocker.
+
+## 2026-06-23 Full Autonomous Startup (this session loop launch)
+
+Re-read and fully internalized every required document per prompt and SKILLS.md:
+- README.md (vision, 8 sources, corpus shape, MCP vs FS+skill paths, canonical skills/distill-corpus/, cost, reliability, verification, zero-key tour note)
+- ROADMAP.md + docs/roadmap.md (0.19 [~] routing/ledger/eval after wiring; 1.0 quality bar: cov ratchet >=95% branch core-first, pyright-strict, parse-dont-validate, verification depth; agentic surface map; no-brittle-junk charter verbatim; release/harden rhythm; dogfood; invariants)
+- docs/CONTRIBUTING.md (exact quality gates: ruff check + format --check, pytest --cov-fail-under=84 branch; pre-commit; context eng rules; PR hygiene; no long branches)
+- docs/invariants.md (8 hard invariants, esp #6 LLM proposes/Python decides, #8 verification gates, #1 markdown truth)
+- docs/design/agentic-balance.md (workflow spine, model at leaves for semantic, Python structural/ground-truth/receipts/verifiers/approval/stop conditions; judgment-then-rule pattern; loop admission test; failure modes)
+- docs/design/model-judgment-vs-brittle-fallbacks.md (P1-P4 fixes; router not xai_key gate; honest degrade label; no proxy scores)
+- AGENTS.md + SKILLS.md (style: no emoji/emdash/attribution; gates before handoff; generated outputs only; provider truth; agentic balance rules; cov target core first pipeline/library/concepts/llm/ingestors; $5 cap; adapter strict contracts; paths/previews; re-read key at cycle 0)
+- skills/distill-corpus/SKILL.md + gotchas.md (folder distro, trigger-oriented frontmatter with user phrasings, Verification highest-leverage section with receipts/audit/ask--save, CLI for deterministic, progressive disclosure via generated AGENTS/CLAUDE, gotchas from real fails, compose)
+- pyproject.toml (branch=true cov, ruff C901=10, select rules, dev group)
+- docs/usage.md (zero-key tour section)
+- PROGRESS-LOG.md + prior CURRENT + source for state (adapter doctor full wiring parsers/writers/defaults for grok/gemini/antigravity + tests, projected costs in costs/maintain, skills updates, cov gains on synthesis/multipass/commands)
+- Other specs: docs/architecture.md principles, design/recurring-profiles-cost-routing.md, cli-adapter-runbook.md
+
+**Perfect alignment confirmed with vision and standards.** 
+- Product: verified plain-MD research corpus (not memory/RAG/hosted), acquisition + trust spine, agent legibility via FS + MCP + canonical skill folder (narrow, verification, gotchas, triggers, disclosure), fresh sources always, cost mode no-metered fail-closed.
+- Agentic: exactly structural (schemas, receipts, cost refusal, verifiers, action ids, ledgers) vs semantic (fit/novelty/faithfulness); Python aggregates/gates per-criterion verdicts. No brittle proxies added or present.
+- Quality: gates, ratchet, TDD, core-first, context eng, main clean, no machine lines. All recent work matches (structural only for 0.19 ledger/adapters, cov tests, docs).
+- No deviations. Generated corpus/AGENTS treated as outputs only.
+
+**Zero questions.** Priorities, standards, and vision are unambiguous from the docs. No need to ask. Entered permanent silent grinding mode.
+
+Current observable state:
+- Git: main, ahead ~26, clean (untracked agent-tools/coverage ignored).
+- 0.19: profile+no-metered core + adapter wiring (native parsers, capture writers for codex/claude/grok/gemini/antigravity, defaults, ledger, workload runner) complete per summary; remaining [~] vendor support/auth/eval graduation + cross-route.
+- Quality: floor 84 branch, actual high 88-89% from command+core ratchets (synthesis/corpus ~84, multipass 85+, many commands 95-100%).
+- Spend: $0.00 visible this cycle / session (loop lifetime ~$0.06 of $5 cap). All validation free/local (ruff/format/pytest).
+- Focus per docs/SKILLS/roadmap: 1.0 quality cov ratchet on lowest remaining core (pipeline/library/... first); complete 0.19 structural slices (eval integration, ledger tests); keep main releasable.
+
+Startup actions executed. Launching strict loop now.
