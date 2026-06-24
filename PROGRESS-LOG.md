@@ -3176,3 +3176,23 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - References: roadmap 1.0 pyright-strict.
 - Validation: pyright 0, ruff clean.
 - Ship: commit.
+
+### Cycle 115 - Pyright strict on pipeline/costs.py (1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict + future annotations, casts for dicts, list[str].
+- 0 errors.
+- Ruff clean, tests 38 pass.
+- Second non-llm strict.
+- References: roadmap 1.0 pyright-strict.
+- Ship: commit.
+
+### Cycle 115 - Pyright strict on pipeline/costs.py (1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict + future annotations, casts for dicts, list[str].
+- 0 errors.
+- Ruff clean, tests 38 pass.
+- Second non-llm strict.
+- References: roadmap 1.0 pyright-strict.
+- Ship: commit.

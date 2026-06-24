@@ -813,3 +813,5 @@ Cycle 113: eval harness stubs adapter for default (0.19 graduation). TDD/gates.
 Cycle 113 extension: more native usage error tests, 88% (0.19).
 
 Cycle 114: pyright strict on doctor/checks.py (1.0 ratchet start).
+
+Cycle 115: pyright strict on costs.py (1.0 ratchet).
