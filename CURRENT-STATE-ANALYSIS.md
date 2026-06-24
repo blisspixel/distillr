@@ -794,8 +794,8 @@ Re-read and fully internalized every required document per prompt and SKILLS.md:
 Current observable state:
 - Git: main, ahead (several), clean (only untracked agent-tools/cov artifacts).
 - 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; ledger bridge now 100% branch tested; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
-- Quality: floor 86 (ratchet in progress); adapter_ledger.py 33%->100%; multipass 85%->95% branch (core pipeline first). Continue core-first.
-- Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest targeted).
-- Focus: 0.19 remaining (eval, support statements, cross-route); 1.0 cov ratchet >=95% core-first + pyright + parse-don't-validate; keep main clean/releasable.
+- Quality: floor 86 (ratchet); adapter_ledger 100%; multipass pipeline 100% branch (core). Strong progress on 1.0.
+- Spend: $0.00 (lifetime ~$0.06 of $5).
+- Focus: 0.19 eval graduation; 1.0 ratchet continue core + pyright/parse-dont-validate; main clean.
 
-Cycle 104: 100% on adapter_ledger. Cycle 105: multipass to 95% branch. TDD, gates clean, $0. Continuing silent loop. Re-reads at start. Perfect alignment.
+Cycle 104: ledger 100%. 105-106: multipass 100% branch. TDD + gates. Re-reads. Alignment perfect. Continuing.

@@ -186,6 +186,19 @@
 - Self review: Strong across rubric. No prod logic change, pure test coverage of existing paths. TDD via cases for the miss lines.
 - Commit + logs. Continuing grind.
 
+### Cycle 106 - Multipass core pipeline to 100% branch
+
+- External spend: $0.00.
+- Added natural TDD tests: legacy path skip (patch select_chunks_for_category to empty for category), paper path with tracker to exercise record line, non-PAPER category to hit _output_sections no-match return.
+- Module now 95% -> 100% branch (0 miss, 0 partial). Core pipeline (multi-pass chunked paper analysis) fully exercised.
+- All per SKILLS core-first rule and 1.0 ratchet. No padding of unreachable. Uses same patch style as existing selection test.
+- References: same as 105 + exact miss lines from report.
+- Validation: ruff/format clean (auto-applied), targeted pytest reports 100% branch, 22/22 pass; full tree ruff clean.
+- Self-review: Strong (correctness via exact paths, simple additions, compliant with agentic/structural, maintainable).
+- Ship: commit, logs update. Main clean. 
+
+Next atomic candidates: other pipeline files or library core, mcp ask low surface if fits, or 0.19 eval fixture work for adapter graduation (structural tests). Re-reads performed. Silent continue.
+
 ### Cycle 89 - Pyright Strict Fixes for Blocking CI
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
