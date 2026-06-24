@@ -277,6 +277,13 @@
 - Covers the last branches in run_synthesis_verify. Verify 99% (one branch edge).
 - Tests pass, gates clean. Commit 79b4605.
 
+### Cycle 113 - Pipeline verify strict synthesis
+
+- External spend: `$0.00`.
+- Added strict mismatch test for refused=True path.
+- Still 99% (the 368->370 edge remains, likely measurement or rare arm).
+- 68 passed. Commit d0e4cf5.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
