@@ -825,3 +825,5 @@ Cycle 118: pyright strict on profiles.py (1.0 ratchet, 0.19).
 Cycle 119: cov floor ratchet 88->89 (89.15%). TDD/gates.
 
 Cycle 120: pyright strict on adapter_ledger.py (1.0, 0.19).
+
+Cycle 121: pyright: strict added to distill/doctor/adapters.py (the central SupportStatement / AdapterSpec / probe logic for codex/claude/grok/gemini/antigravity/copilot). 0 errors after future annotations, Any, ignore comments for default_factory, cast for flatten loop vars (Mapping/list from Any/object). Ruff/format clean; doctor tests pass; full suite gate passed at 89.51% under=89. Pure 1.0 ratchet on 0.19 adapter-doctor surface. No behavior or test delta. External spend $0. Main clean.

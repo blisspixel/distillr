@@ -3250,3 +3250,17 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - 0.19 relevant, fourth non-llm.
 - References: roadmap 1.0 pyright-strict.
 - Ship: commit.
+
+### Cycle 121 - Pyright strict on doctor/adapters.py (0.19 doctor + 1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict to distill/doctor/adapters.py.
+- Fixed: future annotations import, Any for dicts, # pyright: ignore for default_factory Unknowns (per costs.py pattern), cast on Mapping/list iteration in _flatten_config_keys to satisfy reportUnknown*.
+- 0 pyright errors.
+- Full ruff check + format --check clean.
+- Doctor tests 177 passed.
+- Full gate: pytest -q --cov=distill --cov-fail-under=89 passed (89.51%, 3101 passed).
+- Advances 1.0 pyright-strict ratchet on adapter doctor surface (0.19 wiring/ledger/doctor layer) and keeps main releasable.
+- No behavior change.
+- References: docs/roadmap.md 0.19 billing preflights/support + 1.0 pyright, SKILLS core pyright, AGENTS.md gate, agentic-balance (structural).
+- Ship: commit + logs.

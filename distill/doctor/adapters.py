@@ -1,4 +1,7 @@
+# pyright: strict
 """Read-only doctor checks for candidate CLI model adapters."""
+
+from __future__ import annotations
 
 import json
 import os
@@ -8,7 +11,7 @@ import tomllib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.doctor.adapter_manifest import adapter_result_manifest_contract
 from distill.doctor.adapter_native_usage import adapter_native_usage_contract
@@ -107,17 +110,17 @@ class AdapterProbe:
     no_metered_candidate: bool
     no_metered_eligible: bool
     support_statement: str
-    support_statement_detail: dict[str, object] = field(default_factory=dict)
+    support_statement_detail: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as dict[Unknown] under strict; to_dict usage confirms shape"
     version: str = ""
     auth_mode: str = "unknown"
-    auth_evidence: list[str] = field(default_factory=list)
-    config_files_checked: list[str] = field(default_factory=list)
-    config_files_found: list[str] = field(default_factory=list)
-    missing_flags: list[str] = field(default_factory=list)
-    env_blockers_present: list[str] = field(default_factory=list)
-    blocked_reasons: list[str] = field(default_factory=list)
+    auth_evidence: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; to_dict + construction confirms list[str]"
+    config_files_checked: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
+    config_files_found: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
+    missing_flags: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
+    env_blockers_present: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
+    blocked_reasons: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "binary": self.binary,
@@ -152,7 +155,7 @@ class AdapterDoctorReport:
     def no_metered_ready(self) -> list[str]:
         return [probe.name for probe in self.adapters if probe.no_metered_eligible]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "no_metered_ready": self.no_metered_ready,
@@ -641,17 +644,17 @@ def _config_marker_keys(path: Path) -> set[str]:
     return _flatten_config_keys(parsed)
 
 
-def _flatten_config_keys(value: Any, prefix: str = "") -> set[str]:
+def _flatten_config_keys(value: object, prefix: str = "") -> set[str]:
     keys: set[str] = set()
     if isinstance(value, Mapping):
-        for key, child in value.items():
-            key_text = str(key)
+        for raw_key, raw_child in cast("Mapping[object, object]", value).items():  # pyright: ignore[reportUnknownVariableType]
+            key_text: str = str(raw_key)
             full_key = f"{prefix}.{key_text}" if prefix else key_text
             keys.add(full_key)
-            keys.update(_flatten_config_keys(child, full_key))
+            keys.update(_flatten_config_keys(raw_child, full_key))
     elif isinstance(value, list):
-        for item in value:
-            keys.update(_flatten_config_keys(item, prefix))
+        for raw_item in cast(list[object], value):  # pyright: ignore[reportUnknownVariableType]
+            keys.update(_flatten_config_keys(raw_item, prefix))
     elif isinstance(value, str):
         keys.add(value)
     return keys
