@@ -291,6 +291,13 @@
 - Topic 82%->84% branch (some missing remain in gather/video link).
 - 13 passed for topic. Commit 5cf7e1e.
 
+### Cycle 115 - Synthesis topic video link metadata
+
+- External spend: `$0.00`.
+- Added metadata.json to test to hit json load, if dict, get title/id in _video_link_header (36-42).
+- Topic 84%->88% (gather branches remain).
+- Commit 8071a35.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
