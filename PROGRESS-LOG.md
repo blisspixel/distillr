@@ -2794,6 +2794,15 @@
 - References SKILLS.md "pick coverage targets from fresh measurement, lowest-covered CORE", roadmap 1.0 quality bar.
 - 16 runner tests, ruff/format clean.
 
+### Cycle 22 - Ledger test for new plan-quota adapters (usage ledger advance)
+
+- External spend: `$0.00`.
+- Added test_adapter_manifest_ledger_record_supports_new_plan_quota_adapters using grok manifest (adapter="grok", included-plan, native).
+- Exercises token usage, metadata, zero-dollar for post-wiring adapters.
+- Advances "Complete usage ledger" remaining (eval still) per docs/roadmap.md 0.19 and SKILLS "ledger helper".
+- Doctor cov 85.23% >84, ruff/format/pytest clean.
+- TDD, structural (no semantic), follows agentic-balance.
+
 ### Cycle 19 - SKILLS.md update for new capture writers (0.19 docs)
 
 - External spend: `$0.00`.
@@ -2807,3 +2816,13 @@
 Completed parsers + capture writers + runner default binding + tests + SKILLS docs for grok/gemini-cli/antigravity native usage collection and wiring. This fulfills the "native usage collection and capture wiring for Grok, Gemini, and Antigravity" remaining item in 0.19 billing preflights / complete usage ledger (per ROADMAP and docs/roadmap). All structural, tested, gated locally with $0 spend. 
 
 Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 items such as cross-route eval or coverage ratchet on synthesis/corpus).
+
+### Cycle 23 - Skill folder with sub-resource for progressive disclosure (best practices)
+
+- External spend: `$0.00`.
+- Created skills/distill-corpus/gotchas.md with the gotchas content.
+- Updated SKILL.md to point to it (lean core, reference extra file).
+- Folder now `SKILL.md` + `gotchas.md` - demonstrates folder + resources + progressive disclosure.
+- Further aligns with best practices (narrow, gotchas, disclosure, verification).
+- Ruff/format clean. Committed.
+- References: skills alignment cycle.
