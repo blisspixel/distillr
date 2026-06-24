@@ -283,9 +283,8 @@
   argv shapes, staged prompt paths, schema paths, result capture paths, and
   allowed scratch capture files, but a command plan is not eligible while
   blockers remain. Codex, Claude, Grok, Gemini, and Antigravity read-only
-  plans are blocked until support proof, auth proof, and eval route gates
-  exist. Grok, Gemini, and Antigravity also still need adapter-specific native
-  usage capture.
+  plans are blocked until support proof, auth proof, native schema enforcement
+  where the CLI supports it, and eval route gates exist.
 - Use `distill.doctor.adapter_commands.inline_adapter_command_schema()` to
   materialize Claude schema paths into argv only after the schema file is
   staged inside scratch and parsed as a JSON object.

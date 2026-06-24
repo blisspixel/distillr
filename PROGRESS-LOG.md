@@ -1,5 +1,25 @@
 # Progress Log
 
+## 2026-06-24
+
+### Cycle 123 - Roadmap Truth Refresh And Eval Docs
+
+- External spend: $0.00.
+- Re-read README, ROADMAP, roadmap details, agentic-balance, route
+  orchestration, cost routing, adapter runbook, usage docs, changelog, current
+  state, progress log, and the relevant adapter, eval, profile, and doctor code.
+- Refreshed online best practices from Anthropic long-running harness and
+  context-engineering guidance, OpenAI traces/evals/Codex loop guidance, the
+  latest MCP spec, and current Codex CLI docs.
+- Found the live code already has Grok, Gemini CLI, and Antigravity native usage
+  parsers plus capture writers. Removed stale blocker language from `SKILLS.md`
+  and corrected `docs/usage.md`.
+- Corrected `distill eval` user docs so they match the implemented model-judged
+  gate: source faithfulness veto, pairwise at-par migration proof, deterministic
+  composite and threshold as advisory diagnostics only.
+- Current assessment: roughly 88% to 0.19.0. Remaining work is support/auth
+  proof, native schema enforcement where available, and eval route graduation.
+
 ## Skills alignment (agent best practices)
 
 - Reviewed the canonical `skills/distill-corpus/SKILL.md` and README guidance on

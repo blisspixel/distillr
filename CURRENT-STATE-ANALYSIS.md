@@ -1,5 +1,69 @@
 # Current State Analysis
 
+## 2026-06-24 Refresh
+
+I re-read `README.md`, `ROADMAP.md`, `docs/roadmap.md`,
+`docs/design/agentic-balance.md`, `docs/design/version-architecture.md`,
+`docs/design/recurring-profiles-cost-routing.md`,
+`docs/design/route-orchestration.md`, `docs/invariants.md`,
+`docs/design/model-judgment-vs-brittle-fallbacks.md`, `docs/usage.md`,
+`docs/cost.md`, `docs/design/cli-adapter-runbook.md`, `pyproject.toml`,
+`docs/CHANGELOG.md`, this file, `PROGRESS-LOG.md`, and the relevant adapter,
+eval, route-orchestration, profile, and doctor code plus tests.
+
+Perfect alignment still holds. The product remains a verified plain-Markdown
+research corpus, not a memory layer, hosted RAG system, or scheduler. The
+agentic-balance rule is also intact: Python owns schemas, receipts, path safety,
+cost refusal, ledgers, exact command shapes, and verifier stop conditions;
+models judge semantic fit, faithfulness, at-par quality, synthesis, and
+contradictions, with Python aggregating verdicts.
+
+External research refresh, spend `$0.00`:
+
+- Anthropic's long-running agent harness guidance says agents need persistent
+  progress files, clean incremental commits, single-feature focus, and real
+  verification before marking work done:
+  https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
+- Anthropic's context-engineering guidance treats context as finite and pushes
+  just-in-time curation over broad always-loaded payloads:
+  https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+- OpenAI's agent improvement loop cookbook confirms the traces plus evals plus
+  harness-change loop Distill is already moving toward:
+  https://developers.openai.com/cookbook/examples/agents_sdk/agent_improvement_loop
+- The latest MCP specification is still the standard context and tool protocol,
+  with explicit user consent, tool safety, and data privacy responsibilities:
+  https://modelcontextprotocol.io/specification/2025-11-25
+- Current Codex CLI docs say ChatGPT Plus, Pro, Business, Edu, and Enterprise
+  plans include Codex, but Distill is right to keep no-metered routing
+  fail-closed until its own support, auth, ledger, and eval proof exists:
+  https://developers.openai.com/codex/cli
+
+Assessment to the next product version, assuming the next version is 0.19.0:
+about **88%**. Profile artifacts, cost-mode policy, zero-dollar ledger rows,
+adapter doctor scaffolding, strict workload/native-usage/result contracts,
+scratch runner primitives, command planners, adapter-specific capture for
+Codex, Claude, Grok, Gemini CLI, and Antigravity, and route-orchestration
+primitives are present. The remaining 12% is intentionally hard: current
+official no-metered support statements, installed-session auth proof where no
+safe command proof exists, native schema enforcement where the CLI exposes it,
+and `distill eval` route graduation for any plan-quota route. I would not call
+it 95% because no plan-quota route should become eligible until those gates pass.
+
+What is next and why:
+
+1. Keep truth surfaces exact. Stale docs that say native usage capture is still
+   missing are dangerous because they push work toward solved infrastructure
+   instead of the real gates.
+2. Wire eval-driven route graduation around the existing route orchestration
+   primitives. This is the highest leverage local work because it turns adapter
+   manifests and captured usage into an actual promotion gate without relaxing
+   the no-metered fail-closed policy.
+3. Gather support and auth proof only when vendors expose a reliable local
+   signal. This is the only part that is partly outside repository control.
+4. Continue 1.0 ratchets in parallel: pyright strict on load-bearing modules,
+   coverage floor movement with headroom, parse-don't-validate boundaries, and
+   verification depth.
+
 Status note from the autonomous roadmap loop on 2026-06-19.
 
 ## Read Scope
@@ -759,7 +823,7 @@ Current state:
 - 0.18.2 released.
 - Many command modules at 95-100% branch coverage via prior cycles.
 - 0.19 profile + no-metered core wired (preview, run, cost-mode, zero-dollar rows, reporting).
-- Remaining [~] critical for graduation: native usage collection + wiring for grok/gemini-cli/antigravity, full billing preflights (installed auth proof where needed), support statements (vendor), cross-route eval integration, adapter doctor completeness.
+- Remaining [~] critical for graduation: full billing preflights (installed auth proof where needed), support statements (vendor), native schema enforcement where available, cross-route eval integration, and adapter doctor completeness.
 - Coverage floor 84, actual ~88-89%; ratchet toward 95% (core first).
 - External spend this session: $0.00 (lifetime loop ~$0.06 of $5.00).
 

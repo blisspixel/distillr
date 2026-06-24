@@ -166,7 +166,6 @@ def test_grok_command_plan_records_read_only_argv_but_stays_blocked():
     assert (
         "grok command template does not enforce output_schema_path natively" in plan.blocked_reasons
     )
-    assert "adapter-specific native usage capture is not implemented: grok" in plan.blocked_reasons
     assert not plan.ok
 
 
@@ -189,9 +188,6 @@ def test_gemini_command_plan_records_headless_argv_but_stays_blocked():
     assert plan.allowed_new_files == ("result.txt", "native-usage.json")
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert "gemini command template does not enforce output_schema_path natively" in (
-        plan.blocked_reasons
-    )
-    assert "adapter-specific native usage capture is not implemented: gemini-cli" in (
         plan.blocked_reasons
     )
     assert not plan.ok
@@ -223,9 +219,6 @@ def test_antigravity_command_plan_records_chat_argv_but_stays_blocked():
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert "antigravity command template lacks headless JSON output" in plan.blocked_reasons
     assert "antigravity command template does not enforce output_schema_path natively" in (
-        plan.blocked_reasons
-    )
-    assert "adapter-specific native usage capture is not implemented: antigravity" in (
         plan.blocked_reasons
     )
     assert not plan.ok

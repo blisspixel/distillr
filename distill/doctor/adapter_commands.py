@@ -244,7 +244,6 @@ def _grok_command(
     if not workload.output_schema_path:
         blocked_reasons.append("grok command template requires output_schema_path")
     blocked_reasons.append("grok command template does not enforce output_schema_path natively")
-    blocked_reasons.append("adapter-specific native usage capture is not implemented: grok")
     return (
         (
             "grok",
@@ -282,7 +281,6 @@ def _gemini_command(
     if not workload.output_schema_path:
         blocked_reasons.append("gemini command template requires output_schema_path")
     blocked_reasons.append("gemini command template does not enforce output_schema_path natively")
-    blocked_reasons.append("adapter-specific native usage capture is not implemented: gemini-cli")
     return (
         (
             "gemini",
@@ -318,7 +316,6 @@ def _antigravity_command(
     blocked_reasons.append(
         "antigravity command template does not enforce output_schema_path natively"
     )
-    blocked_reasons.append("adapter-specific native usage capture is not implemented: antigravity")
     return (
         (
             "antigravity",

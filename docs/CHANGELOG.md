@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Removed stale adapter-doctor blocker language that still described Grok,
+  Gemini CLI, and Antigravity native usage capture as unimplemented after the
+  parsers and capture writers landed.
+- Updated `distill eval` usage docs to describe the current source-anchored
+  faithfulness gate, pairwise at-par gate, and advisory-only composite
+  threshold.
+
 ## 0.18.2 - 2026-06-22
 
 Bug-fix release. No new product surface; fixes five defects found in a

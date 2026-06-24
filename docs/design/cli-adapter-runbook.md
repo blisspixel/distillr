@@ -369,7 +369,7 @@ Current blockers:
 
 - The local CLI has JSON output, but no observed native `--output-schema`
   enforcement in 0.46.0 help.
-- Adapter-specific native usage capture is not implemented.
+- Included-plan auth proof and eval graduation are still pending.
 
 Useful flags observed locally in 0.46.0:
 
@@ -421,7 +421,7 @@ Current blockers:
 - The local chat command lacks observed headless JSON output.
 - The local CLI has no observed native `--output-schema` enforcement in 1.107.0
   help.
-- Adapter-specific native usage capture is not implemented.
+- Included-plan auth proof and eval graduation are still pending.
 
 Useful flags observed locally in 1.107.0:
 

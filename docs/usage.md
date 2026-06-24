@@ -300,12 +300,14 @@ Plans include staged prompt, schema, result capture, native usage capture, and
 allowed scratch capture metadata; Claude schema paths can be inlined from
 staged JSON schema files. Plans stay blocked until support, auth, and eval
 adapter gates exist. Distill can parse Codex JSONL `turn.completed` usage and
-Claude JSON `usage` output into the native usage contract, then write scratch
-manifests through workload runner capture hooks. Gemini stays blocked on native
-schema enforcement and native usage capture. Antigravity stays blocked because
-local help exposes no headless JSON, native schema, or usage surface. A generic
-stdout capture helper can write captured stdout to `result.txt`, but it still
-requires a real validated native usage file. Distill still does not expose any
+Claude JSON `usage` output into the native usage contract. Grok, Gemini CLI,
+and Antigravity also have adapter-specific native usage parsers and capture
+writers for JSON-style usage output. Workload runner capture hooks can write
+validated scratch manifests from those captured outputs. Gemini stays blocked
+on native schema enforcement. Antigravity stays blocked because local help
+exposes no reliable headless JSON or native schema surface. A generic stdout
+capture helper can write captured stdout to `result.txt`, but it still requires
+a real validated native usage file. Distill still does not expose any
 plan-quota adapter as an eligible route by itself.
 
 ## Websites
@@ -458,15 +460,15 @@ distill eval --models grok-4.3,qwen3.5:27b
 distill eval --workload paper --models grok-4.3,qwen3.5:27b --report --yes
 ```
 
-It runs each model over frozen golden fixtures (3 per analysis workload: paper / video / site) at `temperature=0`, scores each output on **deterministic dimensions** (structure, verbosity-resistant depth, concept coverage vs the golden, formatting), and judges each candidate **pairwise against the anchor** with order-randomized comparisons (both A/B orderings, so position bias cancels). It attaches real per-run cost, prints a cost × quality table, and gives a **recommendation with a confidence flag**: the cheapest model whose mean composite clears `--threshold` (default 0.90) of the anchor's. The pairwise judge and the per-fixture spread feed only *confidence* — the pick is deterministic.
+It runs each model over frozen golden fixtures (3 per analysis workload: paper / video / site) at `temperature=0`, scores each output on deterministic diagnostic dimensions (structure, verbosity-resistant depth, concept coverage vs the golden, formatting), and then asks model judges for the route-graduation gates. A candidate must clear a source-anchored faithfulness floor, so an unfaithful fixture vetoes migration however the candidate scores. It must also be judged at par with the anchor through order-randomized pairwise comparisons in both A/B orderings, so position bias cancels. If there is no usable judge signal, migration fails closed to the anchor. The deterministic composite and `--threshold` are advisory report diagnostics, not the migration gate.
 
 Flags:
 
 - `--workload paper|video|site|all` — which fixtures to run (default `all`)
 - `--models a,b,c` — comma-separated model ids; provider is inferred (grok → xAI, anything unrecognized → local Ollama)
 - `--anchor <model>` — the incumbent/reference everything is compared against (default `grok-4.3`; added to `--models` if absent)
-- `--judge <model>` — advisory pairwise judge (default `grok-4.3`). When it shares the anchor's family the comparison is *conservative* (favors the anchor) and a caveat prints — pass a neutral judge for an unbiased head-to-head. Advisory only; never changes the pick.
-- `--threshold 0.9` — recommend the cheapest model whose mean composite ≥ threshold × anchor
+- `--judge <model>`: model judge used for source-anchored faithfulness and pairwise at-par comparisons (default `grok-4.3`). A neutral judge is preferred for unbiased migration evidence.
+- `--threshold 0.9`: advisory composite reference shown in the report; it does not authorize a migration
 - `--report` — write the table to `library/.distill/eval/<workload>_<ts>.md`
 - `--no-cache` — re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
 - `--yes` — skip the pre-run cost confirmation
@@ -475,7 +477,7 @@ Flags:
 
 Every run also appends one row per `(model, fixture)` to `library/.distill/eval/results.jsonl` (scores, win-rate, cost) so you can track quality and cost **drift over time** as models change.
 
-The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A **tentative** confidence means don't switch yet — the recommended model's worst fixture dipped below the bar or the judge favored the anchor. (Quick local-only check: `distill doctor --eval --model <name>`.)
+The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A non-anchor recommendation means the model judges found the candidate faithful and at par with the anchor. A recommendation for the anchor means no cheaper model was certified at par, a cheaper model was unfaithful, or the judge signal was missing. (Quick local-only check: `distill doctor --eval --model <name>`.)
 
 ## Research briefings and deep synthesis
 
