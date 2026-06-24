@@ -228,6 +228,20 @@
 - Validation (free/local): ruff check/format clean; full suite `2689 passed`;
   overall coverage 83.98% at floor 83.
 
+### Cycle 106 - Costs estimator _median odd branch (core ratchet)
+
+- External spend: `$0.00`.
+- Added test cases in test_estimator_accuracy.py for single run (odd n=1) and 3-item list to exercise the n % 2 true branch in _median and estimator paths.
+- Continues the costs.py core module branch ratchet (pipeline).
+- Targeted tests + ruff/format clean. Commit b5097b4. Long full filtered cov run (89% total, exit 0) confirmed state.
+
+### Cycle 107 - 100% branch on core costs.py (projected/ledger/calibration/estimates)
+
+- External spend: `$0.00`.
+- Added cases for estimate_run_cost(0,0,False), classify site n=0, and OSError on read + blank line in load to cover final branches.
+- distill/pipeline/costs.py now 100% branch (84 branches fully exercised). Major core win (used everywhere for cost policy, 0.19 no-metered, profiles).
+- All ruff/format/pytest clean. 100% on combined tests. Commit 75f8eab. Overall suite ~89%.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
