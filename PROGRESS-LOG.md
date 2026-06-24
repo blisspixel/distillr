@@ -3121,7 +3121,7 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 
 ### Cycle 111 - Doctor checks direct branch tests (0.19)
 
-- External spend: \.00.
+- External spend: $0.00.
 - Added direct tests for check_retired_models and _doctor_key_auth_rejected variants.
 - Covers branches in checks.py for doctor/adapter preflights.
 - References: roadmap 0.19 billing preflights / adapter doctor.
@@ -3130,17 +3130,7 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 
 ### Cycle 112 - Harness run test with adapter model (0.19 eval)
 
-- External spend: \.00.
-- Included 'adapter:grok-4.3' in test_run_model_eval_scores_costs_and_judges.
-- Updated len asserts (rows 9, judged 6).
-- Covers adapter in full eval flow.
-- References 0.19.3.
-- Validation: pass, clean.
-- Ship: commit.
-
-### Cycle 112 - Harness run test with adapter model (0.19 eval)
-
-- External spend: \.00.
+- External spend: $0.00.
 - Included 'adapter:grok-4.3' in test_run_model_eval_scores_costs_and_judges.
 - Updated len asserts (rows 9, judged 6).
 - Covers adapter in full eval flow.
@@ -3150,7 +3140,7 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 
 ### Cycle 113 - Eval harness stubs adapter models for default runner (0.19 eval graduation)
 
-- External spend: \.00.
+- External spend: $0.00.
 - Added special case in _analyze: for adapter: + default runner, return stub with cost 0.
 - Allows command to accept adapter models without crash (real use supplies custom analyze that runs CLI).
 - Test for stub path.
@@ -3159,13 +3149,18 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Self-review: Strong, minimal, enables the gate.
 - Ship: commit.
 
-### Cycle 113 - Eval harness stubs adapter models for default runner (0.19 eval graduation)
+### Cycle 113 extension - More native usage parser error tests (0.19)
 
-- External spend: \.00.
-- Added special case in _analyze: for adapter: + default runner, return stub with cost 0.
-- Allows command to accept adapter models without crash (real use supplies custom analyze that runs CLI).
-- Test for stub path.
-- References: roadmap 0.19 eval graduation.
-- Validation: ruff, tests pass (incl new).
-- Self-review: Strong, minimal, enables the gate.
+- External spend: $0.00.
+- Added rejects bad json and missing usage for grok and gemini parsers.
+- 30 tests, branch 88%.
+- Validation: ruff, tests.
+- Ship: commit.
+
+### Cycle 113 extension - More native usage parser error tests (0.19)
+
+- External spend: $0.00.
+- Added rejects bad json and missing usage for grok and gemini parsers.
+- 30 tests, branch 88%.
+- Validation: ruff, tests.
 - Ship: commit.
