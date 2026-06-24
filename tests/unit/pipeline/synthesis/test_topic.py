@@ -33,6 +33,8 @@ def test_synthesize_channel_returns_empty_without_insights(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     videos_dir = config.channel_dir("ai", "Creator") / "videos"
     videos_dir.mkdir(parents=True, exist_ok=True)
+    # non-dir entry to hit continue in _gather
+    (videos_dir / "notadir.txt").write_text("x", encoding="utf-8")
 
     result = synthesize_channel("ai", "Creator", config)
 
