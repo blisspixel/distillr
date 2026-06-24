@@ -3147,3 +3147,25 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - References 0.19.3.
 - Validation: pass, clean.
 - Ship: commit.
+
+### Cycle 113 - Eval harness stubs adapter models for default runner (0.19 eval graduation)
+
+- External spend: \.00.
+- Added special case in _analyze: for adapter: + default runner, return stub with cost 0.
+- Allows command to accept adapter models without crash (real use supplies custom analyze that runs CLI).
+- Test for stub path.
+- References: roadmap 0.19 eval graduation.
+- Validation: ruff, tests pass (incl new).
+- Self-review: Strong, minimal, enables the gate.
+- Ship: commit.
+
+### Cycle 113 - Eval harness stubs adapter models for default runner (0.19 eval graduation)
+
+- External spend: \.00.
+- Added special case in _analyze: for adapter: + default runner, return stub with cost 0.
+- Allows command to accept adapter models without crash (real use supplies custom analyze that runs CLI).
+- Test for stub path.
+- References: roadmap 0.19 eval graduation.
+- Validation: ruff, tests pass (incl new).
+- Self-review: Strong, minimal, enables the gate.
+- Ship: commit.
