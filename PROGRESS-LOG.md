@@ -270,6 +270,13 @@
 - notes.py 94% -> 95% branch.
 - Tests pass, ruff/format clean. Commit 1e14bf3.
 
+### Cycle 112 - Pipeline verify synthesis verify branches
+
+- External spend: `$0.00`.
+- Added tests for run_synthesis_verify None (off mode) and mismatch (not ok -> notify).
+- Covers the last branches in run_synthesis_verify. Verify 99% (one branch edge).
+- Tests pass, gates clean. Commit 79b4605.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
