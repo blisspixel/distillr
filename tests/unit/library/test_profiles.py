@@ -181,6 +181,35 @@ def test_rejects_bad_repository_and_domain_values():
         ResearchProfile.model_validate(bad_domain)
 
 
+def test_rejects_repository_url_not_on_github():
+    bad = {
+        "schema_version": "research-profile.v1",
+        "name": "x",
+        "topic": "x",
+        "goal_file": "g.md",
+        "sources": {"repositories": ["https://example.com/foo/bar"]},
+    }
+    with pytest.raises(ValueError, match=r"github\.com"):
+        ResearchProfile.model_validate(bad)
+
+
+def test_rejects_goal_file_with_drive_or_absolute(tmp_path: Path) -> None:
+    path = tmp_path / "drive.yaml"
+    path.write_text(
+        """
+        schema_version: research-profile.v1
+        name: drive
+        topic: drive
+        goal_file: C:/foo.md
+        queries:
+          - agent loops
+        """,
+        encoding="utf-8",
+    )
+    with pytest.raises(ProfileValidationError, match="goal_file"):
+        load_research_profile(path)
+
+
 def test_rejects_bad_http_url_in_feeds():
     bad_feed = {
         "schema_version": "research-profile.v1",
