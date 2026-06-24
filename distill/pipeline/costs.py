@@ -5,13 +5,17 @@ estimate_run_cost).  Per-model pricing is delegated to the unified cost
 registry in ``distill.llm.cost`` — this module no longer owns pricing data.
 """
 
+# pyright: strict
+
+from __future__ import annotations
+
 import json
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.llm.cost import (
     DEFAULT_MODEL,
@@ -89,7 +93,7 @@ class TokenUsage:
     provider_type: str = ""
 
     @classmethod
-    def from_response(cls, response: Any, *, call_type: str = "") -> "TokenUsage":
+    def from_response(cls, response: Any, *, call_type: str = "") -> TokenUsage:
         """Build a usage row from an LLM router response."""
         return cls(
             prompt_tokens=response.input_tokens,
@@ -145,10 +149,10 @@ class CostTracker:
     the run stops; the overshoot is bounded by one call.
     """
 
-    entries: list[TokenUsage] = field(default_factory=list)
+    entries: list[TokenUsage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage throughout confirms TokenUsage"
     gemini_queries: int = 0
-    gemini_query_models: list[str] = field(default_factory=list)
-    transcriptions: list[TranscriptionUsage] = field(default_factory=list)
+    gemini_query_models: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
+    transcriptions: list[TranscriptionUsage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms TranscriptionUsage"
     budget: float | None = None
 
     def _check_budget(self):
@@ -231,7 +235,7 @@ class CostTracker:
             return f"${total:.4f}"
         return f"${total:.2f}"
 
-    def summary_dict(self) -> dict:
+    def summary_dict(self) -> dict[str, Any]:
         """Summary for logging/display."""
         by_model: dict[str, dict[str, float | int]] = {}
         by_provider: dict[str, dict[str, Any]] = {}
@@ -260,7 +264,7 @@ class CostTracker:
             provider_summary["input_tokens"] += entry.prompt_tokens
             provider_summary["output_tokens"] += entry.completion_tokens
 
-        summary = {
+        summary: dict[str, Any] = {
             "grok_calls": len(self.entries),
             "gemini_queries": self.gemini_queries,
             "metered_calls": sum(1 for e in self.entries if not e.no_metered_cost),
@@ -285,7 +289,7 @@ class CostTracker:
 def save_run_log(
     log_dir: Path,
     command: str,
-    tracker: "CostTracker",
+    tracker: CostTracker,
     estimated_cost: float | None = None,
     full_videos: int = 0,
     shorts: int = 0,
@@ -335,10 +339,10 @@ def save_run_log(
         "metadata": metadata or {},
     }
 
-    by_type: dict[str, dict] = {}
-    by_model: dict[str, dict] = {}
-    by_provider: dict[str, dict] = {}
-    by_route_class: dict[str, dict] = {}
+    by_type: dict[str, Any] = {}
+    by_model: dict[str, Any] = {}
+    by_provider: dict[str, Any] = {}
+    by_route_class: dict[str, Any] = {}
     for e in tracker.entries:
         ct = e.call_type or "unknown"
         if ct not in by_type:
@@ -417,7 +421,7 @@ def _median(values: list[float]) -> float:
     return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
 
 
-def estimator_accuracy(entries: list[dict]) -> dict | None:
+def estimator_accuracy(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Estimate-vs-actual accuracy across runs that recorded both numbers.
 
     The estimator's stated goal is accuracy, not safe padding -- this is the
@@ -449,7 +453,7 @@ def estimator_accuracy(entries: list[dict]) -> dict | None:
     }
 
 
-def projected_next_run_cost(entries: list[dict]) -> float:
+def projected_next_run_cost(entries: list[dict[str, Any]]) -> float:
     """Projected cost for next similar run: average actual_cost of last up to 5 non-preview runs.
 
     Simple history-based projection to address the roadmap item for
@@ -479,7 +483,7 @@ def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) ->
     accordion_grok = ACCORDION_GROK_ESTIMATE if accordion else 0.0
     total = grok_cost + gemini_cost + accordion_grok
 
-    parts = []
+    parts: list[str] = []
     if full_videos:
         parts.append(
             f"{full_videos} full videos x ${full_rate:.3f} = ${full_videos * full_rate:.2f}"
@@ -563,7 +567,7 @@ def _cost_log_path(log_dir: Path) -> Path:
     return log_dir / "cost_log.jsonl"
 
 
-def _classify_clean_run(row: dict) -> tuple[str, float, int] | None:
+def _classify_clean_run(row: dict[str, Any]) -> tuple[str, float, int] | None:
     """Map a run-log row to ``(source_kind, cost, item_count)`` if it's usable.
 
     Returns ``None`` unless the row is a *clean* single-source run with a real
@@ -575,7 +579,7 @@ def _classify_clean_run(row: dict) -> tuple[str, float, int] | None:
     cost = row.get("actual_cost") or 0.0
     if cost <= 0:
         return None
-    by_type = row.get("by_call_type") or {}
+    by_type: dict[str, Any] = cast(dict[str, Any], row.get("by_call_type") or {})
     has_paper = "paper" in by_type
     has_site = "site_page" in by_type
     has_video = any(ct in by_type for ct in _VIDEO_CALL_TYPES)
@@ -637,7 +641,7 @@ def load_cost_calibration(
         if not isinstance(row, dict):
             continue
         try:
-            classified = _classify_clean_run(row)
+            classified = _classify_clean_run(cast(dict[str, Any], row))
         except (TypeError, ValueError, AttributeError):
             continue
         if classified is None:
