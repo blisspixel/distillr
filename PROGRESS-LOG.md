@@ -3076,3 +3076,15 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - Per SKILLS: target lowest core (pipeline/analysis), TDD.
 - 14 tests in file, ruff/format clean.
 - Advances 1.0 quality.
+### Cycle 108 - Native usage parser test coverage (grok/gemini/antigravity 0.19)
+
+- External spend: $0.00.
+- Extended tests for grok_json_native_usage (message wrap), gemini list sum fallback, generic jsonl/empty parse, antigravity, validate/contract for new adapters.
+- Hits more branches in _parse_generic, _generic_usage, _normalize, fallbacks in the 0.19 parsers.
+- adapter_native_usage.py cov ~85% -> 87%; supports complete usage ledger and eval for plan-quota.
+- References: roadmap 0.19 native-usage + ledger, SKILLS adapter doctor list of exact grok/gemini... parsers.
+- Validation: ruff/format clean, 27 tests pass, targeted cov report.
+- Self-review: Strong (exercises the parsers added for grok/gemini/antigravity wiring).
+- Ship: commit + logs update. Main clean.
+
+Next candidates per refresh: push remaining in adapter_native_usage or runner (doctor ~90% overall from targeted), core library cov, or 0.19 support statements / more eval fixtures. Re-reads at cycle. Silent continue.

@@ -799,3 +799,4 @@ Current observable state:
 - Focus: 0.19 eval + support; 1.0 ratchet + pyright + parse-dont-validate.
 
 Cycle 104-106: ledger+multipass 100%. 107: eval adapter free. TDD, gates. Continuing.
+Cycle 108: native_usage parsers test coverage +87% for grok/gemini/antigravity (0.19). 27 tests. TDD/gates. Continuing.

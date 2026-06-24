@@ -298,6 +298,53 @@ def test_gemini_cli_json_native_usage_accepts_alternative_keys():
     assert usage.output_tokens == 25
 
 
+def test_grok_json_native_usage_message_wrap_fallback():
+    # message level carries tokens directly for the fallback append path
+    record = grok_json_native_usage(
+        json.dumps({"message": {"input_tokens": 500, "output_tokens": 150}})
+    )
+    assert record.adapter == "grok"
+    assert record.to_adapter_usage().input_tokens == 500
+
+
+def test_gemini_cli_json_native_usage_usage_metadata_list_fallback():
+    # first has no useful count -> get None -> sum path over list
+    payload = json.dumps(
+        [
+            {"usageMetadata": {"other": 1}},
+            {"usageMetadata": {"promptTokenCount": 20, "candidatesTokenCount": 10}},
+        ]
+    )
+    record = gemini_cli_json_native_usage(payload)
+    assert record.to_adapter_usage().input_tokens == 20
+    assert record.to_adapter_usage().output_tokens == 10
+
+
+def test_antigravity_reuses_gemini_and_overrides_name():
+    record = antigravity_json_native_usage('{"usage": {"input_tokens": 77, "output_tokens": 3}}')
+    assert record.adapter == "antigravity"
+    assert record.to_adapter_usage().output_tokens == 3
+
+
+def test_generic_jsonl_parse_and_empty():
+    # hits _parse_generic_json_events jsonl tolerant path and empty
+    from distill.doctor.adapter_native_usage import _parse_generic_json_events
+
+    assert _parse_generic_json_events("") == []
+    events = _parse_generic_json_events('{"a":1}\n{"b":2}')
+    assert len(events) == 2
+
+
+def test_new_adapters_validate_and_contract_roundtrip():
+    rec = grok_json_native_usage('{"usage":{"input_tokens":1,"output_tokens":1}}')
+    d = rec.to_dict()
+    rec2 = validate_adapter_native_usage(d)
+    assert rec2.adapter == "grok"
+    # contract mentions adapters
+    contract = adapter_native_usage_contract()
+    assert "grok" in contract["adapters"]
+
+
 def test_grok_json_native_usage_sums_if_multiple():
     # tolerant jsonl
     record = grok_json_native_usage(
