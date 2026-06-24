@@ -147,6 +147,34 @@ def test_synthesize_channel_writes_verify_sidecar(tmp_path):
     assert result  # warn mode writes anyway
     sidecar = channel_dir / "ai_Creator_Verify.json"
     assert sidecar.exists()
+
+
+def test_synthesize_channel_strict_refuses_and_writes_sidecar(tmp_path):
+    """Covers verify strict refuse path in synthesize_channel."""
+    config = DistillConfig(
+        xai_api_key="test-key", distill_output_dir=tmp_path / "lib", distill_verify="strict"
+    )
+    channel_dir = config.channel_dir("ai", "Creator")
+    (channel_dir / "videos" / "v1").mkdir(parents=True, exist_ok=True)
+    (channel_dir / "videos" / "v1" / "insights.md").write_text(
+        "# Insight\nThe reported figure was 50.", encoding="utf-8"
+    )
+
+    with patch(
+        "distill.pipeline.synthesis.topic.llm_call",
+        _fake_llm_call("Synthesis claims 91.7, found in no source."),
+    ):
+        result = synthesize_channel("ai", "Creator", config)
+
+    assert result == ""
+    # synthesis not written
+    synth_path = find_artifact(channel_dir, "synthesis", identity="ai_Creator")
+    assert (
+        not synth_path.exists() or strip_frontmatter(synth_path.read_text(encoding="utf-8")) == ""
+    )
+    # sidecar written
+    sidecar = channel_dir / "ai_Creator_Verify.json"
+    assert sidecar.exists()
     data = json.loads(sidecar.read_text(encoding="utf-8"))
     assert any(c["token"] == "91.7" for c in data["unsupported"])
 
