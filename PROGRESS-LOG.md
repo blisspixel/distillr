@@ -197,7 +197,18 @@
 - Self-review: Strong (correctness via exact paths, simple additions, compliant with agentic/structural, maintainable).
 - Ship: commit, logs update. Main clean. 
 
-Next atomic candidates: other pipeline files or library core, mcp ask low surface if fits, or 0.19 eval fixture work for adapter graduation (structural tests). Re-reads performed. Silent continue.
+### Cycle 107 - Eval harness prices adapter plan-quota routes as free (0.19 cross-route)
+
+- External spend: $0.00.
+- Updated estimate_eval_cost and run_model_eval in harness to treat "adapter:..." models as zero-incremental (like local sunk-cost), so plan-quota CLIs do not contribute to estimated or recorded eval spend.
+- Added test_estimate_adapter_plan_quota_is_free asserting the branch.
+- Structural change per agentic + no-metered rules; supports 0.19.3 cross-route quality eval (local + plan-quota treated as free for cost-per-accepted comparisons).
+- References: docs/roadmap.md 0.19 "cross-route quality eval", "eval gate", "included-plan", SKILLS cost policy and adapter doctor, agentic balance (cost policy rule-owned).
+- Validation: ruff/format clean, harness tests 13/13 pass.
+- Self-review: Strong, minimal, exactly the needed pricing discipline.
+- Ship: commit + logs. 
+
+Next: more 0.19 eval (adapter in more fixtures/harness paths, support statement docs), other core cov, pyright on a module, or parse-don't-validate on manifest boundary. Re-read key docs. Silent.
 
 ### Cycle 89 - Pyright Strict Fixes for Blocking CI
 

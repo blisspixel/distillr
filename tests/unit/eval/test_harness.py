@@ -204,6 +204,15 @@ def test_estimate_local_only_is_free():
     assert est == 0.0
 
 
+def test_estimate_adapter_plan_quota_is_free():
+    # Plan-quota adapter routes (e.g. grok build, gemini cli under quota) are no-incremental like local.
+    fixtures = load_fixtures("paper")
+    est = estimate_eval_cost(
+        fixtures, ["adapter:grok-4.3"], anchor="adapter:grok-4.3", judge_model="qwen3.5:27b"
+    )
+    assert est == 0.0
+
+
 def test_phase1_is_model_outer_to_avoid_vram_thrash(monkeypatch):
     # Analysis must process all of one model's fixtures before the next model, so
     # a local model stays loaded in VRAM instead of being swapped every fixture.

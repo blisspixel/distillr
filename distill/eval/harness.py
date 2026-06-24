@@ -57,7 +57,9 @@ def estimate_eval_cost(
         out_tok = 800
         calls = _CALLS_PER_WORKLOAD.get(fixture.workload, 1)
         for model in models:
-            if not _is_local(model):  # local analysis is free
+            if not (
+                _is_local(model) or model.startswith("adapter:")
+            ):  # local and plan-quota adapter are free (no incremental)
                 total += calls * compute_cost(model, in_tok, out_tok)
             if not judge_local:
                 # Faithfulness judge: 1 absolute call per (model, fixture), anchor included.
@@ -164,7 +166,9 @@ def _analyze(
             logger.warning("Ignoring malformed eval cache entry for %s/%s", model, fixture.id)
     row_tracker = CostTracker()
     rc = RouterConfig(provider=provider_for_model(model), model=model)
-    local = _is_local(model)  # local inference is free; keep it off the cost ledger
+    local = _is_local(model) or model.startswith(
+        "adapter:"
+    )  # local + plan-quota adapter: free (no incremental metered)
     # A single model failing (timeout, provider error, OOM on a local model) must
     # not abort the whole sweep — record the partial cost, mark the row errored,
     # and let the run continue. Errored results are NOT cached (so a retry runs).
