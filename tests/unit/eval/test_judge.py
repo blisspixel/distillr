@@ -89,6 +89,18 @@ def test_judge_shares_family():
     assert judge_shares_family("gemini-3.1-pro", "grok-4.3") is False
 
 
+def test_judge_routes_adapter(monkeypatch):
+    captured = {}
+
+    def fake(config, **k):
+        captured["provider"] = config.provider
+        return _resp('{"winner": "A", "rationale": "x"}')
+
+    monkeypatch.setattr(judge_mod, "llm_call", fake)
+    judge_pairwise("s", "c", "a", judge_model="adapter:grok")
+    assert captured["provider"] == "adapter"
+
+
 def test_prompt_is_rubric_structured_with_bias_guards():
     # The rubric criteria and the explicit anti-verbosity / anti-position guards
     # are the whole point of the rewrite — assert they survive in the prompt.
