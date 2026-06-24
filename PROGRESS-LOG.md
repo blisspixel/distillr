@@ -3229,3 +3229,14 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - 0.19 relevant.
 - References: roadmap 1.0 pyright-strict.
 - Ship: commit.
+
+### Cycle 119 - Cov floor ratchet 88 -> 89 (measured 89.15%)
+
+- External spend: $0.00.
+- Run measured 89.15% (exit 0 on under=88).
+- Bumped --cov-fail-under=89 in ci.yml, SKILLS, CONTRIBUTING (3), AGENTS.
+- Updated ci comment.
+- Per SKILLS: bump from measured, preserve headroom.
+- Validation: ruff/format clean; previous run >89.
+- Self-review: exact, no slop.
+- Ship: will commit after gate.
