@@ -298,6 +298,13 @@
 - Topic 84%->88% (gather branches remain).
 - Commit 8071a35.
 
+### Cycle 116 - Synthesis topic tracker and gather continue
+
+- External spend: `$0.00`.
+- Enhanced saves test with tracker= and extra non-synth dir (hits 199 tracker, 152 continue).
+- Topic 88%->91% (video link and some gather remain).
+- Commit 9cba243.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
