@@ -204,6 +204,47 @@ def test_adapter_runner_passes_stdin_text(tmp_path):
     assert seen_stdin == "staged prompt"
 
 
+def test_adapter_runner_blocks_timeout(tmp_path):
+    result = run_adapter_command(
+        AdapterRunSpec(adapter="codex", argv=("codex",), scratch_root=tmp_path, timeout_seconds=1),
+        environ={},
+        runner=lambda *a: AdapterProcessResult(exit_code=0, timed_out=True),
+    )
+    assert not result.ok
+    assert any("timed out" in r for r in result.blocked_reasons)
+
+
+def test_adapter_runner_blocks_nonzero_exit(tmp_path):
+    _stage_source(tmp_path)
+    result = run_adapter_command(
+        AdapterRunSpec(adapter="codex", argv=("codex",), scratch_root=tmp_path),
+        environ={},
+        runner=lambda *a: AdapterProcessResult(exit_code=2),
+    )
+    assert not result.ok
+    assert any("exited 2" in r for r in result.blocked_reasons)
+
+
+def test_adapter_runner_blocks_capture_failure(tmp_path):
+    _stage_source(tmp_path)
+
+    def bad_capture(_proc, _root):
+        raise ValueError("bad capture")
+
+    result = run_adapter_command(
+        AdapterRunSpec(
+            adapter="codex",
+            argv=("codex",),
+            scratch_root=tmp_path,
+            capture_writer=bad_capture,
+        ),
+        environ={},
+        runner=lambda *a: AdapterProcessResult(exit_code=0),
+    )
+    assert not result.ok
+    assert any("capture failed" in r for r in result.blocked_reasons)
+
+
 def _stage_source(root: Path) -> None:
     source_dir = root / "sources"
     source_dir.mkdir()
