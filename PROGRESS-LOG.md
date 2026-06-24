@@ -305,6 +305,13 @@
 - Topic 88%->91% (video link and some gather remain).
 - Commit 9cba243.
 
+### Cycle 117 - Synthesis topic budget re-raise
+
+- External spend: `$0.00`.
+- Added test for BudgetExceededError re-raise in synthesize_topic.
+- 92% topic (remaining in video link, gather video, claude).
+- Commit 19ee6b1.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
