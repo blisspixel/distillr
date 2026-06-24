@@ -121,3 +121,53 @@ def test_adapter_manifest_ledger_record_supports_new_plan_quota_adapters():
     assert record.token_usage.provider_type == "included-plan"
     assert record.metadata["adapter_manifest"]["adapter"] == "grok"
     assert record.metadata["adapter_manifest"]["auth_class"] == "included-plan"
+
+
+def test_adapter_manifest_token_usage_local_auth():
+    manifest = validate_adapter_result_manifest(
+        _manifest(auth_class="local", adapter="ollama", model="qwen3.5:27b")
+    )
+    usage = adapter_manifest_token_usage(manifest)
+    assert usage.provider_type == "local"
+    assert usage.provider_name == "ollama"
+
+
+def test_adapter_manifest_token_usage_metered_api_auth():
+    manifest = validate_adapter_result_manifest(
+        _manifest(
+            auth_class="metered-api",
+            adapter="grok",
+            model="grok-4.3",
+            policy={
+                "cost_mode": "paid-ok",
+                "blocked_api_key_env": [],
+                "metered_allowed": True,
+            },
+        )
+    )
+    usage = adapter_manifest_token_usage(manifest, call_type="")
+    assert usage.provider_type == "cloud"
+    assert usage.call_type.startswith("adapter:")
+
+
+def test_adapter_manifest_token_usage_unknown_auth_defaults_unknown():
+    manifest = validate_adapter_result_manifest(
+        _manifest(
+            auth_class="unknown",
+            adapter="codex",
+            policy={
+                "cost_mode": "auto",
+                "blocked_api_key_env": [],
+                "metered_allowed": False,
+            },
+        )
+    )
+    usage = adapter_manifest_token_usage(manifest)
+    assert usage.provider_type == "unknown"
+
+
+def test_adapter_manifest_ledger_record_quota_stop_absent_is_none():
+    # Default manifest has no quota_stop; metadata must record explicit None
+    manifest = validate_adapter_result_manifest(_manifest())
+    record = adapter_manifest_ledger_record(manifest)
+    assert record.metadata["adapter_manifest"]["quota_stop"] is None

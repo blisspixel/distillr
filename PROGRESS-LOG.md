@@ -166,6 +166,16 @@
 - Validation (free/local): ruff clean, format clean, targeted test pass; prior full gates at floor 84. Commit 4417bf7.
 - CURRENT-STATE-ANALYSIS.md updated with full 2026-06-23 startup internalization and alignment confirmation. No questions. Silent loop mode.
 
+### Cycle 104 - Adapter ledger 100% branch coverage (0.19 ledger + core ratchet)
+
+- External spend: `$0.00` (lifetime loop ~$0.06 of $5 cap). All local validation.
+- Extended tests/unit/doctor/test_adapter_ledger.py with four new tests: local auth -> "local" provider_type, metered-api -> "cloud", unknown auth -> "unknown", and explicit quota_stop absent path (None in metadata). Exercises all four branches in _provider_type plus the quota ternary in adapter_manifest_ledger_record.
+- Module distill/doctor/adapter_ledger.py branch coverage 33% -> 100% (stmts 100%). Pure structural tests (no prod change); uses existing manifest factory and validate. Advances 0.19 "Complete usage ledger" (adapter ledger bridge for plan-quota/native usage rows) and 1.0 quality bar (core cov, doctor is adapter wiring layer).
+- TDD mindset: tests written to force the uncovered classification and metadata paths. References: docs/roadmap.md 0.19 billing/ledger, SKILLS.md "Adapter Doctor" + "Cost Policy" sections (exact manifest contracts, zero-dollar rows, provider_type), ROADMAP.md agentic surface + branch ratchet, agentic-balance.md (structural/ground-truth owned by Python), CONTRIBUTING quality gates.
+- Validation (free/local only): ruff check . clean, ruff format --check clean, targeted pytest --cov on module reports 100% branch, full ruff/format on tree clean. No paid calls. Prior broad runs establish floor.
+- Self-review (brutal): correctness  Strong (exact branch coverage, valid manifest payloads), security n/a, performance n/a, readability Strong (narrow focused tests, clear naming), maintainability Strong (leverages _manifest helper, no duplication), long-term Strong (keeps ledger primitives tested for future eval graduation). Zero slop, matches vision exactly (rule-owned ledger, no brittle proxies).
+- Ship: commit follows; PROGRESS + CURRENT updated. Main kept clean/releasable.
+
 ### Cycle 89 - Pyright Strict Fixes for Blocking CI
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).

@@ -793,9 +793,9 @@ Re-read and fully internalized every required document per prompt and SKILLS.md:
 
 Current observable state:
 - Git: main, ahead (several), clean (only untracked agent-tools/cov artifacts).
-- 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
-- Quality: floor 86; costs 100%, concepts/recovery 92%, notes 95%, verify 99%, synthesis/topic 97%, profiles 85%, eval adapter support; profiles; commands high.
-- Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest --cov-fail-under=85).
-- Focus: 0.19 eval-gated integration and cross-route; 1.0 cov ratchet (core first to 95%), pyright strict, parse-don't-validate on boundaries; keep main clean/releasable.
+- 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; ledger bridge now 100% branch tested; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
+- Quality: floor 86 (ratchet in progress); adapter_ledger.py 33%->100% branch (core wiring layer); prior synthesis/multipass/commands high (84-97% targeted). Continue core-first (pipeline/library/llm/ingestors/doctor).
+- Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest targeted).
+- Focus: 0.19 remaining (eval, support statements, cross-route); 1.0 cov ratchet >=95% core-first + pyright + parse-don't-validate; keep main clean/releasable.
 
-Startup + multiple grind cycles executed. Continuing silent loop.
+Cycle 104: 100% on adapter_ledger (tests for all auth classes + quota absent). TDD, gates clean, $0. Continuing silent loop per startup. Re-read ROADMAP/README/SKILLS/AGENTS/agentic-balance/CONTRIBUTING at cycle start. Perfect alignment.
