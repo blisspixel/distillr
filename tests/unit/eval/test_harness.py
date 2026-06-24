@@ -48,19 +48,19 @@ def test_run_model_eval_scores_costs_and_judges(monkeypatch):
     calls: list = []
     rows = run_model_eval(
         "paper",
-        ["grok-4.3", "qwen3.5:27b"],
+        ["grok-4.3", "qwen3.5:27b", "adapter:grok-4.3"],
         anchor="grok-4.3",
         judge_model="grok-4.3",
         analyze=_fake_analyze_factory(calls),
     )
-    # 3 paper fixtures x 2 models = 6 rows; analysis ran for each.
-    assert len(rows) == 6
-    assert len(calls) == 6
+    # 3 paper fixtures x 3 models (incl adapter) = 9 rows; analysis ran for each.
+    assert len(rows) == 9
+    assert len(calls) == 9
     anchor_rows = [r for r in rows if r.model == "grok-4.3"]
     cand_rows = [r for r in rows if r.model == "qwen3.5:27b"]
     assert all(r.pairwise_winrate is None for r in anchor_rows)  # anchor not judged vs itself
     assert all(r.pairwise_winrate == 0.6 for r in cand_rows)
-    assert len(judged) == 3  # one pairwise per candidate fixture
+    assert len(judged) == 6  # 2 non-anchor models x 3 fixtures
     assert all(r.cost > 0 for r in anchor_rows)  # grok priced from the registry
     assert all(r.cost == 0.0 for r in cand_rows)  # qwen is local -> free
 
