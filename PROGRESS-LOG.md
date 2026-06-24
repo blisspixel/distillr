@@ -326,6 +326,13 @@
 - 95% topic (remaining 51,54,96,152 in gather).
 - Commit d3fe29b.
 
+### Cycle 120 - Synthesis topic non dir in videos
+
+- External spend: `$0.00`.
+- Added non dir txt in videos to hit if not dir continue in gather (51).
+- 96% topic (remaining 38-43,54,96,152).
+- Commit b5bda99.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
