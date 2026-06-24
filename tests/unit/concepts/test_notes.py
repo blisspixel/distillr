@@ -350,6 +350,16 @@ class TestMentionsJsonl:
         assert [r["source_id"] for r in read_mentions(tmp_path)] == ["A"]
 
 
+def test_existing_owner_oserror_returns_none(tmp_path: Path, monkeypatch):
+    """Covers the except OSError in _existing_owner (core collision path)."""
+    from distill.concepts.notes import _existing_owner
+
+    base = tmp_path / "x.md"
+    base.write_text("---\nnormalized_name: foo\n---\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "read_text", lambda self, **k: (_ for _ in ()).throw(OSError("fail")))
+    assert _existing_owner(base) is None
+
+
 class TestExtractedSourcesLedger:
     def test_read_missing_returns_empty(self, tmp_path: Path) -> None:
         assert read_extracted_sources(tmp_path) == set()
