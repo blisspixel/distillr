@@ -2854,3 +2854,11 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - Per SKILLS: lowest-covered CORE (pipeline first); real behavior tests.
 - 5/5 in file pass, ruff/format clean.
 - Advances 1.0 quality bar.
+
+### Cycle 27 - Additional corpus branch test (cov to 84%)
+
+- External spend: `$0.00`.
+- Added test for claude refresh exception branch (still succeeds).
+- Raises corpus module to 84%.
+- 6/6 pass.
+- Further 1.0 cov ratchet on core.
