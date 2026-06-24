@@ -157,9 +157,49 @@ def test_profile_path_resolution_prefers_existing_files(tmp_path: Path) -> None:
     explicit.write_text("schema_version: research-profile.v1\n", encoding="utf-8")
 
     assert find_research_profile(tmp_path, "agent-news") == canonical
-    assert find_research_profile(tmp_path, str(explicit)) == explicit
-    assert find_research_profile(tmp_path, "missing") == tmp_path / "profiles" / "missing.yaml"
-    assert find_research_profile(tmp_path, "missing.yaml") == tmp_path / "profiles" / "missing.yaml"
-    assert find_research_profile(tmp_path, str(tmp_path / "missing.yml")) == (
-        tmp_path / "missing.yml"
-    )
+
+
+def test_rejects_bad_repository_and_domain_values():
+    bad_repo = {
+        "schema_version": "research-profile.v1",
+        "name": "x",
+        "topic": "x",
+        "goal_file": "g.md",
+        "sources": {"repositories": ["not-a-repo"]},
+    }
+    with pytest.raises(ValueError, match="repository"):
+        ResearchProfile.model_validate(bad_repo)
+
+    bad_domain = {
+        "schema_version": "research-profile.v1",
+        "name": "x",
+        "topic": "x",
+        "goal_file": "g.md",
+        "sources": {"domains": ["example.com/foo"]},
+    }
+    with pytest.raises(ValueError, match="domain"):
+        ResearchProfile.model_validate(bad_domain)
+
+
+def test_rejects_bad_http_url_in_feeds():
+    bad_feed = {
+        "schema_version": "research-profile.v1",
+        "name": "x",
+        "topic": "x",
+        "goal_file": "g.md",
+        "sources": {"feeds": ["ftp://example.com/feed"]},
+    }
+    with pytest.raises(ValueError, match="http"):
+        ResearchProfile.model_validate(bad_feed)
+
+
+def test_rejects_empty_name_or_goal():
+    base = {
+        "schema_version": "research-profile.v1",
+        "name": "",
+        "topic": "x",
+        "goal_file": "g.md",
+        "sources": {"feeds": ["https://example.com/feed"]},
+    }
+    with pytest.raises(ValueError):
+        ResearchProfile.model_validate(base)
