@@ -123,10 +123,12 @@ def test_corpus_synthesis_claude_refresh_exception_still_succeeds(config: Distil
     # The collection uses identity = f"{topic}_{sub_dir.name}" so ai_c1_synthesis.md
     (ch_dir / "ai_c1_synthesis.md").write_text("---\n---\nChannel synth", encoding="utf-8")
 
-    with patch("distill.pipeline.synthesis.corpus.llm_call", return_value=_StubResponse("synth")):
-        with patch("distill.pipeline.verify.run_synthesis_verify", return_value=False):
-            with patch(
-                "distill.library.claude_md.refresh_for_topic", side_effect=Exception("boom")
-            ):
-                result = synthesize_corpus("ai", config)
+    with (
+        patch("distill.pipeline.synthesis.corpus.llm_call", return_value=_StubResponse("synth")),
+        patch("distill.pipeline.verify.run_synthesis_verify", return_value=False),
+        patch(
+            "distill.library.claude_md.refresh_for_topic", side_effect=Exception("boom")
+        ),
+    ):
+        result = synthesize_corpus("ai", config)
     assert "synth" in result
