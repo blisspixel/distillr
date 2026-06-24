@@ -312,6 +312,13 @@
 - 92% topic (remaining in video link, gather video, claude).
 - Commit 19ee6b1.
 
+### Cycle 118 - Synthesis topic claude refresh except
+
+- External spend: `$0.00`.
+- Added test patching claude refresh to raise, swallowed.
+- 93% topic (video link and gather video remain).
+- Commit 14668bb.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
