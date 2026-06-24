@@ -1,10 +1,12 @@
 """Versioned recurring research profile schema."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import re
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 import yaml
@@ -157,10 +159,10 @@ class SourceSet(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    youtube_channels: list[YouTubeChannelSource] = Field(default_factory=list)
-    feeds: list[FeedSource] = Field(default_factory=list)
-    domains: list[str] = Field(default_factory=list)
-    repositories: list[str] = Field(default_factory=list)
+    youtube_channels: list[YouTubeChannelSource] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "Pydantic Field + submodel appears Unknown under strict; post-validation ensures correct type per model_config"
+    feeds: list[FeedSource] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "Pydantic Field + submodel appears Unknown under strict; post-validation ensures correct type per model_config"
+    domains: list[str] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "Pydantic Field appears Unknown under strict; post-validation ensures list[str]"
+    repositories: list[str] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "Pydantic Field appears Unknown under strict; post-validation ensures list[str]"
 
     @field_validator("youtube_channels", mode="before")
     @classmethod
@@ -170,7 +172,7 @@ class SourceSet(BaseModel):
         if not isinstance(value, list):
             return value
         channels: list[object] = []
-        for item in value:
+        for item in cast(list[object], value):  # pyright: ignore[reportUnknownArgumentType] "yaml/user input object unknown; coercion + pydantic validate post"
             if isinstance(item, str):
                 text = item.strip()
                 if text.startswith(("http://", "https://")):
@@ -190,7 +192,9 @@ class SourceSet(BaseModel):
             return []
         if not isinstance(value, list):
             return value
-        return [{"url": item} if isinstance(item, str) else item for item in value]
+        return [
+            {"url": item} if isinstance(item, str) else item for item in cast(list[object], value)
+        ]  # pyright: ignore[reportUnknownArgumentType] "yaml/user input object unknown; coercion + pydantic validate post"
 
     @field_validator("domains", mode="before")
     @classmethod
@@ -199,7 +203,7 @@ class SourceSet(BaseModel):
             return []
         if not isinstance(value, list):
             return value
-        return [_normalize_domain(item) for item in value]
+        return [_normalize_domain(item) for item in cast(list[object], value)]  # pyright: ignore[reportUnknownArgumentType] "yaml/user input object unknown; coercion + pydantic validate post"
 
     @field_validator("repositories", mode="before")
     @classmethod
@@ -208,7 +212,7 @@ class SourceSet(BaseModel):
             return []
         if not isinstance(value, list):
             return value
-        return [_normalize_repository(item) for item in value]
+        return [_normalize_repository(item) for item in cast(list[object], value)]  # pyright: ignore[reportUnknownArgumentType] "yaml/user input object unknown; coercion + pydantic validate post"
 
     @property
     def source_count(self) -> int:
@@ -307,7 +311,7 @@ class ResearchProfile(BaseModel):
             return []
         if not isinstance(value, list):
             return value
-        return [_require_non_empty(item, "query") for item in value]
+        return [_require_non_empty(item, "query") for item in cast(list[object], value)]  # pyright: ignore[reportUnknownArgumentType] "yaml/user input object unknown; coercion + pydantic validate post"
 
     @model_validator(mode="after")
     def _validate_profile(self) -> ResearchProfile:
