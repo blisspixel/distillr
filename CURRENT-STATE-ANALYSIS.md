@@ -361,14 +361,33 @@ Latest slices: parsers (cycle 14), capture writers/specs (cycle 15), default in 
 
 External spend this session: $0.00. 
 
-Next atomic in loop: cross-route eval (0.19.3), read-only adapter prototypes, or coverage ratchet on low core (e.g. pipeline/synthesis/corpus).
+Next atomic in loop: cross-route eval (0.19.3), read-only adapter prototypes, or coverage ratchet on low core (e.g. pipeline/synthesis/corpus). Skills folder now has gotchas.md sub-resource (progressive disclosure).
 
 Perfect alignment maintained. No slop. Continuing silent.
-exposed by the local help, native usage capture was not implemented, and the
-support, auth, and eval gates remained closed. Cycle 31 later removed the
-staged-stdin blocker. The same cycle tightened Gemini-family billing preflights
-so `GOOGLE_API_KEY` blocks no-metered Gemini and Antigravity claims alongside
-`GEMINI_API_KEY`.
+
+## 2026-06-23 Loop Startup Refresh (repeat of full prompt)
+
+Re-read:
+- README.md (full vision, positioning, 8 sources, MCP vs FS paths, canonical skill folder, agent legibility).
+- ROADMAP.md (high level, 0.19 spine, no-brittle, agentic surface, path to 1.0, quality 95% branch).
+- docs/roadmap.md (detailed backlog: 0.19 [~] routing/ledger remaining support/auth/eval after wiring; other [~] in stay-current, dashboard, etc.).
+- docs/CONTRIBUTING.md (quality gates: ruff, format, pytest cov>=84 branch, bandit, import-linter; ratchet to 95%; pre-commit; agentic/context rules).
+- SKILLS.md (loop skills: agentic balance, cov targets core first, context eng, cost $5, adapter doctor exact contracts, batch progress).
+- PROGRESS-LOG.md (recent: skills alignment, adapter wiring cycles 14-21, cov ratchet on runner 94->96%).
+- docs/design/agentic-balance.md (workflow spine, model at leaves, Python decisions; structural vs semantic; no self-declared done).
+- pyproject.toml (branch cov, ruff rules C901=10, import linter contracts).
+- Git: recent commits on wiring/tests/docs; ruff/format clean; untracked agent-tools.
+- Agentic: all recent changes structural (parsers, writers, tests, docs) - no semantic gates added.
+
+**Perfect alignment confirmed.** Vision (verified corpus, plain files, no brittle, local/plan-quota, agent FS+skill+MCP) and standards (gates, agentic balance, SKILLS rules) match exactly. No ambiguity in priorities (finish 0.19 remaining eval/support for adapters; cov ratchet; other [~] per roadmap). Zero questions.
+
+Current focus from roadmap: 0.19 routing/ledger (wiring done, next eval/integration); 1.0 quality (cov from  ~84-85 toward 95%, pyright, parse-don't-validate); stay current/dashboard items.
+
+External spend this session: $0.00 (prior loop ~$0.06 of $5). All validation local/free.
+
+Update: wiring + skills best-practice alignment complete per last cycles. Roadmap docs reflect. Continuing silent loop.
+
+Perfect alignment maintained. No slop.
 
 Cycle 28 added a blocked Antigravity read-only command plan. Local Antigravity
 1.107.0 help exposes `antigravity chat --mode ask -`, so Distill now records
