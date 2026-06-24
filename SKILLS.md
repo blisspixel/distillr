@@ -113,6 +113,9 @@
 - Plan-quota CLI routes are not no-metered defaults until adapter doctor,
   support statement, included-plan auth proof, adapter-specific workload
   wiring, complete usage ledger, and eval proof exist.
+- Use `distill.eval.graduation.adapter_route_graduation_decision()` as the
+  structural gate that combines adapter doctor readiness with model-judged eval
+  evidence. It is still not live route selection by itself.
 - Cost-log rows include `usage_ledger`, `by_provider`, and `by_route_class`.
   Keep no-metered local usage visible even when `actual_cost` is `0.0`.
 - Per-call prompt telemetry belongs in `library/.distill/telemetry.jsonl`.

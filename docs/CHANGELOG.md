@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added `distill.eval.graduation`, a pure route-graduation decision layer that
+  combines model-judged eval evidence with adapter doctor readiness. It fails
+  closed on missing judge signal, unfaithful output, errored fixtures, weaker
+  faithfulness than the anchor, missing no-metered proof, and credit-metered
+  routes.
+
 ### Fixed
 
 - Removed stale adapter-doctor blocker language that still described Grok,

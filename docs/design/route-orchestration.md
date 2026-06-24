@@ -234,9 +234,10 @@ tested today against local Ollama plus mock routes:
   accepted change.
 
 Real plan-quota routes plug into the same interface the moment they graduate
-through adapter doctor. So this is the non-blocked, higher-value half of 0.19:
-the route layer waits on vendor policy, but the strategy layer and its eval can
-land and be proven now with local and mock routes.
+through adapter doctor and the `distill.eval.graduation` decision. So this is
+the non-blocked, higher-value half of 0.19: the route layer waits on vendor
+policy, but the strategy layer and its eval can land and be proven now with
+local and mock routes.
 
 ## Build order
 

@@ -40,6 +40,8 @@ from distill.eval.harness import EvalRow
 from distill.eval.judge import FAITHFULNESS_ORDINAL
 
 __all__ = [
+    "DEFAULT_THRESHOLD",
+    "MIGRATION_WINRATE_FLOOR",
     "EvalSummary",
     "ModelSummary",
     "console_lines",
@@ -49,13 +51,14 @@ __all__ = [
 ]
 
 DEFAULT_THRESHOLD: float = 0.90
+MIGRATION_WINRATE_FLOOR: float = 0.45
 # A candidate is "at par" with the anchor in the judge's eyes at/above this
 # win-rate. A plain threshold over the model's verdict (charter-allowed), not a
 # statistic. There is deliberately NO bootstrap CI / min-fixture machinery: a
 # bootstrap over 3 fixtures is statistical theater (reverted 2026-06-14, see
 # docs/design/model-judgment-vs-brittle-fallbacks.md). Sample size is stated
 # plainly in the reason instead; real statistics wait for a large fixture set.
-_WINRATE_FLOOR: float = 0.45
+_WINRATE_FLOOR: float = MIGRATION_WINRATE_FLOOR
 
 
 @dataclass(frozen=True)

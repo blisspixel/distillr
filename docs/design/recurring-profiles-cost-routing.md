@@ -322,7 +322,9 @@ boundaries:
 10. **Eval before recommendation.** A CLI adapter can be installed and tested
    before it is recommended. It becomes a route only after `distill eval` shows
    that its output clears the workload bar and the no-metered ledger remains
-   complete.
+   complete. `distill.eval.graduation.adapter_route_graduation_decision`
+   combines the model-judged eval gate with adapter doctor readiness and fails
+   closed when either side is missing.
 11. **Judge local against quota routes.** `distill eval` should compare local
     model output against plan-quota CLI output for the same fixture and workload.
     A judge model evaluates faithfulness, specificity, citation use, synthesis
@@ -359,7 +361,8 @@ boundaries:
 8. **Cross-route eval.** Extend `distill eval` so local sunk-cost routes,
    plan-quota CLI routes, and metered API routes can be compared on the same
    fixture with an LLM-as-judge rubric, acceptance accounting, and a usage
-   ledger row.
+   ledger row. The pure graduation decision exists; route-pool wiring still
+   needs to consume it.
 9. **Loop handoff.** Profiles emit next-action rows compatible with the 0.17
    schema, including state paths, max attempts, verifier commands, and
    acceptance metrics, so Codex, Claude Code, Grok Build, Gemini CLI,

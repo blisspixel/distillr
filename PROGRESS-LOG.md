@@ -20,6 +20,28 @@
 - Current assessment: roughly 88% to 0.19.0. Remaining work is support/auth
   proof, native schema enforcement where available, and eval route graduation.
 
+### Cycle 124 - Eval Graduation Gate Primitive
+
+- External spend: $0.00.
+- Added `distill.eval.graduation` with strict dataclasses and pure decisions:
+  `EvalGateDecision`, `AdapterGraduationDecision`,
+  `eval_gate_decision()`, and `adapter_route_graduation_decision()`.
+- The gate consumes existing `EvalSummary` model-judge evidence and
+  `AdapterProbe` readiness. It refuses missing models, anchor-as-candidate,
+  errored fixtures, unfaithful fixtures, missing faithfulness signal, missing
+  pairwise signal, below-floor pairwise win-rate, weaker faithfulness than the
+  anchor, missing no-metered adapter proof, and credit-metered routes.
+- It does not use the deterministic composite or threshold. The composite stays
+  advisory per agentic balance.
+- Exported `MIGRATION_WINRATE_FLOOR` from `distill.eval.report` so the gate
+  cannot drift from report semantics.
+- Added focused tests in `tests/unit/eval/test_graduation.py`.
+- Validation so far: targeted eval tests passed; ruff on touched eval files
+  passed; pyright strict on the new eval module passed.
+- Current assessment: roughly 89% to 0.19.0. Remaining work is route-pool
+  integration, support/auth proof, and native schema enforcement where
+  available.
+
 ## Skills alignment (agent best practices)
 
 - Reviewed the canonical `skills/distill-corpus/SKILL.md` and README guidance on

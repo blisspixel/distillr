@@ -39,25 +39,26 @@ External research refresh, spend `$0.00`:
   https://developers.openai.com/codex/cli
 
 Assessment to the next product version, assuming the next version is 0.19.0:
-about **88%**. Profile artifacts, cost-mode policy, zero-dollar ledger rows,
+about **89%**. Profile artifacts, cost-mode policy, zero-dollar ledger rows,
 adapter doctor scaffolding, strict workload/native-usage/result contracts,
 scratch runner primitives, command planners, adapter-specific capture for
-Codex, Claude, Grok, Gemini CLI, and Antigravity, and route-orchestration
-primitives are present. The remaining 12% is intentionally hard: current
-official no-metered support statements, installed-session auth proof where no
-safe command proof exists, native schema enforcement where the CLI exposes it,
-and `distill eval` route graduation for any plan-quota route. I would not call
-it 95% because no plan-quota route should become eligible until those gates pass.
+Codex, Claude, Grok, Gemini CLI, and Antigravity, route-orchestration
+primitives, and the pure eval-plus-doctor route graduation decision are present.
+The remaining 11% is intentionally hard: current official no-metered support
+statements, installed-session auth proof where no safe command proof exists,
+native schema enforcement where the CLI exposes it, and wiring the graduation
+decision into route-pool selection. I would not call it 95% because no
+plan-quota route should become eligible until those gates pass.
 
 What is next and why:
 
 1. Keep truth surfaces exact. Stale docs that say native usage capture is still
    missing are dangerous because they push work toward solved infrastructure
    instead of the real gates.
-2. Wire eval-driven route graduation around the existing route orchestration
-   primitives. This is the highest leverage local work because it turns adapter
-   manifests and captured usage into an actual promotion gate without relaxing
-   the no-metered fail-closed policy.
+2. Wire the eval graduation decision into route-pool selection and reporting.
+   This is the highest leverage local work because the promotion gate now
+   exists, but no runtime route should consume it until the pool integration is
+   explicit and tested.
 3. Gather support and auth proof only when vendors expose a reliable local
    signal. This is the only part that is partly outside repository control.
 4. Continue 1.0 ratchets in parallel: pyright strict on load-bearing modules,

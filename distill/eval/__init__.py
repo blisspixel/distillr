@@ -18,6 +18,13 @@ from __future__ import annotations
 
 from distill.eval.fixtures import WORKLOADS, Fixture, load_fixtures
 from distill.eval.golden import GOLDEN_OUTPUTS, degraded_output
+from distill.eval.graduation import (
+    ADAPTER_GRADUATION_REQUIREMENTS,
+    AdapterGraduationDecision,
+    EvalGateDecision,
+    adapter_route_graduation_decision,
+    eval_gate_decision,
+)
 from distill.eval.harness import (
     EvalRow,
     estimate_eval_cost,
@@ -35,6 +42,7 @@ from distill.eval.judge import (
 )
 from distill.eval.report import (
     DEFAULT_THRESHOLD,
+    MIGRATION_WINRATE_FLOOR,
     EvalSummary,
     ModelSummary,
     console_lines,
@@ -45,11 +53,15 @@ from distill.eval.report import (
 from distill.eval.scoring import QualityScore, score_output
 
 __all__ = [
+    "ADAPTER_GRADUATION_REQUIREMENTS",
     "DEFAULT_JUDGE_MODEL",
     "DEFAULT_THRESHOLD",
     "FAITHFULNESS_ORDINAL",
     "GOLDEN_OUTPUTS",
+    "MIGRATION_WINRATE_FLOOR",
     "WORKLOADS",
+    "AdapterGraduationDecision",
+    "EvalGateDecision",
     "EvalRow",
     "EvalSummary",
     "FaithfulnessVerdict",
@@ -57,9 +69,11 @@ __all__ = [
     "ModelSummary",
     "PairwiseResult",
     "QualityScore",
+    "adapter_route_graduation_decision",
     "console_lines",
     "degraded_output",
     "estimate_eval_cost",
+    "eval_gate_decision",
     "judge_faithfulness",
     "judge_pairwise",
     "judge_shares_family",
