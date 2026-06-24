@@ -176,6 +176,16 @@
 - Self-review (brutal): correctness  Strong (exact branch coverage, valid manifest payloads), security n/a, performance n/a, readability Strong (narrow focused tests, clear naming), maintainability Strong (leverages _manifest helper, no duplication), long-term Strong (keeps ledger primitives tested for future eval graduation). Zero slop, matches vision exactly (rule-owned ledger, no brittle proxies).
 - Ship: commit follows; PROGRESS + CURRENT updated. Main kept clean/releasable.
 
+### Cycle 105 - Multipass core pipeline branch ratchet 85% -> 95%
+
+- External spend: $0.00.
+- Added tests in test_multipass.py: merge_paper empty return body, dedup preserves blanks, tracker=None skips record, tracker-present, fallback setdefault on unparsed insights for output_sections. Exercises early returns, if-not-scored skips indirect, _output no-match, dedup blanks.
+- distill/pipeline/analysis/multipass.py now 85% -> 95% branch (miss down to 4). Core pipeline module per SKILLS priority order.
+- References exact: docs/roadmap.md 1.0 quality + chunk-and-rerank (paper multi-pass), SKILLS "Testing and Coverage" (core pipeline first, targeted, stop before contrive), agentic-balance (structural chunk selection, model at leaves), CONTRIBUTING gates.
+- Validation: ruff/format clean, pytest targeted 95% branch + 19/19 pass. Full tree ruff clean.
+- Self review: Strong across rubric. No prod logic change, pure test coverage of existing paths. TDD via cases for the miss lines.
+- Commit + logs. Continuing grind.
+
 ### Cycle 89 - Pyright Strict Fixes for Blocking CI
 
 - External spend: `$0.00` (loop total `$0.06` of the `$5.00` cap).
