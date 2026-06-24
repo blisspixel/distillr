@@ -794,7 +794,7 @@ Re-read and fully internalized every required document per prompt and SKILLS.md:
 Current observable state:
 - Git: main, ahead (several), clean (only untracked agent-tools/cov artifacts).
 - 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
-- Quality: floor ratcheted 84->85 (89% achieved in runs); costs.py 100% branch (core); profiles validation; commands high.
+- Quality: floor 85; costs 100%, concepts/recovery 92%, notes 95%, verify 99%; profiles; commands high.
 - Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest --cov-fail-under=85).
 - Focus: 0.19 eval-gated integration and cross-route; 1.0 cov ratchet (core first to 95%), pyright strict, parse-don't-validate on boundaries; keep main clean/releasable.
 
