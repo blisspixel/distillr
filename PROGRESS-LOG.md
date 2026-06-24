@@ -263,6 +263,13 @@
 - notes.py 85% -> 94% branch (core concepts renderer/ledger).
 - Ruff ran (reformat), tests pass (33->). Commit 3766dc4.
 
+### Cycle 111 - Concepts notes _existing_owner oserror
+
+- External spend: `$0.00`.
+- Added test for OSError in _existing_owner (covers 91-92).
+- notes.py 94% -> 95% branch.
+- Tests pass, ruff/format clean. Commit 1e14bf3.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
