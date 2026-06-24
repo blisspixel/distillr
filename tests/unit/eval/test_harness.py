@@ -191,8 +191,10 @@ def test_local_model_priced_at_zero(monkeypatch):
         )
         return _OUTPUT
 
-    rows = run_model_eval("paper", ["grok-4.3", "qwen3.5:27b"], anchor="grok-4.3", analyze=fake)
-    assert all(r.cost == 0.0 for r in rows if r.model == "qwen3.5:27b")
+    rows = run_model_eval(
+        "paper", ["grok-4.3", "qwen3.5:27b", "adapter:grok-4.3"], anchor="grok-4.3", analyze=fake
+    )
+    assert all(r.cost == 0.0 for r in rows if r.model in ("qwen3.5:27b", "adapter:grok-4.3"))
     assert all(r.cost > 0 for r in rows if r.model == "grok-4.3")
 
 

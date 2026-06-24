@@ -3088,3 +3088,24 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - Ship: commit + logs update. Main clean.
 
 Next candidates per refresh: push remaining in adapter_native_usage or runner (doctor ~90% overall from targeted), core library cov, or 0.19 support statements / more eval fixtures. Re-reads at cycle. Silent continue.
+### Cycle 109 - Adapter runner blocked paths coverage (0.19)
+
+- External spend: $0.00.
+- Added tests for timeout, nonzero exit, capture failure blocked reasons in run_adapter_command.
+- adapter_runner.py 84% -> 87% branch.
+- References: roadmap 0.19 adapter runner primitive, SKILLS adapter doctor (runner, capture hooks, workspace checks).
+- Validation: ruff/format clean, 9 tests, targeted cov.
+- Ship: commit. 
+
+Next: remaining doctor (checks, native more, runner internals), core cov elsewhere, 0.19 eval more or support. Re-read. Silent.
+
+### Cycle 110 - Harness test coverage for adapter plan-quota in priced zero (0.19 eval)
+
+- External spend: $0.00.
+- Extended test_local_model_priced_at_zero to include 'adapter:grok-4.3' model.
+- Asserts cost==0 for adapter and local, >0 for metered.
+- Exercises the adapter: branch in harness local check and cost=0 paths for eval graduation.
+- References: docs/roadmap.md 0.19.3 cross-route eval, SKILLS 0.19 adapter.
+- Validation: ruff/format, pytest targeted pass.
+- Self-review: Strong, minimal extension.
+- Ship: commit follows.
