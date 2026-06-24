@@ -228,6 +228,13 @@
 - Validation (free/local): ruff check/format clean; full suite `2689 passed`;
   overall coverage 83.98% at floor 83.
 
+### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
+
+- External spend: `$0.00`.
+- Added direct validation error tests in tests/unit/library/test_profiles.py for bad repository, bad domain (with path), bad http url scheme, and empty name rejection. Exercises the _normalize_* and _validate_* helpers plus ResearchProfile.model_validate error paths.
+- Structural + parse boundary work (parse, don't validate direction). High-leverage for 0.19 recurring profiles and 1.0 quality.
+- Targeted tests green; ruff + format clean on the file.
+
 ### Cycle 104 - Pipeline costs core branch ratchet (Budget, route, load, report paths)
 
 - External spend: `$0.00`.
