@@ -294,3 +294,42 @@ class TestMultiPassAnalysisIntegration:
         assert "paper_id" in merged
         assert "analyzed_by" in merged
         assert "source_mode: chunked_local" in merged
+
+
+@patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=False)
+@patch("distill.pipeline.analysis.multipass.build_chunk_selection_plan")
+@patch("distill.pipeline.analysis.multipass.call")
+def test_paper_multi_pass_path_exercises_selection_and_call(
+    mock_call: MagicMock, mock_plan: MagicMock, _model_available
+) -> None:
+    """Exercise the non-legacy paper path (passes= provided) to cover selection/loop."""
+    chunks = [
+        _make_chunk(
+            "## Abstract\nThe paper introduces a new method.\n## Methods\nUsed LLM.\n",
+            index=0,
+            total=1,
+        ),
+    ]
+
+    mock_plan.return_value = MagicMock(
+        by_section={
+            "front matter": [MagicMock(chunk=chunks[0])],
+            "methods and evidence": [MagicMock(chunk=chunks[0])],
+        },
+        modes={"front matter": "structural", "methods and evidence": "structural"},
+    )
+    mock_call.return_value = LLM_Response(
+        text="## Summary\nMocked.\n## Methods and Evidence\nMocked.",
+        input_tokens=10,
+        output_tokens=5,
+        model="test",
+    )
+
+    config = _make_config()
+    metadata = _make_metadata(context_window=100000)
+
+    result = multi_pass_analysis(chunks, config, metadata, passes=PAPER_ANALYSIS_PASSES)
+    assert len(result.passes) >= 1
+    assert result.selection_modes
+    # call was invoked for the passes that had chunks
+    assert mock_call.called
