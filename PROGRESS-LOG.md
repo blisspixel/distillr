@@ -242,6 +242,13 @@
 - distill/pipeline/costs.py now 100% branch (84 branches fully exercised). Major core win (used everywhere for cost policy, 0.19 no-metered, profiles).
 - All ruff/format/pytest clean. 100% on combined tests. Commit 75f8eab. Overall suite ~89%.
 
+### Cycle 108 - Cov floor ratchet 84 -> 85
+
+- External spend: `$0.00`.
+- Bumped --cov-fail-under to 85 in AGENTS.md, docs/CONTRIBUTING.md, SKILLS.md, .github/workflows/ci.yml (and comment).
+- Enabled by core gains (costs 100%) + 89% runs. Per SKILLS ratchet rule (up-only from measured).
+- Ruff/format clean. Gate with 85 expected to pass. Commit 1121134.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
