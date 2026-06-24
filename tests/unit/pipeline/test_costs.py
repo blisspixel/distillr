@@ -148,6 +148,69 @@ def test_cost_tracker_treats_no_metered_provider_responses_as_zero():
     assert tracker.summary_dict()["no_metered_calls"] == 2
 
 
+def test_budget_exceeded_error_formats_small_and_large_budgets():
+    from distill.pipeline.costs import BudgetExceededError
+
+    err_small = BudgetExceededError(0.00123, 0.0005)
+    assert "$0.0005" in str(err_small)
+
+    err_large = BudgetExceededError(1.2345, 1.0)
+    assert "$1.00" in str(err_large)
+
+
+def test_cost_tracker_budget_exceeded_raises_on_record():
+    from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
+
+    tracker = CostTracker(budget=0.001)
+    tracker.record(TokenUsage(prompt_tokens=1, completion_tokens=1, model="grok-4.3"))
+
+    try:
+        tracker.record(TokenUsage(prompt_tokens=100000, completion_tokens=100000, model="grok-4.3"))
+    except BudgetExceededError:
+        pass
+    else:
+        raise AssertionError("expected BudgetExceededError")
+
+
+def test_route_class_covers_included_plan_and_no_metered():
+    from distill.pipeline.costs import TokenUsage, _route_class
+
+    local = TokenUsage(provider_type="local")
+    assert _route_class(local) == "local"
+
+    included = TokenUsage(provider_type="included-plan")
+    assert _route_class(included) == "included-plan"
+
+    class Fake:
+        provider_type = "x"
+        provider_name = ""
+        no_metered_cost = True
+
+    assert _route_class(Fake()) == "no-metered"  # type: ignore[arg-type]
+
+
+def test_report_deep_research_estimate_without_section_writing():
+    from distill.pipeline.costs import deep_research_query_cost, report_deep_research_estimate
+
+    val = report_deep_research_estimate(include_section_writing=False)
+    assert val == deep_research_query_cost()
+
+
+def test_load_cost_calibration_handles_missing_and_bad_json(tmp_path):
+    from distill.pipeline.costs import load_cost_calibration
+
+    # missing file -> default calibration
+    cal = load_cost_calibration(tmp_path)
+    assert cal.per_paper > 0  # default
+
+    # bad file content
+    log = tmp_path / ".distill" / "cost_log.jsonl"
+    log.parent.mkdir(parents=True)
+    log.write_text("not json\n{}\n", encoding="utf-8")
+    cal2 = load_cost_calibration(tmp_path)
+    assert cal2.per_paper > 0  # still defaults on bad data
+
+
 def test_save_run_log_records_route_usage_for_zero_dollar_calls(tmp_path):
     tracker = CostTracker()
     tracker.record(
