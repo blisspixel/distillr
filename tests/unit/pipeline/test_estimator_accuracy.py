@@ -52,6 +52,19 @@ class TestEstimatorAccuracy:
         assert result["median_abs_pct_error"] == 0.0  # 10 exact of 15 -> median 0
         assert result["runs_compared"] == 15
 
+    def test_median_single_and_odd_length(self):
+        # Exercises the n % 2 branch in _median for odd counts.
+        rows = [_row(1.0, 1.0)]
+        result = estimator_accuracy(rows)
+        assert result is not None
+        assert result["median_abs_pct_error"] == 0.0
+
+        rows3 = [_row(1.1, 1.0), _row(1.2, 1.0), _row(0.9, 1.0)]
+        result3 = estimator_accuracy(rows3)
+        assert result3 is not None
+        # median abs around 10-20%
+        assert result3["median_abs_pct_error"] > 0
+
 
 def test_run_summary_estimate_reaches_the_log(tmp_path):
     """The plumbing gap this slice closes: no caller ever passed its estimate,
