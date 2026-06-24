@@ -361,7 +361,7 @@ Latest slices: parsers (cycle 14), capture writers/specs (cycle 15), default in 
 
 External spend this session: $0.00. 
 
-Next atomic in loop: cross-route eval (0.19.3), read-only adapter prototypes, or coverage ratchet on low core (e.g. pipeline/synthesis/corpus 84%). More corpus tests added.
+Next atomic in loop: cross-route eval (0.19.3), read-only adapter prototypes, or coverage ratchet on low core (e.g. pipeline/analysis/multipass 85%, synthesis 84%). Multipass paper test added.
 
 Perfect alignment maintained. No slop. Continuing silent.
 

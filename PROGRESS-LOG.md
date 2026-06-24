@@ -2862,3 +2862,13 @@ Silently continuing the loop (next: eval gated prototypes or other 0.19/1.0 item
 - Raises corpus module to 84%.
 - 6/6 pass.
 - Further 1.0 cov ratchet on core.
+
+### Cycle 28 - Multipass paper path test (cov ratchet on analysis core)
+
+- External spend: `$0.00`.
+- Added test_paper_multi_pass_path_exercises_selection_and_call using PAPER_ANALYSIS_PASSES.
+- Covers non-legacy branch: selection_specs, plan, loop, results.
+- Raises analysis/multipass from 73% to 85%.
+- Per SKILLS: target lowest core (pipeline/analysis), TDD.
+- 14 tests in file, ruff/format clean.
+- Advances 1.0 quality.
