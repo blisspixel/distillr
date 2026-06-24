@@ -794,8 +794,8 @@ Re-read and fully internalized every required document per prompt and SKILLS.md:
 Current observable state:
 - Git: main, ahead (several), clean (only untracked agent-tools/cov artifacts).
 - 0.19: wiring + native capture/parsers/ledger complete; costs projection integrated; remaining [~] eval graduation for plan-quota routes + cross-route strategies + vendor support/auth.
-- Quality: floor 84 branch; recent full filtered run 89%; costs.py reached 100% branch (core pipeline win); profiles validation strengthened (library + parse); many commands 95-100%.
-- Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest --cov-fail-under=84).
+- Quality: floor ratcheted 84->85 (89% achieved in runs); costs.py 100% branch (core); profiles validation; commands high.
+- Spend: $0.00 this cycle (lifetime ~$0.06 of $5). All local gates (ruff/format/pytest --cov-fail-under=85).
 - Focus: 0.19 eval-gated integration and cross-route; 1.0 cov ratchet (core first to 95%), pyright strict, parse-don't-validate on boundaries; keep main clean/releasable.
 
 Startup + multiple grind cycles executed. Continuing silent loop.
