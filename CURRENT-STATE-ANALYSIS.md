@@ -823,3 +823,5 @@ Cycle 117: cov floor ratchet 87->88 (89.47%). TDD/gates.
 Cycle 118: pyright strict on profiles.py (1.0 ratchet, 0.19).
 
 Cycle 119: cov floor ratchet 88->89 (89.15%). TDD/gates.
+
+Cycle 120: pyright strict on adapter_ledger.py (1.0, 0.19).
