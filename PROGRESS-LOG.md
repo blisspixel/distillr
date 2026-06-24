@@ -256,6 +256,13 @@
 - recovery.py 80% -> 92% branch. Concepts core.
 - Ruff/format clean, tests pass. Commit 2918830.
 
+### Cycle 110 - Concepts notes extracted-sources ledger tests
+
+- External spend: `$0.00`.
+- Added TestExtractedSourcesLedger covering read missing/bad-json/OSError, record merge and empty-noop.
+- notes.py 85% -> 94% branch (core concepts renderer/ledger).
+- Ruff ran (reformat), tests pass (33->). Commit 3766dc4.
+
 ### Cycle 105 - Library profiles validation branches (0.19 + parse boundary)
 
 - External spend: `$0.00`.
