@@ -107,6 +107,43 @@ def test_faithfulness_vetoes_migration_even_when_pairwise_wins():
     assert local.unfaithful_fixtures == 3
 
 
+def test_anchor_not_in_results():
+    rows = _rows("local", [0.90] * 3, 0.0, 0.60)
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended is None
+    assert "anchor 'grok-4.3' not in results" in summary.confidence_reason
+
+
+def test_console_lines_tags_errors_and_unfaithful():
+    # hit the tag branches in console_lines
+    from distill.eval.report import EvalSummary, ModelSummary, console_lines
+
+    s = ModelSummary(
+        model="local",
+        rows=3,
+        errors=1,
+        unfaithful_fixtures=1,
+        mean_composite=0.9,
+        min_composite=0.8,
+        max_composite=0.95,
+        mean_winrate=0.5,
+        total_cost=0.0,
+        mean_faithfulness=0.5,
+    )
+    summary = EvalSummary(
+        workload="paper",
+        models=[s],
+        anchor="grok-4.3",
+        recommended="local",
+        threshold=0.8,
+        confidence="high",
+        confidence_reason="ok",
+    )
+    lines = console_lines(summary)
+    assert any("[1 err]" in line for line in lines)
+    assert any("[1 unfaithful]" in line for line in lines)
+
+
 def test_faithful_candidate_at_par_migrates():
     # Faithful AND pairwise-confirmed at par, enough fixtures -> migrate, high.
     rows = _rows("grok-4.3", [0.95] * 8, 0.10, None, faithfulness="faithful")
