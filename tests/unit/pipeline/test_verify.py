@@ -319,3 +319,40 @@ def test_numeric_claim_is_frozen():
         raise AssertionError("expected FrozenInstanceError")
     except Exception:
         pass
+
+
+def test_run_synthesis_verify_hits_notify_on_mismatch(tmp_path):
+    """Covers the if not ok: notify branch (and return) in run_synthesis_verify."""
+    from distill.pipeline.verify import run_synthesis_verify
+
+    notified = []
+
+    def n(s):
+        notified.append(s)
+
+    # mismatch claim -> not ok -> notify
+    res = run_synthesis_verify(
+        tmp_path,
+        "The score is 99.9.",
+        "The score is 72.6.",  # no 99.9
+        verify_mode="warn",
+        identity="i",
+        insight_name="i.md",
+        source_name="r.md",
+        notify=n,
+    )
+    assert len(notified) > 0
+    assert res is False  # for warn mode
+
+    # off -> None -> False (covers if outcome is None)
+    res_none = run_synthesis_verify(
+        tmp_path,
+        "synth",
+        "receipt",
+        verify_mode="off",
+        identity="i3",
+        insight_name="i3.md",
+        source_name="r3.md",
+        notify=n,
+    )
+    assert res_none is False
