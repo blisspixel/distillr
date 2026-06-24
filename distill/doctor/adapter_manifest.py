@@ -1,3 +1,4 @@
+# pyright: strict
 """Strict result-manifest boundary for external CLI adapters."""
 
 from __future__ import annotations
@@ -7,7 +8,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -316,7 +317,9 @@ def load_adapter_result_manifest(
         payload = json.loads(text)
     if not isinstance(payload, Mapping):
         raise AdapterManifestError("adapter manifest must be a mapping")
-    return validate_adapter_result_manifest(payload, scratch_root=scratch_root)
+    return validate_adapter_result_manifest(
+        cast("Mapping[str, Any]", payload), scratch_root=scratch_root
+    )
 
 
 def snapshot_scratch_files(scratch_root: Path) -> frozenset[str]:

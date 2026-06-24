@@ -827,3 +827,5 @@ Cycle 119: cov floor ratchet 88->89 (89.15%). TDD/gates.
 Cycle 120: pyright strict on adapter_ledger.py (1.0, 0.19).
 
 Cycle 121: pyright: strict added to distill/doctor/adapters.py (the central SupportStatement / AdapterSpec / probe logic for codex/claude/grok/gemini/antigravity/copilot). 0 errors after future annotations, Any, ignore comments for default_factory, cast for flatten loop vars (Mapping/list from Any/object). Ruff/format clean; doctor tests pass; full suite gate passed at 89.51% under=89. Pure 1.0 ratchet on 0.19 adapter-doctor surface. No behavior or test delta. External spend $0. Main clean.
+
+Cycle 122: pyright: strict added to distill/doctor/adapter_manifest.py (adapter-result.v1 boundary, AdapterResultManifest + submodels for usage/quota/policy, load/validate, workspace write checks, path normalization). Single cast after json/yaml load fixed the Unknown Mapping; 0 errors. Pydantic strict models already enforce parse boundary. Ruff/format + 40 targeted tests clean. Full ruff gate clean. 0.19 manifest contract + 1.0 pyright + parse-don't-validate direction. No behavior change. $0. Main clean.

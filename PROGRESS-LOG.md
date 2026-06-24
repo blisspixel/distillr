@@ -3264,3 +3264,16 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - No behavior change.
 - References: docs/roadmap.md 0.19 billing preflights/support + 1.0 pyright, SKILLS core pyright, AGENTS.md gate, agentic-balance (structural).
 - Ship: commit + logs.
+
+### Cycle 122 - Pyright strict on doctor/adapter_manifest.py (0.19 contract + 1.0 ratchet)
+
+- External spend: $0.00.
+- Added # pyright: strict to distill/doctor/adapter_manifest.py (the strict adapter-result.v1 parser, AdapterResultManifest + quota/usage/policy models, load/validate, workspace checks).
+- 1 error fixed with cast("Mapping[str, Any]", payload) after yaml/json load (safe because explicit isinstance Mapping guard follows).
+- ruff format applied (one reformat), ruff check clean on file + full tree.
+- 40 manifest tests passed.
+- Full ruff+format gate clean.
+- Advances 1.0 pyright-strict (parse boundary) + 0.19 (manifest is the load-bearing contract for native usage, ledger, no-metered checks, workspace guards).
+- No behavior change, parse-don't-validate direction already present via pydantic strict models.
+- References: docs/roadmap.md 0.19 complete usage ledger / manifest / eval + 1.0 pyright-strict + parse-don't-validate, SKILLS, agentic (Python owns structural contracts).
+- Ship: will commit after gate.
