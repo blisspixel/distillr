@@ -96,3 +96,28 @@ def test_adapter_manifest_ledger_record_preserves_quota_stop_metadata():
     assert quota_stop["reached"] is True
     assert quota_stop["reason"] == "daily plan quota exhausted"
     assert quota_stop["retry_after_seconds"] == 3600
+
+
+def test_adapter_manifest_ledger_record_supports_new_plan_quota_adapters():
+    # Grok as example of completed non-Codex wiring
+    manifest = validate_adapter_result_manifest(
+        _manifest(
+            adapter="grok",
+            adapter_version="grok 0.2.50",
+            model="grok-4.3",
+            usage={
+                "input_tokens": 150,
+                "output_tokens": 40,
+                "native": {"adapter_format": "grok-json"},
+            },
+        )
+    )
+
+    record = adapter_manifest_ledger_record(manifest, call_type="profile_enrichment")
+
+    assert record.token_usage.prompt_tokens == 150
+    assert record.token_usage.completion_tokens == 40
+    assert record.token_usage.provider_name == "grok"
+    assert record.token_usage.provider_type == "included-plan"
+    assert record.metadata["adapter_manifest"]["adapter"] == "grok"
+    assert record.metadata["adapter_manifest"]["auth_class"] == "included-plan"
