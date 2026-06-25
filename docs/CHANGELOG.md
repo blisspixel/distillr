@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added a portable `route-availability.v1` snapshot parser plus local-service
+  availability signals for Ollama and LM Studio. Route pools can now require
+  live availability proof for local routes as well as included-plan adapters,
+  and `distill doctor --json` exposes local route availability without account
+  or secret metadata.
+- Documented a provider-caching research spike for Anthropic, OpenAI, Gemini,
+  Bedrock, Foundry, and xAI with explicit cost, TTL, telemetry, and cleanup
+  guardrails before any provider-side cache control can graduate.
+
 ## 0.19.0 - 2026-06-25
 
 Feature release for graduated adapter route pools and quota-aware route

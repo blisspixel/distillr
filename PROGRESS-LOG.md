@@ -2,6 +2,34 @@
 
 ## 2026-06-25
 
+### Cycle 129 - Portable Availability Inputs
+
+- External spend: $0.00.
+- Refreshed official guidance on rate limits, tool safety, and agent tool
+  contracts: rate-limit responses need structured retry evidence, MCP tool
+  use needs clear boundaries, and production agents should rely on observable
+  tool state rather than hidden assumptions.
+- Added portable `route-availability.v1` snapshot parsing for quota windows,
+  quota stops, stale evidence, and local service availability. The snapshot
+  boundary rejects identity-bearing native metadata such as account, email,
+  token, user, and organization fields.
+- Added local-service route signals for Ollama and LM Studio, made live route
+  proof apply to local routes when requested, and exposed local availability
+  evidence through `distill doctor --json` without account or secret state.
+- Added a roadmap research spike for provider prompt and context caching after
+  checking Anthropic, OpenAI, and Gemini docs. Provider caches have different
+  cost and lifecycle behavior, so Distill should not enable cache controls
+  until cached-token or storage telemetry, TTL bounds, cleanup semantics, and
+  positive projected savings are explicit.
+- Tightened local route admission so provider-wide local doctor reachability
+  does not prove an arbitrary requested model is installed. Doctor JSON now
+  includes installed-model availability rows for Ollama.
+- Validation passed: `uv run ruff check .`, `uv run ruff format --check .`,
+  `uv run pytest -q --cov=distill --cov-fail-under=89` (3133 passed,
+  89.52% coverage), focused Pyright on the changed modules, full Pyright on
+  `distill`, Bandit, import-linter, pip-audit, `uv build`, and
+  `git diff --check`. Full Pyright exits with 0 errors and existing warnings.
+
 ### Cycle 128 - Quota-Aware Route Availability Release
 
 - External spend: $0.00.

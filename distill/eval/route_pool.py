@@ -221,7 +221,7 @@ def _evaluate_candidate(
         workload=workload,
     )
     if availability_signal is None:
-        if require_live_availability and policy.cost_class == "included-plan":
+        if require_live_availability and policy.cost_class in {"included-plan", "local"}:
             blocked.append("live route availability proof is missing")
     else:
         availability = route_availability_decision(availability_signal, now=now)
@@ -229,6 +229,14 @@ def _evaluate_candidate(
             blocked.extend(
                 f"route availability: {reason}" for reason in availability.blocked_reasons
             )
+        elif (
+            require_live_availability
+            and policy.cost_class == "local"
+            and candidate.model.strip()
+            and not availability_signal.model.strip()
+            and availability_signal.evidence_source == "local-doctor"
+        ):
+            blocked.append("live local model proof is missing")
 
     return RoutePoolEntry(
         candidate=candidate,

@@ -274,6 +274,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         ollama_status, ollama_models = _check_ollama_status()
         lmstudio_status = _check_lmstudio_status()
         recommendations = _recommend(profile)
+        local_route_availability = _local_route_availability_report(
+            ollama_status=ollama_status,
+            ollama_models=tuple(ollama_models),
+            lmstudio_status=lmstudio_status,
+        )
 
         # Browser capture readiness (the #1 silent ingest failure for YouTube/web).
         # Reuses init's cheap executable-path probe rather than launching a browser.
@@ -290,6 +295,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
             "ollama_status": ollama_status,
             "ollama_models": ollama_models,
             "lmstudio_status": lmstudio_status,
+            "route_availability": local_route_availability,
             "recommended_models": [
                 {
                     "model_name": r.model_name,
@@ -665,6 +671,54 @@ def _doctor_adapter_support_statement(detail: dict[str, object]) -> None:
         f"(checked {detail.get('checked_on')}, "
         f"no-metered current={detail.get('no_metered_current')})"
     )
+
+
+def _local_route_availability_report(
+    *,
+    ollama_status: str,
+    ollama_models: tuple[str, ...],
+    lmstudio_status: str,
+) -> list[dict[str, object]]:
+    """Return portable local-service availability evidence for doctor JSON."""
+
+    import time
+
+    from distill.eval.route_availability import (
+        local_service_route_availability_signal,
+        route_availability_decision,
+    )
+
+    checked_at = int(time.time())
+    signals = [
+        local_service_route_availability_signal(
+            provider="ollama",
+            status=ollama_status,
+            checked_at=checked_at,
+            models=ollama_models,
+        ),
+        local_service_route_availability_signal(
+            provider="lmstudio",
+            status=lmstudio_status,
+            checked_at=checked_at,
+        ),
+    ]
+    signals.extend(
+        local_service_route_availability_signal(
+            provider="ollama",
+            status=ollama_status,
+            checked_at=checked_at,
+            models=ollama_models,
+            model=model,
+        )
+        for model in ollama_models
+    )
+    return [
+        {
+            "signal": signal.to_dict(),
+            "decision": route_availability_decision(signal, now=checked_at).to_dict(),
+        }
+        for signal in signals
+    ]
 
 
 def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:  # noqa: C901

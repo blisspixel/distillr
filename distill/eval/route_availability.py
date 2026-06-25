@@ -14,23 +14,49 @@ No provider calls happen here.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal, Self, cast
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from distill.doctor.adapter_manifest import AdapterResultManifest
 
 __all__ = [
     "MIN_USABLE_HEADROOM_PERCENT",
+    "ROUTE_AVAILABILITY_SCHEMA_VERSION",
     "RouteAvailabilityDecision",
     "RouteAvailabilitySignal",
+    "RouteAvailabilitySnapshot",
     "RouteQuotaStop",
     "RouteQuotaWindow",
+    "load_route_availability_snapshot",
+    "local_service_route_availability_signal",
+    "parse_route_availability_snapshot",
     "route_availability_decision",
     "route_availability_signal_from_manifest",
 ]
 
 MIN_USABLE_HEADROOM_PERCENT = 0.5
+ROUTE_AVAILABILITY_SCHEMA_VERSION = "route-availability.v1"
+_FORBIDDEN_NATIVE_KEYS = frozenset(
+    {
+        "account",
+        "api_key",
+        "email",
+        "login",
+        "organization",
+        "org",
+        "secret",
+        "tenant",
+        "token",
+        "user",
+        "username",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -94,6 +120,7 @@ class RouteAvailabilitySignal:
     provider: str
     model: str = ""
     workload: str = ""
+    evidence_source: str = ""
     checked_at: int | None = None
     stale: bool = False
     windows: tuple[RouteQuotaWindow, ...] = ()
@@ -116,11 +143,27 @@ class RouteAvailabilitySignal:
             "provider": self.provider,
             "model": self.model,
             "workload": self.workload,
+            "evidence_source": self.evidence_source,
             "checked_at": self.checked_at,
             "stale": self.stale,
             "windows": [window.to_dict() for window in self.windows],
             "quota_stop": self.quota_stop.to_dict() if self.quota_stop else None,
             "unavailable_reason": self.unavailable_reason,
+        }
+
+
+@dataclass(frozen=True)
+class RouteAvailabilitySnapshot:
+    """Portable route availability evidence loaded from a snapshot file."""
+
+    checked_at: int
+    signals: tuple[RouteAvailabilitySignal, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": ROUTE_AVAILABILITY_SCHEMA_VERSION,
+            "checked_at": self.checked_at,
+            "signals": [signal.to_dict() for signal in self.signals],
         }
 
 
@@ -208,10 +251,67 @@ def route_availability_signal_from_manifest(
         provider=manifest.adapter,
         model=manifest.model,
         workload=workload,
+        evidence_source="adapter-result-manifest",
         checked_at=now,
         stale=False,
         quota_stop=quota_stop,
     )
+
+
+def local_service_route_availability_signal(
+    *,
+    provider: str,
+    status: str,
+    checked_at: int,
+    models: tuple[str, ...] = (),
+    model: str = "",
+    workload: str = "",
+) -> RouteAvailabilitySignal:
+    """Normalize local service reachability into route availability evidence."""
+
+    provider_label = provider.strip().lower()
+    status_label = status.strip().lower()
+    model_label = model.strip()
+    model_set = {entry.strip() for entry in models if entry.strip()}
+    unavailable_reason = ""
+    if status_label != "running":
+        unavailable_reason = f"{provider_label} local service is not reachable"
+    elif model_label and model_set and model_label not in model_set:
+        unavailable_reason = f"{provider_label} local model {model_label!r} is not installed"
+
+    return RouteAvailabilitySignal(
+        provider=provider_label,
+        model=model_label,
+        workload=workload,
+        evidence_source="local-doctor",
+        checked_at=checked_at,
+        stale=False,
+        unavailable_reason=unavailable_reason,
+    )
+
+
+def parse_route_availability_snapshot(payload: Mapping[str, Any]) -> RouteAvailabilitySnapshot:
+    """Parse a portable route availability snapshot.
+
+    The schema intentionally has no account, email, token, or organization
+    fields. Availability must be expressed as route evidence, not identity.
+    """
+
+    parsed = _RouteAvailabilitySnapshotModel.model_validate(dict(payload))
+    return parsed.to_snapshot()
+
+
+def load_route_availability_snapshot(path: Path) -> RouteAvailabilitySnapshot:
+    """Load a JSON or YAML route availability snapshot from disk."""
+
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() in {".yaml", ".yml"}:
+        payload = yaml.safe_load(text)
+    else:
+        payload = json.loads(text)
+    if not isinstance(payload, Mapping):
+        raise ValueError("route availability snapshot must be a mapping")
+    return parse_route_availability_snapshot(cast("Mapping[str, Any]", payload))
 
 
 def _binding_window(
@@ -232,3 +332,164 @@ def _binding_window(
 
 def _clamp_percent(value: float) -> float:
     return max(0.0, min(100.0, value))
+
+
+def _reject_identity_metadata(value: object) -> None:
+    """Reject account-bearing metadata in portable availability snapshots."""
+
+    if isinstance(value, Mapping):
+        for raw_key, child in cast("Mapping[object, object]", value).items():
+            key = str(raw_key).strip().lower()
+            if key in _FORBIDDEN_NATIVE_KEYS:
+                raise ValueError(f"native quota metadata cannot include identity field {key!r}")
+            _reject_identity_metadata(child)
+    elif isinstance(value, list):
+        for item in cast("list[object]", value):
+            _reject_identity_metadata(item)
+
+
+class _RouteQuotaWindowModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    label: str
+    used_percent: float | None = None
+    remaining_percent: float | None = None
+    resets_at: int | None = None
+
+    @field_validator("label")
+    @classmethod
+    def _non_empty_label(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("quota window label must be non-empty")
+        return text
+
+    @field_validator("used_percent", "remaining_percent")
+    @classmethod
+    def _valid_percent(cls, value: float | None) -> float | None:
+        if value is not None and not 0.0 <= value <= 100.0:
+            raise ValueError("quota percentages must be between 0 and 100")
+        return value
+
+    @field_validator("resets_at")
+    @classmethod
+    def _non_negative_reset(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("resets_at must be non-negative")
+        return value
+
+    def to_window(self) -> RouteQuotaWindow:
+        return RouteQuotaWindow(
+            label=self.label,
+            used_percent=self.used_percent,
+            remaining_percent=self.remaining_percent,
+            resets_at=self.resets_at,
+        )
+
+
+class _RouteQuotaStopModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    reached: bool
+    reason: str = ""
+    retry_after_seconds: int | None = None
+    provider_code: str = ""
+    native: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("reason", "provider_code")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("retry_after_seconds")
+    @classmethod
+    def _non_negative_retry_after(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("retry_after_seconds must be non-negative")
+        return value
+
+    @model_validator(mode="after")
+    def _require_reason_when_reached(self) -> Self:
+        if self.reached and not self.reason:
+            raise ValueError("quota_stop.reason is required when quota was reached")
+        _reject_identity_metadata(self.native)
+        return self
+
+    def to_stop(self) -> RouteQuotaStop:
+        return RouteQuotaStop(
+            reached=self.reached,
+            reason=self.reason,
+            retry_after_seconds=self.retry_after_seconds,
+            provider_code=self.provider_code,
+            native=self.native,
+        )
+
+
+class _RouteAvailabilitySignalModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    provider: str
+    model: str = ""
+    workload: str = ""
+    evidence_source: str = "snapshot"
+    checked_at: int | None = None
+    stale: bool = False
+    windows: list[_RouteQuotaWindowModel] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "Pydantic Field default_factory is untyped here; annotation is the runtime contract"
+    quota_stop: _RouteQuotaStopModel | None = None
+    unavailable_reason: str = ""
+
+    @field_validator("provider")
+    @classmethod
+    def _non_empty_provider(cls, value: str) -> str:
+        text = value.strip().lower()
+        if not text:
+            raise ValueError("provider must be non-empty")
+        return text
+
+    @field_validator("model", "workload", "evidence_source", "unavailable_reason")
+    @classmethod
+    def _strip_optional_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("checked_at")
+    @classmethod
+    def _non_negative_checked_at(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("checked_at must be non-negative")
+        return value
+
+    def to_signal(self, *, default_checked_at: int) -> RouteAvailabilitySignal:
+        return RouteAvailabilitySignal(
+            provider=self.provider,
+            model=self.model,
+            workload=self.workload,
+            evidence_source=self.evidence_source or "snapshot",
+            checked_at=self.checked_at if self.checked_at is not None else default_checked_at,
+            stale=self.stale,
+            windows=tuple(window.to_window() for window in self.windows),
+            quota_stop=self.quota_stop.to_stop() if self.quota_stop else None,
+            unavailable_reason=self.unavailable_reason,
+        )
+
+
+class _RouteAvailabilitySnapshotModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal["route-availability.v1"]
+    checked_at: int
+    signals: list[_RouteAvailabilitySignalModel]
+
+    @field_validator("checked_at")
+    @classmethod
+    def _non_negative_checked_at(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("checked_at must be non-negative")
+        return value
+
+    def to_snapshot(self) -> RouteAvailabilitySnapshot:
+        return RouteAvailabilitySnapshot(
+            checked_at=self.checked_at,
+            signals=tuple(
+                signal.to_signal(default_checked_at=self.checked_at) for signal in self.signals
+            ),
+        )

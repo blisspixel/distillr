@@ -452,6 +452,22 @@ class TestDoctorJsonExtras:
         assert any("XAI_API_KEY" in warning for warning in data["warnings"])
         assert any("GEMINI_API_KEY" in warning for warning in data["warnings"])
 
+    def test_local_route_availability_report_is_portable(self):
+        report = doctor_mod._local_route_availability_report(
+            ollama_status="running",
+            ollama_models=("qwen3.5:27b",),
+            lmstudio_status="unavailable",
+        )
+
+        assert report[0]["signal"]["provider"] == "ollama"
+        assert report[0]["decision"]["available"] is True
+        assert report[1]["signal"]["provider"] == "lmstudio"
+        assert report[1]["decision"]["available"] is False
+        assert report[2]["signal"]["provider"] == "ollama"
+        assert report[2]["signal"]["model"] == "qwen3.5:27b"
+        assert report[2]["decision"]["available"] is True
+        assert "account" not in json.dumps(report).lower()
+
 
 class TestDoctorAdapterReport:
     def _fake_report(self) -> AdapterDoctorReport:

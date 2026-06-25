@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from distill.doctor.adapter_manifest import (
     ADAPTER_RESULT_SCHEMA_VERSION,
     validate_adapter_result_manifest,
@@ -11,6 +13,9 @@ from distill.eval.route_availability import (
     RouteAvailabilitySignal,
     RouteQuotaStop,
     RouteQuotaWindow,
+    load_route_availability_snapshot,
+    local_service_route_availability_signal,
+    parse_route_availability_snapshot,
     route_availability_signal_from_manifest,
 )
 from distill.eval.route_pool import RouteCandidate, select_route_pool
@@ -228,6 +233,88 @@ def test_require_live_availability_blocks_included_plan_without_signal() -> None
     assert "live route availability proof is missing" in selection.blocked[0].blocked_reasons
 
 
+def test_require_live_availability_blocks_local_route_without_signal() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="ollama", model="qwen3.5:27b", workload="analysis")],
+        cost_mode="no-metered",
+        workload="analysis",
+        require_live_availability=True,
+    )
+
+    assert selection.selected is None
+    assert "live route availability proof is missing" in selection.blocked[0].blocked_reasons
+
+
+def test_local_service_signal_allows_running_local_route() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="ollama", model="qwen3.5:27b", workload="analysis")],
+        cost_mode="no-metered",
+        workload="analysis",
+        availability_signals=[
+            local_service_route_availability_signal(
+                provider="ollama",
+                status="running",
+                checked_at=1_000,
+                models=("qwen3.5:27b",),
+                model="qwen3.5:27b",
+                workload="analysis",
+            )
+        ],
+        now=1_000,
+        require_live_availability=True,
+    )
+
+    assert selection.selected is not None
+    assert selection.selected.candidate.provider == "ollama"
+    assert selection.selected.availability is not None
+    assert selection.selected.availability.available is True
+
+
+def test_local_service_signal_blocks_unreachable_local_route() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="lmstudio", model="qwen3.5:27b", workload="analysis")],
+        cost_mode="no-metered",
+        workload="analysis",
+        availability_signals=[
+            local_service_route_availability_signal(
+                provider="lmstudio",
+                status="unavailable",
+                checked_at=1_000,
+                workload="analysis",
+            )
+        ],
+        now=1_000,
+        require_live_availability=True,
+    )
+
+    assert selection.selected is None
+    assert "route availability: lmstudio local service is not reachable" in (
+        selection.blocked[0].blocked_reasons
+    )
+
+
+def test_local_doctor_provider_signal_does_not_prove_model_route() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="ollama", model="missing-model", workload="analysis")],
+        cost_mode="no-metered",
+        workload="analysis",
+        availability_signals=[
+            local_service_route_availability_signal(
+                provider="ollama",
+                status="running",
+                checked_at=1_000,
+                models=("qwen3.5:27b",),
+                workload="analysis",
+            )
+        ],
+        now=1_000,
+        require_live_availability=True,
+    )
+
+    assert selection.selected is None
+    assert "live local model proof is missing" in selection.blocked[0].blocked_reasons
+
+
 def test_stale_availability_signal_does_not_prove_route_live() -> None:
     selection = select_route_pool(
         [RouteCandidate(provider="grok", model="adapter:grok-4.3", workload="analysis")],
@@ -344,5 +431,72 @@ def test_adapter_manifest_quota_stop_builds_availability_signal() -> None:
 
     assert signal.provider == "grok"
     assert signal.model == "grok-4.3"
+    assert signal.evidence_source == "adapter-result-manifest"
     assert signal.quota_stop is not None
     assert signal.quota_stop.blocked_until(2_000) == 2_120
+
+
+def test_portable_route_availability_snapshot_parses_quota_windows() -> None:
+    snapshot = parse_route_availability_snapshot(
+        {
+            "schema_version": "route-availability.v1",
+            "checked_at": 1_000,
+            "signals": [
+                {
+                    "provider": "claude",
+                    "model": "adapter:opus",
+                    "workload": "analysis",
+                    "windows": [{"label": "5h", "remaining_percent": 42.0, "resets_at": 2_000}],
+                }
+            ],
+        }
+    )
+
+    signal = snapshot.signals[0]
+    assert snapshot.checked_at == 1_000
+    assert signal.checked_at == 1_000
+    assert signal.evidence_source == "snapshot"
+    assert signal.provider == "claude"
+    assert signal.windows[0].remaining(1_000) == 42.0
+    assert snapshot.to_dict()["schema_version"] == "route-availability.v1"
+
+
+def test_portable_route_availability_snapshot_rejects_identity_metadata() -> None:
+    with pytest.raises(ValueError, match="identity field 'email'"):
+        parse_route_availability_snapshot(
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [
+                    {
+                        "provider": "claude",
+                        "quota_stop": {
+                            "reached": True,
+                            "reason": "weekly quota exhausted",
+                            "native": {"email": "user@example.test"},
+                        },
+                    }
+                ],
+            }
+        )
+
+
+def test_load_route_availability_snapshot_accepts_yaml(tmp_path) -> None:
+    path = tmp_path / "availability.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "schema_version: route-availability.v1",
+                "checked_at: 1000",
+                "signals:",
+                "  - provider: ollama",
+                "    model: qwen3.5:27b",
+                "    unavailable_reason: ''",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = load_route_availability_snapshot(path)
+
+    assert snapshot.signals[0].provider == "ollama"

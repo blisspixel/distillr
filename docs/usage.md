@@ -310,6 +310,13 @@ capture helper can write captured stdout to `result.txt`, but it still requires
 a real validated native usage file. Distill still does not expose any
 plan-quota adapter as an eligible route by itself.
 
+The standard `distill doctor --json` output also reports portable local route
+availability for Ollama and LM Studio under `local_inference.route_availability`.
+Those rows are route evidence only: provider, model when known, checked time,
+service availability decision, and blocked reasons. They are intentionally not
+account evidence and must not contain GitHub identities, emails, tokens, or
+subscription account identifiers.
+
 ## Websites
 
 ```bash

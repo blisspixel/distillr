@@ -1,5 +1,57 @@
 # Current State Analysis
 
+## 2026-06-25 Portability Update
+
+I refreshed README, ROADMAP, detailed roadmap, usage docs, agentic-balance,
+route orchestration, adapter runbook, progress log, current state, and the
+route availability, route pool, doctor, and adapter manifest code before this
+slice.
+
+Alignment still holds. The next route work must work for any user's local
+services and plan-quota evidence, not for one developer's accounts. Distill
+must not commit GitHub account state, subscription identifiers, emails, tokens,
+or personal quota data. The correct boundary is structural: local probes and
+user-provided quota snapshots normalize into `route-availability.v1`; semantic
+quality still goes through model-judged eval gates.
+
+Research refresh, spend `$0.00`:
+
+- Anthropic API rate-limit docs confirm 429 responses carry retry evidence and
+  rate-limit dimensions such as requests and token windows:
+  https://docs.anthropic.com/en/api/rate-limits
+- Google Gemini rate-limit docs confirm quotas vary by project, model, and
+  usage tier, so Distill must not assume a universal limit:
+  https://ai.google.dev/gemini-api/docs/rate-limits
+- MCP tool specs keep tool invocation model-controlled but require clear human
+  visibility and consent boundaries:
+  https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+- MCP tool annotations are only hints and cannot replace trusted local policy:
+  https://modelcontextprotocol.io/specification/2025-06-18/schema
+- Anthropic prompt caching can lower repeat-prefix cost and latency, but cache
+  writes have provider-specific premiums and 1-hour TTL costs more than the
+  default 5-minute cache:
+  https://platform.claude.com/docs/en/build-with-claude/prompt-caching
+- OpenAI prompt caching is automatic for eligible recent-model prompts and has
+  no separate cache-write fee, but still needs cached-token telemetry and
+  retention-policy awareness:
+  https://developers.openai.com/api/docs/guides/prompt-caching
+- Gemini context caching includes implicit and explicit options, and explicit
+  caching can add storage-duration charges:
+  https://ai.google.dev/gemini-api/docs/caching
+
+What changed: portable route availability snapshots now parse quota windows,
+quota stops, stale evidence, and local service availability. Live route proof
+can be required for local routes as well as included-plan adapters, and
+`distill doctor --json` exposes local Ollama and LM Studio availability without
+account metadata. This advances 0.19.3 by turning availability into a reusable
+evidence contract rather than a machine-specific assumption.
+
+Follow-on added to the roadmap: provider-side prompt or context caching must
+stay a research spike until each provider's write cost, hit-rate telemetry,
+storage TTL, retention behavior, and cleanup semantics are represented in the
+ledger. No cache pre-warming or refresh loop should run unless projected savings
+are positive and bounded for the current command.
+
 ## 2026-06-24 Refresh
 
 I re-read `README.md`, `ROADMAP.md`, `docs/roadmap.md`,
