@@ -9,10 +9,12 @@ larger doctor/health and eval commands live in their own modules. Registered via
 from __future__ import annotations
 
 import json
+import math
 import os
 import webbrowser
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich import box
@@ -136,7 +138,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
     # `entries[-0:]` is the whole list, so guard explicitly: --last 0 (or a
     # negative) shows nothing rather than every run.
     recent = entries[-last:] if last > 0 else []
-    total_cost = sum(e.get("actual_cost", 0) for e in recent)
+    total_cost = sum(_safe_float(e.get("actual_cost", 0)) for e in recent)
 
     from distill.pipeline.costs import estimator_accuracy
 
@@ -178,27 +180,30 @@ def costs(  # noqa: C901 -- legacy, will refactor
         ts = e.get("timestamp", "")[:10]
         cmd = e.get("command", "?")
         # Topic from metadata
-        metadata = e.get("metadata", {}) or {}
-        topic = metadata.get("topic", "—")
+        metadata = _dict_or_empty(e.get("metadata", {}))
+        topic = metadata.get("topic", "-")
         # Sources: combine video/paper/page counts
         source_parts: list[str] = []
-        fv = e.get("full_videos", 0)
+        fv = _safe_int(e.get("full_videos", 0))
         if fv:
             source_parts.append(f"{fv}v")
-        papers = metadata.get("papers", 0)
+        papers = _safe_int(metadata.get("papers", 0))
         if papers:
             source_parts.append(f"{papers}p")
         elif cmd == "papers":
             source_parts.append("papers")
-        pages = metadata.get("pages", 0)
+        pages = _safe_int(metadata.get("pages", 0))
         if pages:
             source_parts.append(f"{pages}pg")
-        sources_str = " ".join(source_parts) if source_parts else "—"
+        sources_str = " ".join(source_parts) if source_parts else "-"
         # Cost
-        actual = e.get("actual_cost", 0)
+        actual = _safe_float(e.get("actual_cost", 0))
         cost_str = f"${actual:.4f}" if actual < 0.01 else f"${actual:.2f}"
-        tokens = f"{e.get('total_input_tokens', 0):,} / {e.get('total_output_tokens', 0):,}"
-        elapsed = e.get("elapsed_seconds", 0)
+        tokens = (
+            f"{_safe_int(e.get('total_input_tokens', 0)):,} / "
+            f"{_safe_int(e.get('total_output_tokens', 0)):,}"
+        )
+        elapsed = _safe_float(e.get("elapsed_seconds", 0))
         if elapsed > 60:
             time_str = f"{int(elapsed // 60)}m {int(elapsed % 60)}s"
         else:
@@ -229,30 +234,65 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     _costs_biggest_prompts_section(config, biggest_prompts)
 
-    # Per-call-type breakdown for each run
-    for e in recent:
-        by_type = e.get("by_call_type", {})
-        if by_type:
-            console.print("\n[dim]Latest run breakdown:[/dim]")
-            run_ts = e.get("timestamp", "")[:16]
-            run_cmd = e.get("command", "?")
-            breakdown_table = Table(
-                title=f"Breakdown: {run_cmd} ({run_ts})",
-                box=box.SIMPLE,
-                show_header=True,
+    # Per-call-type breakdown for the latest run that carries structured
+    # details. Older detailed rows stay visible in JSON output.
+    latest_detailed = next(
+        (
+            e
+            for e in reversed(recent)
+            if isinstance(e.get("by_call_type"), dict) and e.get("by_call_type")
+        ),
+        None,
+    )
+    if latest_detailed is not None:
+        by_type = latest_detailed["by_call_type"]
+        console.print("\n[dim]Latest run breakdown:[/dim]")
+        run_ts = latest_detailed.get("timestamp", "")[:16]
+        run_cmd = latest_detailed.get("command", "?")
+        breakdown_table = Table(
+            title=f"Breakdown: {run_cmd} ({run_ts})",
+            box=box.SIMPLE,
+            show_header=True,
+        )
+        breakdown_table.add_column("Call Type", style="dim")
+        breakdown_table.add_column("Calls", justify="right")
+        breakdown_table.add_column("Input Tokens", justify="right")
+        breakdown_table.add_column("Output Tokens", justify="right")
+        for ct, data in sorted(by_type.items()):
+            if not isinstance(data, dict):
+                continue
+            breakdown_table.add_row(
+                str(ct),
+                str(_safe_int(data.get("calls", 0))),
+                f"{_safe_int(data.get('input_tokens', 0)):,}",
+                f"{_safe_int(data.get('output_tokens', 0)):,}",
             )
-            breakdown_table.add_column("Call Type", style="dim")
-            breakdown_table.add_column("Calls", justify="right")
-            breakdown_table.add_column("Input Tokens", justify="right")
-            breakdown_table.add_column("Output Tokens", justify="right")
-            for ct, data in sorted(by_type.items()):
-                breakdown_table.add_row(
-                    ct,
-                    str(data["calls"]),
-                    f"{data['input_tokens']:,}",
-                    f"{data['output_tokens']:,}",
-                )
-            console.print(breakdown_table)
+        console.print(breakdown_table)
+
+
+def _dict_or_empty(value: object) -> dict[str, Any]:
+    """Return a dict for runtime log fields, or empty for malformed rows."""
+    return value if isinstance(value, dict) else {}
+
+
+def _safe_float(value: object, default: float = 0.0) -> float:
+    if not isinstance(value, str | int | float):
+        return default
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    if not isinstance(value, str | int | float):
+        return default
+    try:
+        result = int(value)
+    except (OverflowError, TypeError, ValueError):
+        return default
+    return result
 
 
 def _biggest_prompt_rows(config: DistillConfig, limit: int = 10) -> list[dict[str, object]]:

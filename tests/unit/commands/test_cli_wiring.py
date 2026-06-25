@@ -1468,6 +1468,60 @@ class TestExportOpenCostsAndStatus:
         assert "report" in result.output
         assert "3,000" in result.output
 
+    def test_costs_shows_only_latest_run_breakdown(self, mock_config):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text(
+            "\n".join(
+                [
+                    '{"timestamp":"2026-03-12T12:00:00","command":"learn","actual_cost":0.10,"total_input_tokens":1000,"total_output_tokens":500,"elapsed_seconds":65,"by_call_type":{"old_pass":{"calls":2,"input_tokens":500,"output_tokens":200}}}',
+                    '{"timestamp":"2026-03-13T12:00:00","command":"ask","actual_cost":0.00,"total_input_tokens":2000,"total_output_tokens":300,"elapsed_seconds":20,"metadata":{"topic":"ai"},"by_call_type":{"ask":{"calls":1,"input_tokens":2000,"output_tokens":300}}}',
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["costs"])
+
+        assert result.exit_code == 0, result.output
+        assert result.output.count("Latest run breakdown") == 1
+        assert "Breakdown: ask" in result.output
+        assert "old_pass" not in result.output
+
+    def test_costs_tolerates_malformed_numeric_fields(self, mock_config):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-13T12:00:00",
+                    "command": "ask",
+                    "actual_cost": "not-a-number",
+                    "total_input_tokens": None,
+                    "total_output_tokens": "bad",
+                    "elapsed_seconds": "nan",
+                    "metadata": "bad",
+                    "by_call_type": {
+                        "ask": {
+                            "calls": "1",
+                            "input_tokens": "bad",
+                            "output_tokens": None,
+                        }
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["costs"])
+
+        assert result.exit_code == 0, result.output
+        assert "Cost History" in result.output
+        assert "Latest run breakdown" in result.output
+        assert "not-a-number" not in result.output
+
     def test_status_shows_artifacts(self, mock_config_with_library):
         _populate_videos(mock_config_with_library, "ai", "TestCh")
         ch_dir = mock_config_with_library.channel_dir("ai", "TestCh")
