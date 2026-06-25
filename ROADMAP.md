@@ -470,6 +470,8 @@ distillr's threat model follows from what it actually is: a local-first CLI and 
 **Still ahead (1.0):**
 
 - **Boundaries are trust boundaries.** The 1.0 "parse, don't validate" work already validates MCP tool arguments and ingest inputs; the roadmap states explicitly that those parsing boundaries *are* the security boundary - path confinement and URL/SSRF validation on fetch paths live there, so the parse layer doubles as the trust layer rather than being a separate bolt-on.
+- **Agent-facing guidance is validated, not just written.** Any future skill text, MCP tool description, adapter prompt, or generated orientation template that tells an agent how to act should carry a small source-controlled contract: scope, risk class, allowed side effects, expected verifier, and test plan. CI should validate those contracts and the house-style rules so agent-facing files cannot drift into personal account assumptions, machine-attribution lines, secret leakage, or unbounded tool affordances.
+- **Guardrails stay surface-scoped.** Always-on checks cover credentials, cost policy, personal-data hygiene, attribution/style, and irreversible-action boundaries. Surface-specific checks cover URL ingest, local-file ingest, MCP path reads, external adapter scratch writes, and provider routing. This keeps the guidance small enough to follow while preserving the agentic-balance rule: deterministic code owns structure and safety boundaries, model judgment owns semantic quality.
 
 If distillr ever ships a hosted multi-tenant service or fine-tunes its own models, the out-of-scope list above reopens. Until then, deepening it would be securing an attack surface the project does not have.
 
