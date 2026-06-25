@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added `distill.eval.route_pool`, a pure route-pool admission layer that
+  prefers local routes, admits plan-quota adapter routes only after an eligible
+  graduation decision, blocks unproven adapters, and keeps credit-metered routes
+  behind `paid-ok`.
+
 ## 0.18.3 - 2026-06-25
 
 Patch release for route-graduation gating, artifact lookup compatibility, and

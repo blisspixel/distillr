@@ -3369,3 +3369,27 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Release validation and CI: local release validation clean, GitHub CI passed
   for commit `99a4911`, tag `v0.18.3` published successfully, GitHub Release
   created, and PyPI verified at 0.18.3.
+
+### Cycle 128 - Route-pool admission toward 0.19 and 1.0
+
+- External spend: $0.00.
+- Re-read README, ROADMAP, AGENTS, CONTRIBUTING, agentic-balance, brittle
+  fallback remediation, version architecture, and recent progress.
+- Selected the next highest-leverage 1.0-adjacent slice: route-pool admission
+  for 0.19 no-metered routing, because graduation evidence and adapter ledger
+  primitives already existed but pool selection did not consume them.
+- Added `distill.eval.route_pool`, a pure, strict route admission layer. It
+  prefers local routes, blocks metered APIs under no-metered mode, admits
+  included-plan adapters only with an eligible graduation decision, blocks
+  unproven adapters even in auto mode, and keeps credit-metered routes behind
+  `paid-ok`.
+- Added focused route-pool tests covering local preference, metered refusal,
+  missing and failed adapter graduation, included-plan admission, credit-metered
+  paid-ok behavior, unknown billing refusal, and loop-readable serialization.
+- Updated changelog and roadmap status to distinguish pure route-pool admission
+  from the still-pending live adapter workload integration.
+- Validation: targeted eval/graduation tests passed, broader eval plus
+  router/cost/adapter-ledger suite passed with 154 tests, ruff check clean,
+  ruff format check clean, pyright clean for route-pool plus graduation, bandit
+  medium-plus scan clean, import-linter clean, build clean, and full coverage
+  gate passed with 3118 passed, 8 deselected, 1 warning, coverage 89.57%.
