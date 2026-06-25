@@ -1,5 +1,19 @@
 # Progress Log
 
+## 2026-06-25
+
+### Cycle 128 - Quota-Aware Route Availability Release
+
+- External spend: $0.00.
+- Ported the useful QuotaBot design lesson into Distill as a pure route
+  availability contract: normalized quota windows, stale evidence handling,
+  structured quota stops, and binding-window headroom.
+- Integrated availability decisions into route-pool admission so graduated
+  included-plan adapters can be evicted when quota or live service evidence
+  says they are not usable.
+- Prepared the 0.19.0 release metadata after local quality gates and main
+  branch CI passed for the implementation commit.
+
 ## 2026-06-24
 
 ### Cycle 123 - Roadmap Truth Refresh And Eval Docs

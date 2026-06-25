@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.0 - 2026-06-25
+
+Feature release for graduated adapter route pools and quota-aware route
+availability.
+
 ### Added
 
 - Added `distill.eval.route_pool`, a pure route-pool admission layer that
