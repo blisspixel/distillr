@@ -42,6 +42,17 @@
   integration, support/auth proof, and native schema enforcement where
   available.
 
+### Cycle 125 - GitHub Main Sync Prep
+
+- External spend: $0.00.
+- Removed the README license contact guidance and stale changelog note that
+  preserved it. README now points to Apache 2.0 without extra commercial or
+  enterprise contact language.
+- Scanned the unpushed `origin/main..HEAD` range for added machine attribution,
+  emoji, and em dash punctuation. No matches found.
+- Preparing to push `main` and verify one passing GitHub Actions run on the
+  main branch.
+
 ## Skills alignment (agent best practices)
 
 - Reviewed the canonical `skills/distill-corpus/SKILL.md` and README guidance on

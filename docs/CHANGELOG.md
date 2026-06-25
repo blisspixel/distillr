@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Removed the README license-section contact guidance now that the project uses
+  standard Apache 2.0 terms.
 - Removed stale adapter-doctor blocker language that still described Grok,
   Gemini CLI, and Antigravity native usage capture as unimplemented after the
   parsers and capture writers landed.
@@ -69,8 +71,7 @@ trailing PyPI.
 
 ### Changed
 
-- **License:** Standard Apache License 2.0 (Commons Clause removed). README
-  retains contact guidance for commercial or enterprise use (nick@pueo.io).
+- **License:** Standard Apache License 2.0 (Commons Clause removed).
 
 ## 0.18.0 - 2026-06-21
 

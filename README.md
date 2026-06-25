@@ -464,4 +464,4 @@ See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for dev setup, quality gates,
 
 ## License
 
-Apache 2.0 — see [`LICENSE`](LICENSE). Author: Nick Seal (nick@pueo.io). Free to use, build on, fork, and share patterns; for commercial or enterprise use, contact nick@pueo.io.
+Apache 2.0. See [`LICENSE`](LICENSE). Free to use, build on, fork, and share patterns.
