@@ -26,64 +26,64 @@ library/
     └── papers/<paper-slug>/       # Per-paper artifacts
 ```
 
-## Per video (full-length, >3 min) — 2-pass analysis
+## Per video (full-length, >3 min) - 2-pass analysis
 
-- **`<video-slug>_Transcript.txt`** — Full transcript (YouTube captions → scribe fallback)
-- **`metadata.json`** — Video ID, title, upload date, duration, URL
-- **`<video-slug>_Insights.md`** — Deep structured insight document:
-  - Summary — core argument and why it matters
-  - Key Announcements — products, policies, personnel, with status tags
-  - Technical Insights — architecture, benchmarks, specific numbers
-  - Business Value Signals — ROI, adoption patterns, competitive dynamics
-  - Vendor Watch — competitive positioning (only vendors actually discussed)
-  - Creator's Take — full analytical argument, frameworks, predictions
-  - Customer Conversation Starters — grounded in actual video content
+- **`<video-slug>_Transcript.txt`** - Full transcript (YouTube captions → scribe fallback)
+- **`metadata.json`** - Video ID, title, upload date, duration, URL
+- **`<video-slug>_Insights.md`** - Deep structured insight document:
+  - Summary - core argument and why it matters
+  - Key Announcements - products, policies, personnel, with status tags
+  - Technical Insights - architecture, benchmarks, specific numbers
+  - Business Value Signals - ROI, adoption patterns, competitive dynamics
+  - Vendor Watch - competitive positioning (only vendors actually discussed)
+  - Creator's Take - full analytical argument, frameworks, predictions
+  - Customer Conversation Starters - grounded in actual video content
 
-## Per Short (≤3 min) — 1-pass extraction
+## Per Short (≤3 min) - 1-pass extraction
 
-- **`<video-slug>_Transcript.txt`** — Full transcript
-- **`metadata.json`** — Video metadata
-- **`<video-slug>_Insights.md`** — Lightweight quick insight:
-  - Quick Take — 1–2 sentence signal summary
-  - News & Updates — breaking announcements
-  - Hot Take — creator's opinion or reaction
-  - Key Claims — bullet list with confidence tags (`[Confirmed]`, `[Reported]`, `[Speculated]`)
-  - Signal Strength — HIGH / MEDIUM / LOW with justification
+- **`<video-slug>_Transcript.txt`** - Full transcript
+- **`metadata.json`** - Video metadata
+- **`<video-slug>_Insights.md`** - Lightweight quick insight:
+  - Quick Take - 1-2 sentence signal summary
+  - News & Updates - breaking announcements
+  - Hot Take - creator's opinion or reaction
+  - Key Claims - bullet list with confidence tags (`[Confirmed]`, `[Reported]`, `[Speculated]`)
+  - Signal Strength - HIGH / MEDIUM / LOW with justification
 
-## Per video (scan mode) — 1-pass triage
+## Per video (scan mode) - 1-pass triage
 
 Used by `distill catch-up`. Custom per-channel instructions shape the output.
 
-- **`<video-slug>_Transcript.txt`** — Full transcript
-- **`metadata.json`** — Video metadata (`analysis_mode: "scan"`)
-- **`<video-slug>_Insights.md`** — Fast scan output with optional custom extraction
+- **`<video-slug>_Transcript.txt`** - Full transcript
+- **`metadata.json`** - Video metadata (`analysis_mode: "scan"`)
+- **`<video-slug>_Insights.md`** - Fast scan output with optional custom extraction
 
 ## Per channel
 
-- **`channel_context.md`** — Auto-generated profile: who they are, what they cover, perspective/bias
-- **`<topic>_<channel>_Synthesis.md`** — Cross-video knowledge base that evolves on each refresh
-- **`state.json`** — Tracks what's been processed (enables `--refresh`)
+- **`channel_context.md`** - Auto-generated profile: who they are, what they cover, perspective/bias
+- **`<topic>_<channel>_Synthesis.md`** - Cross-video knowledge base that evolves on each refresh
+- **`state.json`** - Tracks what's been processed (enables `--refresh`)
 
 ## Per topic
 
-- **`<topic>_Topic_Synthesis.md`** — Cross-source knowledge base
-- **`<topic>_Corpus_Synthesis.md`** — Mixed-source view when videos, sites, and papers contribute to the same topic (this is what `distill discover` produces by default once its shortlist finishes ingesting)
-- **`<topic>_Brief.md`** — Lightweight "what matters now" brief
+- **`<topic>_Topic_Synthesis.md`** - Cross-source knowledge base
+- **`<topic>_Corpus_Synthesis.md`** - Mixed-source view when videos, sites, and papers contribute to the same topic (this is what `distill discover` produces by default once its shortlist finishes ingesting)
+- **`<topic>_Brief.md`** - Lightweight "what matters now" brief
 
 ## Per website page
 
-- **`metadata.json`** — URL, final URL, canonical URL, page type, title, links, embedded video links, PDF links, crawl depth
-- **`<page-slug>_Content.md`** — Normalized visible page content
-- **`<page-slug>_Transcript.txt`** — Optional transcript when a page exposes one
-- **`attachments.json`** — Structured attachment inventory
-- **`attachments/*.txt`** — Optional extracted PDF text or embedded-video transcript
-- **`<page-slug>_Insights.md`** — Structured page-level analysis
+- **`metadata.json`** - URL, final URL, canonical URL, page type, title, links, embedded video links, PDF links, crawl depth
+- **`<page-slug>_Content.md`** - Normalized visible page content
+- **`<page-slug>_Transcript.txt`** - Optional transcript when a page exposes one
+- **`attachments.json`** - Structured attachment inventory
+- **`attachments/*.txt`** - Optional extracted PDF text or embedded-video transcript
+- **`<page-slug>_Insights.md`** - Structured page-level analysis
 
 ## Per site / site batch
 
-- **`site.json`** — Manifest of processed pages (includes section-level crawl state)
-- **`<topic>_<site>_Site_Update.md`** — Section change summary between runs
-- **`<topic>_<site>_Site_Synthesis.md`** — Cross-page synthesis
+- **`site.json`** - Manifest of processed pages (includes section-level crawl state)
+- **`<topic>_<site>_Site_Update.md`** - Section change summary between runs
+- **`<topic>_<site>_Site_Synthesis.md`** - Cross-page synthesis
 
 ## Per arXiv paper
 
@@ -100,8 +100,8 @@ Citation exports are local and read from existing paper artifacts:
 
 ## Reports (any scope)
 
-- **`<scope>_Research.md`** — Phase 1 output: structured raw facts from Deep Research with descriptive citations and confidence levels
-- **`<topic>_Report.md`** — The capstone. Typically 30–50 pages for a full multi-source topic, though actual length varies. Sections adapt to scope:
+- **`<scope>_Research.md`** - Phase 1 output: structured raw facts from Deep Research with descriptive citations and confidence levels
+- **`<topic>_Report.md`** - The capstone. Typically 30-50 pages for a full multi-source topic, though actual length varies. Sections adapt to scope:
 
 ### Single-channel reports (10 sections)
 
@@ -122,36 +122,36 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 
 ### Exports
 
-- **`output/report-{topic}-{channel}.md`** — Markdown copy
-- **`output/report-{topic}-{channel}.docx`** — Professional DOCX with cover page, TOC, page numbers, color-coded confidence badges
+- **`output/report-{topic}-{channel}.md`** - Markdown copy
+- **`output/report-{topic}-{channel}.docx`** - Professional DOCX with cover page, TOC, page numbers, color-coded confidence badges
 
 ## Research briefings and deep syntheses
 
-- **`output/briefing-{name}.md`** — Output of `distill research-brief` (Gemini Deep Research, web-augmented, multi-topic)
-- **`output/synthesis-{name}.md`** — Output of `distill synthesize` (grok-4.3 single call, corpus-only, multi-topic)
+- **`output/briefing-{name}.md`** - Output of `distill research-brief` (Gemini Deep Research, web-augmented, multi-topic)
+- **`output/synthesis-{name}.md`** - Output of `distill synthesize` (grok-4.3 single call, corpus-only, multi-topic)
 
 ## Package Latest (agent handoff)
 
-- **`output/latest-{channel}.md`** or **`output/latest-{topic}.md`** — One markdown file with the N most recent videos (links, dates, durations, full insights). Designed for feeding into downstream agents or RAG pipelines.
+- **`output/latest-{channel}.md`** or **`output/latest-{topic}.md`** - One markdown file with the N most recent videos (links, dates, durations, full insights). Designed for feeding into downstream agents or RAG pipelines.
 
 ## Topic watch artifacts
 
-- **`library/topics/<topic>/<topic>_Watch_Update.md`** — Per-watch delta summary
-- **`library/topics/<topic>/<topic>_Topic_Diff.md`** — Topic-level change report
-- **`library/topics/<topic>/<topic>_Topic_Trends.md`** — Momentum over recent diff windows
-- **`library/topics/<topic>/change_history.jsonl`** — Timestamped change counts
-- **`library/library_Latest_Changes.md`** — Library-level rollup
-- **`library/library_Watch_Alerts.md`** — Digest of notable changes
+- **`library/topics/<topic>/<topic>_Watch_Update.md`** - Per-watch delta summary
+- **`library/topics/<topic>/<topic>_Topic_Diff.md`** - Topic-level change report
+- **`library/topics/<topic>/<topic>_Topic_Trends.md`** - Momentum over recent diff windows
+- **`library/topics/<topic>/change_history.jsonl`** - Timestamped change counts
+- **`library/library_Latest_Changes.md`** - Library-level rollup
+- **`library/library_Watch_Alerts.md`** - Digest of notable changes
 
 ## Verification sidecars and audit reports (0.10)
 
-- **`<stem>_Verify.json`** — written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from "never checked".
-- **`library/topics/<topic>/<topic>_Audit.md`** — written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), synthesis-freshness rollup (a synthesis older than the sources it synthesizes, and shadowed legacy syntheses lingering beside their modern replacements — the same warning also rides the dashboard health list and the topic's generated CLAUDE.md/AGENTS.md), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
+- **`<stem>_Verify.json`** - written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from "never checked".
+- **`library/topics/<topic>/<topic>_Audit.md`** - written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), synthesis-freshness rollup (a synthesis older than the sources it synthesizes, and shadowed legacy syntheses lingering beside their modern replacements - the same warning also rides the dashboard health list and the topic's generated CLAUDE.md/AGENTS.md), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
 
 ## Answers (`distill ask`, 0.12)
 
-- **`library/topics/<topic>/answers/<slug>_Answer.md`** — one question, one grounded answer: every claim cites its source as a `[[wiki-link]]`, full provenance (`prompt_id: "ask.v1"`, model), plus a `_Verify.json` sidecar grounding the answer's numbers against the retrieved excerpts. "The corpus does not cover this" is a valid answer body.
-- **`answers/<slug>/<slug>_Insights.md`** — only with `--save` and only when the answer passes the strict verify gate: the promoted answer as a first-class insight (`synthesis_scope: "derived-answer"`, `source: "distill-answer"`) that synthesis, concepts, audit, and future answers build on, verification record attached.
+- **`library/topics/<topic>/answers/<slug>_Answer.md`** - one question, one grounded answer: every claim cites its source as a `[[wiki-link]]`, full provenance (`prompt_id: "ask.v1"`, model), plus a `_Verify.json` sidecar grounding the answer's numbers against the retrieved excerpts. "The corpus does not cover this" is a valid answer body.
+- **`answers/<slug>/<slug>_Insights.md`** - only with `--save` and only when the answer passes the strict verify gate: the promoted answer as a first-class insight (`synthesis_scope: "derived-answer"`, `source: "distill-answer"`) that synthesis, concepts, audit, and future answers build on, verification record attached.
 
 ## Standard YAML frontmatter
 
