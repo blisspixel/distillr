@@ -22,7 +22,7 @@ class HardwareProfile:
     """Detected hardware capabilities."""
 
     gpu_type: str  # "nvidia", "apple_silicon", "none"
-    gpu_name: str  # e.g., "RTX 4090", "M1 Pro"
+    gpu_name: str  # Detected GPU or unified-memory device label
     vram_gb: float  # GPU VRAM or unified memory
     system_ram_gb: float
     is_container: bool

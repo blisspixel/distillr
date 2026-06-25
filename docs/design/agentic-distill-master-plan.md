@@ -51,7 +51,7 @@ evidence, not speculation:
 | F3 | **No top rung.** Synthesis stops at "what no single source says"; there is no thesis / white-space / falsifiable-hypothesis layer. | `claim_synthesis_prompt` has no thesis section; the OpenSteward "name the unoccupied space" answer had to be read out by hand. |
 | F4 | **Linear & single-shot.** No verify, no gap-fill, no convergence; the pipeline sees each pile exactly once. | No loop anywhere in `pipeline/`. |
 | F5 | **No corpus-aware dedup; non-deterministic plans.** `discover` re-suggests already-ingested items; identical previews size to 12 then 10 with different queries. | Preview vs. preview drift; rerank shortlist included ingested videos. |
-| F6 | **Brittle failure.** A known 403 "out of credits" dumped a raw `openai` traceback; no fallback to the idle local 4090; left a non-resumable partial state (5 papers, no synthesis, no videos). | The crash that interrupted this very run. |
+| F6 | **Brittle failure.** A known 403 "out of credits" dumped a raw `openai` traceback; no fallback to an available local model; left a non-resumable partial state (5 papers, no synthesis, no videos). | The crash that interrupted this very run. |
 | F7 | **Weak relevance floor on discovery.** The `steward` topic is polluted with enterprise *data-stewardship* content from a bare keyword. | `steward` corpus = Atlan/Aiven/Neo4j "context layer." |
 
 The throughline: **distill assumes one lens, runs once, trusts itself, and breaks

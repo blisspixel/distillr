@@ -19,10 +19,10 @@ clears the workload bar, and the usage ledger plus `quota_stop` metadata keep a
 rate-limited or exhausted route out of the live pool.
 
 But picking one route throws away the real advantage of holding several plan
-quotas and a local GPU at once: using them *together*. A user who has a Claude
-plan, a Codex plan, a Grok plan, and a local 4090 should be able to get output
-that is better than any one of those routes alone, not just "whichever single
-route eval liked best." That is the orchestration layer.
+quotas and a local model server at once: using them *together*. A user who has
+several plan-backed routes plus local compute should be able to get output that
+is better than any one of those routes alone, not just "whichever single route
+eval liked best." That is the orchestration layer.
 
 The unit of selection changes accordingly. The route layer selects a **route**;
 the orchestration layer selects a **strategy**, which is a small rule-owned plan

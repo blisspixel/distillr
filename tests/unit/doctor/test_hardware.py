@@ -22,7 +22,7 @@ class TestDetectNvidia:
     def test_nvidia_detected_with_valid_output(self) -> None:
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = "NVIDIA GeForce RTX 4090, 24564\n"
+        mock_result.stdout = "NVIDIA Test GPU, 24564\n"
 
         with (
             patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
@@ -33,7 +33,7 @@ class TestDetectNvidia:
         assert result is not None
         gpu_type, gpu_name, vram_gb = result
         assert gpu_type == "nvidia"
-        assert gpu_name == "NVIDIA GeForce RTX 4090"
+        assert gpu_name == "NVIDIA Test GPU"
         assert vram_gb == pytest.approx(24.0, abs=0.1)
 
     def test_nvidia_not_found(self) -> None:
@@ -80,14 +80,14 @@ class TestAppleChipName:
     def test_apple_chip_detected(self) -> None:
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = "Apple M1 Pro\n"
+        mock_result.stdout = "Apple Test Chip\n"
 
         with (
             patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             name = _get_apple_chip_name()
-        assert name == "Apple M1 Pro"
+        assert name == "Apple Test Chip"
 
     def test_apple_chip_fallback(self) -> None:
         with patch("distill.doctor.hardware.shutil.which", return_value=None):

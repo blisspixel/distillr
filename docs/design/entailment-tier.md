@@ -70,8 +70,8 @@ New module `distill/pipeline/verify_entailment.py`, isolated from
 ## Packaging
 
 Optional extra: `pip install distillr[entailment]` pulls
-`transformers` + `torch` (CPU build is sufficient; CUDA accelerates it on a
-4090-class box). CI does not install the extra -- unit tests mock the
+`transformers` + `torch` (CPU build is sufficient; local accelerator hardware
+can speed it up). CI does not install the extra -- unit tests mock the
 `EntailmentChecker` protocol; the model-loading path is covered by marked
 opt-in integration tests and live validation.
 

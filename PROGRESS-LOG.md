@@ -3439,7 +3439,7 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 
 External spend: $0.00.
 
-Reviewed `C:\GitHub\quotabot` as a reference project. The transferable lesson is
+Reviewed the local Quotabot reference project. The transferable lesson is
 not its Dart provider scraping layer. The useful shape is its normalized quota
 model, binding-window rule, stale-cache labeling, and MCP-friendly routing
 primitive. Added `distill.eval.route_availability` so Distill can represent the

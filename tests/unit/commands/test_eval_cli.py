@@ -101,7 +101,11 @@ def _mock_gpu_24gb(monkeypatch):
     from distill.doctor import hardware
 
     profile = hardware.HardwareProfile(
-        gpu_type="nvidia", gpu_name="RTX 4090", vram_gb=24.0, system_ram_gb=64.0, is_container=False
+        gpu_type="nvidia",
+        gpu_name="NVIDIA 24GB Test GPU",
+        vram_gb=24.0,
+        system_ram_gb=64.0,
+        is_container=False,
     )
     monkeypatch.setattr(hardware, "detect_hardware", lambda: profile)
     monkeypatch.setattr(_eval, "_ollama_model_sizes", lambda: {"huge:70b": 40.0})

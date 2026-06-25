@@ -111,10 +111,10 @@ class TestDistillConfig:
 
     def test_topic_dir_sanitizes_absolute_topic(self, tmp_path):
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
-        result = config.topic_dir(r"C:\Users\nicks\secret")
+        result = config.topic_dir(r"C:\Users\example\secret")
 
         assert result.parent == config.topics_dir()
-        assert result.name == "C-Users-nicks-secret"
+        assert result.name == "C-Users-example-secret"
         result.resolve(strict=False).relative_to(config.topics_dir().resolve(strict=False))
 
     def test_channel_dir(self, tmp_path):

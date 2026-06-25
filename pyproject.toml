@@ -9,7 +9,7 @@ description = "Source-to-intelligence platform: turn YouTube, websites, and arXi
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Nick Seal", email = "nick@pueo.io" }]
+authors = [{ name = "Nick Seal" }]
 keywords = ["research", "intelligence", "synthesis", "arxiv", "youtube", "rag", "knowledge-base", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",

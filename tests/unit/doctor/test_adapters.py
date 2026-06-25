@@ -139,7 +139,7 @@ def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monk
         if command == ("claude", "auth", "status", "--json"):
             return (
                 0,
-                '{"auth":{"method":"oauth","state":"authenticated","account":"nick@example.test"}}',
+                '{"auth":{"method":"oauth","state":"authenticated","account":"user@example.test"}}',
                 "",
             )
         return _runner_with_required_flags(command, _timeout)
@@ -150,7 +150,7 @@ def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monk
     assert claude.auth_mode == "session-command"
     assert "auth_status: oauth" in claude.auth_evidence
     assert "auth_status: authenticated" in claude.auth_evidence
-    assert "nick@example.test" not in " ".join(claude.auth_evidence + claude.blocked_reasons)
+    assert "user@example.test" not in " ".join(claude.auth_evidence + claude.blocked_reasons)
     assert "support statement is not current" in claude.blocked_reasons
     assert not claude.no_metered_eligible
 
