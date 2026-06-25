@@ -298,6 +298,18 @@ def legacy_artifact_path(directory: Path, artifact_type: str) -> Path:
     return directory / _LEGACY_NAMES[artifact_type]
 
 
+def _lowercase_suffix_artifact_path(
+    directory: Path,
+    artifact_type: str,
+    *,
+    identity: str | None = None,
+    extension: str = "md",
+) -> Path:
+    suffix = _ARTIFACT_SUFFIXES.get(artifact_type, artifact_type.title().replace("-", "_"))
+    stem = artifact_identity(identity or directory.name)
+    return directory / f"{stem}_{suffix.casefold()}.{extension.lstrip('.')}"
+
+
 def find_artifact(
     directory: Path,
     artifact_type: str,
@@ -314,6 +326,11 @@ def find_artifact(
     modern = artifact_path(directory, artifact_type, identity=identity, extension=extension)
     if modern.exists():
         return modern
+    lowercase_suffix = _lowercase_suffix_artifact_path(
+        directory, artifact_type, identity=identity, extension=extension
+    )
+    if lowercase_suffix != modern and lowercase_suffix.exists():
+        return lowercase_suffix
     legacy = legacy_artifact_path(directory, artifact_type)
     if legacy.exists():
         return legacy

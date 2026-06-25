@@ -21,6 +21,8 @@ from distill.library.migration import (
 from distill.library.paths import (
     _ARTIFACT_SUFFIXES,
     _LEGACY_NAMES,
+    artifact_path,
+    find_artifact,
     resolve_slug_collision,
     slugify_title,
 )
@@ -399,3 +401,23 @@ class TestLegacyArtifactDetectionAndRename:
             assert modern_file not in detected_sources, (
                 f"Modern file {modern_name} should not be detected as legacy"
             )
+
+
+class TestArtifactLookupCompatibility:
+    def test_find_artifact_reads_lowercase_modern_suffix(self, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "topics" / "ai" / "channels" / "c1"
+        artifact_dir.mkdir(parents=True)
+        lowercase = artifact_dir / "ai_c1_synthesis.md"
+        lowercase.write_text("# Channel synthesis\n", encoding="utf-8")
+
+        assert find_artifact(artifact_dir, "synthesis", identity="ai_c1") == lowercase
+
+    def test_find_artifact_prefers_canonical_modern_name(self, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "topics" / "ai" / "channels" / "c1"
+        canonical = artifact_path(artifact_dir, "synthesis", identity="ai_c1")
+        canonical.parent.mkdir(parents=True)
+        canonical.write_text("# Canonical synthesis\n", encoding="utf-8")
+        lowercase = artifact_dir / "ai_c1_synthesis.md"
+        lowercase.write_text("# Lowercase synthesis\n", encoding="utf-8")
+
+        assert find_artifact(artifact_dir, "synthesis", identity="ai_c1") == canonical

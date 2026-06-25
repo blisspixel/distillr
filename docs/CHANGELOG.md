@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `find_artifact` now recognizes lowercase modern artifact suffixes such as
+  `*_synthesis.md` on case-sensitive filesystems, matching the compatibility
+  behavior users saw on Windows and macOS.
 - Removed the README license-section contact guidance now that the project uses
   standard Apache 2.0 terms.
 - Removed stale adapter-doctor blocker language that still described Grok,

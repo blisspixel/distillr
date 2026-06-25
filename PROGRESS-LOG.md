@@ -3330,3 +3330,17 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - No behavior change, parse-don't-validate direction already present via pydantic strict models.
 - References: docs/roadmap.md 0.19 complete usage ledger / manifest / eval + 1.0 pyright-strict + parse-don't-validate, SKILLS, agentic (Python owns structural contracts).
 - Ship: will commit after gate.
+
+### Cycle 126 - Linux artifact lookup compatibility
+
+- External spend: $0.00.
+- Root cause: CI Linux could not find `ai_c1_synthesis.md` because canonical
+  modern files use `ai_c1_Synthesis.md`; Windows local tests passed through
+  case-insensitive lookup.
+- Fixed `find_artifact` to recognize lowercase modern artifact suffixes while
+  preserving canonical-modern precedence over compatibility names and legacy
+  bare filenames.
+- Added unit coverage for lowercase suffix lookup and canonical precedence.
+- Validation: targeted regression tests passed; ruff check clean; ruff format
+  check clean after formatting; full pytest coverage gate passed with 3111
+  passed, 8 deselected, 1 warning, coverage 89.54%.
