@@ -3344,3 +3344,7 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
 - Validation: targeted regression tests passed; ruff check clean; ruff format
   check clean after formatting; full pytest coverage gate passed with 3111
   passed, 8 deselected, 1 warning, coverage 89.54%.
+- CI follow-up: macOS smoke exposed a case-insensitive filesystem assertion in
+  the new test; changed it to assert the resolved path exists and points to the
+  same file. Full local gate rerun passed with 3111 passed, 8 deselected, 1
+  warning, coverage 89.55%.

@@ -410,7 +410,9 @@ class TestArtifactLookupCompatibility:
         lowercase = artifact_dir / "ai_c1_synthesis.md"
         lowercase.write_text("# Channel synthesis\n", encoding="utf-8")
 
-        assert find_artifact(artifact_dir, "synthesis", identity="ai_c1") == lowercase
+        resolved = find_artifact(artifact_dir, "synthesis", identity="ai_c1")
+        assert resolved.exists()
+        assert resolved.samefile(lowercase)
 
     def test_find_artifact_prefers_canonical_modern_name(self, tmp_path: Path) -> None:
         artifact_dir = tmp_path / "topics" / "ai" / "channels" / "c1"
