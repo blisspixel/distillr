@@ -93,6 +93,30 @@ _CLAIM_TOKEN_RE = re.compile(
     re.VERBOSE,
 )
 
+# Unit-bearing small numbers are load-bearing in hardware and deployment
+# research, even when the bare integer would be too noisy to check globally.
+_UNIT_CLAIM_TOKEN_RE = re.compile(
+    r"""
+    (?<![\w.])
+    (?P<num>\d+(?:\.\d+)?)
+    \s*
+    (?:
+        [KMGTPE]?i?B(?:/s)?        # GB, GiB, TB/s
+      | [KMGTPE]?B(?:/s)?          # MB, GB, TB, GB/s
+      | GbE|Gb/s|Gbit/s
+      | W|kW|MW
+      | PFLOPS?|TFLOPS?|TOPS|FLOPS?
+      | degrees?\s*[CF]
+      | \N{DEGREE SIGN}[CF]
+      | billion|million|trillion
+      | [BMT]
+      | parameters?
+    )
+    (?![\w%])
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 # Source-side tokens are broader: any digit run (plus comma/space-separated
 # thousands) so a claim can match however the source typeset it. PDF extraction
 # often renders 15,514 as "15 514".
@@ -170,6 +194,16 @@ def extract_numeric_claims(insight_text: str) -> list[NumericClaim]:
         line = _URL_RE.sub(" ", raw_line)
         for match in _CLAIM_TOKEN_RE.finditer(line):
             token = match.group(0)
+            if _ARXIV_ID_RE.fullmatch(_canonical(token)):
+                continue
+            claims.append(
+                NumericClaim(token=token, kind=_classify(token), context=raw_line.strip())
+            )
+        covered_spans = [match.span() for match in _CLAIM_TOKEN_RE.finditer(line)]
+        for match in _UNIT_CLAIM_TOKEN_RE.finditer(line):
+            if any(start <= match.start("num") < end for start, end in covered_spans):
+                continue
+            token = match.group("num")
             if _ARXIV_ID_RE.fullmatch(_canonical(token)):
                 continue
             claims.append(

@@ -71,7 +71,12 @@ def ask_cmd(
     elif save and result.save_refused_reason:
         console.print(f"  [red]Not promoted[/red] {result.save_refused_reason}")
     console.print(f"\n  [dim]LLM spend: {tracker.format_cost()}[/dim]")
-    save_run_log(config.library_dir, "ask", tracker)
+    save_run_log(
+        config.library_dir,
+        "ask",
+        tracker,
+        metadata={"topic": topic, "workflow": "ask", "source_type": "answer"},
+    )
 
 
 def register(app: typer.Typer) -> None:

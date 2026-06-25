@@ -101,6 +101,21 @@ class TestAsk:
         )
         assert sidecar["unsupported"][0]["token"] == "0.999"
 
+    def test_uses_qa_workload(self, config, monkeypatch):
+        _seed_corpus(config)
+        seen = {}
+
+        def fake_llm(rc, **kwargs):
+            seen.update(kwargs)
+            return LLM_Response(text=GROUNDED, input_tokens=10, output_tokens=10, model="grok-4.3")
+
+        monkeypatch.setattr(ask_mod, "llm_call", fake_llm)
+
+        ask_mod.ask_corpus("which checker?", topic="t", config=config)
+
+        assert seen["workload_tag"] == "qa"
+        assert seen["call_type"] == "ask"
+
     def test_save_refused_on_no_coverage_answer(self, config, monkeypatch):
         """Retrieval can hit lexically while the model correctly answers that the
         corpus doesn't actually cover the question -- that answer must not promote."""
@@ -123,6 +138,13 @@ def test_ask_command_wiring(config, monkeypatch):
     # The ask gate asks the router for a model (cloud key OR local provider), not
     # config.xai_api_key; a keyless local provider keeps this offline + deterministic.
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    saved_run = {}
+    monkeypatch.setattr(
+        "distill.commands.ask.save_run_log",
+        lambda library_dir, command, tracker, metadata=None: saved_run.update(
+            {"command": command, "metadata": metadata}
+        ),
+    )
     _llm(monkeypatch, GROUNDED)
 
     result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t"])
@@ -130,3 +152,7 @@ def test_ask_command_wiring(config, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "0.878" in result.output
     assert "Answer" in result.output
+    assert saved_run == {
+        "command": "ask",
+        "metadata": {"topic": "t", "workflow": "ask", "source_type": "answer"},
+    }

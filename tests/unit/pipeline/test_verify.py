@@ -32,6 +32,13 @@ class TestExtraction:
         # List numbers, rankings, "3 methods" would drown the signal.
         assert _tokens("We compare 3 methods across 12 runs in section 7.") == []
 
+    def test_unit_bearing_small_integers_are_claims(self):
+        text = (
+            "Uses a 240W supply, runs from 5°C to 30°C, supports 200 billion "
+            "parameters or 405B when linked, and has 128 GB memory at 1 PFLOP."
+        )
+        assert _tokens(text) == ["240", "5", "30", "200", "405", "128", "1"]
+
     def test_skips_frontmatter(self):
         text = '---\ntitle: "x"\nduration_seconds: 600\n---\n\nScore was 0.91.'
         assert _tokens(text) == ["0.91"]
@@ -90,6 +97,13 @@ class TestGrounding:
 
     def test_money_matches_bare_number(self):
         assert verify_insight("Costs $200 per run.", "a budget of 200 dollars").ok
+
+    def test_unit_bearing_numbers_match_source_numbers(self):
+        insight = "Uses a 240W supply and supports 200 billion parameters."
+        source = "Power Supply 240 Watts. Support for AI models up to 200 billion parameters."
+        report = verify_insight(insight, source)
+        assert report.ok
+        assert report.checked == 2
 
     def test_repeated_unsupported_token_flagged_once(self):
         report = verify_insight("Got 99.9. Again 99.9.", "source has 1.0 only")

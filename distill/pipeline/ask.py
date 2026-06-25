@@ -91,7 +91,7 @@ def ask_corpus(
     rc = RouterConfig()
     response = llm_call(
         rc,
-        workload_tag="site",
+        workload_tag="qa",
         prompt=ask_prompt(topic=topic, question=question, sources_block=sources_block),
         call_type="ask",
     )
