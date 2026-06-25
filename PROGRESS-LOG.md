@@ -3366,4 +3366,6 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
   `distill/llm/` clean, bandit medium-plus scan clean, import-linter clean,
   build clean, and full coverage gate passed with 3111 passed, 8 deselected, 1
   warning, coverage 89.53%.
-- Release validation and CI: local release validation clean, GitHub CI pending.
+- Release validation and CI: local release validation clean, GitHub CI passed
+  for commit `99a4911`, tag `v0.18.3` published successfully, GitHub Release
+  created, and PyPI verified at 0.18.3.
