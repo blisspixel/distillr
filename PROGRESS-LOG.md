@@ -3348,3 +3348,22 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
   the new test; changed it to assert the resolved path exists and points to the
   same file. Full local gate rerun passed with 3111 passed, 8 deselected, 1
   warning, coverage 89.55%.
+
+### Cycle 127 - Agentic loop checklist and 0.18.3 release prep
+
+- External spend: $0.00.
+- Reviewed the supplied agentic AI guide against README, ROADMAP, invariants,
+  agentic-balance, and CONTRIBUTING.
+- Kept the useful delta only: a contributor checklist for agentic and loop
+  changes covering bounded execution, idempotent side effects, durable
+  contracts, approval boundaries, observable outcomes, staged rollout, and
+  focused failure-mode tests.
+- Updated README release-quality wording to match the current 3,100-plus test
+  suite and 89% branch-coverage floor before publishing.
+- Moved Unreleased changelog notes into 0.18.3 and bumped pyproject plus
+  uv.lock to 0.18.3 for PyPI/GitHub Release.
+- Local validation: ruff check clean, ruff format check clean, pyright
+  `distill/llm/` clean, bandit medium-plus scan clean, import-linter clean,
+  build clean, and full coverage gate passed with 3111 passed, 8 deselected, 1
+  warning, coverage 89.53%.
+- Release validation and CI: local release validation clean, GitHub CI pending.

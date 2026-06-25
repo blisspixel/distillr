@@ -144,6 +144,42 @@ impact in the changelog or design note. For larger changes, add a focused test
 or fixture that proves the smaller context still preserves the evidence the
 output needs.
 
+## Agentic and loop changes
+
+Agentic surfaces in distill must be bounded production workflows, not open-ended
+automation. Before adding or changing a model-driven step, recurring profile,
+MCP write tool, adapter runner, or long-running loop, document the balance:
+which part is rule-owned, which part is model-owned, and which verifier decides
+whether the result is accepted.
+
+Use this checklist for those changes:
+
+- Keep each model call, tool, or worker focused on one responsibility. Split
+  orchestration, judgment, validation, and writing when combining them would
+  obscure failure modes.
+- Version the durable contract that future runs depend on: prompt ids, schemas,
+  tool arguments, eval fixtures, run-state shape, and adapter manifests.
+- Bound execution with max attempts, timeouts, spend or token caps, and clear
+  stop conditions. A model saying the work is complete is not a stop condition.
+- Make side effects idempotent where possible. Writes should have stable paths
+  or request ids, retries must not duplicate externally visible work, and
+  partial failures need a recovery, resume, quarantine, or explicit refusal
+  path.
+- Keep irreversible or externally visible actions behind approval classes,
+  allowlists, cost-mode gates, read-only modes, or other structural controls.
+  Reasoning can be flexible; writes, spend, network access, and permissions
+  need fixed boundaries.
+- Log outcomes that operators can inspect without exposing raw private chain of
+  thought: plans, commands, tool calls, state transitions, validation results,
+  costs, blocked reasons, and accepted artifact paths.
+- Test the real failure classes. Add focused coverage for prompt injection,
+  tool-output injection, malformed structured output, duplicate execution,
+  stale intermediate context, retry after partial write, and budget refusal
+  when the change touches those risks.
+- Prefer staged rollout for new autonomous behavior: preview or shadow first,
+  then approval-gated execution, then unattended operation only after tests,
+  audit output, and cost telemetry show the loop converges.
+
 ## PR expectations
 
 - Keep PRs focused. One behavior change or one capability per PR.

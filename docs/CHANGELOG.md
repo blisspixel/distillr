@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.18.3 - 2026-06-25
+
+Patch release for route-graduation gating, artifact lookup compatibility, and
+agentic-loop contributor guidance.
+
 ### Added
 
 - Added `distill.eval.graduation`, a pure route-graduation decision layer that
@@ -14,12 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   closed on missing judge signal, unfaithful output, errored fixtures, weaker
   faithfulness than the anchor, missing no-metered proof, and credit-metered
   routes.
+- Added a contributor checklist for agentic and loop changes covering bounded
+  execution, idempotent side effects, durable contracts, approval boundaries,
+  observable outcomes, staged rollout, and focused failure-mode tests.
 
 ### Fixed
 
 - `find_artifact` now recognizes lowercase modern artifact suffixes such as
   `*_synthesis.md` on case-sensitive filesystems, matching the compatibility
   behavior users saw on Windows and macOS.
+- Updated the README release-quality claim to the current test count and
+  branch-coverage floor.
 - Removed the README license-section contact guidance now that the project uses
   standard Apache 2.0 terms.
 - Removed stale adapter-doctor blocker language that still described Grok,
