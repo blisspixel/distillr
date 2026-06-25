@@ -50,6 +50,21 @@ from distill.eval.report import (
     results_log_lines,
     summarize,
 )
+from distill.eval.route_availability import (
+    MIN_USABLE_HEADROOM_PERCENT,
+    RouteAvailabilityDecision,
+    RouteAvailabilitySignal,
+    RouteQuotaStop,
+    RouteQuotaWindow,
+    route_availability_decision,
+    route_availability_signal_from_manifest,
+)
+from distill.eval.route_pool import (
+    RouteCandidate,
+    RoutePoolEntry,
+    RoutePoolSelection,
+    select_route_pool,
+)
 from distill.eval.scoring import QualityScore, score_output
 
 __all__ = [
@@ -59,6 +74,7 @@ __all__ = [
     "FAITHFULNESS_ORDINAL",
     "GOLDEN_OUTPUTS",
     "MIGRATION_WINRATE_FLOOR",
+    "MIN_USABLE_HEADROOM_PERCENT",
     "WORKLOADS",
     "AdapterGraduationDecision",
     "EvalGateDecision",
@@ -69,6 +85,13 @@ __all__ = [
     "ModelSummary",
     "PairwiseResult",
     "QualityScore",
+    "RouteAvailabilityDecision",
+    "RouteAvailabilitySignal",
+    "RouteCandidate",
+    "RoutePoolEntry",
+    "RoutePoolSelection",
+    "RouteQuotaStop",
+    "RouteQuotaWindow",
     "adapter_route_graduation_decision",
     "console_lines",
     "degraded_output",
@@ -81,7 +104,10 @@ __all__ = [
     "provider_for_model",
     "render_markdown",
     "results_log_lines",
+    "route_availability_decision",
+    "route_availability_signal_from_manifest",
     "run_model_eval",
     "score_output",
+    "select_route_pool",
     "summarize",
 ]

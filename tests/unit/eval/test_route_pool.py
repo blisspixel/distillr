@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+from distill.doctor.adapter_manifest import (
+    ADAPTER_RESULT_SCHEMA_VERSION,
+    validate_adapter_result_manifest,
+)
 from distill.eval.graduation import AdapterGraduationDecision, EvalGateDecision
+from distill.eval.route_availability import (
+    RouteAvailabilitySignal,
+    RouteQuotaStop,
+    RouteQuotaWindow,
+    route_availability_signal_from_manifest,
+)
 from distill.eval.route_pool import RouteCandidate, select_route_pool
 
 
@@ -147,3 +157,192 @@ def test_route_pool_selection_serializes_for_loop_consumers() -> None:
     assert data["selected"]["candidate"]["provider"] == "ollama"
     assert data["cost_mode"] == "no-metered"
     assert data["workload"] == "analysis"
+
+
+def test_route_availability_quota_stop_evicts_graduated_adapter() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="grok", model="adapter:grok-4.3", workload="analysis")],
+        cost_mode="auto",
+        workload="analysis",
+        graduations=[_graduation()],
+        availability_signals=[
+            RouteAvailabilitySignal(
+                provider="grok",
+                model="adapter:grok-4.3",
+                workload="analysis",
+                checked_at=1_000,
+                quota_stop=RouteQuotaStop(
+                    reached=True,
+                    reason="daily plan quota exhausted",
+                    retry_after_seconds=3_600,
+                ),
+            )
+        ],
+        now=1_000,
+    )
+
+    assert selection.selected is None
+    assert selection.blocked[0].availability is not None
+    assert selection.blocked[0].availability.blocked_until == 4_600
+    assert "route availability: daily plan quota exhausted" in selection.blocked[0].blocked_reasons
+
+
+def test_route_availability_binding_window_blocks_even_when_short_window_is_green() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="claude", model="adapter:opus", workload="analysis")],
+        cost_mode="auto",
+        workload="analysis",
+        graduations=[_graduation(adapter="claude", model="adapter:opus")],
+        availability_signals=[
+            RouteAvailabilitySignal(
+                provider="claude",
+                workload="analysis",
+                checked_at=1_000,
+                windows=(
+                    RouteQuotaWindow(label="5h", remaining_percent=80.0, resets_at=2_000),
+                    RouteQuotaWindow(label="weekly", used_percent=100.0, resets_at=90_000),
+                ),
+            )
+        ],
+        now=1_000,
+    )
+
+    assert selection.selected is None
+    availability = selection.blocked[0].availability
+    assert availability is not None
+    assert availability.binding_window is not None
+    assert availability.binding_window.label == "weekly"
+    assert availability.blocked_until == 90_000
+
+
+def test_require_live_availability_blocks_included_plan_without_signal() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="grok", model="adapter:grok-4.3", workload="analysis")],
+        cost_mode="auto",
+        workload="analysis",
+        graduations=[_graduation()],
+        require_live_availability=True,
+    )
+
+    assert selection.selected is None
+    assert "live route availability proof is missing" in selection.blocked[0].blocked_reasons
+
+
+def test_stale_availability_signal_does_not_prove_route_live() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="grok", model="adapter:grok-4.3", workload="analysis")],
+        cost_mode="auto",
+        workload="analysis",
+        graduations=[_graduation()],
+        availability_signals=[
+            RouteAvailabilitySignal(
+                provider="grok",
+                workload="analysis",
+                checked_at=1_000,
+                stale=True,
+                windows=(RouteQuotaWindow(label="daily", remaining_percent=99.0),),
+            )
+        ],
+        now=1_500,
+    )
+
+    assert selection.selected is None
+    assert "route availability: route availability proof is stale" in (
+        selection.blocked[0].blocked_reasons
+    )
+
+
+def test_same_class_route_selection_prefers_higher_headroom() -> None:
+    selection = select_route_pool(
+        [
+            RouteCandidate(provider="grok", model="adapter:grok-4.3", workload="analysis"),
+            RouteCandidate(provider="claude", model="adapter:opus", workload="analysis"),
+        ],
+        cost_mode="auto",
+        workload="analysis",
+        graduations=[
+            _graduation(),
+            _graduation(adapter="claude", model="adapter:opus"),
+        ],
+        availability_signals=[
+            RouteAvailabilitySignal(
+                provider="grok",
+                workload="analysis",
+                windows=(RouteQuotaWindow(label="daily", remaining_percent=15.0),),
+            ),
+            RouteAvailabilitySignal(
+                provider="claude",
+                workload="analysis",
+                windows=(RouteQuotaWindow(label="daily", remaining_percent=75.0),),
+            ),
+        ],
+        now=1_000,
+    )
+
+    assert selection.selected is not None
+    assert selection.selected.candidate.provider == "claude"
+
+
+def test_rolled_over_window_is_treated_as_fresh() -> None:
+    selection = select_route_pool(
+        [RouteCandidate(provider="grok", model="adapter:grok-4.3", workload="analysis")],
+        cost_mode="auto",
+        workload="analysis",
+        graduations=[_graduation()],
+        availability_signals=[
+            RouteAvailabilitySignal(
+                provider="grok",
+                workload="analysis",
+                windows=(RouteQuotaWindow(label="daily", used_percent=100.0, resets_at=999),),
+            )
+        ],
+        now=1_000,
+    )
+
+    assert selection.selected is not None
+    assert selection.selected.availability is not None
+    assert selection.selected.availability.headroom_percent == 100.0
+
+
+def test_adapter_manifest_quota_stop_builds_availability_signal() -> None:
+    manifest = validate_adapter_result_manifest(
+        {
+            "schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
+            "adapter": "grok",
+            "adapter_version": "grok 0.2.50",
+            "auth_class": "included-plan",
+            "command_class": "read-only",
+            "model": "grok-4.3",
+            "prompt_hash": "sha256:prompt",
+            "source_hash": "sha256:source",
+            "elapsed_ms": 100,
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "native": {"adapter_format": "grok-json"},
+            },
+            "stop_reason": "quota",
+            "files_read": ["sources/input.md"],
+            "files_written": [],
+            "output": {"summary": "quota reached"},
+            "policy": {
+                "cost_mode": "no-metered",
+                "blocked_api_key_env": [],
+                "metered_allowed": False,
+            },
+            "quota_stop": {
+                "reached": True,
+                "reason": "monthly credits exhausted",
+                "retry_after_seconds": 120,
+                "provider_code": "quota",
+                "native": {"remaining_requests": 0},
+            },
+        }
+    )
+
+    signal = route_availability_signal_from_manifest(manifest, now=2_000, workload="analysis")
+
+    assert signal.provider == "grok"
+    assert signal.model == "grok-4.3"
+    assert signal.quota_stop is not None
+    assert signal.quota_stop.blocked_until(2_000) == 2_120

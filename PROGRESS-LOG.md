@@ -3393,3 +3393,28 @@ Next: remaining doctor (checks, native more, runner internals), core cov elsewhe
   ruff format check clean, pyright clean for route-pool plus graduation, bandit
   medium-plus scan clean, import-linter clean, build clean, and full coverage
   gate passed with 3118 passed, 8 deselected, 1 warning, coverage 89.57%.
+## Cycle 129 - Quotabot quota lessons into route availability
+
+External spend: $0.00.
+
+Reviewed `C:\GitHub\quotabot` as a reference project. The transferable lesson is
+not its Dart provider scraping layer. The useful shape is its normalized quota
+model, binding-window rule, stale-cache labeling, and MCP-friendly routing
+primitive. Added `distill.eval.route_availability` so Distill can represent the
+same ideas as pure Python evidence: quota windows, stale service signals, and
+structured quota stops. Extended `distill.eval.route_pool` to consume optional
+availability signals, block exhausted or stale routes, require live proof when a
+caller asks for it, and prefer higher headroom inside the same cost class.
+
+This advances 0.19 route admission and the 1.0 loop-ready contract without
+making any plan-quota adapter live or importing provider-specific scraping. The
+next wiring step is feeding verified live adapter manifests, and optionally an
+external quota snapshot provider, into these availability signals during route
+orchestration.
+
+Validation: focused eval plus adapter-manifest tests passed with 131 tests.
+Full coverage passed with 3125 passed, 8 deselected, 1 warning, and 89.57%
+coverage. Ruff check and format check passed. Targeted pyright for the new eval
+modules passed. CI blocking pyright for `distill/llm/` passed. Bandit medium+
+scan, pip-audit, import-linter, and `uv build` passed. Full `pyright distill/`
+remains advisory in CI and exits clean with existing warnings.

@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   prefers local routes, admits plan-quota adapter routes only after an eligible
   graduation decision, blocks unproven adapters, and keeps credit-metered routes
   behind `paid-ok`.
+- Added `distill.eval.route_availability`, a pure quota/service availability
+  contract for route pools. It normalizes rolling quota windows, stale evidence,
+  and structured quota stops so admitted routes can be evicted without provider
+  scraping in the selector.
 
 ## 0.18.3 - 2026-06-25
 
