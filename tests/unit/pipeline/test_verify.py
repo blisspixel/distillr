@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+
 from distill.pipeline.verify import (
     NumericClaim,
     extract_numeric_claims,
@@ -18,6 +21,17 @@ from distill.pipeline.verify import (
 
 def _tokens(text: str) -> list[str]:
     return [c.token for c in extract_numeric_claims(text)]
+
+
+@given(text=st.text(max_size=500))
+@settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+def test_extract_numeric_claims_fuzz_no_crash_and_well_formed(text: str) -> None:
+    # Extraction runs over untrusted markdown; arbitrary input must not crash or
+    # hang (ReDoS) and the output must be well-formed. The deal.post contract on
+    # extract_numeric_claims also enforces the well-formedness at runtime.
+    for claim in extract_numeric_claims(text):
+        assert claim.token
+        assert claim.kind in {"money", "percent", "decimal", "integer", "year"}
 
 
 class TestExtraction:

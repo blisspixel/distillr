@@ -38,6 +38,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+import deal
+
 from distill.library.paths import artifact_path, atomic_write_text, strip_frontmatter
 from distill.pipeline.verify_entailment import (
     EntailmentChecker,
@@ -177,6 +179,20 @@ def _canonical(token: str) -> str:
     return token.strip("$%").replace(",", "").replace(" ", "")
 
 
+_VALID_CLAIM_KINDS = frozenset({"money", "percent", "decimal", "integer", "year"})
+
+
+def _claims_well_formed(claims: list[NumericClaim]) -> bool:
+    """Every extracted claim has a non-empty token and a known kind.
+
+    Runtime contract over extraction from untrusted markdown
+    (docs/design/verification-depth.md): a regex or classifier change that ever
+    emitted an empty token or an unknown kind is caught at the boundary.
+    """
+    return all(bool(c.token) and c.kind in _VALID_CLAIM_KINDS for c in claims)
+
+
+@deal.post(_claims_well_formed)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def extract_numeric_claims(insight_text: str) -> list[NumericClaim]:
     """Pull the checkable numeric claims out of an insight's markdown body.
 
