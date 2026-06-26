@@ -13,6 +13,8 @@ In scope for security reports:
 - Credential leakage through logs, cost artifacts, or output files
 - Path traversal or file-write escapes from user-controlled inputs (topic names, paper titles, website URLs)
 - Command injection via subprocess calls (`yt-dlp`, `playwright`, `scribe`)
+- Server-side request forgery (SSRF): an attacker-influenced URL (site, feed, repo, paper, or one passed to an MCP write tool) reaching internal, loopback, link-local, or cloud-metadata addresses. Egress is meant to be confined to public hosts (`ingestors/net.py`), and URLs handed to yt-dlp are host-pinned to YouTube
+- Resource exhaustion / denial of service from maliciously large or malformed untrusted responses (unbounded reads, parser crashes, catastrophic regex backtracking)
 - MCP server authentication or tool-authorization issues
 - Dependency vulnerabilities in pinned versions
 - Prompt injection that causes distill to take actions outside its intended scope

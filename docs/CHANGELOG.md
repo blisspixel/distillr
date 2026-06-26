@@ -177,9 +177,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (renamed from `_split_frontmatter`) and a `LEGACY_ARTIFACT_NAMES` alias
   (mirroring the existing `ARTIFACT_SUFFIXES` alias). Production code now imports
   the public names; the private internals remain for in-module and test use. The
-  whole `library/` package is strict except `state.py` (pending a typed `_data`
-  shape) and `export.py` (a thin renderer over the untyped `python-docx`, where
-  strict would only add cast-noise against a third-party dependency).
+  whole `library/` package is strict except `export.py` (a thin renderer over the
+  untyped `python-docx`, where strict would only add cast-noise against a
+  third-party dependency). (`state.py` was subsequently made strict via a
+  parse-don't-validate redesign, recorded above.)
+
+### Fixed
+
+- Bounded several untrusted response reads that had no size cap (the trusted-site
+  sitemap / landing-page fetch, the YouTube browser-search HTML fetch, and the
+  arXiv Atom feed) so a hostile or compromised host cannot drive a multi-GB read
+  into memory; mirrors the existing 5 MB podcast-feed cap.
+- Guarded crash-on-malformed-input paths at untrusted boundaries: the YouTube
+  `ytInitialData` `json.loads`, the X syndication numeric fields
+  (`durationMs` / `bitrate` / `favorite_count` / `conversation_count`), and the
+  arXiv feed XML parse (arXiv returns an HTML error page on some rate-limited
+  requests) now degrade to empty results instead of aborting the run with an
+  uncaught exception.
+- The MCP `catch_up`, `discover`, `learn_topic`, and `papers` tools no longer
+  silently swallow synthesis failures while reporting success; the failure is now
+  logged (observable in `library/.distill/distill.log`), honoring the
+  no-silent-error-swallowing rule. Synthesis stays best-effort (one item failing
+  does not abort a multi-item run), but it is no longer silent.
+
+### Security
+
+- Fixed an SSRF: `discover_videos` handed an unvalidated channel URL to yt-dlp
+  (which does its own networking, outside the urllib/requests SSRF guards),
+  reachable by default through the MCP `watch_add` / `catch_up` write tools. It
+  now applies the same `is_youtube_url` host-pinning every sibling yt-dlp entry
+  point already used, so an attacker-influenced URL can no longer reach internal,
+  loopback, link-local, or cloud-metadata addresses. Regression-tested.
 
 ## 0.19.1 - 2026-06-25
 
