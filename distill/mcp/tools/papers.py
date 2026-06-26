@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from mcp.server.fastmcp import Context
 
 from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
+
+logger = logging.getLogger(__name__)
 
 __all__: list[str] = []
 
@@ -91,8 +94,8 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context = None) ->
         synthesize_corpus(topic, config, tracker=tracker)
     except BudgetExceededError:
         raise  # the per-call spend cap is a hard stop; write_tool answers
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("papers synthesis failed for %s: %s", topic, exc)
 
     save_run_log(config.library_dir, "papers", tracker)
     return json.dumps(

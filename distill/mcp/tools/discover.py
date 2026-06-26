@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from mcp.server.fastmcp import Context
 
@@ -10,6 +11,8 @@ from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
+
+logger = logging.getLogger(__name__)
 
 __all__: list[str] = []
 
@@ -71,8 +74,8 @@ def _learn_one_channel(
         synthesize_channel(topic_name, channel_name, config, tracker=tracker)
     except BudgetExceededError:
         raise  # the per-call spend cap is a hard stop; write_tool answers
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("discover channel synthesis failed for %s: %s", channel_name, exc)
     return rows
 
 
@@ -156,8 +159,8 @@ def learn_topic(
         synthesize_topic(topic_name, config, tracker=tracker)
     except BudgetExceededError:
         raise
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("learn_topic synthesis failed for %s: %s", topic_name, exc)
 
     save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps(

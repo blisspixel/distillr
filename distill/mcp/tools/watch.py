@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.mcp import server as _server
 from distill.pipeline.costs import BudgetExceededError, save_run_log
+
+logger = logging.getLogger(__name__)
 
 __all__: list[str] = []
 
@@ -99,8 +102,10 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             synthesize_channel(entry.topic, entry.name, config, tracker=tracker)
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
-        except Exception:
-            pass
+        except Exception as exc:
+            # Don't fail the whole catch-up over one channel's synthesis, but the
+            # failure must be observable, not silently swallowed.
+            logger.warning("catch_up channel synthesis failed for %s: %s", entry.name, exc)
         topics_touched.add(entry.topic)
 
         results.append(
@@ -117,8 +122,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             synthesize_topic(t, config, tracker=tracker)
         except BudgetExceededError:
             raise
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("catch_up topic synthesis failed for %s: %s", t, exc)
 
     save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)
