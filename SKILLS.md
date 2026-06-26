@@ -222,6 +222,39 @@
 - If the full coverage run exceeds a short command timeout, rerun with a longer
   timeout before treating it as a failure.
 
+## Pyright Strict Ratchet
+
+Advancing the 1.0 "Pyright strict across the full surface" gate, one module or
+package at a time. CI blocks strict only on `distill/llm/`; everything else is
+advisory until a module opts in with a top-of-file `# pyright: strict` (place it
+after the module docstring, before `from __future__ import annotations`). Verify
+a target with `uv run pyright <file>` after adding the marker.
+
+The recurring fixes (all proven on `concepts/` and `claims/`):
+
+- **Bare generics.** `dict` / `list` / `set` annotations need arguments. A
+  `to_dict` is `dict[str, Any]`; a JSONL row list is `list[dict[str, Any]]`.
+- **Empty literals lose their type.** `set()` in a typed-return branch is
+  `set[Unknown]`; write `set[str]()`. Same for `dict`/`list` literals where the
+  surrounding type is not inferable.
+- **JSON boundaries.** `json.loads(...)` is `Any`; after an `isinstance(x, dict)`
+  (or `list`) guard the value narrows to `dict[Unknown, Unknown]`. Bind it once:
+  `row = cast("dict[str, Any]", x)` and use `row` for every downstream call
+  (including any `repr`), so no `Unknown` propagates. Prefer making a typed
+  reader actually filter+cast non-matching rows over scattering `isinstance`
+  guards in each consumer - that makes the return type honest *and* keeps the
+  malformed-input robustness.
+- **dataclass `field(default_factory=list|dict)`** reads as `list[Unknown]`
+  under strict. Use the house ignore with justification (see
+  `doctor/adapters.py`): `# pyright: ignore[reportUnknownVariableType] dataclass
+  default_factory appears as ... under strict; usage confirms ...`.
+- **Redundant runtime `isinstance` on an already-typed param** is flagged
+  (`reportUnnecessaryIsInstance`). Removing it is consistent with parse-don't-
+  validate when the boundary already parsed the value; keep value-based guards.
+
+These are type-honesty changes, not behavior changes - validate with the
+module's own unit suite plus the full coverage gate before pushing.
+
 ## Adapter Doctor
 
 - `distill doctor --adapters` is read-only. It may run version/help commands,
