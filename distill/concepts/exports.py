@@ -10,6 +10,8 @@ same input produces byte-identical files. This matters for git diffs
 when users commit their library; an unstable order would produce noise.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json

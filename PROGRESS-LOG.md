@@ -3501,3 +3501,23 @@ Validation: pyright strict on all three modules (0 errors), pyright
 medium+ exit 0, import-linter 4/4 kept, concept suite 173 passed, full coverage
 gate 3140 passed / 8 deselected at 89.51% branch coverage. Updated CHANGELOG
 Unreleased (Changed). Ship: commit + push to main.
+
+## Cycle 131 - Pyright-strict on the concepts data and read layer
+
+External spend: $0.00.
+
+Continued the concepts-layer strict ratchet onto the data foundation and the
+JSONL read path: `concepts/records.py` (the dataclasses/enums merge, normalize,
+and recovery all depend on), `concepts/exports.py` (rollup writer), and
+`concepts/contradictions.py` (contested-concept reader).
+
+- `records.py`: `# pyright: strict`; only the `MergedConcept.provenance`
+  `field(default_factory=dict)` needed the house `# pyright: ignore` justification.
+- `exports.py`: `# pyright: strict`; already fully typed, 0 fixes.
+- `contradictions.py`: `# pyright: strict`; bare `dict` annotations typed
+  `dict[str, Any]` and the JSON row cast to `dict[str, Any]` after the
+  `isinstance(obj, dict)` guard so no `Unknown` flows into `find_contested`.
+
+No behavior change. Validation: pyright strict on all three (0 errors), ruff
+check clean for `concepts/`, ruff format applied, concept suite 173 passed. Full
+coverage gate batched with cycle 132 before push.

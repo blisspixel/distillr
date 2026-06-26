@@ -19,6 +19,8 @@ Vocabulary:
   passing references.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -222,7 +224,7 @@ class MergedConcept:
     harmful_evidence: EvidenceInterval
     first_seen: str
     last_seen: str
-    provenance: dict[str, Any] = field(default_factory=dict)
+    provenance: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as dict[Unknown, Unknown] under strict; usage confirms dict[str, Any]
 
     @property
     def source_count(self) -> int:

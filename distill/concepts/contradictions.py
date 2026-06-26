@@ -12,11 +12,14 @@ in sync with the per-concept notes. Reading JSONL is also cheaper and
 gives us scalar fields directly.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 
@@ -39,7 +42,7 @@ class ContestedConcept:
     def is_entity(self) -> bool:
         return self.kind in {"person", "organization", "vendor"}
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "slug": self.slug,
@@ -52,10 +55,10 @@ class ContestedConcept:
         }
 
 
-def _read_jsonl(path: Path) -> list[dict]:
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    rows: list[dict] = []
+    rows: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
@@ -68,7 +71,7 @@ def _read_jsonl(path: Path) -> list[dict]:
         # valid JSON but a list/scalar (``[]``, ``true``) would otherwise crash
         # find_contested's ``r.get(...)`` with AttributeError.
         if isinstance(obj, dict):
-            rows.append(obj)
+            rows.append(cast("dict[str, Any]", obj))
     return rows
 
 
