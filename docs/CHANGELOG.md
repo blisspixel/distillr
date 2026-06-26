@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Extended the `distill/pipeline/` strict ratchet to `search.py` (the lexical
+  corpus search / preview engine behind `ask` and the sub-agent summaries) and
+  `preview_cache.py` (the content-addressed `discover` shortlist replay store).
+  `search.py` was fully typed; making it strict surfaced and removed a dead
+  module constant (`_MARKDOWN_STRIP_RE`, never referenced - `_strip_markdown`
+  reimplements those regexes inline). `preview_cache.py` took bare-`dict`
+  annotations (`dict[str, Any]`) and one documented `default_factory=list` house
+  ignore. No behavior change.
 - Extended the `distill/pipeline/` strict ratchet to `audit_video_duplicates.py`
   (exact YouTube source-identity duplicate detection) and `summary_query.py`
   (the cached, token-bounded sub-agent query-summary engine).

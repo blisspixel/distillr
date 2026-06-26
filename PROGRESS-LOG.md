@@ -3828,6 +3828,28 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 149 - Pyright-strict the search + preview-cache modules (dead-code find)
+
+External spend: $0.00.
+
+- `search.py` (term-frequency corpus search + JIT preview/section extraction,
+  the engine behind `ask` and `summarize_query`): fully typed already, so strict
+  needed no type work - but it surfaced genuine dead code. `_MARKDOWN_STRIP_RE`
+  (a 10-line compiled regex constant) was defined but never referenced;
+  `_strip_markdown` reimplements the same patterns inline. Deleted it per the
+  no-ghost-code rule. (pyright flagged it as unaccessed once the file went
+  strict.)
+- `preview_cache.py` (content-addressed `discover --preview` replay store): bare
+  `dict` -> `dict[str, Any]` on the `estimate` field, `_item_to_dict`,
+  `_item_from_dict`, `save_preview`, and `list_previews`; one documented
+  `field(default_factory=list)` house ignore (reads as `list[Unknown]` under
+  strict, the annotation carries the real element type).
+
+No behavior change. Validation: pyright strict on both (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean,
+search/preview/discover tests 272 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
 ## Cycle 148 - Pyright-strict more pipeline audit/query modules
 
 External spend: $0.00.

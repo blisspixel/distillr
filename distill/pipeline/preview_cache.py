@@ -11,6 +11,8 @@ Pure functions, filesystem IO only, with an injected ``now_iso`` timestamp so th
 save path is deterministic under test.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import hashlib
@@ -18,6 +20,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
@@ -51,8 +54,8 @@ class PreviewSnapshot:
     model: str
     rigor: str
     created_at: str
-    estimate: dict
-    items: list[RankedDiscoverItem] = field(default_factory=list)
+    estimate: dict[str, Any]
+    items: list[RankedDiscoverItem] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] -- default_factory=list reads as list[Unknown] under strict; the annotation is the real element type
 
 
 def preview_cache_dir(library_dir: Path) -> Path:
@@ -70,7 +73,7 @@ def compute_preview_id(goal: str, model: str, rigor: str, identifiers: list[str]
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:10]
 
 
-def _item_to_dict(item: RankedDiscoverItem) -> dict:
+def _item_to_dict(item: RankedDiscoverItem) -> dict[str, Any]:
     return {
         "kind": item.kind,
         "identifier": item.identifier,
@@ -88,7 +91,7 @@ def _item_to_dict(item: RankedDiscoverItem) -> dict:
     }
 
 
-def _item_from_dict(d: dict) -> RankedDiscoverItem:
+def _item_from_dict(d: dict[str, Any]) -> RankedDiscoverItem:
     paper = d.get("paper")
     video = d.get("video")
     site = d.get("site_seed")
@@ -116,7 +119,7 @@ def save_preview(
     model: str,
     rigor: str,
     items: list[RankedDiscoverItem],
-    estimate: dict,
+    estimate: dict[str, Any],
     now_iso: str,
 ) -> PreviewSnapshot:
     """Write a previewed shortlist to ``<cache_dir>/<id>.json`` and return it.
@@ -187,11 +190,11 @@ def load_preview(cache_dir: Path, preview_id: str) -> PreviewSnapshot:
         ) from exc
 
 
-def list_previews(cache_dir: Path) -> list[dict]:
+def list_previews(cache_dir: Path) -> list[dict[str, Any]]:
     """Return lightweight metadata for every cached preview (id, goal, time)."""
     if not cache_dir.exists():
         return []
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for path in sorted(cache_dir.glob("*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))

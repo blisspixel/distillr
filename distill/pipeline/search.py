@@ -4,6 +4,8 @@ Provides term-frequency based search across all artifact types in a topic,
 with preview generation and section extraction for JIT context retrieval.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import math
@@ -43,17 +45,6 @@ _ARTIFACT_TYPE_PATTERNS: list[tuple[str, str]] = [
     ("diff", "diff"),
     ("trends", "trends"),
 ]
-
-_MARKDOWN_STRIP_RE = re.compile(
-    r"(?:"
-    r"^#{1,6}\s+"  # heading markers
-    r"|\*\*([^*]+)\*\*"  # bold
-    r"|\*([^*]+)\*"  # italic
-    r"|\[([^\]]+)\]\([^)]+\)"  # links
-    r"|`([^`]+)`"  # inline code
-    r")",
-    re.MULTILINE,
-)
 
 
 @dataclass(frozen=True)
