@@ -3828,6 +3828,28 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 147 - Pyright-strict the deterministic corpus-integrity modules
+
+External spend: $0.00.
+
+Continued the `distill/pipeline/` ratchet on two deterministic corpus-integrity
+modules (the "verification depth on the deterministic core" 1.0 theme):
+
+- `dedup.py` (embedding-free near-duplicate insight detection: token-shingle
+  Jaccard + union-find clustering). Already fully and explicitly typed
+  (`list[tuple[str, frozenset[str]]]`, `dict[int, float]`, etc.), so the marker
+  just locks it - zero code change.
+- `audit_transcripts.py` (thin-long-video-transcript capture-failure warnings).
+  Needed only the recurring JSON-boundary cast in `_read_json_dict`
+  (`cast("dict[str, Any]", data)` after the `isinstance` guard); the
+  `_duration_seconds(value: object)` coercion and the frozen `ThinTranscript`
+  dataclass were already strict-clean.
+
+No behavior change. Validation: pyright strict on both (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean,
+dedup/transcript/audit tests 152 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
 ## Cycle 146 - Pyright-strict the pipeline loop/refresh schema modules
 
 External spend: $0.00.

@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Extended the `distill/pipeline/` strict ratchet to two deterministic
+  corpus-integrity modules: `dedup.py` (embedding-free near-duplicate insight
+  detection via shingle Jaccard + union-find) and `audit_transcripts.py`
+  (thin-long-video-transcript health checks). `dedup.py` was already fully typed
+  so the marker just locks it; `audit_transcripts.py` needed only the recurring
+  `json.loads` boundary cast in `_read_json_dict`. No behavior change.
 - Started the `distill/pipeline/` strict ratchet on the loop/refresh schema
   modules: `next_actions.py` (the loop-readable next-action JSON contract for
   external stewardship loops) and `goals.py` (persisted topic goals) are now

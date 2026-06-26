@@ -14,6 +14,8 @@ prompt, which already attributes source origin) decides what they mean --
 three outlets repeating one press release is itself a signal.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import re

@@ -1,11 +1,13 @@
 """Structural transcript health checks for audit reports."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.library.paths import find_artifact
 
@@ -106,7 +108,7 @@ def _read_json_dict(path: Path) -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    return data if isinstance(data, dict) else {}
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 
 
 def _duration_seconds(value: object) -> int:
