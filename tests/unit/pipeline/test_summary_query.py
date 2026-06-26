@@ -118,6 +118,51 @@ class TestMcpTools:
         """MCP summary tools check model availability before topic/query work."""
         monkeypatch.setattr("distill.mcp.tools.summaries.model_available", lambda: True)
 
+    def test_list_topics_no_topics_dir(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topics
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        result = json.loads(list_topics())
+
+        assert result["topics"] == []
+        assert result["count"] == 0
+        assert "DISTILL_OUTPUT_DIR" in result["message"]
+
+    def test_list_topics_returns_populated_topics(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topics
+
+        monkeypatch.setenv("DISTILL_MCP_READ_ONLY", "1")
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        _seed(config)
+        synth = config.topic_dir("t") / "t_Topic_Synthesis.md"
+        synth.write_text(
+            "---\n---\n\nThis topic tracks grounding checkers and their tradeoffs.\n",
+            encoding="utf-8",
+        )
+        config.topic_dir("empty").mkdir(parents=True)
+
+        result = json.loads(list_topics())
+
+        assert result["count"] == 1
+        assert result["topics"] == [
+            {
+                "topic": "t",
+                "path": "topics/t",
+                "sources": {
+                    "papers": 1,
+                    "videos": 0,
+                    "pages": 0,
+                    "other": 0,
+                    "total": 1,
+                },
+                "has_synthesis": True,
+                "summary": "This topic tracks grounding checkers and their tradeoffs.",
+            }
+        ]
+
     def test_find_insights_summary_gated_in_read_only(self, monkeypatch):
         from distill.mcp.tools.summaries import find_insights_summary
 

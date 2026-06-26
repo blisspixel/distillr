@@ -54,6 +54,7 @@ __all__ = [
 # the same ones distill.concepts.exports writes; named here as literals to keep
 # this module inside the foundational layer.
 MCP_TOOLS: tuple[tuple[str, str], ...] = (
+    ("list_topics(limit=50)", "list available corpus topics before choosing a topic-scoped tool"),
     ("find_insights(topic, query)", "semantic search across the topic's per-source insights"),
     ("read_insight(path, section=None)", "read one insight file, optionally a single section"),
     (

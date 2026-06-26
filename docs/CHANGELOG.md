@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added a free MCP `list_topics` tool so tool-only clients can discover corpus
+  topics before calling topic-scoped tools such as `find_insights`,
+  `list_topic_summary`, or `ask`.
+
 ## 0.19.1 - 2026-06-25
 
 Patch release for portable route availability inputs and local route proof.

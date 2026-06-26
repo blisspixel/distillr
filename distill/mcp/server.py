@@ -23,8 +23,8 @@ __all__ = ["main", "mcp"]
 mcp = FastMCP(
     "Distill",
     instructions=(
-        "YouTube channels to strategic intelligence. "
-        "Discover, transcribe, analyze, and synthesize YouTube content."
+        "Source-to-intelligence platform for local Markdown corpora. "
+        "Use list_topics first, then search or summarize topic-scoped evidence."
     ),
 )
 

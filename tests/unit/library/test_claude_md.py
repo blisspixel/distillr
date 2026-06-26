@@ -187,6 +187,7 @@ def test_render_topic_contains_key_sections(tmp_path: Path):
     assert "3 sources (2 papers, 1 video)" in out
     assert "[[tkg_Topic_Synthesis]]" in out
     assert "## Ask me about" in out
+    assert "list_topics(limit=50)" in out
     assert "find_insights(topic, query)" in out
     assert NOW in out
     assert "Regenerated on every topic refresh" in out
