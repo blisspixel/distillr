@@ -3800,3 +3800,38 @@ prompt/synthesis/claims/lens/analysis tests 367 passed. Full coverage gate
 
 Remaining prompts/ (next cycles): `discover.py`, `report.py`, `synthesis.py`,
 then `__init__.py` last.
+
+## Cycle 144 - Pyright-strict the synthesis + discovery prompt builders
+
+External spend: $0.00.
+
+Took the two large aggregation builders strict. `synthesis.py`
+(channel/topic/site/paper/corpus synthesis, 421 lines) was already clean - the
+only change it ever needed was last cycle's `emphasis_block` public promotion, so
+the marker just locks it.
+
+`discover.py` (search expansion + cross-source rerank) needed honest boundary
+types. Its rerank builders read caller-supplied candidate objects by attribute
+(`video.video_id`, `paper.title`) plus `getattr` for optional fields, and the
+foundational `prompts/` layer cannot import the concrete `ingestors` metadata
+types (import-linter forbids it). So the object-list params are `Sequence[Any]`
+(an honest dynamic boundary, not a faked judgment), the documented dict pool is
+`Sequence[dict[str, Any]]`, and the three `items = []` accumulators are
+`list[str]`. A `Protocol` was considered and rejected: it would over-constrain
+`duration` (int vs float) against not-yet-strict call sites for no current gain.
+
+No behavior change. Validation: pyright strict on both (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean,
+discover/synthesis/rerank tests 362 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
+Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
+(pyright cannot statically verify its spread `__all__`).
+
+Cycle health (140-144): 5/5 | Simplicity: 5/5 | Est. spend: $0.00 external |
+New skill distilled: none (the strict-ratchet recipe in SKILLS.md already
+covers this work; the one reusable addition is the public-API-promotion move for
+cross-module private helpers, already recorded in cycle 139). Strict surface
+this session: library/state.py (parse-don't-validate), the top-level foundation
+modules (config/_version/preflight/update), and prompts/ except report.py +
+__init__.py.

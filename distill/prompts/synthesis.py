@@ -1,5 +1,7 @@
 """Synthesis prompt templates -- channel, topic, site, paper, corpus synthesis."""
 
+# pyright: strict
+
 from distill.prompts.lenses import focus_directive
 from distill.prompts.shared import (
     DERIVED_CONTENT_RULES,

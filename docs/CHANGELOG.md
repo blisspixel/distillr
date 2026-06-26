@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Advanced the `distill/prompts/` strict ratchet onto the two large aggregation
+  builders: `synthesis.py` (channel/topic/site/paper/corpus synthesis) and
+  `discover.py` (search expansion + cross-source rerank) are now
+  `# pyright: strict`. `synthesis.py` needed no change beyond the earlier
+  `emphasis_block` promotion; `discover.py`'s rerank builders took honest
+  boundary types - the duck-typed candidate-object lists (`videos`, `papers`,
+  accessed via attribute + `getattr`) are `Sequence[Any]` because the
+  foundational `prompts/` layer cannot import the concrete `ingestors` metadata
+  types, and the documented dict pool (`candidates`) is `Sequence[dict[str, Any]]`.
+  Only `report.py` and the wildcard-re-export `__init__.py` remain. No behavior
+  change.
 - Continued the `distill/prompts/` strict ratchet onto the per-source builder
   prompts: `lenses.py` (analysis-lens stances + section sets), `analysis.py`
   (video extraction/synthesis), `claims.py` (claim extraction + claim-aware

@@ -1,5 +1,7 @@
 """Discovery and ranking prompt templates -- search expansion, reranking."""
 
+# pyright: strict
+
 __all__ = [
     "discover_query_generation_prompt",
     "discover_rerank_prompt",
@@ -8,6 +10,9 @@ __all__ = [
     "search_query_expansion_prompt",
     "search_rerank_prompt",
 ]
+
+from collections.abc import Sequence
+from typing import Any
 
 from distill.prompts.shared import DERIVED_CONTENT_RULES
 
@@ -40,9 +45,9 @@ Return ONLY valid JSON in this shape:
 """
 
 
-def search_rerank_prompt(query: str, videos: list, *, skeptical: bool = False) -> str:
+def search_rerank_prompt(query: str, videos: Sequence[Any], *, skeptical: bool = False) -> str:
     """Prompt for selecting the best learning set from recent YouTube candidates."""
-    items = []
+    items: list[str] = []
     for video in videos:
         description = (getattr(video, "description", "") or "").replace("\n", " ").strip()
         if len(description) > 280:
@@ -143,9 +148,9 @@ Return ONLY valid JSON in this shape:
 """
 
 
-def paper_rerank_prompt(query: str, papers: list) -> str:
+def paper_rerank_prompt(query: str, papers: Sequence[Any]) -> str:
     """Prompt for ranking arXiv candidates against a research goal."""
-    items = []
+    items: list[str] = []
     for paper in papers:
         abstract = (getattr(paper, "abstract", "") or "").replace("\n", " ").strip()
         if len(abstract) > 600:
@@ -236,14 +241,14 @@ Return ONLY valid JSON in this shape:
 """
 
 
-def discover_rerank_prompt(goal: str, candidates: list) -> str:
+def discover_rerank_prompt(goal: str, candidates: Sequence[dict[str, Any]]) -> str:
     """Prompt for goal-aware cross-source rerank of mixed papers and videos.
 
     candidates is a list of dicts with keys: kind ("paper"|"video"|"site"),
     identifier, title, subtitle (authors, channel, or site), date, description
     (abstract, description, or seed hint).
     """
-    items = []
+    items: list[str] = []
     for c in candidates:
         desc = (c.get("description") or "").replace("\n", " ").strip()
         if len(desc) > 500:
