@@ -19,12 +19,14 @@ derived from the source's ``artifact_path`` so an Obsidian backlink
 graph stays consistent with the rest of the corpus.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.concepts.records import MergedConcept, Polarity, SourceEvidence
 from distill.library.paths import dump_frontmatter
@@ -361,7 +363,7 @@ def read_mentions(topic_dir: Path) -> list[dict[str, Any]]:
         # ``row["name"]`` (TypeError on a list) and ``already_extracted_source_ids``
         # does ``"source_id" in row`` (a substring test on a string -> TypeError).
         if isinstance(row, dict):
-            rows.append(row)
+            rows.append(cast("dict[str, Any]", row))
     return rows
 
 
@@ -391,12 +393,14 @@ def read_extracted_sources(topic_dir: Path) -> set[str]:
     """
     path = _extracted_sources_path(topic_dir)
     if not path.exists():
-        return set()
+        return set[str]()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return set()
-    return {str(s) for s in data} if isinstance(data, list) else set()
+        return set[str]()
+    if not isinstance(data, list):
+        return set[str]()
+    return {str(s) for s in cast("list[object]", data)}
 
 
 def record_extracted_sources(topic_dir: Path, source_ids: Iterable[str]) -> None:

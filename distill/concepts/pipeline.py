@@ -24,12 +24,15 @@ reference even if subsequent refreshes don't re-confirm it. The user
 can prune manually if they want.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from distill.concepts.exports import write_exports
 from distill.concepts.extract import extract_from_insight
@@ -80,7 +83,7 @@ class ConceptRunSummary:
     def notes_written(self) -> int:
         return self.concepts_written + self.entities_written
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "topic": self.topic,
             "insights_scanned": self.insights_scanned,
@@ -93,7 +96,7 @@ class ConceptRunSummary:
         }
 
 
-def _mentions_from_jsonl(rows: Iterable[dict]) -> list[ConceptMention]:
+def _mentions_from_jsonl(rows: Iterable[dict[str, Any]]) -> list[ConceptMention]:
     """Hydrate ``ConceptMention`` records from ``mentions.jsonl`` rows."""
     out: list[ConceptMention] = []
     for row in rows:
@@ -146,7 +149,7 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
     # mentions.jsonl, but a valid empty extraction) is still recognized as done
     # and not re-extracted -- and re-billed -- on every subsequent run.
     seen = (
-        set()
+        set[str]()
         if refresh
         else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
     )
@@ -154,7 +157,7 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
     pending = [r for r in refs if r.source_id not in seen]
     summary.insights_extracted = len(pending)
 
-    new_rows: list[dict] = []
+    new_rows: list[dict[str, Any]] = []
     processed: list[str] = []
     extraction_provenance: dict[str, str] = {}
     for ref in pending:

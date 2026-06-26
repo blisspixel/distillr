@@ -3521,3 +3521,31 @@ and recovery all depend on), `concepts/exports.py` (rollup writer), and
 No behavior change. Validation: pyright strict on all three (0 errors), ruff
 check clean for `concepts/`, ruff format applied, concept suite 173 passed. Full
 coverage gate batched with cycle 132 before push.
+
+## Cycle 132-133 - Finish pyright-strict on the concepts package
+
+External spend: $0.00.
+
+Completed the concepts-layer strict ratchet across the remaining modules so the
+entire `distill/concepts/` package is now `# pyright: strict` (extract,
+normalize, merge, records, notes, exports, contradictions, pipeline, recovery).
+
+- `extract.py` (the one LLM-burning step): cast each LLM row to `dict[str, Any]`
+  once after the `isinstance(raw, dict)` guard and reuse it for both
+  `_row_to_mention` and the skipped-row `repr`, so no `Unknown` flows from
+  `extract_json`'s `dict | list | None` return.
+- `pipeline.py` (orchestrator): typed the bare `dict` annotations
+  (`to_dict -> dict[str, Any]`, `_mentions_from_jsonl` rows, `new_rows`) and the
+  empty `set()` literal to `set[str]()` so the refresh/seen union stays typed.
+- `notes.py` (IO boundary): cast the parsed `mentions.jsonl` row after its
+  `isinstance` guard and typed the three empty `set()` returns in
+  `read_extracted_sources` to `set[str]()`, narrowing the ledger list with a
+  `cast` before stringifying.
+
+Net effect: the deterministic playbook core (merge/normalize/recovery from
+cycles 130-131) plus its extraction, orchestration, and IO surfaces are all
+strict, with honest parse boundaries instead of silent `Any`.
+
+No behavior change. Validation: pyright strict on the whole `distill/concepts/`
+package (0 errors), pyright `distill/llm/` blocking (0 errors), ruff check +
+format clean, concept suite 173 passed. Full coverage gate run before push.

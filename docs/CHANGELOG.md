@@ -15,12 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Advanced the 1.0 Pyright-strict ratchet onto the concepts deterministic core:
-  `concepts/merge.py`, `concepts/normalize.py`, and `concepts/recovery.py` are
-  now `# pyright: strict`. The aggregation core needed only precise type
-  arguments; the recovery surface gained honest narrowing at its JSON
-  frontmatter boundary (no silent `Any` propagation through diff and rollback).
-  No behavior change; the playbook lifecycle property suite stays green.
+- Advanced the 1.0 Pyright-strict ratchet: the entire `distill/concepts/`
+  package (extract, normalize, merge, records, notes, exports, contradictions,
+  pipeline, recovery) is now `# pyright: strict`. The pure aggregation core
+  needed only precise type arguments; the IO and recovery surfaces gained honest
+  narrowing at their JSON boundaries (a single `cast` after each
+  `isinstance(..., dict|list)` guard) so no `Unknown` propagates through
+  extraction, rollback, diffing, or the contested-concept read path. No behavior
+  change; the playbook lifecycle property suite stays green.
 
 ## 0.19.1 - 2026-06-25
 

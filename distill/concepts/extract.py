@@ -20,11 +20,13 @@ results because partial coverage is still useful -- the merge step's
 threshold filter will catch noise either way.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.concepts.records import ConceptKind, ConceptMention, Polarity, utcnow_iso
 from distill.llm import RouterConfig
@@ -167,14 +169,15 @@ def extract_from_insight(
         if not isinstance(raw, dict):
             skipped.append(repr(raw)[:80])
             continue
+        row = cast("dict[str, Any]", raw)
         mention = _row_to_mention(
-            raw,
+            row,
             source_id=source_id,
             artifact_path=artifact_path,
             extracted_at=extracted_at,
         )
         if mention is None:
-            skipped.append(repr(raw)[:80])
+            skipped.append(repr(row)[:80])
             continue
         mentions.append(mention)
 
