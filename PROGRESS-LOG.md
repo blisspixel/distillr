@@ -3460,3 +3460,44 @@ coverage. Ruff check and format check passed. Targeted pyright for the new eval
 modules passed. CI blocking pyright for `distill/llm/` passed. Bandit medium+
 scan, pip-audit, import-linter, and `uv build` passed. Full `pyright distill/`
 remains advisory in CI and exits clean with existing warnings.
+
+## Cycle 130 - Pyright-strict on the concepts deterministic core
+
+External spend: $0.00.
+
+Re-read README, ROADMAP, docs/roadmap.md, CONTRIBUTING, agentic-balance, and the
+prior loop memory. Selected the highest-leverage 1.0 slice that is on a named CI
+gate and carries no vendor dependency: the Pyright-strict ratchet (1.0 "Pyright
+strict across the full surface"). Targeted the exact deterministic core the
+roadmap names for verification depth - `concepts/` merge + normalize + recovery -
+so the strict pass and the existing playbook property suite compound on the same
+layer.
+
+Rejected the audit's suggested "add `strict=True` to library/profiles.py": those
+models are deliberately lenient YAML parsers (mode="before" coercion, then a
+single model_validate boundary). strict=True would break by-design coercions
+(int->float for max_metered_usd, dict->submodel for nested fields) and fight the
+parse-once design that is already correct there. Verified before acting.
+
+Changes:
+- `concepts/merge.py`: `# pyright: strict`; bare `dict` provenance params typed
+  `dict[str, Any] | None` to match `MergedConcept.provenance`. 0 strict errors.
+- `concepts/normalize.py`: `# pyright: strict`; already fully annotated, 0 fixes.
+- `concepts/recovery.py`: `# pyright: strict` with honest narrowing at the JSON
+  frontmatter boundary - `_sources_by_id` parses `sources` as a list once and
+  casts per-row before `.get`, `_fmt_interval` casts the matched list - so no
+  `Unknown` propagates through diff/rollback. Dropped a redundant runtime
+  `isinstance(slug, str)` (the MCP/CLI boundary already parses slug to str; the
+  value-based traversal guards remain) per parse-don't-validate. Dataclass
+  `field(default_factory=list)` fields carry the house `# pyright: ignore`
+  justification used in `doctor/adapters.py`. 0 strict errors.
+
+No behavior change. `_sources_by_id` is slightly more robust (a non-list
+`sources` value now yields empty instead of iterating oddly); `_fmt_interval`
+output is identical.
+
+Validation: pyright strict on all three modules (0 errors), pyright
+`distill/llm/` blocking (0 errors), ruff check + format clean tree-wide, bandit
+medium+ exit 0, import-linter 4/4 kept, concept suite 173 passed, full coverage
+gate 3140 passed / 8 deselected at 89.51% branch coverage. Updated CHANGELOG
+Unreleased (Changed). Ship: commit + push to main.

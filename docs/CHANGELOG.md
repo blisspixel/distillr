@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   topics before calling topic-scoped tools such as `find_insights`,
   `list_topic_summary`, or `ask`.
 
+### Changed
+
+- Advanced the 1.0 Pyright-strict ratchet onto the concepts deterministic core:
+  `concepts/merge.py`, `concepts/normalize.py`, and `concepts/recovery.py` are
+  now `# pyright: strict`. The aggregation core needed only precise type
+  arguments; the recovery surface gained honest narrowing at its JSON
+  frontmatter boundary (no silent `Any` propagation through diff and rollback).
+  No behavior change; the playbook lifecycle property suite stays green.
+
 ## 0.19.1 - 2026-06-25
 
 Patch release for portable route availability inputs and local route proof.

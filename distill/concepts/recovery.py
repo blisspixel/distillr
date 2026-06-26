@@ -23,6 +23,8 @@ Design discipline (same as the rest of the concept layer):
   ``sources`` and the evidence intervals straight out of the header.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import contextlib
@@ -30,7 +32,7 @@ import difflib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.concepts.records import ConceptKind
@@ -92,7 +94,7 @@ def _is_safe_slug(slug: str) -> bool:
     is ``[a-z0-9_]``; reject separators, ``..``, drive/UNC, and null bytes so a
     hostile slug cannot escape the topic dir to read or write arbitrary files.
     """
-    if not isinstance(slug, str) or not slug or "\x00" in slug:
+    if not slug or "\x00" in slug:
         return False
     if "/" in slug or "\\" in slug or slug in (".", ".."):
         return False
@@ -217,9 +219,14 @@ def parse_note_fields(content: str) -> dict[str, Any]:
 
 def _sources_by_id(fields: dict[str, Any]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
-    for src in fields.get("sources", []) or []:
-        if isinstance(src, dict) and src.get("source_id"):
-            out[str(src["source_id"])] = src
+    raw_sources = fields.get("sources")
+    if not isinstance(raw_sources, list):
+        return out
+    for src in cast("list[object]", raw_sources):
+        if isinstance(src, dict):
+            src_dict = cast("dict[str, Any]", src)
+            if src_dict.get("source_id"):
+                out[str(src_dict["source_id"])] = src_dict
     return out
 
 
@@ -247,10 +254,10 @@ class NoteDiff:
 
     old_label: str
     new_label: str
-    sources_added: list[str] = field(default_factory=list)
-    sources_removed: list[str] = field(default_factory=list)
-    sources_repolarized: list[tuple[str, str, str]] = field(default_factory=list)
-    field_changes: list[FieldChange] = field(default_factory=list)
+    sources_added: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]
+    sources_removed: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]
+    sources_repolarized: list[tuple[str, str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[tuple]
+    field_changes: list[FieldChange] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[FieldChange]
     body_diff: str = ""
 
     @property
@@ -367,8 +374,11 @@ def summarize_transition(old_fields: dict[str, Any], new_fields: dict[str, Any])
 
 
 def _fmt_interval(value: Any) -> str:
-    if isinstance(value, list) and len(value) == 2:
-        return f"[{value[0]},{value[1]}]"
+    if isinstance(value, list):
+        items = cast("list[Any]", value)
+        if len(items) == 2:
+            return f"[{items[0]},{items[1]}]"
+        return str(items)
     return str(value)
 
 

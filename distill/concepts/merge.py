@@ -37,9 +37,12 @@ shared-ambiguity margin -- and ``contested`` (both uppers > 0) lifts
 into ``distill health`` automatically when neutrals push it over.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from distill.concepts.records import (
     ConceptMention,
@@ -84,7 +87,7 @@ def build_merged_concept(
     mentions: list[ConceptMention],
     *,
     topic: str,
-    provenance: dict | None = None,
+    provenance: dict[str, Any] | None = None,
 ) -> MergedConcept:
     """Build a ``MergedConcept`` from one canonical group's mentions.
 
@@ -142,7 +145,7 @@ def build_all(
     grouped: Iterable[tuple[str, list[ConceptMention]]],
     *,
     topic: str,
-    provenance: dict | None = None,
+    provenance: dict[str, Any] | None = None,
 ) -> list[MergedConcept]:
     """Merge every group; preserve iteration order (already canonicalized-and-sorted by normalize)."""
     return [

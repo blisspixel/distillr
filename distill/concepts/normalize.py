@@ -33,6 +33,8 @@ downstream merge commutative even when extraction emits duplicates with
 conflicting polarities. When polarities agree, that polarity wins.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import re
