@@ -25,6 +25,16 @@ __all__ = [
 
 SYNDICATION_BASE = "https://cdn.syndication.twimg.com/tweet-result"
 
+
+def _safe_int(value: object, default: int = 0) -> int:
+    """Coerce an untrusted syndication field to int; a non-numeric value (the
+    endpoint is public and unauthenticated) must not abort the whole ingest."""
+    try:
+        return int(value)  # type: ignore[arg-type]  # int() rejects bad types -> default
+    except (TypeError, ValueError):
+        return default
+
+
 # Tweet URL forms we accept:
 #   https://x.com/<user>/status/<id>
 #   https://twitter.com/<user>/status/<id>
@@ -166,7 +176,7 @@ def _record_from_payload(tweet_id: str, data: dict[str, Any]) -> TweetRecord:
     video = data.get("video") or {}
     if isinstance(video, dict):
         video_poster = str(video.get("poster") or "")
-        video_duration_ms = int(video.get("durationMs") or 0)
+        video_duration_ms = _safe_int(video.get("durationMs"))
         # Pick the best MP4 variant by bitrate (skip HLS m3u8 — we want
         # a direct download for Whisper-friendly local handling).
         best_bitrate = -1
@@ -176,7 +186,7 @@ def _record_from_payload(tweet_id: str, data: dict[str, Any]) -> TweetRecord:
             v_url = str(variant.get("src") or variant.get("url") or "")
             if not v_url.endswith(".mp4"):
                 continue
-            bitrate = int(variant.get("bitrate") or 0)
+            bitrate = _safe_int(variant.get("bitrate"))
             if bitrate > best_bitrate:
                 best_bitrate = bitrate
                 video_url = v_url
@@ -199,8 +209,8 @@ def _record_from_payload(tweet_id: str, data: dict[str, Any]) -> TweetRecord:
         created_at=str(data.get("created_at") or ""),
         text=str(data.get("text") or ""),
         language=str(data.get("lang") or ""),
-        like_count=int(data.get("favorite_count") or 0),
-        reply_count=int(data.get("conversation_count") or 0),
+        like_count=_safe_int(data.get("favorite_count")),
+        reply_count=_safe_int(data.get("conversation_count")),
         photo_urls=photos,
         video_url=video_url,
         video_poster=video_poster,

@@ -98,6 +98,13 @@ def test_parse_search_results_html_returns_empty_without_initial_data():
     assert parse_search_results_html("<html></html>") == []
 
 
+def test_parse_search_results_html_malformed_json_returns_empty():
+    # ytInitialData comes from an untrusted fetched page and can be truncated;
+    # a malformed blob must degrade to [], not raise JSONDecodeError into the run.
+    html = 'var ytInitialData = {"contents": };</script>'
+    assert parse_search_results_html(html) == []
+
+
 def test_search_youtube_results_returns_empty_for_non_positive_limit():
     assert search_youtube_results("Microsoft Fabric", limit=0) == []
 
@@ -155,7 +162,7 @@ def test_fetch_with_urllib_uses_response_body(monkeypatch):
         def __exit__(self, exc_type, exc, tb):
             return False
 
-        def read(self):
+        def read(self, size=-1):
             return b"<html>body</html>"
 
     # safe_urlopen now SSRF-guards the host and fetches via a validating opener,

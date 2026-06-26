@@ -54,7 +54,13 @@ def parse_search_results_html(html: str) -> list[VideoInfo]:
     match = _YT_INITIAL_DATA_RE.search(html)
     if not match:
         return []
-    data = json.loads(match.group(1))
+    try:
+        # ytInitialData comes from an untrusted fetched page and the non-greedy
+        # capture can truncate mid-object; a malformed body must degrade to "no
+        # candidates", not abort the whole search/discover run.
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return []
 
     results: list[VideoInfo] = []
 
@@ -152,6 +158,11 @@ def _fetch_with_playwright(search_url: str) -> str:
         return ""
 
 
+# Cap the raw search HTML read so a hostile/MITM response cannot drive an
+# unbounded read into memory. NetworkError degrades to "" in the caller.
+_MAX_SEARCH_HTML_BYTES = 10_000_000
+
+
 def _fetch_with_urllib(search_url: str) -> str:
     req = urllib.request.Request(
         search_url,
@@ -161,7 +172,12 @@ def _fetch_with_urllib(search_url: str) -> str:
         },
     )
     with safe_urlopen(req) as resp:
-        return resp.read().decode("utf-8", "ignore")
+        data = resp.read(_MAX_SEARCH_HTML_BYTES + 1)
+    if len(data) > _MAX_SEARCH_HTML_BYTES:
+        raise NetworkError(
+            f"search response exceeds the {_MAX_SEARCH_HTML_BYTES:,}-byte cap", url=search_url
+        )
+    return data.decode("utf-8", "ignore")
 
 
 def _build_search_url(query: str) -> str:

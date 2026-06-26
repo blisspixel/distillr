@@ -114,6 +114,19 @@ def test_record_from_payload_minimal() -> None:
     assert rec.url == "https://x.com/alice/status/123"
 
 
+def test_record_from_payload_non_numeric_video_fields_do_not_crash() -> None:
+    # The public syndication endpoint is untrusted; a non-numeric durationMs or
+    # bitrate must coerce to 0, not abort ingest with ValueError.
+    payload = _payload()
+    payload["video"] = {
+        "durationMs": "not-a-number",
+        "variants": [{"src": "https://video.twimg.com/x.mp4", "bitrate": "lots"}],
+    }
+    rec = _record_from_payload("7", payload)
+    assert rec.has_video is True
+    assert rec.video_duration_ms == 0
+
+
 def test_record_from_payload_no_handle_uses_i_status_url() -> None:
     payload = _payload()
     payload["user"]["screen_name"] = ""

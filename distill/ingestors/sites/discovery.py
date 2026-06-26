@@ -472,10 +472,20 @@ def _is_toc_container(tag: str, attrs: list[tuple[str, str | None]]) -> bool:
     return "toc" in tokens or any(phrase in phrase_source for phrase in phrases)
 
 
+# Cap untrusted response bodies (sitemaps, nested sitemaps, landing HTML) so a
+# hostile or compromised trusted-source host cannot drive a multi-GB read into
+# memory. Mirrors the 5 MB feed cap in podcasts/feed.py. _try_fetch turns the
+# ValueError into a clean empty-string degrade.
+_MAX_FETCH_BYTES = 5_000_000
+
+
 def _fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with safe_urlopen(req, timeout=20, retries=1) as resp:
-        return resp.read().decode("utf-8", "ignore")
+        data = resp.read(_MAX_FETCH_BYTES + 1)
+    if len(data) > _MAX_FETCH_BYTES:
+        raise ValueError(f"response from {url} exceeds the {_MAX_FETCH_BYTES:,}-byte cap")
+    return data.decode("utf-8", "ignore")
 
 
 def _try_fetch(fetch_text: FetchText, url: str) -> str:
