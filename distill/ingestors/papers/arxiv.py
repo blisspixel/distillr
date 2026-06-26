@@ -44,6 +44,9 @@ ATOM_NS = {
 _PDF_PAGE_LIMIT = 200
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
 _PDF_MAX_REDIRECTS = 5
+# Cap the Atom feed read, mirroring the PDF cap, so a compromised endpoint or a
+# MITM cannot drive an unbounded read into memory at parse time.
+_FEED_CAP_BYTES = 5 * 1024 * 1024
 _ARXIV_REQUEST_SPACING_SECONDS = 3.5
 _ARXIV_PDF_HOSTS = frozenset({"arxiv.org", "www.arxiv.org"})
 
@@ -328,7 +331,7 @@ def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
 def _fetch_text(url: str) -> str:
     try:
         with safe_urlopen(url) as response:
-            return response.read().decode("utf-8", errors="replace")
+            data = response.read(_FEED_CAP_BYTES + 1)
     except NetworkError as exc:
         raise NetworkError(
             f"arXiv request failed ({exc}). arXiv enforces a 3-second rate limit; "
@@ -336,10 +339,19 @@ def _fetch_text(url: str) -> str:
             url=exc.url,
             status_code=exc.status_code,
         ) from exc
+    if len(data) > _FEED_CAP_BYTES:
+        raise NetworkError(f"arXiv response exceeds the {_FEED_CAP_BYTES:,}-byte cap.", url=url)
+    return data.decode("utf-8", errors="replace")
 
 
 def _parse_arxiv_feed(payload: str) -> list[PaperRecord]:
-    root = xml_fromstring(payload)
+    try:
+        root = xml_fromstring(payload)
+    except Exception as exc:  # defusedxml raises several parse/defense errors
+        # arXiv returns an HTML error page on some bad/rate-limited requests;
+        # a non-XML body must degrade to "no results", not abort the run.
+        logger.warning("arXiv feed is not parseable XML; treating as no results: %s", exc)
+        return []
     results: list[PaperRecord] = []
     for entry in root.findall("atom:entry", ATOM_NS):
         entry_id = _entry_text(entry, "atom:id").split("/")[-1]

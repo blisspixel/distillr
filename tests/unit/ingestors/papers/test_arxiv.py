@@ -68,6 +68,15 @@ def test_search_arxiv_papers_parses_feed(monkeypatch):
     assert papers[0].doi == "10.5555/agent-memory"
 
 
+def test_parse_feed_returns_empty_on_non_xml_body():
+    # arXiv returns an HTML error page on some bad/rate-limited requests; a
+    # non-XML body must degrade to "no results", not raise a ParseError into the
+    # discover/papers run (the other xml_fromstring sites already guard this way).
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    assert paper_ingest._parse_arxiv_feed("<html><body>503 Service Unavailable</body></html>") == []
+    assert paper_ingest._parse_arxiv_feed("not xml at all {{{") == []
+
+
 def test_parse_feed_skips_entries_without_id_or_title(monkeypatch):
     # arXiv error/partial feeds can carry entries with no real id or title; those
     # must not become ghost PaperRecords with an empty paper_id.
