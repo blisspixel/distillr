@@ -3627,3 +3627,26 @@ No behavior change (the slug/frontmatter contract downstream consumers depend on
 is unchanged). Validation: pyright strict on paths.py (0 errors), pyright
 `distill/llm/` blocking clean, ruff check + format clean, library suite 271
 passed. Full coverage gate before push.
+
+## Cycle 138 - Pyright-strict on library/claude_md.py
+
+External spend: $0.00.
+
+Made the orientation-file generator strict (`library/claude_md.py`). Nine
+mechanical fixes: typed the `parts: list[str]` and `out: list[Path]` locals and
+cast the parsed orientation/rollup row to `dict[str, Any]` after its
+`isinstance(row, dict)` guard so `.get` reads type cleanly. No behavior change.
+
+Scope note for the rest of library/: `export.py` is deliberately NOT made strict
+- it is a thin DOCX renderer over the untyped `python-docx` library (Document /
+Paragraph / OxmlElement are all Unknown), so strict there yields ~190 cast-noise
+errors fighting a third-party dependency, not our code. `state.py` is deferred:
+its 167 errors all stem from an untyped `_data` dict loaded from JSON, which
+wants a proper typed shape (TypedDict / domain model), not cast-spam - a
+parse-don't-validate design cycle, not a mechanical pass. `okf.py` and
+`migration.py` are blocked only on a small public-API promotion in paths.py
+(they import `_split_frontmatter` / `_LEGACY_NAMES`); that is the next cycle.
+
+Validation: pyright strict on claude_md.py (0 errors), pyright `distill/llm/`
+blocking clean, ruff check + format clean, 33 orientation/topic-summary tests
+passed. Full coverage gate batched before push.

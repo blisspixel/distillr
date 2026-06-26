@@ -31,11 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   change.
 - Extended the same ratchet across the `library/` deterministic core:
   `paths.py` (the slug/frontmatter foundation), `links.py`, `wikilinks.py`,
-  `freshness.py`, `insights.py`, `ingested.py`, `intent.py`, and `citations.py`
-  are now `# pyright: strict`. Fixes were precise generic arguments plus a single
-  `cast` at each `json.loads`/`isinstance` boundary (loaded intent JSON, citation
-  metadata, frontmatter list values), so no `Unknown` reaches the `.get` /
-  `str(item)` calls. No behavior change.
+  `freshness.py`, `insights.py`, `ingested.py`, `intent.py`, `citations.py`, and
+  `claude_md.py` are now `# pyright: strict`. Fixes were precise generic
+  arguments plus a single `cast` at each `json.loads`/`isinstance` boundary
+  (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
+  list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
+  behavior change.
 
 ## 0.19.1 - 2026-06-25
 

@@ -28,11 +28,14 @@ Design discipline (foundational layer, same as the rest of ``distill.library``):
   thin write wrappers stamp the current time at the call site.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import atomic_write_text, find_artifact, strip_frontmatter
@@ -144,7 +147,7 @@ def count_topic_sources(topic_dir: Path) -> dict[str, int]:
 
 def _sources_phrase(counts: dict[str, int]) -> str:
     """Human-readable breakdown like ``12 sources (8 papers, 3 videos, 1 page)``."""
-    parts = []
+    parts: list[str] = []
     for key, singular in (("papers", "paper"), ("videos", "video"), ("pages", "page")):
         n = counts.get(key, 0)
         if n:
@@ -202,6 +205,7 @@ def _score_named_row(line: str) -> tuple[int, str] | None:
         return None
     if not isinstance(row, dict):
         return None
+    row = cast("dict[str, Any]", row)
     name = str(row.get("name") or row.get("normalized_name") or "").strip()
     if not name:
         return None
@@ -364,7 +368,7 @@ def _list_topics(topics_dir: Path) -> list[Path]:
     """
     if not topics_dir.is_dir():
         return []
-    out = []
+    out: list[Path] = []
     for child in sorted(topics_dir.iterdir(), key=lambda p: p.name.lower()):
         if not child.is_dir() or child.name.startswith("."):
             continue
