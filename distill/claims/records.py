@@ -22,6 +22,8 @@ extractor chooses granularity per claim (clause / sentence / span); forcing
 one global granularity is the documented failure mode in reference systems.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass

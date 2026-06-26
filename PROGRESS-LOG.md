@@ -3549,3 +3549,27 @@ strict, with honest parse boundaries instead of silent `Any`.
 No behavior change. Validation: pyright strict on the whole `distill/concepts/`
 package (0 errors), pyright `distill/llm/` blocking (0 errors), ruff check +
 format clean, concept suite 173 passed. Full coverage gate run before push.
+
+## Cycle 134 - Pyright-strict on the claims package
+
+External spend: $0.00.
+
+Carried the strict ratchet to `distill/claims/` (records, exports, extract,
+pipeline), the per-source claim layer that parallels concepts/. Same patterns:
+- `extract.py`: bind `row = cast("dict[str, Any]", raw)` once after the
+  `isinstance` guard, reuse for `_row_to_claim` and the skipped-row `repr`.
+- `pipeline.py`: typed `to_dict -> dict[str, Any]`, `new_claims: list[Claim]`,
+  and the empty `set()` -> `set[str]()`.
+- `exports.py`: `read_extracted_sources` empty returns typed `set[str]()` with a
+  cast-narrowed ledger list; removed two now-unnecessary `isinstance(row, dict)`
+  consumer guards after making `_read_rows` actually filter non-dict rows and
+  cast them - so the `list[dict[str, Any]]` return type is now honest and a
+  malformed `claims.jsonl` line is dropped at read time instead of reaching a
+  downstream `"source_id" in row` on a non-object. records.py went strict with
+  no fixes.
+
+Net: both knowledge layers (concepts/ and claims/) are now fully strict with
+honest JSON parse boundaries. Validation: pyright strict on `distill/claims/`
+(0 errors), pyright `distill/llm/` blocking clean, ruff check + format clean,
+claims suite 38 passed, concepts suite 173 passed. Full coverage gate before
+push. Prior concepts push (33bf775) CI: green.

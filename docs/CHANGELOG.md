@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `isinstance(..., dict|list)` guard) so no `Unknown` propagates through
   extraction, rollback, diffing, or the contested-concept read path. No behavior
   change; the playbook lifecycle property suite stays green.
+- Extended the same strict ratchet to the entire `distill/claims/` package
+  (records, exports, extract, pipeline). As a side effect of making the type
+  honest, `claims.jsonl`'s `_read_rows` now filters non-dict rows at read time
+  (matching the concept layer), so a truncated or hand-edited append can no
+  longer reach a `"source_id" in row` test on a non-object. No other behavior
+  change.
 
 ## 0.19.1 - 2026-06-25
 

@@ -17,12 +17,14 @@ a row missing its required fields skips that claim but never fails the whole
 extraction. Partial coverage is still useful.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.claims.records import Claim, ClaimRole, utcnow_iso
 from distill.llm import RouterConfig
@@ -174,14 +176,15 @@ def extract_claims_from_insight(
         if not isinstance(raw, dict):
             skipped.append(repr(raw)[:80])
             continue
+        row = cast("dict[str, Any]", raw)
         claim = _row_to_claim(
-            raw,
+            row,
             source_id=source_id,
             artifact_path=artifact_path,
             extracted_at=extracted_at,
         )
         if claim is None:
-            skipped.append(repr(raw)[:80])
+            skipped.append(repr(row)[:80])
             continue
         # Deduplicate within a single extraction: two near-identical rows
         # collapse to one claim_id and would otherwise double-count.

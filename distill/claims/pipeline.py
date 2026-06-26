@@ -17,12 +17,15 @@ latest claim per ``claim_id`` if it needs strict dedup. For the default
 (non-refresh) path each source is extracted exactly once.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from distill.claims.exports import (
     already_extracted_source_ids,
@@ -32,7 +35,7 @@ from distill.claims.exports import (
     record_extracted_sources,
 )
 from distill.claims.extract import extract_claims_from_insight
-from distill.claims.records import utcnow_iso
+from distill.claims.records import Claim, utcnow_iso
 from distill.library.insights import discover_insights
 from distill.llm import RouterConfig
 from distill.pipeline.costs import CostTracker
@@ -70,7 +73,7 @@ class ClaimsSummary:
     claims_added: int = 0
     total_claims: int = 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "topic": self.topic,
             "insights_scanned": self.insights_scanned,
@@ -118,7 +121,7 @@ def run_claims(
     # extracted-sources ledger so a source that produced zero claims (no row in
     # claims.jsonl) is still recognized as done and not re-extracted every run.
     seen = (
-        set()
+        set[str]()
         if refresh
         else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
     )
@@ -138,7 +141,7 @@ def run_claims(
         pending = pending[:cap]
     summary.insights_extracted = len(pending)
 
-    new_claims = []
+    new_claims: list[Claim] = []
     processed: list[str] = []
     for ref in pending:
         try:

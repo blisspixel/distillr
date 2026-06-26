@@ -10,12 +10,14 @@ Stored under ``<topic_dir>/.claims/claims.jsonl`` (dot-prefixed so the shared
 ``library.insights.discover_insights`` walk skips it).
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.claims.records import Claim
 
@@ -48,12 +50,14 @@ def read_extracted_sources(topic_dir: Path) -> set[str]:
     """
     path = _extracted_sources_path(topic_dir)
     if not path.exists():
-        return set()
+        return set[str]()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return set()
-    return {str(s) for s in data} if isinstance(data, list) else set()
+        return set[str]()
+    if not isinstance(data, list):
+        return set[str]()
+    return {str(s) for s in cast("list[object]", data)}
 
 
 def record_extracted_sources(topic_dir: Path, source_ids: Iterable[str]) -> None:
@@ -115,9 +119,14 @@ def _read_rows(topic_dir: Path) -> list[dict[str, Any]]:
         if not line:
             continue
         try:
-            rows.append(json.loads(line))
+            obj = json.loads(line)
         except json.JSONDecodeError:
             continue
+        # Keep only object rows so the typed return holds and downstream
+        # ``"source_id" in row`` / ``row[...]`` never hit a non-dict line that
+        # was valid JSON but a list/scalar (a truncated or hand-edited append).
+        if isinstance(obj, dict):
+            rows.append(cast("dict[str, Any]", obj))
     return rows
 
 
@@ -127,8 +136,4 @@ def already_extracted_source_ids(topic_dir: Path) -> set[str]:
     Used by the pipeline to skip insights whose claims were already extracted,
     keeping refresh cheap (no LLM call for unchanged sources).
     """
-    return {
-        row["source_id"]
-        for row in _read_rows(topic_dir)
-        if isinstance(row, dict) and "source_id" in row
-    }
+    return {row["source_id"] for row in _read_rows(topic_dir) if "source_id" in row}
