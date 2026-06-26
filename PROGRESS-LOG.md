@@ -3609,3 +3609,21 @@ No behavior change. Validation: pyright strict on both (0 errors), pyright
 `distill/llm/` blocking clean, ruff check + format clean, targeted intent and
 citation tests 15 passed. Full coverage gate before push; held until the prior
 library push (4adabd1) CI is green.
+
+## Cycle 137 - Pyright-strict on library/paths.py (slug/frontmatter foundation)
+
+External spend: $0.00.
+
+Made the most depended-on library module strict: `library/paths.py` (artifact
+filename + slug + frontmatter read/write/dump, the foundation imported across
+ingestors, pipeline, concepts, claims, mcp). Despite 591 lines it was already
+well-typed; only two JSON/Sequence boundaries leaked `Unknown`:
+- `extract_frontmatter`'s carried-forward list parse: `[str(item) for item in
+  cast("list[object]", parsed)]` after the `isinstance(parsed, list)` guard.
+- `_yaml_value`'s sequence branch: `cast("Sequence[object]", value)` before
+  joining items.
+
+No behavior change (the slug/frontmatter contract downstream consumers depend on
+is unchanged). Validation: pyright strict on paths.py (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean, library suite 271
+passed. Full coverage gate before push.

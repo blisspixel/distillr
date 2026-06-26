@@ -5,6 +5,8 @@ but Markdown filenames need globally descriptive names so Obsidian-style vaults
 do not collapse into hundreds of indistinguishable ``insights.md`` notes.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import contextlib
@@ -16,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 __all__ = [
@@ -441,7 +443,9 @@ def _parse_scalar_or_list(value: str) -> str | list[str]:
         # unparseable value as an opaque scalar keeps the artifact write alive
         # instead of aborting the ingestion/report on a hostile note.
         return value
-    return [str(item) for item in parsed] if isinstance(parsed, list) else value
+    return (
+        [str(item) for item in cast("list[object]", parsed)] if isinstance(parsed, list) else value
+    )
 
 
 def apply_frontmatter(content: str, frontmatter: Mapping[str, Any]) -> str:
@@ -585,7 +589,7 @@ def _yaml_value(value: Any) -> str:
     if isinstance(value, int | float):
         return str(value)
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
-        return "[" + ", ".join(_yaml_value(item) for item in value) + "]"
+        return "[" + ", ".join(_yaml_value(item) for item in cast("Sequence[object]", value)) + "]"
     if isinstance(value, Mapping):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
     return json.dumps(str(value), ensure_ascii=False)

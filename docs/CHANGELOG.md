@@ -29,14 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (matching the concept layer), so a truncated or hand-edited append can no
   longer reach a `"source_id" in row` test on a non-object. No other behavior
   change.
-- Made the small `library/` link and freshness core strict too: `links.py`,
-  `wikilinks.py`, `freshness.py`, `insights.py`, and `ingested.py` are now
-  `# pyright: strict` (precise `dict[str, Any]` annotations only; no behavior
-  change).
-- Made `library/intent.py` and `library/citations.py` strict: the loaded intent
-  JSON and citation metadata/list values narrow with a `cast` at each
-  `json.loads`/`isinstance` boundary instead of letting `Unknown` reach the
-  `.get` and `str(item)` calls. No behavior change.
+- Extended the same ratchet across the `library/` deterministic core:
+  `paths.py` (the slug/frontmatter foundation), `links.py`, `wikilinks.py`,
+  `freshness.py`, `insights.py`, `ingested.py`, `intent.py`, and `citations.py`
+  are now `# pyright: strict`. Fixes were precise generic arguments plus a single
+  `cast` at each `json.loads`/`isinstance` boundary (loaded intent JSON, citation
+  metadata, frontmatter list values), so no `Unknown` reaches the `.get` /
+  `str(item)` calls. No behavior change.
 
 ## 0.19.1 - 2026-06-25
 
