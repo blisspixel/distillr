@@ -7,6 +7,8 @@ convention (``<slug>_Insights.md``), and a 0.8.1 helper that rewrites the
 class of pre-existing artifacts.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import logging
@@ -15,8 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from distill.library.paths import (
-    _ARTIFACT_SUFFIXES,
-    _LEGACY_NAMES,
+    ARTIFACT_SUFFIXES,
+    LEGACY_ARTIFACT_NAMES,
     atomic_write_text,
 )
 
@@ -38,7 +40,7 @@ logger = logging.getLogger(__name__)
 # by both "synthesis" and "site_synthesis"), prefer the shorter/simpler type name.
 # We build the dict in reverse order of preference so that preferred entries win.
 _REVERSE_LEGACY: dict[str, str] = {}
-for _type, _filename in sorted(_LEGACY_NAMES.items(), key=lambda x: -len(x[0])):
+for _type, _filename in sorted(LEGACY_ARTIFACT_NAMES.items(), key=lambda x: -len(x[0])):
     _REVERSE_LEGACY[_filename] = _type
 
 
@@ -59,7 +61,7 @@ class MigrationResult:
     files_renamed: int
     links_updated: int
     conflicts_skipped: int
-    errors: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]
 
 
 def _compute_modern_name(legacy_path: Path) -> str:
@@ -74,7 +76,7 @@ def _compute_modern_name(legacy_path: Path) -> str:
     if artifact_type is None:
         # Shouldn't happen if called correctly, but be defensive
         return legacy_filename
-    suffix = _ARTIFACT_SUFFIXES[artifact_type]
+    suffix = ARTIFACT_SUFFIXES[artifact_type]
     extension = legacy_path.suffix  # .md or .txt
     return f"{parent_name}_{suffix}{extension}"
 
@@ -86,7 +88,7 @@ def scan_legacy_artifacts(library_dir: Path) -> list[MigrationAction]:
     legacy naming patterns, and returns a list of proposed MigrationActions.
     """
     actions: list[MigrationAction] = []
-    legacy_filenames = set(_LEGACY_NAMES.values())
+    legacy_filenames = set(LEGACY_ARTIFACT_NAMES.values())
 
     for file_path in sorted(library_dir.rglob("*")):
         if not file_path.is_file():
@@ -220,7 +222,7 @@ class FrontmatterFieldResult:
 
     files_rewritten: int
     files_skipped: int  # already had new_field, no rewrite needed
-    errors: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]
 
 
 # The emitter writes one key per line via dump_frontmatter: ``key: value``.
@@ -238,7 +240,7 @@ _CONFIDENCE_LINE_RE = re.compile(
 def _partition_frontmatter(text: str) -> tuple[str, str, str] | None:
     """Split ``---\\n...\\n---\\n<body>`` into (opening, frontmatter, rest).
 
-    Named distinctly from ``library.paths._split_frontmatter`` (which returns a
+    Named distinctly from ``library.paths.split_frontmatter`` (which returns a
     2-tuple ``(block_or_none, body)``): this is a different function with a
     different contract -- a 3-way partition that returns ``None`` when absent.
 

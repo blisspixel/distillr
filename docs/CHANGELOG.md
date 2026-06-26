@@ -37,6 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Finished the strict ratchet on `library/okf.py` and `library/migration.py`,
+  and in the process promoted two helpers to public API in `library/paths.py`
+  that those modules had been importing as privates: `split_frontmatter`
+  (renamed from `_split_frontmatter`) and a `LEGACY_ARTIFACT_NAMES` alias
+  (mirroring the existing `ARTIFACT_SUFFIXES` alias). Production code now imports
+  the public names; the private internals remain for in-module and test use. The
+  whole `library/` package is strict except `state.py` (pending a typed `_data`
+  shape) and `export.py` (a thin renderer over the untyped `python-docx`, where
+  strict would only add cast-noise against a third-party dependency).
 
 ## 0.19.1 - 2026-06-25
 

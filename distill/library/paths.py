@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 
 __all__ = [
     "ARTIFACT_SUFFIXES",
+    "LEGACY_ARTIFACT_NAMES",
     "ProvenanceFields",
     "apply_frontmatter",
     "artifact_exists",
@@ -42,6 +43,7 @@ __all__ = [
     "sanitize_topic",
     "site_name_from_url",
     "slugify_title",
+    "split_frontmatter",
     "strip_frontmatter",
     "tags_for",
     "write_markdown_artifact",
@@ -126,8 +128,9 @@ _LEGACY_NAMES = {
     "watch_update": "watch_update.md",
 }
 
-# Public alias for the artifact suffix map (used by WikiLink and migration tooling)
+# Public aliases for the artifact name maps (used by WikiLink and migration tooling)
 ARTIFACT_SUFFIXES: dict[str, str] = _ARTIFACT_SUFFIXES
+LEGACY_ARTIFACT_NAMES: dict[str, str] = _LEGACY_NAMES
 
 _WINDOWS_RESERVED_CHARS = r'[<>:"/\\|?*]'
 
@@ -460,7 +463,7 @@ def apply_frontmatter(content: str, frontmatter: Mapping[str, Any]) -> str:
     return dump_frontmatter(merged) + "\n\n" + body.rstrip() + "\n"
 
 
-def _split_frontmatter(content: str) -> tuple[str | None, str]:
+def split_frontmatter(content: str) -> tuple[str | None, str]:
     """Split content into ``(frontmatter_block, body)``.
 
     A frontmatter block exists only when the first line is exactly ``---`` and a
@@ -484,7 +487,7 @@ def _split_frontmatter(content: str) -> tuple[str | None, str]:
 
 def extract_frontmatter(content: str) -> dict[str, str]:
     """Extract simple scalar YAML frontmatter without adding a YAML dependency."""
-    block, _ = _split_frontmatter(content)
+    block, _ = split_frontmatter(content)
     if block is None:
         return {}
     data: dict[str, str] = {}
@@ -500,7 +503,7 @@ def extract_frontmatter(content: str) -> dict[str, str]:
 
 
 def strip_frontmatter(content: str) -> str:
-    block, body = _split_frontmatter(content)
+    block, body = split_frontmatter(content)
     if block is None:
         return content
     return body.strip()

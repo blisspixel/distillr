@@ -3650,3 +3650,33 @@ parse-don't-validate design cycle, not a mechanical pass. `okf.py` and
 Validation: pyright strict on claude_md.py (0 errors), pyright `distill/llm/`
 blocking clean, ruff check + format clean, 33 orientation/topic-summary tests
 passed. Full coverage gate batched before push.
+
+## Cycle 139 - Finish library/ strict: okf + migration + public-API promotion
+
+External spend: $0.00.
+
+`okf.py` and `migration.py` were the last mechanical library/ modules, both
+blocked on the same thing: they imported private names from paths.py
+(`_split_frontmatter`, `_ARTIFACT_SUFFIXES`, `_LEGACY_NAMES`), which strict flags
+as reportPrivateUsage. Rather than cast around it, promoted the genuinely-shared
+helpers to public API in paths.py (now strict):
+- renamed `_split_frontmatter` -> `split_frontmatter` (added to `__all__`;
+  updated the two internal callers and okf's import; no test used the private
+  name);
+- added `LEGACY_ARTIFACT_NAMES: dict[str, str] = _LEGACY_NAMES` public alias,
+  mirroring the existing `ARTIFACT_SUFFIXES` alias (added to `__all__`).
+Production code (okf, migration) now imports the public names; the private
+originals stay for in-module use and the property tests that reference them.
+
+Mechanical fixes: okf casts the parsed YAML frontmatter / json rows
+(`data: object = yaml.safe_load(...) or {}` then cast after the dict guard; cast
+in `_read_json_object`, `_parse_json_line`, and the profile-attempt loop);
+migration's two `errors` dataclass fields carry the house default_factory ignore.
+
+library/ is now strict except `state.py` (deferred: needs a typed `_data` shape,
+a parse-don't-validate design cycle, not cast-spam) and `export.py`
+(intentionally skipped: thin renderer over untyped python-docx).
+
+Validation: pyright strict on paths/okf/migration (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean (import order included),
+full library suite 271 passed. Full coverage gate before push.

@@ -1,5 +1,7 @@
 """Open Knowledge Format export and validation helpers."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
@@ -9,18 +11,18 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import unquote, urlparse
 
 import yaml
 
 from distill.config import DistillConfig
 from distill.library.paths import (
-    _split_frontmatter,
     atomic_write_text,
     dump_frontmatter,
     extract_frontmatter,
     sanitize_topic,
+    split_frontmatter,
     strip_frontmatter,
 )
 from distill.library.wikilinks import WIKI_LINK_PATTERN
@@ -230,20 +232,20 @@ def _parse_frontmatter(
     *,
     require_frontmatter: bool,
 ) -> dict[str, Any] | None:
-    block, _ = _split_frontmatter(text)
+    block, _ = split_frontmatter(text)
     if block is None:
         if require_frontmatter:
             errors.append(OkfIssue("error", rel_path, "Missing YAML frontmatter"))
         return None
     try:
-        data = yaml.safe_load(block) or {}
+        data: object = yaml.safe_load(block) or {}
     except yaml.YAMLError as exc:
         errors.append(OkfIssue("error", rel_path, f"Invalid YAML frontmatter: {exc}"))
         return None
     if not isinstance(data, dict):
         errors.append(OkfIssue("error", rel_path, "Frontmatter must be a YAML mapping"))
         return None
-    return data
+    return cast("dict[str, Any]", data)
 
 
 def _collect_link_warnings(
@@ -435,9 +437,10 @@ def _profile_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]
         if state is None or state.get("topic") != topic:
             continue
         profile_name = str(state.get("profile", state_path.parent.name))
-        for attempt in state.get("attempts", [])[-_MAX_LOG_HISTORY:]:
-            if not isinstance(attempt, dict):
+        for raw_attempt in state.get("attempts", [])[-_MAX_LOG_HISTORY:]:
+            if not isinstance(raw_attempt, dict):
                 continue
+            attempt = cast("dict[str, Any]", raw_attempt)
             when = str(attempt.get("attempted_at", "")).strip()
             if not when:
                 continue
@@ -476,7 +479,7 @@ def _read_json_object(path: Path) -> dict[str, Any] | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    return data if isinstance(data, dict) else None
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else None
 
 
 def _parse_json_line(line: str) -> dict[str, Any] | None:
@@ -484,7 +487,7 @@ def _parse_json_line(line: str) -> dict[str, Any] | None:
         data = json.loads(line)
     except json.JSONDecodeError:
         return None
-    return data if isinstance(data, dict) else None
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else None
 
 
 def _write_llms_txt(output_root: Path, topic: str, concept_count: int) -> None:
