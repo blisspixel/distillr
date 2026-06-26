@@ -1,5 +1,7 @@
 """Post-ingest concept playbook helpers."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill._console import console

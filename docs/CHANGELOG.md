@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Began the `distill/commands/` strict ratchet on three already-clean CLI helper
+  modules: `_discover_options.py` (discover-flag normalization), `_concept_ingest.py`
+  (concept-playbook ingest helper), and `okf.py` (the OKF export/validate command).
+  All were fully typed; the marker just locks them. No behavior change.
 - Made `pipeline/profile_health.py` (the deterministic recurring-profile health
   checks behind `distill audit all`) `# pyright: strict`. The `ProfileHealth`
   dataclass's seven `list[dict[str, str]]` finding-buckets take the documented
