@@ -8,6 +8,8 @@ insight -- invariant 8 ("verification gates re-ingestion") enforced in code:
 any unsupported load-bearing claim refuses the promotion, never silently.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import re
@@ -45,7 +47,9 @@ class AskResult:
     question: str
     answer_path: Path | None
     answer_text: str
-    sources: list[str] = field(default_factory=list)  # artifact stems, cited order
+    sources: list[str] = field(  # pyright: ignore[reportUnknownVariableType] -- default_factory=list reads as list[Unknown] under strict; the annotation is the real element type
+        default_factory=list
+    )  # artifact stems, cited order
     saved_insight_path: Path | None = None
     save_refused_reason: str = ""
     no_coverage: bool = False

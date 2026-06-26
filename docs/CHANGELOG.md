@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Made `pipeline/ask.py` (the corpus-grounded Q&A pipeline with verify-gated
+  `--save` promotion) `# pyright: strict`. It was already fully typed; the only
+  change was the documented `field(default_factory=list)` house ignore on
+  `AskResult.sources`. No behavior change.
 - Made the verify core `# pyright: strict`: `verify.py` (the write-time numeric
   claim-grounding hook) and `verify_entailment.py` (the optional local
   cross-encoder prose-entailment tier). `verify_entailment.py` gained a

@@ -3828,6 +3828,21 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 151 - Pyright-strict the ask pipeline
+
+External spend: $0.00.
+
+`pipeline/ask.py` (corpus-grounded Q&A with verify-gated `--save` promotion, the
+0.12 compounding-corpus surface) was already fully typed - its deps are all
+strict already (`search`, `costs`, `llm/`, `library/paths`, `prompts/ask`,
+`prompts/registry`). The only strict fix was the documented
+`field(default_factory=list)` house ignore on `AskResult.sources` (reads as
+`list[Unknown]` under strict; the `list[str]` annotation carries the real type).
+
+No behavior change. Validation: pyright strict on ask.py (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean, ask tests 15 passed.
+Full coverage gate (`--cov-fail-under=89`, up-only) before push.
+
 ## Cycle 150 - Pyright-strict the verify core (numeric + entailment tiers)
 
 External spend: $0.00.
