@@ -3592,3 +3592,20 @@ Validation: pyright strict on all five (0 errors), pyright `distill/llm/`
 blocking clean, ruff check + format clean, library suite 271 passed. Full
 coverage gate batched before push. Held push until claims push (c9fa626) CI is
 green.
+
+## Cycle 136 - Pyright-strict on library intent + citations
+
+External spend: $0.00.
+
+Continued the library/ strict pass on the two next-smallest modules.
+- `intent.py`: after the `isinstance(raw, dict)` guard on the loaded intent
+  JSON, reassign `raw = cast("dict[str, Any]", raw)` so all five `.get` reads
+  and the `budget_usd` read type cleanly. One cast, no per-call noise.
+- `citations.py`: `_load_metadata` casts the parsed payload in the dict branch;
+  `_list_value` casts the `list | tuple` value to `Iterable[object]` and the
+  JSON-parsed list to `list[object]` before stringifying items.
+
+No behavior change. Validation: pyright strict on both (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean, targeted intent and
+citation tests 15 passed. Full coverage gate before push; held until the prior
+library push (4adabd1) CI is green.

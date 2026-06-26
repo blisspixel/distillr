@@ -13,12 +13,15 @@ don't crash) so a malformed or partial file degrades to the neutral default
 rather than failing a run.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 import logging
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from typing import Any, cast
 
 from distill.library.paths import atomic_write_text
 from distill.prompts.lenses import DEFAULT_LENS, normalize_lens
@@ -123,6 +126,7 @@ def load_intent(topic_dir: Path) -> CorpusIntent | None:
     if not isinstance(raw, dict):
         logger.debug("Ignoring non-object intent at %s", path)
         return None
+    raw = cast("dict[str, Any]", raw)
     base = make_intent(
         goal=str(raw.get("goal", "")),
         lens=str(raw.get("lens", "")),

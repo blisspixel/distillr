@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `wikilinks.py`, `freshness.py`, `insights.py`, and `ingested.py` are now
   `# pyright: strict` (precise `dict[str, Any]` annotations only; no behavior
   change).
+- Made `library/intent.py` and `library/citations.py` strict: the loaded intent
+  JSON and citation metadata/list values narrow with a `cast` at each
+  `json.loads`/`isinstance` boundary instead of letting `Unknown` reach the
+  `.get` and `str(item)` calls. No behavior change.
 
 ## 0.19.1 - 2026-06-25
 

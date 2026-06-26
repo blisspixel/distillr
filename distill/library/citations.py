@@ -1,12 +1,15 @@
 """Local citation export helpers for paper artifacts."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.config import DistillConfig
 from distill.library.paths import extract_frontmatter, find_artifact
@@ -165,7 +168,7 @@ def _load_metadata(path: Path) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    return payload if isinstance(payload, dict) else {}
+    return cast("dict[str, Any]", payload) if isinstance(payload, dict) else {}
 
 
 def _first_text(*values: object) -> str:
@@ -186,7 +189,8 @@ def _list_value(*values: object) -> list[str]:
         if value in (None, "", []):
             continue
         if isinstance(value, list | tuple):
-            return [str(item).strip() for item in value if str(item).strip()]
+            items = cast("Iterable[object]", value)
+            return [str(item).strip() for item in items if str(item).strip()]
         if isinstance(value, str):
             text = value.strip()
             if not text:
@@ -197,7 +201,8 @@ def _list_value(*values: object) -> list[str]:
                 except json.JSONDecodeError:
                     return [text]
                 if isinstance(parsed, list):
-                    return [str(item).strip() for item in parsed if str(item).strip()]
+                    items = cast("list[object]", parsed)
+                    return [str(item).strip() for item in items if str(item).strip()]
             return [text]
         return [str(value).strip()]
     return []
