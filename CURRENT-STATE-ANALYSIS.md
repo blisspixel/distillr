@@ -946,3 +946,20 @@ Cycle 120: pyright strict on adapter_ledger.py (1.0, 0.19).
 Cycle 121: pyright: strict added to distill/doctor/adapters.py (the central SupportStatement / AdapterSpec / probe logic for codex/claude/grok/gemini/antigravity/copilot). 0 errors after future annotations, Any, ignore comments for default_factory, cast for flatten loop vars (Mapping/list from Any/object). Ruff/format clean; doctor tests pass; full suite gate passed at 89.51% under=89. Pure 1.0 ratchet on 0.19 adapter-doctor surface. No behavior or test delta. External spend $0. Main clean.
 
 Cycle 122: pyright: strict added to distill/doctor/adapter_manifest.py (adapter-result.v1 boundary, AdapterResultManifest + submodels for usage/quota/policy, load/validate, workspace write checks, path normalization). Single cast after json/yaml load fixed the Unknown Mapping; 0 errors. Pydantic strict models already enforce parse boundary. Ruff/format + 40 targeted tests clean. Full ruff gate clean. 0.19 manifest contract + 1.0 pyright + parse-don't-validate direction. No behavior change. $0. Main clean.
+
+Cycles 130-136: pyright-strict ratchet across both knowledge layers and the
+small library core. Made `# pyright: strict`, with zero behavior change: the
+entire `distill/concepts/` package (merge, normalize, recovery, records,
+exports, contradictions, extract, pipeline, notes), the entire
+`distill/claims/` package (records, exports, extract, pipeline), and
+`library/{links,wikilinks,freshness,insights,ingested,intent,citations}.py`.
+Pattern (now recorded in SKILLS.md "Pyright Strict Ratchet"): precise generic
+arguments, `set[str]()`/typed empty literals, a single `cast` after each
+`json.loads`+`isinstance` boundary so no `Unknown` propagates, and the house
+`default_factory` ignore. One honest robustness improvement: `claims` `_read_rows`
+now filters non-dict rows so its typed return holds. Each cycle: pyright strict
+(0 errors) + pyright `distill/llm/` + ruff + bandit + import-linter + full
+coverage gate (89.50-89.51%) green, pushed to main, CI green. $0 external.
+Remaining non-strict library modules (paths, state, okf, export, claude_md,
+migration) are the larger next targets; the rest of `distill/` continues the
+ratchet module-by-module toward the 1.0 full-surface pyright-strict gate.
