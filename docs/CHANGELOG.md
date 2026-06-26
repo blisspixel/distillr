@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Made `library/state.py` (the topic/channel hierarchy, watchlists, and
+  per-channel processed-video state) `# pyright: strict` by turning its two JSON
+  stores into parse-don't-validate boundaries. The on-disk payload is now parsed
+  once at load into typed `TypedDict` shapes (`LibraryData`, `ChannelStateData`)
+  via total coercion helpers, so the required keys are guaranteed present and
+  well-typed and the methods no longer re-validate ad hoc on every read. Side
+  effect: a top-level JSON document that is not an object (e.g. an array) now
+  normalizes to an empty store instead of raising `TypeError` mid-load, and the
+  one external reach into private state (`doctor.py`) moves to a new public
+  `ChannelState.processed_video_ids()`. No happy-path behavior change; the state
+  and channel-state suites stay green.
 - Finished the strict ratchet on `library/okf.py` and `library/migration.py`,
   and in the process promoted two helpers to public API in `library/paths.py`
   that those modules had been importing as privates: `split_frontmatter`

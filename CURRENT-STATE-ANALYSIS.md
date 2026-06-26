@@ -1,5 +1,33 @@
 # Current State Analysis
 
+## 2026-06-26 Strict Ratchet + Parse-Don't-Validate
+
+Re-read README, ROADMAP, QUALITY-RUBRIC, SKILLS (strict-ratchet recipe), and the
+pyright/coverage config before this slice. Alignment holds: 0.18 and 0.19 are
+wired; the genuine remaining distance to 1.0 is the quality bar, not new
+product surface. The two CI-enforced 1.0 gates with the most distance left are
+"Pyright strict across the full surface" (ratcheted per-module; CI blocks only
+`distill/llm/` today) and "parse, don't validate - strict domain types at every
+boundary".
+
+This cycle advanced both at once on the highest-leverage remaining module:
+`library/state.py`, the central topic/channel/watchlist + per-channel
+processed-video store. Cycles 138-139 had explicitly deferred it because strict
+there needed a typed `_data` shape rather than cast-spam - exactly the
+parse-don't-validate design the 1.0 bar specifies. It is now a typed boundary
+(`LibraryData`/`ChannelStateData` `TypedDict`s parsed once at load), strict-clean,
+and more robust (a non-object top-level JSON document no longer crashes load).
+`library/` is now strict except `export.py` (a thin renderer over untyped
+python-docx, intentionally skipped).
+
+Doc-hygiene note: the operator loop directive asks for a 5-cycle PROGRESS-LOG
+window with older cycles archived. The established project convention is a full
+cycle journal in PROGRESS-LOG and released-feature notes in `docs/CHANGELOG.md`;
+that separation is load-bearing (the roadmap references the changelog as the
+system of record). I am keeping the journal lean going forward rather than
+bulk-rewriting ~3,600 historical lines inside a code commit; the archival pass,
+if wanted, is its own reversible housekeeping change.
+
 ## 2026-06-25 Portability Update
 
 I refreshed README, ROADMAP, detailed roadmap, usage docs, agentic-balance,

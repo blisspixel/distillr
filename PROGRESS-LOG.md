@@ -3680,3 +3680,42 @@ a parse-don't-validate design cycle, not cast-spam) and `export.py`
 Validation: pyright strict on paths/okf/migration (0 errors), pyright
 `distill/llm/` blocking clean, ruff check + format clean (import order included),
 full library suite 271 passed. Full coverage gate before push.
+
+## Cycle 140 - Pyright-strict on library/state.py (parse-don't-validate boundary)
+
+External spend: $0.00.
+
+`state.py` was the one library/ module cycles 138-139 deferred: strict on it
+demanded a typed `_data` shape, not cast-spam. Took it as the parse-don't-validate
+design cycle the 1.0 quality bar calls for. The two JSON stores (`Library` over
+`library.json`; `ChannelState` over per-channel `state.json`) now parse their
+on-disk payload once at the boundary into `TypedDict` shapes (`LibraryData`,
+`ChannelStateData`) through total coercion helpers (`_as_dict`/`_as_list`/`_str`/
+`_int`/`_float`/`_bool` plus per-row builders). bool is excluded from the numeric
+coercions so a JSON `true` never reads as `1`.
+
+After parsing, the required keys are guaranteed present and well-typed, so the
+ad-hoc per-read validation collapses: `.setdefault(...)`/`.get(..., default)`
+defensive reads became direct typed access, and the scattered
+`isinstance`/missing-key checks moved to the single boundary parser. Net effect
+is fewer lines doing more.
+
+Robustness win, not just types: a top-level JSON document that is not an object
+(a JSON array, say) previously crashed `_load` with an uncaught `TypeError`
+(only `JSONDecodeError`/`OSError` were caught); the boundary parser normalizes
+it to an empty store. Also removed the only external reach into private state -
+`doctor.py`'s `state._data.get("processed_videos", {})` - behind a new public
+`ChannelState.processed_video_ids()`, and dropped two redundant in-method
+`from datetime import datetime` re-imports.
+
+Domain types returned to callers (`ChannelInfo`, `WatchEntry`, `TopicWatchEntry`)
+are unchanged, so the contract downstream depends on is identical.
+
+No behavior change on the happy path. Validation: pyright strict on `state.py`
+(0 errors, 0 warnings), pyright `distill/llm/` blocking clean, ruff check +
+format clean, bandit 0 medium/high, import-linter 4/4 kept, state +
+channel-state suites 41 passed. Full coverage gate (`--cov-fail-under=89`,
+up-only) before push.
+
+library/ is now strict except `export.py` (intentionally skipped: thin renderer
+over untyped python-docx).

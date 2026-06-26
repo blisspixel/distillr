@@ -2,13 +2,24 @@
 
 Combines the Library class (topic/channel hierarchy, watchlists) with
 ChannelState (per-channel video processing state).
+
+Both classes persist as JSON. JSON is an untrusted, corruptible boundary, so the
+on-disk payload is *parsed once* into a typed shape at load time (the ``_parse_*``
+functions below) rather than re-validated ad hoc at every read. After parsing,
+the required keys are guaranteed present and well-typed, so the methods operate
+on the typed structure directly - illegal states (missing keys, wrong value
+types, a non-object top-level document) are normalized away at the boundary
+instead of crashing a downstream read.
 """
+
+# pyright: strict
 
 import contextlib
 import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any, TypedDict, cast
 
 from distill.config import DistillConfig
 from distill.library.paths import atomic_write_text, sanitize_topic
@@ -20,6 +31,9 @@ __all__ = [
     "TopicWatchEntry",
     "WatchEntry",
 ]
+
+
+# ─── Domain types (returned to callers) ──────────────────────────────────────
 
 
 @dataclass
@@ -58,6 +72,179 @@ class TopicWatchEntry:
     paused: bool = False
 
 
+# ─── Persistence shapes (the on-disk JSON, parsed once at the boundary) ───────
+
+
+class ChannelRow(TypedDict):
+    url: str
+    name: str
+
+
+class TopicData(TypedDict):
+    channels: list[ChannelRow]
+
+
+class WatchRow(TypedDict):
+    url: str
+    name: str
+    topic: str
+    added_at: str
+    instructions: str
+    days: int
+
+
+class TopicWatchRow(TypedDict):
+    name: str
+    query: str
+    topic: str
+    cadence: str
+    days: int
+    limit: int
+    sort: str
+    channel_cap: int
+    ranking_mode: str
+    added_at: str
+    last_run_at: str
+    report: bool
+    max_run_cost: float
+    monthly_budget: float
+    paused: bool
+
+
+class LibraryData(TypedDict):
+    topics: dict[str, TopicData]
+    watchlist: list[WatchRow]
+    topic_watchlist: list[TopicWatchRow]
+
+
+class ProcessedVideo(TypedDict):
+    title: str
+    upload_date: str
+    processed_at: str
+    analysis_mode: str
+
+
+class ChannelStateData(TypedDict):
+    processed_videos: dict[str, ProcessedVideo]
+    last_refresh: str | None
+
+
+# ─── Boundary coercion helpers ────────────────────────────────────────────────
+#
+# Each takes a raw JSON value (typed ``object`` because json.loads yields Any)
+# and returns a well-typed value, substituting the default when the shape is
+# wrong. bool is excluded from the numeric coercions because ``bool`` is an
+# ``int`` subclass and a JSON ``true`` must not read as the integer 1.
+
+
+def _as_dict(value: object) -> dict[str, Any]:
+    return cast("dict[str, Any]", value) if isinstance(value, dict) else {}
+
+
+def _as_list(value: object) -> list[Any]:
+    return cast("list[Any]", value) if isinstance(value, list) else []
+
+
+def _str(value: object, default: str = "") -> str:
+    return value if isinstance(value, str) else default
+
+
+def _int(value: object, default: int) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+
+def _float(value: object, default: float) -> float:
+    if isinstance(value, bool):
+        return default
+    return float(value) if isinstance(value, int | float) else default
+
+
+def _bool(value: object, default: bool = False) -> bool:
+    return value if isinstance(value, bool) else default
+
+
+def _channel_row(value: object) -> ChannelRow:
+    row = _as_dict(value)
+    return {"url": _str(row.get("url")), "name": _str(row.get("name"))}
+
+
+def _watch_row(value: object) -> WatchRow:
+    row = _as_dict(value)
+    return {
+        "url": _str(row.get("url")),
+        "name": _str(row.get("name")),
+        "topic": _str(row.get("topic"), "watch"),
+        "added_at": _str(row.get("added_at")),
+        "instructions": _str(row.get("instructions")),
+        "days": _int(row.get("days"), 14),
+    }
+
+
+def _topic_watch_row(value: object) -> TopicWatchRow:
+    row = _as_dict(value)
+    return {
+        "name": _str(row.get("name")),
+        "query": _str(row.get("query")),
+        "topic": _str(row.get("topic"), "watch"),
+        "cadence": _str(row.get("cadence"), "weekly"),
+        "days": _int(row.get("days"), 7),
+        "limit": _int(row.get("limit"), 10),
+        "sort": _str(row.get("sort"), "date"),
+        "channel_cap": _int(row.get("channel_cap"), 3),
+        "ranking_mode": _str(row.get("ranking_mode"), "balanced"),
+        "added_at": _str(row.get("added_at")),
+        "last_run_at": _str(row.get("last_run_at")),
+        "report": _bool(row.get("report")),
+        "max_run_cost": _float(row.get("max_run_cost"), 0.0),
+        "monthly_budget": _float(row.get("monthly_budget"), 0.0),
+        "paused": _bool(row.get("paused")),
+    }
+
+
+def _parse_library(raw: object) -> LibraryData:
+    data = _as_dict(raw)
+    topics: dict[str, TopicData] = {}
+    for name, topic_data in _as_dict(data.get("topics")).items():
+        channels = [_channel_row(c) for c in _as_list(_as_dict(topic_data).get("channels"))]
+        topics[str(name)] = {"channels": channels}
+    return {
+        "topics": topics,
+        "watchlist": [_watch_row(e) for e in _as_list(data.get("watchlist"))],
+        "topic_watchlist": [_topic_watch_row(e) for e in _as_list(data.get("topic_watchlist"))],
+    }
+
+
+def _empty_library() -> LibraryData:
+    return {"topics": {}, "watchlist": [], "topic_watchlist": []}
+
+
+def _parse_channel_state(raw: object) -> ChannelStateData:
+    data = _as_dict(raw)
+    processed: dict[str, ProcessedVideo] = {}
+    for video_id, entry in _as_dict(data.get("processed_videos")).items():
+        row = _as_dict(entry)
+        processed[str(video_id)] = {
+            "title": _str(row.get("title")),
+            "upload_date": _str(row.get("upload_date")),
+            "processed_at": _str(row.get("processed_at")),
+            "analysis_mode": _str(row.get("analysis_mode"), "full"),
+        }
+    return {"processed_videos": processed, "last_refresh": _str_or_none(data.get("last_refresh"))}
+
+
+def _str_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _quarantine_corrupt(path: Path) -> None:
+    """Move a corrupt JSON file aside so a fresh, writable state can replace it."""
+    with contextlib.suppress(OSError):
+        path.rename(path.with_suffix(".json.bak"))
+
+
+# ─── Stores ───────────────────────────────────────────────────────────────────
+
+
 class Library:
     """Manages the topic → channel hierarchy."""
 
@@ -66,24 +253,16 @@ class Library:
         self.library_file = config.library_dir / "library.json"
         self._data = self._load()
 
-    def _load(self) -> dict:
-        if self.library_file.exists():
-            try:
-                data = json.loads(self.library_file.read_text(encoding="utf-8"))
-                if "topics" not in data or not isinstance(data["topics"], dict):
-                    data["topics"] = {}
-                if "watchlist" not in data or not isinstance(data["watchlist"], list):
-                    data["watchlist"] = []
-                if "topic_watchlist" not in data or not isinstance(data["topic_watchlist"], list):
-                    data["topic_watchlist"] = []
-                return data
-            except (json.JSONDecodeError, OSError):
-                # Corrupted library file — start fresh but keep backup
-                backup = self.library_file.with_suffix(".json.bak")
-                with contextlib.suppress(OSError):
-                    self.library_file.rename(backup)
-                return {"topics": {}, "watchlist": [], "topic_watchlist": []}
-        return {"topics": {}, "watchlist": [], "topic_watchlist": []}
+    def _load(self) -> LibraryData:
+        if not self.library_file.exists():
+            return _empty_library()
+        try:
+            raw = json.loads(self.library_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            # Corrupted library file — start fresh but keep a backup.
+            _quarantine_corrupt(self.library_file)
+            return _empty_library()
+        return _parse_library(raw)
 
     def _save(self):
         atomic_write_text(self.library_file, json.dumps(self._data, indent=2, ensure_ascii=False))
@@ -133,7 +312,7 @@ class Library:
         ]
 
     def get_all_channels(self) -> list[ChannelInfo]:
-        result = []
+        result: list[ChannelInfo] = []
         for topic in self.get_topics():
             result.extend(self.get_channels(topic))
         return result
@@ -160,12 +339,12 @@ class Library:
             WatchEntry(
                 url=e["url"],
                 name=e["name"],
-                topic=sanitize_topic(e.get("topic", "watch")),
-                added_at=e.get("added_at", ""),
-                instructions=e.get("instructions", ""),
-                days=e.get("days", 14),
+                topic=sanitize_topic(e["topic"]),
+                added_at=e["added_at"],
+                instructions=e["instructions"],
+                days=e["days"],
             )
-            for e in self._data.get("watchlist", [])
+            for e in self._data["watchlist"]
         ]
 
     def add_to_watchlist(
@@ -178,10 +357,9 @@ class Library:
     ) -> bool:
         """Add a channel to the watch list. Also registers it under the topic."""
         topic = sanitize_topic(topic)
-        wl = self._data.setdefault("watchlist", [])
+        wl = self._data["watchlist"]
         if any(e["url"] == url for e in wl):
             return False
-        from datetime import datetime
 
         wl.append(
             {
@@ -200,7 +378,7 @@ class Library:
 
     def remove_from_watchlist(self, name: str) -> bool:
         """Remove a channel from the watch list by name (case-insensitive)."""
-        wl = self._data.get("watchlist", [])
+        wl = self._data["watchlist"]
         before = len(wl)
         self._data["watchlist"] = [e for e in wl if e["name"].lower() != name.lower()]
         if len(self._data["watchlist"]) < before:
@@ -217,8 +395,7 @@ class Library:
 
     def update_watch_days(self, name: str, days: int) -> bool:
         """Update lookback days for a watched channel."""
-        wl = self._data.get("watchlist", [])
-        for e in wl:
+        for e in self._data["watchlist"]:
             if e["name"].lower() == name.lower():
                 e["days"] = days
                 self._save()
@@ -227,8 +404,7 @@ class Library:
 
     def update_watch_instructions(self, name: str, instructions: str) -> bool:
         """Update custom instructions for a watched channel."""
-        wl = self._data.get("watchlist", [])
-        for e in wl:
+        for e in self._data["watchlist"]:
             if e["name"].lower() == name.lower():
                 e["instructions"] = instructions
                 self._save()
@@ -242,21 +418,21 @@ class Library:
             TopicWatchEntry(
                 name=e["name"],
                 query=e["query"],
-                topic=sanitize_topic(e.get("topic", "watch")),
-                cadence=e.get("cadence", "weekly"),
-                days=e.get("days", 7),
-                limit=e.get("limit", 10),
-                sort=e.get("sort", "date"),
-                channel_cap=e.get("channel_cap", 3),
-                ranking_mode=e.get("ranking_mode", "balanced"),
-                added_at=e.get("added_at", ""),
-                last_run_at=e.get("last_run_at", ""),
-                report=e.get("report", False),
-                max_run_cost=float(e.get("max_run_cost", 0.0) or 0.0),
-                monthly_budget=float(e.get("monthly_budget", 0.0) or 0.0),
-                paused=bool(e.get("paused", False)),
+                topic=sanitize_topic(e["topic"]),
+                cadence=e["cadence"],
+                days=e["days"],
+                limit=e["limit"],
+                sort=e["sort"],
+                channel_cap=e["channel_cap"],
+                ranking_mode=e["ranking_mode"],
+                added_at=e["added_at"],
+                last_run_at=e["last_run_at"],
+                report=e["report"],
+                max_run_cost=e["max_run_cost"],
+                monthly_budget=e["monthly_budget"],
+                paused=e["paused"],
             )
-            for e in self._data.get("topic_watchlist", [])
+            for e in self._data["topic_watchlist"]
         ]
 
     def add_to_topic_watchlist(
@@ -276,11 +452,9 @@ class Library:
         monthly_budget: float = 0.0,
     ) -> bool:
         topic = sanitize_topic(topic)
-        twl = self._data.setdefault("topic_watchlist", [])
+        twl = self._data["topic_watchlist"]
         if any(e["name"].lower() == name.lower() for e in twl):
             return False
-
-        from datetime import datetime
 
         twl.append(
             {
@@ -305,7 +479,7 @@ class Library:
         return True
 
     def remove_from_topic_watchlist(self, name: str) -> bool:
-        twl = self._data.get("topic_watchlist", [])
+        twl = self._data["topic_watchlist"]
         before = len(twl)
         self._data["topic_watchlist"] = [e for e in twl if e["name"].lower() != name.lower()]
         if len(self._data["topic_watchlist"]) < before:
@@ -320,8 +494,7 @@ class Library:
         return None
 
     def update_topic_watch_days(self, name: str, days: int) -> bool:
-        twl = self._data.get("topic_watchlist", [])
-        for e in twl:
+        for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
                 e["days"] = days
                 self._save()
@@ -329,8 +502,7 @@ class Library:
         return False
 
     def update_topic_watch_cadence(self, name: str, cadence: str) -> bool:
-        twl = self._data.get("topic_watchlist", [])
-        for e in twl:
+        for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
                 e["cadence"] = cadence
                 self._save()
@@ -338,8 +510,7 @@ class Library:
         return False
 
     def update_topic_watch_ranking_mode(self, name: str, ranking_mode: str) -> bool:
-        twl = self._data.get("topic_watchlist", [])
-        for e in twl:
+        for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
                 e["ranking_mode"] = ranking_mode
                 self._save()
@@ -347,8 +518,7 @@ class Library:
         return False
 
     def mark_topic_watch_run(self, name: str, when_iso: str) -> bool:
-        twl = self._data.get("topic_watchlist", [])
-        for e in twl:
+        for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
                 e["last_run_at"] = when_iso
                 self._save()
@@ -358,8 +528,7 @@ class Library:
     def update_topic_watch_budget(
         self, name: str, *, max_run_cost: float | None = None, monthly_budget: float | None = None
     ) -> bool:
-        twl = self._data.get("topic_watchlist", [])
-        for e in twl:
+        for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
                 if max_run_cost is not None:
                     e["max_run_cost"] = max_run_cost
@@ -370,8 +539,7 @@ class Library:
         return False
 
     def set_topic_watch_paused(self, name: str, paused: bool) -> bool:
-        twl = self._data.get("topic_watchlist", [])
-        for e in twl:
+        for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
                 e["paused"] = paused
                 self._save()
@@ -386,23 +554,16 @@ class ChannelState:
         self.state_file = state_file
         self._data = self._load()
 
-    def _load(self) -> dict:
-        if self.state_file.exists():
-            try:
-                data = json.loads(self.state_file.read_text(encoding="utf-8"))
-                # Ensure required keys exist
-                if "processed_videos" not in data or not isinstance(data["processed_videos"], dict):
-                    data["processed_videos"] = {}
-                if "last_refresh" not in data:
-                    data["last_refresh"] = None
-                return data
-            except (json.JSONDecodeError, OSError):
-                # Corrupted state file — start fresh but keep a backup
-                backup = self.state_file.with_suffix(".json.bak")
-                with contextlib.suppress(OSError):
-                    self.state_file.rename(backup)
-                return {"processed_videos": {}, "last_refresh": None}
-        return {"processed_videos": {}, "last_refresh": None}
+    def _load(self) -> ChannelStateData:
+        if not self.state_file.exists():
+            return {"processed_videos": {}, "last_refresh": None}
+        try:
+            raw = json.loads(self.state_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            # Corrupted state file — start fresh but keep a backup.
+            _quarantine_corrupt(self.state_file)
+            return {"processed_videos": {}, "last_refresh": None}
+        return _parse_channel_state(raw)
 
     def _save(self):
         atomic_write_text(self.state_file, json.dumps(self._data, indent=2, ensure_ascii=False))
@@ -423,12 +584,16 @@ class ChannelState:
         self._save()
 
     def get_analysis_mode(self, video_id: str) -> str:
-        """Get the analysis mode for a processed video."""
-        entry = self._data["processed_videos"].get(video_id, {})
-        return entry.get("analysis_mode", "full")
+        """Get the analysis mode for a processed video (legacy entries default to 'full')."""
+        entry = self._data["processed_videos"].get(video_id)
+        return entry["analysis_mode"] if entry else "full"
 
     def get_processed_count(self) -> int:
         return len(self._data["processed_videos"])
 
+    def processed_video_ids(self) -> list[str]:
+        """Identifiers of every processed video, in insertion order."""
+        return list(self._data["processed_videos"].keys())
+
     def get_last_refresh(self) -> str | None:
-        return self._data.get("last_refresh")
+        return self._data["last_refresh"]

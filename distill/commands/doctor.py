@@ -567,7 +567,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
             state = ChannelState(state_file)
             total_vids += state.get_processed_count()
             # Count scan-mode videos
-            for vid_id in state._data.get("processed_videos", {}):
+            for vid_id in state.processed_video_ids():
                 if state.get_analysis_mode(vid_id) == "scan":
                     scan_vids += 1
 
