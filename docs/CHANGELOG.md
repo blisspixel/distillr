@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Continued the `distill/commands/` strict ratchet on three more already-clean
+  CLI command modules: `ask.py` (the `distill ask` command), `_paper_artifacts.py`
+  (paper artifact writers), and `claude_md.py` (the orientation-file command).
+  All fully typed; markers only. No behavior change.
 - Began the `distill/commands/` strict ratchet on three already-clean CLI helper
   modules: `_discover_options.py` (discover-flag normalization), `_concept_ingest.py`
   (concept-playbook ingest helper), and `okf.py` (the OKF export/validate command).

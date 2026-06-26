@@ -6,6 +6,8 @@ answer into the corpus -- refused, never silently, when any load-bearing claim
 lacks source support (invariant 8).
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import typer

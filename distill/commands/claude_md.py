@@ -9,6 +9,8 @@ writers call into the same library functions); this command is the manual
 trigger, used mainly to backfill existing topics or refresh on demand.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

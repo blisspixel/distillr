@@ -1,5 +1,7 @@
 """Paper artifact writing helpers shared by CLI and MCP workflows."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
