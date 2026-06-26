@@ -1,5 +1,46 @@
 # Current State Analysis
 
+## 2026-06-26 Strict-Ratchet Session Map (cycles 140-152)
+
+A long strict-ratchet session advanced the 1.0 "Pyright strict across the full
+surface" gate well beyond `distill/llm/` (the only CI-blocking package). Now
+`# pyright: strict`, all behavior-preserving and CI-green:
+
+- **`library/`** - complete except `export.py` (thin python-docx renderer,
+  intentionally skipped). Includes the `state.py` parse-don't-validate redesign.
+- **Top-level foundation** - `config.py`, `_version.py`, `preflight.py`,
+  `update.py`.
+- **`prompts/`** - the entire package (registry, shared, all per-source builders,
+  report, and the re-export `__init__` with one justified dunder-all ignore).
+- **`pipeline/` (partial)** - `next_actions`, `goals`, `dedup`,
+  `audit_transcripts`, `audit_video_duplicates`, `summary_query`, `search`,
+  `preview_cache`, `verify`, `verify_entailment`, `ask`, `profile_health`, plus
+  the pre-existing `costs` and the analysis sub-package.
+
+Several latent JSON-boundary crashes were fixed along the way (non-object
+top-level documents, non-iterable trusted-sites), and one dead constant removed
+(`search._MARKDOWN_STRIP_RE`).
+
+**Remaining strict targets, with shape (so the next session can budget):**
+
+- **`pipeline/` large modules** - `ranking.py` (717L, ~75 errors), `summary.py`
+  (563L), `orchestrate.py` (653L), `discovery.py` (684L), `profile_run.py`
+  (563L), `profile_preview.py` (609L), `dashboard_data.py` (876L), `audit.py`
+  (986L). Each is a 50-100-error cycle clustered around a few parse boundaries
+  and untyped-object loops; best taken one module per cycle with fresh context.
+  `ranking.py` was scoped this session (75 errors in ~5 clusters: a dataclass
+  field region ~L44, the rerank-response parse ~L138-176, and the ranked-result
+  builders ~L395-418 / ~L558-575) then backed out unstarted to avoid a
+  half-strict commit at a context boundary.
+- **`commands/` (40), `mcp/` (20), `web/` (9), `ingestors/` (22)** - not yet
+  scoped; `web/` and `mcp/` are presentation/IO-heavy (expect third-party-untyped
+  boundaries like the verify_entailment transformers wrapper).
+
+The recipe and the recurring fixes are in `SKILLS.md` (Pyright Strict Ratchet);
+the house ignore for `field(default_factory=list|dict)` and the
+`cast` + `dict[str, object]` patterns for JSON boundaries are the load-bearing
+moves.
+
 ## 2026-06-26 Strict Ratchet + Parse-Don't-Validate
 
 Re-read README, ROADMAP, QUALITY-RUBRIC, SKILLS (strict-ratchet recipe), and the
