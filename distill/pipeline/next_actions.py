@@ -1,5 +1,7 @@
 """Shared loop-readable next-action schema."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,7 +25,7 @@ class NextActionVerifier:
     command: list[str]
     expect: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {"command": self.command, "expect": self.expect}
 
 
@@ -35,7 +37,7 @@ class LoopMetadata:
     max_attempts: int
     acceptance_metric: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {
             "state_path": self.state_path,
             "max_attempts": self.max_attempts,
@@ -58,8 +60,8 @@ class NextAction:
     verifier: NextActionVerifier
     loop: LoopMetadata | None = None
 
-    def to_dict(self) -> dict:
-        data = {
+    def to_dict(self) -> dict[str, object]:
+        data: dict[str, object] = {
             "id": self.id,
             "kind": self.kind,
             "severity": self.severity,
@@ -84,7 +86,7 @@ class NextActionPlan:
     generated_at: str
     actions: list[NextAction]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": self.schema_version,
             "topic": self.topic,

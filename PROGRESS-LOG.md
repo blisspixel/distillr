@@ -3828,6 +3828,35 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 146 - Pyright-strict the pipeline loop/refresh schema modules
+
+External spend: $0.00.
+
+Opened the `distill/pipeline/` ratchet on the two deterministic loop/refresh
+schema modules (skipped `cli_support/` - four 7-line `sys.modules[__name__] =
+_canonical` back-compat shims slated for removal; strict markers there add no
+real safety). On-theme with the loop-ready 1.0 spine:
+
+- `next_actions.py` (the loop-readable next-action JSON contract external
+  stewardship loops consume): the four frozen-dataclass `to_dict()` methods now
+  return `dict[str, object]` - the honest JSON-object type - and the one built-up
+  `data` local is annotated `dict[str, object]` so the conditional `data["loop"]`
+  assignment and return both typecheck (a bare literal would widen to a narrower
+  value union and fail dict value-invariance).
+- `goals.py` (persisted topic goals): typed the JSON boundary
+  (`load_topic_goals -> dict[str, dict[str, Any]]` with a cast after the dict
+  guard), narrowed `_int_value` to `isinstance(value, int | float | str)` before
+  `int()` (preserves exact behavior - bool/int/float/numeric-str all still
+  coerce - while satisfying strict), and rewrote the `trusted_sites` normalizer
+  to branch str/list/other explicitly. The rewrite also removes a latent crash:
+  the old `for source in (entry.get("trusted_sites", []) or [])` would raise on a
+  non-iterable truthy value (e.g. an int); it now yields no sites.
+
+No behavior change on valid input. Validation: pyright strict on both (0 errors),
+pyright `distill/llm/` blocking clean, ruff check + format clean,
+goal/next-action/pipeline tests 707 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
 ## Cycle 145 - Finish the prompts/ strict ratchet (report.py + __init__.py)
 
 External spend: $0.00.

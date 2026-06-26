@@ -12,10 +12,13 @@ corpus-aware rerank drops already-ingested candidates, so a refresh only
 surfaces what's new).
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from distill.library.paths import atomic_write_text
 
@@ -28,7 +31,7 @@ def _goals_path(library_dir: Path) -> Path:
     return library_dir / ".distill" / _GOALS_FILENAME
 
 
-def load_topic_goals(library_dir: Path) -> dict[str, dict]:
+def load_topic_goals(library_dir: Path) -> dict[str, dict[str, Any]]:
     """All persisted goals, keyed by topic. Corrupt files read as empty."""
     path = _goals_path(library_dir)
     if not path.exists():
@@ -37,7 +40,7 @@ def load_topic_goals(library_dir: Path) -> dict[str, dict]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    return data if isinstance(data, dict) else {}
+    return cast("dict[str, dict[str, Any]]", data) if isinstance(data, dict) else {}
 
 
 def save_topic_goal(
@@ -79,7 +82,7 @@ def _quoted(path_str: str) -> str:
     return path_str
 
 
-def goal_refresh_command(topic: str, entry: dict) -> str:
+def goal_refresh_command(topic: str, entry: dict[str, Any]) -> str:
     """The exact preview command that refreshes this topic against its goal.
 
     Printed for an operator to run, never executed by distill itself; paths
@@ -94,10 +97,14 @@ def goal_refresh_command(topic: str, entry: dict) -> str:
     site_seeds = str(entry.get("site_seeds", "") or "")
     if site_seeds:
         cmd += f" --site-seeds {_quoted(site_seeds)}"
-    trusted_sites = entry.get("trusted_sites", []) or []
-    if isinstance(trusted_sites, str):
-        trusted_sites = [trusted_sites]
-    for source in trusted_sites:
+    trusted_raw: object = entry.get("trusted_sites")
+    if isinstance(trusted_raw, str):
+        trusted_items: list[object] = [trusted_raw]
+    elif isinstance(trusted_raw, list):
+        trusted_items = cast("list[object]", trusted_raw)
+    else:
+        trusted_items = []
+    for source in trusted_items:
         source_text = str(source or "")
         if source_text:
             cmd += f" --trusted-site {_quoted(source_text)}"
@@ -110,8 +117,10 @@ def goal_refresh_command(topic: str, entry: dict) -> str:
     return cmd
 
 
-def _int_value(value, *, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
+def _int_value(value: object, *, default: int) -> int:
+    if isinstance(value, int | float | str):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default

@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Started the `distill/pipeline/` strict ratchet on the loop/refresh schema
+  modules: `next_actions.py` (the loop-readable next-action JSON contract for
+  external stewardship loops) and `goals.py` (persisted topic goals) are now
+  `# pyright: strict`. `next_actions.py`'s four `to_dict()` methods now return
+  `dict[str, object]` (the honest JSON-object type). `goals.py` gained typed JSON
+  boundaries (`load_topic_goals -> dict[str, dict[str, Any]]`), an `int`-coercion
+  helper that narrows before `int()` instead of catching a type error, and a
+  `trusted_sites` normalizer that handles str/list/other explicitly - the last
+  also hardens a latent crash, since the old `for source in (entry.get(...) or [])`
+  would have raised on a non-iterable truthy value. No behavior change on valid
+  input.
 - Completed the `distill/prompts/` strict ratchet: `report.py` (deep-research
   dossier, per-section writer, QA, fix, topic brief) and the re-export
   `__init__.py` are now `# pyright: strict`, so the whole package is strict.
