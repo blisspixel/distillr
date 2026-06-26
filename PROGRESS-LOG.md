@@ -3774,3 +3774,29 @@ push.
 
 Remaining prompts/ (next cycles): `analysis.py`, `claims.py`, `discover.py`,
 `lenses.py`, `report.py`, `synthesis.py`, `x.py`, then `__init__.py` last.
+
+## Cycle 143 - Pyright-strict the per-source prompt builders
+
+External spend: $0.00.
+
+Continued the prompts/ ratchet onto the per-source builders: `lenses.py`
+(analysis-lens stances + per-lens section sets), `analysis.py` (video
+extraction/synthesis/shorts/scan/channel-context), `claims.py` (claim extraction
++ claim-aware synthesis), and `x.py` (tweet insight + Whisper vocabulary
+expansion). All four were cleanly typed string builders; the only real fix was a
+cross-module private import.
+
+`claims.py` imported `synthesis._emphasis_block` (a private helper) to share the
+register-emphasis line - strict's `reportPrivateUsage`. Rather than suppress,
+promoted it to public `synthesis.emphasis_block` (added to `__all__`, ruff
+re-sorted), matching cycle 139's public-API-promotion pattern, and updated both
+synthesis call sites plus the claims import. The promotion touches synthesis.py
+(still basic-mode until its own cycle); the rename is behavior-preserving.
+
+No behavior change. Validation: pyright strict on the four (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean (incl. `__all__` sort),
+prompt/synthesis/claims/lens/analysis tests 367 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
+Remaining prompts/ (next cycles): `discover.py`, `report.py`, `synthesis.py`,
+then `__init__.py` last.

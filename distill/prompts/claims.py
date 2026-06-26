@@ -14,6 +14,8 @@ Two prompts:
   Low-``role_confidence`` claims are surfaced rather than dropped.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -145,7 +147,7 @@ def claim_synthesis_prompt(topic: str, claims: Sequence[Claim], style: str = "")
             ``claims.jsonl``). Ordering is the caller's responsibility; the
             prompt does not assume any particular order.
     """
-    from distill.prompts.synthesis import _emphasis_block
+    from distill.prompts.synthesis import emphasis_block
 
     claim_block = claims_receipt(claims)
     source_count = len({c.source_id for c in claims})
@@ -224,7 +226,7 @@ HARD RULES
 - If a section has nothing honest to say at this corpus size, write one sentence saying so. Padding is worse than brevity.
 - If your output could plausibly come from reading any one source in the set, the synthesis has failed.
 - {ANTI_HALLUCINATION_RULES} Do not invent handles, sources, datasets, or numbers not present in the claim set above.
-- {REGISTER_RULES}{_emphasis_block(style)}
+- {REGISTER_RULES}{emphasis_block(style)}
 - {FORMATTING_RULES}
 
 Write the synthesis in Markdown. Begin with the synthesis itself; no preamble."""

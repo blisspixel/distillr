@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Continued the `distill/prompts/` strict ratchet onto the per-source builder
+  prompts: `lenses.py` (analysis-lens stances + section sets), `analysis.py`
+  (video extraction/synthesis), `claims.py` (claim extraction + claim-aware
+  synthesis), and `x.py` (tweet/vocabulary) are now `# pyright: strict`. The one
+  real fix: `claims.py` imported the private `synthesis._emphasis_block`, which
+  strict rejects across a module boundary, so the genuinely-shared helper is
+  promoted to public `synthesis.emphasis_block` (added to `__all__`) and both
+  call sites updated. No behavior change.
 - Began the strict ratchet on `distill/prompts/`: the prompt-version registry
   (`registry.py`, the single source of truth for `prompt_id` floors), the shared
   rule constants (`shared.py`), and the single-pass builder prompts (`ask.py`,

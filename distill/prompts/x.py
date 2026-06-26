@@ -1,5 +1,7 @@
 """Prompt templates for X (Twitter) post analysis."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill.prompts.shared import UNTRUSTED_CONTENT_RULES

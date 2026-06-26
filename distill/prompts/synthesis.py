@@ -12,6 +12,7 @@ __all__ = [
     "STYLE_NAMES",
     "channel_synthesis_prompt",
     "corpus_synthesis_prompt",
+    "emphasis_block",
     "paper_insight_prompt",
     "paper_topic_synthesis_prompt",
     "site_page_insight_prompt",
@@ -51,7 +52,7 @@ STYLE_GUIDANCE: dict[str, str] = {
 STYLE_NAMES: tuple[str, ...] = tuple(STYLE_GUIDANCE)
 
 
-def _emphasis_block(style: str) -> str:
+def emphasis_block(style: str) -> str:
     """Return an ``EMPHASIS:`` line for ``style``, or ``""`` for default/unknown."""
     guidance = STYLE_GUIDANCE.get(style, "")
     return f"\nEMPHASIS: {guidance}" if guidance else ""
@@ -128,7 +129,7 @@ What topics aren't being covered? What questions aren't being answered?
 
 Be specific about which creator said what. Attribution matters for credibility. If several creators seem to rely on the same originating claim, say that explicitly instead of treating the repetition as fresh confirmation.
 
-STYLE: {REGISTER_RULES}{_emphasis_block(style)}"""
+STYLE: {REGISTER_RULES}{emphasis_block(style)}"""
 
 
 def site_page_insight_prompt(
@@ -418,4 +419,4 @@ Evidence handling rules:
 - When evidence is echoed but origin is unclear, describe it as widely repeated rather than independently corroborated.
 - When separate source types point to the same conclusion for different reasons, say why that looks like real corroboration.
 
-STYLE: {REGISTER_RULES}{_emphasis_block(style)}"""
+STYLE: {REGISTER_RULES}{emphasis_block(style)}"""

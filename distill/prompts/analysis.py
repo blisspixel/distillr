@@ -1,5 +1,7 @@
 """Video analysis prompt templates -- extraction, synthesis, shorts, scan, channel context."""
 
+# pyright: strict
+
 from distill.prompts.lenses import focus_directive, video_sections
 from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
 

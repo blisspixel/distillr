@@ -11,6 +11,8 @@ This module is pure string templating in the foundational ``prompts`` layer. The
 pipeline passes ``intent.lens`` (a plain string) to the prompt builders here.
 """
 
+# pyright: strict
+
 __all__ = [
     "DEFAULT_LENS",
     "LENS_NAMES",
