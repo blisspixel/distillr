@@ -51,6 +51,20 @@ def _recent(days_ago: int = 1) -> str:
 
 class TestDiscoverVideos:
     @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    def test_refuses_non_youtube_url_without_fetching(self, mock_ydl_cls):
+        # SSRF guard: an attacker-influenced channel URL (reachable by default
+        # via the MCP watch_add / catch_up write tools) must never reach yt-dlp,
+        # which does its own networking outside the urllib/requests SSRF guards.
+        for url in (
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1:6379/",
+            "https://evil.example.com/@x",
+            "file:///etc/passwd",
+        ):
+            assert discover_videos(url, months=3) == []
+        mock_ydl_cls.assert_not_called()
+
+    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
     def test_basic_discovery(self, mock_ydl_cls):
         """Discovers videos from a channel."""
         mock_ydl = MagicMock()

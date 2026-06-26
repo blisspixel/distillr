@@ -90,6 +90,13 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     for meaningful 2-pass analysis. Set include_shorts=True to also scan
     the /shorts tab.
     """
+    # yt-dlp does its own networking, so an unvalidated channel URL would let it
+    # fetch an arbitrary host (the urllib/requests SSRF guards do not cover it).
+    # Pin to YouTube hosts, exactly as get_video_info / resolve_channel_name do.
+    if not is_youtube_url(channel_url):
+        console.print(f"  [red]Refusing non-YouTube URL: {channel_url}[/red]")
+        return []
+
     lookback_days = days if days is not None else months * 30
     cutoff = datetime.now() - timedelta(days=lookback_days)
     cutoff_str = cutoff.strftime("%Y%m%d")
