@@ -1,5 +1,7 @@
 """Prompt template for corpus-grounded question answering (`distill ask`)."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill.prompts.shared import DERIVED_CONTENT_RULES

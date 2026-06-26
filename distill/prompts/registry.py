@@ -13,6 +13,8 @@ Family naming: everything before the trailing ``.vN`` (``analysis.podcast``,
 versioned, not frozen -- the id is the only required stability.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import re

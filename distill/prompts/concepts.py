@@ -25,6 +25,8 @@ Design notes:
   credal-interval evidence bounds.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill.prompts.shared import (

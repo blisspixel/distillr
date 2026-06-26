@@ -4,6 +4,8 @@ Anti-hallucination, provenance, and formatting rules that are embedded
 in multiple prompt templates. Centralised here for consistency.
 """
 
+# pyright: strict
+
 __all__ = [
     "ANTI_HALLUCINATION_RULES",
     "DERIVED_CONTENT_RULES",

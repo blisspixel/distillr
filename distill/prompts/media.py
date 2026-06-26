@@ -1,5 +1,7 @@
 """Prompt templates for raw local media (audio/video file) analysis."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill.prompts.shared import UNTRUSTED_CONTENT_RULES

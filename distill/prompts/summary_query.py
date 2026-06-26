@@ -1,5 +1,7 @@
 """Prompt template for query-focused corpus compression (sub-agent summaries)."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 from distill.prompts.shared import DERIVED_CONTENT_RULES

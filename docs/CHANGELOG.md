@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Began the strict ratchet on `distill/prompts/`: the prompt-version registry
+  (`registry.py`, the single source of truth for `prompt_id` floors), the shared
+  rule constants (`shared.py`), and the single-pass builder prompts (`ask.py`,
+  `summary_query.py`, `media.py`, `podcasts.py`, `github.py`, `concepts.py`) are
+  now `# pyright: strict`. These were already cleanly typed (keyword-only str
+  inputs to f-string builders); the marker locks them. The wildcard-re-exporting
+  `prompts/__init__.py` is intentionally left until the larger builders it
+  imports are strict, since pyright cannot statically verify its spread `__all__`.
 - Made the top-level foundation modules `# pyright: strict`: `config.py`
   (the `DistillConfig` pydantic-settings boundary, imported almost everywhere)
   and `_version.py` were already clean; `preflight.py` and `update.py` needed

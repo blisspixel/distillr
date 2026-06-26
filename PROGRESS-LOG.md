@@ -3747,3 +3747,30 @@ No behavior change. Validation: pyright strict on all four (0 errors), pyright
 `distill/llm/` blocking clean, ruff check + format clean, targeted
 config/version/preflight/update tests 131 passed. Full coverage gate
 (`--cov-fail-under=89`, up-only) before push.
+
+## Cycle 142 - Pyright-strict the prompt infrastructure + single-pass builders
+
+External spend: $0.00.
+
+Opened the `distill/prompts/` ratchet on its cleanest, most foundational slice:
+`registry.py` (the prompt-version registry, the single source of truth both the
+writers and the audit's staleness pass read), `shared.py` (the shared
+anti-hallucination / provenance / untrusted-content rule constants), and the
+six single-pass builder prompts (`ask`, `summary_query`, `media`, `podcasts`,
+`github`, `concepts`). All eight were already cleanly typed - keyword-only `str`
+inputs assembled into an f-string - so the marker locks them with zero code
+change.
+
+Left `prompts/__init__.py` non-strict on purpose: it wildcard-re-exports the
+larger builders (`analysis`, `discover`, `report`, `synthesis`) and pyright
+flags its spread `__all__` (`[*_analysis_all, ...]`) with
+`reportUnsupportedDunderAll` under strict. The `__init__` is the natural last
+step of the prompts ratchet, after those builders are themselves strict.
+
+No behavior change. Validation: pyright strict on all eight (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean, prompt/registry/concept
+tests 327 passed. Full coverage gate (`--cov-fail-under=89`, up-only) before
+push.
+
+Remaining prompts/ (next cycles): `analysis.py`, `claims.py`, `discover.py`,
+`lenses.py`, `report.py`, `synthesis.py`, `x.py`, then `__init__.py` last.
