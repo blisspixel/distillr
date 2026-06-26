@@ -483,14 +483,6 @@ def resolve_video_channel_name(url: str, video_info, fallback_resolver) -> str:
     if channel_name:
         return channel_name
 
-    # Defense in depth: callers reach this only after a YouTube-gated lookup, but
-    # never hand an unvalidated URL to yt-dlp (it does its own networking, so the
-    # urllib/requests SSRF guards do not cover it).
-    from distill.ingestors.youtube.discovery import is_youtube_url
-
-    if not is_youtube_url(url):
-        return "standalone"
-
     try:
         import yt_dlp
 
