@@ -44,6 +44,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Made the verify core `# pyright: strict`: `verify.py` (the write-time numeric
+  claim-grounding hook) and `verify_entailment.py` (the optional local
+  cross-encoder prose-entailment tier). `verify_entailment.py` gained a
+  `FlaggedClaim` TypedDict for `EntailmentReport.flagged` (was `tuple[dict, ...]`),
+  and its `entailment_available()` check moved from a `try/import` to
+  `importlib.util.find_spec` (no heavy import just to probe presence). The
+  untyped optional `transformers` dependency is confined to two justified
+  `pyright: ignore`s in the `HHEMChecker` wrapper, with the model handle held as
+  `Any`. `verify.py`'s sidecar `payload` is now typed `dict[str, object]` so the
+  conditional entailment block typechecks. No behavior change.
 - Extended the `distill/pipeline/` strict ratchet to `search.py` (the lexical
   corpus search / preview engine behind `ask` and the sub-agent summaries) and
   `preview_cache.py` (the content-addressed `discover` shortlist replay store).

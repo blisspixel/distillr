@@ -1,3 +1,4 @@
+# pyright: strict
 # pyright: reportMissingImports=false
 """The entailment tier: prose claims and named entities, checked locally.
 
@@ -25,7 +26,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol, TypedDict
 
 from distill.library.paths import strip_frontmatter
 
@@ -73,12 +74,20 @@ class EntailmentClaim:
     text: str
 
 
+class FlaggedClaim(TypedDict):
+    """A prose claim whose best evidence chunk scored below the threshold."""
+
+    claim: str
+    score: float
+    best_chunk_preview: str
+
+
 @dataclass(frozen=True)
 class EntailmentReport:
     """Outcome of entailment-scoring one insight against its receipt."""
 
     checked: int
-    flagged: tuple[dict, ...]  # {claim, score, best_chunk_preview}
+    flagged: tuple[FlaggedClaim, ...]
     model: str
     threshold: float
 
@@ -174,7 +183,7 @@ def evaluate_entailment(
     chunks = chunk_evidence(source_text)
     if not claims or not chunks:
         return EntailmentReport(checked=0, flagged=(), model=checker.model_name, threshold=limit)
-    flagged: list[dict] = []
+    flagged: list[FlaggedClaim] = []
     for claim in claims:
         candidates = _top_chunks(claim.text, chunks)
         best_score = -1.0
@@ -211,26 +220,31 @@ class HHEMChecker:
     """
 
     model_name = _HHEM_MODEL_ID
+    # transformers ships no type stubs, so the model handle is Unknown by nature.
+    # It is held as Any and exercised only through the narrow score() contract.
+    _model: Any
 
     def __init__(self):
-        from transformers import AutoModelForSequenceClassification
+        # transformers ships no type stubs, so the imported class and the model
+        # handle are Unknown; both are ignored here and held as Any (see _model).
+        from transformers import (
+            AutoModelForSequenceClassification,  # pyright: ignore[reportUnknownVariableType]
+        )
 
-        self._model = AutoModelForSequenceClassification.from_pretrained(
+        self._model = AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
             _HHEM_MODEL_ID, revision=_HHEM_REVISION, trust_remote_code=True
         )
 
     def score(self, evidence: str, claim: str) -> float:
-        result = self._model.predict([(evidence, claim)])
+        result: Any = self._model.predict([(evidence, claim)])
         return float(result[0])
 
 
 def entailment_available() -> bool:
     """Whether the optional dependency is importable (not whether the model is cached)."""
-    try:
-        import transformers  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    import importlib.util
+
+    return importlib.util.find_spec("transformers") is not None
 
 
 def load_default_checker() -> EntailmentChecker | None:

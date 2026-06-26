@@ -3828,6 +3828,34 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 150 - Pyright-strict the verify core (numeric + entailment tiers)
+
+External spend: $0.00.
+
+Took the load-bearing verify hook strict - the heart of the verified-corpus
+thesis.
+
+- `verify_entailment.py` (optional local cross-encoder prose tier): replaced the
+  bare `tuple[dict, ...]` on `EntailmentReport.flagged` with a `FlaggedClaim`
+  TypedDict (claim/score/best_chunk_preview), typed the `flagged` accumulator,
+  and switched `entailment_available()` from `try: import transformers` to
+  `importlib.util.find_spec("transformers") is not None` (cleaner - no heavy
+  import just to probe, and strict-clean without a noqa). The untyped optional
+  `transformers` dep is the genuine third-party boundary (like the skipped
+  python-docx in `library/export.py`): confined to the `HHEMChecker` wrapper with
+  the model handle declared `_model: Any` and two justified `pyright: ignore`s
+  (`reportUnknownVariableType` on the import, `reportUnknownMemberType` on
+  `from_pretrained`). Directive ordering matters: `# pyright: strict` must precede
+  `# pyright: reportMissingImports=false` so the latter override survives.
+- `verify.py` (write-time numeric grounding hook): with `flagged` now typed, the
+  only fix was annotating the `_Verify.json` `payload` as `dict[str, object]` so
+  the conditional `payload["entailment"] = {...}` block typechecks (dict
+  value-invariance, same pattern as cycle 146).
+
+No behavior change. Validation: pyright strict on both (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean, verify/entailment tests
+71 passed. Full coverage gate (`--cov-fail-under=89`, up-only) before push.
+
 ## Cycle 149 - Pyright-strict the search + preview-cache modules (dead-code find)
 
 External spend: $0.00.

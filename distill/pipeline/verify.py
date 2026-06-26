@@ -26,6 +26,8 @@ insight with unsupported claims; the sidecar still records why), ``off``
 (skip the check).
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import contextlib
@@ -415,7 +417,7 @@ def write_verify_sidecar(
 ) -> Path:
     """Write the ``<stem>_Verify.json`` sidecar next to the insight artifact."""
     path = artifact_path(directory, "verify", identity=identity, extension="json")
-    payload = {
+    payload: dict[str, object] = {
         "schema_version": VERIFY_SCHEMA_VERSION,
         "mode": report.mode,
         "checked": report.checked,
