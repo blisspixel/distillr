@@ -341,7 +341,7 @@ Distillr is built for two parallel agent-integration paths:
 { "mcpServers": { "distill": { "command": "distill-mcp" } } }
 ```
 
-Distill exposes 26 tools, deliberately kept small and shrinking toward
+Distill exposes 27 tools, deliberately kept small and shrinking toward
 workflow-shaped tools. The JIT read layer returns ranked
 `path`/`preview`/`score` tuples with `read_insight` drill-down, never full
 payloads by default; `ask` answers questions grounded only in the corpus, with

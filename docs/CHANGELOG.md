@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Documentation accuracy pass: corrected the MCP tool count from 26 to 27 (the
+  `list_topics` tool was added but the README and `docs/mcp.md` count had not been
+  bumped) and documented `list_topics` in the `docs/mcp.md` read-surface table.
+  Updated the ROADMAP "Milestones at a glance" to show 0.18 and 0.19 as shipped
+  (latest release 0.19.1) rather than as remaining work, folding the genuinely
+  open, vendor-gated 0.19 route-graduation gates into the post-1.0
+  provider-breadth item.
 - Documentation refresh: removed em-dashes and en-dashes from the README and
   every hand-authored doc (replaced with hyphens/commas per the project's own
   `FORMATTING_RULES`; generated example corpus and golden eval baselines left
