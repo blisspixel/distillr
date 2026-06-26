@@ -1,5 +1,7 @@
 """Deterministic health checks for recurring research profiles."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
@@ -7,6 +9,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 from distill.library.profiles import ProfileValidationError, ResearchProfile, load_research_profile
 
@@ -18,13 +21,13 @@ class ProfileHealth:
     """Library-wide recurring profile status from local files and run state."""
 
     checked: int = 0
-    invalid: list[dict[str, str]] = field(default_factory=list)
-    missing_goal: list[dict[str, str]] = field(default_factory=list)
-    never_run: list[dict[str, str]] = field(default_factory=list)
-    stale: list[dict[str, str]] = field(default_factory=list)
-    last_failed: list[dict[str, str]] = field(default_factory=list)
-    invalid_state: list[dict[str, str]] = field(default_factory=list)
-    thin_corpus: list[dict[str, str]] = field(default_factory=list)
+    invalid: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
+    missing_goal: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
+    never_run: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
+    stale: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
+    last_failed: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
+    invalid_state: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
+    thin_corpus: list[dict[str, str]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict[str, str]]
 
     @property
     def issue_count(self) -> int:
@@ -142,7 +145,9 @@ def _profile_corpus_findings(profile: ResearchProfile, library_dir: Path) -> lis
     ]
 
 
-def _profile_state_findings(profile: ResearchProfile, *, library_dir: Path, now: datetime) -> dict:
+def _profile_state_findings(
+    profile: ResearchProfile, *, library_dir: Path, now: datetime
+) -> dict[str, list[dict[str, str]]]:
     from distill.pipeline.profile_run import profile_run_state_path
 
     state_path = profile_run_state_path(library_dir, profile.name)
@@ -162,6 +167,7 @@ def _profile_state_findings(profile: ResearchProfile, *, library_dir: Path, now:
                 }
             ]
         }
+    state = cast("dict[str, Any]", state)
     state_error = state.get("__invalid_state_error")
     if state_error:
         return {
@@ -197,13 +203,14 @@ def _profile_never_run_findings(
 
 def _profile_failure_findings(
     profile: ResearchProfile,
-    state: dict,
+    state: dict[str, Any],
     state_path: Path,
     library_dir: Path,
 ) -> list[dict[str, str]]:
     failures = state.get("last_failure")
     if not isinstance(failures, dict) or not failures:
         return []
+    failures = cast("dict[str, Any]", failures)
     return [
         {
             "profile": profile.name,
@@ -215,7 +222,7 @@ def _profile_failure_findings(
 
 def _profile_stale_findings(
     profile: ResearchProfile,
-    state: dict,
+    state: dict[str, Any],
     *,
     now: datetime,
 ) -> list[dict[str, str]]:

@@ -51,6 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Made `pipeline/profile_health.py` (the deterministic recurring-profile health
+  checks behind `distill audit all`) `# pyright: strict`. The `ProfileHealth`
+  dataclass's seven `list[dict[str, str]]` finding-buckets take the documented
+  `field(default_factory=list)` house ignore; the state-reading helpers gained
+  honest JSON-boundary types (`_profile_state_findings` returns
+  `dict[str, list[dict[str, str]]]`, the loaded run-state is cast to
+  `dict[str, Any]` after its `isinstance` guard). No behavior change.
 - Made `pipeline/ask.py` (the corpus-grounded Q&A pipeline with verify-gated
   `--save` promotion) `# pyright: strict`. It was already fully typed; the only
   change was the documented `field(default_factory=list)` house ignore on

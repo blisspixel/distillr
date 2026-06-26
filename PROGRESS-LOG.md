@@ -3828,6 +3828,31 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 152 - Pyright-strict pipeline/profile_health.py
+
+External spend: $0.00.
+
+`pipeline/profile_health.py` (deterministic recurring-profile health for
+`distill audit all`: invalid/missing-goal/never-run/stale/last-failed/
+invalid-state/thin-corpus buckets). Two fix classes:
+
+- The `ProfileHealth` frozen dataclass has seven
+  `list[dict[str, str]] = field(default_factory=list)` finding-buckets; each took
+  the documented house ignore (one `replace_all`, since all seven lines are
+  identical), matching the established convention in `doctor/adapters.py` and
+  `concepts/recovery.py`.
+- The run-state JSON boundary: `_profile_state_findings` now returns
+  `dict[str, list[dict[str, str]]]` (so the `**`-spread into `ProfileHealth(...)`
+  typechecks), the loaded state is `cast("dict[str, Any]", state)` after its
+  `isinstance(state, dict)` guard, and the two state-reading helpers take
+  `state: dict[str, Any]`. The nested `last_failure` dict is cast after its own
+  guard before `len()`.
+
+No behavior change. Validation: pyright strict on profile_health.py (0 errors),
+pyright `distill/llm/` blocking clean, ruff check + format clean,
+profile/audit tests 102 passed. Full coverage gate (`--cov-fail-under=89`,
+up-only) before push.
+
 ## Cycle 151 - Pyright-strict the ask pipeline
 
 External spend: $0.00.
