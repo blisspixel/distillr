@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Completed the `distill/prompts/` strict ratchet: `report.py` (deep-research
+  dossier, per-section writer, QA, fix, topic brief) and the re-export
+  `__init__.py` are now `# pyright: strict`, so the whole package is strict.
+  `report.py` gained two precise `TypedDict`s - `ReportSection` for the
+  `REPORT_SECTIONS` definitions (with `multi_channel_only` as `NotRequired`,
+  since the single-channel replacement omits it) and `WrittenSection` for the
+  prior-context sections - replacing the `dict` / `list[dict]` signatures on
+  `get_active_sections`, `section_prompt`, and `fix_prompt`; the defensive copies
+  switched from `dict(section)` to `section.copy()` to preserve the typed shape.
+  `__init__.py` carries one justified `reportUnsupportedDunderAll` ignore for its
+  spread `__all__`. No behavior change.
 - Advanced the `distill/prompts/` strict ratchet onto the two large aggregation
   builders: `synthesis.py` (channel/topic/site/paper/corpus synthesis) and
   `discover.py` (search expansion + cross-source rerank) are now

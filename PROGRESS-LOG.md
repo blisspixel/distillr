@@ -3828,10 +3828,40 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
-Cycle health (140-144): 5/5 | Simplicity: 5/5 | Est. spend: $0.00 external |
+## Cycle 145 - Finish the prompts/ strict ratchet (report.py + __init__.py)
+
+External spend: $0.00.
+
+Closed out `distill/prompts/`. `report.py` (the 4-phase report pipeline prompts:
+dossier, per-section writer, QA, fix, deep-research, topic brief) carried two
+untyped dict shapes. Modeled both as `TypedDict`s:
+- `ReportSection` for the `REPORT_SECTIONS` definitions. `multi_channel_only` is
+  `NotRequired[bool]` because the single-channel replacement section omits it
+  (verified: the flag is vestigial - the comment says it drives filtering but
+  `get_active_sections` actually filters on `id == "creator_consensus"`; nothing
+  reads the flag). Modeling it `NotRequired` is honest about the data rather than
+  inventing a value.
+- `WrittenSection` (`title`/`content`/`word_count`) for the prior-context
+  sections threaded into `section_prompt`.
+
+Retyped `get_active_sections -> list[ReportSection]`, `section_prompt`'s `section`
++ `previous_sections`, and `fix_prompt`'s `section`. The defensive copies became
+`section.copy()` (preserves the TypedDict type; `dict(section)` would widen to
+`dict[str, object]`). `__init__.py` is strict with one justified
+`reportUnsupportedDunderAll` ignore on its spread `__all__`.
+
+prompts/ is now fully strict (`uv run pyright distill/prompts/` -> 0 errors).
+
+No behavior change. Validation: pyright strict on report.py + __init__.py + the
+whole package (0 errors), pyright `distill/llm/` blocking clean, ruff check +
+format clean, report/section/prompt tests 391 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
+Cycle health (140-145): 6/6 | Simplicity: 5/5 | Est. spend: $0.00 external |
 New skill distilled: none (the strict-ratchet recipe in SKILLS.md already
 covers this work; the one reusable addition is the public-API-promotion move for
 cross-module private helpers, already recorded in cycle 139). Strict surface
 this session: library/state.py (parse-don't-validate), the top-level foundation
-modules (config/_version/preflight/update), and prompts/ except report.py +
-__init__.py.
+modules (config/_version/preflight/update), and the entire prompts/ package.
+Next ratchet targets: cli_support/, then the larger pipeline/ and ingestors/
+surfaces.

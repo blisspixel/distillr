@@ -1,5 +1,9 @@
 """Report prompt templates -- deep research, accordion, topic brief."""
 
+# pyright: strict
+
+from typing import NotRequired, TypedDict
+
 from distill.prompts.shared import DERIVED_CONTENT_RULES, REGISTER_RULES
 
 __all__ = [
@@ -22,7 +26,32 @@ __all__ = [
 # Sections tagged "multi_channel_only" are skipped when scope is a single channel.
 # Sections tagged "voice" control tone: "reference", "analytical", "actionable".
 
-REPORT_SECTIONS = [
+
+class ReportSection(TypedDict):
+    """A report section definition (the shape of every REPORT_SECTIONS entry).
+
+    ``multi_channel_only`` is ``NotRequired`` because the single-channel
+    replacement section legitimately omits it.
+    """
+
+    id: str
+    title: str
+    position: str
+    voice: str
+    instructions: str
+    dossier_focus: list[str] | None
+    multi_channel_only: NotRequired[bool]
+
+
+class WrittenSection(TypedDict):
+    """An already-written section, passed back as prior-context for continuity."""
+
+    title: str
+    content: str
+    word_count: int
+
+
+REPORT_SECTIONS: list[ReportSection] = [
     {
         "id": "executive_briefing",
         "title": "Executive Briefing",
@@ -181,7 +210,7 @@ REPORT_SECTIONS = [
 ]
 
 
-SINGLE_CHANNEL_REPLACEMENT = {
+SINGLE_CHANNEL_REPLACEMENT: ReportSection = {
     "id": "creator_accuracy",
     "title": "Creator Signal vs. Noise",
     "position": "middle",
@@ -198,15 +227,19 @@ SINGLE_CHANNEL_REPLACEMENT = {
 }
 
 
-def get_active_sections(scope: str = "topic", channel_count: int = 1) -> list[dict]:
-    """Return the section list adapted to the report scope."""
+def get_active_sections(scope: str = "topic", channel_count: int = 1) -> list[ReportSection]:
+    """Return the section list adapted to the report scope.
+
+    Each entry is a defensive copy so callers cannot mutate the module-level
+    ``REPORT_SECTIONS`` definitions.
+    """
     is_single = scope == "channel" or channel_count <= 1
-    active = []
+    active: list[ReportSection] = []
     for section in REPORT_SECTIONS:
         if section["id"] == "creator_consensus" and is_single:
-            active.append(dict(SINGLE_CHANNEL_REPLACEMENT))
+            active.append(SINGLE_CHANNEL_REPLACEMENT.copy())
             continue
-        active.append(dict(section))
+        active.append(section.copy())
     return active
 
 
@@ -353,10 +386,10 @@ FORMAT RULES:
 
 
 def section_prompt(
-    section: dict,
+    section: ReportSection,
     topic: str,
     research_dossier: str,
-    previous_sections: list[dict],
+    previous_sections: list[WrittenSection],
     section_index: int,
     total_sections: int,
     tagged_material: str | None = None,
@@ -377,7 +410,7 @@ def section_prompt(
     # Build previous sections context using only the last 3 sections.
     prev_context = "This is the first section of the report."
     if previous_sections:
-        prev_summaries = []
+        prev_summaries: list[str] = []
         recent_sections = previous_sections[-3:]
         for index, prev in enumerate(recent_sections):
             max_words = 500 if index == len(recent_sections) - 1 else 150
@@ -514,7 +547,7 @@ Be concise. No praise, no softening. Just the problems."""
 
 
 def fix_prompt(
-    section: dict,
+    section: ReportSection,
     topic: str,
     research: str,
     qa_feedback: str,
