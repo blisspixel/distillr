@@ -14,11 +14,14 @@ where stamped; cloud-sync tools rewrite mtimes wholesale, so mtime is only
 the legacy fallback.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from distill.library.insights import discover_insights
 from distill.library.paths import artifact_filename, extract_frontmatter, legacy_artifact_path
@@ -49,8 +52,8 @@ class SynthesisFreshness:
     """Whether each synthesis is current with the sources underneath it."""
 
     checked: int = 0  # syntheses present and compared
-    stale: list[dict] = field(default_factory=list)  # {synthesis, behind, gap_days}
-    shadowed_legacy: list[dict] = field(default_factory=list)  # {active, legacy}
+    stale: list[dict[str, Any]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict] -- {synthesis, behind, gap_days}
+    shadowed_legacy: list[dict[str, Any]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict] -- {active, legacy}
 
 
 def _artifact_timestamp(path: Path) -> datetime | None:
@@ -85,8 +88,8 @@ def collect_synthesis_freshness(topic_dir: Path, topic: str) -> SynthesisFreshne
     ]
 
     checked = 0
-    stale: list[dict] = []
-    shadowed: list[dict] = []
+    stale: list[dict[str, Any]] = []
+    shadowed: list[dict[str, Any]] = []
     for kind, scope in _SYNTHESIS_KINDS.items():
         modern = topic_dir / artifact_filename(topic, kind)
         legacy = legacy_artifact_path(topic_dir, kind)

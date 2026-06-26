@@ -5,6 +5,8 @@ parsing, and validating ``[[slug_Suffix|Display Title]]`` wiki-links used
 throughout the distillr corpus.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import logging

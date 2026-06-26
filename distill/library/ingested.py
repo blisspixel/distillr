@@ -10,6 +10,8 @@ This module is foundational: it imports only ``distill.library.insights`` and
 the standard library, per the import-linter foundational-layer contract.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import re

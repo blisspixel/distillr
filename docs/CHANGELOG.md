@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (matching the concept layer), so a truncated or hand-edited append can no
   longer reach a `"source_id" in row` test on a non-object. No other behavior
   change.
+- Made the small `library/` link and freshness core strict too: `links.py`,
+  `wikilinks.py`, `freshness.py`, `insights.py`, and `ingested.py` are now
+  `# pyright: strict` (precise `dict[str, Any]` annotations only; no behavior
+  change).
 
 ## 0.19.1 - 2026-06-25
 

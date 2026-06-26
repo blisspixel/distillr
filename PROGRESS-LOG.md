@@ -3573,3 +3573,22 @@ honest JSON parse boundaries. Validation: pyright strict on `distill/claims/`
 (0 errors), pyright `distill/llm/` blocking clean, ruff check + format clean,
 claims suite 38 passed, concepts suite 173 passed. Full coverage gate before
 push. Prior concepts push (33bf775) CI: green.
+
+## Cycle 135 - Pyright-strict on the small library link/freshness core
+
+External spend: $0.00.
+
+Started the library/ strict pass (roadmap names "library/ slugs + frontmatter +
+links" as deterministic core) with the five smallest, purest modules:
+`links.py`, `wikilinks.py`, `freshness.py`, `insights.py`, `ingested.py`.
+
+wikilinks.py, insights.py, and ingested.py went strict with zero fixes.
+links.py: typed `LinkCheckReport.to_dict -> dict[str, Any]`. freshness.py: typed
+the `stale` / `shadowed_legacy` / `shadowed` finding lists as
+`list[dict[str, Any]]` (dataclass fields carry the house default_factory ignore).
+No behavior change.
+
+Validation: pyright strict on all five (0 errors), pyright `distill/llm/`
+blocking clean, ruff check + format clean, library suite 271 passed. Full
+coverage gate batched before push. Held push until claims push (c9fa626) CI is
+green.

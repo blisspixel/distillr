@@ -11,6 +11,8 @@ the standard library, so both higher layers can depend on it without an
 upward import (enforced by the import-linter foundational-layer contract).
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass

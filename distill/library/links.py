@@ -1,10 +1,13 @@
 """Wiki-link integrity checking and repair for the corpus."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from distill.library.paths import atomic_write_text
 from distill.library.wikilinks import WIKI_LINK_PATTERN
@@ -41,7 +44,7 @@ class LinkCheckResult:
     def is_healthy(self) -> bool:
         return len(self.broken_links) == 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary representation."""
         return {
             "total_links": self.total_links,
