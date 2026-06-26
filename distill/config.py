@@ -1,3 +1,5 @@
+# pyright: strict
+
 import warnings
 from pathlib import Path
 from typing import Literal, cast

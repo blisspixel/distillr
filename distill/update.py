@@ -10,6 +10,8 @@ total failure-swallowing, so an offline or slow PyPI never degrades the CLI.
 ``DISTILL_NO_UPDATE_CHECK=1`` opts out of the availability check entirely.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import contextlib
@@ -20,6 +22,9 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
+
+from rich.console import Console
 
 PACKAGE = "distillr"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE}/json"
@@ -119,14 +124,14 @@ def upgrade_command(method: str) -> list[str] | None:
     return None  # source checkout
 
 
-def _safe_subprocess_env() -> tuple[str, dict]:
+def _safe_subprocess_env() -> tuple[str, dict[str, str]]:
     """A trusted cwd + sanitized env for running package managers.
 
     Strips Python path-injection vars so a malicious ``pip.py`` in the user's
     cwd can't shadow the real module (the same hardening preflight uses).
     """
     safe_cwd = str(Path(sys.executable).resolve().parent)
-    safe_env = dict(os.environ)
+    safe_env: dict[str, str] = dict(os.environ)
     safe_env.pop("PYTHONPATH", None)
     safe_env.pop("PYTHONHOME", None)
     safe_env["PYTHONSAFEPATH"] = "1"
@@ -189,17 +194,17 @@ def _cache_path(library_dir: Path | None) -> Path | None:
     return library_dir / ".distill" / UPDATE_CACHE_NAME
 
 
-def _read_cache(path: Path | None) -> dict:
+def _read_cache(path: Path | None) -> dict[str, Any]:
     if path is None or not path.exists():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 
 
-def _write_cache(path: Path | None, data: dict) -> None:
+def _write_cache(path: Path | None, data: dict[str, Any]) -> None:
     if path is None:
         return
     with contextlib.suppress(Exception):
@@ -207,7 +212,7 @@ def _write_cache(path: Path | None, data: dict) -> None:
         path.write_text(json.dumps(data), encoding="utf-8")
 
 
-def _is_fresh(entry: dict, now: datetime) -> bool:
+def _is_fresh(entry: dict[str, Any], now: datetime) -> bool:
     ts = entry.get("checked_at")
     if not isinstance(ts, str):
         return False
@@ -237,7 +242,7 @@ def latest_version_cached(library_dir: Path | None, now: datetime | None = None)
     return latest
 
 
-def check_for_update(console, library_dir: Path | None = None) -> None:
+def check_for_update(console: Console, library_dir: Path | None = None) -> None:
     """Print a single non-blocking notice if a newer distillr is published.
 
     Cached (once-per-day network), failure-silent, and opt-out via

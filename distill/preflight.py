@@ -6,6 +6,8 @@ warn (never block) when yt-dlp is older than YTDLP_STALE_DAYS, with a cached
 result so the version parse runs at most once per day.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import contextlib
@@ -16,6 +18,9 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
+
+from rich.console import Console
 
 YTDLP_STALE_DAYS = 14
 PREFLIGHT_CACHE_NAME = ".preflight.json"
@@ -58,16 +63,17 @@ def _cache_path(library_dir: Path | None) -> Path | None:
     return library_dir / PREFLIGHT_CACHE_NAME
 
 
-def _read_cache(path: Path | None) -> dict:
+def _read_cache(path: Path | None) -> dict[str, Any]:
     if path is None or not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 
 
-def _write_cache(path: Path | None, data: dict) -> None:
+def _write_cache(path: Path | None, data: dict[str, Any]) -> None:
     if path is None:
         return
     try:
@@ -77,7 +83,7 @@ def _write_cache(path: Path | None, data: dict) -> None:
         pass
 
 
-def _is_cache_fresh(entry: dict, now: datetime) -> bool:
+def _is_cache_fresh(entry: dict[str, Any], now: datetime) -> bool:
     ts = entry.get("checked_at")
     if not isinstance(ts, str):
         return False
@@ -88,7 +94,7 @@ def _is_cache_fresh(entry: dict, now: datetime) -> bool:
     return (now - checked).total_seconds() < CACHE_TTL_HOURS * 3600
 
 
-def preflight_ytdlp(console, library_dir: Path | None = None) -> None:
+def preflight_ytdlp(console: Console, library_dir: Path | None = None) -> None:
     """Print a single non-blocking warning if yt-dlp is stale.
 
     Caches the result in ``library_dir/.preflight.json`` so the check only
@@ -125,7 +131,7 @@ def preflight_ytdlp(console, library_dir: Path | None = None) -> None:
         _emit_stale_warning(console, version, age)
 
 
-def _emit_stale_warning(console, version: str | None, age: int) -> None:
+def _emit_stale_warning(console: Console, version: str | None, age: int) -> None:
     label = f"v{version}" if version else "unknown"
     # ASCII marker (`!`) instead of U+26A0 so even legacy Windows consoles that
     # somehow bypass the UTF-8 stdio bootstrap don't crash on this banner.

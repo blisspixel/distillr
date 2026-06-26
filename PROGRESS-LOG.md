@@ -3719,3 +3719,31 @@ up-only) before push.
 
 library/ is now strict except `export.py` (intentionally skipped: thin renderer
 over untyped python-docx).
+
+## Cycle 141 - Pyright-strict on the top-level foundation modules
+
+External spend: $0.00.
+
+With library/ done, moved the ratchet to the top-level foundation modules that
+sit under everything: `config.py` (the `DistillConfig` pydantic-settings
+boundary, imported almost everywhere, including the state.py touched last
+cycle), `_version.py`, `preflight.py`, and `update.py`.
+
+`config.py` and `_version.py` were already strict-clean - the marker just locks
+them. `preflight.py` and `update.py` needed the recipe's standard fixes plus a
+real one: their `console` parameters were untyped (strict's
+`reportMissingParameterType`), now `rich.console.Console`; the JSON-cache
+helpers (`_read_cache`/`_write_cache`/`_is_*`) carried bare `dict`, now
+`dict[str, Any]`; and `update._safe_subprocess_env` returns
+`tuple[str, dict[str, str]]`.
+
+Parse-don't-validate parity: `preflight._read_cache` returned `json.loads(...)`
+straight through, so a cache file rewritten as a JSON array would have reached a
+`.get` on a non-object. It now guards with `isinstance(..., dict)` and casts,
+matching `update._read_cache`. Skipped `cli_shared.py` (a `import *`
+backward-compat shim - low strict value, and the wildcard fights strict).
+
+No behavior change. Validation: pyright strict on all four (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean, targeted
+config/version/preflight/update tests 131 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.

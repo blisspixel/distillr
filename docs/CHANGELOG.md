@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Made the top-level foundation modules `# pyright: strict`: `config.py`
+  (the `DistillConfig` pydantic-settings boundary, imported almost everywhere)
+  and `_version.py` were already clean; `preflight.py` and `update.py` needed
+  honest types at their edges - the `console` parameters are now typed
+  `rich.console.Console`, the JSON-cache helpers carry `dict[str, Any]` instead
+  of bare `dict`, and `_safe_subprocess_env` returns `tuple[str, dict[str, str]]`.
+  As a parse-don't-validate parity fix, `preflight._read_cache` now guards its
+  `json.loads` result with an `isinstance(..., dict)` check (matching
+  `update._read_cache`), so a cache file rewritten as a JSON array can no longer
+  reach a `.get` on a non-object. No behavior change.
 - Made `library/state.py` (the topic/channel hierarchy, watchlists, and
   per-channel processed-video state) `# pyright: strict` by turning its two JSON
   stores into parse-don't-validate boundaries. The on-disk payload is now parsed
