@@ -185,7 +185,8 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
 - **Metamorphic robustness pass - CUT as fake-rigor (do not build).** The previous plan here (METAL templates; `SynonymReplacement` / `L33TChanging` perturbations; a Universal-Sentence-Encoder cosine ≥ 0.6 acceptance gate; kappa floors; ~30 variants) is **removed.** It perturbed surface tokens and asserted concept-set stability against cosine-similarity thresholds - measuring surface-token stability and calling it semantic robustness. That is a pile of deterministic thresholds dressed as science, the exact brittle-proxy pattern the charter ([`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)) forbids, and as a CI gate it would block legitimate prompt changes on cosine numbers. If robustness-to-rephrasing ever genuinely needs testing, it is a **model judgment** ("do these equivalent inputs yield the same substantive concepts?"), not a cosine gate - and it earns its place only by `distill eval` showing it catches real regressions, not by citing a framework. Do not build the cosine/perturbation machinery.
 - **Pre-commit hooks identical to CI checks** - no contributor surprises between local and remote.
 
-**Verification depth (where it matters, not everywhere).**
+**Verification depth (where it matters, not everywhere).** Phased implementation
+plan and tool selection: [`docs/design/verification-depth.md`](docs/design/verification-depth.md).
 
 The gates above prove *coverage* and *types*. These prove the tests and the code are actually correct under adversarial conditions. They are scoped to the layers where correctness is load-bearing - the deterministic pure-Python core (`concepts/` merge + normalize + recovery, `library/` slugs + frontmatter + links, evidence-interval arithmetic) and the external-service boundaries - not blanket across presentation code, because that is where the cost/value trade-off actually lands.
 
