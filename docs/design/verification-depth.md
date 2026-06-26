@@ -69,6 +69,16 @@ code (CLI rendering, web routes) is out of scope.
   scoped use.) Sources:
   [mutation-testing comparison (NSF)](https://par.nsf.gov/servlets/purl/10573281),
   [cosmic-ray](https://github.com/sixty-north/cosmic-ray).
+  **Platform note (found while spiking, 2026-06-26):** `mutmut` 3.6 has no native
+  Windows support (it relies on `fork()`/`setproctitle`) - on Windows it requires
+  WSL. Development here is on Windows, but the mutation pass is a CI *cadence* job
+  and CI runs on `ubuntu-latest` (the same runner as the coverage matrix), so this
+  is not a blocker: install `mutmut` *in that job* (or via `uvx`/`uv run --with`),
+  not in the always-synced dev group (it also drags in `textual`/`setproctitle`/
+  `mdit-py-plugins` that the rest of dev does not need). If a *local* Windows
+  spike is ever needed, `cosmic-ray` is the Windows-capable fallback; the
+  `deal` contracts (Phase 1) run fine on Windows and cover local efficacy in the
+  meantime.
 - **`CrossHair`** (stretch) for symbolic verification of a few critical pure
   functions (evidence-interval arithmetic). It checks `icontract`/`deal`-style
   contracts via SMT, blurring testing and types - proof-grade for small, pure
@@ -80,13 +90,17 @@ slow for the per-PR gate); contracts run inline but are cheap and `-O`-removable
 
 ## Plan (phased, each phase a shippable unit)
 
-**Phase 0 - mutation spike (1 cycle, diagnostic).** Add `mutmut` to the dev
-dependency group. Run it scoped to one critical, well-tested, pure module -
-`concepts/merge.py` - against its own unit suite. Record the mutation score
-(surviving / total) and the wall-clock. This is the cheapest possible signal of
-real test efficacy on the core, and it calibrates the rest of the plan. No CI
-gate. Deliverable: the score, plus a triage list of the most dangerous surviving
-mutants.
+**Phase 0 - mutation spike (1 cycle, diagnostic).** Run `mutmut` scoped to one
+critical, well-tested, pure module - `concepts/merge.py` (154 lines, 344-line
+test suite) - against its own unit suite, and record the mutation score
+(surviving / total) plus a triage list of the most dangerous survivors. This is
+the cheapest possible signal of real test efficacy on the core and calibrates the
+rest of the plan. Because `mutmut` cannot run on the Windows dev box (see the
+platform note above), the spike runs as a **manually-triggered GitHub Actions
+workflow on `ubuntu-latest`** (`workflow_dispatch`), installing `mutmut` ad hoc
+(`uv run --with mutmut ...`) and printing the score in the job log - it is not a
+gate and not part of the per-PR matrix. Deliverable: the workflow plus the first
+recorded score and triage.
 
 **Phase 1 - contracts on the pure core.** Add `deal`. Encode the documented
 invariants as executable pre/post/class-invariants on the merge/normalize/
