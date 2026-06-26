@@ -44,6 +44,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+import deal
+
 from distill.concepts.records import (
     ConceptMention,
     EvidenceInterval,
@@ -82,6 +84,40 @@ def _pick_kind(mentions: list[ConceptMention]) -> str:
     return most_common[0][0]
 
 
+# Executable invariants for the credal-interval merge (docs/design/verification-depth.md).
+# Named, typed validators so the contract logic itself is type-checked; the
+# `pyright: ignore` is only for deal's own stub, which types its validator
+# parameter as Unknown. Contracts run in dev and CI and are removable under
+# `python -O` via deal's toggle.
+def _intervals_well_formed(concept: MergedConcept) -> bool:
+    """Credal intervals must be non-negative and never invert (lower <= upper)."""
+    return (
+        concept.helpful_evidence.lower >= 0
+        and concept.harmful_evidence.lower >= 0
+        and concept.helpful_evidence.lower <= concept.helpful_evidence.upper
+        and concept.harmful_evidence.lower <= concept.harmful_evidence.upper
+    )
+
+
+def _sources_preserved(
+    canonical_name: str,
+    mentions: list[ConceptMention],
+    *,
+    topic: str,
+    provenance: dict[str, Any] | None = None,
+    result: MergedConcept,
+) -> bool:
+    """The merge keeps every input mention as exactly one source.
+
+    deal calls an ``ensure`` validator with the decorated function's own
+    signature plus the ``result``, so this mirrors ``build_merged_concept`` -
+    which keeps it fully typed (no untyped deal namespace).
+    """
+    return len(result.sources) == len(mentions)
+
+
+@deal.post(_intervals_well_formed)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
+@deal.ensure(_sources_preserved)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def build_merged_concept(
     canonical_name: str,
     mentions: list[ConceptMention],

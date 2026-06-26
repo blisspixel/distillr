@@ -102,6 +102,29 @@ workflow on `ubuntu-latest`** (`workflow_dispatch`), installing `mutmut` ad hoc
 gate and not part of the per-PR matrix. Deliverable: the workflow plus the first
 recorded score and triage.
 
+### Phase 1 conventions (settled while landing the first contracts)
+
+Two things were learned wiring `deal` into the strict core; both are now the
+house pattern:
+
+- **`deal` is a runtime dependency, not dev-only.** Contracts are written inline
+  (`import deal` at module scope), so the package must import on a production
+  install. `deal` is pure-Python and light; contracts run in production by
+  default and are disabled via `deal.disable()` (the `python -O` "optimize out"
+  path) only where overhead is ever measured to matter. The merge runs at
+  topic scale (tens to low hundreds of concepts), so the per-call check cost is
+  negligible and contracts stay on.
+- **Validators are named, typed functions, not lambdas - one ignore per
+  decorator.** `deal`'s stubs type the validator parameter as `Unknown`, which a
+  bare lambda would leak into a `# pyright: strict` module. A `@deal.post`
+  validator receives the *result* (`def v(result: T) -> bool`); a `@deal.ensure`
+  validator receives the decorated function's *own signature plus* `result`
+  (`def v(arg1, arg2, *, kw, result: T) -> bool`) - so both stay fully typed, and
+  the only suppression needed is one
+  `# pyright: ignore[reportUnknownMemberType]` on each `@deal.post` / `@deal.ensure`
+  line for deal's own stub. (Worked example: `concepts/merge.py`
+  `build_merged_concept`.)
+
 **Phase 1 - contracts on the pure core.** Add `deal`. Encode the documented
 invariants as executable pre/post/class-invariants on the merge/normalize/
 recovery layer:
