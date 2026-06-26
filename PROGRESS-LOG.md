@@ -3828,6 +3828,24 @@ discover/synthesis/rerank tests 362 passed. Full coverage gate
 Remaining prompts/: `report.py` (next), then `__init__.py` stays non-strict
 (pyright cannot statically verify its spread `__all__`).
 
+## Cycle 148 - Pyright-strict more pipeline audit/query modules
+
+External spend: $0.00.
+
+- `audit_video_duplicates.py` (exact YouTube source-identity duplicate grouping):
+  the recurring `_read_json_object` cast, typed `metadata: dict[str, Any]` params,
+  and a `parts: tuple[str, ...] = ()` annotation so the empty-tuple except-branch
+  unifies with `rel.parts` for the later `parts[0]`/`parts[1]` reads.
+- `summary_query.py` (cached token-bounded sub-agent query summaries): already
+  strict-clean - its `json.loads` cache read flows through explicit `Any`
+  (typeshed types `json.loads` as `Any`, which strict permits), and the rest was
+  fully annotated. Marker only.
+
+No behavior change. Validation: pyright strict on both (0 errors), pyright
+`distill/llm/` blocking clean, ruff check + format clean,
+duplicate/summary/video/query tests 297 passed. Full coverage gate
+(`--cov-fail-under=89`, up-only) before push.
+
 ## Cycle 147 - Pyright-strict the deterministic corpus-integrity modules
 
 External spend: $0.00.

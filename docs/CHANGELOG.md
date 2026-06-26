@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (loaded intent JSON, citation metadata, orientation-file rows, frontmatter
   list values), so no `Unknown` reaches the `.get` / `str(item)` calls. No
   behavior change.
+- Extended the `distill/pipeline/` strict ratchet to `audit_video_duplicates.py`
+  (exact YouTube source-identity duplicate detection) and `summary_query.py`
+  (the cached, token-bounded sub-agent query-summary engine).
+  `audit_video_duplicates.py` took the recurring JSON-boundary cast, typed
+  `metadata` params, and a `parts: tuple[str, ...]` annotation; `summary_query.py`
+  was already clean (its `json.loads` cache read flows through explicit `Any`).
+  No behavior change.
 - Extended the `distill/pipeline/` strict ratchet to two deterministic
   corpus-integrity modules: `dedup.py` (embedding-free near-duplicate insight
   detection via shingle Jaccard + union-find) and `audit_transcripts.py`

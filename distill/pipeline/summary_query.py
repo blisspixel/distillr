@@ -11,6 +11,8 @@ hash of the matched files' identity + mtime + size -- the cache invalidates
 exactly when the underlying corpus slice changes, never on a clock.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import hashlib

@@ -1,10 +1,13 @@
 """Exact source-identity duplicate checks for video audit reports."""
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
 
@@ -30,12 +33,12 @@ class ExactVideoDuplicateGroup:
         return len(self.occurrences)
 
 
-def _read_json_object(path: Path) -> dict:
+def _read_json_object(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    return data if isinstance(data, dict) else {}
+    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 
 
 def _youtube_identity_from_url(value: str) -> str:
@@ -72,19 +75,21 @@ def _youtube_identity_from_url(value: str) -> str:
     return f"youtube:{video_id}" if video_id else ""
 
 
-def _video_identity(metadata: dict) -> str:
+def _video_identity(metadata: dict[str, Any]) -> str:
     video_id = str(metadata.get("video_id") or "").strip()
     if video_id:
         return f"youtube:{video_id}"
     return _youtube_identity_from_url(str(metadata.get("url") or ""))
 
 
-def _video_occurrence(topic_dir: Path, video_dir: Path, metadata: dict) -> VideoOccurrence:
+def _video_occurrence(
+    topic_dir: Path, video_dir: Path, metadata: dict[str, Any]
+) -> VideoOccurrence:
     try:
         rel = video_dir.relative_to(topic_dir)
     except ValueError:
         rel_path = video_dir.as_posix()
-        parts = ()
+        parts: tuple[str, ...] = ()
     else:
         rel_path = rel.as_posix()
         parts = rel.parts
