@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Started the 1.0 verification-depth milestone (design:
+  [`docs/design/verification-depth.md`](design/verification-depth.md)): added the
+  `deal` Design-by-Contract library and the first executable, runtime-checked
+  invariants on the deterministic core. `concepts.build_merged_concept` now
+  asserts the credal-interval invariants (intervals never invert or go negative;
+  every mention is preserved as exactly one source), and the three path
+  sanitizers (`slugify_title`, `sanitize_path_component`, `sanitize_topic`) assert
+  the single-path-component confinement guarantee. Contracts run in dev, CI, and
+  production; the path contract plus a fuzz test immediately surfaced the NUL-byte
+  gap fixed above.
 - Documentation accuracy pass: corrected the MCP tool count from 26 to 27 (the
   `list_topics` tool was added but the README and `docs/mcp.md` count had not been
   bumped) and documented `list_topics` in the `docs/mcp.md` read-surface table.
@@ -202,6 +212,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- Hardened `sanitize_path_component` to strip control characters (NUL and other
+  C0 / DEL) from path components, found by a new `deal` path-safety contract plus
+  a Hypothesis fuzz test on the sanitizers: a NUL byte in a path component is
+  filesystem-dangerous (it can truncate a path at the C level), and this
+  sanitizer previously passed it through. `sanitize_topic` and `slugify_title`
+  were already safe; this closes the gap on the third sanitizer.
 - Fixed an SSRF: `discover_videos` handed an unvalidated channel URL to yt-dlp
   (which does its own networking, outside the urllib/requests SSRF guards),
   reachable by default through the MCP `watch_add` / `catch_up` write tools. It

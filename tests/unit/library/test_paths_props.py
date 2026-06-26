@@ -24,6 +24,8 @@ from distill.library.paths import (
     artifact_path,
     find_artifact,
     resolve_slug_collision,
+    sanitize_path_component,
+    sanitize_topic,
     slugify_title,
 )
 
@@ -161,6 +163,30 @@ class TestSlugFilesystemSafety:
         """Slug is never empty (falls back to 'untitled' if needed)."""
         slug = slugify_title(title, source_id)
         assert len(slug) > 0
+
+
+class TestSanitizersStaySinglePathComponent:
+    """All three sanitizers keep output within one directory level.
+
+    The corpus path-traversal defense: callers join these results straight into
+    a path, so no output may contain a separator or NUL, and none may be empty.
+    This is also enforced at runtime as a ``deal`` contract on each function
+    (docs/design/verification-depth.md); the property test fuzzes it across the
+    two functions the slug props above do not cover.
+    """
+
+    @given(value=st.text(max_size=300))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_no_separator_or_empty_output(self, value: str) -> None:
+        for out in (
+            slugify_title(value),
+            sanitize_path_component(value),
+            sanitize_topic(value),
+        ):
+            assert out, f"empty path component from {value!r}"
+            assert "/" not in out and "\\" not in out and "\x00" not in out, (
+                f"separator leaked: {out!r} from {value!r}"
+            )
 
 
 # ---------------------------------------------------------------------------

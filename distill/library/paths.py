@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
+import deal
+
 __all__ = [
     "ARTIFACT_SUFFIXES",
     "LEGACY_ARTIFACT_NAMES",
@@ -165,6 +167,17 @@ def provenance_frontmatter(provenance: ProvenanceFields) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _is_single_path_component(value: str) -> bool:
+    """A sanitized name must stay within one directory level.
+
+    Every caller joins the result straight into a corpus path, so the
+    confinement guarantee is: no path separator, no NUL, and never empty.
+    This is the load-bearing path-traversal defense, made executable.
+    """
+    return bool(value) and "/" not in value and "\\" not in value and "\x00" not in value
+
+
+@deal.post(_is_single_path_component)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def slugify_title(title: str, source_id: str = "", max_len: int = 60) -> str:
     """Convert a title or label to a clean directory name.
 
@@ -194,18 +207,25 @@ def slugify_title(title: str, source_id: str = "", max_len: int = 60) -> str:
     return slug or "untitled"
 
 
+@deal.post(_is_single_path_component)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def sanitize_path_component(value: str) -> str:
     """Make a human-readable filesystem-safe path segment.
 
     This is primarily needed for Windows-invalid names like
     'AI News & Strategy Daily | Nate B Jones'.
     """
+    # Strip control characters (NUL + other C0 + DEL) first: they are not Windows
+    # reserved punctuation but are filesystem-dangerous (a NUL can truncate a path
+    # at the C level). \t\n\r are left for the \s+ collapse below to turn into
+    # spaces, preserving word separation.
+    value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", value)
     cleaned = re.sub(_WINDOWS_RESERVED_CHARS, "-", value)
     cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(". ")
     cleaned = re.sub(r"-{2,}", "-", cleaned)
     return cleaned or "untitled"
 
 
+@deal.post(_is_single_path_component)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def sanitize_topic(value: object) -> str:
     """Sanitize a topic so it is always a single safe directory component.
 
