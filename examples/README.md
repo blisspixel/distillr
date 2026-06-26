@@ -28,18 +28,18 @@ distill discover --from-preview 476d577294 --topic claim-verification --yes
 Six arXiv papers, ingested and analyzed for **$0.19** in 2m38s on the
 `grok-4.3` default. What you're looking at:
 
-- `papers/<paper>/<slug>_Insights.md` — per-paper structured analysis (claims,
+- `papers/<paper>/<slug>_Insights.md` - per-paper structured analysis (claims,
   methods, limits, open questions) with full YAML provenance (`source_id`,
   `url`, `analyzed_by`, `prompt_id`).
-- `claim_verification_Paper_Synthesis.md` — the cross-paper synthesis:
+- `claim_verification_Paper_Synthesis.md` - the cross-paper synthesis:
   claims no single paper makes, a comparison matrix, shared blind spots, and a
   falsifiable thesis with named white space.
-- `CLAUDE.md` / `AGENTS.md` — the auto-generated orientation files coding
+- `CLAUDE.md` / `AGENTS.md` - the auto-generated orientation files coding
   agents pick up when they enter the directory.
-- `intent.json` — the persisted goal/lens that shaped the analysis.
+- `intent.json` - the persisted goal/lens that shaped the analysis.
 
 **Content policy (the rule, not an exception):** example corpora in this repo
-**never include captured source content** — no paper full texts, no video
+**never include captured source content** - no paper full texts, no video
 transcripts, no scraped page bodies. Other people's work doesn't get
 redistributed here. What ships is distill's own analytical writing
 (insights, synthesis) plus bibliographic metadata and the `url` receipts to

@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Documentation refresh: removed em-dashes and en-dashes from the README and
+  every hand-authored doc (replaced with hyphens/commas per the project's own
+  `FORMATTING_RULES`; generated example corpus and golden eval baselines left
+  untouched). Trimmed the README "Cost" section, whose route-status and adapter
+  detail had grown into a ~55-line wall of text duplicating `docs/cost.md`; it is
+  now a tight cost-modes + recurring-profiles summary that points to
+  [`docs/cost.md`](cost.md) and the adapter/routing design notes for depth.
 - Advanced the 1.0 Pyright-strict ratchet: the entire `distill/concepts/`
   package (extract, normalize, merge, records, notes, exports, contradictions,
   pipeline, recovery) is now `# pyright: strict`. The pure aggregation core
@@ -211,7 +218,7 @@ trailing PyPI.
 
 - **Router crashed on every LLM call made from a running event loop** (the async
   MCP server path: `papers`, `sites`, `discover`, `synthesis` tools). The
-  nested-loop fallback in `router.call` could never succeed — `asyncio.run`
+  nested-loop fallback in `router.call` could never succeed - `asyncio.run`
   raised inside a running loop, and `loop.run_until_complete` on the live loop
   raised again. Now uses `run_coroutine_sync`, which offloads to a dedicated
   thread.
@@ -230,7 +237,7 @@ trailing PyPI.
   `_print_goal_refreshes` saw the last synthesized topic instead of the
   intended `None` (all goals). The loop now uses a distinct variable.
 - **The adaptive chunker could emit an over-window chunk** when a single
-  paragraph was larger than the whole context window — it never hard-split
+  paragraph was larger than the whole context window - it never hard-split
   within a paragraph, violating the chunk-size invariant on small local-model
   windows. It now hard-splits on word (then character) boundaries so no chunk
   exceeds the window.
@@ -563,12 +570,12 @@ releases.
 
 ## 0.16.1 - 2026-06-14
 
-First PyPI build carrying the 0.13–0.16 line: 0.13.0 through 0.16.0 each shipped a `release:` commit but were never tagged, so the tag-triggered publish workflow never ran and PyPI/the release page stayed at 0.12.13. This release tags a green-CI commit so `pip install distillr` is current again; it cumulatively includes every 0.13–0.16 feature plus the internal refactors below.
+First PyPI build carrying the 0.13-0.16 line: 0.13.0 through 0.16.0 each shipped a `release:` commit but were never tagged, so the tag-triggered publish workflow never ran and PyPI/the release page stayed at 0.12.13. This release tags a green-CI commit so `pip install distillr` is current again; it cumulatively includes every 0.13-0.16 feature plus the internal refactors below.
 
 ### Changed
 
-- **`_logic.py` decomposition — Phase 2 progress (pure relocations, no behavior change).** Continued retiring the monolith one green slice at a time, each lowering the must-only-decrease module-size ratchet:
-  - Home screen + HTML dashboard renderers (`_show_dashboard`, `_show_first_run_home`, `_build_start_here_table`, `_dashboard_metric`, `_dashboard_snapshot`, `_render_dashboard_html`) → **`distill/commands/dashboard.py`**. `_logic`'s root callback lazy-imports `_show_dashboard` to avoid the import cycle; `maintain.py`/`cli.py` repointed. The home-screen test fixtures now patch `dashboard.get_config` (verified load-bearing — the no-arg-`distill` tests pass *because* of the patch, the stale-patch false-green guard).
+- **`_logic.py` decomposition - Phase 2 progress (pure relocations, no behavior change).** Continued retiring the monolith one green slice at a time, each lowering the must-only-decrease module-size ratchet:
+  - Home screen + HTML dashboard renderers (`_show_dashboard`, `_show_first_run_home`, `_build_start_here_table`, `_dashboard_metric`, `_dashboard_snapshot`, `_render_dashboard_html`) → **`distill/commands/dashboard.py`**. `_logic`'s root callback lazy-imports `_show_dashboard` to avoid the import cycle; `maintain.py`/`cli.py` repointed. The home-screen test fixtures now patch `dashboard.get_config` (verified load-bearing - the no-arg-`distill` tests pass *because* of the patch, the stale-patch false-green guard).
   - Topic-watch naming/ranking helpers (`_topic_watch_name`, `_normalize_topic_watch_ranking_mode`, `_topic_watch_ranking_strategy`) → **`distill/commands/_topic_watch.py`** support module (zero back-references); `dashboard.py`/`discover.py` import from the foundation instead of back from `_logic`.
   - `_detect_ramp_source` (pure structural dispatch) → **`distill/commands/_helpers.py`**; `discover.py` repointed.
   - Net across these three slices: `_logic.py` 3,304 → 2,612 lines (9,373 at the start of the effort). Two command groups remain in the monolith (`topic_app`, `topic_watch_app`) plus the root callback and the shared helper body. Status and per-slice plan: [`docs/design/logic-decomposition.md`](design/logic-decomposition.md).
@@ -593,15 +600,15 @@ Follow-up (noted, not in this release): a golden for the concept-playbook pipeli
 
 ### Added
 
-- **`distill update`** (`distill/update.py`, `distill/commands/update.py`): upgrades distillr in place, detecting the install method — **uv tool**, **pipx**, or **pip** — and running the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). A **source/editable checkout** is detected precisely (via `direct_url.json`) and never auto-upgraded — it prints `git pull` + `uv sync` guidance instead. `distill update --check` reports installed-vs-latest without upgrading; `--json` parity on both. Subprocess runs with the same hardened cwd/env as the yt-dlp updater (no `PYTHONPATH`/`PYTHONHOME` injection).
+- **`distill update`** (`distill/update.py`, `distill/commands/update.py`): upgrades distillr in place, detecting the install method - **uv tool**, **pipx**, or **pip** - and running the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). A **source/editable checkout** is detected precisely (via `direct_url.json`) and never auto-upgraded - it prints `git pull` + `uv sync` guidance instead. `distill update --check` reports installed-vs-latest without upgrading; `--json` parity on both. Subprocess runs with the same hardened cwd/env as the yt-dlp updater (no `PYTHONPATH`/`PYTHONHOME` injection).
 - **Update-available nudge on startup**: a one-line notice when a newer distillr is published, checked against PyPI at most once per day (cached in `.distill/.update_check.json`), non-blocking, failure-silent (offline = no notice), opt-out via `DISTILL_NO_UPDATE_CHECK=1`. Rides the existing `_preflight` cadence alongside the yt-dlp staleness check. PEP 440 version comparison via `packaging`.
 - Install scripts and README/usage document `distill update` as the upgrade path; both installers print it in their next-steps.
 
-### Fixed (harden pass over the 0.13.1–0.14.0 surface)
+### Fixed (harden pass over the 0.13.1-0.14.0 surface)
 
 Two independent adversarial reviews of the synthesis-verify and console/`--json` changes confirmed no correctness defects; two LOW stdout-discipline gaps were closed so the `--json` stdout-purity invariant holds across *every* command, not just the read surface:
 
-- The one-time `cost_log.jsonl` migration notice in `save_run_log` printed to **stdout** (bare `print`) — it could land in a `--json` generation command's envelope stream once per library. Now routed through `err_console` (stderr).
+- The one-time `cost_log.jsonl` migration notice in `save_run_log` printed to **stdout** (bare `print`) - it could land in a `--json` generation command's envelope stream once per library. Now routed through `err_console` (stderr).
 - The `concepts` command emitted its `--json` payload via a bespoke `typer.echo(JsonEnvelope...)`; unified onto the shared `emit_json` helper.
 
 - Verified: ruff (clean) + format (clean), import-linter (4/4 kept), pyright on `distill/llm/` + the new modules (0 errors), bandit (0 medium+), full suite green (2230 passed) at 80.99% branch coverage.
@@ -612,8 +619,8 @@ Two independent adversarial reviews of the synthesis-verify and console/`--json`
 
 ### Added
 
-- **One shared console (`distill/_console.py`).** Every module — commands, pipeline, ingestors, concepts, library — now prints through a single `Console` object instead of ~27 independent ones. Foundational module (no upward imports), so the consolidation respects the layering contracts.
-- **`--json` redirects all human output to stderr.** With one shared console, `--json` flips it to stderr (via Rich's dynamic `stderr` flag, so no captured-stream pinning) and commands write their JSON envelope straight to stdout. Result: stdout carries *exactly one* JSON object and always parses, while progress/diagnostics/errors still surface on stderr — the documented contract, now actually true. Resets per invocation so a reused process (test runner, MCP server) never leaks the redirect.
+- **One shared console (`distill/_console.py`).** Every module - commands, pipeline, ingestors, concepts, library - now prints through a single `Console` object instead of ~27 independent ones. Foundational module (no upward imports), so the consolidation respects the layering contracts.
+- **`--json` redirects all human output to stderr.** With one shared console, `--json` flips it to stderr (via Rich's dynamic `stderr` flag, so no captured-stream pinning) and commands write their JSON envelope straight to stdout. Result: stdout carries *exactly one* JSON object and always parses, while progress/diagnostics/errors still surface on stderr - the documented contract, now actually true. Resets per invocation so a reused process (test runner, MCP server) never leaks the redirect.
 - **`--json` on the read surface.** `library`, `videos`, `show` (insights/transcript/metadata), `synthesis`, and `findings` now emit structured envelopes instead of nothing (`costs`/`doctor`/`health`/`alerts` already did). Shared `emit_json` / `json_mode_active` helpers in `distill/commands/_json.py`. `--json` is **read-only**: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation, so an agent can't cause spend by inspecting.
 
 ### Changed
@@ -801,8 +808,8 @@ Two independent adversarial reviews of the synthesis-verify and console/`--json`
 
 ### Planned
 
-- **Agent-legible corpus pass (0.9 series)** — emit AGENTS.md alongside the per-topic CLAUDE.md, one canonical SKILL.md teaching agents the CLI, MCP surface consolidated to a few workflow-shaped paths-not-payloads tools, positioning refresh ("verifiable research corpus", not "memory layer"). See the reordered spine in [`ROADMAP.md`](../ROADMAP.md#milestones-at-a-glance) (2026-06-11 research sweep).
-- **1.0 verification depth** — Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
+- **Agent-legible corpus pass (0.9 series)** - emit AGENTS.md alongside the per-topic CLAUDE.md, one canonical SKILL.md teaching agents the CLI, MCP surface consolidated to a few workflow-shaped paths-not-payloads tools, positioning refresh ("verifiable research corpus", not "memory layer"). See the reordered spine in [`ROADMAP.md`](../ROADMAP.md#milestones-at-a-glance) (2026-06-11 research sweep).
+- **1.0 verification depth** - Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
@@ -1071,17 +1078,17 @@ Confirmed clean or accepted (local-trust): the subprocess/deserialization/secret
 
 **Closed the DNS-rebinding residual documented in the 0.9.19 security pass.**
 
-- **SSRF — DNS-rebinding TOCTOU.** The SSRF guard resolved the host to a public IP, then the HTTP client resolved it *again* to connect, so an attacker controlling DNS with a low TTL could rebind to an internal address between the check and the fetch. The Python fetch paths now pin the connection to the validated IP: `safe_urlopen` and the requests-based attachment download resolve+validate once (`resolve_public_ip`) and pin via `pin_host_to_ip`, while TLS/SNI/certificate verification still use the original host (HTTPS unaffected). The X-video download stays host-pinned to `*.twimg.com` (a rebind would need control of Twitter's DNS); the in-browser scraper (Chromium) is bounded by its public-web route policy rather than IP pinning.
+- **SSRF - DNS-rebinding TOCTOU.** The SSRF guard resolved the host to a public IP, then the HTTP client resolved it *again* to connect, so an attacker controlling DNS with a low TTL could rebind to an internal address between the check and the fetch. The Python fetch paths now pin the connection to the validated IP: `safe_urlopen` and the requests-based attachment download resolve+validate once (`resolve_public_ip`) and pin via `pin_host_to_ip`, while TLS/SNI/certificate verification still use the original host (HTTPS unaffected). The X-video download stays host-pinned to `*.twimg.com` (a rebind would need control of Twitter's DNS); the in-browser scraper (Chromium) is bounded by its public-web route policy rather than IP pinning.
 
 ## 0.9.19 - 2026-06-06
 
-**Security hardening pass — a multi-agent audit across SSRF, path traversal, XSS, injection, deserialization, secrets, and ReDoS. Five real issues fixed; the rest of the surface verified clean.**
+**Security hardening pass - a multi-agent audit across SSRF, path traversal, XSS, injection, deserialization, secrets, and ReDoS. Five real issues fixed; the rest of the surface verified clean.**
 
-- **SSRF — X video download (Critical).** `download_video` fetched `video_url` from the (attacker-influenced) tweet syndication response with no validation and `follow_redirects=True`, so a hostile tweet could make distill fetch `http://169.254.169.254/` or an internal host and write the bytes to disk for transcription. It is now pinned to `*.twimg.com` + a public IP, re-validates every redirect hop, and caps the download size.
-- **SSRF — `safe_urlopen` redirects (High).** The shared `urllib` fetch validated only the scheme and followed redirects transparently, so a trusted host (arXiv/YouTube) could 30x-redirect to an internal/metadata address. It now rejects any target resolving to a non-public IP and follows redirects only through a handler that re-checks every hop.
-- **Path traversal — concept recovery (High).** The `concept_history` / `concept_diff` MCP tools (and the CLI rollback) passed the `slug` argument straight into filesystem joins, so an untrusted agent could read -- and via rollback, write -- `.md` files outside the library (`slug="../../../etc/secret"`). Slugs are validated as a single safe path component at every entry point now.
-- **Stored XSS — dashboard channel link (Medium).** `channel_detail.html` put a channel URL into an `href` with no scheme check, so a `javascript:` URL (storable via the `watch_add`/`add_channel` MCP tools) would execute on click. The link is gated to `http(s)` (matching the video page) with `rel="noopener noreferrer"`.
-- **Frontmatter injection — site analysis (Low).** An ingested page `<title>` (or other page metadata) containing a newline could inject extra frontmatter fields; page-derived values are JSON-escaped now.
+- **SSRF - X video download (Critical).** `download_video` fetched `video_url` from the (attacker-influenced) tweet syndication response with no validation and `follow_redirects=True`, so a hostile tweet could make distill fetch `http://169.254.169.254/` or an internal host and write the bytes to disk for transcription. It is now pinned to `*.twimg.com` + a public IP, re-validates every redirect hop, and caps the download size.
+- **SSRF - `safe_urlopen` redirects (High).** The shared `urllib` fetch validated only the scheme and followed redirects transparently, so a trusted host (arXiv/YouTube) could 30x-redirect to an internal/metadata address. It now rejects any target resolving to a non-public IP and follows redirects only through a handler that re-checks every hop.
+- **Path traversal - concept recovery (High).** The `concept_history` / `concept_diff` MCP tools (and the CLI rollback) passed the `slug` argument straight into filesystem joins, so an untrusted agent could read -- and via rollback, write -- `.md` files outside the library (`slug="../../../etc/secret"`). Slugs are validated as a single safe path component at every entry point now.
+- **Stored XSS - dashboard channel link (Medium).** `channel_detail.html` put a channel URL into an `href` with no scheme check, so a `javascript:` URL (storable via the `watch_add`/`add_channel` MCP tools) would execute on click. The link is gated to `http(s)` (matching the video page) with `rel="noopener noreferrer"`.
+- **Frontmatter injection - site analysis (Low).** An ingested page `<title>` (or other page metadata) containing a newline could inject extra frontmatter fields; page-derived values are JSON-escaped now.
 
 Audited and confirmed clean: command/argument injection (no `shell=True`; yt-dlp via its Python API; hardcoded argv for nvidia-smi/ollama), unsafe deserialization (no `pickle`/`eval`/`yaml.load`; `defusedxml` for arXiv XML), secret leakage (keys are `SecretStr`, never logged or echoed in errors/artifacts/telemetry), ReDoS (no catastrophic patterns), the markdown→HTML→nh3 sanitization order, the loopback-only dashboard bind, and MCP path containment elsewhere (`read_insight`/`read_concept`/`site_batch`). A residual DNS-rebind TOCTOU in the SSRF guard is documented in `net.py` (host-pinned callers unaffected; full closure needs connect-time IP pinning).
 
@@ -1113,11 +1120,11 @@ An adversarial self-review of all ~25 fixes from 0.9.14-0.9.16 confirmed each is
 
 ## 0.9.16 - 2026-06-06
 
-**Deep adversarial bug-hunt sweep (max-effort) across frontmatter parsing, cost/eval math, ranking robustness, and doctor false alarms — found by a fan-out of subagents over the deterministic core and the previously shallow-covered subsystems.**
+**Deep adversarial bug-hunt sweep (max-effort) across frontmatter parsing, cost/eval math, ranking robustness, and doctor false alarms - found by a fan-out of subagents over the deterministic core and the previously shallow-covered subsystems.**
 
-- **Frontmatter was corrupted by any value or body containing `---`.** `extract_frontmatter`/`strip_frontmatter` used `content.split("---", 2)`, which truncated the block at the first `---` *inside a value* (an em-dash-style title, a URL) — dropping every field after it — and mis-stripped a body that opened with a `---` line. Both now use real fence detection (opening line exactly `---`, closing line exactly `---`).
+- **Frontmatter was corrupted by any value or body containing `---`.** `extract_frontmatter`/`strip_frontmatter` used `content.split("---", 2)`, which truncated the block at the first `---` *inside a value* (an em-dash-style title, a URL) - dropping every field after it - and mis-stripped a body that opened with a `---` line. Both now use real fence detection (opening line exactly `---`, closing line exactly `---`).
 - **A non-finite LLM score silently corrupted rerank ordering.** `json.loads` accepts `NaN`/`Infinity` and `float(nan)` preserves them; a `"final_score": NaN` then broke every rerank `sorted()` (NaN comparisons are all False) and `detect_score_cliff` with no error. `extract_json` now rejects non-finite JSON constants so the caller falls back instead of ranking wrong.
-- **`distill eval --threshold > 1.0` crashed with `min([])`.** When no model clears the bar — including the anchor against its own super-unit bar — `summarize` ran `min()` over an empty list. It now recommends nothing (tentatively) instead of crashing after a paid run.
+- **`distill eval --threshold > 1.0` crashed with `min([])`.** When no model clears the bar - including the anchor against its own super-unit bar - `summarize` ran `min()` over an empty list. It now recommends nothing (tentatively) instead of crashing after a paid run.
 - **Scan/short runs corrupted the calibrated per-video cost (~8x under-projection).** A `scan` pass is ~8x cheaper than a full 2-pass analysis, and Shorts add cost to the numerator without entering the `full_videos` denominator; both polluted the per-video rate, so `discover`'s "calibrated" spend estimate could badly under-project a real ingest. Calibration now uses only pure full-analysis video runs.
 - **Deep Research Max could be priced at the standard rate.** `get_pricing`'s prefix match returned the first insertion-order match, so the broad `deep-research` alias could shadow a dated `deep-research-max-*` variant ($2.50 vs $5). Prefix matching is now longest-first, with a `deep-research-max` alias key.
 - **`distill discover` crashed on malformed rerank output.** Unlike the video/paper rerankers (which fall back to a heuristic), `discover_rerank` had no guard: a non-dict entry or a null/non-numeric score raised an unhandled traceback. Non-dict entries are skipped at the source, and the call site surfaces a clean error instead of a traceback.
@@ -1126,9 +1133,9 @@ An adversarial self-review of all ~25 fixes from 0.9.14-0.9.16 confirmed each is
 
 ## 0.9.15 - 2026-06-06
 
-**Second multi-agent bug-hunt sweep — the capture layer (ingestors) and the MCP + web surfaces.**
+**Second multi-agent bug-hunt sweep - the capture layer (ingestors) and the MCP + web surfaces.**
 
-- **X (Twitter) video tweets produced malformed `Tweet.md`.** A stray filter dropped *every* blank line from the whole document (to remove one optional poster line), collapsing all Markdown paragraph separators so headers and body jammed together — for any tweet with a video. The video block is now built without the document-wide filter.
+- **X (Twitter) video tweets produced malformed `Tweet.md`.** A stray filter dropped *every* blank line from the whole document (to remove one optional poster line), collapsing all Markdown paragraph separators so headers and body jammed together - for any tweet with a video. The video block is now built without the document-wide filter.
 - **arXiv full-text extraction silently degraded to abstract-only.** `_is_arxiv_pdf_url` required `https`, but arXiv's Atom feed serves pdf links as `http://`, so the download was rejected and `fetch_paper_pdf_text` returned `""` with no error. Both schemes are now accepted; the host allow-list (not the scheme) is what bounds SSRF, and http redirects to https.
 - **One corrupt `metadata.json` crashed MCP resources and `research_gaps`.** `video_list` (in `pipeline/gaps.py`) read every video's metadata with an unguarded `json.loads`, so a single truncated file (common after an interrupted run) raised `JSONDecodeError` up through several MCP resources and the `research_gaps` tool. It now skips the bad entry, matching every sibling reader.
 - **Path-traversal gap in the web video route.** `GET /topics/{topic}/channels/{channel}/videos/{slug}` appended the raw URL `slug` to a filesystem path with no sanitization, so a percent-encoded `../` could read files outside the channel directory. The slug is now confined under the channel's `videos/` directory (404 on escape), matching the MCP layer's containment.
@@ -1139,31 +1146,31 @@ An adversarial self-review of all ~25 fixes from 0.9.14-0.9.16 confirmed each is
 **Repaired Gemini Deep Research (broken against google-genai 2.7), hardened `distill doctor`'s API-key checks, and a multi-agent bug-hunt sweep of correctness fixes across the report pipeline, CLI, and LLM providers.**
 
 - **Gemini Deep Research reports/briefings broke against google-genai 2.7 (every `distill report` / `research-brief` / accordion run failed at the final step).** The SDK's experimental Interactions API dropped `Interaction.outputs`; the answer now lives in `steps[].content[].text` (the final `model_output` step's `text` parts). distill read `interaction.outputs[-1].text`, so a completed Deep Research run (the ~$2-3 of work already spent) raised `'Interaction' object has no attribute 'outputs'` and produced nothing. The result extraction and the poll loop are now one parse-once boundary (`distill/pipeline/report/_interactions.py`: `interaction_text` + `await_interaction`) shared by all three report writers, instead of three copy-pasted loops. Found via a real validation run; verified against the installed SDK. This also fixed three latent bugs in the same code:
-  - **Poll loop could hang forever.** The real status enum is `in_progress, requires_action, completed, failed, cancelled, incomplete, budget_exceeded`, but the loops only broke on `completed`/`failed` and slept on everything else — so `cancelled`, `incomplete`, and especially `budget_exceeded` (a paid job that blew its budget) polled indefinitely. The loop is now fail-closed: it polls only while the status is in-flight (`in_progress`/`requires_action`) and treats every other status — including any future one the SDK adds — as terminal. It is also bounded (`max_polls`, default 1 hour) so a job that stalls in an in-flight status without ever advancing cannot poll a paid run forever.
+  - **Poll loop could hang forever.** The real status enum is `in_progress, requires_action, completed, failed, cancelled, incomplete, budget_exceeded`, but the loops only broke on `completed`/`failed` and slept on everything else - so `cancelled`, `incomplete`, and especially `budget_exceeded` (a paid job that blew its budget) polled indefinitely. The loop is now fail-closed: it polls only while the status is in-flight (`in_progress`/`requires_action`) and treats every other status - including any future one the SDK adds - as terminal. It is also bounded (`max_polls`, default 1 hour) so a job that stalls in an in-flight status without ever advancing cannot poll a paid run forever.
   - **Failure messages were always "Unknown error".** `Interaction` has no `error` attribute, so `getattr(interaction, "error", "Unknown error")` discarded the one useful signal. Failures now surface the actual terminal status.
-  - **The tests were green while production was broken.** Every report test mocked the obsolete shape (`outputs=[...]`, `status="running"` — not even a real status value), so the suite agreed with dead code rather than the SDK (the same failure class as the typer-0.26 incident). The doubles are rewritten to the real `steps` shape and a dedicated `test_interactions.py` pins the helpers to the full status enum (including a `budget_exceeded` no-hang case) and the legacy-`outputs` fallback for older SDKs.
-- **`distill doctor` could report a dead API key as healthy.** The interactive doctor already made a live validation call per key, but the `--json doctor` output and the MCP `doctor` tool checked only *presence* — so a revoked, expired, or wrong-project key showed `set`/`ok` to scripts and agents while every report or analysis using it failed. The two paths disagreeing is the root cause: presence is not health. All three surfaces (human view, `--json`, MCP tool) now share a single live-validation helper (`_doctor_validate_key`) that pings each provider with a minimal request and returns `ok` / `invalid` / `missing` / `not_set`. A present-but-rejected key now reports `invalid` with the provider error and raises a warning, instead of a false-green. The `--json` `checks` values change accordingly (`set` → `ok`/`invalid`); pre-1.0, documented here. Note: `--json doctor` and the MCP `doctor` tool now make minimal live provider calls (as the human doctor always has).
+  - **The tests were green while production was broken.** Every report test mocked the obsolete shape (`outputs=[...]`, `status="running"` - not even a real status value), so the suite agreed with dead code rather than the SDK (the same failure class as the typer-0.26 incident). The doubles are rewritten to the real `steps` shape and a dedicated `test_interactions.py` pins the helpers to the full status enum (including a `budget_exceeded` no-hang case) and the legacy-`outputs` fallback for older SDKs.
+- **`distill doctor` could report a dead API key as healthy.** The interactive doctor already made a live validation call per key, but the `--json doctor` output and the MCP `doctor` tool checked only *presence* - so a revoked, expired, or wrong-project key showed `set`/`ok` to scripts and agents while every report or analysis using it failed. The two paths disagreeing is the root cause: presence is not health. All three surfaces (human view, `--json`, MCP tool) now share a single live-validation helper (`_doctor_validate_key`) that pings each provider with a minimal request and returns `ok` / `invalid` / `missing` / `not_set`. A present-but-rejected key now reports `invalid` with the provider error and raises a warning, instead of a false-green. The `--json` `checks` values change accordingly (`set` → `ok`/`invalid`); pre-1.0, documented here. Note: `--json doctor` and the MCP `doctor` tool now make minimal live provider calls (as the human doctor always has).
 - **File Search stores leaked on error paths.** `run_research_brief` created the remote store (a paid resource) *before* its `try/finally`, so an empty store name or an upload exception returned without deleting it; `create_research_store` likewise leaked its store if gathering/upload/indexing raised, because it ran outside the caller's cleanup. Both now delete the store on every failure path (creation and upload moved under the `try`; `create_research_store` deletes its own store on exception before re-raising). The clean no-content path still defers deletion to the caller.
-- **`distill topic preview` (and `topic create --preview`) ingested for real when `--papers 0`.** The videos-only branch called the full learning workflow (transcripts, analysis, synthesis — real spend) *before* the "preview only" notice, because `_run_learning_command` has no dry-run path. Videos-only preview now routes to `_preview_learning_selection` like `distill latest --preview`, so a preview never spends.
-- **CLI numeric edge cases.** `distill costs --last 0` showed *every* run (`entries[-0:]` is the whole list) instead of none — now bounded explicitly. `--months 0` was swallowed by `months or default` (months defaults to `None`, so `0` is a real value) and silently used the config default — now distinguishes unset (`None`) from an explicit `0`. The `channel` help text claimed "default: 3" while the real default is 1.
+- **`distill topic preview` (and `topic create --preview`) ingested for real when `--papers 0`.** The videos-only branch called the full learning workflow (transcripts, analysis, synthesis - real spend) *before* the "preview only" notice, because `_run_learning_command` has no dry-run path. Videos-only preview now routes to `_preview_learning_selection` like `distill latest --preview`, so a preview never spends.
+- **CLI numeric edge cases.** `distill costs --last 0` showed *every* run (`entries[-0:]` is the whole list) instead of none - now bounded explicitly. `--months 0` was swallowed by `months or default` (months defaults to `None`, so `0` is a real value) and silently used the config default - now distinguishes unset (`None`) from an explicit `0`. The `channel` help text claimed "default: 3" while the real default is 1.
 - **`distill latest` / learning flow could crash on tz-aware upload dates.** `_filter_recent_candidates` compared a tz-aware `published_at` (YouTube returns RFC3339 with `Z`/offset) against a naive cutoff, raising `TypeError: can't compare offset-naive and offset-aware`. Aware timestamps are now normalized to naive local before the comparison.
-- **LLM providers retried permanent (4xx) errors.** Grok, Gemini, LM Studio, and Ollama each wrapped their call in an `except Exception` retry loop that backed off and retried *every* error — including 400/401/403/404/422, which can never succeed (a bad key burned ~15s of backoff per call). They now short-circuit on permanent statuses via a shared `is_permanent_error` helper (the `PERMANENT_ERRORS` set already shipped in `retry.py` but was unused); unknown error shapes still fall back to retrying.
+- **LLM providers retried permanent (4xx) errors.** Grok, Gemini, LM Studio, and Ollama each wrapped their call in an `except Exception` retry loop that backed off and retried *every* error - including 400/401/403/404/422, which can never succeed (a bad key burned ~15s of backoff per call). They now short-circuit on permanent statuses via a shared `is_permanent_error` helper (the `PERMANENT_ERRORS` set already shipped in `retry.py` but was unused); unknown error shapes still fall back to retrying.
 - **Security: bumped `pip` 26.1.1 → 26.1.2 in the locked dev toolchain** (PYSEC-2026-196) so the `pip-audit` CI gate stays green; the transitive pin (via `pip-api` → `pip-audit`) had floated to the vulnerable release.
 
 ## 0.9.13 - 2026-06-01
 
 **Two install-time correctness fixes found by running a real pip install.**
 
-- **`distill doctor` reported `Version: vdev`.** Version detection queried `importlib.metadata.version("distill")`, but the published distribution is named **`distillr`** — so the lookup always raised `PackageNotFoundError` and fell back to `"dev"`. It now queries `distillr` (with a `distill` fallback) and guards against malformed metadata, so doctor shows the real installed version. Same fix applied to the web dashboard footer.
-- **The library no longer defaults inside `site-packages`.** `_default_library_dir()` returned `<package>/../library`, which in a pip install resolves to `.../site-packages/library` — user corpus data written there is wiped on every reinstall/upgrade and can need admin write. It now detects a source checkout (a `pyproject.toml` one level up → keep the convenient `<repo>/library` for development) versus an installed package (→ default to `~/.distill/library`, a stable per-user location). Override with `DISTILL_OUTPUT_DIR` as before.
+- **`distill doctor` reported `Version: vdev`.** Version detection queried `importlib.metadata.version("distill")`, but the published distribution is named **`distillr`** - so the lookup always raised `PackageNotFoundError` and fell back to `"dev"`. It now queries `distillr` (with a `distill` fallback) and guards against malformed metadata, so doctor shows the real installed version. Same fix applied to the web dashboard footer.
+- **The library no longer defaults inside `site-packages`.** `_default_library_dir()` returned `<package>/../library`, which in a pip install resolves to `.../site-packages/library` - user corpus data written there is wiped on every reinstall/upgrade and can need admin write. It now detects a source checkout (a `pyproject.toml` one level up → keep the convenient `<repo>/library` for development) versus an installed package (→ default to `~/.distill/library`, a stable per-user location). Override with `DISTILL_OUTPUT_DIR` as before.
 
 ## 0.9.12 - 2026-06-01
 
 **Local-first onboarding: `distill eval` works keyless, and `distill doctor` tells you what to run next.**
 
-A user who downloads distill, wants to run local, and has no cloud key should be able to eval without fuss — not hit "XAI_API_KEY required." Two changes make the adaptive path real:
+A user who downloads distill, wants to run local, and has no cloud key should be able to eval without fuss - not hit "XAI_API_KEY required." Two changes make the adaptive path real:
 
-- **Adaptive `auto` defaults in `distill eval`.** `--models`, `--anchor`, and `--judge` now default to `auto`. With an `XAI_API_KEY` present, `auto` resolves to `grok-4.3` (the cloud reference). With **no** cloud key, `auto` resolves to a fitting local model via `_best_local_model()` (largest Ollama model that fits detected VRAM), and the anchor falls back to the first listed model — so a local-only user can run `distill eval --models qwen3.5:27b,gemma4:26b` with no key and no flags. The judge likewise picks a local model rather than erroring on a missing key.
+- **Adaptive `auto` defaults in `distill eval`.** `--models`, `--anchor`, and `--judge` now default to `auto`. With an `XAI_API_KEY` present, `auto` resolves to `grok-4.3` (the cloud reference). With **no** cloud key, `auto` resolves to a fitting local model via `_best_local_model()` (largest Ollama model that fits detected VRAM), and the anchor falls back to the first listed model - so a local-only user can run `distill eval --models qwen3.5:27b,gemma4:26b` with no key and no flags. The judge likewise picks a local model rather than erroring on a missing key.
 - **`distill doctor` next-step line.** Doctor now ends with a concrete first command tailored to detected state: cloud-ready boxes get a `distill papers` example (plus a local-vs-cloud `distill eval` compare when Ollama models are present); a keyless box with local models gets the keyless `distill eval` command; a bare box gets the two ways to get started (set `XAI_API_KEY`, or `ollama pull`). No more guessing what to type after the health report.
 
 ## 0.9.11 - 2026-06-01
@@ -1171,7 +1178,7 @@ A user who downloads distill, wants to run local, and has no cloud key should be
 **Portability: cross-platform hardware detection + local is clearly optional.**
 
 - **Windows RAM detection.** `_get_system_ram()` only handled macOS/Linux, so `distill doctor` reported "RAM: 0 GB" on Windows. Added a `ctypes` `GlobalMemoryStatusEx` probe (no new deps).
-- **Graceful on non-NVIDIA / no-GPU machines.** The eval's VRAM-fit guard already covers NVIDIA (`nvidia-smi`) and Apple Silicon (unified memory). On AMD/Intel/CPU-only or any box where VRAM can't be probed, it no longer goes silent — it notes "local models will run on CPU (slow); cloud models are unaffected" instead of blocking. Cloud models are never gated by the local-hardware check.
+- **Graceful on non-NVIDIA / no-GPU machines.** The eval's VRAM-fit guard already covers NVIDIA (`nvidia-smi`) and Apple Silicon (unified memory). On AMD/Intel/CPU-only or any box where VRAM can't be probed, it no longer goes silent - it notes "local models will run on CPU (slow); cloud models are unaffected" instead of blocking. Cloud models are never gated by the local-hardware check.
 - **Local is optional, documented.** The eval (and the whole pipeline) runs cloud-only on any OS with no Ollama installed; local models are an opt-in cost lever. Spelled out in `docs/usage.md`.
 
 ## 0.9.10 - 2026-06-01
@@ -1182,41 +1189,41 @@ A user who downloads distill, wants to run local, and has no cloud key should be
 
 **GPU-adaptive local inference + a working neutral judge (all found via real eval runs).** Driving `distill eval` against actual local models and a cross-vendor judge surfaced a chain of integration bugs that unit tests can't see; each is fixed and tested. End state: a free local model (gemma4:26b) validated as competitive with grok-4.3 on the paper workload under a neutral gemini judge (win-rate 0.58), all on a 24 GB GPU.
 
-- **Adaptive context sizing (root-cause GPU fix).** The Ollama provider never set `num_ctx`, so a model with a huge default context (qwen3.6:27b → 262144) allocated a matching KV cache and spilled VRAM to CPU — 44 GB / 50% CPU even for a 200-word prompt. It now sizes `num_ctx` to the actual prompt (+ headroom), capped at the model's max: that same model now loads at **23 GB / 88% GPU** and runs. Helps *all* local inference, not just eval.
+- **Adaptive context sizing (root-cause GPU fix).** The Ollama provider never set `num_ctx`, so a model with a huge default context (qwen3.6:27b → 262144) allocated a matching KV cache and spilled VRAM to CPU - 44 GB / 50% CPU even for a 200-word prompt. It now sizes `num_ctx` to the actual prompt (+ headroom), capped at the model's max: that same model now loads at **23 GB / 88% GPU** and runs. Helps *all* local inference, not just eval.
 - **VRAM-aware eval.** `distill eval` detects GPU VRAM and **skips local models whose weights exceed it** (they'd spill to CPU), with `--allow-oversized` to force. Analysis is processed **model-outer** so a local model stays loaded across its fixtures instead of thrashing in/out of VRAM every call.
 - **Judge provider routing.** A non-xAI judge (e.g. gemini) was sent to the xAI endpoint (`Model not found`). The judge now routes to its model's own provider. Added `reasoning_effort` to the Gemini/Anthropic/OpenAI provider signatures for interface parity (the judge was the first non-xAI chat call through the router), and raised the judge token cap so thinking models (Gemini 3.x) don't truncate their JSON verdict.
-- **Honest confidence + no cache poisoning.** When the judge produces no signal (unavailable/failed), a deterministic-only recommendation is now `tentative`, not a false "high — judge agrees." Failed judge verdicts are no longer cached (a transient failure was frozen in and reused on every rerun).
+- **Honest confidence + no cache poisoning.** When the judge produces no signal (unavailable/failed), a deterministic-only recommendation is now `tentative`, not a false "high - judge agrees." Failed judge verdicts are no longer cached (a transient failure was frozen in and reused on every rerun).
 
 ## 0.9.8 - 2026-06-01
 
 **`distill eval` hardened from real cloud+local validation runs.** A first real run (grok-4.3 vs a local Ollama model, < $0.05 total) surfaced two bugs that only show up against live providers; both are fixed and tested.
 
 - **Fault isolation.** A single slow/failed call (a local model's cold-load timing out) crashed the entire sweep. Now each `(model, fixture)` is isolated: a failure is logged, the row is flagged `error` (excluded from scoring but counted), and the run still completes with a table. Added `timeout=600` for local cold-loads, and graceful pairwise-judge failure. If the anchor itself fails everywhere, the run reports "no valid output" instead of recommending.
-- **Local inference is now correctly free.** The cost registry was pricing local models (e.g. `qwen3.5:27b`) at the grok-4.3 fallback rate — erasing the entire cost advantage of running local. Local-provider analysis is now **$0** in both the pre-run estimate and the per-row cost (and kept off the run's cost ledger).
-- The validation also confirmed the design works end-to-end: a local model scored *higher* on the deterministic dimensions (0.98 vs 0.92) but lost the pairwise judge (win-rate 0.00), so the recommendation correctly came back **`tentative`** — the confidence flag prevented a wrong switch to the weaker model. Tests added for graceful degradation, errored-anchor handling, and local-priced-at-zero.
+- **Local inference is now correctly free.** The cost registry was pricing local models (e.g. `qwen3.5:27b`) at the grok-4.3 fallback rate - erasing the entire cost advantage of running local. Local-provider analysis is now **$0** in both the pre-run estimate and the per-row cost (and kept off the run's cost ledger).
+- The validation also confirmed the design works end-to-end: a local model scored *higher* on the deterministic dimensions (0.98 vs 0.92) but lost the pairwise judge (win-rate 0.00), so the recommendation correctly came back **`tentative`** - the confidence flag prevented a wrong switch to the weaker model. Tests added for graceful degradation, errored-anchor handling, and local-priced-at-zero.
 
 ## 0.9.7 - 2026-06-01
 
-**`distill eval` rebuilt to a real release-gate standard.** Before spending money on model comparisons, the eval was hardened against the failure modes that make a cheap eval give an expensive-to-act-on wrong answer (grounded in the 2026 LLM-as-judge literature — position/verbosity/self-preference bias, statistical significance, pairwise > pointwise for gate decisions).
+**`distill eval` rebuilt to a real release-gate standard.** Before spending money on model comparisons, the eval was hardened against the failure modes that make a cheap eval give an expensive-to-act-on wrong answer (grounded in the 2026 LLM-as-judge literature - position/verbosity/self-preference bias, statistical significance, pairwise > pointwise for gate decisions).
 
 - **Pairwise, order-randomized judge.** Replaced the pointwise judge with a candidate-vs-**anchor** comparison run in **both A/B orderings** so position bias cancels; reports the candidate's win-rate. Reference-guided by construction (the anchor is the reference). When the judge shares the anchor's family the comparison is conservative (favors the anchor) and a caveat prints.
 - **Decision is fully deterministic.** The composite is the deterministic dimensions only; the judge win-rate and per-fixture spread feed a **confidence flag** (`high` / `tentative`), never the pick. `--anchor` names the incumbent/reference (default `grok-4.3`).
-- **Verbosity bias removed** from the depth dimension — full credit at a sane length, decay for padding, so a longer answer can't win on length.
+- **Verbosity bias removed** from the depth dimension - full credit at a sane length, decay for padding, so a longer answer can't win on length.
 - **Statistical honesty:** 3 fixtures per workload (was 1), per-model spread (min/max) reported, and a recommendation that goes `tentative` when the recommended model's worst fixture dips below the bar or the judge favors the anchor.
-- **Observability:** `temperature=0` on analysis calls (reproducible), an append-only `.distill/eval/results.jsonl` (drift over time), and a **fixture-aware cost estimate** (the old one overshot real spend ~5–12× by pricing production-size tokens).
+- **Observability:** `temperature=0` on analysis calls (reproducible), an append-only `.distill/eval/results.jsonl` (drift over time), and a **fixture-aware cost estimate** (the old one overshot real spend ~5-12× by pricing production-size tokens).
 
 ## 0.9.6 - 2026-06-01
 
-**`distill eval` — cost × quality model selection with an advisory judge.** Models change fast and xAI's May-15 retirement left grok-4.3 as the cloud floor (no cheap fast tier), so the only way below it is a local model — and the only honest way to decide "is it good enough?" is to measure. `distill eval` sweeps candidate models over frozen golden fixtures and recommends the cheapest that clears your quality bar.
+**`distill eval` - cost × quality model selection with an advisory judge.** Models change fast and xAI's May-15 retirement left grok-4.3 as the cloud floor (no cheap fast tier), so the only way below it is a local model - and the only honest way to decide "is it good enough?" is to measure. `distill eval` sweeps candidate models over frozen golden fixtures and recommends the cheapest that clears your quality bar.
 
 - **What it does:** runs each model over one fixture per analysis workload (paper / video / site) using the *real* analysis prompts, scores each output on deterministic dimensions (structure, depth, concept-coverage vs the golden, formatting) **plus an advisory LLM-judge** (faithfulness / depth / coverage), attaches real per-run cost from the pricing registry, and prints a cost × quality table with a recommendation. `--report` writes it to `.distill/eval/`.
-- **Charter-safe by design** ([`docs/invariants.md`](../docs/invariants.md)): the judge is *advisory* — capped weight in the composite, **skipped for any candidate it equals** (no self-judging), and it never makes the call. The pass threshold and the recommended pick are deterministic. It **recommends**, never switches your model. Eval spend is cost-tracked + estimate-first; results cache by `(model, fixture, judge)` under `.distill/eval_cache/` so re-running after a model launch only runs new rows.
+- **Charter-safe by design** ([`docs/invariants.md`](../docs/invariants.md)): the judge is *advisory* - capped weight in the composite, **skipped for any candidate it equals** (no self-judging), and it never makes the call. The pass threshold and the recommended pick are deterministic. It **recommends**, never switches your model. Eval spend is cost-tracked + estimate-first; results cache by `(model, fixture, judge)` under `.distill/eval_cache/` so re-running after a model launch only runs new rows.
 - New `distill/eval/` package (`scoring`, `judge`, `fixtures`, `harness`, `report`) and a `distill eval` command (`--workload`, `--models`, `--judge`, `--threshold`, `--report`, `--no-cache`, `--yes`). `analyze_paper` / `analyze_video` / `analyze_site_page` gained an optional `router_config` param (behavior-identical default) so the harness can run the real pipeline under a forced model.
-- **Also corrects** the retired-model cost guidance from 0.9.5: the fast tiers redirect to grok-4.3 and bill at grok-4.3 rates, so there is no cheap cloud option — docs now point to `distill eval` + local models as the cheaper path.
+- **Also corrects** the retired-model cost guidance from 0.9.5: the fast tiers redirect to grok-4.3 and bill at grok-4.3 rates, so there is no cheap cloud option - docs now point to `distill eval` + local models as the cheaper path.
 
 ## 0.9.5 - 2026-06-01
 
-**Cost estimates and budget guardrails recalibrated to the actual default model.** The pricing *registry* (`distill/llm/cost.py`) was already correct and current (verified against June-2026 rates: grok-4.3 $1.25/$2.50, grok-4.20 $2/$6, gemini-3.1-pro $2/$12, gemini-3.5-flash $1.50/$9, Deep Research ~$2.50/$5), but the cost *estimates* still used the retired `grok-4-1-fast` rate (~$0.006/video) while `config.py` defaults every workload to `grok-4.3` (~$0.03/video). So pre-run estimates — including the `--max-run-cost` / `--monthly-budget` projections — under-counted real spend ~5×, and the budget guard fired too late.
+**Cost estimates and budget guardrails recalibrated to the actual default model.** The pricing *registry* (`distill/llm/cost.py`) was already correct and current (verified against June-2026 rates: grok-4.3 $1.25/$2.50, grok-4.20 $2/$6, gemini-3.1-pro $2/$12, gemini-3.5-flash $1.50/$9, Deep Research ~$2.50/$5), but the cost *estimates* still used the retired `grok-4-1-fast` rate (~$0.006/video) while `config.py` defaults every workload to `grok-4.3` (~$0.03/video). So pre-run estimates - including the `--max-run-cost` / `--monthly-budget` projections - under-counted real spend ~5×, and the budget guard fired too late.
 
 - **Estimates now derive from the pricing registry, not hard-coded dollars.** New `_STAGE_TOKENS` + `estimate_stage_cost(stage)` in `distill/pipeline/costs.py` compute each stage's cost from representative token volumes × the current default model's pricing, so the estimate tracks the model and can never silently drift again. Rewired `estimate_run_cost`, `estimate_discover_cost` defaults, `estimate_topic_watch_cost` / `estimated_topic_watch_sweep` (the budget-guard projection), and `display_estimate`.
 - **Net effect:** budget projections are now accurate on grok-4.3 (a 10-video watch projects ~$0.31 + report, not ~$0.06 + report), so `--max-run-cost` and `--monthly-budget` actually protect. The 0.9.1 self-calibrating estimator still overrides these with measured rates once a topic has history; these are the model-accurate cold-start fallback.
@@ -1224,15 +1231,15 @@ A user who downloads distill, wants to run local, and has no cloud key should be
 
 ## 0.9.4 - 2026-06-01
 
-**`--rigor` across `discover` / `papers` / `latest`, on calibrated thresholds.** The quality-bar knob that only `discover` had now works on the single-source commands too — drops reranked candidates below a `final_score` floor before the per-source limit. This completes the 0.9 discovery-loop close-out.
+**`--rigor` across `discover` / `papers` / `latest`, on calibrated thresholds.** The quality-bar knob that only `discover` had now works on the single-source commands too - drops reranked candidates below a `final_score` floor before the per-source limit. This completes the 0.9 discovery-loop close-out.
 
-- **Calibrated per command, not copy-pasted.** The three rerank prompts score on different criteria, so the thresholds differ: discover (cross-source goal-fit gate) 0.70/0.50/0.30; papers 0.65/0.45/0.30; latest 0.60/0.40/0.25. The calibration is grounded in a documented case — discover rated 0/33 videos worth ingesting on a topic where `latest` surfaced 5 strong picks — and the rationale (curation gate vs. single-source relevance ranker) is written up in `docs/architecture.md` ("Rigor calibration"). New `PAPER_RIGOR_THRESHOLDS` / `VIDEO_RIGOR_THRESHOLDS` + `source_rigor_threshold(source, rigor)` in `distill/pipeline/discovery.py`.
+- **Calibrated per command, not copy-pasted.** The three rerank prompts score on different criteria, so the thresholds differ: discover (cross-source goal-fit gate) 0.70/0.50/0.30; papers 0.65/0.45/0.30; latest 0.60/0.40/0.25. The calibration is grounded in a documented case - discover rated 0/33 videos worth ingesting on a topic where `latest` surfaced 5 strong picks - and the rationale (curation gate vs. single-source relevance ranker) is written up in `docs/architecture.md` ("Rigor calibration"). New `PAPER_RIGOR_THRESHOLDS` / `VIDEO_RIGOR_THRESHOLDS` + `source_rigor_threshold(source, rigor)` in `distill/pipeline/discovery.py`.
 - **Opt-out, never surprising.** On `papers` / `latest` the default is `off` (keep the rerank's top picks exactly as before); the bar engages only when you ask for `strict`/`balanced`/`loose`. `discover` keeps its `balanced` default (unchanged since 0.8.12).
 - **Honest about scope.** Rigor scores on the *LLM rerank*, so under `--no-rerank` (or chronological `--top-by-date`) an explicit bar is skipped with a warning rather than applied to heuristic scores on a different scale. When a bar is applied, a `kept X/Y` line shows what it dropped. `papers`/`latest` rerank the full candidate pool before the limit when a bar is set, so the threshold has something to cut.
 
 ## 0.9.3 - 2026-06-01
 
-**Preview-as-default sizing on fresh topics.** `distill discover "<goal>" --topic <new>` no longer auto-applies a fixed `--rigor` bar and ingests; on a topic with no artifacts yet it now shows the reranked candidates and a **size-then-approve menu** — "Excellent / Including good / Everything worthwhile" — each line carrying its source breakdown and its own 0.9.1 spend estimate, so you choose the depth against the real quality cliff and the real cost before committing. This is the preview-as-primary-flow the roadmap (section 12) was built around.
+**Preview-as-default sizing on fresh topics.** `distill discover "<goal>" --topic <new>` no longer auto-applies a fixed `--rigor` bar and ingests; on a topic with no artifacts yet it now shows the reranked candidates and a **size-then-approve menu** - "Excellent / Including good / Everything worthwhile" - each line carrying its source breakdown and its own 0.9.1 spend estimate, so you choose the depth against the real quality cliff and the real cost before committing. This is the preview-as-primary-flow the roadmap (section 12) was built around.
 
 - New pure `build_sizing_options` + `SizingOption` in `distill/pipeline/discovery.py`: derives a nested ladder from the score cliff (`detect_score_cliff`) and the balanced/loose rigor thresholds, caps each cut by the per-source limits, de-duplicates cuts that resolve to the same set, and attaches a per-option `CostEstimate`. Fully tested, no IO.
 - The chosen set is saved to the 0.9.2 preview cache and its id printed, so any selection is re-runnable verbatim with `--from-preview`.
@@ -1240,9 +1247,9 @@ A user who downloads distill, wants to run local, and has no cloud key should be
 
 ## 0.9.2 - 2026-06-01
 
-**Commit-by-id preview replay (`discover --from-preview <id>`).** The discover rerank is a judgment call, so the set you previewed could differ from the set a real run ingests. Now `discover --preview` saves the exact goal-ranked shortlist and prints an id; `discover --from-preview <id> --topic <t>` replays that set verbatim — skipping query-generation and the rerank entirely — so you commit to precisely what you saw. temperature=0 (0.8.12) makes a re-rank reproducible; replay guarantees it. Closes the cached-commit-by-id follow-on left open by 0.8.12 / 0.9.0.
+**Commit-by-id preview replay (`discover --from-preview <id>`).** The discover rerank is a judgment call, so the set you previewed could differ from the set a real run ingests. Now `discover --preview` saves the exact goal-ranked shortlist and prints an id; `discover --from-preview <id> --topic <t>` replays that set verbatim - skipping query-generation and the rerank entirely - so you commit to precisely what you saw. temperature=0 (0.8.12) makes a re-rank reproducible; replay guarantees it. Closes the cached-commit-by-id follow-on left open by 0.8.12 / 0.9.0.
 
-- New `distill/pipeline/preview_cache.py` (pure functions, injected `now_iso`): `save_preview` writes `library/.preview_cache/<id>.json` under a **content-addressed** id (a hash of goal + model + rigor + member identifiers, so the same selection always gets the same id); `load_preview` faithfully reconstructs each `PaperRecord` / `VideoInfo` / `SiteSeed` so replay ingests identically. Unknown / malformed / corrupt ids raise `PreviewCacheError` with an actionable message — never a silent failure.
+- New `distill/pipeline/preview_cache.py` (pure functions, injected `now_iso`): `save_preview` writes `library/.preview_cache/<id>.json` under a **content-addressed** id (a hash of goal + model + rigor + member identifiers, so the same selection always gets the same id); `load_preview` faithfully reconstructs each `PaperRecord` / `VideoInfo` / `SiteSeed` so replay ingests identically. Unknown / malformed / corrupt ids raise `PreviewCacheError` with an actionable message - never a silent failure.
 - The discover ingest path was extracted into a shared `_discover_ingest_set` helper (plus focused per-source sub-helpers), so the live flow and `--from-preview` replay ingest through one code path. `--from-preview` is mutually exclusive with `--from-gaps` / `--preview`.
 - MCP parity is tracked separately: the MCP `discover` tool already returns candidates without ingesting (a preview by nature) and now carries the 0.9.1 `cost_estimate`; a dedicated replay arg follows when the MCP tool gains an ingest path.
 
@@ -1250,19 +1257,19 @@ A user who downloads distill, wants to run local, and has no cloud key should be
 
 **Metadata-aware, self-calibrating discover cost estimate.** The pre-run spend line under a `discover` preview was a flat `count x constant`; it now reads free candidate metadata and calibrates against real history, and reports a range instead of a single point.
 
-- **Per-video duration scaling.** Transcript-analysis cost tracks runtime, so each candidate video's share now scales linearly around a nominal 15-minute average (clamped 0.3x..4x); unknown duration assumes nominal. Papers keep a flat per-item rate (PDF page count is not fetched at discovery — it would need a network call), as do site seeds.
+- **Per-video duration scaling.** Transcript-analysis cost tracks runtime, so each candidate video's share now scales linearly around a nominal 15-minute average (clamped 0.3x..4x); unknown duration assumes nominal. Papers keep a flat per-item rate (PDF page count is not fetched at discovery - it would need a network call), as do site seeds.
 - **Self-calibrating rates.** `load_cost_calibration(log_dir)` derives per-paper / per-video / per-site USD rates from *clean single-source* runs in `cost_log.jsonl` (a paper-only run prices papers, etc.), so a mixed `discover` run never cross-contaminates a rate. `_preview` rows are skipped and a source type with fewer than 3 ingested items keeps its default constant. The rates improve as history accrues.
-- **Honest range.** The estimate now prints `~$0.42 (est; $0.29-$0.63)` — an asymmetric band (overruns are more common than underruns) that widens to 0.5x..2.0x when no calibration exists yet and narrows to 0.7x..1.5x once it does.
+- **Honest range.** The estimate now prints `~$0.42 (est; $0.29-$0.63)` - an asymmetric band (overruns are more common than underruns) that widens to 0.5x..2.0x when no calibration exists yet and narrows to 0.7x..1.5x once it does.
 - New `CostCalibration` / `CostEstimate` dataclasses, `load_cost_calibration`, and `estimate_discover_items` in `distill/pipeline/costs.py`; the count-based `estimate_discover_cost` stays (now calibration-aware) for simple callers. The MCP `discover` tool gains a `cost_estimate` field for parity. Closes the duration/length-aware calibration follow-on left open by 0.8.12 / 0.9.0.
 
 ## 0.9.0 - 2026-05-30
 
 **Two-pass synthesis with a structured claim intermediate (opt-in).** The headline of the 0.9 milestone: synthesis can now run over an extracted *claim set* instead of re-reading every insight into one prompt.
 
-- **New `distill/claims/` layer**, structured exactly like the 0.8 `distill/concepts/` playbook layer (frozen `Claim` records, a `ClaimRole` StrEnum — background / method / result / limitation / conclusion, LLM-produces-rows / Python-parses-rows split, deterministic JSONL round-trip).
-  - Pass 1 — `run_claims(topic, ...)` walks every `_Insights.md`, extracts atomic claims (one cheap LLM call per not-yet-seen source, tagged `claims_extract` for separate cost tracking), and appends them to an append-only `<topic>/.claims/claims.jsonl`. Already-extracted sources are skipped, so refresh is cheap.
+- **New `distill/claims/` layer**, structured exactly like the 0.8 `distill/concepts/` playbook layer (frozen `Claim` records, a `ClaimRole` StrEnum - background / method / result / limitation / conclusion, LLM-produces-rows / Python-parses-rows split, deterministic JSONL round-trip).
+  - Pass 1 - `run_claims(topic, ...)` walks every `_Insights.md`, extracts atomic claims (one cheap LLM call per not-yet-seen source, tagged `claims_extract` for separate cost tracking), and appends them to an append-only `<topic>/.claims/claims.jsonl`. Already-extracted sources are skipped, so refresh is cheap.
   - Each claim carries an optional subject/predicate/object triple, optional dataset/metric, an `evidence_type`, and a `role_confidence` score. The extractor chooses granularity per claim; low-confidence role tags are surfaced downstream rather than dropped. Claim ids are content-addressed (`source_id` + normalized-text hash) so re-extraction is stable and downstream scoring can cache by id.
-  - Pass 2 — a new `claim_synthesis_prompt` clusters claims by what they assert, names contradictions between sources explicitly, cites every statement back to specific claim handles (`[C7]`), and flags low-confidence / single-source claims as the corpus's soft spots.
+  - Pass 2 - a new `claim_synthesis_prompt` clusters claims by what they assert, names contradictions between sources explicitly, cites every statement back to specific claim handles (`[C7]`), and flags low-confidence / single-source claims as the corpus's soft spots.
 - **Opt-in wiring.** `distill resynthesize <topic> --two-pass` and the MCP `synthesize` tool's `two_pass` arg route the corpus synthesis through the claim set. Single-pass synthesis remains the default; two-pass falls back to single-pass when a topic has no extractable claims, so the flag never silently produces an empty synthesis.
 - **Shared insight discovery.** The `_Insights.md` walk (`discover_insights` / `derive_source_id`) was lifted to a foundational `distill/library/insights.py` so the concept and claim layers share one implementation; a new import-linter contract keeps both knowledge layers below commands/mcp/web/ingestors.
 
@@ -1273,9 +1280,9 @@ Deferred to 1.0 (noted in the roadmap, not built here): per-claim fitness cachin
 **Discovery-loop UX.** Makes `distill discover` a confident size-then-approve loop.
 
 - **`--rigor strict|balanced|loose`** drops reranked candidates below a goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits, so the shortlist reflects the quality bar you ask for.
-- **Score-cliff sizing** — the shortlist now reports how many top items sit above the largest rerank-score drop (the "clearly-excellent" set), so you can size the ingest against the natural cliff.
-- **Pre-run cost estimate** — a free-metadata estimate (`estimate_discover_cost`, count-based per source type) is shown before you commit, no extra network fetches.
-- **Deterministic rerank** — the discover rerank LLM call now runs at `temperature=0`, so the previewed order is reproducible.
+- **Score-cliff sizing** - the shortlist now reports how many top items sit above the largest rerank-score drop (the "clearly-excellent" set), so you can size the ingest against the natural cliff.
+- **Pre-run cost estimate** - a free-metadata estimate (`estimate_discover_cost`, count-based per source type) is shown before you commit, no extra network fetches.
+- **Deterministic rerank** - the discover rerank LLM call now runs at `temperature=0`, so the previewed order is reproducible.
 
 Continues the 0.9.0 milestone. (The preview-flow-as-default rework and a cached shortlist for exact replay remain follow-ons.)
 
@@ -1299,7 +1306,7 @@ Continues the 0.9.0 milestone. (The preview-flow-as-default rework and a cached 
 
 ## 0.8.7 - 2026-05-30
 
-**Security hardening.** Closes the two genuinely-relevant security gaps for an API-consumer tool that ingests untrusted public sources. (The broader "AI security" surface — model poisoning, extraction, inversion, DP, enclaves — is out of scope by architecture: distillr trains and serves no models. See the new "Security posture" section in [`ROADMAP.md`](../ROADMAP.md#security-posture).)
+**Security hardening.** Closes the two genuinely-relevant security gaps for an API-consumer tool that ingests untrusted public sources. (The broader "AI security" surface - model poisoning, extraction, inversion, DP, enclaves - is out of scope by architecture: distillr trains and serves no models. See the new "Security posture" section in [`ROADMAP.md`](../ROADMAP.md#security-posture).)
 
 - **Indirect prompt-injection resistance.** Every analyzed source (transcript, page, PDF, tweet) is untrusted text that could embed instructions to hijack the analysis. A shared `UNTRUSTED_CONTENT_RULES` constant is now threaded into every per-source analysis prompt (video / shorts / scan / site page / paper / tweet): the source is labelled untrusted data and the model is told to ignore any instructions inside it. Prevention to pair with the planned 0.10 run-time verify hook (detection).
 - **Web-dashboard XSS fixed.** The local dashboard rendered artifacts through `markdown(...)` with raw HTML passed through, a stored-XSS vector for untrusted-derived content. Rendered HTML now goes through an `nh3` allowlist sanitizer (strips `<script>`, event handlers, `javascript:` URLs; preserves formatting and tables). Adds `nh3` to dependencies.
@@ -1328,10 +1335,10 @@ Continues the 0.9.0 milestone. (The preview-flow-as-default rework and a cached 
 
 ### What's new
 
-- **Per-topic `library/topics/<topic>/CLAUDE.md`** — one-line summary (topic-synthesis lede), source counts (papers / videos / pages), a wikilink to the topic synthesis, "Ask me about" example queries from the corpus's named entities and concepts, and the read-surface MCP tool listing.
-- **Library-root `library/CLAUDE.md`** — an index of every topic with one-line summaries and source counts.
+- **Per-topic `library/topics/<topic>/CLAUDE.md`** - one-line summary (topic-synthesis lede), source counts (papers / videos / pages), a wikilink to the topic synthesis, "Ask me about" example queries from the corpus's named entities and concepts, and the read-surface MCP tool listing.
+- **Library-root `library/CLAUDE.md`** - an index of every topic with one-line summaries and source counts.
 - **Automatic regeneration** on every topic refresh: the synthesis writers (`synthesize_topic` / `synthesize_corpus`) regenerate the affected topic's file and the library index, best-effort so a failure never fails a synthesis.
-- **`distill claude-md [<topic>] [--all]`** — manual regeneration / backfill for existing topics.
+- **`distill claude-md [<topic>] [--all]`** - manual regeneration / backfill for existing topics.
 
 ### Design notes
 
@@ -1348,8 +1355,8 @@ Continues the 0.9.0 milestone. (The preview-flow-as-default rework and a cached 
 ### What's new
 
 - **`uv` as the sole toolchain.** Migrated from pip + setuptools to `uv`: a committed `uv.lock`, `uv sync --frozen` in CI for deterministic environments, `build-backend = "uv_build"`, and `[dependency-groups]` dev tooling replacing the `.[dev]` extra. The editable-install workflow is preserved (`uv sync` / `uv run`).
-- **Python 3.12–3.14 support matrix.** Floor raised from 3.10 (EOL Oct 2026) to `requires-python = ">=3.12"`; classifiers updated; CI runs `[3.12, 3.13, 3.14]`; ruff and Pyright target 3.12. Deliberately not 3.14-only — distillr is a published library.
-- **Dependabot** (`.github/dependabot.yml`): weekly grouped patch/minor updates with majors flagged; every bump runs full CI against the lock before merge. *(Later removed — dependency/action bumps are reviewed manually; Dependabot is deliberately not used.)*
+- **Python 3.12-3.14 support matrix.** Floor raised from 3.10 (EOL Oct 2026) to `requires-python = ">=3.12"`; classifiers updated; CI runs `[3.12, 3.13, 3.14]`; ruff and Pyright target 3.12. Deliberately not 3.14-only - distillr is a published library.
+- **Dependabot** (`.github/dependabot.yml`): weekly grouped patch/minor updates with majors flagged; every bump runs full CI against the lock before merge. *(Later removed - dependency/action bumps are reviewed manually; Dependabot is deliberately not used.)*
 - **Contracts now enforced in CI.** `import-linter` (dependency-direction layer contracts, previously configured but never run) and `pip-audit` are blocking lanes; `xfail_strict` and `--strict-markers` are on.
 - **Branch coverage.** Coverage switched from line to branch metric, gated at the measured baseline (floor 79) and ratcheted up-only toward the 1.0 target of 95.
 - **`pre-commit` identical to CI.** Lint/type/security/test hooks run via `uv run --frozen` (the exact locked versions CI uses); Pyright and import-linter added; full pytest on the pre-push stage.
@@ -1365,15 +1372,15 @@ Full suite green across the 3.12 / 3.13 / 3.14 matrix (1633 tests each); ruff, r
 
 ## 0.8.2 - 2026-05-29
 
-**Playbook recovery surface.** 0.8 wrote `.history/<slug>/<iso-timestamp>.md` snapshots on every concept-note overwrite, but nothing could read or restore them — snapshot-without-recovery. This release adds the read and restore surface over data 0.8 already produces (no new LLM calls, no new dependencies).
+**Playbook recovery surface.** 0.8 wrote `.history/<slug>/<iso-timestamp>.md` snapshots on every concept-note overwrite, but nothing could read or restore them - snapshot-without-recovery. This release adds the read and restore surface over data 0.8 already produces (no new LLM calls, no new dependencies).
 
 ### What's new
 
 - **`distill concepts` is now a command group.** Extraction moved from `distill concepts <topic>` to **`distill concepts build <topic>`** so the group can host the recovery subcommands. (Pre-1.0 interface change; flags are otherwise identical.)
-- **`distill concepts log <topic> <slug>`** — list a note's history snapshots, newest first, each annotated with a one-line summary of what changed at that step (sources added/removed, evidence-interval shifts, contested flips).
-- **`distill concepts diff <topic> <slug> [ts_a] [ts_b]`** — diff a note across versions. No timestamps: most recent snapshot vs the live note. One timestamp: that snapshot vs live. Two: snapshot vs snapshot. Frontmatter changes surface as a structured delta (which evidence rows joined/left, how each interval bound moved, contested/scalar shifts); the body diffs as text.
-- **`distill concepts rollback <topic> <slug> <timestamp>`** — atomically restore a prior snapshot. The current version is snapshot into `.history` first (so rollback is itself reversible), the chosen snapshot becomes the live note, and the matching `concepts.jsonl` / `entities.jsonl` rollup row is rebuilt from the restored note's frontmatter. `--yes` skips the confirmation prompt.
-- **MCP companion tools** — `concept_history(topic, slug)` and `concept_diff(topic, slug, ts_a, ts_b)` expose the same read surface to agents, mirroring the existing `find_concepts` / `read_concept` shape.
+- **`distill concepts log <topic> <slug>`** - list a note's history snapshots, newest first, each annotated with a one-line summary of what changed at that step (sources added/removed, evidence-interval shifts, contested flips).
+- **`distill concepts diff <topic> <slug> [ts_a] [ts_b]`** - diff a note across versions. No timestamps: most recent snapshot vs the live note. One timestamp: that snapshot vs live. Two: snapshot vs snapshot. Frontmatter changes surface as a structured delta (which evidence rows joined/left, how each interval bound moved, contested/scalar shifts); the body diffs as text.
+- **`distill concepts rollback <topic> <slug> <timestamp>`** - atomically restore a prior snapshot. The current version is snapshot into `.history` first (so rollback is itself reversible), the chosen snapshot becomes the live note, and the matching `concepts.jsonl` / `entities.jsonl` rollup row is rebuilt from the restored note's frontmatter. `--yes` skips the confirmation prompt.
+- **MCP companion tools** - `concept_history(topic, slug)` and `concept_diff(topic, slug, ts_a, ts_b)` expose the same read surface to agents, mirroring the existing `find_concepts` / `read_concept` shape.
 
 ### Design notes
 
@@ -1390,8 +1397,8 @@ Full suite green across the 3.12 / 3.13 / 3.14 matrix (1633 tests each); ruff, r
 
 ### What's new
 
-- **`synthesis_scope:` everywhere** — `distill/library/paths.py::base_frontmatter` now writes `synthesis_scope:` instead of `confidence:`. Every emitter (per-paper insights, per-video insights, per-page insights, channel/topic/corpus synthesis, paper synthesis, site synthesis, accordion/briefing/deep-research reports, watch alerts, topic diffs, topic trends) updated to pass `synthesis_scope=…` instead of `confidence=…`.
-- **`distill doctor --migrate-frontmatter [--apply]`** — one-shot migration over existing artifacts. Dry-run by default, lists each file that needs rewriting and the value being migrated. `--apply` executes the rewrite in place. Mirrors the `--migrate-links` pattern from 0.7. Idempotent: re-running on an already-migrated corpus is a no-op. Drops orphaned `confidence:` lines if a file ended up with both fields from a partial prior run.
+- **`synthesis_scope:` everywhere** - `distill/library/paths.py::base_frontmatter` now writes `synthesis_scope:` instead of `confidence:`. Every emitter (per-paper insights, per-video insights, per-page insights, channel/topic/corpus synthesis, paper synthesis, site synthesis, accordion/briefing/deep-research reports, watch alerts, topic diffs, topic trends) updated to pass `synthesis_scope=…` instead of `confidence=…`.
+- **`distill doctor --migrate-frontmatter [--apply]`** - one-shot migration over existing artifacts. Dry-run by default, lists each file that needs rewriting and the value being migrated. `--apply` executes the rewrite in place. Mirrors the `--migrate-links` pattern from 0.7. Idempotent: re-running on an already-migrated corpus is a no-op. Drops orphaned `confidence:` lines if a file ended up with both fields from a partial prior run.
 
 ### Migration
 
@@ -1400,7 +1407,7 @@ distill doctor --migrate-frontmatter            # dry-run, shows what would chan
 distill doctor --migrate-frontmatter --apply    # execute the rewrite
 ```
 
-The migration scans `library/**/*.md` excluding hidden directories (`.history/`, `.distill/`, `.concepts/`) so versioned snapshots and operational artifacts stay untouched. New artifacts written after this release already use `synthesis_scope:` — the migration is only for pre-0.8.1 corpora.
+The migration scans `library/**/*.md` excluding hidden directories (`.history/`, `.distill/`, `.concepts/`) so versioned snapshots and operational artifacts stay untouched. New artifacts written after this release already use `synthesis_scope:` - the migration is only for pre-0.8.1 corpora.
 
 ### Tests
 
@@ -1408,12 +1415,12 @@ Eight new tests across the migration surface (scan/apply/idempotent/dropped-orph
 
 ### Also fixed
 
-- **`canonicalize` idempotency.** Hypothesis caught `canonicalize("000ss") == "000s"` but `canonicalize("000s") == "000"` — the plural-stripping regex `(\w{3})s\b` matched the inner three chars + terminal `s`, leaving the result still ending in `s` to be stripped again on a second pass. Tightened to `(\w{2}[^\Ws])s\b` so the char preceding the terminal `s` must itself be a non-`s` word char. Preserves `-ss` endings (`address`, `pass`, `less`) and short acronyms (`css`, `ml`). Failing example pinned via `@example(s="000ss")`.
+- **`canonicalize` idempotency.** Hypothesis caught `canonicalize("000ss") == "000s"` but `canonicalize("000s") == "000"` - the plural-stripping regex `(\w{3})s\b` matched the inner three chars + terminal `s`, leaving the result still ending in `s` to be stripped again on a second pass. Tightened to `(\w{2}[^\Ws])s\b` so the char preceding the terminal `s` must itself be a non-`s` word char. Preserves `-ss` endings (`address`, `pass`, `less`) and short acronyms (`css`, `ml`). Failing example pinned via `@example(s="000ss")`.
 - **Property-test HealthCheck flakes under coverage.** `tests/unit/library/test_paths_props.py`, `test_wikilinks_props.py`, `test_frontmatter_props.py`, `tests/unit/llm/providers/test_agent.py`, and one test in `tests/unit/llm/test_router.py` were hitting `HealthCheck.too_slow` (and occasionally `filter_too_much`) under `pytest --cov`'s tracing overhead. Strategies that map through `slugify_title` or that filter heavily via `assume()` are slow enough under instrumentation to exceed hypothesis's 2-second input-generation budget. Suppressed the relevant health checks. Tests still run at `max_examples=100`; the property semantics are unchanged.
 
 ### Out of scope (scope choice)
 
-The per-source `Insights.md` values (`single-source`, `single-paper`, `source-content`) are also renamed, not just the cross-source synthesis values. The roadmap entry listed "synthesis emitters" but the rationale ("the field is a routing label, not a number") applies uniformly — partial renames would leave the same misnomer in the per-source files. Consistent rename now is cheaper than two migrations.
+The per-source `Insights.md` values (`single-source`, `single-paper`, `source-content`) are also renamed, not just the cross-source synthesis values. The roadmap entry listed "synthesis emitters" but the rationale ("the field is a routing label, not a number") applies uniformly - partial renames would leave the same misnomer in the per-source files. Consistent rename now is cheaper than two migrations.
 
 ## 0.8.0.3 - 2026-05-16
 
@@ -1421,7 +1428,7 @@ Follow-up hardening on top of 0.8.0.2. Two bugs fixed, one stale annotation clea
 
 ### Security
 
-- **`read_concept` absolute-path-parts bypass (medium).** 0.8.0.2 replaced the substring-based concept/entity guard with a check on `full_path.parts` — but `full_path` is the *absolute* resolved path, so its parts include ancestors outside `library_dir`. A user with `DISTILL_OUTPUT_DIR` configured under a directory named `concepts` or `entities` (e.g. `/home/alice/concepts/library`) satisfied the guard for every file in the library, letting an MCP caller read non-playbook artifacts (synthesis output, `.distill/tasks/` task artifacts, etc.). Fix: enforce the layout on the *library-relative* path — require exactly `topics/<topic>/(concepts|entities)/<file>.md` — instead of inspecting absolute parts. Regression tests cover library directories under `concepts` and `entities` ancestors, plus shape edge cases (history-snapshot paths, non-`.md` sidecars, top-level files).
+- **`read_concept` absolute-path-parts bypass (medium).** 0.8.0.2 replaced the substring-based concept/entity guard with a check on `full_path.parts` - but `full_path` is the *absolute* resolved path, so its parts include ancestors outside `library_dir`. A user with `DISTILL_OUTPUT_DIR` configured under a directory named `concepts` or `entities` (e.g. `/home/alice/concepts/library`) satisfied the guard for every file in the library, letting an MCP caller read non-playbook artifacts (synthesis output, `.distill/tasks/` task artifacts, etc.). Fix: enforce the layout on the *library-relative* path - require exactly `topics/<topic>/(concepts|entities)/<file>.md` - instead of inspecting absolute parts. Regression tests cover library directories under `concepts` and `entities` ancestors, plus shape edge cases (history-snapshot paths, non-`.md` sidecars, top-level files).
 
 ### Correctness
 
@@ -1429,7 +1436,7 @@ Follow-up hardening on top of 0.8.0.2. Two bugs fixed, one stale annotation clea
 
 ### Docs
 
-- **ROADMAP package-layout annotations.** `# 0.8 — local-file ingest` / `# 0.8 — local-file routing` corrected to `# 0.9` to match the milestone description (the entry was moved from 0.8 to 0.9 in an earlier edit but the inline `#` comments were missed).
+- **ROADMAP package-layout annotations.** `# 0.8 - local-file ingest` / `# 0.8 - local-file routing` corrected to `# 0.9` to match the milestone description (the entry was moved from 0.8 to 0.9 in an earlier edit but the inline `#` comments were missed).
 
 No public API breaks. Existing 0.8.0.2 regression tests still pass; three new tests across the touched layers.
 
@@ -1444,7 +1451,7 @@ Security + correctness hardening over 0.8.0/0.8.0.1. Four bugs fixed from a post
 ### Correctness
 
 - **Concept slug collisions overwriting playbooks.** `MergedConcept.slug` is intentionally lossy (`"a b"`, `"a/b"`, `"a-b"` all collapse to `"a_b"`), but the writer assumed any existing file at `<slug>.md` belonged to the same concept and overwrote it. Fix: writer reads the existing note's `normalized_name` from frontmatter; if identities differ, suffix-bumps to `<slug>__2.md`. Idempotent self-rewrites still hit the same file. Added `normalized_name` to playbook frontmatter as the authoritative identity field.
-- **Order-dependent same-source aggregation.** When extraction produced duplicate mentions for `(source_id, canonical_name)`, the normalize layer's representative selection for `claim_excerpt`, `evidence_type`, `artifact_path`, and `normalized_name` depended on input order — the commutativity property tests didn't catch it because they only compared `source_id` sets and evidence counts. Fix: every selected field now uses an order-independent rule (longest claim, lex-min path, majority-vote kind, etc.); the property tests were strengthened to vary those fields and check the full SourceEvidence set.
+- **Order-dependent same-source aggregation.** When extraction produced duplicate mentions for `(source_id, canonical_name)`, the normalize layer's representative selection for `claim_excerpt`, `evidence_type`, `artifact_path`, and `normalized_name` depended on input order - the commutativity property tests didn't catch it because they only compared `source_id` sets and evidence counts. Fix: every selected field now uses an order-independent rule (longest claim, lex-min path, majority-vote kind, etc.); the property tests were strengthened to vary those fields and check the full SourceEvidence set.
 - **`distill latest --concepts` token usage was untracked.** `papers` and `site-batch` already threaded their `CostTracker` into the concept-extraction hook, but `latest` couldn't because the learning workflow owns its tracker internally and never returned it. Fix: added an optional `post_ingest_callback` parameter to `run_learning_command` / `process_learning_selection`; `latest_cmd` now passes a callback that runs concepts against the same tracker the rest of the run uses. Concept spend now flows into `cost_log.jsonl` with the rest of the run.
 
 No public API breaks. Six new tests across the touched layers, total 1474 tests pass.
@@ -1472,15 +1479,15 @@ No source code or behavior changes -- this is a packaging-only patch.
 
 ### CLI
 
-- **`distill concepts <topic>`** — standalone command, idempotent. Flags: `--refresh` (re-extract over every insight), `--threshold N` (minimum distinct sources to emit, default 3), `--json` (envelope output).
+- **`distill concepts <topic>`** - standalone command, idempotent. Flags: `--refresh` (re-extract over every insight), `--threshold N` (minimum distinct sources to emit, default 3), `--json` (envelope output).
 - **`--concepts` opt-in flag** on `distill papers`, `distill latest`, `distill site-batch` so a single ingest produces concept notes in the same run. Best-effort: extraction failures don't fail the ingest.
 - **`distill health <topic>`** extended with a "Contested concepts" section listing each contested concept with its helpful / harmful evidence counts and source totals, grouped by topic.
 
 ### MCP surface
 
-- `find_concepts(topic, query, kind, contested_only, limit)` — ranked concept-row search across per-topic concepts.jsonl + entities.jsonl. Filters by name substring, kind, contested flag. Returns JIT shape (path + scalar fields + count).
-- `read_concept(path)` — library-relative concept playbook reader with path containment and concepts/entities subdirectory enforcement.
-- `list_contested(topic, limit)` — convenience wrapper for contested-only retrieval.
+- `find_concepts(topic, query, kind, contested_only, limit)` - ranked concept-row search across per-topic concepts.jsonl + entities.jsonl. Filters by name substring, kind, contested flag. Returns JIT shape (path + scalar fields + count).
+- `read_concept(path)` - library-relative concept playbook reader with path containment and concepts/entities subdirectory enforcement.
+- `list_contested(topic, limit)` - convenience wrapper for contested-only retrieval.
 
 ### Architecture and routing
 
@@ -1513,7 +1520,7 @@ Patch release: synthesis-quality rewrite plus SSRF hardening on the PDF-attachme
 
 ### Security
 
-- PDF attachment ingestion now disables auto-redirects and re-validates every redirect target (max 5 hops) through `is_public_web_url`. Closes the redirect-bypass gap in the SSRF/size-cap hardening shipped in 0.7.1's security pass — a redirect to `127.0.0.1` or RFC1918 is now rejected before the fetch.
+- PDF attachment ingestion now disables auto-redirects and re-validates every redirect target (max 5 hops) through `is_public_web_url`. Closes the redirect-bypass gap in the SSRF/size-cap hardening shipped in 0.7.1's security pass - a redirect to `127.0.0.1` or RFC1918 is now rejected before the fetch.
 
 ### Tests + coverage
 
@@ -1532,7 +1539,7 @@ Patch release with hardening fixes found during QA.
 - Fix: `emit_wiki_link` validates that `corpus_dir` is a directory before globbing.
 - Fix: Artifact type fallback in WikiLink handles hyphens correctly (e.g., `custom-type` becomes `Custom_Type`).
 
-## 0.7.0 — 2026-05-07
+## 0.7.0 - 2026-05-07
 
 Living Wiki. The corpus shifts from a directory of artifacts to a navigable knowledge base interoperable with Obsidian, Logseq, and Dendron. Also ships critical code-health prerequisites that prevent compounding debt in later milestones.
 
@@ -1546,7 +1553,7 @@ Living Wiki. The corpus shifts from a directory of artifacts to a navigable know
 
 ### Artifact provenance in frontmatter
 
-- Every generated artifact now records `model`, `model_version`, `temperature`, and `prompt_id` in YAML frontmatter. This is the foundation for reproducibility — outputs can be compared across model versions and prompt iterations.
+- Every generated artifact now records `model`, `model_version`, `temperature`, and `prompt_id` in YAML frontmatter. This is the foundation for reproducibility - outputs can be compared across model versions and prompt iterations.
 - All pipeline stages (video analysis, paper analysis, site analysis, synthesis, brief, report, research-brief) write provenance fields.
 
 ### CLI decomposition
@@ -1576,27 +1583,27 @@ Living Wiki. The corpus shifts from a directory of artifacts to a navigable know
 ### Quality
 
 - 12 correctness properties validated via Hypothesis property-based testing (slug determinism, filesystem safety, collision disambiguation, wiki-link format, frontmatter round-trip, provenance completeness, retry delay bounds, RouterConfig env mapping, link integrity, migration correctness).
-- 1,275 tests passing. New modules at 84–100% coverage.
+- 1,275 tests passing. New modules at 84-100% coverage.
 - Import-linter: 3 contracts kept, 0 broken.
 - Ruff zero-warning. Pyright zero-error on `distill/llm/`.
 
-## 0.6.0 — 2026-05-06
+## 0.6.0 - 2026-05-06
 
-Local inference with adaptive context. When ingestion is basically free (local models), you use it more — more sources, more frequent refreshes, richer corpus. Quality bar is the same as cloud.
+Local inference with adaptive context. When ingestion is basically free (local models), you use it more - more sources, more frequent refreshes, richer corpus. Quality bar is the same as cloud.
 
 ### Added
 
 - **Ollama provider.** Full implementation using httpx for the Ollama HTTP API. Retry with exponential backoff, connection error handling with descriptive messages, context window detection via `/api/show`, model listing via `/api/tags`.
 - **LM Studio provider.** OpenAI-compatible client pointed at `localhost:1234/v1`. Supports `LMSTUDIO_BASE_URL` env var override.
 - **Provider metadata.** `ProviderMetadata` dataclass with context window, provider type (local/cloud), and provider name. Automatic resolution for both local (queried from API) and cloud (lookup table) providers.
-- **Adaptive chunking.** Section-aware content splitting when content exceeds the provider's context window. Preserves heading context in each chunk. Passthrough when content fits. Automatic based on provider metadata — users don't configure this.
+- **Adaptive chunking.** Section-aware content splitting when content exceeds the provider's context window. Preserves heading context in each chunk. Passthrough when content fits. Automatic based on provider metadata - users don't configure this.
 - **Per-category reranking.** Keyword-based scoring of chunks by relevance to each insight category (Key Findings, Methods, Limits, Open Questions). Top-k selection within context window. Skips categories where all chunks score below threshold.
 - **Multi-pass analysis.** Focused per-category passes over chunked content, merged into a unified insight matching the same structure as single-pass cloud analysis. Deduplication of overlapping insights.
 - **Report compaction.** High-recall summaries (25% of original) between report pipeline phases, preserving all named entities and quantitative claims. Precision second pass (10%) when first pass still exceeds window. Applied universally (cloud and local).
 - **Hardware detection.** `distill doctor` detects NVIDIA GPUs (via nvidia-smi), Apple Silicon (via sysctl), system RAM, and container environments.
 - **Model recommendations.** Hardware-tier-based model suggestions (4090 → qwen3.5:27b, M1 16GB → qwen3.5:14b). Configurable via JSON file. Includes pull commands for missing models.
 - **Quality gate (stub).** `EvalResult` dataclass and `run_eval_suite()` interface ready for Phase 9 baselines.
-- **Cost display — local/cloud split.** `distill costs` shows cloud spend (USD) and local inference time (seconds, tokens/second) separately.
+- **Cost display - local/cloud split.** `distill costs` shows cloud spend (USD) and local inference time (seconds, tokens/second) separately.
 - **`--model` CLI override.** Global `-m`/`--model` flag forces all workloads to a specific model for the invocation.
 - **Docker support.** `Dockerfile` with Playwright deps and `docker-compose.yml` with Ollama GPU passthrough, library volume mount, and MCP server port exposure.
 - **Telemetry extension.** `provider_type`, `provider_name`, and `tokens_per_second` fields in telemetry records. Backward compatible with existing JSONL.
@@ -1613,15 +1620,15 @@ Local inference with adaptive context. When ingestion is basically free (local m
 - 13 property-based tests for local inference: response parsing, model passthrough, retry count, provider classification, chunk size invariant, content preservation, chunking decision, heading context, compaction length, entity preservation, telemetry round-trip, token estimation, router resolution.
 - `ruff check`, `ruff format`, and `lint-imports` all pass cleanly.
 
-## 0.5.0 — 2026-05-06
+## 0.5.0 - 2026-05-06
 
 MCP-first surface + Grok 4.3 migration. The MCP server becomes the primary product surface, and all model references are updated ahead of the May 15 xAI retirement deadline.
 
 ### Added
 
-- **JIT context retrieval.** New `find_insights(topic, query)` MCP tool returns ranked `(path, preview, score)` tuples — agents get paths and one-line previews instead of full file payloads (~96% token savings). `read_insight(path, section?)` drills down into specific artifacts or sections.
+- **JIT context retrieval.** New `find_insights(topic, query)` MCP tool returns ranked `(path, preview, score)` tuples - agents get paths and one-line previews instead of full file payloads (~96% token savings). `read_insight(path, section?)` drills down into specific artifacts or sections.
 - **Structured CLI output.** Global `--json` flag on every command produces machine-readable `JsonEnvelope` output to stdout. Diagnostics go to stderr. `NO_COLOR` is respected.
-- **Stable exit codes.** Documented exit codes (0–5) for success, runtime error, usage error, config error, network error, and not-found. Available in `docs/usage.md`.
+- **Stable exit codes.** Documented exit codes (0-5) for success, runtime error, usage error, config error, network error, and not-found. Available in `docs/usage.md`.
 - **New MCP tools.** `papers`, `discover`, `site_batch`, `synthesize`, `costs`, `doctor` mirror their CLI counterparts with progress events and structured results.
 - **Progress events.** Long-running MCP tools emit progress notifications (per-paper, per-page, per-stage) so clients can display status and detect stalls.
 - **Token-efficient tool descriptions.** All tool descriptions ≤100 chars, all parameter descriptions ≤50 chars. Reduces context window consumption when agents load multiple MCP servers.
@@ -1647,7 +1654,7 @@ MCP-first surface + Grok 4.3 migration. The MCP server becomes the primary produ
 
 ### Added
 
-- **JIT context retrieval.** New `find_insights` and `read_insight` MCP tools enable agents to search the corpus by topic/query and receive ranked path/preview/score tuples, then drill down to specific sections — saving ~96% of tokens vs. full file payloads.
+- **JIT context retrieval.** New `find_insights` and `read_insight` MCP tools enable agents to search the corpus by topic/query and receive ranked path/preview/score tuples, then drill down to specific sections - saving ~96% of tokens vs. full file payloads.
 - **Search engine** (`distill/pipeline/search.py`). Term-frequency scoring with heading boost (2×) and type boost (1.5× for synthesis/corpus). Preview generation ≤120 chars. Section extraction by heading name.
 - **Structured CLI output.** Global `--json` flag on all commands produces a `JsonEnvelope` (status/data/error) on stdout with diagnostics on stderr. No ANSI codes in JSON mode.
 - **Stable exit codes.** 0=success, 1=runtime, 2=usage, 3=config, 4=network, 5=not-found. Documented in `docs/usage.md`.
@@ -1669,7 +1676,7 @@ MCP-first surface + Grok 4.3 migration. The MCP server becomes the primary produ
 - All 4 prompts retain their argument signatures.
 - CLI output without `--json` is identical to 0.4.0 behavior.
 
-## 0.4.0 — 2026-07-14
+## 0.4.0 - 2026-07-14
 
 Package restructure: flat `distill/` → layered subpackage architecture.
 
@@ -1677,7 +1684,7 @@ Package restructure: flat `distill/` → layered subpackage architecture.
 
 - **Layered subpackage architecture.** The flat `distill/` package is now organized into focused subpackages: `commands/` (one Typer command group per file), `ingestors/` (YouTube, sites, papers), `pipeline/` (analysis, synthesis, report orchestration), `library/` (filesystem corpus layer), `prompts/` (all prompt templates), and `mcp/` (MCP server split by concern).
 - **Structured logging.** `configure_logging()` with `--debug` CLI flag. Console handler emits WARNING+ by default, DEBUG with `--debug`. File handler always writes DEBUG to `library/.distill/distill.log`.
-- **SecretStr for API keys.** `xai_api_key`, `gemini_api_key`, and `openai_api_key` in `DistillConfig` now use Pydantic `SecretStr` — keys are masked as `'**********'` in logs, repr, and debug output.
+- **SecretStr for API keys.** `xai_api_key`, `gemini_api_key`, and `openai_api_key` in `DistillConfig` now use Pydantic `SecretStr` - keys are masked as `'**********'` in logs, repr, and debug output.
 - **import-linter dependency direction enforcement.** Three contracts in `pyproject.toml` enforce that foundational layers (`library/`, `prompts/`) never import from higher layers, ingestors don't import from commands/pipeline/mcp, and pipeline doesn't import from commands/mcp. Run `lint-imports` to verify.
 - **Mirrored test layout.** Test directory structure under `tests/unit/` mirrors the source layout (`tests/unit/commands/`, `tests/unit/ingestors/youtube/`, `tests/unit/pipeline/analysis/`, etc.). Integration tests live in `tests/integration/`.
 
@@ -1690,21 +1697,21 @@ Package restructure: flat `distill/` → layered subpackage architecture.
 - **`router_config_from_distill()` updated** to call `.get_secret_value()` on SecretStr fields.
 - **Pre-push checklist** now includes `lint-imports` step.
 
-## 0.3.1 — 2026-05-03
+## 0.3.1 - 2026-05-03
 
 LLM router abstraction and model upgrade.
 
 - **LLM router package** (`distill/llm/`). Centralized workload-to-provider dispatch replaces 26 scattered LLM call sites across 11 modules. Single entry point (`distill.llm.call()`) with per-prompt telemetry, unified cost registry, and provider caching.
-- **Grok 4.3 default.** Both fast and premium tiers now default to `grok-4.3` ($1.25/$2.50 per 1M tokens) — better quality at roughly half the cost of the previous `grok-4.20-0309-reasoning`.
+- **Grok 4.3 default.** Both fast and premium tiers now default to `grok-4.3` ($1.25/$2.50 per 1M tokens) - better quality at roughly half the cost of the previous `grok-4.20-0309-reasoning`.
 - **Multi-provider architecture.** Provider protocol (`typing.Protocol`, async-ready) supports xAI (Grok), Google (Gemini), and Agent/Skill mode. Anthropic, OpenAI, and Ollama stubs registered for future milestones. Per-workload provider overrides via `DISTILL_{WORKLOAD}_PROVIDER` env vars.
 - **Agent/Skill provider.** Zero-cost deferred execution mode for users with agentic assistants. Writes structured task files with SHA-256 prompt hashing for idempotent lookup.
 - **Per-prompt telemetry.** Every LLM call emits a `Telemetry_Record` to `library/.distill/telemetry.jsonl` with model, workload tag, token counts, elapsed time, run_id, and outcome.
 - **Unified cost registry** (`distill/llm/cost.py`). Single source of truth for all model pricing. `distill/costs.py` delegates to it. Supports per-token and per-query pricing models.
-- **Ops_Dir separation.** Operational data (telemetry, cost logs, task queues) moved to `library/.distill/` — a hidden dotdir that keeps the corpus clean for any markdown tool. Existing `cost_log.jsonl` auto-migrated on first run.
+- **Ops_Dir separation.** Operational data (telemetry, cost logs, task queues) moved to `library/.distill/` - a hidden dotdir that keeps the corpus clean for any markdown tool. Existing `cost_log.jsonl` auto-migrated on first run.
 - **Quality conventions established.** `distill/llm/` ships with `# pyright: strict`, 400-line module cap, C901 complexity enforcement, 80%+ test coverage, and 11 Hypothesis property-based tests. Pyright blocking in CI for the new package.
 - **Backward-compatible configuration.** All existing `.env` variables continue to work unchanged. New `DISTILL_PROVIDER` and per-workload provider overrides are additive.
 
-## [0.3.0] — 2026-04-28
+## [0.3.0] - 2026-04-28
 
 Knowledge-base artifact contract: generated Markdown now behaves like a durable PKM / AI-native corpus instead of a pile of repeated generic filenames.
 
@@ -1726,17 +1733,17 @@ Knowledge-base artifact contract: generated Markdown now behaves like a durable 
 - Stale or missing local installs now work cleanly when reinstalled from the current checkout.
 - CI formatting drift from the artifact naming work was normalized with `ruff format`.
 
-## [0.2.0] — 2026-04-27
+## [0.2.0] - 2026-04-27
 
 Discovery loop hardening: goal-aware cross-source front door, yt-dlp robustness, and a clean preview → approve → ingest workflow that surfaces costs and respects what the user actually asked for.
 
 ### Added
 
-- **`distill discover "<goal>" --topic X`** — goal-aware cross-source front door. Takes a natural-language research goal, has Grok generate paper + video search queries, fans out to arXiv and YouTube, runs a unified *goal-aware* LLM rerank across both source types (scores on goal_fit / depth / complementarity), shows a single ranked table of mixed papers and videos, and — after interactive confirmation — ingests the shortlist through the existing paper and video pipelines. Flags: `--topic/-t`, `--paper-limit`, `--video-limit`, `--papers-only`, `--videos-only`, `--days`, `--shorts/--no-shorts`, `--preview`, `--yes/-y`, `--goal-file`.
-- **`--goal-file` for `distill discover`** — mirrors the `--context-file` pattern from `research-brief` and `synthesize`. The goal argument can now be loaded from a markdown file, enabling reusable, goal-driven topic refreshes (e.g. save `private/ai-composer-goal.md` and re-run discover against it on a cadence without retyping).
+- **`distill discover "<goal>" --topic X`** - goal-aware cross-source front door. Takes a natural-language research goal, has Grok generate paper + video search queries, fans out to arXiv and YouTube, runs a unified *goal-aware* LLM rerank across both source types (scores on goal_fit / depth / complementarity), shows a single ranked table of mixed papers and videos, and - after interactive confirmation - ingests the shortlist through the existing paper and video pipelines. Flags: `--topic/-t`, `--paper-limit`, `--video-limit`, `--papers-only`, `--videos-only`, `--days`, `--shorts/--no-shorts`, `--preview`, `--yes/-y`, `--goal-file`.
+- **`--goal-file` for `distill discover`** - mirrors the `--context-file` pattern from `research-brief` and `synthesize`. The goal argument can now be loaded from a markdown file, enabling reusable, goal-driven topic refreshes (e.g. save `private/ai-composer-goal.md` and re-run discover against it on a cadence without retyping).
 - **`distill discover --papers-only` / `--videos-only`.** Mutually exclusive flags that explicitly skip one source type. Skipping a side short-circuits the LLM query-generation call for that side so you don't pay for queries the run will throw away. Useful when a topic has thin or unrigorous YouTube coverage (run papers-only) or is dominated by talks/lectures with little formal-paper presence (run videos-only).
-- **`distill latest --top-by-date`.** Strict "last N uploads in the window" semantics — bypasses both the LLM rerank and the heuristic relevance/depth mix and sorts the final pick purely by upload date (most recent first). Channel cap still applies so one prolific uploader can't monopolize the slate. Implies `--no-rerank` so query-expansion spend doesn't get billed for output that's then ignored. Use when you literally want "what got uploaded recently" rather than "what's most relevant in the window."
-- **`distill papers` query expansion, LLM rerank, and `--preview`** — brings `distill papers` to parity with `distill latest`. One user query now expands into up to six arXiv search variants (heuristic + Grok), results are deduped by `paper_id` across variants, and a Grok-based rerank (`RankedPaper` with relevance / depth / novelty / credibility scores) picks the top-N *before* per-paper PDF analysis. `--preview` short-circuits to the ranked table for inspection without ingestion. New flags: `--preview`, `--sort relevance|date` (new default: relevance), `--expand/--no-expand`, `--rerank/--no-rerank`. arXiv multi-query calls are spaced 3.5s apart to respect rate limits.
+- **`distill latest --top-by-date`.** Strict "last N uploads in the window" semantics - bypasses both the LLM rerank and the heuristic relevance/depth mix and sorts the final pick purely by upload date (most recent first). Channel cap still applies so one prolific uploader can't monopolize the slate. Implies `--no-rerank` so query-expansion spend doesn't get billed for output that's then ignored. Use when you literally want "what got uploaded recently" rather than "what's most relevant in the window."
+- **`distill papers` query expansion, LLM rerank, and `--preview`** - brings `distill papers` to parity with `distill latest`. One user query now expands into up to six arXiv search variants (heuristic + Grok), results are deduped by `paper_id` across variants, and a Grok-based rerank (`RankedPaper` with relevance / depth / novelty / credibility scores) picks the top-N *before* per-paper PDF analysis. `--preview` short-circuits to the ranked table for inspection without ingestion. New flags: `--preview`, `--sort relevance|date` (new default: relevance), `--expand/--no-expand`, `--rerank/--no-rerank`. arXiv multi-query calls are spaced 3.5s apart to respect rate limits.
 - **yt-dlp staleness preflight.** Commands that rely on yt-dlp (`channel`, `search`, `explore`, `learn`, `latest`, `discover`, `topic update`, `catch-up`, `topic-watch run`, `ramp-up`) run a cheap version-age check on entry. yt-dlp uses date-stamped releases (`2026.3.17`), so the check parses the version locally with no network call. If the install is more than 14 days old, a single non-blocking warning points at `distill doctor --update`. Result is cached for 24h in `library/.preflight.json`; honors `DISTILL_NO_PREFLIGHT=1` for CI/scripted runs.
 - **`distill doctor --update`** upgrades yt-dlp via `pip install --upgrade yt-dlp` and invalidates the preflight cache so the next run re-validates. The doctor's Tools section now shows yt-dlp age (`(3d old)` green, or yellow with a hint when stale, or "(latest available release)" in dim when an update was just attempted and pypi has nothing newer).
 - **Extractor-failure hint in discovery errors.** When yt-dlp raises an extractor-style error in `discover_videos` or `search_videos` (matched on patterns like `extractor`, `unable to extract`, `sign in to confirm`, `HTTP error 4xx`), Distill prints a one-line hint pointing at `distill doctor --update` so users can connect the symptom to the fix.
@@ -1746,31 +1753,31 @@ Discovery loop hardening: goal-aware cross-source front door, yt-dlp robustness,
 ### Changed
 
 - **`distill papers` default behavior.** Previously: literal query, newest-first by submission date, all top-N ingested blindly. Now: expanded, reranked, relevance-sorted, top-N picked by LLM. The old behavior is still available via `--no-expand --no-rerank --sort date`. This fixes the failure mode where generic queries (e.g. "music theory deep learning", "automatic harmonization") pulled in unrelated subfields (physics, image processing) because arXiv's tokenizer has no concept of research intent.
-- **`distill doctor --update` post-upgrade reporting.** When pip reports `Requirement already satisfied` (i.e. you're already on the latest published yt-dlp release), doctor now says "yt-dlp v… is already the latest published release" instead of falsely claiming "upgraded to v…". In the same run, the Tools section suppresses the "X days old; run `distill doctor --update`" nag — pypi simply doesn't have a newer release yet — and shows "(latest available release)" instead.
+- **`distill doctor --update` post-upgrade reporting.** When pip reports `Requirement already satisfied` (i.e. you're already on the latest published yt-dlp release), doctor now says "yt-dlp v… is already the latest published release" instead of falsely claiming "upgraded to v…". In the same run, the Tools section suppresses the "X days old; run `distill doctor --update`" nag - pypi simply doesn't have a newer release yet - and shows "(latest available release)" instead.
 - **Preflight banner uses an ASCII marker.** The `⚠` glyph in the yt-dlp staleness banner has been replaced with `!` so the warning still prints even on terminals that somehow bypass the UTF-8 stdio bootstrap.
 - **API: `update_ytdlp()` returns `(ok, detail, was_noop)`** instead of `(ok, detail)`. Callers (only the `doctor` CLI command in-tree) updated. Lets the doctor distinguish a real upgrade from a no-op.
 
 ### Fixed
 
-- **Windows cp1252 console crash.** A default Windows console encodes stdout as cp1252, which raised `UnicodeEncodeError` on the `⚠` glyph in the yt-dlp staleness preflight banner — every Distill command that touched yt-dlp would crash on first run if the install was older than 14 days. Fixed by reconfiguring `sys.stdout` and `sys.stderr` to UTF-8 with `errors="replace"` at process startup via a side-effect import of `distill._bootstrap`. Idempotent and silent under pytest capsys / pipes / redirected streams.
+- **Windows cp1252 console crash.** A default Windows console encodes stdout as cp1252, which raised `UnicodeEncodeError` on the `⚠` glyph in the yt-dlp staleness preflight banner - every Distill command that touched yt-dlp would crash on first run if the install was older than 14 days. Fixed by reconfiguring `sys.stdout` and `sys.stderr` to UTF-8 with `errors="replace"` at process startup via a side-effect import of `distill._bootstrap`. Idempotent and silent under pytest capsys / pipes / redirected streams.
 - **`distill topic show` corpus counts.** `_count_paper_corpus(config, topic)` and `_count_site_corpus(config, topic)` were called with a single string but expected `list[str]`, so the count iterated character-by-character and almost always returned 0 (and the site call interpolated a `(0, 0)` tuple into the Corpus line). Now passes `[topic]` and unpacks to a clean "N site(s) / M page(s)" line.
 - **`distill doctor` yt-dlp version probe.** The previous code accessed `yt_dlp.version.__version__` (an indirect submodule attribute pyright already flagged). If yt-dlp ever restructures, doctor would falsely report "yt-dlp not found." Switched to `importlib.metadata.version("yt-dlp")`.
 - **`yt_dlp.utils.DateRange` constructed inside the try/except in `discover_videos`.** The dict was previously built before the `try:` block, so any future yt-dlp restructuring of the `utils` namespace would crash discover before the safety net catches it. Now the construction is inside the `try:`.
 - **CI green across the board.** Three test failures, the security scan, and lint were all failing on Linux runners while passing locally on Windows. Fixes: `getattr(os, "startfile", None)` so the `open` command can be exercised cross-platform; `console.legacy_windows` check no longer gated by `os.name == "nt"`; `console.print` + `typer.Exit(2)` instead of `typer.BadParameter` for `site --report` + `--scrape-only` validation (Typer 0.24's rich-formatted error broke the substring assertion in CI); `pip-audit --skip-editable --ignore-vuln CVE-2026-3219` (the editable self-install is not on PyPI under this name yet, and pip 26.0.1 has an unfixed CVE upstream); pyright `reportAttributeAccessIssue`/`reportArgumentType`/`reportAssignmentType`/`reportReturnType`/`reportIndexIssue`/`reportPossiblyUnboundVariable` demoted to warnings (dominated by third-party stub gaps in mcp/yt-dlp/python-docx and typer Optional artifacts).
 - **arXiv query building no longer phrase-matches 3+ word queries.** `_build_search_query` used to wrap any multi-word query in quotes for strict phrase matching. That was too strict for LLM-generated queries like `"symbolic music transformer composition"`, which returned zero results as a literal phrase even when the target papers existed. New policy: 1 word → single-term; 2 words → phrase match (naturally phrasal); 3+ words → AND-joined tokens so every term must appear but not necessarily adjacent. Pre-operator input (quotes, AND/OR, parens) still passes through untouched.
 
-## [0.1.0] — 2026-04-20
+## [0.1.0] - 2026-04-20
 
 Initial public release as `distillr` on PyPI.
 
 ### Added
 
-- **arXiv paper ingestion** (`distill papers <query>`) — phrase-matched search, latest-N selection by submission date, full-PDF text extraction (pypdf, 100K char cap, unicode-surrogate sanitized), per-paper structured insights, paper-level cross-paper synthesis.
-- **Multi-topic research briefings** (`distill research-brief`) — Gemini Deep Research over one or more topic corpora with a user-supplied context file (`--context-file`). Web-augmented; writes `output/briefing-{name}.md`.
-- **Multi-topic deep synthesis** (`distill synthesize`) — single Grok 4.20 call over the gathered corpus with user-supplied context. No web augmentation; writes `output/synthesis-{name}.md`.
-- **Briefing context template** — `docs/briefing-contexts/TEMPLATE.md` showing the shape for audience, corpus expectation, required structure, and rules.
-- **`private/` convention** — user-local files (client-specific seeds, personal context files, scratch notes) live under `private/`; directory contents are git-ignored except for `private/README.md`, which documents the pattern.
-- **Model pinning** — xAI premium/site workload defaults pinned to `grok-4.20-0309-reasoning`; fast workload defaults to `grok-4-1-fast-reasoning`. Overrides via `.env` (see `.env.example`).
+- **arXiv paper ingestion** (`distill papers <query>`) - phrase-matched search, latest-N selection by submission date, full-PDF text extraction (pypdf, 100K char cap, unicode-surrogate sanitized), per-paper structured insights, paper-level cross-paper synthesis.
+- **Multi-topic research briefings** (`distill research-brief`) - Gemini Deep Research over one or more topic corpora with a user-supplied context file (`--context-file`). Web-augmented; writes `output/briefing-{name}.md`.
+- **Multi-topic deep synthesis** (`distill synthesize`) - single Grok 4.20 call over the gathered corpus with user-supplied context. No web augmentation; writes `output/synthesis-{name}.md`.
+- **Briefing context template** - `docs/briefing-contexts/TEMPLATE.md` showing the shape for audience, corpus expectation, required structure, and rules.
+- **`private/` convention** - user-local files (client-specific seeds, personal context files, scratch notes) live under `private/`; directory contents are git-ignored except for `private/README.md`, which documents the pattern.
+- **Model pinning** - xAI premium/site workload defaults pinned to `grok-4.20-0309-reasoning`; fast workload defaults to `grok-4-1-fast-reasoning`. Overrides via `.env` (see `.env.example`).
 
 ### Changed
 
@@ -1871,15 +1878,15 @@ in the repository history tell the same story at finer resolution.
 
 ### Post-Run Summary and Observability
 
-- Rich summary panel after every command — items processed, time elapsed, actual cost, pass/fail counts
+- Rich summary panel after every command - items processed, time elapsed, actual cost, pass/fail counts
 - Clickable `file://` links to outputs (insights, synthesis, report, DOCX)
 - Failed-item list with reasons in the summary panel
-- `distill open` — open topic/channel/output folders and files in the system file browser
+- `distill open` - open topic/channel/output folders and files in the system file browser
 - `distill` with no args shows a quick dashboard (topics, channels, counts, quick commands)
-- Cost tracking — actual token usage per API call, per-call-type breakdowns
-- `distill costs` command — cost-history table with per-run token/timing breakdowns
+- Cost tracking - actual token usage per API call, per-call-type breakdowns
+- `distill costs` command - cost-history table with per-run token/timing breakdowns
 - `--dry-run` shows projected spend with full/Shorts breakdown
-- Run cost log (`cost_log.jsonl`) — estimated vs actual costs for calibration
+- Run cost log (`cost_log.jsonl`) - estimated vs actual costs for calibration
 - Timeouts and retries on all API calls for transient-failure resilience
 
 ### UX and Testing

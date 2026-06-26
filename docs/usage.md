@@ -2,7 +2,7 @@
 
 Full command reference. For the short version, see the README.
 
-> Every command prints contextual next steps — file paths and suggested follow-up commands — so you can usually find your way without re-reading this doc.
+> Every command prints contextual next steps - file paths and suggested follow-up commands - so you can usually find your way without re-reading this doc.
 
 ## Table of Contents
 
@@ -27,14 +27,14 @@ Full command reference. For the short version, see the README.
 
 When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, lets you optionally add curated website seed files or trusted website sections, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
 
-On a **fresh topic** (no artifacts yet), discover leads with a *size-then-approve* menu instead of auto-ingesting: it shows the ranked candidates and 2–3 sized options — *Excellent / Including good / Everything worthwhile* — each with its source breakdown and its own spend estimate, and ingests the option you pick. `--yes` skips the menu (rigor-filtered auto-ingest); `--size` forces the menu on a topic that already has artifacts.
+On a **fresh topic** (no artifacts yet), discover leads with a *size-then-approve* menu instead of auto-ingesting: it shows the ranked candidates and 2-3 sized options - *Excellent / Including good / Everything worthwhile* - each with its source breakdown and its own spend estimate, and ingests the option you pick. `--yes` skips the menu (rigor-filtered auto-ingest); `--size` forces the menu on a topic that already has artifacts.
 
 ```bash
 # Inline goal
 distill discover "help an AI become a great music composer" --topic music --preview
 distill discover "2026 enterprise search architectures" --topic enterprise-search --yes
 
-# Goal file — reusable across refreshes
+# Goal file - reusable across refreshes
 distill discover --goal-file private/ai-composer-goal.md --topic music --yes
 
 # Goal file + curated sites (official docs / vendor pages / labs)
@@ -49,22 +49,22 @@ distill discover --goal-file private/agent365-goal.md --topic agent365 \
 
 Flags:
 
-- `--topic / -t` — topic folder to file outputs under (defaults to a slug of the goal)
-- `--paper-limit` / `--video-limit` — max per-source ingestion targets (default 10 each)
+- `--topic / -t` - topic folder to file outputs under (defaults to a slug of the goal)
+- `--paper-limit` / `--video-limit` - max per-source ingestion targets (default 10 each)
 - `--site-seeds` / `--site-limit` - optional curated website seed file plus max site seeds to ingest after rerank (default 10 when supplied)
 - `--trusted-site` - trusted domain or section URL to enumerate page candidates from before rerank. May be repeated. Enumeration is bounded to public same-host URLs from sitemaps, TOC/navigation links, and landing-page links; selected pages ingest in exact-page mode.
 - `--site-crawl-depth` / `--site-crawl-pages` - opt selected website candidates into bounded shallow crawls. Defaults are depth `0` and pages `1`, which keep exact-page ingest. Trusted-site generated seeds stay section-scoped when depth is above `0`.
-- `--papers-only` / `--videos-only` — mutually exclusive, skip the other source type entirely (also short-circuits the LLM query-generation call for the disabled side, so you don't pay for queries the run will throw away). Useful when one source type has thin coverage of the topic.
-- `--days / -d` — YouTube recency window (default 365)
-- `--shorts / --no-shorts` — include Shorts under 3 min (default off — deeper content favored)
-- `--ingest-attachments` — for selected site seeds, pull PDF text and supported embedded-video transcripts into the page corpus
-- `--rigor strict|balanced|loose` — quality bar on the rerank score; drops candidates below the level's goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits. Default `balanced`.
-- `--lens research|practitioner|competitive|academic|general` — the analytical lens each per-source insight is written through. Default: inferred from the goal (e.g. a goal mentioning "research" / "prior art" picks `research`; "vendor" / "enterprise" picks `competitive`). The lens is persisted as the topic's intent (`topics/<topic>/intent.json`), so later `papers` / `latest` / `discover` runs into the same topic inherit it. `competitive` reproduces the pre-0.9.24 enterprise pre-sales sections.
-- `--preview` — show the ranked plan without ingesting. Prints a metadata-aware spend estimate as a range (e.g. `~$0.42 (est; $0.29-$0.63)`) and **saves the exact shortlist under an id**; preview-only spend lands in `cost_log.jsonl` as `discover_preview`.
-- `--from-preview <id>` — ingest the exact set a previous `--preview` saved, by its id. Skips query-generation and the rerank entirely, so you commit to precisely what you saw. (Mutually exclusive with `--preview` / `--from-gaps`.)
-- `--from-gaps` — derive the goal from an existing topic's coverage gaps instead of a written goal (requires `--topic`).
-- `--yes / -y` — skip the interactive confirmation / sizing menu (rigor-filtered auto-ingest)
-- `--goal-file` — load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
+- `--papers-only` / `--videos-only` - mutually exclusive, skip the other source type entirely (also short-circuits the LLM query-generation call for the disabled side, so you don't pay for queries the run will throw away). Useful when one source type has thin coverage of the topic.
+- `--days / -d` - YouTube recency window (default 365)
+- `--shorts / --no-shorts` - include Shorts under 3 min (default off - deeper content favored)
+- `--ingest-attachments` - for selected site seeds, pull PDF text and supported embedded-video transcripts into the page corpus
+- `--rigor strict|balanced|loose` - quality bar on the rerank score; drops candidates below the level's goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits. Default `balanced`.
+- `--lens research|practitioner|competitive|academic|general` - the analytical lens each per-source insight is written through. Default: inferred from the goal (e.g. a goal mentioning "research" / "prior art" picks `research`; "vendor" / "enterprise" picks `competitive`). The lens is persisted as the topic's intent (`topics/<topic>/intent.json`), so later `papers` / `latest` / `discover` runs into the same topic inherit it. `competitive` reproduces the pre-0.9.24 enterprise pre-sales sections.
+- `--preview` - show the ranked plan without ingesting. Prints a metadata-aware spend estimate as a range (e.g. `~$0.42 (est; $0.29-$0.63)`) and **saves the exact shortlist under an id**; preview-only spend lands in `cost_log.jsonl` as `discover_preview`.
+- `--from-preview <id>` - ingest the exact set a previous `--preview` saved, by its id. Skips query-generation and the rerank entirely, so you commit to precisely what you saw. (Mutually exclusive with `--preview` / `--from-gaps`.)
+- `--from-gaps` - derive the goal from an existing topic's coverage gaps instead of a written goal (requires `--topic`).
+- `--yes / -y` - skip the interactive confirmation / sizing menu (rigor-filtered auto-ingest)
+- `--goal-file` - load the goal from a markdown file instead of the positional argument. Enables goal-driven topic refreshes (save `private/<name>.md`, re-run discover periodically).
 
 Rerank scores each candidate on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers, videos, curated site seeds, and trusted-site page candidates are ranked in the same pool - a documentation page that directly advances the goal can outrank a shallow video, and vice versa. Website candidates are allowlist-driven: `discover` does not perform arbitrary web search. It reranks the exact URLs from `--site-seeds` plus public same-host candidates enumerated from repeated `--trusted-site` domains or section URLs, then ingests selected pages in exact-page mode unless `--site-crawl-depth` opts into a bounded shallow crawl. Site preview rows include the exact URL, section label, discovery source, and sitemap freshness date when known. Links found in landing-page TOC/navigation containers are labeled `toc link` and listed before generic landing links.
 
@@ -73,7 +73,7 @@ for example `Found 88 videos + 12 Shorts, ~47h of content across 5 search(es)`.
 When some durations are missing, the line labels the total as known content
 and reports the unknown-duration count.
 
-The pre-run spend estimate scales per-video cost by duration and **self-calibrates** against your `cost_log.jsonl` history (per-source rates from clean single-source runs, falling back to defaults when history is thin), so it sharpens as you use the tool. Typical cost: `--preview` ~$0.05, full run ~$1–3 depending on paper/video count.
+The pre-run spend estimate scales per-video cost by duration and **self-calibrates** against your `cost_log.jsonl` history (per-source rates from clean single-source runs, falling back to defaults when history is thin), so it sharpens as you use the tool. Typical cost: `--preview` ~$0.05, full run ~$1-3 depending on paper/video count.
 
 During ingestion, selected papers and site seeds print per-item progress with
 phase, item count, completed count, failed count, running spend, and ETA once
@@ -84,7 +84,7 @@ surface as `latest` and `catch-up`.
 
 Every per-source insight is written through an **analysis lens** that fits what the corpus is for, instead of one fixed persona. The lenses are `research`, `practitioner`, `competitive`, `academic`, and `general` (the neutral default). `competitive` is the enterprise pre-sales framing (Vendor Watch, Business Value Signals, Customer Conversation Starters); the others drop the sales sections for ones that match the subject matter.
 
-The lens lives in a per-topic **intent** (`topics/<topic>/intent.json`). Set it once and every later ingest into that topic — `discover`, `papers`, `latest`, and the MCP tools — reads sources through it.
+The lens lives in a per-topic **intent** (`topics/<topic>/intent.json`). Set it once and every later ingest into that topic - `discover`, `papers`, `latest`, and the MCP tools - reads sources through it.
 
 ```bash
 # Set it explicitly (no re-ingest needed; applies to future ingests)
@@ -112,14 +112,14 @@ distill latest "Claude Code leak analysis" --topic claude-code-leak --hours 20 -
 
 `distill latest` defaults to a date-first, Shorts-inclusive, multi-query discovery pass tuned for stay-current workflows. `--hours` gives sub-day precision. For rumor-heavy or April 1 style topics, the selector leans skeptical (favors concrete evidence terms).
 
-`--rigor strict|balanced|loose|off` adds a quality bar on the rerank score (video thresholds 0.6 / 0.4 / 0.25), dropping weak picks before the channel cap; default `off` (unchanged behavior), and it needs the LLM rerank — under `--no-rerank` / `--top-by-date` an explicit bar is skipped with a warning. The thresholds are calibrated per command (lower than `discover`'s, since `latest` is a single-source relevance ranker rather than a cross-source curation gate — see [`architecture.md`](architecture.md) "Rigor calibration").
+`--rigor strict|balanced|loose|off` adds a quality bar on the rerank score (video thresholds 0.6 / 0.4 / 0.25), dropping weak picks before the channel cap; default `off` (unchanged behavior), and it needs the LLM rerank - under `--no-rerank` / `--top-by-date` an explicit bar is skipped with a warning. The thresholds are calibrated per command (lower than `discover`'s, since `latest` is a single-source relevance ranker rather than a cross-source curation gate - see [`architecture.md`](architecture.md) "Rigor calibration").
 
 During processing, `distill latest` prints per-video progress after each item:
 completed count, failed count, running spend, and ETA when enough videos have
 completed. Live transcript and analysis phase labels include the same running
 spend.
 
-For strict "last N uploads in the window" semantics — bypassing both the LLM rerank and the heuristic relevance/depth mix and sorting purely by upload date — pass `--top-by-date`. Channel cap still applies, and `--rerank` is force-disabled so query-expansion spend isn't billed for output that's then ignored.
+For strict "last N uploads in the window" semantics - bypassing both the LLM rerank and the heuristic relevance/depth mix and sorting purely by upload date - pass `--top-by-date`. Channel cap still applies, and `--rerank` is force-disabled so query-expansion spend isn't billed for output that's then ignored.
 
 ```bash
 distill latest "Sora 2 demos" --topic sora --days 7 --top-by-date --limit 5
@@ -193,7 +193,7 @@ you want the full 2-pass analysis on a video you flagged from a scan.
 
 ## YouTube: Topic watch (recurring)
 
-Recurring queries — "Microsoft AI news" daily, "Azure AI updates" weekly — with budget guardrails and per-run delta outputs.
+Recurring queries - "Microsoft AI news" daily, "Azure AI updates" weekly - with budget guardrails and per-run delta outputs.
 
 ```bash
 distill topic-watch add "Microsoft AI news" --topic microsoft-news \
@@ -217,12 +217,12 @@ distill topic-watch run azure-ai --ignore-budget   # explicit override
 
 Each topic-watch run leaves:
 
-- `library/topics/<topic>/<topic>_Watch_Update.md` — per-watch delta summary
-- `library/topics/<topic>/<topic>_Topic_Diff.md` — reusable topic-level change report
-- `library/topics/<topic>/change_history.jsonl` — timestamped change counts
-- `library/topics/<topic>/<topic>_Topic_Trends.md` — momentum over recent diff windows
-- `library/library_Latest_Changes.md` — library-level rollup
-- `library/library_Watch_Alerts.md` — digest of notable changes (also exposed via MCP at `distill://watch-alerts`)
+- `library/topics/<topic>/<topic>_Watch_Update.md` - per-watch delta summary
+- `library/topics/<topic>/<topic>_Topic_Diff.md` - reusable topic-level change report
+- `library/topics/<topic>/change_history.jsonl` - timestamped change counts
+- `library/topics/<topic>/<topic>_Topic_Trends.md` - momentum over recent diff windows
+- `library/library_Latest_Changes.md` - library-level rollup
+- `library/library_Watch_Alerts.md` - digest of notable changes (also exposed via MCP at `distill://watch-alerts`)
 
 ## Recurring research profiles
 
@@ -369,7 +369,7 @@ See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-f
 # Ingest one paper directly from arXiv (abstract + full PDF text + structured insight)
 distill paper https://arxiv.org/abs/2602.12670 --topic my-research
 
-# Search arXiv and build a topic-level paper corpus — expands the query,
+# Search arXiv and build a topic-level paper corpus - expands the query,
 # LLM-reranks candidates, ingests the top N (all on by default)
 distill papers "agent memory systems" --topic my-research --limit 20
 
@@ -390,12 +390,12 @@ distill export my-research --what citations --format ris
 
 Flags on `distill papers`:
 
-- `--limit / -n` — how many papers to analyze after reranking (default 10)
-- `--sort relevance|date` — arXiv candidate order before rerank (default `relevance`)
-- `--expand / --no-expand` — expand the single user query into up to six arXiv search variants via Grok (default on). Candidates are deduped by `paper_id` across variants. arXiv calls are spaced 3.5s to respect rate limits.
-- `--rerank / --no-rerank` — LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
-- `--rigor strict|balanced|loose|off` — quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` — under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
-- `--preview` — show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
+- `--limit / -n` - how many papers to analyze after reranking (default 10)
+- `--sort relevance|date` - arXiv candidate order before rerank (default `relevance`)
+- `--expand / --no-expand` - expand the single user query into up to six arXiv search variants via Grok (default on). Candidates are deduped by `paper_id` across variants. arXiv calls are spaced 3.5s to respect rate limits.
+- `--rerank / --no-rerank` - LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
+- `--rigor strict|balanced|loose|off` - quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` - under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
+- `--preview` - show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
 
 During ingestion, `distill papers` prints per-paper progress with the current
 phase, item count, completed count, failed count, running spend, and ETA once
@@ -407,7 +407,7 @@ The default pipeline (expand + rerank + relevance-sorted) fixes the prior failur
 
 The underlying arXiv query builder is tuned to be tight without being brittle:
 - 2-word queries phrase-match (`"music transformer"`) for precision.
-- 3+ word queries AND-join tokens so every term must appear without requiring adjacency — this is what makes longer LLM-generated queries work.
+- 3+ word queries AND-join tokens so every term must appear without requiring adjacency - this is what makes longer LLM-generated queries work.
 
 For a **goal-driven** corpus across papers *and* videos, use `distill discover` above instead.
 
@@ -422,7 +422,7 @@ Paper outputs land under:
 
 ### Two-pass synthesis (`--two-pass`)
 
-`distill resynthesize <topic> --two-pass` runs a claim-based corpus synthesis instead of summarizing the per-source insights directly. Pass 1 extracts atomic claims from every `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl` (one cheap LLM call per not-yet-extracted source — re-runs skip sources already in the store). Pass 2 synthesizes over the claim set: it clusters claims by what they assert, names contradictions between sources explicitly, and cites each statement back to specific claim handles (`[C7]`), surfacing low-confidence and single-source claims as the corpus's soft spots rather than dropping them.
+`distill resynthesize <topic> --two-pass` runs a claim-based corpus synthesis instead of summarizing the per-source insights directly. Pass 1 extracts atomic claims from every `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl` (one cheap LLM call per not-yet-extracted source - re-runs skip sources already in the store). Pass 2 synthesizes over the claim set: it clusters claims by what they assert, names contradictions between sources explicitly, and cites each statement back to specific claim handles (`[C7]`), surfacing low-confidence and single-source claims as the corpus's soft spots rather than dropping them.
 
 Single-pass synthesis remains the default; `--two-pass` is opt-in and falls back to single-pass if a topic has no extractable claims. The same path is available to agents through the MCP `synthesize` tool's `two_pass` argument.
 
@@ -457,7 +457,7 @@ includes completed count, failed count, running spend, and ETA when available.
 
 ## Evaluate models (cost × quality)
 
-Models change fast and there is no cheap xAI cloud tier anymore (the fast tiers retired 2026-05-15; `grok-4.3` is the cloud floor). `distill eval` measures whether a cheaper model — usually a **local** one — is good enough, instead of guessing.
+Models change fast and there is no cheap xAI cloud tier anymore (the fast tiers retired 2026-05-15; `grok-4.3` is the cloud floor). `distill eval` measures whether a cheaper model - usually a **local** one - is good enough, instead of guessing.
 
 ```bash
 # Compare the cloud floor against a local model on all workloads
@@ -471,16 +471,16 @@ It runs each model over frozen golden fixtures (3 per analysis workload: paper /
 
 Flags:
 
-- `--workload paper|video|site|all` — which fixtures to run (default `all`)
-- `--models a,b,c` — comma-separated model ids; provider is inferred (grok → xAI, anything unrecognized → local Ollama)
-- `--anchor <model>` — the incumbent/reference everything is compared against (default `grok-4.3`; added to `--models` if absent)
+- `--workload paper|video|site|all` - which fixtures to run (default `all`)
+- `--models a,b,c` - comma-separated model ids; provider is inferred (grok → xAI, anything unrecognized → local Ollama)
+- `--anchor <model>` - the incumbent/reference everything is compared against (default `grok-4.3`; added to `--models` if absent)
 - `--judge <model>`: model judge used for source-anchored faithfulness and pairwise at-par comparisons (default `grok-4.3`). A neutral judge is preferred for unbiased migration evidence.
 - `--threshold 0.9`: advisory composite reference shown in the report; it does not authorize a migration
-- `--report` — write the table to `library/.distill/eval/<workload>_<ts>.md`
-- `--no-cache` — re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
-- `--yes` — skip the pre-run cost confirmation
+- `--report` - write the table to `library/.distill/eval/<workload>_<ts>.md`
+- `--no-cache` - re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
+- `--yes` - skip the pre-run cost confirmation
 
-**Local is optional and cross-platform.** The eval (and all of distill) runs cloud-only on any OS — local models are an opt-in cost lever, not a requirement. When you do eval local models, the VRAM-fit guard reads NVIDIA VRAM (`nvidia-smi`) or Apple Silicon unified memory; on AMD/Intel/CPU-only or any machine where VRAM can't be probed it doesn't block — it just notes that local will run on CPU (slow). Cloud models are never affected by the local-hardware check.
+**Local is optional and cross-platform.** The eval (and all of distill) runs cloud-only on any OS - local models are an opt-in cost lever, not a requirement. When you do eval local models, the VRAM-fit guard reads NVIDIA VRAM (`nvidia-smi`) or Apple Silicon unified memory; on AMD/Intel/CPU-only or any machine where VRAM can't be probed it doesn't block - it just notes that local will run on CPU (slow). Cloud models are never affected by the local-hardware check.
 
 Every run also appends one row per `(model, fixture)` to `library/.distill/eval/results.jsonl` (scores, win-rate, cost) so you can track quality and cost **drift over time** as models change.
 
@@ -505,8 +505,8 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 
 | Command | Engine | Best for | Typical cost |
 |---|---|---|---|
-| `distill report <topic>` | Gemini Deep Research + Grok 4-phase pipeline | Strategic intelligence report on one topic, 30–50 pages | ~$2–4 |
-| `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | ~$3–5 |
+| `distill report <topic>` | Gemini Deep Research + Grok 4-phase pipeline | Strategic intelligence report on one topic, 30-50 pages | ~$2-4 |
+| `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | ~$3-5 |
 | `distill synthesize --topic ... --context-file ...` | grok-4.3 single call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | ~$0.50 |
 
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).
@@ -521,7 +521,7 @@ distill videos ai                                   # list processed videos in a
 distill add ai https://www.youtube.com/@AnotherCreator
 distill remove ai https://www.youtube.com/@OldChannel
 
-# Refresh — only process what's new since last run
+# Refresh - only process what's new since last run
 distill run ai --refresh
 distill run --all --refresh
 distill run ai --refresh --shorts                   # include Shorts in refresh
@@ -785,7 +785,7 @@ distill --json init                # machine-readable readiness verdict
 distill --version       # or -V; prints the installed version and exits 0
 ```
 
-Eager, so it works before any environment is configured — handy for bug reports and agent preflight.
+Eager, so it works before any environment is configured - handy for bug reports and agent preflight.
 
 ## Global output controls
 
@@ -806,7 +806,7 @@ records for post-run review even when console output remains warning-only.
 
 ## JSON Output
 
-Pass `--json` for machine-readable output. The read surface is covered —
+Pass `--json` for machine-readable output. The read surface is covered -
 `library`, `videos`, `show`, `synthesis`, `findings`, `costs`, `doctor`,
 `health`, `alerts`, the dashboard view, and `concepts` export:
 
@@ -820,7 +820,7 @@ distill --json doctor                # health check + readiness verdict
 `distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. An agent can gate on `ready` in one read; a not-ready environment is fixed with `distill init`.
 
 When `--json` is active:
-- **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` — nothing else, so it always parses
+- **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` - nothing else, so it always parses
 - **stderr** carries all human/progress/diagnostic output (the shared console is redirected there), so it never corrupts the JSON on stdout
 - `--json` is **read-only**: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation
 - Rich formatting and color are suppressed on stdout; `NO_COLOR` is respected
@@ -838,7 +838,7 @@ Distill is built to run in a loop or under an agent with no human at the keyboar
 - **`--yes` / `-y`** skips confirmation on every spend- or mutation-gated command.
 - **`audit --report-only`** writes the report artifact and sets the exit code from findings without prompting.
 - **`audit --next-actions --json`** emits bounded action rows an external loop can run and verify without scraping console output.
-- **No-TTY safety:** when stdin is not a terminal, interactive prompts resolve to their safe default instead of aborting on EOF — a confirmation with no safe default declines (and prints the `--yes` hint), and menu prompts take their listed default. Bare `distill` skips the screen-clear when stdout is piped.
+- **No-TTY safety:** when stdin is not a terminal, interactive prompts resolve to their safe default instead of aborting on EOF - a confirmation with no safe default declines (and prints the `--yes` hint), and menu prompts take their listed default. Bare `distill` skips the screen-clear when stdout is piped.
 - **Exit codes** (above) distinguish config (3) and network (4) failures from generic runtime errors (1), so a loop can branch on the cause.
 
 ## Zero-key tour / demo path
@@ -868,9 +868,9 @@ distill update --check    # report installed vs latest without upgrading
 distill --json update --check   # same, machine-readable
 ```
 
-`distill update` detects the install method — **uv tool**, **pipx**, or **pip** — and runs the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). On a **source/editable checkout** it won't touch your working tree; it tells you to `git pull` + `uv sync` instead.
+`distill update` detects the install method - **uv tool**, **pipx**, or **pip** - and runs the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). On a **source/editable checkout** it won't touch your working tree; it tells you to `git pull` + `uv sync` instead.
 
-distill also surfaces a one-line "update available" nudge on startup when a newer release is published — checked against PyPI at most once per day (cached), non-blocking, and silenced with `DISTILL_NO_UPDATE_CHECK=1`.
+distill also surfaces a one-line "update available" nudge on startup when a newer release is published - checked against PyPI at most once per day (cached), non-blocking, and silenced with `DISTILL_NO_UPDATE_CHECK=1`.
 
 ## Shell completions
 

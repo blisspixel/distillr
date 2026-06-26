@@ -9,7 +9,7 @@
 
 ## Problem & North-Star tie
 
-`distill/commands/_logic.py` began at **9,373 lines / 155 functions** — 9× the
+`distill/commands/_logic.py` began at **9,373 lines / 155 functions** - 9× the
 1000-line ceiling, 21× the next file, and a direct violation of the ROADMAP's "one
 command group per file" target (now deleted; see Phase 2). It
 earns the *feature spine* (not just a harden pass)
@@ -28,7 +28,7 @@ There are **76 `from distill.commands._logic import <symbol>`** sites across
 physically moved to `commands/<group>.py` but a test still patches
 `distill.commands._logic.<fn>`, the patch silently binds a **stale namespace**:
 the production call site resolves the real function from the new module, the test
-patches nothing, and **the test passes while testing nothing** — the exact
+patches nothing, and **the test passes while testing nothing** - the exact
 "looks correct, isn't" class the charter warns about, hidden inside the
 remediation.
 
@@ -46,7 +46,7 @@ that shape:
    (`from distill.commands.<group> import <names>`) so every existing
    `from distill.commands._logic import <name>` keeps working *unchanged* during
    migration.
-3. **Repoint** every call site **and every patch string** to the new path — in
+3. **Repoint** every call site **and every patch string** to the new path - in
    the **same PR**. This is the load-bearing step.
 4. **Grep gate (pre-merge, blocking):** `grep -rn "distill.commands._logic" tests/ distill/`
    must not reference a symbol that has moved. A stale patch string is the failure
@@ -65,14 +65,14 @@ Migrate by `rich_help_panel` group, easiest first to prove the pattern, hardest
 (the discover/process pipeline core, which owns the most shared helpers) last:
 
 1. **View** (`library`, `videos`, `show`, `synthesis`, `findings`, `package-latest`)
-   — pure reads; the `--json` payload helpers added in 0.14 already live near
+   - pure reads; the `--json` payload helpers added in 0.14 already live near
    here. Best first slice: highest value (agent-facing reads), lowest risk.
 2. **Maintain** (`costs`, `doctor`/`health`, `cleanup`, `migrate`, `open`, `alerts`)
-   — mostly self-contained; `costs`/`doctor` already have `ctx`-based `--json`.
+   - mostly self-contained; `costs`/`doctor` already have `ctx`-based `--json`.
 3. **Watch** (`catch-up`, watch/topic-watch) and **Reports** (`report`,
-   `research-brief` wiring) — moderate coupling.
+   `research-brief` wiring) - moderate coupling.
 4. **Discover / Process** (`discover`, `papers`, `latest`, `learn`, `site`,
-   `site-batch`, `run`, `channel`) — the core pipeline + the bulk of shared
+   `site-batch`, `run`, `channel`) - the core pipeline + the bulk of shared
    helpers; migrate last, possibly extracting shared helpers to `_helpers.py`
    first.
 
@@ -86,7 +86,7 @@ with it; no behavior change (pure move). The whole effort is done when
 ## Not in scope
 
 No behavior changes, no signature changes, no "while I'm here" refactors inside a
-move PR — a move PR is a *pure relocation* so the diff is reviewable and any test
+move PR - a move PR is a *pure relocation* so the diff is reviewable and any test
 failure is unambiguously a wiring problem, not a logic regression.
 
 ## Phase 2: the coupled core (status + plan)
@@ -195,8 +195,8 @@ extraction added `topic.get_config` and repointed the topic videos-only
 `_run_learning_command` monkeypatch to `commands.topic`. A bug-hunt pass
 (2026-06, three review agents)
 already found and fixed eight *false-pass* stale patches that the green suite
-could not see — tests that patched a moved command's old namespace and passed
-while testing nothing — and the dashboard slice's fixtures were verified
+could not see - tests that patched a moved command's old namespace and passed
+while testing nothing - and the dashboard slice's fixtures were verified
 load-bearing (the home-screen tests pass *because* `dashboard.get_config` is
 patched, not by accident). The per-PR grep gate plus a periodic false-pass sweep
 are both part of the contract for Phase 2.

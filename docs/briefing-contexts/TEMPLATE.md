@@ -20,7 +20,7 @@ actual content.
 > preparing a grant? A solutions architect briefing a customer? The model shapes tone,
 > depth, and vocabulary based on this.
 
-**Primary reader:** <who — role, domain expertise, what they already know>
+**Primary reader:** <who - role, domain expertise, what they already know>
 
 **Goal of the briefing:** <what decision or action this briefing should support>
 
@@ -30,7 +30,7 @@ actual content.
 > existing architecture, deadlines, stakeholders, budget limits, things that are off-limits.
 > Be specific. The model does better with real constraints than with vague directives.
 
-<free-form background section — as short or long as needed>
+<free-form background section - as short or long as needed>
 
 ## What the corpus contains
 
@@ -51,7 +51,7 @@ actual content.
 ### 2. <section title>
 <one-sentence description>
 
-<etc. — typically 5-8 sections>
+<etc. - typically 5-8 sections>
 
 ## Rules
 

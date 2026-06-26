@@ -16,7 +16,7 @@ A concrete workflow or frustration is more useful than an abstract "it would be 
 
 <!--
 What would the ideal behavior look like? A command shape, a new output file,
-a configuration option — whatever makes the proposal concrete. It's fine to
+a configuration option - whatever makes the proposal concrete. It's fine to
 propose multiple options and list the tradeoffs.
 -->
 

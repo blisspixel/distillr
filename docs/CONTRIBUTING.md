@@ -23,12 +23,12 @@ uv run distill doctor
 
 `uv sync` reads `.python-version` (3.12) and auto-downloads the interpreter if you don't have it. distillr requires **Python 3.12+**. Run any command in the project env with `uv run <cmd>` (e.g. `uv run distill ...`), or activate `.venv` directly. The install is editable, so source edits apply without reinstalling.
 
-You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test suite itself (default mode) doesn't hit real APIs — integration tests are gated behind `-m integration`.
+You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test suite itself (default mode) doesn't hit real APIs - integration tests are gated behind `-m integration`.
 
 ## Running tests
 
 ```bash
-uv run pytest -q                   # default — unit + contract tests, no network
+uv run pytest -q                   # default - unit + contract tests, no network
 uv run pytest -m integration       # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
 uv run pytest --cov=distill --cov-fail-under=89   # branch coverage gate
 ```
@@ -50,7 +50,7 @@ Coverage is **branch** coverage (every conditional must exercise both arms) and 
 
 ### Pre-commit hooks
 
-The fastest way to stay green: install the hooks once. The lint/type/security hooks run through `uv run --frozen`, so they use the exact locked tool versions CI runs — a clean `pre-commit run --all-files` means a clean CI run.
+The fastest way to stay green: install the hooks once. The lint/type/security hooks run through `uv run --frozen`, so they use the exact locked tool versions CI runs - a clean `pre-commit run --all-files` means a clean CI run.
 
 ```bash
 uv run pre-commit install --install-hooks       # ruff / bandit / import-linter / pyright on every commit
@@ -64,7 +64,7 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 
 | Tool | Purpose | Runs in CI? |
 |---|---|---|
-| **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes — `uv sync --frozen` everywhere |
+| **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes - `uv sync --frozen` everywhere |
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
 | **pytest + coverage** | Unit + contract tests, plus a ratcheted branch-coverage floor | Yes, blocking (integration tests gated behind `-m integration`) |
 | **import-linter** | Dependency-direction (layer) contracts | Yes, blocking |
@@ -77,22 +77,22 @@ uv config, ruff config, bandit config, pyright config, and the import-linter con
 
 ## Repository layout
 
-- `distill/` — the Python package (all production code)
-- `tests/` — automated tests (unit + contract + integration)
-- `docs/` — long-form documentation; `docs/briefing-contexts/TEMPLATE.md` is the starting point for briefing prompts
-- `configs/` — sample config files for site batches (`example_seeds.json`) and other inputs
-- `scripts/setup.py` — end-user installer (interactive API key setup)
-- `private/` — drop any personal or client-specific files here (briefing contexts, custom seed files, scratch notes). The directory's contents are git-ignored except for `private/README.md`, which documents the convention
-- `library/`, `output/`, `tmp/` — git-ignored runtime directories; populated when you run distill locally
+- `distill/` - the Python package (all production code)
+- `tests/` - automated tests (unit + contract + integration)
+- `docs/` - long-form documentation; `docs/briefing-contexts/TEMPLATE.md` is the starting point for briefing prompts
+- `configs/` - sample config files for site batches (`example_seeds.json`) and other inputs
+- `scripts/setup.py` - end-user installer (interactive API key setup)
+- `private/` - drop any personal or client-specific files here (briefing contexts, custom seed files, scratch notes). The directory's contents are git-ignored except for `private/README.md`, which documents the convention
+- `library/`, `output/`, `tmp/` - git-ignored runtime directories; populated when you run distill locally
 
-## Project shape — what's in scope
+## Project shape - what's in scope
 
 Distill is a **source-to-intelligence platform**. Roughly: it discovers content across source types (YouTube, websites, arXiv, and more coming), captures it, analyzes it into per-item insights, synthesizes across items and topics, and produces reports and briefings. The output is a local markdown vault designed to be openable in Obsidian and similar tools, and queryable via MCP for agent workflows.
 
 In scope for contributions:
 
 - New source types (podcasts, RSS, conference talks) that fit the same capture → analyze → synthesize → report shape
-- Obsidian-native output features (wiki-linking, frontmatter, concept/entity extraction — see ROADMAP section 10)
+- Obsidian-native output features (wiki-linking, frontmatter, concept/entity extraction - see ROADMAP section 10)
 - Prompt quality improvements (especially where existing outputs feel thin or generic)
 - Cost/telemetry improvements
 - MCP server additions (new tools, resources, prompts)
@@ -189,32 +189,32 @@ Use this checklist for those changes:
 
 ## Git and GitHub hygiene
 
-- **One long-lived branch: `main`**, kept releasable (GitHub Flow). Do work on short-lived feature branches and open a PR; it squash-merges as one clean commit and the branch auto-deletes, so history stays linear and nothing stale accumulates. `main` is protected: the full CI gate must pass before merge, and force-pushes/deletions are blocked. Reviews are not required (0 approvals) and admins bypass the PR requirement, so a quick fix can still go straight to `main` when warranted — but the PR path is the default.
+- **One long-lived branch: `main`**, kept releasable (GitHub Flow). Do work on short-lived feature branches and open a PR; it squash-merges as one clean commit and the branch auto-deletes, so history stays linear and nothing stale accumulates. `main` is protected: the full CI gate must pass before merge, and force-pushes/deletions are blocked. Reviews are not required (0 approvals) and admins bypass the PR requirement, so a quick fix can still go straight to `main` when warranted - but the PR path is the default.
 - **No machine attribution in history.** Commits and PR bodies carry no `Co-authored-by`, `Generated with`, or agent/tool credit lines (Claude, Codex, Copilot, and the like). The author is the human who made the change; `git log` and blame stay honest.
-- **Dependabot stays off, deliberately** (removed in 0.9.23 — see the ROADMAP "Engineering standards: adopted, adapted, declined" entry). `pip-audit` in the CI gate covers vulnerable-dependency alerts without bot PRs or bot branches.
+- **Dependabot stays off, deliberately** (removed in 0.9.23 - see the ROADMAP "Engineering standards: adopted, adapted, declined" entry). `pip-audit` in the CI gate covers vulnerable-dependency alerts without bot PRs or bot branches.
 
 ## Pre-push checklist (release quality)
 
 Before pushing to main or tagging a release, run the full gate locally. CI catches these, but catching them locally avoids embarrassing red badges on the repo.
 
 ```bash
-# 1. Tests — including property-based tests (hypothesis)
+# 1. Tests - including property-based tests (hypothesis)
 uv run pytest -q --cov=distill --cov-fail-under=89
 
-# 2. Lint — both check and format
+# 2. Lint - both check and format
 uv run ruff check .
 uv run ruff format --check .
 
 # 3. Security
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium
 
-# 4. Type check — blocking on distill/llm/, advisory elsewhere
+# 4. Type check - blocking on distill/llm/, advisory elsewhere
 uv run pyright distill/llm/
 
 # 5. Dependency direction enforcement
 uv run lint-imports
 
-# 6. Build sanity — sdist + wheel build, web assets bundled
+# 6. Build sanity - sdist + wheel build, web assets bundled
 uv build
 
 # 7. Verify nothing unwanted is staged
@@ -226,16 +226,16 @@ Or just run `uv run pre-commit run --all-files` (with the pre-push hook installe
 
 Common mistakes that have burned us:
 
-- **Forgetting to re-lock after a dependency change.** Dev tooling lives in the `[dependency-groups].dev` group and runtime deps in `[project.dependencies]`. After editing either, run `uv lock` and commit the updated `uv.lock` — CI installs with `uv sync --frozen` and will fail if the lock is stale or missing the new dependency.
+- **Forgetting to re-lock after a dependency change.** Dev tooling lives in the `[dependency-groups].dev` group and runtime deps in `[project.dependencies]`. After editing either, run `uv lock` and commit the updated `uv.lock` - CI installs with `uv sync --frozen` and will fail if the lock is stale or missing the new dependency.
 - **`asyncio.get_event_loop()` on Linux.** Python 3.12+ on Linux has no default event loop in the main thread. Use `asyncio.run()` in tests, not `asyncio.get_event_loop().run_until_complete()`. It works on Windows locally but fails on CI.
 - **Forgetting `ruff format` after `ruff check --fix`.** Auto-fixes can leave formatting inconsistent. Always run both.
 - **Committing cache directories.** `.hypothesis/`, `__pycache__/`, `.ruff_cache/` must be in `.gitignore`. If you add a new tool that generates a cache dir, add it to `.gitignore` before running it.
-- **PyPI version reuse.** PyPI will never accept a re-upload of the same version number. If a tagged release has already been published, you must bump the version — even for a one-line fix. There is no workaround.
+- **PyPI version reuse.** PyPI will never accept a re-upload of the same version number. If a tagged release has already been published, you must bump the version - even for a one-line fix. There is no workaround.
 - **Tag before verifying CI.** Don't tag a release until CI is green on the commit you're tagging. Force-pushing tags to fix failures creates noise and can trigger duplicate PyPI uploads.
 
 ## Questions or proposals
 
-Open a GitHub issue before doing significant work on something new. A short description of what you want to build and why is enough — I'd rather talk through shape early than ask you to rework a finished PR.
+Open a GitHub issue before doing significant work on something new. A short description of what you want to build and why is enough - I'd rather talk through shape early than ask you to rework a finished PR.
 
 ## License
 

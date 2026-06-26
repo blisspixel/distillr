@@ -1,6 +1,6 @@
 # Grok 4.3 Migration Guide
 
-xAI retired several models from the API effective **May 15, 2026 at 12:00pm PT**. As of that date, requests to the retired slugs **redirect to `grok-4.3`** (or `grok-build-0.1` for `grok-code-fast-1`) and are **billed at the redirect target's rates** ($1.25/$2.50 for grok-4.3) — so they keep working but at grok-4.3 pricing, not the original cheaper rate. The slugs are expected to stop resolving entirely after a further deprecation window. This guide covers what you need to change.
+xAI retired several models from the API effective **May 15, 2026 at 12:00pm PT**. As of that date, requests to the retired slugs **redirect to `grok-4.3`** (or `grok-build-0.1` for `grok-code-fast-1`) and are **billed at the redirect target's rates** ($1.25/$2.50 for grok-4.3) - so they keep working but at grok-4.3 pricing, not the original cheaper rate. The slugs are expected to stop resolving entirely after a further deprecation window. This guide covers what you need to change.
 
 ## Retired Models
 
@@ -70,9 +70,9 @@ If you have retired models configured, you'll see:
 
 ## Grok 4.3 Highlights
 
-- **1 million token context window** — a 100K-char paper fits whole, no chunking needed
-- **Priced at $1.25 / 1M input and $2.50 / 1M output** — cheaper than the models it replaces for most workloads
-- **3 reasoning effort levels** — low, medium, high (configurable per workload)
+- **1 million token context window** - a 100K-char paper fits whole, no chunking needed
+- **Priced at $1.25 / 1M input and $2.50 / 1M output** - cheaper than the models it replaces for most workloads
+- **3 reasoning effort levels** - low, medium, high (configurable per workload)
 
 ## Reasoning Effort Configuration
 
@@ -113,8 +113,8 @@ Note: `grok-4.3` is more expensive than the fast-reasoning models it replaces, b
 ## Cost Impact
 
 For a typical 20-paper research run:
-- **Before** (grok-4-1-fast-reasoning at $0.20/$0.50): ~$0.15–$0.30
-- **After** (grok-4.3 at $1.25/$2.50): ~$0.80–$1.50
+- **Before** (grok-4-1-fast-reasoning at $0.20/$0.50): ~$0.15-$0.30
+- **After** (grok-4.3 at $1.25/$2.50): ~$0.80-$1.50
 
 The increase is modest in absolute terms and buys significantly better analysis quality plus the full 1M context window (no more 100K char truncation needed for cloud models).
 

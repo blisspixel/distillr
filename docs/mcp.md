@@ -25,7 +25,7 @@ Add to `claude_desktop_config.json`:
 Then ask Claude things like:
 
 - *"What are today's top items from my deals-channel watch?"*
-- *"Get me current on Microsoft Fabric — what changed this week?"*
+- *"Get me current on Microsoft Fabric - what changed this week?"*
 - *"Research Kubernetes cost optimization from YouTube."*
 
 ## Tools
@@ -68,7 +68,7 @@ crawling, writes, or spend, and that preview is allowed even when
 | `find_insights_summary` | Token-bounded, query-focused brief over a topic's matching insights (cached by corpus revision -- repeats are free; spend-gated in read-only mode) |
 | `list_topic_summary` | Free one-paragraph topic orientation for sub-agents choosing where to query |
 | `ask` | Answer a question grounded only in a topic's corpus, with cited sources (promotion via --save is CLI-only) |
-| `find_insights` | Ranked `(path, preview, score)` matches for a topic + query — paths, not payloads |
+| `find_insights` | Ranked `(path, preview, score)` matches for a topic + query - paths, not payloads |
 | `read_insight` | Read a specific insight artifact (drill-down after `find_insights`) |
 | `find_concepts` | Find concept/entity notes in a topic's playbook layer |
 | `read_concept` | Read a specific concept/entity note |

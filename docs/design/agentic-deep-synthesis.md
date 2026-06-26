@@ -1,8 +1,8 @@
-# Agentic deep synthesis — distill as "agentic IaC" for a corpus
+# Agentic deep synthesis - distill as "agentic IaC" for a corpus
 
 Status: design / RFC. Not yet built. This is the plan for turning distill's
 one-shot synthesis into an agentic loop that produces PhD-grade analysis on its
-own — no human hand-running the deep pass.
+own - no human hand-running the deep pass.
 
 Related: [`invariants.md`](../invariants.md), [`architecture.md`](../architecture.md),
 [`../../ROADMAP.md`](../../ROADMAP.md) (0.10 verify hook, `distill ask`,
@@ -28,7 +28,7 @@ what a researcher actually does:
    grounding check against the receipt.
 
 The requirement: **distill must close these gaps agentically, on its own.** Not a
-manual pass. The mental model the user named is *agentic IaC* — and it is exactly
+manual pass. The mental model the user named is *agentic IaC* - and it is exactly
 the right frame.
 
 ## The IaC mental model
@@ -45,7 +45,7 @@ converged system is a no-op.* Map that onto synthesis:
 | Apply | Verify-inward, discover-outward (receipted), reference-chase, re-synthesize. |
 | Converge / no-op | No new high-value sources, all load-bearing claims grounded, thesis stable across an iteration. |
 
-This frame also tells us what "done" means and guarantees termination — both of
+This frame also tells us what "done" means and guarantees termination - both of
 which a one-shot pipeline lacks.
 
 ## The depth ladder (the desired-state schema)
@@ -53,14 +53,14 @@ which a one-shot pipeline lacks.
 Four rungs, each a real artifact with provenance. Two exist, one is hidden, one
 is new.
 
-1. **Facts** — `claims.jsonl` (exists). Atomic, role-tagged, grounded claims with
+1. **Facts** - `claims.jsonl` (exists). Atomic, role-tagged, grounded claims with
    dataset/metric and S-P-O triples. Today it's a hidden intermediate; promote it
    to a first-class, inspectable rung.
-2. **Patterns** — cross-source clusters, comparison matrix, methodological
+2. **Patterns** - cross-source clusters, comparison matrix, methodological
    patterns & shared blind spots (exists, inside synthesis).
-3. **Insights** — second-order: what no single source says, named disagreements,
+3. **Insights** - second-order: what no single source says, named disagreements,
    soft spots (exists, inside synthesis).
-4. **Thesis / white space** — NEW. The defensible novel position, the unoccupied
+4. **Thesis / white space** - NEW. The defensible novel position, the unoccupied
    space, falsifiable hypotheses, "if the corpus is right, then X follows." Each
    thesis claim must cite the rungs below it and carry a grounding status.
 
@@ -111,7 +111,7 @@ threshold; every load-bearing claim is grounded; the thesis is unchanged across
 an iteration; OR a hard cap is hit (max iterations, budget ceiling). This is the
 IaC "no changes" steady state.
 
-## Invariant compliance — the tension and how it's resolved
+## Invariant compliance - the tension and how it's resolved
 
 distill's charter is the *verifiable corpus*: synthesize only the receipts,
 anti-hallucination, no free-floating external facts. "Do more searches during
@@ -122,12 +122,12 @@ synthesis" must not violate that. How each step stays in-charter:
   `ProvenanceFields`) *before* they can inform synthesis. The thesis cites only
   receipts. (User decision: receipted-outward + inward-verify.)
 - **No LLM as verifier-of-record.** Verify-inward is grep/regex first, small
-  local model second — the elaboration/helper role, never the decision role.
+  local model second - the elaboration/helper role, never the decision role.
   Matches the roadmap's verify-hook design and the alias-resolution stance.
 - **No cheap mode.** The loop reuses the existing calibrated analysis/synthesis
   prompts. Only the critic and thesis prompts are new, and they enter the golden
   eval gate like any other prompt (`prompt_id`-versioned).
-- **Cost discipline.** The loop is budget-bounded (per-run ceiling — generalizes
+- **Cost discipline.** The loop is budget-bounded (per-run ceiling - generalizes
   the user's "$3" instinct, and is already a 0.10 guardrail item). Caching of LLM
   intermediates (claims, critiques, re-synth) by content hash via the planned
   `distill/llm/cache.py` makes re-synthesis cheap.
@@ -136,7 +136,7 @@ synthesis" must not violate that. How each step stays in-charter:
 
 ## This is the capstone that unifies four roadmap items
 
-Deep synthesis is not a new direction — it's the integration of pieces already on
+Deep synthesis is not a new direction - it's the integration of pieces already on
 the roadmap into one loop:
 
 - **0.10 run-time verify hook** (claim grounding) → the verify-inward step.
@@ -149,11 +149,11 @@ the roadmap into one loop:
 - **shared LLM cache** (beyond-1.0) → makes the loop affordable.
 
 Framing for the roadmap: this is the milestone that turns distill from a
-*pipeline* into an agentic *steward of its own corpus* — the same gather → act →
+*pipeline* into an agentic *steward of its own corpus* - the same gather → act →
 verify loop Anthropic's Agent SDK formalizes, applied to research synthesis. It
 deserves to be named as the thing those four items add up to, not scattered.
 
-## Surface — no new command
+## Surface - no new command
 
 This is an *enhancement to the existing commands*, not a new verb. The thesis rung
 already ships inside `synthesize` / `resynthesize` (0.9.24). The reconciliation
@@ -174,7 +174,7 @@ The point is that "more agentic" must not grow distill's command surface.
 ## Build plan (phased, each shippable)
 
 1. **Thesis rung (prompt-only).** Add a thesis/white-space synthesis prompt over
-   the existing claim set. New `prompt_id`, golden-eval fixture. No loop yet —
+   the existing claim set. New `prompt_id`, golden-eval fixture. No loop yet -
    immediately upgrades output quality.
 2. **Verify-inward.** Implement the claim-grounding check (grep/regex + optional
    local model) as a standalone pass writing a `_verify.json` sidecar. This is
@@ -191,7 +191,7 @@ The point is that "more agentic" must not grow distill's command surface.
 - Does the thesis rung live in its own `_Thesis.md`, or as the capstone section of
   the existing synthesis? (Leaning: own file, so it can be regenerated/cited
   independently.)
-- Reference-chasing needs reference extraction from paper PDFs — is that in scope
+- Reference-chasing needs reference extraction from paper PDFs - is that in scope
   for v1 or deferred? (Leaning: defer; gap-driven discover covers most of it.)
 - Convergence on the thesis: "unchanged across an iteration" needs a stability
   metric. Semantic diff of thesis claims, or claim-set equality? (Leaning:
@@ -205,11 +205,11 @@ Found while running `distill discover` on the `agentic-harness` corpus:
 
 - **discover re-suggests already-ingested items** (no dedup of the rerank
   shortlist against the existing corpus). The reconciliation loop's idempotence
-  requirement fixes this directly — convergence *means* "no new sources," which
+  requirement fixes this directly - convergence *means* "no new sources," which
   requires corpus-aware dedup.
 - **Non-deterministic plan size and query generation** across identical runs
   (preview sized to 12 then 10; query sets differ run-to-run). Agentic IaC needs
   reproducible plans; seed/cache the query-generation + rerank.
 - **`steward` topic is polluted** with enterprise *data-stewardship* content
-  (Atlan/Aiven/Neo4j "context layer") — the bare word "steward" pulled the wrong
+  (Atlan/Aiven/Neo4j "context layer") - the bare word "steward" pulled the wrong
   field. A rigor/relevance floor on discover queries would have caught it.

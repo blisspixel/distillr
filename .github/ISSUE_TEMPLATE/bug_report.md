@@ -44,4 +44,4 @@ describe what's set up. Paste command output or a traceback if you have one.
 
 ## Additional context
 
-<!-- Anything else that might help — related issues, workarounds you tried, etc. -->
+<!-- Anything else that might help - related issues, workarounds you tried, etc. -->
