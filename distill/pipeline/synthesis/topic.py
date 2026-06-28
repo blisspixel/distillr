@@ -1,7 +1,11 @@
+# pyright: strict
 """Synthesis -- per-channel and per-topic knowledge bases."""
 
 import json
 import logging
+from collections.abc import Mapping
+from pathlib import Path
+from typing import cast
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -27,23 +31,28 @@ __all__ = [
 ]
 
 
-def _video_link_header(video_dir) -> str:
+def _metadata_string(value: object, fallback: str) -> str:
+    return value if isinstance(value, str) and value else fallback
+
+
+def _video_link_header(video_dir: Path) -> str:
     """Wiki-link header for one video's insight, from its metadata.json (best
     effort -- a missing or corrupt metadata file falls back to the dir name)."""
     title = source_id = video_dir.name
     meta_file = video_dir / "metadata.json"
     if meta_file.exists():
         try:
-            meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            if isinstance(meta, dict):
-                title = meta.get("title", title)
-                source_id = meta.get("video_id", source_id)
-        except (json.JSONDecodeError, OSError):
-            pass
+            meta: object = json.loads(meta_file.read_text(encoding="utf-8"))
+            if isinstance(meta, Mapping):
+                metadata = cast(Mapping[str, object], meta)
+                title = _metadata_string(metadata.get("title"), title)
+                source_id = _metadata_string(metadata.get("video_id"), source_id)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.debug("video metadata skipped for %s: %s", video_dir, exc)
     return emit_wiki_link(title, source_id, "insights")
 
 
-def _gather_video_insights(videos_dir) -> str:
+def _gather_video_insights(videos_dir: Path) -> str:
     """Concatenate every video insight under a channel, each with a source link."""
     parts: list[str] = []
     for video_dir in sorted(videos_dir.iterdir()):
@@ -144,7 +153,7 @@ def synthesize_channel(
     return synthesis
 
 
-def _gather_channel_syntheses(topic: str, channels_dir) -> dict[str, str]:
+def _gather_channel_syntheses(topic: str, channels_dir: Path) -> dict[str, str]:
     """Read every channel synthesis under a topic, each prefixed with its link."""
     syntheses: dict[str, str] = {}
     for channel_dir in sorted(channels_dir.iterdir()):

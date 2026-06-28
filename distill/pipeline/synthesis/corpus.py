@@ -1,3 +1,4 @@
+# pyright: strict
 """Mixed-source topic corpus synthesis."""
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ def synthesize_corpus_from_claims(
 
     Returns the synthesis text, ``""`` when no claims could be extracted
     (the caller falls back to single-pass), or ``None`` when verify strict
-    refused the write -- a refusal must not trigger the paid single-pass
+    refused the write -- a refusal must not trigger the paid fallback
     fallback, it must surface. Writes the same ``corpus_synthesis``
     artifact as the single-pass path, tagged with the claim-synthesis prompt id
     and ``two_pass: true`` provenance.
