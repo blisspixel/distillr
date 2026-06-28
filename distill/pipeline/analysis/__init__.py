@@ -1,4 +1,5 @@
-"""Analysis pipeline — per-source analysis orchestration."""
+# pyright: strict
+"""Analysis pipeline - per-source analysis orchestration."""
 
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import (

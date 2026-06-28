@@ -1,3 +1,4 @@
+# pyright: strict
 """Local media-file ingest orchestration (audio/video -> transcript -> insight).
 
 The "raw media" adapter the roadmap scoped as nearly-free once the local-file
@@ -52,7 +53,7 @@ class MediaIngestResult:
     transcript_path: Path | None
     insights_path: Path | None
     title: str
-    skipped_reasons: list[str] = field(default_factory=list)
+    skipped_reasons: list[str] = field(default_factory=list[str])
 
 
 def ingest_media_file(

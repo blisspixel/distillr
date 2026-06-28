@@ -1,3 +1,4 @@
+# pyright: strict
 """GitHub repository ingest orchestration.
 
 The repo counterpart to ``ingest_tweet`` / ``ingest_local_file``: capture the

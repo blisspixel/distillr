@@ -1,3 +1,4 @@
+# pyright: strict
 """Website page analysis and synthesis helpers."""
 
 from __future__ import annotations
@@ -93,7 +94,7 @@ def synthesize_site(
     if not pages_dir.exists():
         return ""
 
-    parts = []
+    parts: list[str] = []
     for page_dir in sorted(pages_dir.iterdir()):
         if not page_dir.is_dir():
             continue

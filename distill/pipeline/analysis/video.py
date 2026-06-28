@@ -1,3 +1,4 @@
+# pyright: strict
 """Per-video analysis via the LLM router."""
 
 from distill.config import DistillConfig

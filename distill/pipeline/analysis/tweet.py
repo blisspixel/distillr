@@ -1,3 +1,4 @@
+# pyright: strict
 """Tweet ingestion + analysis orchestration.
 
 Pulls a tweet via the syndication endpoint, optionally downloads and
@@ -47,7 +48,7 @@ class IngestedTweet:
     media_path: Path | None = None
     transcript_text: str = ""
     insights_text: str = ""
-    skipped_reasons: list[str] = field(default_factory=list)
+    skipped_reasons: list[str] = field(default_factory=list[str])
 
 
 def _x_post_dir(config: DistillConfig, topic: str, tweet: TweetRecord) -> Path:
@@ -67,7 +68,7 @@ def _tweet_identity(tweet: TweetRecord) -> str:
 
 def _tweet_markdown(tweet: TweetRecord, transcript_text: str) -> str:
     lines = [
-        f"# {tweet.author_name} ({tweet.display_handle}) — {tweet.published_iso or tweet.created_at}",
+        f"# {tweet.author_name} ({tweet.display_handle}) - {tweet.published_iso or tweet.created_at}",
         "",
         f"Source: {tweet.url}",
         f"Likes: {tweet.like_count}  •  Replies: {tweet.reply_count}",
@@ -114,7 +115,7 @@ def _source_text_hint(tweet: TweetRecord) -> str:
         parts.append(tweet.text)
     if tweet.note_text and tweet.note_text.strip() != tweet.text.strip():
         parts.append(tweet.note_text)
-    return " — ".join(parts)
+    return " - ".join(parts)
 
 
 def _expanded_vocabulary_hint(
@@ -127,7 +128,7 @@ def _expanded_vocabulary_hint(
     Returns a comma-separated string of proper nouns the attached video
     is likely to mention. Empty string on failure (transcription
     proceeds with just the source-text hint). The LLM call is cheap
-    (small input, small output) — typically a few hundred tokens total.
+    (small input, small output) - typically a few hundred tokens total.
     """
     rc = RouterConfig()
     duration_s = tweet.video_duration_ms / 1000.0
@@ -160,20 +161,20 @@ def _vocabulary_hint(tweet: TweetRecord, *, tracker: CostTracker | None = None) 
     """Whisper ``initial_prompt`` combining source text and LLM expansion.
 
     Layered approach:
-    1. Source-text hint (tweet body + author) — proper nouns the
+    1. Source-text hint (tweet body + author) - proper nouns the
        poster literally spelled.
-    2. LLM-expanded hint — proper nouns the tweet implies but doesn't
+    2. LLM-expanded hint - proper nouns the tweet implies but doesn't
        spell out (Anthropic tweet about Claude → also "Claude Code",
        "CLAUDE.md", "MCP", etc.).
 
-    Both layers are joined with ``" — "``. Whisper's effective prompt
+    Both layers are joined with ``" - "``. Whisper's effective prompt
     budget is ~200 tokens; ``_clip_for_whisper`` in transcribe.py trims
     the combined string at a word boundary if it overflows.
     """
     source = _source_text_hint(tweet)
     expanded = _expanded_vocabulary_hint(tweet, tracker=tracker)
     if expanded and source:
-        return f"{source} — {expanded}"
+        return f"{source} - {expanded}"
     return expanded or source
 
 

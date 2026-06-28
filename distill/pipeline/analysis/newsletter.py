@@ -1,3 +1,4 @@
+# pyright: strict
 """Newsletter (Substack-class) ingest orchestration.
 
 The same RSS capture path as podcasts -- one feed parser, one hardened
@@ -69,9 +70,9 @@ class NewsletterIngestResult:
     """Artifacts and notes from ingesting one feed's post(s)."""
 
     feed_title: str
-    content_paths: list[Path] = field(default_factory=list)
-    insight_paths: list[Path] = field(default_factory=list)
-    skipped_reasons: list[str] = field(default_factory=list)
+    content_paths: list[Path] = field(default_factory=list[Path])
+    insight_paths: list[Path] = field(default_factory=list[Path])
+    skipped_reasons: list[str] = field(default_factory=list[str])
 
 
 def ingest_newsletter(

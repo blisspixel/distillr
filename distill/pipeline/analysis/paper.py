@@ -1,3 +1,4 @@
+# pyright: strict
 """Paper analysis and synthesis helpers."""
 
 from __future__ import annotations

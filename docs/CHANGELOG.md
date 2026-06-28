@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Ratcheted `distill.pipeline.gaps` to Pyright strict mode, with typed
   inventory and gap-summary payloads for audit, MCP, and gap-driven discovery.
+- Ratcheted `distill.pipeline.analysis` to Pyright strict mode across website,
+  video, paper, newsletter, local-file, media, podcast, repository, and X
+  ingestion boundaries.
 
 ### Fixed
 

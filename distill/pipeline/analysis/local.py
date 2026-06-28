@@ -1,3 +1,4 @@
+# pyright: strict
 """Local-file ingest orchestration.
 
 The local-file counterpart to ``ingest_tweet``: extract text from an on-disk

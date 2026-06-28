@@ -104,7 +104,7 @@ def _split_into_sections(content: str) -> list[tuple[str, str]]:
 
     for line in lines:
         if re.match(r"^#{1,6}\s+", line):
-            # New heading — flush previous section
+            # New heading, flush previous section.
             if current_heading or current_body:
                 sections.append((current_heading, "\n".join(current_body)))
             current_heading = line
@@ -167,7 +167,7 @@ def _hard_split_text(text: str, prefix: str, max_tokens: int) -> list[str]:
     Each returned chunk carries ``prefix`` and stays within budget, splitting on
     word boundaries first and falling back to a character cut for any single
     word that alone exceeds the budget. Only reached when one paragraph is
-    larger than the whole available window — a local small-window concern the
+    larger than the whole available window, a local small-window concern the
     section/paragraph passes above cannot resolve, so without this a single
     giant paragraph would be emitted as one over-window chunk.
     """

@@ -1,3 +1,4 @@
+# pyright: strict
 """Podcast episode ingest orchestration.
 
 RSS-first capture with a transcript ladder that prefers free text over paid
@@ -58,9 +59,9 @@ class PodcastIngestResult:
     """Artifacts and notes from ingesting one feed's episode(s)."""
 
     feed_title: str
-    episode_paths: list[Path] = field(default_factory=list)  # Episode.md receipts
-    insight_paths: list[Path] = field(default_factory=list)
-    skipped_reasons: list[str] = field(default_factory=list)
+    episode_paths: list[Path] = field(default_factory=list[Path])  # Episode.md receipts
+    insight_paths: list[Path] = field(default_factory=list[Path])
+    skipped_reasons: list[str] = field(default_factory=list[str])
 
 
 def _episode_markdown(feed: PodcastFeed, ep: PodcastEpisode, transcript_source: str) -> str:
