@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Ratcheted `distill.pipeline.ranking` to Pyright strict mode and parsed LLM
+  rerank response rows into typed object dictionaries before ranking fields are
+  read.
+
 ## 0.19.7 - 2026-06-28
 
 ### Added

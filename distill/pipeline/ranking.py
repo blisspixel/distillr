@@ -1,10 +1,13 @@
+# pyright: strict
 """Candidate reranking for topic-first YouTube learning."""
 
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol, cast
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -24,6 +27,10 @@ __all__ = [
 ]
 
 
+class _SelectableRanked(Protocol):
+    selected_by: str
+
+
 def _rerank_model_available() -> bool:
     """Is a model configured for the rerank workload (cloud key OR local provider)?
 
@@ -39,7 +46,7 @@ def _rerank_model_available() -> bool:
     return model_available("rerank")
 
 
-def _mark_no_model(ranked: list) -> list:
+def _mark_no_model[RankedT: _SelectableRanked](ranked: list[RankedT]) -> list[RankedT]:
     """Relabel a deterministic order as the forced no-model fallback (P2).
 
     Both ``RankedVideo`` and ``RankedPaper`` carry ``selected_by``; setting it to
@@ -138,21 +145,21 @@ def _llm_rerank(
         return []
 
     by_id = {video.video_id: video for video in videos}
-    ranked = []
+    ranked: list[RankedVideo] = []
     for item in parsed:
-        video = by_id.get(item.get("video_id", ""))
+        video = by_id.get(_text_field(item, "video_id"))
         if not video:
             continue
         ranked.append(
             RankedVideo(
                 video=video,
-                final_score=float(item.get("final_score", 0.0)),
-                relevance_score=float(item.get("relevance_score", 0.0)),
-                depth_score=float(item.get("depth_score", 0.0)),
-                practicality_score=float(item.get("practicality_score", 0.0)),
-                freshness_score=float(item.get("freshness_score", 0.0)),
-                credibility_score=float(item.get("credibility_score", 0.0)),
-                rationale=str(item.get("rationale", "")).strip()
+                final_score=_float_field(item, "final_score"),
+                relevance_score=_float_field(item, "relevance_score"),
+                depth_score=_float_field(item, "depth_score"),
+                practicality_score=_float_field(item, "practicality_score"),
+                freshness_score=_float_field(item, "freshness_score"),
+                credibility_score=_float_field(item, "credibility_score"),
+                rationale=_string_field(item, "rationale").strip()
                 or "Best-fit candidate for the query.",
                 selected_by="llm",
             )
@@ -161,7 +168,7 @@ def _llm_rerank(
     return sorted(ranked, key=lambda item: item.final_score, reverse=True)
 
 
-def _parse_rerank_response(content: str) -> list[dict]:
+def _parse_rerank_response(content: str) -> list[dict[str, object]]:
     if not content:
         return []
     from distill.llm.json_extract import extract_json
@@ -169,9 +176,42 @@ def _parse_rerank_response(content: str) -> list[dict]:
     data = extract_json(content)
     if data is None:
         return []
-    if isinstance(data, dict):
+    if isinstance(data, Mapping):
         data = data.get("ranked_videos", [])
-    return data if isinstance(data, list) else []
+    return _parse_object_rows(data)
+
+
+def _parse_object_rows(data: object) -> list[dict[str, object]]:
+    if not isinstance(data, list):
+        return []
+
+    parsed: list[dict[str, object]] = []
+    for item in cast(list[object], data):
+        if not isinstance(item, Mapping):
+            continue
+        row: dict[str, object] = {}
+        for key, value in cast(Mapping[object, object], item).items():
+            if isinstance(key, str):
+                row[key] = value
+        if row:
+            parsed.append(row)
+    return parsed
+
+
+def _text_field(item: Mapping[str, object], key: str) -> str:
+    value = item.get(key, "")
+    return value if isinstance(value, str) else ""
+
+
+def _string_field(item: Mapping[str, object], key: str) -> str:
+    return str(item.get(key, ""))
+
+
+def _float_field(item: Mapping[str, object], key: str) -> float:
+    value = item.get(key, 0.0)
+    if isinstance(value, str | int | float):
+        return float(value)
+    raise TypeError(f"{key} must be number-like")
 
 
 def _heuristic_rank(
@@ -188,7 +228,7 @@ def _heuristic_rank(
     order without a model", never "a quality score" -- the model is the judge when
     there is one. See docs/design/model-judgment-vs-brittle-fallbacks.md.
     """
-    ranked = []
+    ranked: list[RankedVideo] = []
     for video in videos:
         relevance = _query_overlap(query, video)
         depth = _depth_score(video.duration)
@@ -277,14 +317,14 @@ def chronological_rank(videos: list[VideoInfo], top_n: int) -> list[RankedVideo]
     Videos with unparseable upload dates land at the bottom of the order.
     """
 
-    def _sort_key(video: VideoInfo):
+    def _sort_key(video: VideoInfo) -> datetime:
         try:
             return datetime.strptime(video.upload_date or "", "%Y%m%d")
         except ValueError:
             return datetime(1, 1, 1)
 
     sorted_by_date = sorted(videos, key=_sort_key, reverse=True)
-    ranked = []
+    ranked: list[RankedVideo] = []
     for video in sorted_by_date[:top_n]:
         freshness = _freshness_score(video.upload_date or "")
         ranked.append(
@@ -388,7 +428,7 @@ def _heuristic_reason(
     *,
     skeptical_notes: list[str] | None = None,
 ) -> str:
-    parts = []
+    parts: list[str] = []
     if topicality >= 0.7:
         parts.append("strong topic fit")
     if relevance >= 0.6:
@@ -403,8 +443,8 @@ def _heuristic_reason(
 
 
 def _tokenize(text: str) -> list[str]:
-    cleaned = []
-    current = []
+    cleaned: list[str] = []
+    current: list[str] = []
     for char in text.lower():
         if char.isalnum():
             current.append(char)
@@ -560,18 +600,18 @@ def _llm_rerank_papers(
     by_id = {paper.paper_id: paper for paper in papers}
     ranked: list[RankedPaper] = []
     for item in parsed:
-        paper = by_id.get(item.get("paper_id", ""))
+        paper = by_id.get(_text_field(item, "paper_id"))
         if not paper:
             continue
         ranked.append(
             RankedPaper(
                 paper=paper,
-                final_score=float(item.get("final_score", 0.0)),
-                relevance_score=float(item.get("relevance_score", 0.0)),
-                depth_score=float(item.get("depth_score", 0.0)),
-                novelty_score=float(item.get("novelty_score", 0.0)),
-                credibility_score=float(item.get("credibility_score", 0.0)),
-                rationale=str(item.get("rationale", "")).strip()
+                final_score=_float_field(item, "final_score"),
+                relevance_score=_float_field(item, "relevance_score"),
+                depth_score=_float_field(item, "depth_score"),
+                novelty_score=_float_field(item, "novelty_score"),
+                credibility_score=_float_field(item, "credibility_score"),
+                rationale=_string_field(item, "rationale").strip()
                 or "Best-fit candidate for the query.",
                 selected_by="llm",
             )
@@ -579,7 +619,7 @@ def _llm_rerank_papers(
     return sorted(ranked, key=lambda item: item.final_score, reverse=True)
 
 
-def _parse_paper_rerank_response(content: str) -> list[dict]:
+def _parse_paper_rerank_response(content: str) -> list[dict[str, object]]:
     if not content:
         return []
     from distill.llm.json_extract import extract_json
@@ -587,9 +627,9 @@ def _parse_paper_rerank_response(content: str) -> list[dict]:
     data = extract_json(content)
     if data is None:
         return []
-    if isinstance(data, dict):
+    if isinstance(data, Mapping):
         data = data.get("ranked_papers", [])
-    return data if isinstance(data, list) else []
+    return _parse_object_rows(data)
 
 
 def _heuristic_rank_papers(query: str, papers: list[PaperRecord]) -> list[RankedPaper]:
@@ -705,7 +745,7 @@ def _paper_credibility_score(paper: PaperRecord) -> float:
 def _paper_heuristic_reason(
     relevance: float, depth: float, novelty: float, credibility: float
 ) -> str:
-    parts = []
+    parts: list[str] = []
     if relevance >= 0.7:
         parts.append("strong title/abstract match")
     if depth >= 0.7:
