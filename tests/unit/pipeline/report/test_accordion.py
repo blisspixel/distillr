@@ -14,7 +14,6 @@ from distill.pipeline.report.accordion import (
     _count_sources,
     _extract_section_feedback,
     _gather_tagged_materials,
-    _get_dossier_path,
     _get_research_path,
     _load_syntheses,
     _load_tagged_insights,
@@ -276,22 +275,6 @@ class TestScopeLabel:
 
     def test_all_scope(self):
         assert "Library" in _scope_label("all", "ai", None)
-
-
-class TestDossierPath:
-    def test_topic_path(self, config):
-        path = _get_dossier_path("ai", config, "topic", None)
-        assert path.name == "dossier.md"
-        assert "ai" in str(path)
-
-    def test_channel_path(self, config):
-        path = _get_dossier_path("ai", config, "channel", "TestCh")
-        assert path.name == "dossier.md"
-        assert "TestCh" in str(path)
-
-    def test_all_path(self, config):
-        path = _get_dossier_path("all", config, "all", None)
-        assert path.name == "dossier.md"
 
 
 class TestResearchPath:
@@ -558,6 +541,24 @@ class TestTaggedHelpers:
 
         assert "Video 0" in loaded
         assert "Video 1" not in loaded
+
+    def test_load_tagged_insights_ignores_non_string_metadata(self, config):
+        vid_dir = config.video_dir("ai", "TestChannel", "vid0")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "metadata.json").write_text('{"title": 12, "video_id": false}', encoding="utf-8")
+        (vid_dir / "insights.md").write_text("Microsoft enterprise notes", encoding="utf-8")
+
+        loaded = _load_tagged_insights(
+            "ai",
+            config,
+            "topic",
+            None,
+            keywords=["Microsoft"],
+            max_chars=10000,
+        )
+
+        assert "**vid0**" in loaded
+        assert "False" not in loaded
 
 
 class TestQaPhase:

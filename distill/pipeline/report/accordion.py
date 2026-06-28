@@ -1,3 +1,4 @@
+# pyright: strict
 """Accordion method -- Deep Research dossier + section-by-section Grok writing."""
 
 import hashlib
@@ -6,6 +7,7 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 from google import genai
 
@@ -52,6 +54,7 @@ __all__ = [
 # Standard variant, not the pricier deep-research-max-preview-04-2026.
 DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 MAX_CORPUS_CHARS = 350_000
+type ChannelRef = tuple[str, str]
 
 
 def run_accordion_research(
@@ -635,8 +638,8 @@ def _parse_qa_failures(qa_result: str) -> list[str]:
     """Extract section titles that scored FAIL from QA output."""
     import re
 
-    failed = []
-    current_section = None
+    failed: list[str] = []
+    current_section: str | None = None
 
     for line in qa_result.split("\n"):
         stripped = line.strip()
@@ -662,10 +665,10 @@ def _parse_qa_failures(qa_result: str) -> list[str]:
 
 def _extract_section_feedback(qa_result: str) -> dict[str, str]:
     """Extract per-section feedback text from QA output."""
-    feedback = {}
+    feedback: dict[str, str] = {}
     lines = qa_result.split("\n")
-    current_section = None
-    current_lines = []
+    current_section: str | None = None
+    current_lines: list[str] = []
 
     for line in lines:
         stripped = line.strip()
@@ -741,7 +744,7 @@ def _gather_tagged_materials(
     channel_name: str | None,
 ) -> dict[str, str]:
     """Gather section-specific source material from the corpus."""
-    tagged = {}
+    tagged: dict[str, str] = {}
 
     syntheses = _load_syntheses(topic, config, scope, channel_name)
     if syntheses:
@@ -784,29 +787,8 @@ def _load_syntheses(
     channel_name: str | None,
 ) -> str:
     """Load channel and topic syntheses as supplementary material."""
-    parts = []
-
-    if scope == "channel" and channel_name:
-        channels = [(topic, channel_name)]
-    elif scope == "topic":
-        ch_dir = config.topic_dir(topic) / "channels"
-        channels = (
-            [(topic, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()]
-            if ch_dir.exists()
-            else []
-        )
-    else:
-        channels = []
-        topics_root = config.topics_dir()
-        if topics_root.exists():
-            for t_dir in sorted(topics_root.iterdir()):
-                if not t_dir.is_dir():
-                    continue
-                ch_dir = t_dir / "channels"
-                if ch_dir.exists():
-                    channels.extend(
-                        (t_dir.name, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()
-                    )
+    parts: list[str] = []
+    channels = _channels_for_scope(topic, config, scope, channel_name)
 
     for t, ch in channels:
         synth_file = find_artifact(
@@ -830,7 +812,7 @@ def _load_syntheses(
     return "\n\n".join(parts) if parts else ""
 
 
-def _load_tagged_insights(  # noqa: C901 - legacy, will refactor
+def _load_tagged_insights(
     topic: str,
     config: DistillConfig,
     scope: str,
@@ -839,29 +821,8 @@ def _load_tagged_insights(  # noqa: C901 - legacy, will refactor
     max_chars: int = 30000,
 ) -> str:
     """Load insights that mention specific keywords."""
-    if scope == "channel" and channel_name:
-        channels = [(topic, channel_name)]
-    elif scope == "topic":
-        ch_dir = config.topic_dir(topic) / "channels"
-        channels = (
-            [(topic, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()]
-            if ch_dir.exists()
-            else []
-        )
-    else:
-        channels = []
-        topics_root = config.topics_dir()
-        if topics_root.exists():
-            for t_dir in sorted(topics_root.iterdir()):
-                if not t_dir.is_dir():
-                    continue
-                ch_dir = t_dir / "channels"
-                if ch_dir.exists():
-                    channels.extend(
-                        (t_dir.name, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()
-                    )
-
-    matching = []
+    channels = _channels_for_scope(topic, config, scope, channel_name)
+    matching: list[str] = []
     total_chars = 0
     keywords_lower = [k.lower() for k in keywords]
 
@@ -880,13 +841,9 @@ def _load_tagged_insights(  # noqa: C901 - legacy, will refactor
             content_lower = content.lower()
 
             if any(kw in content_lower for kw in keywords_lower):
-                meta_file = vid_dir / "metadata.json"
-                title = vid_dir.name
-                source_id = vid_dir.name
-                if meta_file.exists():
-                    meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                    title = meta.get("title", vid_dir.name)
-                    source_id = meta.get("video_id", vid_dir.name)
+                title, source_id = _read_video_metadata_title_and_id(
+                    vid_dir / "metadata.json", fallback=vid_dir.name
+                )
 
                 link = emit_wiki_link(title, source_id, "insights")
                 entry = f"**{title}** ({ch}) {link}:\n{content}\n"
@@ -896,6 +853,59 @@ def _load_tagged_insights(  # noqa: C901 - legacy, will refactor
                 total_chars += len(entry)
 
     return "\n---\n".join(matching) if matching else ""
+
+
+def _channels_for_scope(
+    topic: str,
+    config: DistillConfig,
+    scope: str,
+    channel_name: str | None,
+) -> list[ChannelRef]:
+    if scope == "channel" and channel_name:
+        return [(topic, channel_name)]
+
+    if scope == "topic":
+        ch_dir = config.topic_dir(topic) / "channels"
+        if not ch_dir.exists():
+            return []
+        return [(topic, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()]
+
+    channels: list[ChannelRef] = []
+    topics_root = config.topics_dir()
+    if not topics_root.exists():
+        return channels
+
+    for t_dir in sorted(topics_root.iterdir()):
+        if not t_dir.is_dir():
+            continue
+        ch_dir = t_dir / "channels"
+        if ch_dir.exists():
+            channels.extend((t_dir.name, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir())
+
+    return channels
+
+
+def _read_video_metadata_title_and_id(meta_file: Path, fallback: str) -> tuple[str, str]:
+    if not meta_file.exists():
+        return fallback, fallback
+
+    try:
+        raw = json.loads(meta_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.debug("Ignoring unreadable video metadata at %s: %s", meta_file, exc)
+        return fallback, fallback
+
+    if not isinstance(raw, dict):
+        logger.debug("Ignoring non-object video metadata at %s", meta_file)
+        return fallback, fallback
+
+    meta = cast("dict[str, Any]", raw)
+    title = meta.get("title")
+    source_id = meta.get("video_id")
+    return (
+        title if isinstance(title, str) and title else fallback,
+        source_id if isinstance(source_id, str) and source_id else fallback,
+    )
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────
@@ -934,21 +944,6 @@ def _get_research_path(
         return artifact_path(config.library_dir, "research", identity="library")
 
 
-def _get_dossier_path(
-    topic: str,
-    config: DistillConfig,
-    scope: str,
-    channel_name: str | None,
-) -> Path:
-    """Legacy path helper kept for compatibility with older callers and tests."""
-    if scope == "channel" and channel_name:
-        return config.channel_dir(topic, channel_name) / "dossier.md"
-    elif scope == "topic":
-        return config.topic_dir(topic) / "dossier.md"
-    else:
-        return config.library_dir / "dossier.md"
-
-
 def _scope_label(scope: str, topic: str, channel_name: str | None) -> str:
     if scope == "channel" and channel_name:
         return f"Channel: {channel_name} ({topic})"
@@ -965,27 +960,7 @@ def _count_sources(
     channel_name: str | None,
 ) -> tuple[int, int]:
     """Count videos and channels in scope."""
-    if scope == "channel" and channel_name:
-        channels = [(topic, channel_name)]
-    elif scope == "topic":
-        ch_dir = config.topic_dir(topic) / "channels"
-        channels = (
-            [(topic, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()]
-            if ch_dir.exists()
-            else []
-        )
-    else:
-        channels = []
-        topics_root = config.topics_dir()
-        if topics_root.exists():
-            for t_dir in sorted(topics_root.iterdir()):
-                if not t_dir.is_dir():
-                    continue
-                ch_dir = t_dir / "channels"
-                if ch_dir.exists():
-                    channels.extend(
-                        (t_dir.name, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()
-                    )
+    channels = _channels_for_scope(topic, config, scope, channel_name)
 
     video_count = 0
     for t, ch in channels:
