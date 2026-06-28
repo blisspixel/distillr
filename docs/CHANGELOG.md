@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted the lightweight report briefing boundary to Pyright strict mode,
   parsing video metadata through typed object checks and logging malformed
   metadata at debug level.
+- Ratcheted the Gemini Deep Research report boundary to Pyright strict mode and
+  removed the unused condensed-corpus helper that File Search had superseded.
 
 ### Fixed
 
