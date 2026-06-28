@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added the first generated contract test using `deal.cases`, covering arbitrary
+  note text through `concepts.recovery.parse_note_fields` without adding extra
+  runtime or dev dependencies.
 - Added a manual, non-blocking GitHub Actions mutation diagnostic for the 1.0
   verification-depth milestone. The first Phase 0 scope mutates
   `distill/concepts/merge.py` against `tests/unit/concepts/test_merge.py`, with
