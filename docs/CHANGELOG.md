@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted `distill.pipeline.summary` to Pyright strict mode, with typed
   run-summary defaults and observable debug logging for non-fatal cost-log
   write failures.
+- Ratcheted the report interactions boundary to Pyright strict mode, parsing
+  external Gemini interaction shapes into typed object and sequence checks
+  before reading model output text or polling status.
 
 ### Fixed
 

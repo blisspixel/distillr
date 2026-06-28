@@ -1,3 +1,4 @@
+# pyright: strict
 """Shared parse-once boundary for the google-genai Interactions API.
 
 Gemini Deep Research runs through ``client.interactions``. The SDK's response
@@ -19,7 +20,8 @@ Two functions:
 """
 
 import time
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import cast
 
 from rich.console import Console
 
@@ -36,7 +38,28 @@ __all__ = [
 POLLING_STATUSES = frozenset({"in_progress", "requires_action"})
 
 
-def interaction_text(interaction: Any) -> str:
+def _attr(value: object, name: str, default: object = None) -> object:
+    return cast(object, getattr(value, name, default))
+
+
+def _as_sequence(value: object) -> Sequence[object]:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return cast(Sequence[object], value)
+    return ()
+
+
+def _sequence_attr(value: object, name: str) -> Sequence[object]:
+    return _as_sequence(_attr(value, name))
+
+
+def _get_interaction(client: object, interaction_id: str) -> object:
+    get_method = _attr(_attr(client, "interactions"), "get")
+    if not callable(get_method):
+        raise TypeError("client.interactions.get is not callable")
+    return cast(Callable[[str], object], get_method)(interaction_id)
+
+
+def interaction_text(interaction: object) -> str:
     """Extract the model's text answer from a completed interaction.
 
     google-genai 2.7+ exposes the answer as ``steps`` -- the final
@@ -45,35 +68,39 @@ def interaction_text(interaction: Any) -> str:
     Older SDKs exposed ``outputs`` instead; that path is kept as a fallback.
     Returns ``""`` when no text is present.
     """
-    steps = getattr(interaction, "steps", None) or []
-    model_outputs = [s for s in steps if getattr(s, "type", None) == "model_output"]
+    steps = _sequence_attr(interaction, "steps")
+    model_outputs = [step for step in steps if _attr(step, "type") == "model_output"]
     if model_outputs:
-        parts = getattr(model_outputs[-1], "content", None) or []
-        text = "".join(
-            part.text
-            for part in parts
-            if getattr(part, "type", None) == "text" and getattr(part, "text", None)
-        )
+        parts = _sequence_attr(model_outputs[-1], "content")
+        fragments: list[str] = []
+        for part in parts:
+            if _attr(part, "type") != "text":
+                continue
+            text_part = _attr(part, "text")
+            if isinstance(text_part, str) and text_part:
+                fragments.append(text_part)
+        text = "".join(fragments)
         if text:
             return text
 
     # Legacy google-genai (< 2.7): the answer lived in outputs[-1].text.
-    legacy = getattr(interaction, "outputs", None)
+    legacy = _sequence_attr(interaction, "outputs")
     if legacy:
-        return getattr(legacy[-1], "text", "") or ""
+        legacy_text = _attr(legacy[-1], "text", "")
+        return legacy_text if isinstance(legacy_text, str) else ""
 
     return ""
 
 
 def await_interaction(
-    client: Any,
+    client: object,
     interaction_id: str,
     console: Console,
     *,
     label: str,
     poll_secs: int = 15,
     max_polls: int = 240,
-) -> Any | None:
+) -> object | None:
     """Poll a background interaction until it reaches a terminal state.
 
     Returns the interaction when it ``completed``; returns ``None`` for every
@@ -92,8 +119,9 @@ def await_interaction(
     status = "unknown"
     poll = 0
     while poll < max_polls:
-        interaction = client.interactions.get(interaction_id)
-        status = interaction.status
+        interaction = _get_interaction(client, interaction_id)
+        status_value = _attr(interaction, "status", "unknown")
+        status = status_value if isinstance(status_value, str) else "unknown"
         poll += 1
 
         if status == "completed":

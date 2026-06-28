@@ -82,6 +82,18 @@ def test_interaction_text_empty_returns_empty_string():
     assert interaction_text(SimpleNamespace(steps=[_model_output()])) == ""
 
 
+def test_interaction_text_ignores_malformed_text_field():
+    interaction = SimpleNamespace(
+        steps=[
+            SimpleNamespace(
+                type="model_output",
+                content=[SimpleNamespace(type="text", text={"not": "text"})],
+            )
+        ]
+    )
+    assert interaction_text(interaction) == ""
+
+
 # ── await_interaction ─────────────────────────────────────────────────
 
 
@@ -158,6 +170,14 @@ def test_await_interaction_fails_closed_on_unknown_status():
     console, _buf = _console()
     result = await_interaction(client, "job-1", console, label="Research")
     assert result is None
+
+
+def test_await_interaction_fails_closed_on_malformed_status():
+    client = _FakeClient([SimpleNamespace(status={"bad": "status"}, steps=[])])
+    console, buf = _console()
+    result = await_interaction(client, "job-1", console, label="Research")
+    assert result is None
+    assert "unknown" in buf.getvalue()
 
 
 def test_await_interaction_times_out_when_status_never_advances():
