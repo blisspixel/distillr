@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.7 - 2026-06-28
+
 ### Added
 
 - Added recovery mutation-survivor tests for collision-bumped note lookup,
