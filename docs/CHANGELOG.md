@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.6 - 2026-06-28
+
 ### Changed
 
 - Removed legacy Anthropic and OpenAI dead provider modules and corrected
