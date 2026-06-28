@@ -98,7 +98,7 @@ def _is_safe_slug(slug: str) -> bool:
     """
     if not slug or "\x00" in slug:
         return False
-    if "/" in slug or "\\" in slug or slug in (".", ".."):
+    if "/" in slug or "\\" in slug or ":" in slug or slug in (".", ".."):
         return False
     return slug == Path(slug).name
 

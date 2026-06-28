@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added recovery mutation-survivor tests for collision-bumped note lookup,
+  whitespace-tolerant snapshot resolution, malformed source filtering, rollup
+  row replacement, entity rollup routing, and rollback sorting.
+
+### Fixed
+
+- Rejected colon-bearing concept recovery slugs so Windows drive-style inputs
+  fail closed on every platform.
+
 ## 0.19.6 - 2026-06-28
 
 ### Changed

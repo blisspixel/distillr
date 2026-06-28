@@ -200,6 +200,12 @@ class TestResolveSnapshot:
         )
         assert snap is not None
 
+    def test_resolves_after_trimming_whitespace(self, history_topic: Path) -> None:
+        snap = recovery.resolve_snapshot(
+            history_topic, "rotational_embedding", " 2026-05-29T08:10:31Z.md \n"
+        )
+        assert snap is not None and snap.safe_ts == "2026-05-29T08-10-31Z"
+
     def test_returns_none_for_unknown(self, history_topic: Path) -> None:
         assert (
             recovery.resolve_snapshot(history_topic, "rotational_embedding", "1999-01-01") is None
@@ -226,6 +232,23 @@ class TestNotePathForSlug:
         write_playbook(td, ent, now_iso="2026-05-29T09:00:00Z")
         path = recovery.note_path_for_slug(td, "deepmind")
         assert path is not None and path.parent.name == "entities"
+
+    def test_scans_collision_bumped_note_by_frontmatter_slug(self, tmp_path: Path) -> None:
+        td = tmp_path / "topics" / "tkg"
+        note_dir = td / "concepts"
+        note_dir.mkdir(parents=True)
+        bumped = note_dir / "rotational_embedding__2.md"
+        bumped.write_text(
+            "---\n"
+            "slug: rotational_embedding\n"
+            "normalized_name: rotational embedding duplicate\n"
+            "---\n"
+            "body\n",
+            encoding="utf-8",
+        )
+
+        path = recovery.note_path_for_slug(td, "rotational_embedding")
+        assert path == bumped
 
     def test_returns_none_when_missing(self, tmp_path: Path) -> None:
         assert recovery.note_path_for_slug(tmp_path, "ghost") is None
@@ -299,6 +322,39 @@ class TestDiffNotes:
         assert diff.sources_added == ["C"]
         assert diff.sources_removed == []
 
+    def test_detects_removed_sources_and_uses_labels_in_body_diff(self) -> None:
+        old = """---
+sources: [{"source_id": "A", "polarity": "helpful"}, {"source_id": "B", "polarity": "harmful"}]
+---
+old body
+"""
+        new = """---
+sources: [{"source_id": "A", "polarity": "helpful"}]
+---
+new body
+"""
+        diff = recovery.diff_notes(old, new, old_label="before", new_label="after")
+        assert diff.sources_added == []
+        assert diff.sources_removed == ["B"]
+        assert "--- before" in diff.body_diff
+        assert "+++ after" in diff.body_diff
+
+    def test_ignores_malformed_source_entries_when_diffing(self) -> None:
+        old = """---
+sources: [{"source_id": "A", "polarity": "helpful"}, {"artifact_path": "missing-id"}, "junk"]
+---
+body
+"""
+        new = """---
+sources: [{"source_id": "A", "polarity": "harmful"}, {"source_id": "B", "polarity": "neutral"}]
+---
+body
+"""
+        diff = recovery.diff_notes(old, new)
+        assert diff.sources_added == ["B"]
+        assert diff.sources_removed == []
+        assert diff.sources_repolarized == [("A", "helpful", "harmful")]
+
     def test_identical_is_empty(self, history_topic: Path) -> None:
         live = recovery.note_path_for_slug(history_topic, "rotational_embedding")
         assert live is not None
@@ -359,6 +415,90 @@ class TestRollback:
         assert row["contested"] is False
         assert row["helpful_evidence"] == [2, 2]
 
+    def test_replaces_existing_rollup_row_without_duplicates(self, history_topic: Path) -> None:
+        stale = {
+            "name": "Rotational Embedding",
+            "normalized_name": "rotational embedding",
+            "slug": "rotational_embedding",
+            "kind": "technique",
+            "topic": "tkg",
+            "source_count": 99,
+            "helpful_evidence": [99, 99],
+            "harmful_evidence": [0, 0],
+            "helpful_count": 99,
+            "harmful_count": 0,
+            "contested": False,
+            "first_seen": "2026-05-01T00:00:00Z",
+            "last_seen": "2026-05-29T09:00:00Z",
+        }
+        unrelated = {
+            "name": "Alpha Architecture",
+            "normalized_name": "alpha architecture",
+            "slug": "alpha_architecture",
+            "kind": "architecture",
+            "topic": "tkg",
+            "source_count": 1,
+            "helpful_evidence": [1, 1],
+            "harmful_evidence": [0, 0],
+            "helpful_count": 1,
+            "harmful_count": 0,
+            "contested": False,
+            "first_seen": "2026-05-01T00:00:00Z",
+            "last_seen": "2026-05-01T00:00:00Z",
+        }
+        rollup = history_topic / "concepts.jsonl"
+        rollup.write_text(
+            json.dumps(stale) + "\nnot-json\n" + json.dumps(unrelated) + "\n",
+            encoding="utf-8",
+        )
+
+        oldest = recovery.list_snapshots(history_topic, "rotational_embedding")[0]
+        recovery.rollback(
+            history_topic, "rotational_embedding", oldest.iso, now_iso="2026-05-29T10:00:00Z"
+        )
+
+        rows = [json.loads(line) for line in rollup.read_text(encoding="utf-8").splitlines()]
+        assert [row["slug"] for row in rows] == ["alpha_architecture", "rotational_embedding"]
+        restored = [row for row in rows if row["slug"] == "rotational_embedding"]
+        assert len(restored) == 1
+        assert restored[0]["source_count"] == 2
+        assert restored[0]["helpful_evidence"] == [2, 2]
+
+    def test_entity_rollback_updates_entities_rollup(self, tmp_path: Path) -> None:
+        td = tmp_path / "topics" / "tkg"
+        td.mkdir(parents=True)
+        v1 = _concept(
+            name="DeepMind",
+            normalized="deepmind",
+            kind=ConceptKind.ORGANIZATION,
+            sources=[("A", Polarity.HELPFUL)],
+            helpful=(1, 1),
+            harmful=(0, 0),
+            last_seen="2026-05-29T08:00:00Z",
+        )
+        write_playbook(td, v1, now_iso="2026-05-29T08:00:00Z")
+        write_exports(td, [v1])
+        v2 = _concept(
+            name="DeepMind",
+            normalized="deepmind",
+            kind=ConceptKind.ORGANIZATION,
+            sources=[("A", Polarity.HELPFUL), ("B", Polarity.HELPFUL)],
+            helpful=(2, 2),
+            harmful=(0, 0),
+            last_seen="2026-05-29T09:00:00Z",
+        )
+        write_playbook(td, v2, now_iso="2026-05-29T09:00:00Z")
+        write_exports(td, [v2])
+
+        snap = recovery.list_snapshots(td, "deepmind")[0]
+        result = recovery.rollback(td, "deepmind", snap.iso, now_iso="2026-05-29T10:00:00Z")
+
+        assert result.rollup_path == td / "entities.jsonl"
+        entity_row = json.loads((td / "entities.jsonl").read_text(encoding="utf-8"))
+        assert entity_row["slug"] == "deepmind"
+        assert entity_row["source_count"] == 1
+        assert (td / "concepts.jsonl").read_text(encoding="utf-8") == ""
+
     def test_creates_reversible_backup(self, history_topic: Path) -> None:
         live = recovery.note_path_for_slug(history_topic, "rotational_embedding")
         assert live is not None
@@ -416,6 +556,9 @@ def test_safe_ts_to_iso_no_t_returns_unchanged():
 def test_is_safe_slug_rejects_bad():
     assert not recovery._is_safe_slug("")
     assert not recovery._is_safe_slug("a/b")
+    assert not recovery._is_safe_slug("a\\b")
+    assert not recovery._is_safe_slug("C:secret")
+    assert not recovery._is_safe_slug(".")
     assert not recovery._is_safe_slug("..")
     assert not recovery._is_safe_slug("a\x00b")
     assert recovery._is_safe_slug("rotational_embedding")

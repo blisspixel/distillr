@@ -202,7 +202,12 @@ The gates above prove *coverage* and *types*. These prove the tests and the code
     library path helpers and added deterministic tests for path-component
     rejection, default artifact filenames, frontmatter list and boolean
     emission, and nested atomic writes, improving the Linux diagnostic killed
-    count from 1,217 to 1,258 while keeping the score advisory.
+    count from 1,217 to 1,258 while keeping the score advisory. The second
+    survivor triage targeted `concepts.recovery`, tightened colon-bearing slug
+    rejection, and added tests for fallback note lookup, snapshot timestamp
+    normalization, malformed source filtering, rollup row replacement, entity
+    rollup routing, and rollback sorting. A recovery-only Linux diagnostic
+    improved from 407 killed / 178 survived to 439 killed / 159 survived.
 - **Stateful property testing of the playbook lifecycle - shipped.** A Hypothesis state machine (`tests/unit/concepts/test_playbook_stateful.py`) models the concept layer's real lifecycle - append mentions to `mentions.jsonl`, merge, write notes, snapshot to `.history/`, roll back, re-merge - and asserts the invariants hold across arbitrary operation orderings (merge consistency, idempotence, order independence, rollback round-trip, evidence intervals never invert). This is the class of bug (ordering, accumulation, rollback-after-merge) that single-shot example tests miss.
 - **Fault-injection at the external boundaries.** Deterministic tests that inject malformed LLM JSON, truncated/empty transcripts, network timeouts, and yt-dlp failures, asserting the pipeline degrades cleanly (resume-friendly, no half-written artifacts) and that the "no silent error swallowing" rule actually holds under turbulence - verified, not assumed. distillr's concurrency is asyncio IO, so the discipline that matters is async-safety (no blocking calls in async paths, correct cancellation), not the shared-memory thread-safety a free-threaded service would need.
 

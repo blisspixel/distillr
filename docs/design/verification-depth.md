@@ -181,8 +181,13 @@ library path boundary and added deterministic tests for path-component
 rejection, default artifact filenames, frontmatter list and boolean emission,
 and nested atomic writes. The local Linux diagnostic improved from 1,217 killed,
 17 no-test, 1 timeout, and 519 survived to 1,258 killed, 17 no-test, 1 timeout,
-and 478 survived. The score remains advisory review evidence, not a release
-gate.
+and 478 survived. The second survivor triage targeted `concepts.recovery`,
+found one real cross-platform slug guard gap, and added tests for
+collision-bumped note lookup, whitespace-tolerant snapshot resolution,
+malformed source filtering, rollup row replacement, entity rollup routing, and
+rollback sorting. A recovery-only Linux diagnostic improved from 407 killed /
+178 survived to 439 killed / 159 survived. The score remains advisory review
+evidence, not a release gate.
 
 **Phase 3 - fault injection at the external boundaries.** Deterministic tests
 that inject malformed LLM JSON, truncated/empty transcripts, network timeouts,
