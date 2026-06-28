@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted the accordion report runner to Pyright strict mode, with shared
   channel-scope enumeration and typed video metadata before source-link
   rendering.
+- Ratcheted the pipeline package export boundary to Pyright strict mode.
 
 ### Fixed
 
