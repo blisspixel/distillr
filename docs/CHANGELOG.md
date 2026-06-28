@@ -22,12 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   metadata at debug level.
 - Ratcheted the Gemini Deep Research report boundary to Pyright strict mode and
   removed the unused condensed-corpus helper that File Search had superseded.
+- Ratcheted the Gemini File Search store and corpus boundary to Pyright strict
+  mode, parsing uploaded corpus metadata through a private typed helper.
 
 ### Fixed
 
 - Cleared the remaining default Pyright warnings in the report pipeline by
   typing accordion section flow and skipping unnamed Gemini File Search stores
   during cleanup.
+- Aligned Gemini File Search indexing polling with the current google-genai
+  operation-object contract, and stopped trusting non-string metadata fields
+  when bundling video, site, and paper corpus files.
 
 ## 0.19.9 - 2026-06-28
 

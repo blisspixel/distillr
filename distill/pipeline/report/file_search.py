@@ -1,30 +1,38 @@
+# pyright: strict
 """File Search store management for Gemini Deep Research grounding."""
 
+from __future__ import annotations
+
 import contextlib
-import json
 import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from google import genai
+from google.genai import types
 
 from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
+from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
 
-__all__ = [
-    "cleanup_stores",
-    "create_research_store",
-    "delete_store",
-    "list_stores",
-]
+__all__ = ["cleanup_stores", "create_research_store", "delete_store", "list_stores"]
 
 
-def _operation_ref(operation: Any) -> Any:
-    """Normalize SDK operation objects to the identifier expected by client.operations.get."""
-    return getattr(operation, "name", None) or getattr(operation, "id", None) or operation
+class _StoreRecord(TypedDict):
+    name: str | None
+    display_name: str
+
+
+def _optional_str_attr(value: object, attr_name: str) -> str | None:
+    attr_value = getattr(value, attr_name, None)
+    return attr_value if isinstance(attr_value, str) and attr_value else None
+
+
+def _str_attr(value: object, attr_name: str, default: str = "") -> str:
+    return _optional_str_attr(value, attr_name) or default
 
 
 def _display_safe(value: object) -> str:
@@ -34,7 +42,7 @@ def _display_safe(value: object) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def create_research_store(  # noqa: C901 - legacy, will refactor
+def create_research_store(  # noqa: C901 - legacy orchestration kept intact
     client: genai.Client,
     topic: str,
     config: DistillConfig,
@@ -49,7 +57,7 @@ def create_research_store(  # noqa: C901 - legacy, will refactor
     console.print(f"  [dim]Created store: {store_name}[/dim]")
 
     uploaded = 0
-    pending_ops: list[Any] = []
+    pending_ops: list[types.Operation] = []
     temp_paths: list[Path] = []
 
     # Everything after store creation runs under this try so the store (a paid
@@ -78,7 +86,7 @@ def create_research_store(  # noqa: C901 - legacy, will refactor
                     file_search_store_name=store_name,
                     config={"display_name": label[:200], "mime_type": "text/markdown"},
                 )
-                pending_ops.append(_operation_ref(op))
+                pending_ops.append(op)
                 uploaded += 1
                 if (i + 1) % 50 == 0 or (i + 1) == total:
                     console.print(f"  [dim]Uploaded {i + 1}/{total}...[/dim]")
@@ -97,12 +105,12 @@ def create_research_store(  # noqa: C901 - legacy, will refactor
             wait_rounds = 0
             max_wait_rounds = 60
             while wait_rounds < max_wait_rounds:
-                still_pending = []
+                still_pending: list[types.Operation] = []
                 for op in pending_ops:
                     try:
                         refreshed = client.operations.get(op)
                         if refreshed.done is not True:
-                            still_pending.append(_operation_ref(refreshed))
+                            still_pending.append(refreshed)
                     except Exception:
                         still_pending.append(op)
                 if not still_pending:
@@ -128,7 +136,7 @@ def create_research_store(  # noqa: C901 - legacy, will refactor
                 tmp_path.unlink(missing_ok=True)
 
 
-def delete_store(client: genai.Client, store_name: str):
+def delete_store(client: genai.Client, store_name: str) -> None:
     """Delete a File Search store and all its contents."""
     try:
         client.file_search_stores.delete(name=store_name, config={"force": True})
@@ -137,14 +145,14 @@ def delete_store(client: genai.Client, store_name: str):
         console.print(f"  [yellow]Store cleanup failed: {exc}[/yellow]")
 
 
-def list_stores(client: genai.Client) -> list[dict]:
+def list_stores(client: genai.Client) -> list[_StoreRecord]:
     """List all File Search stores (for auditing/cleanup)."""
-    stores = []
+    stores: list[_StoreRecord] = []
     for store in client.file_search_stores.list():
         stores.append(
             {
-                "name": store.name,
-                "display_name": getattr(store, "display_name", None) or "(unnamed)",
+                "name": _optional_str_attr(store, "name"),
+                "display_name": _str_attr(store, "display_name", "(unnamed)"),
             }
         )
     return stores
@@ -154,8 +162,8 @@ def cleanup_stores(client: genai.Client, prefix: str = "distill") -> int:
     """Delete all File Search stores matching prefix. Returns count deleted."""
     deleted = 0
     for store in client.file_search_stores.list():
-        display = getattr(store, "display_name", "") or ""
-        name = getattr(store, "name", None)
+        display = _str_attr(store, "display_name")
+        name = _optional_str_attr(store, "name")
         if display.startswith(prefix):
             if not name:
                 console.print(f"  [yellow]Skipped unnamed File Search store: {display}[/yellow]")
@@ -169,7 +177,7 @@ def cleanup_stores(client: genai.Client, prefix: str = "distill") -> int:
     return deleted
 
 
-def _gather_files(  # noqa: C901 - legacy, will refactor
+def _gather_files(  # noqa: C901 - legacy orchestration kept intact
     topic: str,
     config: DistillConfig,
     scope: str,
@@ -180,7 +188,7 @@ def _gather_files(  # noqa: C901 - legacy, will refactor
     max_doc_chars = 500_000
 
     if scope == "channel" and channel_name:
-        channels = [(topic, channel_name)]
+        channels: list[tuple[str, str]] = [(topic, channel_name)]
     elif scope == "topic":
         ch_dir = config.topic_dir(topic) / "channels"
         channels = (
@@ -202,7 +210,7 @@ def _gather_files(  # noqa: C901 - legacy, will refactor
                     )
 
     for t, ch in channels:
-        meta_parts = []
+        meta_parts: list[str] = []
         ctx_file = config.channel_dir(t, ch) / "channel_context.md"
         if ctx_file.exists():
             meta_parts.append(f"# Channel Context: {ch}\n\n{ctx_file.read_text(encoding='utf-8')}")
@@ -235,12 +243,9 @@ def _gather_files(  # noqa: C901 - legacy, will refactor
             title = vid_dir.name
             date = ""
             if meta_file.exists():
-                try:
-                    meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                    title = meta.get("title", vid_dir.name)
-                    date = meta.get("upload_date", "")
-                except (json.JSONDecodeError, OSError):
-                    pass
+                meta = read_metadata(meta_file)
+                title = metadata_str(meta, "title", vid_dir.name)
+                date = metadata_str(meta, "upload_date")
             entry = f"\n\n---\n\n## [{date}] {title}\n\n{insights_file.read_text(encoding='utf-8')}"
             if current_chars + len(entry) > max_doc_chars and current_bundle:
                 files.append(
@@ -307,12 +312,9 @@ def _gather_files(  # noqa: C901 - legacy, will refactor
                 title = page_dir.name
                 url = ""
                 if metadata_file.exists():
-                    try:
-                        meta = json.loads(metadata_file.read_text(encoding="utf-8"))
-                        title = meta.get("title", title)
-                        url = meta.get("url", "")
-                    except (json.JSONDecodeError, OSError):
-                        pass
+                    meta = read_metadata(metadata_file)
+                    title = metadata_str(meta, "title", title)
+                    url = metadata_str(meta, "url")
                 entry = f"\n\n---\n\n## {title}\nURL: {url}\n\n{insights_file.read_text(encoding='utf-8')}"
                 if bundle_chars + len(entry) > max_doc_chars and bundle_parts:
                     files.append(
@@ -366,12 +368,9 @@ def _gather_files(  # noqa: C901 - legacy, will refactor
             title = paper_dir.name
             abs_url = ""
             if metadata_file.exists():
-                try:
-                    meta = json.loads(metadata_file.read_text(encoding="utf-8"))
-                    title = meta.get("title", title)
-                    abs_url = meta.get("abs_url", "")
-                except (json.JSONDecodeError, OSError):
-                    pass
+                meta = read_metadata(metadata_file)
+                title = metadata_str(meta, "title", title)
+                abs_url = metadata_str(meta, "abs_url")
             entry = f"\n\n---\n\n## {title}\nURL: {abs_url}\n\n{insights_file.read_text(encoding='utf-8')}"
             if bundle_chars + len(entry) > max_doc_chars and bundle_parts:
                 files.append(

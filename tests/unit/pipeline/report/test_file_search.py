@@ -44,6 +44,36 @@ def test_gather_files_handles_bad_metadata_json(tmp_path):
     assert any(label == "Creator-insights" for label, _ in files)
 
 
+def test_gather_files_handles_non_object_metadata_json(tmp_path):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    video_dir = config.channel_dir("ai", "Creator") / "videos" / "video-1"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "insights.md").write_text("# Insight", encoding="utf-8")
+    (video_dir / "metadata.json").write_text('["bad shape"]', encoding="utf-8")
+
+    files = _gather_files("ai", config, "channel", "Creator")
+
+    bundled = dict(files)["Creator-insights"]
+    assert "video-1" in bundled
+
+
+def test_gather_files_ignores_non_string_metadata_fields(tmp_path):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    video_dir = config.channel_dir("ai", "Creator") / "videos" / "video-1"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "insights.md").write_text("# Insight", encoding="utf-8")
+    (video_dir / "metadata.json").write_text(
+        json.dumps({"title": {"bad": "shape"}, "upload_date": 260312}),
+        encoding="utf-8",
+    )
+
+    files = _gather_files("ai", config, "channel", "Creator")
+
+    bundled = dict(files)["Creator-insights"]
+    assert "video-1" in bundled
+    assert "[260312]" not in bundled
+
+
 def test_create_research_store_returns_zero_when_no_files(tmp_path, monkeypatch):
     config = DistillConfig(distill_output_dir=tmp_path / "lib")
     client = SimpleNamespace(
@@ -101,8 +131,9 @@ def test_create_research_store_uploads_and_waits_for_indexing(tmp_path, monkeypa
             self.calls = {}
 
         def get(self, op):
-            self.calls[op] = self.calls.get(op, 0) + 1
-            return SimpleNamespace(name=op, done=self.calls[op] > 1)
+            op_name = op.name
+            self.calls[op_name] = self.calls.get(op_name, 0) + 1
+            return SimpleNamespace(name=op_name, done=self.calls[op_name] > 1)
 
     client = SimpleNamespace(file_search_stores=FakeStores(), operations=FakeOperations())
 
@@ -349,8 +380,8 @@ def test_create_research_store_polls_with_operation_name(tmp_path, monkeypatch):
 
     class FakeOperations:
         def get(self, op):
-            polled.append(op)
-            return SimpleNamespace(name=op, done=True)
+            polled.append(op.name)
+            return SimpleNamespace(name=op.name, done=True)
 
     client = SimpleNamespace(file_search_stores=FakeStores(), operations=FakeOperations())
 

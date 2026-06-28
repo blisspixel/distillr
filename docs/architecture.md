@@ -314,6 +314,7 @@ distill/                           # Python package - layered subpackage archite
 │   │   ├── brief.py               # Multi-topic Deep Research briefing
 │   │   ├── briefing.py            # Lightweight single-topic brief
 │   │   ├── synthesize.py          # Multi-topic Grok single-call synthesis
+│   │   ├── _file_search_metadata.py # File Search metadata parser
 │   │   └── file_search.py         # Gemini File Search store management
 │   ├── costs.py                   # Token/cost tracking (CostTracker)
 │   ├── dashboard_data.py          # Shared dashboard data functions
