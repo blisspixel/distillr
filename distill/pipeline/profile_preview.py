@@ -1,3 +1,4 @@
+# pyright: strict
 """Build a non-mutating preview for recurring research profiles."""
 
 from __future__ import annotations
@@ -85,8 +86,8 @@ class ProfilePreviewResult:
     cost_mode: str
     ordering: str
     fresh_item_limit: int
-    candidates: list[ProfilePreviewCandidate] = field(default_factory=list)
-    warnings: list[ProfilePreviewWarning] = field(default_factory=list)
+    candidates: list[ProfilePreviewCandidate] = field(default_factory=list[ProfilePreviewCandidate])
+    warnings: list[ProfilePreviewWarning] = field(default_factory=list[ProfilePreviewWarning])
 
     def to_dict(self) -> dict[str, Any]:
         dynamic_count = sum(1 for candidate in self.candidates if candidate.kind in _DYNAMIC_KINDS)

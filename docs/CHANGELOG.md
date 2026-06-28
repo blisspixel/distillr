@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   ingestion boundaries.
 - Ratcheted `distill.pipeline.synthesis` to Pyright strict mode for channel,
   topic, corpus, and two-pass claim synthesis.
+- Ratcheted recurring profile preview and run orchestration to Pyright strict
+  mode.
 
 ### Fixed
 

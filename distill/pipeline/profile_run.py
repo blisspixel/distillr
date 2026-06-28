@@ -1,3 +1,4 @@
+# pyright: strict
 """Run recurring research profile candidates with durable state."""
 
 from __future__ import annotations
@@ -5,12 +6,12 @@ from __future__ import annotations
 import json
 import subprocess
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from hashlib import blake2s
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.library.paths import atomic_write_text, sanitize_path_component
 from distill.pipeline.costs import CostTracker, save_run_log
@@ -80,7 +81,7 @@ class ProfileRunCommand:
     execution: CommandExecution | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "key": self.key,
             "kind": self.kind,
             "title": self.title,
@@ -137,10 +138,10 @@ class ProfileRunResult:
     executed: bool
     fresh_item_limit: int
     ordering: str
-    commands: list[ProfileRunCommand] = field(default_factory=list)
-    events: list[ProfileRunEvent] = field(default_factory=list)
-    next_actions: list[NextAction] = field(default_factory=list)
-    warnings: list[dict[str, str]] = field(default_factory=list)
+    commands: list[ProfileRunCommand] = field(default_factory=list[ProfileRunCommand])
+    events: list[ProfileRunEvent] = field(default_factory=list[ProfileRunEvent])
+    next_actions: list[NextAction] = field(default_factory=list[NextAction])
+    warnings: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
     okf_bundle_dir: str = ""
     okf_bundle_valid: bool = False
 
@@ -486,11 +487,12 @@ def _load_state(path: Path, *, profile: str, topic: str) -> dict[str, Any]:
     if not path.exists():
         return _empty_state(profile, topic)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        raw_data: object = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"Profile run state is not parseable: {path}") from exc
-    if not isinstance(data, dict):
+    if not isinstance(raw_data, dict):
         raise ValueError(f"Profile run state must be a JSON object: {path}")
+    data = cast(dict[str, Any], raw_data)
     if data.get("schema_version") != _STATE_SCHEMA_VERSION:
         raise ValueError(f"Unsupported profile run state schema in {path}")
     data.setdefault("profile", profile)
@@ -524,9 +526,10 @@ def _save_state(path: Path, state: dict[str, Any]) -> None:
 
 def _completed_keys(state: dict[str, Any]) -> set[str]:
     completed = state.get("completed", {})
-    if not isinstance(completed, dict):
+    if not isinstance(completed, Mapping):
         return set()
-    return {str(key) for key in completed}
+    completed_map = cast(Mapping[object, object], completed)
+    return {str(key) for key in completed_map}
 
 
 def _record_event(state: dict[str, Any], event: ProfileRunEvent) -> None:
