@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the topic-change and view-command Pyright warning cluster by parsing
+  diff, trend, watch-alert, and history rows into typed records before command
+  rendering or history writes.
 - Cleared the command-helper Pyright warning cluster by normalizing non-string
   yt-dlp channel metadata to the standalone fallback and binding report DOCX
   output paths before export failures are recorded.

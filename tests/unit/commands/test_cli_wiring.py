@@ -3459,6 +3459,37 @@ def test_cli_topic_change_helpers_cover_rendering_and_history(mock_config_with_l
     assert cli._topic_diff_output_path(mock_config_with_library, "ai").exists()
 
 
+def test_cli_topic_change_history_normalizes_malformed_counts(mock_config):
+    history_path = mock_config.topic_dir("ai") / "change_history.jsonl"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-01T08:00:00",
+                "topic": "ai",
+                "watch_name": "AI Daily",
+                "summary": "malformed counts",
+                "counts": {
+                    "videos": "bad",
+                    "pages": "2",
+                    "papers": None,
+                    "outputs": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    records = cli._load_topic_change_history(mock_config, "ai")
+
+    assert records[0]["counts"] == {
+        "videos": 0,
+        "pages": 2,
+        "papers": 0,
+        "outputs": 0,
+    }
+
+
 def test_cli_trend_and_alert_helpers(mock_config):
     generated_at = datetime.now().replace(microsecond=0)
     records = [

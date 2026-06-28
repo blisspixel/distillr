@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TypedDict
 
 import typer
 
@@ -21,13 +22,88 @@ from distill.library.paths import (
 )
 from distill.pipeline.dashboard_data import format_run_timestamp as _format_run_timestamp
 from distill.pipeline.dashboard_data import parse_run_datetime as _parse_run_datetime
+from distill.pipeline.dashboard_records import JsonObject, TopicChangeCounts, json_object
 
 
-def _read_json_file(path_obj: Path) -> dict:
+class _ChangedArtifact(TypedDict):
+    title: str
+    changed_at: datetime
+    path: Path
+
+
+class _VideoChange(_ChangedArtifact):
+    channel: str
+    upload_date: str
+
+
+class _PageChange(_ChangedArtifact):
+    site: str
+    url: str
+
+
+class _PaperChange(_ChangedArtifact):
+    paper_id: str
+
+
+class _RefreshedOutput(TypedDict):
+    label: str
+    changed_at: datetime
+    path: Path
+
+
+class _TopicChangeDetails(TypedDict):
+    topic: str
+    baseline: datetime | None
+    effective_baseline: datetime
+    generated_at: datetime
+    last_change: datetime | None
+    summary: str
+    new_videos: list[_VideoChange]
+    new_pages: list[_PageChange]
+    new_papers: list[_PaperChange]
+    refreshed_outputs: list[_RefreshedOutput]
+
+
+class _TopicChangeHistoryRecord(TypedDict):
+    generated_at: datetime
+    topic: str
+    watch_name: str
+    query: str
+    cadence: str
+    baseline: str
+    summary: str
+    counts: TopicChangeCounts
+
+
+def _read_json_file(path_obj: Path) -> JsonObject:
     try:
-        return json.loads(path_obj.read_text(encoding="utf-8"))
+        return json_object(json.loads(path_obj.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def _text_field(record: JsonObject, key: str, default: str = "") -> str:
+    value = record.get(key)
+    return default if value is None else str(value)
+
+
+def _count_value(value: object) -> int:
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (OverflowError, ValueError):
+            return 0
+    return 0
+
+
+def _topic_change_counts(value: object) -> TopicChangeCounts:
+    counts = json_object(value)
+    return {
+        "videos": _count_value(counts.get("videos")),
+        "pages": _count_value(counts.get("pages")),
+        "papers": _count_value(counts.get("papers")),
+        "outputs": _count_value(counts.get("outputs")),
+    }
 
 
 def _topic_change_history_path(config: DistillConfig, topic: str) -> Path:
@@ -53,19 +129,71 @@ def _relative_library_path(config: DistillConfig, path_obj: Path) -> str:
         return str(path_obj.resolve())
 
 
+def _append_limited_section(
+    lines: list[str], header: str, rendered_items: list[str], total_count: int, limit: int
+) -> None:
+    if total_count == 0:
+        return
+    lines.extend([f"## {header}", ""])
+    for rendered in rendered_items:
+        lines.extend(rendered.splitlines())
+    remaining = total_count - limit
+    if remaining > 0:
+        lines.append(f"- ...and {remaining} more")
+    lines.append("")
+
+
+def _format_video_change(config: DistillConfig, item: _VideoChange) -> str:
+    changed = _format_run_timestamp(item["changed_at"].isoformat())
+    path = _relative_library_path(config, item["path"])
+    return (
+        f"- `{item['channel']}` - {item['title']}"
+        f" ({_format_date(item['upload_date'])}; changed {changed})"
+        f"  [`{path}`]"
+    )
+
+
+def _format_page_change(config: DistillConfig, item: _PageChange) -> str:
+    lines = [
+        f"- `{item['site']}` - {item['title']} "
+        f"({_format_run_timestamp(item['changed_at'].isoformat())})"
+    ]
+    if item["url"]:
+        lines.append(f"  URL: {item['url']}")
+    lines.append(f"  Path: `{_relative_library_path(config, item['path'])}`")
+    return "\n".join(lines)
+
+
+def _format_paper_change(config: DistillConfig, item: _PaperChange) -> str:
+    paper_id = f" (`{item['paper_id']}`)" if item["paper_id"] else ""
+    changed = _format_run_timestamp(item["changed_at"].isoformat())
+    path = _relative_library_path(config, item["path"])
+    return f"- {item['title']}{paper_id} ({changed})  [`{path}`]"
+
+
+def _format_refreshed_output(config: DistillConfig, item: _RefreshedOutput) -> str:
+    changed = _format_run_timestamp(item["changed_at"].isoformat())
+    path = _relative_library_path(config, item["path"])
+    return f"- {item['label']} ({changed})  [`{path}`]"
+
+
+def _count_total(counts: TopicChangeCounts) -> int:
+    return counts["videos"] + counts["pages"] + counts["papers"] + counts["outputs"]
+
+
 def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
     config: DistillConfig,
     lib: Library,
     topic: str,
     baseline: datetime | None,
-) -> dict[str, object]:
+) -> _TopicChangeDetails:
     now = datetime.now()
     effective_baseline = baseline or (now - timedelta(days=7))
 
-    new_videos: list[dict[str, object]] = []
-    new_pages: list[dict[str, object]] = []
-    new_papers: list[dict[str, object]] = []
-    refreshed_outputs: list[dict[str, object]] = []
+    new_videos: list[_VideoChange] = []
+    new_pages: list[_PageChange] = []
+    new_papers: list[_PaperChange] = []
+    refreshed_outputs: list[_RefreshedOutput] = []
     last_change: datetime | None = None
 
     def mark_change(changed_at: datetime | None) -> None:
@@ -91,9 +219,9 @@ def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
             meta = _read_json_file(video_dir / "metadata.json")
             new_videos.append(
                 {
-                    "title": meta.get("title", video_dir.name),
+                    "title": _text_field(meta, "title", video_dir.name),
                     "channel": ch.name,
-                    "upload_date": meta.get("upload_date", ""),
+                    "upload_date": _text_field(meta, "upload_date"),
                     "changed_at": changed_at,
                     "path": insight_path,
                 }
@@ -140,9 +268,9 @@ def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
                     meta = _read_json_file(page_dir / "metadata.json")
                     new_pages.append(
                         {
-                            "title": meta.get("title", page_dir.name),
+                            "title": _text_field(meta, "title", page_dir.name),
                             "site": site_dir.name,
-                            "url": meta.get("url", ""),
+                            "url": _text_field(meta, "url"),
                             "changed_at": changed_at,
                             "path": content_path,
                         }
@@ -184,8 +312,8 @@ def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
             meta = _read_json_file(paper_dir / "metadata.json")
             new_papers.append(
                 {
-                    "title": meta.get("title", paper_dir.name),
-                    "paper_id": meta.get("paper_id", ""),
+                    "title": _text_field(meta, "title", paper_dir.name),
+                    "paper_id": _text_field(meta, "paper_id"),
                     "changed_at": changed_at,
                     "path": insights_path,
                 }
@@ -257,7 +385,7 @@ def _topic_change_snapshot(
     config: DistillConfig, lib: Library, topic: str, baseline: datetime | None
 ) -> tuple[datetime | None, str]:
     details = _collect_topic_change_details(config, lib, topic, baseline)
-    return details.get("last_change"), str(details.get("summary", "no recent change detected"))
+    return details["last_change"], details["summary"]
 
 
 def _render_topic_diff_markdown(
@@ -269,10 +397,10 @@ def _render_topic_diff_markdown(
     baseline: datetime | None,
     effective_baseline: datetime,
     generated_at: datetime,
-    new_videos: list[dict[str, object]],
-    new_pages: list[dict[str, object]],
-    new_papers: list[dict[str, object]],
-    refreshed_outputs: list[dict[str, object]],
+    new_videos: list[_VideoChange],
+    new_pages: list[_PageChange],
+    new_papers: list[_PaperChange],
+    refreshed_outputs: list[_RefreshedOutput],
     watch_name: str | None = None,
     query: str | None = None,
     cadence: str | None = None,
@@ -292,55 +420,33 @@ def _render_topic_diff_markdown(
         lines.append(f"- Window Start: `{effective_baseline.isoformat(timespec='seconds')}`")
     lines.extend(["", "## Summary", "", f"- {summary}", ""])
 
-    def append_section(header: str, items: list[dict[str, object]], formatter) -> None:
-        if not items:
-            return
-        lines.extend([f"## {header}", ""])
-        for item in items[:limit]:
-            rendered = formatter(item)
-            lines.extend(rendered.splitlines())
-        remaining = len(items) - limit
-        if remaining > 0:
-            lines.append(f"- ...and {remaining} more")
-        lines.append("")
-
-    append_section(
+    _append_limited_section(
+        lines,
         "New Video Insights",
-        new_videos,
-        lambda item: (
-            f"- `{item['channel']}` — {item['title']}"
-            f" ({_format_date(str(item.get('upload_date') or ''))}; changed {_format_run_timestamp(item['changed_at'].isoformat())})"
-            f"  [`{_relative_library_path(config, item['path'])}`]"
-        ),
+        [_format_video_change(config, item) for item in new_videos[:limit]],
+        len(new_videos),
+        limit,
     )
-    append_section(
+    _append_limited_section(
+        lines,
         "New Website Pages",
-        new_pages,
-        lambda item: "\n".join(
-            [
-                f"- `{item['site']}` — {item['title']} ({_format_run_timestamp(item['changed_at'].isoformat())})",
-                *([f"  URL: {item['url']}"] if item.get("url") else []),
-                f"  Path: `{_relative_library_path(config, item['path'])}`",
-            ]
-        ),
+        [_format_page_change(config, item) for item in new_pages[:limit]],
+        len(new_pages),
+        limit,
     )
-    append_section(
+    _append_limited_section(
+        lines,
         "New Paper Insights",
-        new_papers,
-        lambda item: (
-            f"- {item['title']}"
-            + (f" (`{item['paper_id']}`)" if item.get("paper_id") else "")
-            + f" ({_format_run_timestamp(item['changed_at'].isoformat())})"
-            + f"  [`{_relative_library_path(config, item['path'])}`]"
-        ),
+        [_format_paper_change(config, item) for item in new_papers[:limit]],
+        len(new_papers),
+        limit,
     )
-    append_section(
+    _append_limited_section(
+        lines,
         "Refreshed Outputs",
-        refreshed_outputs,
-        lambda item: (
-            f"- {item['label']} ({_format_run_timestamp(item['changed_at'].isoformat())})"
-            f"  [`{_relative_library_path(config, item['path'])}`]"
-        ),
+        [_format_refreshed_output(config, item) for item in refreshed_outputs[:limit]],
+        len(refreshed_outputs),
+        limit,
     )
 
     if not new_videos and not new_pages and not new_papers and not refreshed_outputs:
@@ -359,10 +465,10 @@ def _append_topic_change_history(
     watch_name: str | None,
     query: str | None,
     cadence: str | None,
-    new_videos: list[dict[str, object]],
-    new_pages: list[dict[str, object]],
-    new_papers: list[dict[str, object]],
-    refreshed_outputs: list[dict[str, object]],
+    new_videos: list[_VideoChange],
+    new_pages: list[_PageChange],
+    new_papers: list[_PaperChange],
+    refreshed_outputs: list[_RefreshedOutput],
 ) -> Path:
     history_path = _topic_change_history_path(config, topic)
     history_path.parent.mkdir(parents=True, exist_ok=True)
@@ -386,49 +492,46 @@ def _append_topic_change_history(
     return history_path
 
 
-def _load_topic_change_history(config: DistillConfig, topic: str) -> list[dict[str, object]]:
+def _load_topic_change_history(
+    config: DistillConfig, topic: str
+) -> list[_TopicChangeHistoryRecord]:
     history_path = _topic_change_history_path(config, topic)
     if not history_path.exists():
         return []
 
-    records: list[dict[str, object]] = []
+    records: list[_TopicChangeHistoryRecord] = []
     for line in history_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         try:
-            payload = json.loads(line)
+            payload = json_object(json.loads(line))
         except json.JSONDecodeError:
             continue
         generated_at = _parse_run_datetime(str(payload.get("generated_at", "")))
         if generated_at is None:
             continue
-        counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+        counts = _topic_change_counts(payload.get("counts"))
         records.append(
             {
                 "generated_at": generated_at,
-                "topic": payload.get("topic", topic),
-                "watch_name": payload.get("watch_name", "") or "",
-                "query": payload.get("query", "") or "",
-                "cadence": payload.get("cadence", "") or "",
-                "baseline": payload.get("baseline", "") or "",
-                "summary": payload.get("summary", "") or "",
-                "counts": {
-                    "videos": int(counts.get("videos", 0) or 0),
-                    "pages": int(counts.get("pages", 0) or 0),
-                    "papers": int(counts.get("papers", 0) or 0),
-                    "outputs": int(counts.get("outputs", 0) or 0),
-                },
+                "topic": _text_field(payload, "topic", topic),
+                "watch_name": _text_field(payload, "watch_name"),
+                "query": _text_field(payload, "query"),
+                "cadence": _text_field(payload, "cadence"),
+                "baseline": _text_field(payload, "baseline"),
+                "summary": _text_field(payload, "summary"),
+                "counts": counts,
             }
         )
     records.sort(key=lambda item: item["generated_at"], reverse=True)
     return records
 
 
-def _topic_trend_direction(records: list[dict[str, object]]) -> str:
+def _topic_trend_direction(records: list[_TopicChangeHistoryRecord]) -> str:
     if len(records) < 2:
         return "not enough history yet"
-    latest = sum(int(v) for v in records[0]["counts"].values())
-    previous = sum(int(v) for v in records[1]["counts"].values())
+    latest = _count_total(records[0]["counts"])
+    previous = _count_total(records[1]["counts"])
     if latest > previous:
         return "activity is increasing"
     if latest < previous:
@@ -456,14 +559,14 @@ def _topic_watch_alert_lines(
     topic: str,
     ranking_label: str,
     summary: str,
-    change_details: dict[str, object],
+    change_details: _TopicChangeDetails,
     trend_label: str | None,
 ) -> list[str]:
     counts = {
-        "videos": len(list(change_details.get("new_videos", []))),
-        "pages": len(list(change_details.get("new_pages", []))),
-        "papers": len(list(change_details.get("new_papers", []))),
-        "outputs": len(list(change_details.get("refreshed_outputs", []))),
+        "videos": len(change_details["new_videos"]),
+        "pages": len(change_details["new_pages"]),
+        "papers": len(change_details["new_papers"]),
+        "outputs": len(change_details["refreshed_outputs"]),
     }
     signal_score = counts["videos"] + counts["pages"] + counts["papers"] + counts["outputs"]
     notable = signal_score > 0 or trend_label == "trend: rising"
@@ -517,17 +620,17 @@ def _render_topic_trends_markdown(
     config: DistillConfig,
     *,
     topic: str,
-    records: list[dict[str, object]],
+    records: list[_TopicChangeHistoryRecord],
     generated_at: datetime,
     limit: int,
 ) -> str:
     selected = records[:limit]
-    total_video = sum(int(item["counts"].get("videos", 0)) for item in selected)
-    total_pages = sum(int(item["counts"].get("pages", 0)) for item in selected)
-    total_papers = sum(int(item["counts"].get("papers", 0)) for item in selected)
-    total_outputs = sum(int(item["counts"].get("outputs", 0)) for item in selected)
-    active_windows = sum(1 for item in selected if sum(int(v) for v in item["counts"].values()) > 0)
-    primary_watch = next((item["watch_name"] for item in selected if item.get("watch_name")), "")
+    total_video = sum(item["counts"]["videos"] for item in selected)
+    total_pages = sum(item["counts"]["pages"] for item in selected)
+    total_papers = sum(item["counts"]["papers"] for item in selected)
+    total_outputs = sum(item["counts"]["outputs"] for item in selected)
+    active_windows = sum(1 for item in selected if _count_total(item["counts"]) > 0)
+    primary_watch = next((item["watch_name"] for item in selected if item["watch_name"]), "")
 
     lines = [
         f"# Topic Trends: {topic}",
@@ -576,9 +679,9 @@ def _render_topic_trends_markdown(
         ]
         count_bits = [bit for bit in count_bits if bit]
         lines.append(
-            f"- `{changed_at}` — {item['summary'] or ', '.join(count_bits) or 'no recorded change'}"
+            f"- `{changed_at}` - {item['summary'] or ', '.join(count_bits) or 'no recorded change'}"
         )
-        if item.get("watch_name"):
+        if item["watch_name"]:
             lines.append(f"  Watch: `{item['watch_name']}`")
     lines.append("")
 
@@ -603,7 +706,7 @@ def _write_topic_change_briefing(
     cadence: str,
     baseline: datetime | None,
     summary: str,
-    change_details: dict[str, object] | None = None,
+    change_details: _TopicChangeDetails | None = None,
 ) -> Path:
     details = change_details or _collect_topic_change_details(
         config,
@@ -611,12 +714,12 @@ def _write_topic_change_briefing(
         topic,
         baseline,
     )
-    generated_at = details.get("generated_at") or datetime.now()
-    effective_baseline = details.get("effective_baseline") or (baseline or generated_at)
-    new_videos = list(details.get("new_videos", []))
-    new_pages = list(details.get("new_pages", []))
-    new_papers = list(details.get("new_papers", []))
-    refreshed_outputs = list(details.get("refreshed_outputs", []))
+    generated_at = details["generated_at"]
+    effective_baseline = details["effective_baseline"]
+    new_videos = details["new_videos"]
+    new_pages = details["new_pages"]
+    new_papers = details["new_papers"]
+    refreshed_outputs = details["refreshed_outputs"]
 
     topic_dir = config.topic_dir(topic)
     topic_dir.mkdir(parents=True, exist_ok=True)

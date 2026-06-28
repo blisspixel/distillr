@@ -37,10 +37,12 @@ coverage. Five reasons:
    verification-depth before the coverage grind makes the coverage work smarter.
 
 4. **It is greenfield and bounded, not grind.** The strict ratchet's remaining
-   work is the coordinated `mcp/` helper promotions and command surfaces. The
-   full `pipeline/` package is now strict-clean, and the MCP helper pass has
-   started by typing optional progress contexts precisely. The remaining strict
-   work is real, but diminishing per-cycle value, better as background.
+   work is the coordinated helper and command surface tail. The full
+   `pipeline/` package is now strict-clean, the MCP helper pass has started by
+   typing optional progress contexts precisely, and the topic-change/view
+   command boundary now parses diff, trend, watch-alert, and history rows into
+   typed records. The remaining strict work is real, but diminishing per-cycle
+   value, better as background.
    Verification depth is new, high-signal infrastructure scoped to a
    well-understood core.
 

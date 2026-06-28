@@ -221,6 +221,15 @@ def _videos_payload(config, channels, topic: str, limit: int) -> dict:
     return {"topic": topic, "channels": out_channels, "count": len(out_channels)}
 
 
+def _resolve_required_topic_for_channel(
+    lib: Library, topic: str, channel: str | None
+) -> tuple[str, str | None]:
+    resolved_topic, resolved_channel = _resolve_topic_for_channel(lib, topic, channel)
+    if resolved_topic is None:
+        raise typer.BadParameter("Topic is required")
+    return resolved_topic, resolved_channel
+
+
 def videos(  # noqa: C901 — legacy, will refactor
     topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
     channel: str | None = typer.Option(
@@ -231,7 +240,7 @@ def videos(  # noqa: C901 — legacy, will refactor
     """List processed videos with metadata."""
     config = get_config()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     channels = lib.get_channels(topic)
     if channel:
@@ -385,7 +394,7 @@ def show(  # noqa: C901 — legacy, will refactor
         # Treat as channel name (positional overrides -c flag)
         channel = index_or_channel
 
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
     channels = lib.get_channels(topic)
     if channel:
         channels = [ch for ch in channels if ch.name == channel]
@@ -514,7 +523,7 @@ def package_latest(  # noqa: C901 — legacy, will refactor
     """Package the latest videos into a single markdown file with links, insights, and optionally transcripts."""
     config = get_config()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     channels = lib.get_channels(topic)
     if channel:
@@ -604,7 +613,7 @@ def synthesis(  # noqa: C901 — legacy, will refactor
     """Read the synthesis document for a channel or topic."""
     config = get_config()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     if channel:
         file_path = find_artifact(
@@ -705,7 +714,7 @@ def findings(
     """Read the generated report."""
     config = get_config()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     if channel:
         file_path = find_artifact(
@@ -796,7 +805,7 @@ def diff(
     """Show what changed in a topic since the last watch run or a fallback window."""
     config = get_config()
     lib = Library(config)
-    topic, _channel = _resolve_topic_for_channel(lib, topic, None)
+    topic, _channel = _resolve_required_topic_for_channel(lib, topic, None)
 
     if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
         console.print(f"[red]Topic not found: {topic}[/red]")
@@ -809,9 +818,13 @@ def diff(
         days=days,
     )
     details = _collect_topic_change_details(config, lib, topic, baseline)
-    summary = str(details.get("summary", "no recent change detected"))
-    generated_at = details.get("generated_at") or datetime.now()
-    effective_baseline = details.get("effective_baseline") or (baseline or generated_at)
+    summary = details["summary"]
+    generated_at = details["generated_at"]
+    effective_baseline = details["effective_baseline"]
+    new_videos = details["new_videos"]
+    new_pages = details["new_pages"]
+    new_papers = details["new_papers"]
+    refreshed_outputs = details["refreshed_outputs"]
     rendered = _render_topic_diff_markdown(
         config,
         title=f"# Topic Diff: {topic}",
@@ -823,10 +836,10 @@ def diff(
         watch_name=watch_name,
         query=query,
         cadence=cadence,
-        new_videos=list(details.get("new_videos", [])),
-        new_pages=list(details.get("new_pages", [])),
-        new_papers=list(details.get("new_papers", [])),
-        refreshed_outputs=list(details.get("refreshed_outputs", [])),
+        new_videos=new_videos,
+        new_pages=new_pages,
+        new_papers=new_papers,
+        refreshed_outputs=refreshed_outputs,
         limit=limit,
     )
 
@@ -863,10 +876,10 @@ def diff(
             watch_name=watch_name,
             query=query,
             cadence=cadence,
-            new_videos=list(details.get("new_videos", [])),
-            new_pages=list(details.get("new_pages", [])),
-            new_papers=list(details.get("new_papers", [])),
-            refreshed_outputs=list(details.get("refreshed_outputs", [])),
+            new_videos=new_videos,
+            new_pages=new_pages,
+            new_papers=new_papers,
+            refreshed_outputs=refreshed_outputs,
         )
         console.print()
         console.print(f"  {_file_link(diff_path)}")
@@ -888,7 +901,7 @@ def trends(
     """Show recent topic momentum using recorded diff history."""
     config = get_config()
     lib = Library(config)
-    topic, _channel = _resolve_topic_for_channel(lib, topic, None)
+    topic, _channel = _resolve_required_topic_for_channel(lib, topic, None)
 
     if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
         console.print(f"[red]Topic not found: {topic}[/red]")
