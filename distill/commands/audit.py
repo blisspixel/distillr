@@ -22,6 +22,7 @@ from distill.commands._json import emit_json, json_mode_active, set_json_active
 from distill.library import Library
 from distill.pipeline.audit import (
     AuditReport,
+    ContestedFinding,
     NextActionPlan,
     build_next_action_plan,
     collect_exact_video_duplicates,
@@ -68,7 +69,7 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
     from distill.pipeline.gaps import topic_gap_summary
 
     topic_dir = config.topic_dir(topic)
-    contested = [
+    contested: list[ContestedFinding] = [
         {
             "name": c.name,
             "kind": "entity" if c.is_entity else "concept",

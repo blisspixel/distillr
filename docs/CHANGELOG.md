@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted the route-orchestration selection core to Pyright strict mode.
 - Ratcheted the discovery planning and rerank helper to Pyright strict mode,
   with typed callback protocols and typed LLM JSON row parsing.
+- Ratcheted the deterministic audit health surface to Pyright strict mode,
+  with typed sidecar flags, stale prompt rows, contested findings, and hygiene
+  lists.
 
 ### Fixed
 

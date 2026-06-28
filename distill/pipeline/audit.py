@@ -14,16 +14,17 @@ agent or human can read later -- and the action menu lives in the command
 layer, not here.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 
 from distill.library.freshness import SynthesisFreshness, collect_synthesis_freshness
 from distill.library.insights import discover_insights
-from distill.library.links import BrokenLink
 from distill.library.okf import detect_okf_export_staleness
 from distill.library.paths import (
     artifact_path,
@@ -31,6 +32,15 @@ from distill.library.paths import (
     find_artifact,
     tags_for,
     write_markdown_artifact,
+)
+from distill.pipeline.audit_records import (
+    AuditReport,
+    ContestedFinding,
+    LibraryHygiene,
+    StalenessRollup,
+    StalePromptRecord,
+    VerifyFlag,
+    VerifyRollup,
 )
 from distill.pipeline.audit_transcripts import (
     ThinTranscript,
@@ -61,8 +71,10 @@ from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 _action_id = action_id
 _loop = loop_metadata
 
+
 __all__ = [
     "AuditReport",
+    "ContestedFinding",
     "ExactVideoDuplicateGroup",
     "LibraryHygiene",
     "LoopMetadata",
@@ -70,9 +82,11 @@ __all__ = [
     "NextActionPlan",
     "NextActionVerifier",
     "ProfileHealth",
+    "StalePromptRecord",
     "StalenessRollup",
     "SynthesisFreshness",
     "ThinTranscript",
+    "VerifyFlag",
     "VerifyRollup",
     "VideoOccurrence",
     "build_next_action_plan",
@@ -89,86 +103,6 @@ __all__ = [
     "render_library_audit_md",
     "write_audit_artifact",
 ]
-
-
-@dataclass(frozen=True)
-class VerifyRollup:
-    """Verification coverage for a topic's insights, from ``_Verify.json`` sidecars.
-
-    Synthesis artifacts are counted separately (0.13.1): they are verified
-    against their own inputs rather than a source receipt, and a synthesis
-    predating the synthesis-verify gate is expected, not alarming. Their
-    flags land in the shared ``flagged`` list so the audit treats a flagged
-    synthesis claim as a finding like any other.
-    """
-
-    insights_total: int
-    checked: int
-    clean: int
-    flagged: list[dict] = field(default_factory=list)  # {insight, token, kind, context}
-    synthesis_total: int = 0
-    synthesis_checked: int = 0
-    synthesis_clean: int = 0
-
-    @property
-    def never_checked(self) -> int:
-        return self.insights_total - self.checked
-
-    @property
-    def synthesis_never_checked(self) -> int:
-        return self.synthesis_total - self.synthesis_checked
-
-
-@dataclass(frozen=True)
-class StalenessRollup:
-    """Prompt-version drift across a topic's insights.
-
-    Frontmatter ``prompt_id`` (recorded since 0.7) compared against the
-    central registry (`distill.prompts.registry`) -- the same dict the
-    writers stamp from, so the floor table cannot itself drift. "Stale"
-    means a newer prompt version exists for that family: the artifact is not
-    wrong, but a re-analysis would apply lessons the prompt has learned
-    since.
-    """
-
-    current: int = 0
-    stale: list[dict] = field(default_factory=list)  # {insight, recorded, current}
-    unknown_family: int = 0  # prompt families the registry no longer knows
-    no_provenance: int = 0  # artifacts predating provenance stamping
-
-
-@dataclass(frozen=True)
-class AuditReport:
-    """Everything one audit run found for one topic."""
-
-    topic: str
-    health_warnings: list[str]
-    contested: list[dict]  # {name, kind, helpful, harmful, sources}
-    broken_links: list[BrokenLink]
-    gaps: list[str]
-    next_actions: list[str]
-    verify: VerifyRollup
-    staleness: StalenessRollup = field(default_factory=StalenessRollup)
-    near_duplicates: list = field(default_factory=list)  # list[DuplicateGroup]
-    exact_video_duplicates: list = field(default_factory=list)  # list[ExactVideoDuplicateGroup]
-    thin_transcripts: list = field(default_factory=list)  # list[ThinTranscript]
-    freshness: SynthesisFreshness = field(default_factory=SynthesisFreshness)
-
-    @property
-    def issue_count(self) -> int:
-        return (
-            len(self.health_warnings)
-            + len(self.contested)
-            + len(self.broken_links)
-            + len(self.gaps)
-            + len(self.verify.flagged)
-            + len(self.staleness.stale)
-            + len(self.near_duplicates)
-            + len(self.exact_video_duplicates)
-            + len(self.thin_transcripts)
-            + len(self.freshness.stale)
-            + len(self.freshness.shadowed_legacy)
-        )
 
 
 def _audit_json_command(topic: str) -> list[str]:
@@ -188,7 +122,9 @@ def _append_action(actions: list[NextAction], action: NextAction) -> None:
         actions.append(action)
 
 
-def _reanalysis_argvs(library_dir: Path, topic: str, stale: list[dict]) -> list[list[str]]:
+def _reanalysis_argvs(
+    library_dir: Path, topic: str, stale: list[StalePromptRecord]
+) -> list[list[str]]:
     """Concrete re-analysis argv arrays for stale artifacts."""
     commands: list[list[str]] = []
     for item in stale:
@@ -431,36 +367,47 @@ def build_next_action_plan(
     )
 
 
-def _sidecar_flags(data: dict, artifact_path: str) -> list[dict]:
+def _json_object(value: object) -> dict[str, Any] | None:
+    return cast("dict[str, Any]", value) if isinstance(value, dict) else None
+
+
+def _json_object_list(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in cast("list[object]", value):
+        parsed = _json_object(item)
+        if parsed is not None:
+            rows.append(parsed)
+    return rows
+
+
+def _sidecar_flags(data: dict[str, Any], artifact_path: str) -> list[VerifyFlag]:
     """All flagged claims in one sidecar: numeric tier + the additive
     entailment block (schema v2; a missing block means the tier wasn't run,
     so v1 sidecars stay valid)."""
-    flags: list[dict] = []
-    unsupported = data.get("unsupported")
-    if isinstance(unsupported, list):
-        flags += [
+    flags: list[VerifyFlag] = []
+    unsupported = _json_object_list(data.get("unsupported"))
+    for item in unsupported:
+        flags.append(
             {
                 "insight": artifact_path,
                 "token": str(item.get("token", "")),
                 "kind": str(item.get("kind", "")),
                 "context": str(item.get("context", ""))[:200],
             }
-            for item in unsupported
-            if isinstance(item, dict)
-        ]
-    ent = data.get("entailment")
-    ent_flagged = ent.get("flagged") if isinstance(ent, dict) else None
-    if isinstance(ent_flagged, list):
-        flags += [
+        )
+    ent = _json_object(data.get("entailment"))
+    ent_flagged = _json_object_list(ent.get("flagged")) if ent is not None else []
+    for item in ent_flagged:
+        flags.append(
             {
                 "insight": artifact_path,
                 "token": str(item.get("claim", ""))[:80],
                 "kind": "entailment",
                 "context": str(item.get("best_chunk_preview", ""))[:200],
             }
-            for item in ent_flagged
-            if isinstance(item, dict)
-        ]
+        )
     return flags
 
 
@@ -497,7 +444,7 @@ def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
     return found
 
 
-def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[dict]] | None:
+def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[VerifyFlag]] | None:
     """Read one ``_Verify.json`` sidecar. Returns ``(is_clean, flags)`` or
     ``None`` when the file is absent/unreadable/not an object -- the caller
     counts ``None`` as never-checked (parse-don't-crash over local state)."""
@@ -507,9 +454,10 @@ def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[dict]] | None:
         data = json.loads(sidecar.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    if not isinstance(data, dict):
+    parsed = _json_object(data)
+    if parsed is None:
         return None
-    flags = _sidecar_flags(data, label)
+    flags = _sidecar_flags(parsed, label)
     return (not flags, flags)
 
 
@@ -525,7 +473,7 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     insights = discover_insights(topic_dir)
     checked = 0
     clean = 0
-    flagged: list[dict] = []
+    flagged: list[VerifyFlag] = []
     for ref in insights:
         sidecars = sorted(ref.path.parent.glob("*_Verify.json"))
         result = _read_sidecar(sidecars[0], ref.artifact_path) if sidecars else None
@@ -579,7 +527,7 @@ def _frontmatter_prompt_id(text: str) -> str:
 def collect_staleness(topic_dir: Path) -> StalenessRollup:
     """Compare each insight's recorded ``prompt_id`` to the current registry."""
     current = 0
-    stale: list[dict] = []
+    stale: list[StalePromptRecord] = []
     unknown_family = 0
     no_provenance = 0
     for ref in discover_insights(topic_dir):
@@ -618,7 +566,7 @@ def collect_staleness(topic_dir: Path) -> StalenessRollup:
 _INGESTABLE_HOSTS = ("x.com", "twitter.com", "github.com")
 
 
-def reanalysis_commands(library_dir: Path, topic: str, stale: list[dict]) -> list[str]:
+def reanalysis_commands(library_dir: Path, topic: str, stale: list[StalePromptRecord]) -> list[str]:
     """Concrete re-analysis lines for stale artifacts (printed, never run).
 
     Re-ingesting a source re-runs analysis on the *current* prompt -- that is
@@ -835,33 +783,6 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
         lines += section(report)
         lines.append("")
     return "\n".join(lines)
-
-
-@dataclass(frozen=True)
-class LibraryHygiene:
-    """Library-wide topic-directory status, for the end of ``audit all``.
-
-    The dev-library review (2026-06-12) found 11 of 53 topics were unlabeled
-    test leftovers, one a broken reparse point, and several real corpora
-    invisible to agents -- all indistinguishable from production topics in
-    every existing view. Categories here are objective filesystem facts,
-    except ``test_named`` which is an explicitly-labelled naming heuristic.
-    """
-
-    healthy: int = 0
-    empty: list[str] = field(default_factory=list)  # no sources, no synthesis
-    unreadable: list[str] = field(default_factory=list)  # broken links/reparse points
-    unindexed: list[str] = field(default_factory=list)  # has sources, no CLAUDE.md
-    test_named: list[str] = field(default_factory=list)  # name suggests test/scratch
-    profiles: ProfileHealth = field(default_factory=ProfileHealth)
-
-    @property
-    def issue_count(self) -> int:
-        # test_named is informational, not a finding -- a deliberately named
-        # validation topic is not wrong, just worth listing for cleanup.
-        return (
-            len(self.empty) + len(self.unreadable) + len(self.unindexed) + self.profiles.issue_count
-        )
 
 
 _TEST_NAME_RE = re.compile(r"(^|-)(test|tests|validate|validation|scratch|tmp|wwt)(-|\d|$)")
