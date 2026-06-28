@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.5 - 2026-06-28
+
 ### Added
 
 - Added deterministic mutation-survivor tests for library path helpers, covering
