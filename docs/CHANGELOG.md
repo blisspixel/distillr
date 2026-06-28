@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.8 - 2026-06-28
+
 ### Changed
 
 - Ratcheted `distill.pipeline.ranking` to Pyright strict mode and parsed LLM
