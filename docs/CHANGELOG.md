@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Removed legacy Anthropic and OpenAI dead provider modules and corrected
+  provider-route docs so only implemented routes are described as live.
+
 ## 0.19.5 - 2026-06-28
 
 ### Added

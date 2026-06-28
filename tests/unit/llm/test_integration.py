@@ -280,23 +280,19 @@ def test_module_size_cap() -> None:
 
 
 def test_provider_protocol_compliance() -> None:
-    """Import all provider classes, instantiate with dummy args.
+    """Import live provider classes, instantiate with dummy args.
     Assert isinstance(provider, Provider) for each.
 
     **Validates: Requirements 2.6**
     """
     from distill.llm.providers.agent import AgentProvider
-    from distill.llm.providers.anthropic import AnthropicProvider
     from distill.llm.providers.grok import GrokProvider
     from distill.llm.providers.ollama import OllamaProvider
-    from distill.llm.providers.openai_prov import OpenAIProvider
 
     with tempfile.TemporaryDirectory() as tmp:
         providers: list[tuple[str, Any]] = [
             ("GrokProvider", GrokProvider(api_key="dummy-key")),
             ("AgentProvider", AgentProvider(ops_dir=tmp)),
-            ("AnthropicProvider", AnthropicProvider()),
-            ("OpenAIProvider", OpenAIProvider()),
             ("OllamaProvider", OllamaProvider()),
         ]
 

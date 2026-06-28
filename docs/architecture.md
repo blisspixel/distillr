@@ -337,7 +337,7 @@ distill/                           # Python package - layered subpackage archite
 │   ├── router.py                  # Workload-to-provider dispatch
 │   ├── cost.py                    # Unified cost registry
 │   ├── telemetry.py               # Per-prompt telemetry
-│   └── providers/                 # xAI, Gemini, Anthropic, OpenAI, Ollama, Agent
+│   └── providers/                 # xAI, Gemini, Ollama, LM Studio, Agent
 │
 ├── mcp/                           # MCP server
 │   ├── server.py                  # Transport, registration, lifecycle
