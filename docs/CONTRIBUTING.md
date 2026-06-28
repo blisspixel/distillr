@@ -190,8 +190,8 @@ Use this checklist for those changes:
 ## Git and GitHub hygiene
 
 - **One long-lived branch: `main`**, kept releasable (GitHub Flow). Do work on short-lived feature branches and open a PR; it squash-merges as one clean commit and the branch auto-deletes, so history stays linear and nothing stale accumulates. `main` is protected: the full CI gate must pass before merge, and force-pushes/deletions are blocked. Reviews are not required (0 approvals) and admins bypass the PR requirement, so a quick fix can still go straight to `main` when warranted - but the PR path is the default.
-- **No machine attribution in history.** Commits and PR bodies carry no `Co-authored-by`, `Generated with`, or agent/tool credit lines (Claude, Codex, Copilot, and the like). The author is the human who made the change; `git log` and blame stay honest.
-- **Dependabot stays off, deliberately** (removed in 0.9.23 - see the ROADMAP "Engineering standards: adopted, adapted, declined" entry). `pip-audit` in the CI gate covers vulnerable-dependency alerts without bot PRs or bot branches.
+- **No machine attribution in history.** Commits and PR bodies carry no agent, assistant, generator, or tool credit lines. The author is the human who made the change; `git log` and blame stay honest.
+- **Automated dependency update bots stay off, deliberately** (removed in 0.9.23 - see the ROADMAP "Engineering standards: adopted, adapted, declined" entry). `pip-audit` in the CI gate covers vulnerable-dependency alerts without bot PRs or bot branches.
 
 ## Pre-push checklist (release quality)
 

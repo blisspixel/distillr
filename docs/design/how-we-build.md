@@ -191,7 +191,7 @@ from one documented command; a new agent gets correct orientation on `cd`).
 The adopt/adapt/decline standards (uv/lock/frozen, import-linter, pip-audit,
 SBOM + PEP 740 *(shipped 0.8.3)*, Pyright-strict ratchet, parse-don't-validate,
 branch-coverage ratchet, structlog-not-OTel, declined SLSA-L3/containers/free-
-threading/Dependabot) live in **ROADMAP § "Engineering standards: adopted,
+threading/automated dependency updates) live in **ROADMAP § "Engineering standards: adopted,
 adapted, declined"** - not duplicated here. Only what's *new* lives here:
 
 - **Module-size gate** - `≤1000` lines hard. Enforced by a ~15-line

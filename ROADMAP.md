@@ -390,7 +390,7 @@ The 0.8.3 and 1.0 quality posture above was pressure-tested against two general 
 **Adopted** (genuinely new, high-value, in scope at 0.8.3 / 1.0):
 
 - `uv` as the sole toolchain, a committed `uv.lock`, and `uv sync --frozen` in CI - reproducible environments, and the direct fix for the dependency-float break that motivated 0.8.3.
-- `import-linter` and `pip-audit` promoted into blocking CI; `pre-commit` made identical to CI; `xfail_strict`; branch coverage; SBOM on release. (Dependabot was trialed in 0.8.3 and deliberately dropped - dependency bumps are reviewed manually.)
+- `import-linter` and `pip-audit` promoted into blocking CI; `pre-commit` made identical to CI; `xfail_strict`; branch coverage; SBOM on release. (Automated dependency update bots were trialed in 0.8.3 and deliberately dropped - dependency bumps are reviewed manually.)
 - The full Pyright-strict ratchet and "parse, don't validate" strict domain types at every boundary (1.0).
 - **PEP 740 build-provenance attestations** over the existing OIDC trusted-publishing channel (secretless), so the path from a reviewed `main` commit to the installed wheel is cryptographically verifiable. The cheap, high-value slice of the advanced brief's Sigstore/SLSA section.
 - **Verification depth on the deterministic core** (1.0): Design by Contract (`deal`) on the merge/normalize/recovery invariants, mutation testing of the core packages, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at the external-service boundaries. "Formally contracted where it matters" - scoped to the pure-Python core, not blanket.
@@ -421,7 +421,7 @@ distillr's threat model follows from what it actually is: a local-first CLI and 
 
 **Already in place:**
 
-- **Supply chain** (0.8.3): committed `uv.lock` + `uv sync --frozen`, blocking `pip-audit` and bandit in CI, a CycloneDX SBOM, PEP 740 provenance attestations, and SHA-pinned GitHub Actions. For an API consumer the "model supply chain is the new software supply chain" concern reduces to ordinary dependency hygiene, which is covered. (Dependency/action bumps are reviewed manually; Dependabot is deliberately not used.)
+- **Supply chain** (0.8.3): committed `uv.lock` + `uv sync --frozen`, blocking `pip-audit` and bandit in CI, a CycloneDX SBOM, PEP 740 provenance attestations, and SHA-pinned GitHub Actions. For an API consumer the "model supply chain is the new software supply chain" concern reduces to ordinary dependency hygiene, which is covered. (Dependency/action bumps are reviewed manually; automated dependency update bots are deliberately not used.)
 - **MCP path confinement**: `read_insight` / `read_concept` resolve caller-supplied paths through `_resolve_within_library` and refuse anything outside the library root (the path-traversal / auth-bypass class addressed in the prior security pass).
 - **Secret handling**: API keys are `SecretStr`, kept out of artifacts and logs; a `detect-private-key` pre-commit hook guards commits.
 
