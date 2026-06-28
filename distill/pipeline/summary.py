@@ -1,6 +1,9 @@
+# pyright: strict
+
 from __future__ import annotations
 
 import json
+import logging
 import time
 import traceback
 from contextlib import suppress
@@ -14,9 +17,12 @@ from rich.console import Console
 from distill.llm.cost import deep_research_query_cost
 from distill.pipeline.costs import (
     ACCORDION_GROK_ESTIMATE,
+    CostTracker,
     estimate_stage_cost,
     report_deep_research_estimate,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "BatchProgress",
@@ -56,7 +62,7 @@ class RunIssue:
     details: tuple[tuple[str, str], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "stage": self.stage,
             "message": self.message,
             "context": self.context,
@@ -75,12 +81,12 @@ class RunIssue:
 class RunSummary:
     """Accumulated results from a processing run."""
 
-    results: list[VideoResult] = field(default_factory=list)
-    issues: list[RunIssue] = field(default_factory=list)
-    output_files: list[Path] = field(default_factory=list)
+    results: list[VideoResult] = field(default_factory=list[VideoResult])
+    issues: list[RunIssue] = field(default_factory=list[RunIssue])
+    output_files: list[Path] = field(default_factory=list[Path])
     start_time: float = field(default_factory=time.time)
     command: str = ""
-    metadata: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, str] = field(default_factory=dict[str, str])
     # Pre-run estimate (USD) when the flow showed one before committing spend;
     # logged beside actual_cost so `distill costs` can hold the estimator
     # accountable (accuracy is the promise, this is the receipt).
@@ -178,7 +184,7 @@ class ETATracker:
     total: int
     completed: int = 0
     failed: int = 0
-    _times: list[float] = field(default_factory=list)
+    _times: list[float] = field(default_factory=list[float])
 
     def start(self) -> float:
         return time.time()
@@ -274,8 +280,8 @@ class BatchProgress:
 _ACCENT = "rgb(100,149,237)"
 
 # Per-item ingest stages whose failures are safely retryable by re-running the
-# same command: ingest re-runs are convergent (already-ingested sources skip),
-# so "re-run" IS the resume mechanism -- no checkpoint file needed.
+# same command: ingest re-runs are convergent because already-ingested
+# sources skip, so "re-run" is the resume mechanism.
 _RETRYABLE_INGEST_STAGES = frozenset({"paper-analysis", "site-ingest", "video-analysis"})
 
 
@@ -299,7 +305,7 @@ def display_estimate(
     accordion_grok = ACCORDION_GROK_ESTIMATE if include_report else 0.0
     total = grok_cost + synthesis_cost + gemini_cost + accordion_grok
 
-    parts = []
+    parts: list[str] = []
     if full_videos:
         parts.append(f"{full_videos} video{'s' if full_videos != 1 else ''}")
     if scan_videos:
@@ -320,9 +326,9 @@ def display_estimate(
     con.print()
 
 
-def display_summary(  # noqa: C901 — legacy, will refactor
+def display_summary(  # noqa: C901 - legacy, will refactor
     summary: RunSummary,
-    cost_tracker=None,
+    cost_tracker: CostTracker | None = None,
     console: Console | None = None,
     log_dir: Path | None = None,
     preview: bool = False,
@@ -351,9 +357,9 @@ def display_summary(  # noqa: C901 — legacy, will refactor
                 preview=preview,
             )
         except Exception:
-            pass
+            logger.debug("Failed to save run cost log", exc_info=True)
 
-    # Preview runs skip the visual summary block — the preview already showed
+    # Preview runs skip the visual summary block because the preview already showed
     # the ranked table; only the cost log needed to be written.
     if is_empty and preview:
         return
@@ -367,7 +373,7 @@ def display_summary(  # noqa: C901 — legacy, will refactor
     con.print()
 
     if summary.results:
-        parts = []
+        parts: list[str] = []
         if summary.full_count:
             parts.append(
                 f"[{_ACCENT}]{summary.full_count}[/{_ACCENT}] video{'s' if summary.full_count != 1 else ''}"
@@ -447,7 +453,7 @@ def _normalize_details(details: dict[str, Any] | None) -> tuple[tuple[str, str],
     return tuple(sorted((str(k), str(v)) for k, v in details.items()))
 
 
-def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C901 — legacy, will refactor
+def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C901 - legacy, will refactor
     log_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now(UTC).isoformat()
@@ -475,7 +481,7 @@ def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C9
     latest_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     latest = log_dir / "latest_run_errors.md"
-    lines = [
+    lines: list[str] = [
         "# Distill Run Log",
         "",
         f"- Timestamp: `{timestamp}`",
@@ -529,7 +535,7 @@ def _file_size(path: Path) -> str:
 
 
 def log_preview_cost(
-    tracker,
+    tracker: CostTracker | None,
     log_dir: Path | None,
     command: str,
     *,
@@ -560,4 +566,4 @@ def log_preview_cost(
             preview=True,
         )
     except Exception:
-        pass
+        logger.debug("Failed to save preview cost log", exc_info=True)

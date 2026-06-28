@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Ratcheted `distill.pipeline.summary` to Pyright strict mode, with typed
+  run-summary defaults and observable debug logging for non-fatal cost-log
+  write failures.
+
 ## 0.19.9 - 2026-06-28
 
 ### Changed
