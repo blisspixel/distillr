@@ -109,12 +109,38 @@ branch = true
 source = ["distill"]
 
 [tool.mutmut]
-# Phase 0 verification-depth diagnostic. This is intentionally scoped to a pure,
-# well-tested core module and run by a manual Ubuntu workflow, not the per-PR CI
-# matrix. See docs/design/verification-depth.md.
-source_paths = ["distill/concepts"]
-only_mutate = ["distill/concepts/merge.py"]
-pytest_add_cli_args_test_selection = ["tests/unit/concepts/test_merge.py"]
+# Phase 2 verification-depth diagnostic. This is scoped to deterministic core
+# modules and runs in a non-blocking Ubuntu workflow, not the per-PR CI matrix.
+# See docs/design/verification-depth.md.
+source_paths = ["distill/concepts", "distill/library", "distill/pipeline"]
+only_mutate = [
+    "distill/concepts/merge.py",
+    "distill/concepts/normalize.py",
+    "distill/concepts/recovery.py",
+    "distill/library/links.py",
+    "distill/library/paths.py",
+    "distill/library/wikilinks.py",
+    "distill/pipeline/dedup.py",
+    "distill/pipeline/verify.py",
+    "distill/pipeline/verify_entailment.py",
+]
+mutate_only_covered_lines = true
+pytest_add_cli_args_test_selection = [
+    "tests/unit/concepts/test_contract_cases.py",
+    "tests/unit/concepts/test_merge.py",
+    "tests/unit/concepts/test_normalize.py",
+    "tests/unit/concepts/test_playbook_stateful.py",
+    "tests/unit/concepts/test_recovery.py",
+    "tests/unit/library/test_contract_cases.py",
+    "tests/unit/library/test_frontmatter_props.py",
+    "tests/unit/library/test_paths_props.py",
+    "tests/unit/library/test_wikilinks.py",
+    "tests/unit/library/test_wikilinks_props.py",
+    "tests/unit/commands/test_doctor_links.py",
+    "tests/unit/pipeline/test_dedup.py",
+    "tests/unit/pipeline/test_verify.py",
+    "tests/unit/pipeline/test_verify_entailment.py",
+]
 max_stack_depth = 8
 
 [tool.ruff]

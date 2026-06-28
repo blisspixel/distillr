@@ -79,6 +79,11 @@ code (CLI rendering, web routes) is out of scope.
   spike is ever needed, `cosmic-ray` is the Windows-capable fallback; the
   `deal` contracts (Phase 1) run fine on Windows and cover local efficacy in the
   meantime.
+  **Refresh 2026-06-28:** current `mutmut` docs continue to support `pyproject`
+  configuration, covered-line filtering, stack-depth limits, and wildcard mutant
+  selection. The workflow uses those supported controls to keep each diagnostic
+  scoped to executed deterministic core code, without turning the score into a
+  gate. Source: [mutmut docs](https://mutmut.readthedocs.io/).
 - **`CrossHair`** (stretch) for symbolic verification of a few critical pure
   functions (evidence-interval arithmetic). It checks `icontract`/`deal`-style
   contracts via SMT, blurring testing and types - proof-grade for small, pure
@@ -102,13 +107,12 @@ workflow on `ubuntu-latest`** (`workflow_dispatch`), installing `mutmut` ad hoc
 gate and not part of the per-PR matrix. Deliverable: the workflow plus the first
 recorded score and triage.
 
-Status (2026-06-27): the manual workflow exists at
+Status (2026-06-27): the initial manual workflow exists at
 `.github/workflows/mutation.yml`, with the exact scoped surface configured in
 `[tool.mutmut]` (`distill/concepts/merge.py` against
-`tests/unit/concepts/test_merge.py`). The first score and survivor triage remain
-pending the first Ubuntu dispatch. A local WSL run is not currently available in
-this workspace: one registered distro cannot attach its disk, and the other has
-only Python 3.8 and no `uv`.
+`tests/unit/concepts/test_merge.py`). A local WSL run is not currently available
+in this workspace: one registered distro cannot attach its disk, and the other
+has only Python 3.8 and no `uv`.
 
 ### Phase 1 conventions (settled while landing the first contracts)
 
@@ -162,6 +166,15 @@ tests they reveal. Track the mutation score as a reported metric, not a hard
 gate (per the no-brittle-junk charter - a score floor would be a deterministic
 gate on a quality proxy). Deliverable: the cadence workflow plus the first round
 of efficacy-driven tests.
+
+Status (2026-06-28): Phase 2 is wired as a non-blocking manual plus weekly
+GitHub Actions diagnostic. The workflow runs three scoped jobs:
+`concepts-core`, `library-core`, and `verify-core`. `[tool.mutmut]` now mutates
+only contracted deterministic core files, filters to covered lines, and uses
+focused pytest targets for the selected concepts, library, verify, entailment,
+and dedup modules. The next step is to inspect the first Ubuntu diagnostic
+output, triage survivors by risk, and add targeted tests for survivors that
+represent real regressions.
 
 **Phase 3 - fault injection at the external boundaries.** Deterministic tests
 that inject malformed LLM JSON, truncated/empty transcripts, network timeouts,

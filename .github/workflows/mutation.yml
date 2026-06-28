@@ -2,23 +2,52 @@ name: Mutation diagnostics
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "23 10 * * 1"
 
 permissions:
   contents: read
 
-# Scoped diagnostic for the 1.0 verification-depth milestone. Mutation testing
-# is intentionally manual and non-blocking until the first survivor triage is
-# recorded and the cadence policy is set.
+# Scoped diagnostic for the 1.0 verification-depth milestone. Mutation scores
+# are review evidence, not required checks, so this workflow remains non-blocking.
 env:
   UV_VERSION: "0.11.11"
   UV_PYTHON: "3.12"
   MUTMUT_VERSION: "3.6.0"
 
 jobs:
-  concepts-merge:
-    name: mutmut concepts merge
+  core:
+    name: mutmut ${{ matrix.scope }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scope: concepts-core
+            mutmut_target: "distill.concepts*"
+            pytest_targets: >-
+              tests/unit/concepts/test_contract_cases.py
+              tests/unit/concepts/test_merge.py
+              tests/unit/concepts/test_normalize.py
+              tests/unit/concepts/test_playbook_stateful.py
+              tests/unit/concepts/test_recovery.py
+          - scope: library-core
+            mutmut_target: "distill.library*"
+            pytest_targets: >-
+              tests/unit/library/test_contract_cases.py
+              tests/unit/library/test_frontmatter_props.py
+              tests/unit/library/test_paths_props.py
+              tests/unit/library/test_wikilinks.py
+              tests/unit/library/test_wikilinks_props.py
+              tests/unit/commands/test_doctor_links.py
+          - scope: verify-core
+            mutmut_target: "distill.pipeline*"
+            pytest_targets: >-
+              tests/unit/pipeline/test_dedup.py
+              tests/unit/pipeline/test_verify.py
+              tests/unit/pipeline/test_verify_entailment.py
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -32,12 +61,11 @@ jobs:
         run: uv sync --frozen
 
       - name: Prove selected tests are green
-        run: uv run --frozen pytest -q tests/unit/concepts/test_merge.py
+        run: uv run --frozen pytest -q ${{ matrix.pytest_targets }}
 
       - name: Run scoped mutation diagnostic
-        continue-on-error: true
-        run: uv run --with "mutmut==${MUTMUT_VERSION}" mutmut run
+        run: uv run --with "mutmut==${MUTMUT_VERSION}" mutmut run "${{ matrix.mutmut_target }}"
 
       - name: Show mutation results
         if: always()
-        run: uv run --with "mutmut==${MUTMUT_VERSION}" mutmut results
+        run: uv run --with "mutmut==${MUTMUT_VERSION}" mutmut results || true
