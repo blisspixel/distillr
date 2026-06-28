@@ -17,37 +17,10 @@ env:
 
 jobs:
   core:
-    name: mutmut ${{ matrix.scope }}
+    name: mutmut core
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - scope: concepts-core
-            mutmut_target: "distill.concepts*"
-            pytest_targets: >-
-              tests/unit/concepts/test_contract_cases.py
-              tests/unit/concepts/test_merge.py
-              tests/unit/concepts/test_normalize.py
-              tests/unit/concepts/test_playbook_stateful.py
-              tests/unit/concepts/test_recovery.py
-          - scope: library-core
-            mutmut_target: "distill.library*"
-            pytest_targets: >-
-              tests/unit/library/test_contract_cases.py
-              tests/unit/library/test_frontmatter_props.py
-              tests/unit/library/test_paths_props.py
-              tests/unit/library/test_wikilinks.py
-              tests/unit/library/test_wikilinks_props.py
-              tests/unit/commands/test_doctor_links.py
-          - scope: verify-core
-            mutmut_target: "distill.pipeline*"
-            pytest_targets: >-
-              tests/unit/pipeline/test_dedup.py
-              tests/unit/pipeline/test_verify.py
-              tests/unit/pipeline/test_verify_entailment.py
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -61,10 +34,25 @@ jobs:
         run: uv sync --frozen
 
       - name: Prove selected tests are green
-        run: uv run --frozen pytest -q ${{ matrix.pytest_targets }}
+        shell: bash
+        run: |
+          mapfile -t pytest_args < <(
+            uv run --frozen python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          content = Path("pyproject.toml").read_text(encoding="utf-8")
+          config = tomllib.loads(content)["tool"]["mutmut"]
+          for item in config["pytest_add_cli_args_test_selection"]:
+              print(item)
+          for item in config.get("pytest_add_cli_args", []):
+              print(item)
+          PY
+          )
+          uv run --frozen pytest -q "${pytest_args[@]}"
 
       - name: Run scoped mutation diagnostic
-        run: uv run --with "mutmut==${MUTMUT_VERSION}" mutmut run "${{ matrix.mutmut_target }}"
+        run: uv run --with "mutmut==${MUTMUT_VERSION}" mutmut run
 
       - name: Show mutation results
         if: always()

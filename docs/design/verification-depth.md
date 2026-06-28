@@ -82,8 +82,9 @@ code (CLI rendering, web routes) is out of scope.
   **Refresh 2026-06-28:** current `mutmut` docs continue to support `pyproject`
   configuration, covered-line filtering, stack-depth limits, and wildcard mutant
   selection. The workflow uses those supported controls to keep each diagnostic
-  scoped to executed deterministic core code, without turning the score into a
-  gate. Source: [mutmut docs](https://mutmut.readthedocs.io/).
+  scoped to executed deterministic core code. The project config is the single
+  source of truth for selected tests and deselects, and the workflow reads it
+  directly before running pytest. Source: [mutmut docs](https://mutmut.readthedocs.io/).
 - **`CrossHair`** (stretch) for symbolic verification of a few critical pure
   functions (evidence-interval arithmetic). It checks `icontract`/`deal`-style
   contracts via SMT, blurring testing and types - proof-grade for small, pure
@@ -168,13 +169,16 @@ gate on a quality proxy). Deliverable: the cadence workflow plus the first round
 of efficacy-driven tests.
 
 Status (2026-06-28): Phase 2 is wired as a non-blocking manual plus weekly
-GitHub Actions diagnostic. The workflow runs three scoped jobs:
-`concepts-core`, `library-core`, and `verify-core`. `[tool.mutmut]` now mutates
-only contracted deterministic core files, filters to covered lines, and uses
-focused pytest targets for the selected concepts, library, verify, entailment,
-and dedup modules. The next step is to inspect the first Ubuntu diagnostic
-output, triage survivors by risk, and add targeted tests for survivors that
-represent real regressions.
+GitHub Actions diagnostic. The workflow runs one advisory core job because
+`[tool.mutmut]` already owns the exact mutation surface. It mutates only
+contracted deterministic core files, filters to covered lines, copies the full
+`distill` package for import closure, and runs a deterministic test slice from
+the same `pyproject.toml` config before mutation. Stateful property tests and
+file-emitting tests stay in the normal suite; they remain valuable, but they are
+bad mutation-driver inputs. The first local Linux reproduction reached real
+mutation execution across 1,754 mutants. The next step is to inspect the first
+Ubuntu diagnostic output, triage survivors by risk, and add targeted tests for
+survivors that represent real regressions.
 
 **Phase 3 - fault injection at the external boundaries.** Deterministic tests
 that inject malformed LLM JSON, truncated/empty transcripts, network timeouts,

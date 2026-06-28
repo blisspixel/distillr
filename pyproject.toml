@@ -113,6 +113,9 @@ source = ["distill"]
 # modules and runs in a non-blocking Ubuntu workflow, not the per-PR CI matrix.
 # See docs/design/verification-depth.md.
 source_paths = ["distill/concepts", "distill/library", "distill/pipeline"]
+# Mutmut stages selected source paths in isolation. Copy the full package for
+# import closure, while only_mutate keeps the diagnostic surface scoped.
+also_copy = ["distill"]
 only_mutate = [
     "distill/concepts/merge.py",
     "distill/concepts/normalize.py",
@@ -125,17 +128,44 @@ only_mutate = [
     "distill/pipeline/verify_entailment.py",
 ]
 mutate_only_covered_lines = true
+# Keep recurring mutation diagnostics on deterministic contract and example
+# tests. Stateful property tests and file-emitting paths remain in the normal
+# suite, where they are valuable but poor mutation-driver inputs.
+pytest_add_cli_args = [
+    "--deselect",
+    "tests/unit/pipeline/test_verify.py::test_paper_write_runs_verify_hook",
+    "--deselect",
+    "tests/unit/pipeline/test_verify.py::test_paper_write_verify_off_skips_sidecar",
+    "--deselect",
+    "tests/unit/pipeline/test_verify.py::test_paper_write_strict_refuses_insight_but_keeps_receipt",
+    "--deselect",
+    "tests/unit/pipeline/test_verify.py::test_paper_write_strict_clean_insight_is_written",
+    "--deselect",
+    "tests/unit/pipeline/test_verify.py::test_local_ingest_strict_refuses_insight",
+    "--deselect",
+    "tests/unit/concepts/test_merge.py::TestMergeInvariants::test_commutative_under_source_ordering",
+    "--deselect",
+    "tests/unit/concepts/test_merge.py::TestMergeInvariants::test_idempotent_under_duplicate_mentions",
+    "--deselect",
+    "tests/unit/concepts/test_merge.py::TestMergeInvariants::test_monotonic_widening_for_new_sources",
+    "--deselect",
+    "tests/unit/concepts/test_merge.py::TestMergeInvariants::test_evidence_bounds_invariant",
+    "--deselect",
+    "tests/unit/concepts/test_merge.py::TestMergeInvariants::test_contested_iff_both_uppers_positive",
+    "--deselect",
+    "tests/unit/concepts/test_normalize.py::TestCanonicalize::test_idempotent",
+    "--deselect",
+    "tests/unit/concepts/test_normalize.py::TestGroupMentions::test_grouping_is_commutative",
+    "--deselect",
+    "tests/unit/pipeline/test_verify.py::test_extract_numeric_claims_fuzz_no_crash_and_well_formed",
+]
 pytest_add_cli_args_test_selection = [
     "tests/unit/concepts/test_contract_cases.py",
     "tests/unit/concepts/test_merge.py",
     "tests/unit/concepts/test_normalize.py",
-    "tests/unit/concepts/test_playbook_stateful.py",
     "tests/unit/concepts/test_recovery.py",
     "tests/unit/library/test_contract_cases.py",
-    "tests/unit/library/test_frontmatter_props.py",
-    "tests/unit/library/test_paths_props.py",
     "tests/unit/library/test_wikilinks.py",
-    "tests/unit/library/test_wikilinks_props.py",
     "tests/unit/commands/test_doctor_links.py",
     "tests/unit/pipeline/test_dedup.py",
     "tests/unit/pipeline/test_verify.py",

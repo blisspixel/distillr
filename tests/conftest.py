@@ -1,9 +1,11 @@
 """Shared fixtures for Distill tests."""
 
 import json
+import os
 from datetime import datetime, timedelta
 
 import pytest
+from hypothesis import HealthCheck
 from hypothesis import settings as _hypothesis_settings
 
 from distill.config import DistillConfig
@@ -14,7 +16,15 @@ from distill.config import DistillConfig
 # full-suite runs on 2026-06-11/12 each dropped a different llm/library
 # property test with DeadlineExceeded. These suites test correctness, not
 # latency; disable the deadline rather than rerolling.
-_hypothesis_settings.register_profile("distill", deadline=None)
+_health_checks: list[HealthCheck] = []
+if os.environ.get("MUTANT_UNDER_TEST"):
+    # Mutmut runs stats and clean-test phases in one Python process. That is
+    # intentional for its trampoline mapping, but it trips Hypothesis's
+    # executor-identity health check even when the property itself is stable.
+    _health_checks.append(HealthCheck.differing_executors)
+_hypothesis_settings.register_profile(
+    "distill", deadline=None, suppress_health_check=_health_checks
+)
 _hypothesis_settings.load_profile("distill")
 
 

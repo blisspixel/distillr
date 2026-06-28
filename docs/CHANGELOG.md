@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Expanded the mutation-testing diagnostic into a non-blocking manual plus
   weekly workflow across contracted concepts, library, and verify/dedup core
-  modules, with covered-line filtering and focused pytest targets.
+  modules. The workflow now reads its deterministic test slice from
+  `[tool.mutmut]`, copies the full package for import closure, filters to
+  covered lines, and keeps mutation results advisory.
 
 ## 0.19.3 - 2026-06-28
 
