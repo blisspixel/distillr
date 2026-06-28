@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the full-surface Pyright error in MCP video-insight resources by
+  making shared video-list metadata express the complete rows it emits.
 - Pinned the PyPI publish action to the current `release/v1` commit SHA while
   preserving OIDC trusted publishing and PEP 740 attestations.
 - Cleared the remaining default Pyright warnings in the report pipeline by

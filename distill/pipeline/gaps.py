@@ -30,7 +30,7 @@ __all__ = [
 type JsonObject = dict[str, object]
 
 
-class VideoMetadata(TypedDict, total=False):
+class VideoMetadata(TypedDict):
     title: str
     upload_date: str
     _dir: str
@@ -123,10 +123,10 @@ def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[Vid
             meta: VideoMetadata = {
                 "title": _string_value(raw_meta.get("title"), "Unknown"),
                 "upload_date": _string_value(raw_meta.get("upload_date")),
+                "_dir": str(vid_dir),
+                "has_transcript": artifact_exists(vid_dir, "transcript", extension="txt"),
+                "has_insights": artifact_exists(vid_dir, "insights"),
             }
-            meta["_dir"] = str(vid_dir)
-            meta["has_transcript"] = artifact_exists(vid_dir, "transcript", extension="txt")
-            meta["has_insights"] = artifact_exists(vid_dir, "insights")
             vid_list.append(meta)
     vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
     return vid_list
