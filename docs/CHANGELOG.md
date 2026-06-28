@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted the report interactions boundary to Pyright strict mode, parsing
   external Gemini interaction shapes into typed object and sequence checks
   before reading model output text or polling status.
+- Ratcheted the single-call report synthesis boundary to Pyright strict mode
+  and removed em dash separators from its touched prompt text.
 
 ### Fixed
 

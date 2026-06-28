@@ -1,9 +1,10 @@
+# pyright: strict
 """Deep corpus synthesis via a single large-context LLM call.
 
 Where `distill research-brief` uses Gemini Deep Research (web-augmented,
 consulting-style compression) and `distill report` runs the 4-phase strategic
 report pipeline, `distill synthesize` runs a single large-context LLM call
-over the entire gathered corpus — no web augmentation, no compression bias,
+over the entire gathered corpus: no web augmentation, no compression bias,
 full control over depth and structure.
 
 Best for academic/technical corpus synthesis where the corpus IS the ground
@@ -50,7 +51,7 @@ def compose_synthesis_prompt(context: str, corpus_sections: list[tuple[str, str]
         "technical practitioner who will make architectural decisions based on this synthesis. "
         "You have access to an extensive corpus of source material attached below. Ground every "
         "claim in that corpus. External general knowledge is acceptable only to frame or "
-        "contextualize — do not introduce new findings that are not in the corpus.\n\n"
+        "contextualize; do not introduce new findings that are not in the corpus.\n\n"
         "Prioritize depth, specificity, and usefulness over brevity. If a technique appears in a "
         "paper, describe its mechanism, the numbers or math that matter, the trade-offs, and the "
         "specific implementation considerations for the reader's context. Cite papers inline by "
@@ -61,7 +62,7 @@ def compose_synthesis_prompt(context: str, corpus_sections: list[tuple[str, str]
         + "=== CORPUS ===\n\n"
         + corpus_body
         + "\n\n=== END OF CORPUS ===\n\n"
-        + "Now produce the synthesis. Do not summarize the corpus before beginning the synthesis — "
+        + "Now produce the synthesis. Do not summarize the corpus before beginning the synthesis; "
         "begin directly with the first required section. Use the corpus density it deserves: every "
         "section should cite 3+ distinct papers where available. Do not pad; do not compress. When "
         "the literature offers specifics (equations, benchmark numbers, named architectures, "
