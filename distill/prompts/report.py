@@ -46,6 +46,7 @@ class ReportSection(TypedDict):
 class WrittenSection(TypedDict):
     """An already-written section, passed back as prior-context for continuity."""
 
+    id: NotRequired[str]
     title: str
     content: str
     word_count: int
@@ -619,21 +620,21 @@ SECURITY: {DERIVED_CONTENT_RULES}
 
 YOUR RESEARCH MANDATE:
 
-1. **VALIDATE CLAIMS** — For every major announcement or claim in the corpus, verify it against official sources, documentation, press releases, and industry reporting. Flag anything that's been walked back, delayed, or contradicted.
+1. **VALIDATE CLAIMS** - For every major announcement or claim in the corpus, verify it against official sources, documentation, press releases, and industry reporting. Flag anything that's been walked back, delayed, or contradicted.
 
-1a. **TRACE ORIGINS** — Distinguish between claims that are independently corroborated versus claims that are simply repeated across the corpus. If several sources appear to rely on the same originating post, repo, screenshot, newsletter, or announcement, say that explicitly.
+1a. **TRACE ORIGINS** - Distinguish between claims that are independently corroborated versus claims that are simply repeated across the corpus. If several sources appear to rely on the same originating post, repo, screenshot, newsletter, or announcement, say that explicitly.
 
-2. **FILL GAPS** — What important developments are missing from the corpus? What happened that these creators didn't cover? Search for recent news, product launches, and industry reports.
+2. **FILL GAPS** - What important developments are missing from the corpus? What happened that these creators didn't cover? Search for recent news, product launches, and industry reports.
 
-3. **COMPETITIVE ANALYSIS** — Map the current competitive landscape across Microsoft/Azure, Google Cloud, AWS, and NVIDIA. Where does each vendor have real advantages vs marketing claims?
+3. **COMPETITIVE ANALYSIS** - Map the current competitive landscape across Microsoft/Azure, Google Cloud, AWS, and NVIDIA. Where does each vendor have real advantages vs marketing claims?
 
-4. **PRICING & ECONOMICS** — What's the current state of AI pricing, compute costs, and ROI realities? Are the economic claims in the corpus accurate?
+4. **PRICING & ECONOMICS** - What's the current state of AI pricing, compute costs, and ROI realities? Are the economic claims in the corpus accurate?
 
-5. **CUSTOMER REALITY** — What are enterprises actually doing with AI right now? What's in production vs proof-of-concept? Where are the real success stories and failures?
+5. **CUSTOMER REALITY** - What are enterprises actually doing with AI right now? What's in production vs proof-of-concept? Where are the real success stories and failures?
 
-6. **PREDICTIONS & TIMELINE** — Based on current trajectories, what's likely to happen in the next 3-6 months? What should enterprises be preparing for?
+6. **PREDICTIONS & TIMELINE** - Based on current trajectories, what's likely to happen in the next 3-6 months? What should enterprises be preparing for?
 
-7. **ACTIONABLE RECOMMENDATIONS** — For a pre-sales architect advising enterprise customers: What should they be recommending right now? What should they be cautioning against?
+7. **ACTIONABLE RECOMMENDATIONS** - For a pre-sales architect advising enterprise customers: What should they be recommending right now? What should they be cautioning against?
 
 OUTPUT FORMAT:
 

@@ -33,6 +33,8 @@ from distill.pipeline.summary import BatchProgress
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import (
     REPORT_SECTIONS,
+    ReportSection,
+    WrittenSection,
     dossier_prompt,
     fix_prompt,
     get_active_sections,
@@ -307,11 +309,11 @@ def _write_sections(
     tagged_materials: dict[str, str],
     filter_sections: list[str] | None = None,
     tracker: CostTracker | None = None,
-    active_sections: list[dict] | None = None,
-) -> list[dict]:
+    active_sections: list[ReportSection] | None = None,
+) -> list[WrittenSection]:
     """Write each report section sequentially with context continuity."""
     rc = RouterConfig()
-    written = []
+    written: list[WrittenSection] = []
     section_list = active_sections or REPORT_SECTIONS
     total = len(section_list)
     selected_sections = [
@@ -493,14 +495,14 @@ def _write_sections(
 # ─── Phase 4: QA ────────────────────────────────────────────────────
 
 
-def _run_qa_phase(  # noqa: C901 — legacy, will refactor
+def _run_qa_phase(  # noqa: C901 - legacy, will refactor
     topic: str,
     config: DistillConfig,
     dossier: str,
     report: str,
-    written_sections: list[dict],
+    written_sections: list[WrittenSection],
     tracker: CostTracker | None = None,
-) -> tuple[list[dict], int]:
+) -> tuple[list[WrittenSection], int]:
     """Run QA review and fix failed sections. Returns (sections, rewrite_count)."""
     rc = RouterConfig()
 
@@ -548,12 +550,12 @@ def _run_qa_phase(  # noqa: C901 — legacy, will refactor
     for s in get_active_sections():
         section_lookup[s["id"]] = s
 
-    rewrite_targets = []
+    rewrite_targets: list[tuple[int, WrittenSection, ReportSection]] = []
     for i, section in enumerate(written_sections):
         if _normalize_qa_title(section["title"]) not in failed_norm:
             continue
 
-        section_def = section_lookup.get(section["id"])
+        section_def = section_lookup.get(section.get("id", ""))
         if not section_def:
             continue
         rewrite_targets.append((i, section, section_def))
@@ -686,7 +688,7 @@ def _assemble_report(
     config: DistillConfig,
     scope: str,
     channel_name: str | None,
-    sections: list[dict],
+    sections: list[WrittenSection],
 ) -> str:
     """Assemble written sections into the final report."""
     now = datetime.now().strftime("%B %d, %Y")
@@ -828,7 +830,7 @@ def _load_syntheses(
     return "\n\n".join(parts) if parts else ""
 
 
-def _load_tagged_insights(  # noqa: C901 — legacy, will refactor
+def _load_tagged_insights(  # noqa: C901 - legacy, will refactor
     topic: str,
     config: DistillConfig,
     scope: str,

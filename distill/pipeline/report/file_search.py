@@ -34,7 +34,7 @@ def _display_safe(value: object) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def create_research_store(  # noqa: C901 — legacy, will refactor
+def create_research_store(  # noqa: C901 - legacy, will refactor
     client: genai.Client,
     topic: str,
     config: DistillConfig,
@@ -115,7 +115,7 @@ def create_research_store(  # noqa: C901 — legacy, will refactor
 
             if wait_rounds >= max_wait_rounds:
                 console.print(
-                    f"  [yellow]Indexing timeout — {len(pending_ops)} docs may still be processing[/yellow]"
+                    f"  [yellow]Indexing timeout - {len(pending_ops)} docs may still be processing[/yellow]"
                 )
         console.print(f"  [green]Indexed {uploaded}/{total} documents[/green]")
         return store_name, uploaded
@@ -155,17 +155,21 @@ def cleanup_stores(client: genai.Client, prefix: str = "distill") -> int:
     deleted = 0
     for store in client.file_search_stores.list():
         display = getattr(store, "display_name", "") or ""
+        name = getattr(store, "name", None)
         if display.startswith(prefix):
+            if not name:
+                console.print(f"  [yellow]Skipped unnamed File Search store: {display}[/yellow]")
+                continue
             try:
-                client.file_search_stores.delete(name=store.name, config={"force": True})
-                console.print(f"  [dim]Deleted: {display} ({store.name})[/dim]")
+                client.file_search_stores.delete(name=name, config={"force": True})
+                console.print(f"  [dim]Deleted: {display} ({name})[/dim]")
                 deleted += 1
             except Exception as exc:
-                console.print(f"  [yellow]Failed to delete {store.name}: {exc}[/yellow]")
+                console.print(f"  [yellow]Failed to delete {name}: {exc}[/yellow]")
     return deleted
 
 
-def _gather_files(  # noqa: C901 — legacy, will refactor
+def _gather_files(  # noqa: C901 - legacy, will refactor
     topic: str,
     config: DistillConfig,
     scope: str,
