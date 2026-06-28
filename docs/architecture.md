@@ -220,6 +220,7 @@ Single-pass synthesis stays the default until the 1.0 golden-eval gate validates
 - arXiv XML parsing uses `defusedxml` instead of `xml.etree.ElementTree` to prevent XML-based attacks.
 - SHA-1 used for content dedup is annotated `usedforsecurity=False` to make the non-cryptographic intent explicit.
 - Subprocess calls to `yt-dlp` / `scribe` pass arguments as lists (not shell strings), avoiding injection.
+- Release workflows use SHA-pinned GitHub Actions, including the PyPI publish action, while PyPI publishing stays on OIDC trusted publishing with PEP 740 attestations.
 
 ## Context engineering principles
 

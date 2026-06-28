@@ -19,6 +19,13 @@ In scope for security reports:
 - Dependency vulnerabilities in pinned versions
 - Prompt injection that causes distill to take actions outside its intended scope
 
+Supply-chain posture:
+
+- Runtime and development dependencies are pinned through the committed `uv.lock`; CI installs the locked environment with `uv sync --frozen`.
+- `bandit`, `pip-audit`, import-linter, ruff, Pyright, build, and the coverage gate run in CI.
+- GitHub Actions are pinned to full commit SHAs, including the PyPI publish action. Action and dependency bumps are reviewed manually.
+- PyPI publishing uses OIDC trusted publishing with no stored package token, and release artifacts include PEP 740 attestations.
+
 Out of scope:
 
 - Rate limiting on the user's own API keys - that's upstream (xAI, Google)

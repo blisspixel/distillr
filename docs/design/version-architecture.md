@@ -16,28 +16,17 @@ ships when its promise is true and tested, and not before.
 ### 0.x (now) -- "The loop works"
 
 The promise being built: one tool takes a research goal to a verified,
-agent-legible, self-auditing local corpus. As of 0.16.1, the main loop is
-substantially true: goal-aware convergent discovery, lens-aware analysis,
-write-time claim grounding on every emit path, eight source types, the full
-audit trust surface, `ask`/`--save`, read-only MCP, sub-agent summaries,
-estimator accountability, the local entailment tier, verify-on-synthesis,
-agent-grade `--json`, `distill update`, and the blocking golden-corpus eval
-gate have all shipped.
+agent-legible, self-auditing local corpus. As of 0.19.9, the feature spine is
+complete through OKF export/validation, loop-ready audit next-actions,
+recurring research profiles, cost-mode routing, adapter doctors, and the route
+availability primitives. The remaining 0.x work is the 1.0 quality gate:
+contract freeze, Pyright strict completion, parse-don't-validate boundaries,
+verification-depth work on deterministic core packages, the branch-coverage
+ratchet to at least 95%, and the final presentation/onboarding pass.
 
-Remaining before the 1.0 gate opens, in dependency order:
-
-1. **0.17 OKF interop + loop-ready stewardship.** Export and validate native
-   corpora as OKF v0.1 bundles, and emit audit-derived next-action plans that
-   external loops can run and verify.
-2. **0.18 decomposition finish + batch-run visibility.** Delete the remaining
-   `_logic.py` monolith, then add live progress, running cost, verbosity, and
-   consistent help examples for the batch commands.
-3. **0.19 recurring research profiles + no-metered-cost routing.** Make
-   ongoing topics like AI developer news and live agentic dev first-class
-   profiles, then add a fail-closed cost policy for local inference and
-   explicitly configured plan-quota CLI routes.
-4. **Harden passes interleaved.** Keep the established rhythm for security,
-   robustness, dependency, and parse-don't-crash sweeps.
+Harden passes stay interleaved until 1.0. They cover security, robustness,
+dependency, CI/CD supply chain, and parse-don't-crash sweeps without expanding
+the public surface.
 
 ### 1.0 -- "You can build on it"
 

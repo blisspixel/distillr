@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Pinned the PyPI publish action to the current `release/v1` commit SHA while
+  preserving OIDC trusted publishing and PEP 740 attestations.
 - Cleared the remaining default Pyright warnings in the report pipeline by
   typing accordion section flow and skipping unnamed Gemini File Search stores
   during cleanup.
@@ -1256,7 +1258,7 @@ Two independent adversarial reviews of the synthesis-verify and console/`--json`
 
 **Third security/robustness pass: CI/CD supply-chain hardening, transport integrity, resource ceilings, and a sweep of parse-don't-crash fixes on untrusted/corruptible local state.**
 
-- **Unpinned GitHub Actions (High, supply chain).** The release (`publish.yml`) and CI workflows referenced actions by mutable tags (`actions/checkout@v6`, `pypa/gh-action-pypi-publish@release/v1`, ...). The publish job holds `id-token: write` for PyPI trusted publishing, so a retagged/compromised action there could mint the OIDC token and ship a malicious release. Every action is pinned to an immutable commit SHA (with a `# vN` comment) now -- except `pypa/gh-action-pypi-publish`, a Docker action whose image is published per release branch (not per commit), so it stays on the maintainer-recommended `release/v1` with trust anchored on PyPI's trusted-publishing OIDC binding. The pins are bumped manually (this repo deliberately does not run automated dependency update bots).
+- **Unpinned GitHub Actions (High, supply chain).** The release (`publish.yml`) and CI workflows referenced actions by mutable tags (`actions/checkout@v6`, `pypa/gh-action-pypi-publish@release/v1`, ...). The publish job holds `id-token: write` for PyPI trusted publishing, so a retagged or compromised action there could mint the OIDC token and ship a malicious release. Every action is now pinned to an immutable commit SHA, including `pypa/gh-action-pypi-publish` after verifying the matching container image tag exists. The pins are bumped manually because this repo deliberately does not run automated dependency update bots.
 - **arXiv PDF cleartext fetch (Medium).** `_is_arxiv_pdf_url` accepted `http://` and the URL was fetched as-is; since `requests` does not enforce HSTS, the first hop was plaintext and an on-path attacker could return arbitrary PDF bytes (parsed by pypdf, written to the corpus, fed to the LLM). `http://arxiv.org/...` links and redirect `Location`s are upgraded to `https://` before every request now; the host allow-list still bounds SSRF.
 - **Ollama VRAM exhaustion (Medium, DoS).** Adaptive `num_ctx` scaled with prompt length (which includes attacker-influenced scraped text) and was capped only by the model's advertised window. An optional `OLLAMA_MAX_NUM_CTX` ceiling lets an operator bound the KV-cache allocation on a fixed-VRAM box; unset (default) preserves send-it-whole behavior.
 - **Two-pass synthesis spend amplification (Medium, DoS).** The MCP-reachable `synthesize(two_pass=true)` path ran one LLM call per insight with no ceiling, so a prompt-injected agent could fan one tool call into thousands of calls. A per-run cap (`DISTILL_CLAIMS_MAX_INSIGHTS`, default 250) bounds it; the remainder defers to the next run via the extracted-sources ledger, so nothing is dropped.

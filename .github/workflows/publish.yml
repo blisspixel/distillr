@@ -130,14 +130,9 @@ jobs:
           path: dist/
 
       - name: Publish to PyPI
-        # NOTE: this is the one action we deliberately do NOT pin to a commit
-        # SHA. It is a Docker action whose container image is published to ghcr
-        # per release branch/tag (``ghcr.io/pypa/gh-action-pypi-publish:release-v1``),
-        # not per commit -- a SHA pin makes the image pull fail with
-        # "manifest unknown". ``release/v1`` is the maintainer-recommended stable
-        # ref. Trust here is anchored on PyPI's trusted-publishing OIDC binding
-        # (workflow + environment), not on the action ref.
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # Pinned to the current release/v1 commit. The matching ghcr image tag
+        # exists for this commit, so the generated Docker action remains usable.
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           # PEP 740 provenance attestations, signed via the OIDC identity (no
           # stored credentials). Makes the source-to-wheel chain verifiable.
