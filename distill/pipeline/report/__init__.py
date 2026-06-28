@@ -1,3 +1,4 @@
+# pyright: strict
 """Report pipeline — deep research, accordion, and brief generation."""
 
 from distill.pipeline.report.accordion import run_accordion_research

@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted the multi-topic research briefing boundary to Pyright strict mode
   and shared the Gemini File Search upload/indexing helper with report store
   management.
+- Ratcheted the report package export boundary to Pyright strict mode, leaving
+  `distill.pipeline.report.accordion` as the final non-strict report module.
 
 ### Fixed
 
