@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the command-helper Pyright warning cluster by normalizing non-string
+  yt-dlp channel metadata to the standalone fallback and binding report DOCX
+  output paths before export failures are recorded.
 - Cleared the shared console stream-reset Pyright warning while preserving
   JSON-mode routing to the live stdout or stderr stream instead of stale test
   buffers.

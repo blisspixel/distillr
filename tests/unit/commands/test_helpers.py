@@ -328,6 +328,56 @@ class TestResolveVideoChannelName:
         )
         assert result == "standalone"
 
+    def test_yt_dlp_metadata_falls_back_when_channel_fields_are_not_strings(self, monkeypatch):
+        class FakeYDL:
+            def __init__(self, _options):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, _url, *, download):
+                assert download is False
+                return {"channel": None, "uploader": 123}
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYDL))
+
+        result = resolve_video_channel_name(
+            "https://www.youtube.com/watch?v=abc",
+            SimpleNamespace(channel_name=""),
+            lambda url: "Fallback",
+        )
+
+        assert result == "standalone"
+
+    def test_yt_dlp_metadata_uses_uploader_string_when_channel_missing(self, monkeypatch):
+        class FakeYDL:
+            def __init__(self, _options):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, _url, *, download):
+                assert download is False
+                return {"uploader": "UploaderChannel"}
+
+        monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYDL))
+
+        result = resolve_video_channel_name(
+            "https://www.youtube.com/watch?v=abc",
+            SimpleNamespace(channel_name=""),
+            lambda url: "Fallback",
+        )
+
+        assert result == "UploaderChannel"
+
 
 class TestEnsureChannelContext:
     def test_creates_context_file(self, config, monkeypatch):
@@ -713,6 +763,7 @@ class TestRunScopeReport:
         assert output_md.exists()
         assert summary.issue_count == 1
         assert summary.issues[0].stage == "report-docx"
+        assert dict(summary.issues[0].details)["output"].endswith("report-ai.docx")
         assert any(path.name == "report-ai.md" for path in summary.output_files)
 
     def test_successful_report_logs_only_report_cost_delta(self, config, monkeypatch):

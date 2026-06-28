@@ -488,7 +488,10 @@ def resolve_video_channel_name(url: str, video_info, fallback_resolver) -> str:
 
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
             full_info = ydl.extract_info(url, download=False)
-            return full_info.get("channel", full_info.get("uploader", "standalone"))
+            if not isinstance(full_info, dict):
+                return "standalone"
+            candidate = full_info.get("channel") or full_info.get("uploader")
+            return candidate if isinstance(candidate, str) and candidate else "standalone"
     except Exception:
         return "standalone"
 
@@ -889,15 +892,12 @@ def run_scope_report(
     if summary is not None:
         summary.add_output(md_out)
 
+    docx_path = output_path(config, f"report-{suffix}.docx")
+
     try:
         from distill.library.export import export_report
 
-        docx_path = output_path(config, f"report-{suffix}.docx")
-        title = (
-            f"Strategic Intelligence: {channel_name}"
-            if channel_name
-            else f"Strategic Intelligence: {topic}"
-        )
+        title = f"Strategic Intelligence: {channel_name or topic}"
         export_report(md_source, docx_path=docx_path, title=title)
         console.print(f"[green]DOCX:     {docx_path}[/green]")
         if summary is not None:
