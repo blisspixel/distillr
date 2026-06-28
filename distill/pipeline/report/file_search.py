@@ -3,20 +3,17 @@
 
 from __future__ import annotations
 
-import contextlib
 import sys
-import tempfile
 import time
-from pathlib import Path
 from typing import TypedDict
 
 from google import genai
-from google.genai import types
 
 from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
+from distill.pipeline.report._file_search_upload import upload_documents
 
 __all__ = ["cleanup_stores", "create_research_store", "delete_store", "list_stores"]
 
@@ -42,7 +39,7 @@ def _display_safe(value: object) -> str:
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
-def create_research_store(  # noqa: C901 - legacy orchestration kept intact
+def create_research_store(
     client: genai.Client,
     topic: str,
     config: DistillConfig,
@@ -56,10 +53,6 @@ def create_research_store(  # noqa: C901 - legacy orchestration kept intact
     store_name = store.name or ""
     console.print(f"  [dim]Created store: {store_name}[/dim]")
 
-    uploaded = 0
-    pending_ops: list[types.Operation] = []
-    temp_paths: list[Path] = []
-
     # Everything after store creation runs under this try so the store (a paid
     # remote resource) is deleted if gathering, upload, or indexing raises. The
     # clean no-content path returns without deleting -- the caller owns that.
@@ -71,69 +64,18 @@ def create_research_store(  # noqa: C901 - legacy orchestration kept intact
 
         console.print(f"  [cyan]Uploading {len(files)} documents to File Search store...[/cyan]")
         total = len(files)
-        for i, (label, content) in enumerate(files):
-            tmp_path: Path | None = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".md", delete=False, encoding="utf-8"
-                ) as tmp:
-                    tmp.write(content)
-                    tmp_path = Path(tmp.name)
-                temp_paths.append(tmp_path)
-
-                op = client.file_search_stores.upload_to_file_search_store(
-                    file=str(tmp_path),
-                    file_search_store_name=store_name,
-                    config={"display_name": label[:200], "mime_type": "text/markdown"},
-                )
-                pending_ops.append(op)
-                uploaded += 1
-                if (i + 1) % 50 == 0 or (i + 1) == total:
-                    console.print(f"  [dim]Uploaded {i + 1}/{total}...[/dim]")
-            except Exception as exc:
-                console.print(
-                    f"  [yellow]Failed to upload {_display_safe(label[:50])}: {_display_safe(exc)}[/yellow]"
-                )
-                if tmp_path is not None:
-                    with contextlib.suppress(ValueError):
-                        temp_paths.remove(tmp_path)
-                    with contextlib.suppress(Exception):
-                        tmp_path.unlink(missing_ok=True)
-
-        if pending_ops:
-            console.print(f"  [dim]Waiting for indexing ({len(pending_ops)} docs)...[/dim]")
-            wait_rounds = 0
-            max_wait_rounds = 60
-            while wait_rounds < max_wait_rounds:
-                still_pending: list[types.Operation] = []
-                for op in pending_ops:
-                    try:
-                        refreshed = client.operations.get(op)
-                        if refreshed.done is not True:
-                            still_pending.append(refreshed)
-                    except Exception:
-                        still_pending.append(op)
-                if not still_pending:
-                    break
-                pending_ops = still_pending
-                if wait_rounds % 6 == 0:
-                    console.print(f"  [dim]Still indexing... {len(still_pending)} remaining[/dim]")
-                time.sleep(5)
-                wait_rounds += 1
-
-            if wait_rounds >= max_wait_rounds:
-                console.print(
-                    f"  [yellow]Indexing timeout - {len(pending_ops)} docs may still be processing[/yellow]"
-                )
+        uploaded = upload_documents(
+            client,
+            store_name,
+            files,
+            progress_every=50,
+            safe_display=_display_safe,
+        )
         console.print(f"  [green]Indexed {uploaded}/{total} documents[/green]")
         return store_name, uploaded
     except Exception:
         delete_store(client, store_name)
         raise
-    finally:
-        for tmp_path in temp_paths:
-            with contextlib.suppress(Exception):
-                tmp_path.unlink(missing_ok=True)
 
 
 def delete_store(client: genai.Client, store_name: str) -> None:

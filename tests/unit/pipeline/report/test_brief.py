@@ -60,8 +60,27 @@ def test_bundle_insights_splits_and_gather_topic_files(tmp_path, monkeypatch):
     assert "research briefing" in compose_prompt(" Focus here ").lower()
 
 
+def test_bundle_insights_ignores_non_string_metadata_fields(tmp_path):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    paper_dir = config.papers_dir("ai") / "paper-1"
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "insights.md").write_text("# Paper insight", encoding="utf-8")
+    (paper_dir / "metadata.json").write_text(
+        json.dumps({"title": {"bad": "shape"}, "abs_url": 123, "paper_id": ["paper"]}),
+        encoding="utf-8",
+    )
+
+    bundles = _bundle_insights(config.papers_dir("ai"), "ai-papers", "ai", "paper")
+
+    content = bundles[0][1]
+    assert "paper-1" in content
+    assert "bad" not in content
+    assert "123" not in content
+
+
 def test_upload_files_handles_success_and_failed_operations(monkeypatch):
     uploads = []
+    polled = []
 
     class FakeFileStores:
         def upload_to_file_search_store(self, *, file, file_search_store_name, config):
@@ -76,9 +95,10 @@ def test_upload_files_handles_success_and_failed_operations(monkeypatch):
 
         def get(self, op):
             self.calls += 1
+            polled.append(op.name)
             if self.calls == 1:
-                return SimpleNamespace(done=False, name=op)
-            return SimpleNamespace(done=True, name=op)
+                return SimpleNamespace(done=False, name=op.name)
+            return SimpleNamespace(done=True, name=op.name)
 
     client = SimpleNamespace(file_search_stores=FakeFileStores(), operations=FakeOperations())
     monkeypatch.setattr("distill.pipeline.report.brief.time.sleep", lambda _seconds: None)
@@ -91,6 +111,7 @@ def test_upload_files_handles_success_and_failed_operations(monkeypatch):
 
     assert uploaded == 1
     assert uploads
+    assert polled == ["op-good", "op-good"]
 
 
 def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeypatch):

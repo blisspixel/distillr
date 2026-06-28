@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   removed the unused condensed-corpus helper that File Search had superseded.
 - Ratcheted the Gemini File Search store and corpus boundary to Pyright strict
   mode, parsing uploaded corpus metadata through a private typed helper.
+- Ratcheted the multi-topic research briefing boundary to Pyright strict mode
+  and shared the Gemini File Search upload/indexing helper with report store
+  management.
 
 ### Fixed
 
@@ -33,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Aligned Gemini File Search indexing polling with the current google-genai
   operation-object contract, and stopped trusting non-string metadata fields
   when bundling video, site, and paper corpus files.
+- Applied the same operation-object polling and typed metadata fallback to
+  `distill research-brief` corpus uploads.
 
 ## 0.19.9 - 2026-06-28
 

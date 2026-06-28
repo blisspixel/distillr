@@ -1,3 +1,4 @@
+# pyright: strict
 """Multi-topic research briefings via Gemini Deep Research.
 
 Where `distill report <topic>` runs a 4-phase strategic report scoped to one
@@ -7,7 +8,7 @@ grounded on one or more topics' paper/video/site insights, with a user-supplied
 context block (`--context` or `--context-file`) that shapes the prompt for a
 specific audience or decision. Output lands in `output/briefing-{name}.md`.
 
-The context file IS the prompt — distill just handles file gathering, File
+The context file IS the prompt. Distill just handles file gathering, File
 Search store management, Deep Research invocation, and output. This keeps the
 prompt engineering in the user's hands and makes briefings reusable for
 arbitrary purposes (multi-topic literature review, decision briefing for a
@@ -15,9 +16,6 @@ specific stakeholder, architectural grounding for a downstream agent, etc.)."""
 
 from __future__ import annotations
 
-import contextlib
-import json
-import tempfile
 import time
 from pathlib import Path
 
@@ -28,6 +26,8 @@ from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
 from distill.pipeline.costs import CostTracker
+from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
+from distill.pipeline.report._file_search_upload import upload_documents
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.file_search import delete_store
 
@@ -41,7 +41,9 @@ DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 MAX_DOC_CHARS = 500_000
 
 
-def gather_topic_files(topics: list[str], config: DistillConfig) -> list[tuple[str, str]]:  # noqa: C901 — legacy, will refactor
+def gather_topic_files(  # noqa: C901 - legacy orchestration kept intact
+    topics: list[str], config: DistillConfig
+) -> list[tuple[str, str]]:
     """Collect (label, content) pairs across the given topics.
 
     Pulls paper, topic, and corpus synthesis artifacts, plus bundled per-paper /
@@ -134,13 +136,10 @@ def _bundle_insights(
         url = ""
         source_id = item_dir.name
         if metadata_file.exists():
-            try:
-                meta = json.loads(metadata_file.read_text(encoding="utf-8"))
-                title = meta.get("title", title)
-                url = meta.get("abs_url") or meta.get("url", "")
-                source_id = meta.get("video_id") or meta.get("paper_id") or source_id
-            except (json.JSONDecodeError, OSError):
-                pass
+            meta = read_metadata(metadata_file)
+            title = metadata_str(meta, "title", title)
+            url = metadata_str(meta, "abs_url") or metadata_str(meta, "url")
+            source_id = metadata_str(meta, "video_id") or metadata_str(meta, "paper_id", source_id)
         link = emit_wiki_link(title, source_id, "insights")
         entry = (
             f"\n\n---\n\n## [{kind}] {title}\nURL: {url}\nSource: {link}\n\n"
@@ -253,56 +252,4 @@ def run_research_brief(
 
 
 def _upload_files(client: genai.Client, store_name: str, files: list[tuple[str, str]]) -> int:
-    uploaded = 0
-    pending: list = []
-    temp_paths: list[Path] = []
-    try:
-        for label, content in files:
-            tmp_path = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".md", delete=False, encoding="utf-8"
-                ) as tmp:
-                    tmp.write(content)
-                    tmp_path = Path(tmp.name)
-                temp_paths.append(tmp_path)
-                op = client.file_search_stores.upload_to_file_search_store(
-                    file=str(tmp_path),
-                    file_search_store_name=store_name,
-                    config={
-                        "display_name": label[:200],
-                        "mime_type": "text/markdown",
-                    },
-                )
-                pending.append(getattr(op, "name", None) or getattr(op, "id", None) or op)
-                uploaded += 1
-            except Exception as exc:
-                console.print(f"  [yellow]Upload failed for {label[:50]}: {exc}[/yellow]")
-
-        console.print(f"  [dim]Waiting for indexing ({len(pending)} docs)...[/dim]")
-        rounds = 0
-        while rounds < 60:
-            still = []
-            for op in pending:
-                try:
-                    refreshed = client.operations.get(op)
-                    if refreshed.done is not True:
-                        still.append(
-                            getattr(refreshed, "name", None)
-                            or getattr(refreshed, "id", None)
-                            or refreshed
-                        )
-                except Exception:
-                    still.append(op)
-            if not still:
-                break
-            pending = still
-            if rounds % 6 == 0:
-                console.print(f"  [dim]Still indexing... {len(still)} remaining[/dim]")
-            time.sleep(5)
-            rounds += 1
-    finally:
-        for tmp_path in temp_paths:
-            with contextlib.suppress(Exception):
-                tmp_path.unlink(missing_ok=True)
-    return uploaded
+    return upload_documents(client, store_name, files, failure_prefix="Upload failed for")
