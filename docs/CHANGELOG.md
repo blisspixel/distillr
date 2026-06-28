@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.2 - 2026-06-28
+
 ### Added
 
 - Added generated `deal.cases` coverage for the concept canonicalization and
@@ -48,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `list_topics` tool was added but the README and `docs/mcp.md` count had not been
   bumped) and documented `list_topics` in the `docs/mcp.md` read-surface table.
   Updated the ROADMAP "Milestones at a glance" to show 0.18 and 0.19 as shipped
-  (latest release 0.19.1) rather than as remaining work, folding the genuinely
+  (latest release 0.19.2) rather than as remaining work, folding the genuinely
   open, vendor-gated 0.19 route-graduation gates into the post-1.0
   provider-breadth item.
 - Documentation refresh: removed em-dashes and en-dashes from the README and
