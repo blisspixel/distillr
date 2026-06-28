@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import deal
+
 from distill.library.paths import atomic_write_text
 from distill.library.wikilinks import WIKI_LINK_PATTERN
 
@@ -62,6 +64,30 @@ class LinkCheckResult:
         }
 
 
+def _link_check_result_shape(result: LinkCheckResult) -> bool:
+    return (
+        result.total_links >= len(result.broken_links)
+        and result.files_scanned >= 0
+        and result.is_healthy == (len(result.broken_links) == 0)
+        and all(
+            broken.line_number > 0
+            and broken.link_text.startswith("[[")
+            and broken.link_text.endswith("]]")
+            and broken.target_slug
+            and WIKI_LINK_PATTERN.fullmatch(broken.link_text) is not None
+            for broken in result.broken_links
+        )
+    )
+
+
+def _fix_count_within_requested_links(
+    library_dir: Path, broken: list[BrokenLink], *, result: int
+) -> bool:
+    del library_dir
+    return 0 <= result <= len(broken)
+
+
+@deal.post(_link_check_result_shape)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def check_links(library_dir: Path) -> LinkCheckResult:
     """Scan all markdown files in library_dir for broken wiki-links.
 
@@ -110,6 +136,7 @@ def check_links(library_dir: Path) -> LinkCheckResult:
     )
 
 
+@deal.ensure(_fix_count_within_requested_links)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def fix_broken_links(library_dir: Path, broken: list[BrokenLink]) -> int:
     """Replace broken wiki-links with plain-text citations.
 

@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import deal
+
 __all__ = [
     "WIKI_LINK_PATTERN",
     "WikiLink",
@@ -72,6 +74,10 @@ class WikiLink:
         return cls(slug=slug, suffix=suffix, display_title=clean_title)
 
 
+def _parsed_wiki_links_render_round_trip(result: list[WikiLink]) -> bool:
+    return all(_parse_wiki_links_impl(link.render()) == [link] for link in result)
+
+
 def emit_wiki_link(
     title: str,
     source_id: str,
@@ -89,7 +95,7 @@ def emit_wiki_link(
 
     if corpus_dir is not None:
         if not corpus_dir.is_dir():
-            # A missing or non-directory corpus_dir can't validate anything —
+            # A missing or non-directory corpus_dir cannot validate anything.
             # fall back to the plain title rather than emitting an unverified
             # wiki-link the caller asked us to validate. This matches the
             # "target not found" branch below so consumers get one consistent
@@ -115,14 +121,7 @@ def emit_wiki_link(
     return link.render()
 
 
-def parse_wiki_links(content: str) -> list[WikiLink]:
-    """Extract all [[...]] wiki-links from markdown content.
-
-    Returns a list of WikiLink objects. For links without a display title
-    (no pipe separator), the slug portion is used as the display_title.
-    The slug portion is split on the last underscore to separate the base
-    slug from the suffix.
-    """
+def _parse_wiki_links_impl(content: str) -> list[WikiLink]:
     results: list[WikiLink] = []
     for match in WIKI_LINK_PATTERN.finditer(content):
         slug_portion = match.group(1).strip()
@@ -140,3 +139,15 @@ def parse_wiki_links(content: str) -> list[WikiLink]:
 
         results.append(WikiLink(slug=slug, suffix=suffix, display_title=display_title))
     return results
+
+
+@deal.post(_parsed_wiki_links_render_round_trip)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
+def parse_wiki_links(content: str) -> list[WikiLink]:
+    """Extract all [[...]] wiki-links from markdown content.
+
+    Returns a list of WikiLink objects. For links without a display title
+    (no pipe separator), the slug portion is used as the display_title.
+    The slug portion is split on the last underscore to separate the base
+    slug from the suffix.
+    """
+    return _parse_wiki_links_impl(content)

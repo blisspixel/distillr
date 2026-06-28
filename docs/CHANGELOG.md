@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added executable contracts and generated `deal.cases` coverage for library
+  frontmatter emit/merge helpers and wiki-link parsing, plus structural shape
+  contracts for link check/fix results.
+
 ## 0.19.2 - 2026-06-28
 
 ### Added

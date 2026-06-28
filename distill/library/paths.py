@@ -275,7 +275,7 @@ def resolve_slug_collision(
     while True:
         candidate_path = target_dir / candidate
         if not candidate_path.exists():
-            # No collision — slug is available
+            # No collision, slug is available.
             return candidate
         # Check if the existing directory belongs to the same source
         meta_file = candidate_path / ".source_meta.json"
@@ -285,11 +285,11 @@ def resolve_slug_collision(
 
                 meta = _json.loads(meta_file.read_text(encoding="utf-8"))
                 if meta.get("source_type") == source_type and meta.get("source_id") == source_id:
-                    # Same source — reuse the slug
+                    # Same source, reuse the slug.
                     return candidate
             except (OSError, ValueError):
                 pass
-        # Different source or unreadable meta — try next suffix
+        # Different source or unreadable meta, try next suffix.
         counter += 1
         candidate = f"{slug}_{counter}"
 
@@ -471,6 +471,36 @@ def _parse_scalar_or_list(value: str) -> str | list[str]:
     )
 
 
+def _frontmatter_value_is_emitted(value: Any) -> bool:
+    return not (value is None or value == "" or value == [] or value == {})
+
+
+def _emitted_frontmatter_keys(frontmatter: Mapping[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for key, value in frontmatter.items():
+        dumped_key = _yaml_key(str(key))
+        if dumped_key and _frontmatter_value_is_emitted(value):
+            keys.add(dumped_key)
+    return keys
+
+
+def _dump_frontmatter_round_trips_keys(frontmatter: Mapping[str, Any], *, result: str) -> bool:
+    block, body = split_frontmatter(result)
+    if block is None or body != "":
+        return False
+    return set(extract_frontmatter(result)) == _emitted_frontmatter_keys(frontmatter)
+
+
+def _apply_frontmatter_shape(content: str, frontmatter: Mapping[str, Any], *, result: str) -> bool:
+    block, _body = split_frontmatter(result)
+    if block is None or not result.endswith("\n"):
+        return False
+    if not _emitted_frontmatter_keys(frontmatter).issubset(set(extract_frontmatter(result))):
+        return False
+    return strip_frontmatter(result) == strip_frontmatter(content).lstrip().rstrip()
+
+
+@deal.ensure(_apply_frontmatter_shape)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def apply_frontmatter(content: str, frontmatter: Mapping[str, Any]) -> str:
     """Replace any existing frontmatter with a normalized YAML block."""
     existing: dict[str, Any] = {
@@ -529,12 +559,16 @@ def strip_frontmatter(content: str) -> str:
     return body.strip()
 
 
+@deal.ensure(_dump_frontmatter_round_trips_keys)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def dump_frontmatter(frontmatter: Mapping[str, Any]) -> str:
     lines = ["---"]
     for key, value in frontmatter.items():
         if value is None or value == "" or value == [] or value == {}:
             continue
-        lines.append(f"{_yaml_key(str(key))}: {_yaml_value(value)}")
+        yaml_key = _yaml_key(str(key))
+        if not yaml_key:
+            continue
+        lines.append(f"{yaml_key}: {_yaml_value(value)}")
     lines.append("---")
     return "\n".join(lines)
 
