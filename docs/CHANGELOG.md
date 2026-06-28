@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `distill research-brief` corpus uploads.
 - Made discovery rerank parsing tolerate malformed numeric LLM score fields by
   defaulting those fields at the typed row boundary instead of crashing.
+- Tightened profile command error exits so failure paths are statically known
+  to stop before preview or run rendering reads result variables.
+- Disabled htmx eval and response script execution in the local dashboard base
+  template as defense in depth alongside Markdown sanitization and CSP headers.
 
 ## 0.19.9 - 2026-06-28
 

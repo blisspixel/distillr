@@ -103,6 +103,8 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
 
     assert dashboard_response.status_code == 200
     assert "Distill Dashboard" in dashboard_response.text
+    assert '"allowEval": false' in dashboard_response.text
+    assert '"allowScriptTags": false' in dashboard_response.text
     assert "ai-daily" in watchlist_response.text
     assert "ai" in topics_response.text
     topic_html = client.get("/topics/ai").text

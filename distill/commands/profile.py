@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 
 import typer
 from rich.table import Table
@@ -193,7 +194,7 @@ def _load_profile_preview(
     return config, path, result
 
 
-def _exit_with_error(message: str) -> None:
+def _exit_with_error(message: str) -> NoReturn:
     if json_mode_active():
         emit_json(error=message)
     else:
