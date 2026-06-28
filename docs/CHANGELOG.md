@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   channel-scope enumeration and typed video metadata before source-link
   rendering.
 - Ratcheted the pipeline package export boundary to Pyright strict mode.
+- Ratcheted the route-orchestration selection core to Pyright strict mode.
 
 ### Fixed
 

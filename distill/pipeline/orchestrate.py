@@ -1,3 +1,4 @@
+# pyright: strict
 """Route-orchestration selection core (see docs/design/route-orchestration.md).
 
 The load-bearing "judge in the mode the evidence supports" primitive that every
