@@ -5,7 +5,7 @@ from __future__ import annotations
 import deal
 from hypothesis import strategies as st
 
-from distill.library.paths import apply_frontmatter, dump_frontmatter
+from distill.library.paths import apply_frontmatter, dump_frontmatter, extract_frontmatter
 from distill.library.wikilinks import parse_wiki_links
 
 _FRONTMATTER_KEYS = st.from_regex(r"[A-Za-z][A-Za-z0-9 _.-]{0,20}", fullmatch=True)
@@ -55,6 +55,13 @@ _WIKI_CONTENT = st.lists(
     min_size=0,
     max_size=8,
 ).map("\n".join)
+
+
+def test_frontmatter_unicode_line_separators_are_value_text() -> None:
+    """Unicode line separators inside values must not split frontmatter rows."""
+    dumped = dump_frontmatter({"a": ["\x85", "\u2028", "\u2029", ":"]})
+
+    assert "a" in extract_frontmatter(dumped)
 
 
 def test_dump_frontmatter_generated_contract_cases() -> None:

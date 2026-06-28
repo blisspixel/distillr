@@ -513,6 +513,19 @@ def apply_frontmatter(content: str, frontmatter: Mapping[str, Any]) -> str:
     return dump_frontmatter(merged) + "\n\n" + body.rstrip() + "\n"
 
 
+def _split_physical_lines(content: str) -> list[str]:
+    if content == "":
+        return []
+    parts = re.split(r"(\r\n|\n|\r)", content)
+    lines: list[str] = []
+    for index in range(0, len(parts), 2):
+        text = parts[index]
+        separator = parts[index + 1] if index + 1 < len(parts) else ""
+        if text or separator:
+            lines.append(text + separator)
+    return lines
+
+
 def split_frontmatter(content: str) -> tuple[str | None, str]:
     """Split content into ``(frontmatter_block, body)``.
 
@@ -526,7 +539,7 @@ def split_frontmatter(content: str) -> tuple[str | None, str]:
     """
     if not content.startswith("---"):
         return None, content
-    lines = content.splitlines(keepends=True)
+    lines = _split_physical_lines(content)
     if not lines or lines[0].strip() != "---":
         return None, content
     for i in range(1, len(lines)):
@@ -541,7 +554,7 @@ def extract_frontmatter(content: str) -> dict[str, str]:
     if block is None:
         return {}
     data: dict[str, str] = {}
-    for line in block.splitlines():
+    for line in _split_physical_lines(block):
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
