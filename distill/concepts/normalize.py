@@ -41,6 +41,8 @@ import re
 from collections import OrderedDict
 from collections.abc import Iterable
 
+import deal
+
 from distill.concepts.records import ConceptMention, Polarity
 
 __all__ = [
@@ -63,6 +65,45 @@ _TRAILING_PLURAL = re.compile(r"(\w{2}[^\Ws])s\b")
 _TRAILING_PUNCT = re.compile(r"[\s\W_]+$")
 _LEADING_PUNCT = re.compile(r"^[\s\W_]+")
 _INNER_WS = re.compile(r"\s+")
+
+
+def _grouping_is_canonical(grouped: OrderedDict[str, list[ConceptMention]]) -> bool:
+    """Grouped output must be canonical, source-unique, and deterministic."""
+    keys = list(grouped)
+    if keys != sorted(keys):
+        return False
+
+    for canonical, mentions in grouped.items():
+        if not canonical or canonicalize(canonical) != canonical:
+            return False
+
+        source_ids = [mention.source_id for mention in mentions]
+        if source_ids != sorted(source_ids) or len(source_ids) != len(set(source_ids)):
+            return False
+
+        if any(canonicalize(mention.normalized_name) != canonical for mention in mentions):
+            return False
+
+    return True
+
+
+def _threshold_floor_holds(
+    grouped: OrderedDict[str, list[ConceptMention]],
+    min_sources: int = DEFAULT_SOURCE_THRESHOLD,
+    *,
+    result: OrderedDict[str, list[ConceptMention]],
+) -> bool:
+    """Filtered output must only contain original groups that clear the source floor."""
+    if any(canonical not in grouped for canonical in result):
+        return False
+
+    if min_sources <= 1:
+        return result == grouped
+
+    return all(
+        len({mention.source_id for mention in mentions}) >= min_sources
+        for mentions in result.values()
+    )
 
 
 def canonicalize(name: str) -> str:
@@ -91,6 +132,7 @@ def canonicalize(name: str) -> str:
     return folded
 
 
+@deal.post(_grouping_is_canonical)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def group_mentions(
     mentions: Iterable[ConceptMention],
 ) -> OrderedDict[str, list[ConceptMention]]:
@@ -199,6 +241,7 @@ def _aggregate_per_source(mentions: list[ConceptMention]) -> ConceptMention:
     )
 
 
+@deal.ensure(_threshold_floor_holds)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def filter_by_threshold(
     grouped: OrderedDict[str, list[ConceptMention]],
     min_sources: int = DEFAULT_SOURCE_THRESHOLD,

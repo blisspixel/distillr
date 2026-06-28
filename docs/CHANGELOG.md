@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added executable `deal` contracts to the concept normalization layer:
+  `group_mentions` now asserts canonical, sorted, source-unique grouping, and
+  `filter_by_threshold` asserts that filtered groups clear the distinct-source
+  floor. This continues the 1.0 verification-depth pass on deterministic core
+  invariants.
 - Started the 1.0 verification-depth milestone (design:
   [`docs/design/verification-depth.md`](design/verification-depth.md)): added the
   `deal` Design-by-Contract library and the first executable, runtime-checked
