@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   rendering.
 - Ratcheted the pipeline package export boundary to Pyright strict mode.
 - Ratcheted the route-orchestration selection core to Pyright strict mode.
+- Ratcheted the discovery planning and rerank helper to Pyright strict mode,
+  with typed callback protocols and typed LLM JSON row parsing.
 
 ### Fixed
 
@@ -48,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   when bundling video, site, and paper corpus files.
 - Applied the same operation-object polling and typed metadata fallback to
   `distill research-brief` corpus uploads.
+- Made discovery rerank parsing tolerate malformed numeric LLM score fields by
+  defaulting those fields at the typed row boundary instead of crashing.
 
 ## 0.19.9 - 2026-06-28
 

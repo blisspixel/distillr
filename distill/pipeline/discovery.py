@@ -1,11 +1,13 @@
+# pyright: strict
 """Discover command helpers for the Distill CLI."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol, cast
 from urllib.parse import urlparse
 
 from rich import box
@@ -19,6 +21,7 @@ from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import (
+    CostCalibration,
     CostEstimate,
     CostTracker,
     TokenUsage,
@@ -86,6 +89,58 @@ class VideoContentStats:
     shorts: int
     known_duration_seconds: int
     unknown_duration_count: int
+
+
+type QueryDeduper = Callable[[list[str]], list[str]]
+type VideoDeduper = Callable[[list[VideoInfo]], list[VideoInfo]]
+
+
+class VideoSearcher(Protocol):
+    def __call__(
+        self, query_or_url: str, days: int = 60, limit: int = 20, hours: int | None = None
+    ) -> list[VideoInfo]: ...
+
+
+class VideoEnricher(Protocol):
+    def __call__(
+        self, videos: list[VideoInfo], max_videos: int | None = None
+    ) -> list[VideoInfo]: ...
+
+
+class RecentVideoFilter(Protocol):
+    def __call__(
+        self, videos: list[VideoInfo], days: int, hours: int | None = None
+    ) -> list[VideoInfo]: ...
+
+
+def _object_dict(value: object) -> dict[str, object] | None:
+    if isinstance(value, dict):
+        return cast("dict[str, object]", value)
+    return None
+
+
+def _object_list(value: object) -> list[object]:
+    if isinstance(value, list):
+        return cast("list[object]", value)
+    return []
+
+
+def _string_list(value: object) -> list[str]:
+    return [item for item in _object_list(value) if isinstance(item, str)]
+
+
+def _row_string(row: dict[str, object], key: str) -> str:
+    return str(row.get(key, "")).strip()
+
+
+def _row_float(row: dict[str, object], key: str) -> float:
+    value = row.get(key, 0.0)
+    if isinstance(value, int | float | str):
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
+    return 0.0
 
 
 def summarize_video_content(videos: list[VideoInfo]) -> VideoContentStats:
@@ -197,7 +252,7 @@ def discover_generate_queries(
     *,
     paper_count: int,
     video_count: int,
-    dedupe_query_strings,
+    dedupe_query_strings: QueryDeduper,
 ) -> tuple[list[str], list[str]]:
     # Guard against the LLM being asked to do nothing useful when both sides are
     # disabled (e.g. via --papers-only and --videos-only somehow both off — caller
@@ -230,14 +285,17 @@ def discover_generate_queries(
         return [], []
     from distill.llm.json_extract import extract_json
 
-    data = extract_json(text)
+    data: object = extract_json(text)
     if data is None:
         logger.warning("Failed to parse discover query generation response as JSON")
         return [], []
-    paper_qs = data.get("paper_queries", []) if isinstance(data, dict) else []
-    video_qs = data.get("video_queries", []) if isinstance(data, dict) else []
-    paper_qs = dedupe_query_strings([q for q in paper_qs if isinstance(q, str)])
-    video_qs = dedupe_query_strings([q for q in video_qs if isinstance(q, str)])
+    data_obj = _object_dict(data)
+    paper_qs = dedupe_query_strings(
+        _string_list(data_obj.get("paper_queries", [])) if data_obj is not None else []
+    )
+    video_qs = dedupe_query_strings(
+        _string_list(data_obj.get("video_queries", [])) if data_obj is not None else []
+    )
     # Honor the requested counts even if the LLM produced more on the disabled
     # side — keeps --papers-only / --videos-only from accidentally fetching the
     # excluded source type.
@@ -254,10 +312,10 @@ def discover_fetch_videos(
     candidate_cap: int,
     shorts: bool,
     *,
-    search_youtube_results,
-    dedupe_candidates,
-    enrich_videos,
-    filter_recent_candidates,
+    search_youtube_results: VideoSearcher,
+    dedupe_candidates: VideoDeduper,
+    enrich_videos: VideoEnricher,
+    filter_recent_candidates: RecentVideoFilter,
 ) -> list[VideoInfo]:
     raw: list[VideoInfo] = []
     for idx, q in enumerate(queries, 1):
@@ -375,22 +433,28 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
         return []
     from distill.llm.json_extract import extract_json
 
-    data = extract_json(text)
+    data: object = extract_json(text)
     if data is None:
         logger.warning("Failed to parse discover rerank response as JSON")
         return []
-    items = data.get("ranked_items", []) if isinstance(data, dict) else data
-    if not isinstance(items, list):
+    data_obj = _object_dict(data)
+    items = (
+        _object_list(data_obj.get("ranked_items", []))
+        if data_obj is not None
+        else _object_list(data)
+    )
+    if not items:
         return []
 
     ranked: list[RankedDiscoverItem] = []
     for entry in items:
         # The LLM can return non-dict entries (e.g. [null] or bare strings);
         # skip them rather than crashing on entry.get.
-        if not isinstance(entry, dict):
+        row = _object_dict(entry)
+        if row is None:
             continue
-        kind = str(entry.get("kind", "")).strip()
-        identifier = str(entry.get("identifier", "")).strip()
+        kind = _row_string(row, "kind")
+        identifier = _row_string(row, "identifier")
         if kind == "paper":
             paper = paper_by_id.get(identifier)
             if not paper:
@@ -402,11 +466,11 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                     title=paper.title,
                     subtitle=", ".join((paper.authors or [])[:2]) or "unknown",
                     date=(paper.published_at or "")[:10],
-                    final_score=float(entry.get("final_score", 0.0)),
-                    goal_fit=float(entry.get("goal_fit", 0.0)),
-                    depth_score=float(entry.get("depth_score", 0.0)),
-                    complementarity_score=float(entry.get("complementarity_score", 0.0)),
-                    rationale=str(entry.get("rationale", "")).strip(),
+                    final_score=_row_float(row, "final_score"),
+                    goal_fit=_row_float(row, "goal_fit"),
+                    depth_score=_row_float(row, "depth_score"),
+                    complementarity_score=_row_float(row, "complementarity_score"),
+                    rationale=_row_string(row, "rationale"),
                     paper=paper,
                 )
             )
@@ -421,11 +485,11 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                     title=video.title,
                     subtitle=video.channel_name or "unknown",
                     date=_format_date(video.upload_date or ""),
-                    final_score=float(entry.get("final_score", 0.0)),
-                    goal_fit=float(entry.get("goal_fit", 0.0)),
-                    depth_score=float(entry.get("depth_score", 0.0)),
-                    complementarity_score=float(entry.get("complementarity_score", 0.0)),
-                    rationale=str(entry.get("rationale", "")).strip(),
+                    final_score=_row_float(row, "final_score"),
+                    goal_fit=_row_float(row, "goal_fit"),
+                    depth_score=_row_float(row, "depth_score"),
+                    complementarity_score=_row_float(row, "complementarity_score"),
+                    rationale=_row_string(row, "rationale"),
                     video=video,
                 )
             )
@@ -440,11 +504,11 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
                     title=_site_candidate_title(seed),
                     subtitle=_site_candidate_subtitle(seed),
                     date=_site_candidate_date(seed),
-                    final_score=float(entry.get("final_score", 0.0)),
-                    goal_fit=float(entry.get("goal_fit", 0.0)),
-                    depth_score=float(entry.get("depth_score", 0.0)),
-                    complementarity_score=float(entry.get("complementarity_score", 0.0)),
-                    rationale=str(entry.get("rationale", "")).strip(),
+                    final_score=_row_float(row, "final_score"),
+                    goal_fit=_row_float(row, "goal_fit"),
+                    depth_score=_row_float(row, "depth_score"),
+                    complementarity_score=_row_float(row, "complementarity_score"),
+                    rationale=_row_string(row, "rationale"),
                     site_seed=seed,
                 )
             )
@@ -626,7 +690,7 @@ def build_sizing_options(
     paper_limit: int,
     video_limit: int,
     site_limit: int,
-    calibration=None,
+    calibration: CostCalibration | None = None,
 ) -> list[SizingOption]:
     """Derive nested "excellent / good / everything" ingest sizes from a reranked set.
 

@@ -379,6 +379,32 @@ def test_discover_rerank_returns_empty_for_non_list_payload(config, monkeypatch)
     assert ranked == []
 
 
+def test_discover_rerank_defaults_malformed_numeric_scores(config, monkeypatch):
+    paper = _paper("2601.00001")
+    monkeypatch.setattr(
+        discover,
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text=(
+                '{"ranked_items":[{"kind":"paper","identifier":"2601.00001",'
+                '"final_score":"bad","goal_fit":null,"depth_score":"0.6",'
+                '"complementarity_score":0.4,"rationale":"keep"}]}'
+            ),
+            input_tokens=0,
+            output_tokens=0,
+            model="grok-4.3",
+        ),
+    )
+
+    ranked = discover.discover_rerank("goal", [paper], [], [], config, None)
+
+    assert len(ranked) == 1
+    assert ranked[0].final_score == 0.0
+    assert ranked[0].goal_fit == 0.0
+    assert ranked[0].depth_score == 0.6
+    assert ranked[0].complementarity_score == 0.4
+
+
 def test_detect_score_cliff():
     from distill.pipeline.discovery import detect_score_cliff
 
