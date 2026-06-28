@@ -106,7 +106,7 @@ def _threshold_floor_holds(
     )
 
 
-def canonicalize(name: str) -> str:
+def _canonicalize_impl(name: str) -> str:
     """Mechanical canonical form of a concept name.
 
     Lowercase, collapse whitespace, strip trailing/leading punctuation,
@@ -130,6 +130,26 @@ def canonicalize(name: str) -> str:
         folded = folded[:-2]
     folded = _TRAILING_PLURAL.sub(r"\1", folded)
     return folded
+
+
+def _canonicalize_is_idempotent(result: str) -> bool:
+    """A canonical name must be stable under a second normalization pass."""
+    return _canonicalize_impl(result) == result
+
+
+@deal.post(_canonicalize_is_idempotent)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
+def canonicalize(name: str) -> str:
+    """Mechanical canonical form of a concept name.
+
+    Lowercase, collapse whitespace, strip trailing/leading punctuation,
+    drop trailing plural-s on words of length 4+. Idempotent:
+    ``canonicalize(canonicalize(x)) == canonicalize(x)``. Property tested.
+
+    Returns the empty string for inputs that canonicalize to nothing
+    (pure punctuation, whitespace). Callers should treat empty as a
+    skip signal.
+    """
+    return _canonicalize_impl(name)
 
 
 @deal.post(_grouping_is_canonical)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
