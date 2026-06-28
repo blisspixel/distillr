@@ -176,9 +176,13 @@ contracted deterministic core files, filters to covered lines, copies the full
 the same `pyproject.toml` config before mutation. Stateful property tests and
 file-emitting tests stay in the normal suite; they remain valuable, but they are
 bad mutation-driver inputs. The first local Linux reproduction reached real
-mutation execution across 1,754 mutants. The next step is to inspect the first
-Ubuntu diagnostic output, triage survivors by risk, and add targeted tests for
-survivors that represent real regressions.
+mutation execution across 1,754 mutants. The first survivor triage targeted the
+library path boundary and added deterministic tests for path-component
+rejection, default artifact filenames, frontmatter list and boolean emission,
+and nested atomic writes. The local Linux diagnostic improved from 1,217 killed,
+17 no-test, 1 timeout, and 519 survived to 1,258 killed, 17 no-test, 1 timeout,
+and 478 survived. The score remains advisory review evidence, not a release
+gate.
 
 **Phase 3 - fault injection at the external boundaries.** Deterministic tests
 that inject malformed LLM JSON, truncated/empty transcripts, network timeouts,

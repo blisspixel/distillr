@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added deterministic mutation-survivor tests for library path helpers, covering
+  path-component rejection, default artifact filenames, frontmatter list and
+  boolean emission, and nested atomic writes.
+
 ## 0.19.4 - 2026-06-28
 
 ### Added

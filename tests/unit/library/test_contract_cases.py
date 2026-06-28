@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import deal
 from hypothesis import strategies as st
 
-from distill.library.paths import apply_frontmatter, dump_frontmatter, extract_frontmatter
+from distill.library.paths import (
+    _is_single_path_component,
+    apply_frontmatter,
+    artifact_filename,
+    atomic_write_text,
+    dump_frontmatter,
+    extract_frontmatter,
+    find_artifact,
+)
 from distill.library.wikilinks import parse_wiki_links
 
 _FRONTMATTER_KEYS = st.from_regex(r"[A-Za-z][A-Za-z0-9 _.-]{0,20}", fullmatch=True)
@@ -86,6 +96,56 @@ def test_apply_frontmatter_generated_contract_cases() -> None:
         seed=20260635,
     ):
         case()
+
+
+def test_path_component_predicate_rejects_unsafe_segments() -> None:
+    """The path-component predicate is the direct confinement boundary."""
+    assert _is_single_path_component("safe-name")
+    assert not _is_single_path_component("")
+    assert not _is_single_path_component("a/b")
+    assert not _is_single_path_component(r"a\b")
+    assert not _is_single_path_component("a\x00b")
+
+
+def test_artifact_filename_defaults_to_markdown_and_strips_extension_dot() -> None:
+    """Artifact filenames default to markdown and normalize extension spelling."""
+    assert artifact_filename("ai c1", "synthesis") == "ai_c1_Synthesis.md"
+    assert artifact_filename("ai c1", "transcript", extension=".txt") == "ai_c1_Transcript.txt"
+
+
+def test_find_artifact_default_returns_modern_markdown_path(tmp_path: Path) -> None:
+    """Missing artifacts still resolve to the canonical markdown target path."""
+    topic = tmp_path / "topic"
+
+    assert find_artifact(topic, "synthesis", identity="ai c1") == topic / "ai_c1_Synthesis.md"
+
+
+def test_dump_frontmatter_uses_lowercase_boolean_scalars() -> None:
+    """Boolean frontmatter uses the lowercase YAML scalar spelling."""
+    dumped = dump_frontmatter({"enabled": True, "disabled": False})
+
+    assert "enabled: true" in dumped
+    assert "disabled: false" in dumped
+
+
+def test_apply_frontmatter_preserves_existing_list_fields_as_lists() -> None:
+    """Carried-forward inline list fields remain YAML lists after merging."""
+    content = dump_frontmatter({"title": "T", "tags": ["a", "b"]}) + "\n\nBody"
+
+    patched = apply_frontmatter(content, {"generated_at": "2026-06-28T00:00:00"})
+
+    assert 'tags: ["a", "b"]' in patched
+
+
+def test_atomic_write_text_creates_parent_and_replaces_atomically(tmp_path: Path) -> None:
+    """Atomic writes create nested parents, replace content, and clean temp files."""
+    target = tmp_path / "nested" / "note.md"
+
+    atomic_write_text(target, "first")
+    atomic_write_text(target, "second")
+
+    assert target.read_text(encoding="utf-8") == "second"
+    assert list(target.parent.glob(f".{target.name}.*.tmp")) == []
 
 
 def test_parse_wiki_links_generated_contract_cases() -> None:
