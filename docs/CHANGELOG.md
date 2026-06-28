@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.4 - 2026-06-28
+
 ### Added
 
 - Expanded the mutation-testing diagnostic into a non-blocking manual plus
