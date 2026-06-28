@@ -258,7 +258,7 @@ async def discover(  # noqa: C901
     limit: int = 5,
     papers_only: bool = False,
     videos_only: bool = False,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> str:
     """Goal-aware cross-source discovery: papers + videos, ranked.
 

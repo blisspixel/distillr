@@ -37,8 +37,10 @@ coverage. Five reasons:
    verification-depth before the coverage grind makes the coverage work smarter.
 
 4. **It is greenfield and bounded, not grind.** The strict ratchet's remaining
-   work is the coordinated `mcp/` helper promotions and the large `pipeline/`
-   modules - real work, but diminishing per-cycle value, better as background.
+   work is the coordinated `mcp/` helper promotions and command surfaces. The
+   full `pipeline/` package is now strict-clean, and the MCP helper pass has
+   started by typing optional progress contexts precisely. The remaining strict
+   work is real, but diminishing per-cycle value, better as background.
    Verification depth is new, high-signal infrastructure scoped to a
    well-understood core.
 
@@ -211,7 +213,8 @@ corpus-poisoning.
   load-bearing vs cosmetic. Mutation score, not line percentage, drives which
   branches get tests first.
 - **The strict ratchet** continues as background grind (the `mcp/` promotion
-  cycle, the large `pipeline/` modules); it does not block verification depth,
-  and the core being strict is the precondition this milestone just cashed in.
+  cycle and remaining command surfaces); it does not block verification depth,
+  and the core plus full `pipeline/` package being strict is the precondition
+  this milestone just cashed in.
 - **Parse-don't-validate** is folded into the strict ratchet and the boundary
   work; Phase 3's fault injection is its adversarial proof.

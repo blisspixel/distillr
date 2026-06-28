@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the MCP optional progress-context Pyright warning cluster by typing
+  FastMCP-injected contexts as `Context | None` on write tools that can also be
+  called without an active request context.
 - Cleared the full-surface Pyright error in MCP video-insight resources by
   making shared video-list metadata express the complete rows it emits.
 - Pinned the PyPI publish action to the current `release/v1` commit SHA while

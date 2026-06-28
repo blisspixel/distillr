@@ -46,7 +46,7 @@ async def site_batch(  # noqa: C901
     seed_only: bool = False,
     same_section_only: bool = False,
     preview: bool = False,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> str:
     """Scrape and analyze pages from a site seed file or URL list.
 

@@ -20,7 +20,7 @@ async def synthesize(  # noqa: C901
     force: bool = False,
     style: str = "",
     two_pass: bool = False,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> str:
     """Run or regenerate synthesis for a topic across all sources.
 
