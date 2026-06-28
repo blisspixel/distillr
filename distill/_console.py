@@ -65,5 +65,5 @@ def set_json_mode(enabled: bool) -> None:
     ``_file`` cleared, Rich resolves the live ``sys.stdout``/``sys.stderr`` at
     each write.
     """
-    console.file = None  # drop any pinned stream; resolve the live one per write
+    console._file = None  # drop any pinned stream; resolve the live one per write
     console.stderr = enabled

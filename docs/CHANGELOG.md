@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the shared console stream-reset Pyright warning while preserving
+  JSON-mode routing to the live stdout or stderr stream instead of stale test
+  buffers.
 - Cleared the MCP optional progress-context Pyright warning cluster by typing
   FastMCP-injected contexts as `Context | None` on write tools that can also be
   called without an active request context.
