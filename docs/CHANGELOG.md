@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   before reading model output text or polling status.
 - Ratcheted the single-call report synthesis boundary to Pyright strict mode
   and removed em dash separators from its touched prompt text.
+- Ratcheted the lightweight report briefing boundary to Pyright strict mode,
+  parsing video metadata through typed object checks and logging malformed
+  metadata at debug level.
 
 ### Fixed
 

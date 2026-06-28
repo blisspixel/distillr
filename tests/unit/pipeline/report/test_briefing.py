@@ -49,6 +49,29 @@ def test_generate_topic_brief_writes_brief_and_tracks_usage(tmp_path):
     assert tracker.entries[0].call_type == "topic_brief"
 
 
+def test_generate_topic_brief_uses_video_metadata_in_source_link(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic_dir = config.topic_dir("fabric")
+    insight_dir = topic_dir / "channels" / "Creator" / "videos" / "video-1"
+    insight_dir.mkdir(parents=True, exist_ok=True)
+    (insight_dir / "insights.md").write_text("# Insight", encoding="utf-8")
+    (insight_dir / "metadata.json").write_text(
+        '{"title": "Great Talk", "video_id": "abc123"}',
+        encoding="utf-8",
+    )
+    captured: dict[str, str] = {}
+
+    def _call(config, workload_tag, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return LLM_Response(text="# Brief", input_tokens=120, output_tokens=80, model="grok-4.3")
+
+    with patch("distill.pipeline.report.briefing.llm_call", _call):
+        result = generate_topic_brief("fabric", config)
+
+    assert result is not None
+    assert "Great Talk" in captured["prompt"]
+
+
 def test_generate_topic_brief_returns_none_when_llm_returns_empty(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic_dir = config.topic_dir("fabric")
