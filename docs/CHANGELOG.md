@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Ratcheted the deterministic audit health surface to Pyright strict mode,
   with typed sidecar flags, stale prompt rows, contested findings, and hygiene
   lists.
+- Completed the `distill.pipeline` Pyright strict surface by ratcheting shared
+  dashboard data to strict mode, with typed cost-log rows, latest-run payloads,
+  topic-change history, dashboard snapshots, and site-manifest records shared
+  by CLI and web renderers.
 
 ### Fixed
 

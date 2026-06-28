@@ -27,6 +27,7 @@ from distill.commands._topic_watch import _topic_watch_ranking_strategy
 from distill.config import DistillConfig
 from distill.pipeline.dashboard_data import dashboard_snapshot as _shared_dashboard_snapshot
 from distill.pipeline.dashboard_data import format_run_timestamp as _format_run_timestamp
+from distill.pipeline.dashboard_records import CostRun, DashboardSnapshot
 
 
 def _dashboard_metric(label: str, value: str, note: str = "") -> Panel:
@@ -34,6 +35,23 @@ def _dashboard_metric(label: str, value: str, note: str = "") -> Panel:
     if note:
         body += f"\n[dim]{note}[/dim]"
     return Panel(body, title=label, border_style="dim", padding=(0, 1))
+
+
+def _cost_run_text(entry: CostRun, key: str, default: str = "") -> str:
+    value = entry.get(key)
+    if value is None:
+        return default
+    return str(value)
+
+
+def _cost_run_float(entry: CostRun, key: str) -> float:
+    value = entry.get(key)
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
+    return 0.0
 
 
 def _build_start_here_table() -> Table:
@@ -259,10 +277,10 @@ def _show_dashboard():  # noqa: C901
     if recent_runs:
         for entry in reversed(recent_runs):
             recent.add_row(
-                _format_run_timestamp(entry.get("timestamp", "")),
-                str(entry.get("command", "unknown")),
-                f"${float(entry.get('actual_cost') or 0):.2f}",
-                f"{float(entry.get('elapsed_seconds') or 0):.1f}s",
+                _format_run_timestamp(_cost_run_text(entry, "timestamp")),
+                _cost_run_text(entry, "command", "unknown"),
+                f"${_cost_run_float(entry, 'actual_cost'):.2f}",
+                f"{_cost_run_float(entry, 'elapsed_seconds'):.1f}s",
             )
     else:
         recent.add_row("-", "No runs logged yet", "-", "-")
@@ -297,8 +315,8 @@ def _show_dashboard():  # noqa: C901
     else:
         learn_fast.add_row("Newest Work", "[dim]No recent synthesis or reports yet[/dim]")
     if recent_runs:
-        last_command = recent_runs[-1].get("command", "unknown")
-        last_cost = float(recent_runs[-1].get("actual_cost") or 0)
+        last_command = _cost_run_text(recent_runs[-1], "command", "unknown")
+        last_cost = _cost_run_float(recent_runs[-1], "actual_cost")
         learn_fast.add_row("Last Run", f"{last_command} [dim]${last_cost:.2f} actual[/dim]")
     else:
         learn_fast.add_row("Last Run", "[dim]No runs logged yet[/dim]")
@@ -438,11 +456,11 @@ def _show_dashboard():  # noqa: C901
     console.print("  [dim]distill --help for all commands[/dim]")
 
 
-def _dashboard_snapshot(config: DistillConfig) -> dict:
+def _dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     return _shared_dashboard_snapshot(config)
 
 
-def _render_dashboard_html(version: str, snapshot: dict) -> str:  # noqa: C901 â€” legacy, will refactor
+def _render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # noqa: C901
     def list_items(items: list[str]) -> str:
         if not items:
             return "<li>None</li>"
@@ -486,10 +504,10 @@ def _render_dashboard_html(version: str, snapshot: dict) -> str:  # noqa: C901 â
     recent_rows = (
         "".join(
             "<tr>"
-            f"<td>{escape(_format_run_timestamp(entry.get('timestamp', '')))}</td>"
-            f"<td>{escape(str(entry.get('command', 'unknown')))}</td>"
-            f"<td>${float(entry.get('actual_cost') or 0):.2f}</td>"
-            f"<td>{float(entry.get('elapsed_seconds') or 0):.1f}s</td>"
+            f"<td>{escape(_format_run_timestamp(_cost_run_text(entry, 'timestamp')))}</td>"
+            f"<td>{escape(_cost_run_text(entry, 'command', 'unknown'))}</td>"
+            f"<td>${_cost_run_float(entry, 'actual_cost'):.2f}</td>"
+            f"<td>{_cost_run_float(entry, 'elapsed_seconds'):.1f}s</td>"
             "</tr>"
             for entry in reversed(snapshot["recent_runs"])
         )

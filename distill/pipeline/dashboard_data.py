@@ -1,19 +1,37 @@
+# pyright: strict
 """Shared dashboard data functions used by both CLI and web UI."""
 
+from __future__ import annotations
+
 import json
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from distill.config import DistillConfig
-from distill.ingestors.sites.scraper import site_section_key
-from distill.library import Library
+from distill.ingestors.sites.scraper import SitePage, site_section_key
+from distill.library import Library, TopicWatchEntry
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
 from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
 from distill.pipeline.costs import estimate_stage_cost, report_deep_research_estimate
+from distill.pipeline.dashboard_records import (
+    CostRollup,
+    CostRun,
+    DashboardSnapshot,
+    JsonObject,
+    RecentArtifact,
+    SiteManifest,
+    SiteSectionState,
+    TopicChange,
+    TopicChangeHistoryRecord,
+    json_object,
+    object_list,
+    site_manifest_from_json,
+)
 
 
-def duration_str(seconds) -> str:
+def duration_str(seconds: object) -> str:
     """Format seconds to human readable duration."""
     if seconds is None or not isinstance(seconds, (int, float)):
         return "?"
@@ -36,7 +54,7 @@ def strip_frontmatter(content: str) -> str:
     return content
 
 
-def read_json_dict(path: Path) -> dict:
+def read_json_dict(path: Path) -> JsonObject:
     """Read a JSON-object file, returning ``{}`` on missing/corrupt/non-object content.
 
     Dashboard readers consume best-effort local ``metadata.json`` / ``*.json``
@@ -45,10 +63,10 @@ def read_json_dict(path: Path) -> dict:
     take the whole dashboard down, so it is normalized to an empty mapping here.
     """
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data: object = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    return data if isinstance(data, dict) else {}
+    return json_object(data)
 
 
 __all__ = [
@@ -83,47 +101,77 @@ __all__ = [
 # ── Cost log helpers ────────────────────────────────────────────────
 
 
-def load_recent_cost_runs(log_file: Path, limit: int = 5) -> list[dict]:
+def load_recent_cost_runs(log_file: Path, limit: int = 5) -> list[CostRun]:
     if not log_file.exists():
         return []
-    entries = []
+    entries: list[CostRun] = []
     try:
         for line in log_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
                 continue
             try:
-                entry = json.loads(line)
+                entry: object = json.loads(line)
             except json.JSONDecodeError:
                 continue
             # Only dict rows are usable; a valid-JSON-but-non-object line would
             # crash consumers like ``sum_recent_cost`` (``entry.get(...)``) and
             # take the whole dashboard down on one corrupt cost_log.jsonl line.
+            entry_row = json_object(entry)
             if isinstance(entry, dict):
-                entries.append(entry)
+                entries.append(entry_row)
     except OSError:
         return []
     return entries[-limit:]
 
 
-def load_all_cost_runs(log_file: Path) -> list[dict]:
+def load_all_cost_runs(log_file: Path) -> list[CostRun]:
     return load_recent_cost_runs(log_file, limit=10000)
 
 
-def load_latest_run_payload(log_dir: Path) -> dict:
+def load_latest_run_payload(log_dir: Path) -> JsonObject:
     latest = log_dir / "latest_run.json"
     if not latest.exists():
         return {}
     return read_json_dict(latest)
 
 
-def sum_recent_cost(entries: list[dict]) -> float:
+def _float_value(value: object, default: float = 0.0) -> float:
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _int_value(value: object, default: int = 0) -> int:
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _invalid_cost_value(value: object) -> bool:
+    return (
+        _float_value(value) == 0.0
+        and value is not None
+        and value
+        not in {
+            0,
+            "",
+            "0",
+            "0.0",
+        }
+    )
+
+
+def sum_recent_cost(entries: Sequence[CostRun]) -> float:
     total = 0.0
     for entry in entries:
-        try:
-            total += float(entry.get("actual_cost") or 0)
-        except (TypeError, ValueError):
-            continue
+        total += _float_value(entry.get("actual_cost"))
     return total
 
 
@@ -155,7 +203,7 @@ def parse_run_datetime(value: str) -> datetime | None:
 # ── Topic watch cost helpers ────────────────────────────────────────
 
 
-def estimated_topic_watch_sweep(topic_watchlist) -> float:
+def estimated_topic_watch_sweep(topic_watchlist: Sequence[TopicWatchEntry]) -> float:
     total = 0.0
     for entry in topic_watchlist:
         total += entry.limit * estimate_stage_cost("video_full")
@@ -164,49 +212,45 @@ def estimated_topic_watch_sweep(topic_watchlist) -> float:
     return total
 
 
-def estimate_topic_watch_cost(entry) -> float:
+def estimate_topic_watch_cost(entry: TopicWatchEntry) -> float:
     total = entry.limit * estimate_stage_cost("video_full")
     if entry.report:
         total += report_deep_research_estimate()
     return total
 
 
-def topic_spend_last_days(entries: list[dict], topic: str, days: int = 30) -> float:
+def topic_spend_last_days(entries: Sequence[CostRun], topic: str, days: int = 30) -> float:
     cutoff = datetime.now() - timedelta(days=days)
     total = 0.0
     for entry in entries:
-        metadata = entry.get("metadata") or {}
+        metadata = json_object(entry.get("metadata"))
         if metadata.get("topic") != topic:
             continue
         ts = parse_run_datetime(str(entry.get("timestamp", "")))
         if ts is None or ts < cutoff:
             continue
-        try:
-            total += float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
-            continue
+        total += _float_value(entry.get("actual_cost"))
     return total
 
 
-def topic_recent_costs(entries: list[dict], topic: str, limit: int = 5) -> list[float]:
+def topic_recent_costs(entries: Sequence[CostRun], topic: str, limit: int = 5) -> list[float]:
     values: list[tuple[datetime, float]] = []
     for entry in entries:
-        metadata = entry.get("metadata") or {}
+        metadata = json_object(entry.get("metadata"))
         if metadata.get("topic") != topic:
             continue
         ts = parse_run_datetime(str(entry.get("timestamp", "")))
         if ts is None:
             continue
-        try:
-            cost = float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
-            continue
+        cost = _float_value(entry.get("actual_cost"))
         values.append((ts, cost))
     values.sort(key=lambda item: item[0], reverse=True)
     return [cost for _, cost in values[:limit]]
 
 
-def topic_watch_budget_messages(entry, all_cost_entries: list[dict]) -> list[str]:
+def topic_watch_budget_messages(
+    entry: TopicWatchEntry, all_cost_entries: Sequence[CostRun]
+) -> list[str]:
     messages: list[str] = []
     projected = estimate_topic_watch_cost(entry)
     if entry.max_run_cost and projected > entry.max_run_cost:
@@ -234,8 +278,8 @@ def topic_watch_budget_messages(entry, all_cost_entries: list[dict]) -> list[str
 # ── Cost rollup helpers ─────────────────────────────────────────────
 
 
-def entry_source_type(entry: dict) -> str:
-    metadata = entry.get("metadata") or {}
+def entry_source_type(entry: CostRun) -> str:
+    metadata = json_object(entry.get("metadata"))
     source_type = metadata.get("source_type")
     if source_type:
         return str(source_type)
@@ -248,44 +292,42 @@ def entry_source_type(entry: dict) -> str:
 
 
 def topic_cost_rollups(
-    entries: list[dict], days: int = 30, limit: int = 5
-) -> list[tuple[str, float, int]]:
+    entries: Sequence[CostRun], days: int = 30, limit: int = 5
+) -> list[CostRollup]:
     cutoff = datetime.now() - timedelta(days=days)
-    rollups: dict[str, dict[str, float | int]] = {}
+    rollups: dict[str, tuple[float, int]] = {}
     for entry in entries:
         ts = parse_run_datetime(str(entry.get("timestamp", "")))
         if ts is None or ts < cutoff:
             continue
-        metadata = entry.get("metadata") or {}
+        metadata = json_object(entry.get("metadata"))
         topic = str(metadata.get("topic") or "").strip()
         if not topic:
             continue
-        bucket = rollups.setdefault(topic, {"cost": 0.0, "runs": 0})
-        try:
-            bucket["cost"] += float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
+        cost = _float_value(entry.get("actual_cost"))
+        if _invalid_cost_value(entry.get("actual_cost")):
             continue
-        bucket["runs"] += 1
-    items = [(topic, float(data["cost"]), int(data["runs"])) for topic, data in rollups.items()]
+        current_cost, current_runs = rollups.get(topic, (0.0, 0))
+        rollups[topic] = (current_cost + cost, current_runs + 1)
+    items: list[CostRollup] = [(topic, cost, runs) for topic, (cost, runs) in rollups.items()]
     items.sort(key=lambda item: item[1], reverse=True)
     return items[:limit]
 
 
-def source_cost_rollups(entries: list[dict], days: int = 30) -> list[tuple[str, float, int]]:
+def source_cost_rollups(entries: Sequence[CostRun], days: int = 30) -> list[CostRollup]:
     cutoff = datetime.now() - timedelta(days=days)
-    rollups: dict[str, dict[str, float | int]] = {}
+    rollups: dict[str, tuple[float, int]] = {}
     for entry in entries:
         ts = parse_run_datetime(str(entry.get("timestamp", "")))
         if ts is None or ts < cutoff:
             continue
         source_type = entry_source_type(entry)
-        bucket = rollups.setdefault(source_type, {"cost": 0.0, "runs": 0})
-        try:
-            bucket["cost"] += float(entry.get("actual_cost") or 0.0)
-        except (TypeError, ValueError):
+        cost = _float_value(entry.get("actual_cost"))
+        if _invalid_cost_value(entry.get("actual_cost")):
             continue
-        bucket["runs"] += 1
-    items = [(source, float(data["cost"]), int(data["runs"])) for source, data in rollups.items()]
+        current_cost, current_runs = rollups.get(source_type, (0.0, 0))
+        rollups[source_type] = (current_cost + cost, current_runs + 1)
+    items: list[CostRollup] = [(source, cost, runs) for source, (cost, runs) in rollups.items()]
     items.sort(key=lambda item: item[1], reverse=True)
     return items
 
@@ -345,8 +387,8 @@ def count_topic_outputs(config: DistillConfig, topics: list[str]) -> tuple[int, 
 
 def collect_recent_artifacts(
     config: DistillConfig, topics: list[str], limit: int = 6
-) -> list[tuple[datetime, str, str]]:
-    artifacts = []
+) -> list[RecentArtifact]:
+    artifacts: list[RecentArtifact] = []
     for topic in topics:
         topic_dir = config.topic_dir(topic)
         candidates = [
@@ -406,8 +448,8 @@ def collect_recent_artifacts(
     return artifacts[:limit]
 
 
-def collect_stale_topic_watches(topic_watchlist) -> list[str]:
-    stale = []
+def collect_stale_topic_watches(topic_watchlist: Sequence[TopicWatchEntry]) -> list[str]:
+    stale: list[str] = []
     now = datetime.now()
     for entry in topic_watchlist:
         if not entry.last_run_at:
@@ -570,35 +612,35 @@ def _topic_change_history_path(config: DistillConfig, topic: str) -> Path:
     return config.topic_dir(topic) / "change_history.jsonl"
 
 
-def load_topic_change_history(config: DistillConfig, topic: str) -> list[dict]:
+def load_topic_change_history(config: DistillConfig, topic: str) -> list[TopicChangeHistoryRecord]:
     history_path = _topic_change_history_path(config, topic)
     if not history_path.exists():
         return []
-    records = []
+    records: list[TopicChangeHistoryRecord] = []
     try:
         for line in history_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             try:
-                payload = json.loads(line)
+                payload: object = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if not isinstance(payload, dict):
+            row = json_object(payload)
+            if not row:
                 continue
-            generated_at = parse_run_datetime(str(payload.get("generated_at", "")))
-            counts_raw = payload.get("counts")
-            counts = counts_raw if isinstance(counts_raw, dict) else {}
+            generated_at = parse_run_datetime(str(row.get("generated_at", "")))
+            counts = json_object(row.get("counts"))
             if generated_at is None:
                 continue
             records.append(
                 {
                     "generated_at": generated_at,
-                    "summary": str(payload.get("summary", "") or ""),
+                    "summary": str(row.get("summary", "") or ""),
                     "counts": {
-                        "videos": int(counts.get("videos", 0) or 0),
-                        "pages": int(counts.get("pages", 0) or 0),
-                        "papers": int(counts.get("papers", 0) or 0),
-                        "outputs": int(counts.get("outputs", 0) or 0),
+                        "videos": _int_value(counts.get("videos")),
+                        "pages": _int_value(counts.get("pages")),
+                        "papers": _int_value(counts.get("papers")),
+                        "outputs": _int_value(counts.get("outputs")),
                     },
                 }
             )
@@ -612,8 +654,20 @@ def topic_trend_label(config: DistillConfig, topic: str) -> str | None:
     records = load_topic_change_history(config, topic)
     if len(records) < 2:
         return None
-    latest = sum(int(v) for v in records[0]["counts"].values())
-    previous = sum(int(v) for v in records[1]["counts"].values())
+    latest_counts = records[0]["counts"]
+    previous_counts = records[1]["counts"]
+    latest = (
+        latest_counts["videos"]
+        + latest_counts["pages"]
+        + latest_counts["papers"]
+        + latest_counts["outputs"]
+    )
+    previous = (
+        previous_counts["videos"]
+        + previous_counts["pages"]
+        + previous_counts["papers"]
+        + previous_counts["outputs"]
+    )
     if latest > previous:
         return "trend: rising"
     if latest < previous:
@@ -625,9 +679,9 @@ def collect_topic_changes(  # noqa: C901 — legacy, will refactor
     config: DistillConfig,
     lib: Library,
     topics: list[str],
-    topic_watchlist,
+    topic_watchlist: Sequence[TopicWatchEntry],
     limit: int = 6,
-) -> list[tuple[str, str]]:
+) -> list[TopicChange]:
     now = datetime.now()
     watch_baselines: dict[str, datetime | None] = {}
     for entry in topic_watchlist:
@@ -712,7 +766,7 @@ def collect_topic_changes(  # noqa: C901 — legacy, will refactor
                 last_change = max(last_change, mtime)
 
         if new_videos or new_pages or refreshed_outputs:
-            parts = []
+            parts: list[str] = []
             if new_videos:
                 parts.append(f"+{new_videos} video{'s' if new_videos != 1 else ''}")
             if new_pages:
@@ -736,19 +790,19 @@ def collect_topic_changes(  # noqa: C901 — legacy, will refactor
 # ── Site helpers ────────────────────────────────────────────────────
 
 
-def _load_site_manifest(path: Path) -> dict:
+def _load_site_manifest(path: Path) -> SiteManifest:
     if not path.exists():
-        return {}
-    return read_json_dict(path)
+        return {"sections": []}
+    return site_manifest_from_json(read_json_dict(path))
 
 
-def build_site_section_state(pages) -> list[dict]:
-    section_buckets: dict[str, list] = {}
+def build_site_section_state(pages: Sequence[SitePage]) -> list[SiteSectionState]:
+    section_buckets: dict[str, list[SitePage]] = {}
     for page in pages:
         section = site_section_key(page.final_url or page.url)
         section_buckets.setdefault(section, []).append(page)
 
-    section_state: list[dict] = []
+    section_state: list[SiteSectionState] = []
     for section, section_pages in sorted(section_buckets.items()):
         urls = sorted({page.final_url or page.url for page in section_pages})
         section_state.append(
@@ -762,7 +816,9 @@ def build_site_section_state(pages) -> list[dict]:
     return section_state
 
 
-def stale_synthesis_warnings(config: DistillConfig, topics: list[str], *, limit: int = 4) -> list:
+def stale_synthesis_warnings(
+    config: DistillConfig, topics: list[str], *, limit: int = 4
+) -> list[str]:
     """Syntheses generated before sources that now sit under them.
 
     The source-relative complement to ``collect_corpus_health_warnings``'s
@@ -774,9 +830,11 @@ def stale_synthesis_warnings(config: DistillConfig, topics: list[str], *, limit:
     for topic in topics:
         freshness = collect_synthesis_freshness(config.topic_dir(topic), topic)
         for item in freshness.stale:
+            row = json_object(item)
             warnings.append(
-                f"{topic} {item['synthesis']} predates {item['behind']} newer source(s) "
-                f"by {item['gap_days']}d -- regenerate with `distill corpus {topic}`"
+                f"{topic} {row.get('synthesis', 'synthesis')} predates "
+                f"{_int_value(row.get('behind'))} newer source(s) by "
+                f"{_int_value(row.get('gap_days'))}d -- regenerate with `distill corpus {topic}`"
             )
             if len(warnings) >= limit:
                 return warnings
@@ -786,7 +844,7 @@ def stale_synthesis_warnings(config: DistillConfig, topics: list[str], *, limit:
 # ── Main snapshot ───────────────────────────────────────────────────
 
 
-def dashboard_snapshot(config: DistillConfig) -> dict:
+def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     """Collect all dashboard data into a plain dict."""
     lib = Library(config)
     topics = lib.get_topics()
@@ -824,8 +882,8 @@ def dashboard_snapshot(config: DistillConfig) -> dict:
     recent_runs = all_cost_entries[-6:]
     recent_spend = sum_recent_cost(recent_runs)
     latest_run = load_latest_run_payload(config.library_dir)
-    latest_results = latest_run.get("results", {}) if latest_run else {}
-    latest_issues = latest_run.get("issues", []) if latest_run else []
+    latest_results = json_object(latest_run.get("results"))
+    latest_issues = object_list(latest_run.get("issues"))
     recent_artifacts = collect_recent_artifacts(config, topics, limit=6)
     topic_changes = collect_topic_changes(config, lib, topics, topic_watchlist, limit=6)
     topic_trends = {topic: topic_trend_label(config, topic) for topic in topics}

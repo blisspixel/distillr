@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha1
@@ -28,6 +29,7 @@ from distill.pipeline.analysis.site import analyze_site_page, synthesize_site
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.dashboard_data import _load_site_manifest
 from distill.pipeline.dashboard_data import build_site_section_state as _build_site_section_state
+from distill.pipeline.dashboard_records import SiteManifest, SiteSectionState
 from distill.pipeline.summary import RunSummary
 
 __all__ = [
@@ -68,12 +70,10 @@ def site_ingest_status_phase(result: object) -> str:
     return "done"
 
 
-def site_section_change_summary(previous: dict, current_sections: list[dict]) -> list[str]:
-    previous_sections = {
-        item.get("section", ""): item
-        for item in previous.get("sections", [])
-        if isinstance(item, dict) and item.get("section")
-    }
+def site_section_change_summary(
+    previous: SiteManifest, current_sections: Sequence[SiteSectionState]
+) -> list[str]:
+    previous_sections = {item["section"]: item for item in previous["sections"] if item["section"]}
     messages: list[str] = []
     for item in current_sections:
         name = item["section"]
@@ -81,12 +81,12 @@ def site_section_change_summary(previous: dict, current_sections: list[dict]) ->
         if prev is None:
             messages.append(f"{name} added ({item['page_count']} pages)")
             continue
-        prev_urls = set(prev.get("urls", []))
-        curr_urls = set(item.get("urls", []))
+        prev_urls = set(prev["urls"])
+        curr_urls = set(item["urls"])
         if curr_urls != prev_urls:
             added = len(curr_urls - prev_urls)
             removed = len(prev_urls - curr_urls)
-            bits = []
+            bits: list[str] = []
             if added:
                 bits.append(f"+{added}")
             if removed:
@@ -94,7 +94,7 @@ def site_section_change_summary(previous: dict, current_sections: list[dict]) ->
             messages.append(f"{name} changed ({', '.join(bits)})")
     for name, prev in previous_sections.items():
         if name not in {item["section"] for item in current_sections}:
-            messages.append(f"{name} missing (was {prev.get('page_count', 0)} pages)")
+            messages.append(f"{name} missing (was {prev['page_count']} pages)")
     return messages[:8]
 
 

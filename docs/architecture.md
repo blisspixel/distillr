@@ -320,6 +320,7 @@ distill/                           # Python package - layered subpackage archite
 │   │   └── file_search.py         # Gemini File Search store management
 │   ├── costs.py                   # Token/cost tracking (CostTracker)
 │   ├── dashboard_data.py          # Shared dashboard data functions
+│   ├── dashboard_records.py       # Typed dashboard row and snapshot records
 │   ├── discovery.py               # Goal-aware cross-source discovery
 │   ├── ranking.py                 # Video + paper reranking
 │   └── summary.py                 # Post-run summary display

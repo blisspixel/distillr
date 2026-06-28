@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
 from distill.pipeline.dashboard_data import (
+    _load_site_manifest,
     build_site_section_state,
     collect_corpus_health_warnings,
     collect_recent_artifacts,
@@ -230,6 +231,38 @@ def test_load_latest_payload_and_site_section_state(config):
             "page_types": ["research", "topic"],
         }
     ]
+
+
+def test_site_manifest_parser_preserves_section_change_fields(tmp_path):
+    manifest_path = tmp_path / "site.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "sections": [
+                    {
+                        "section": "topic/ai",
+                        "page_count": 2,
+                        "urls": ["https://example.com/a", "https://example.com/b"],
+                        "page_types": ["docs", "research"],
+                        "last_crawled_at": "2026-06-28T12:00:00",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _load_site_manifest(manifest_path) == {
+        "sections": [
+            {
+                "section": "topic/ai",
+                "page_count": 2,
+                "urls": ["https://example.com/a", "https://example.com/b"],
+                "page_types": ["docs", "research"],
+                "last_crawled_at": "2026-06-28T12:00:00",
+            }
+        ]
+    }
 
 
 def test_cost_helpers_handle_missing_and_invalid_data(tmp_path):
