@@ -102,6 +102,14 @@ workflow on `ubuntu-latest`** (`workflow_dispatch`), installing `mutmut` ad hoc
 gate and not part of the per-PR matrix. Deliverable: the workflow plus the first
 recorded score and triage.
 
+Status (2026-06-27): the manual workflow exists at
+`.github/workflows/mutation.yml`, with the exact scoped surface configured in
+`[tool.mutmut]` (`distill/concepts/merge.py` against
+`tests/unit/concepts/test_merge.py`). The first score and survivor triage remain
+pending the first Ubuntu dispatch. A local WSL run is not currently available in
+this workspace: one registered distro cannot attach its disk, and the other has
+only Python 3.8 and no `uv`.
+
 ### Phase 1 conventions (settled while landing the first contracts)
 
 Two things were learned wiring `deal` into the strict core; both are now the

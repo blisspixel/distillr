@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added a manual, non-blocking GitHub Actions mutation diagnostic for the 1.0
+  verification-depth milestone. The first Phase 0 scope mutates
+  `distill/concepts/merge.py` against `tests/unit/concepts/test_merge.py`, with
+  the exact `mutmut` surface stored in `[tool.mutmut]` and generated mutation
+  artifacts ignored locally.
 - Added a free MCP `list_topics` tool so tool-only clients can discover corpus
   topics before calling topic-scoped tools such as `find_insights`,
   `list_topic_summary`, or `ask`.

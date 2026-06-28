@@ -32,6 +32,8 @@ sbom-requirements.txt
 coverage.xml
 htmlcov/
 *.cover
+mutants/
+.mutmut-cache/
 
 # IDE / editor
 .vscode/
@@ -68,7 +70,7 @@ tmp/
 private/*
 !private/README.md
 
-# Reference material from other projects — not part of distillr
+# Reference material from other projects - not part of distillr
 archive/
 
 # Logs
@@ -78,7 +80,7 @@ terminals/
 # Agent working files: cycle journal, state analysis, engineering recipes, and
 # the self-review rubric. Local-only by convention so the public repo stays
 # tidy; the shipped record of what changed lives in docs/CHANGELOG.md.
-docs/dev/
+docs/.agent/
 
 # Dev and run logs
 logs/

@@ -108,6 +108,15 @@ xfail_strict = true
 branch = true
 source = ["distill"]
 
+[tool.mutmut]
+# Phase 0 verification-depth diagnostic. This is intentionally scoped to a pure,
+# well-tested core module and run by a manual Ubuntu workflow, not the per-PR CI
+# matrix. See docs/design/verification-depth.md.
+source_paths = ["distill/concepts"]
+only_mutate = ["distill/concepts/merge.py"]
+pytest_add_cli_args_test_selection = ["tests/unit/concepts/test_merge.py"]
+max_stack_depth = 8
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
