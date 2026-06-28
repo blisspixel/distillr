@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+import deal
+
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.concepts.records import ConceptKind
 from distill.library.paths import atomic_write_text, extract_frontmatter, strip_frontmatter
@@ -185,10 +187,97 @@ def resolve_snapshot(topic_dir: Path, slug: str, timestamp: str) -> Snapshot | N
 
 # ---- frontmatter parsing ---------------------------------------------------
 
-_LIST_FIELDS = ("helpful_evidence", "harmful_evidence", "sources")
+_INTERVAL_FIELDS = ("helpful_evidence", "harmful_evidence")
 _INT_FIELDS = ("source_count", "helpful_count", "harmful_count")
+_ROLLUP_KEYS: set[str] = {
+    "name",
+    "normalized_name",
+    "slug",
+    "kind",
+    "topic",
+    "source_count",
+    "helpful_evidence",
+    "harmful_evidence",
+    "helpful_count",
+    "harmful_count",
+    "contested",
+    "first_seen",
+    "last_seen",
+}
 
 
+def _is_non_negative_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_evidence_interval(value: object) -> bool:
+    if not isinstance(value, list):
+        return False
+    items = cast("list[object]", value)
+    if len(items) != 2:
+        return False
+    lower, upper = items
+    if not (_is_non_negative_int(lower) and _is_non_negative_int(upper)):
+        return False
+    return cast("int", lower) <= cast("int", upper)
+
+
+def _parse_non_negative_int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    with contextlib.suppress(TypeError, ValueError):
+        parsed = int(value)  # pyright: ignore[reportArgumentType] -- int() is the parser boundary
+        if parsed >= 0:
+            return parsed
+    return 0
+
+
+def _parse_json_list(value: object) -> list[Any] | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        decoded = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if isinstance(decoded, list):
+        return cast("list[Any]", decoded)
+    return None
+
+
+def _parse_evidence_interval(value: object) -> list[int]:
+    decoded = _parse_json_list(value)
+    if _is_evidence_interval(decoded):
+        return cast("list[int]", decoded)
+    if _is_evidence_interval(value):
+        return cast("list[int]", value)
+    return [0, 0]
+
+
+def _parsed_note_fields_are_typed(fields: dict[str, Any]) -> bool:
+    for key in _INTERVAL_FIELDS:
+        if key in fields and not _is_evidence_interval(fields[key]):
+            return False
+    if "sources" in fields and not isinstance(fields["sources"], list):
+        return False
+    for key in _INT_FIELDS:
+        if key in fields and not _is_non_negative_int(fields[key]):
+            return False
+    return "contested" not in fields or isinstance(fields["contested"], bool)
+
+
+def _rollup_row_is_structural(row: dict[str, Any]) -> bool:
+    return (
+        set(row) == _ROLLUP_KEYS
+        and _is_non_negative_int(row["source_count"])
+        and _is_evidence_interval(row["helpful_evidence"])
+        and _is_evidence_interval(row["harmful_evidence"])
+        and _is_non_negative_int(row["helpful_count"])
+        and _is_non_negative_int(row["harmful_count"])
+        and isinstance(row["contested"], bool)
+    )
+
+
+@deal.post(_parsed_note_fields_are_typed)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def parse_note_fields(content: str) -> dict[str, Any]:
     """Parse a note's frontmatter into typed values.
 
@@ -202,16 +291,14 @@ def parse_note_fields(content: str) -> dict[str, Any]:
     raw = extract_frontmatter(content)
     fields: dict[str, Any] = dict(raw)
 
-    for key in _LIST_FIELDS:
+    for key in _INTERVAL_FIELDS:
         if key in raw:
-            try:
-                fields[key] = json.loads(raw[key])
-            except (json.JSONDecodeError, TypeError):
-                fields[key] = [] if key == "sources" else raw[key]
+            fields[key] = _parse_evidence_interval(raw[key])
+    if "sources" in raw:
+        fields["sources"] = _parse_json_list(raw["sources"]) or []
     for key in _INT_FIELDS:
         if key in raw:
-            with contextlib.suppress(ValueError, TypeError):
-                fields[key] = int(raw[key])
+            fields[key] = _parse_non_negative_int(raw[key])
     if "contested" in raw:
         fields["contested"] = str(raw["contested"]).lower() == "true"
     return fields
@@ -397,6 +484,7 @@ class RollbackResult:
     changed: bool  # False when the live note already matched the snapshot
 
 
+@deal.post(_rollup_row_is_structural)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
 def _rollup_row_from_fields(fields: dict[str, Any]) -> dict[str, Any]:
     """Rebuild a ``concepts.jsonl`` row from a note's parsed frontmatter.
 
@@ -409,11 +497,11 @@ def _rollup_row_from_fields(fields: dict[str, Any]) -> dict[str, Any]:
         "slug": fields.get("slug", ""),
         "kind": fields.get("kind", ""),
         "topic": fields.get("topic", ""),
-        "source_count": int(fields.get("source_count", 0) or 0),
-        "helpful_evidence": fields.get("helpful_evidence", [0, 0]),
-        "harmful_evidence": fields.get("harmful_evidence", [0, 0]),
-        "helpful_count": int(fields.get("helpful_count", 0) or 0),
-        "harmful_count": int(fields.get("harmful_count", 0) or 0),
+        "source_count": _parse_non_negative_int(fields.get("source_count", 0)),
+        "helpful_evidence": _parse_evidence_interval(fields.get("helpful_evidence", [0, 0])),
+        "harmful_evidence": _parse_evidence_interval(fields.get("harmful_evidence", [0, 0])),
+        "helpful_count": _parse_non_negative_int(fields.get("helpful_count", 0)),
+        "harmful_count": _parse_non_negative_int(fields.get("harmful_count", 0)),
         "contested": bool(fields.get("contested", False)),
         "first_seen": fields.get("first_seen", ""),
         "last_seen": fields.get("last_seen", ""),

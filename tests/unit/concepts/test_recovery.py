@@ -249,6 +249,27 @@ class TestParseNoteFields:
     def test_tolerates_no_frontmatter(self) -> None:
         assert recovery.parse_note_fields("just a body") == {}
 
+    def test_malformed_structured_fields_fall_back_to_typed_defaults(self) -> None:
+        content = """---
+source_count: nope
+helpful_evidence: not-json
+harmful_evidence: [3, 1]
+helpful_count: -4
+harmful_count: 2
+sources: {"not": "a list"}
+contested: true
+---
+body
+"""
+        fields = recovery.parse_note_fields(content)
+        assert fields["source_count"] == 0
+        assert fields["helpful_evidence"] == [0, 0]
+        assert fields["harmful_evidence"] == [0, 0]
+        assert fields["helpful_count"] == 0
+        assert fields["harmful_count"] == 2
+        assert fields["sources"] == []
+        assert fields["contested"] is True
+
 
 # ---- diffing ---------------------------------------------------------------
 

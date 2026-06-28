@@ -204,6 +204,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Tightened concept recovery frontmatter parsing so malformed structured fields
+  fall back to typed, non-negative defaults instead of leaking raw strings into
+  rollback rollup rows. Added executable contracts for parsed frontmatter shape
+  and rebuilt rollup-row structure.
 - Bounded several untrusted response reads that had no size cap (the trusted-site
   sitemap / landing-page fetch, the YouTube browser-search HTML fetch, and the
   arXiv Atom feed) so a hostile or compromised host cannot drive a multi-GB read

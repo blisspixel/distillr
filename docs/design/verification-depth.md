@@ -145,9 +145,10 @@ suite. Contracts are `-O`-removable where overhead matters. Deliverable: the
 contract decorators plus their generated-test wiring, green in CI.
 
 Status (2026-06-27): executable contracts now cover the merge interval/source
-preservation invariants, path component confinement, and the normalize layer's
-grouping and threshold guarantees. The remaining Phase 1 targets are recovery
-frontmatter round-trip contracts and generated-test wiring from the contracts.
+preservation invariants, path component confinement, the normalize layer's
+grouping and threshold guarantees, and recovery's frontmatter-to-rollup row
+shape. The remaining Phase 1 target is generated-test wiring from the
+contracts.
 
 **Phase 2 - mutmut across the core, on a cadence.** Expand the mutation run to
 `concepts/`, `library/`, and `pipeline/verify*` + `dedup.py`, wired as a
