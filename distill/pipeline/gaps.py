@@ -1,3 +1,4 @@
+# pyright: strict
 """Corpus coverage / research-gap analysis for a topic.
 
 Lifted out of the MCP server so both the `research_gaps` tool and the
@@ -12,6 +13,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import NotRequired, TypedDict, cast
 
 from distill.config import DistillConfig
 from distill.library import Library
@@ -25,6 +27,49 @@ __all__ = [
 ]
 
 
+type JsonObject = dict[str, object]
+
+
+class VideoMetadata(TypedDict, total=False):
+    title: str
+    upload_date: str
+    _dir: str
+    has_transcript: bool
+    has_insights: bool
+
+
+class TopicInventory(TypedDict):
+    topic: str
+    channels: int
+    videos: int
+    sites: int
+    pages: int
+    papers: int
+    active_source_types: list[str]
+    artifacts: dict[str, bool]
+    latest_video_date: str | None
+
+
+class TopicGapSummary(TypedDict):
+    topic: str
+    channels: int
+    videos: int
+    sites: int
+    pages: int
+    papers: int
+    active_source_types: list[str]
+    latest_video_date: str | None
+    recency_status: str
+    missing_artifacts: list[str]
+    missing_insights: list[str]
+    missing_transcripts: list[str]
+    thin_insights: list[str]
+    gaps: list[str]
+    recommended_actions: list[str]
+    next_actions: list[str]
+    _error: NotRequired[str]
+
+
 def _parse_upload_date(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -34,12 +79,36 @@ def _parse_upload_date(value: str | None) -> datetime | None:
         return None
 
 
-def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[dict]:
+def _read_json_object(path: Path) -> JsonObject | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return cast("JsonObject", data)
+
+
+def _string_value(value: object, default: str = "") -> str:
+    return value if isinstance(value, str) else default
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in cast(list[object], value) if isinstance(item, str)]
+
+
+def _video_title(video: VideoMetadata) -> str:
+    return video.get("title", "Unknown")
+
+
+def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[VideoMetadata]:
     """Collect and sort a channel's videos (newest first) with artifact flags."""
     videos_dir = config.videos_dir(topic, channel_name)
     if not videos_dir.exists():
         return []
-    vid_list = []
+    vid_list: list[VideoMetadata] = []
     for vid_dir in videos_dir.iterdir():
         if not vid_dir.is_dir():
             continue
@@ -48,12 +117,13 @@ def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[dic
             # Degrade on a corrupt metadata.json (e.g. interrupted run) instead
             # of crashing the MCP resources/tools that read this, matching every
             # sibling reader (web routes, dashboard_data).
-            try:
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if not isinstance(meta, dict):
+            raw_meta = _read_json_object(meta_file)
+            if raw_meta is None:
                 continue  # valid JSON but not an object -> not usable metadata
+            meta: VideoMetadata = {
+                "title": _string_value(raw_meta.get("title"), "Unknown"),
+                "upload_date": _string_value(raw_meta.get("upload_date")),
+            }
             meta["_dir"] = str(vid_dir)
             meta["has_transcript"] = artifact_exists(vid_dir, "transcript", extension="txt")
             meta["has_insights"] = artifact_exists(vid_dir, "insights")
@@ -62,7 +132,9 @@ def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[dic
     return vid_list
 
 
-def topic_source_inventory(config: DistillConfig, topic: str) -> dict:  # noqa: C901 - legacy shape
+def topic_source_inventory(  # noqa: C901 - legacy shape
+    config: DistillConfig, topic: str
+) -> TopicInventory:
     """Count a topic's sources and which synthesis artifacts exist."""
     lib = Library(config)
     channels = lib.get_channels(topic)
@@ -136,14 +208,14 @@ def topic_source_inventory(config: DistillConfig, topic: str) -> dict:  # noqa: 
     }
 
 
-def topic_gap_summary(config: DistillConfig, topic: str) -> dict:  # noqa: C901 - legacy shape
+def topic_gap_summary(config: DistillConfig, topic: str) -> TopicGapSummary:  # noqa: C901
     """Compute coverage gaps + recommended next actions for a topic."""
     inventory = topic_source_inventory(config, topic)
     lib = Library(config)
     channels = lib.get_channels(topic)
-    missing_insights = []
-    missing_transcripts = []
-    thin_insights = []
+    missing_insights: list[str] = []
+    missing_transcripts: list[str] = []
+    thin_insights: list[str] = []
     dates: list[datetime] = []
 
     for ch in channels:
@@ -152,15 +224,15 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> dict:  # noqa: C901 
             if upload_dt is not None:
                 dates.append(upload_dt)
             if not video.get("has_insights", False):
-                missing_insights.append(f"{ch.name}: {video.get('title', 'Unknown')}")
+                missing_insights.append(f"{ch.name}: {_video_title(video)}")
             if not video.get("has_transcript", False):
-                missing_transcripts.append(f"{ch.name}: {video.get('title', 'Unknown')}")
+                missing_transcripts.append(f"{ch.name}: {_video_title(video)}")
             insights_path = find_artifact(Path(video.get("_dir", "")), "insights")
             if (
                 insights_path.exists()
                 and len(strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()) < 800
             ):
-                thin_insights.append(f"{ch.name}: {video.get('title', 'Unknown')}")
+                thin_insights.append(f"{ch.name}: {_video_title(video)}")
 
     missing_artifacts = [name for name, present in inventory["artifacts"].items() if not present]
     latest = max(dates) if dates else None
@@ -256,23 +328,24 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> dict:  # noqa: C901 
         "thin_insights": thin_insights[:10],
         "gaps": gaps,
         "recommended_actions": next_actions,
+        "next_actions": next_actions,
     }
 
 
-def gap_discovery_goal(summary: dict) -> str:
+def gap_discovery_goal(summary: TopicGapSummary | JsonObject) -> str:
     """Turn a gap summary into a discovery goal string for `discover --from-gaps`.
 
     Phrases the corpus's thin spots as a research goal the existing query
     generation can fan out from. Empty/no-gap corpora get a generic broadening
     goal so discovery still does something useful.
     """
-    topic = summary.get("topic", "this topic")
+    topic = _string_value(summary.get("topic"), "this topic")
     gaps = [
         g
-        for g in summary.get("gaps", [])
+        for g in _string_list(summary.get("gaps"))
         if "No major research gaps" not in g and "cannot be assessed" not in g
     ]
-    sources = summary.get("active_source_types") or []
+    sources = _string_list(summary.get("active_source_types"))
     parts = [f"Broaden and strengthen coverage of {topic}."]
     if gaps:
         parts.append("The current corpus has these gaps: " + " ".join(gaps))

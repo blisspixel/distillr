@@ -43,6 +43,7 @@ def test_inventory_and_gaps_on_empty_topic(tmp_path: Path):
     assert summary["topic"] == "tkg"
     assert summary["gaps"]  # at least one gap detected
     assert summary["recommended_actions"]
+    assert summary["next_actions"] == summary["recommended_actions"]
     # an empty topic is single-source/no-source and missing synthesis
     assert any("single-source" in g for g in summary["gaps"])
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Ratcheted `distill.pipeline.gaps` to Pyright strict mode, with typed
+  inventory and gap-summary payloads for audit, MCP, and gap-driven discovery.
+
+### Fixed
+
+- Exposed gap recommendations under both `recommended_actions` and
+  `next_actions` so audit reports receive the same follow-up actions that MCP
+  gap summaries expose.
+
 ## 0.19.8 - 2026-06-28
 
 ### Changed
