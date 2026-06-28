@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added generated `deal.cases` coverage for the concept canonicalization and
   path-sanitizer contracts, plus an executable canonicalization idempotence
   contract.
+- Added explicit `ConceptMention` strategies to generated contract tests so
+  grouping, threshold, and merge contracts are exercised with rich dataclass
+  inputs instead of empty iterable smoke cases.
 - Added the first generated contract test using `deal.cases`, covering arbitrary
   note text through `concepts.recovery.parse_note_fields` without adding extra
   runtime or dev dependencies.

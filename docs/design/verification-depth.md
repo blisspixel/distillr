@@ -148,9 +148,10 @@ Status (2026-06-28): executable contracts now cover the merge interval/source
 preservation invariants, path component confinement, the normalize layer's
 canonicalization/grouping/threshold guarantees, and recovery's
 frontmatter-to-rollup row shape. Generated-test wiring now covers
-`parse_note_fields`, `canonicalize`, and the path sanitizers. Expanding
-generated cases to richer dataclass inputs remains a later Phase 1 hardening
-slice.
+`parse_note_fields`, `canonicalize`, the path sanitizers, and explicit
+`ConceptMention` dataclass strategies for the grouping, threshold, and merge
+contracts. Phase 1's remaining hardening is to repeat the explicit-strategy
+pattern for library frontmatter/link contracts.
 
 **Phase 2 - mutmut across the core, on a cadence.** Expand the mutation run to
 `concepts/`, `library/`, and `pipeline/verify*` + `dedup.py`, wired as a
