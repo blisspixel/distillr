@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.9 - 2026-06-28
+
 ### Changed
 
 - Ratcheted `distill.pipeline.gaps` to Pyright strict mode, with typed
