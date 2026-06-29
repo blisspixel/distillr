@@ -1,3 +1,4 @@
+# pyright: strict
 """The `distill resynthesize` + `distill reanalyze` corpus-reprocessing commands.
 
 Re-run synthesis (resynthesize: rebuild a topic/channel/corpus synthesis, e.g. in
@@ -10,6 +11,8 @@ distill.cli.
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any, cast
 
 import typer
 
@@ -19,10 +22,12 @@ from distill.cli_shared import SHORTS_THRESHOLD
 from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
-    _resolve_intent,
     get_config,
 )
 from distill.commands._helpers import format_date as _format_date
+from distill.commands._helpers import (
+    resolve_intent as _resolve_intent,
+)
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
@@ -46,6 +51,38 @@ from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topi
 
 __all__ = ["reanalyze", "register", "resynthesize"]
 
+type _ReanalysisVideo = tuple[str, Path, dict[str, Any], bool]
+
+
+def _read_metadata(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        return cast("dict[str, Any]", data)
+    return {}
+
+
+def _metadata_str(metadata: dict[str, Any], key: str, default: str = "") -> str:
+    value = metadata.get(key, default)
+    return value if isinstance(value, str) else default
+
+
+def _metadata_int(metadata: dict[str, Any], key: str, default: int = 0) -> int:
+    value = metadata.get(key, default)
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
 
 def resynthesize(
     topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
@@ -60,7 +97,7 @@ def resynthesize(
         "--two-pass",
         help="Claim-based corpus synthesis: extract claims to claims.jsonl, then synthesize over the claim set (opt-in).",
     ),
-):
+) -> None:
     """Regenerate synthesis from existing insights -- no re-analysis.
 
     Rebuilds channel synthesis and topic synthesis from existing insight artifacts
@@ -199,7 +236,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
         False, "--deep", help="Only upgrade scan-analyzed videos to full 2-pass"
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be reanalyzed"),
-):
+) -> None:
     """Re-run Grok analysis on existing transcripts -- skip re-downloading.
 
     Walks all video directories that have a transcript artifact, re-runs the
@@ -229,7 +266,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             raise typer.Exit(1)
 
     # Scan for videos with transcripts
-    all_videos = []  # (channel_name, vid_dir, metadata, is_short)
+    all_videos: list[_ReanalysisVideo] = []
     for ch in channels:
         vdir = config.videos_dir(topic, ch.name)
         if not vdir.exists():
@@ -241,10 +278,8 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             meta_file = d / "metadata.json"
             if not transcript.exists() or transcript.stat().st_size == 0:
                 continue
-            meta = {}
-            if meta_file.exists():
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            duration = meta.get("duration", 0)
+            meta = _read_metadata(meta_file)
+            duration = _metadata_int(meta, "duration")
             is_short = duration <= SHORTS_THRESHOLD
             all_videos.append((ch.name, d, meta, is_short))
 
@@ -267,9 +302,9 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
     if dry_run:
         console.print()
         for _ch_name, vid_dir, meta, is_short in all_videos:
-            title = meta.get("title", vid_dir.name)[:65]
+            title = _metadata_str(meta, "title", vid_dir.name)[:65]
             kind = "[dim](Short)[/dim]" if is_short else ""
-            date = _format_date(meta.get("upload_date", ""))
+            date = _format_date(_metadata_str(meta, "upload_date"))
             console.print(f"  {date}  {title} {kind}")
         console.print()
         console.print(
@@ -289,8 +324,8 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             current_channel = ch_name
             console.print(f"\n  [bold]{ch_name}[/bold]")
 
-        title = meta.get("title", vid_dir.name)
-        upload_date = meta.get("upload_date", "")
+        title = _metadata_str(meta, "title", vid_dir.name)
+        upload_date = _metadata_str(meta, "upload_date")
         transcript = find_artifact(vid_dir, "transcript", extension="txt").read_text(
             encoding="utf-8"
         )
@@ -308,7 +343,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
                 insights = analyze_video(
                     title, upload_date, ch_name, transcript, config, tracker=tracker, intent=_intent
                 )
-            source_id = meta.get("video_id", vid_dir.name)
+            source_id = _metadata_str(meta, "video_id", vid_dir.name)
             analysis_mode = "short" if is_short else "full"
             insights_path = write_markdown_artifact(
                 vid_dir,
@@ -320,13 +355,13 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
                     topic=topic,
                     source="youtube",
                     source_id=source_id,
-                    url=meta.get("url", ""),
+                    url=_metadata_str(meta, "url"),
                     date=upload_date,
                     tags=tags_for(topic, "youtube", analysis_mode),
                     synthesis_scope="single-source",
                     extra={
                         "channel": ch_name,
-                        "duration_seconds": meta.get("duration", 0),
+                        "duration_seconds": _metadata_int(meta, "duration"),
                         "analysis_mode": analysis_mode,
                         "legacy_filename": "insights.md",
                     },
@@ -335,7 +370,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             summary.add_output(insights_path)
             summary.add_result(
                 VideoResult(
-                    meta.get("video_id", vid_dir.name),
+                    _metadata_str(meta, "video_id", vid_dir.name),
                     title,
                     True,
                     is_short=is_short,
@@ -345,7 +380,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             console.print(f"    [red]Failed: {e}[/red]")
             summary.add_result(
                 VideoResult(
-                    meta.get("video_id", vid_dir.name),
+                    _metadata_str(meta, "video_id", vid_dir.name),
                     title,
                     False,
                     is_short=is_short,

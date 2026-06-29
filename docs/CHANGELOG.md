@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the corpus reprocessing commands to Pyright strict mode with typed
+  metadata parsing for transcript-backed reanalysis.
 - Promoted the discover helper flow to Pyright strict mode with typed sizing,
   confirmation, and mixed-source ingest boundaries plus public learning seams
   for query de-duplication, recent-video filtering, and learning selection.
