@@ -15,7 +15,7 @@ from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.prompts.discover import paper_rerank_prompt, search_rerank_prompt
 
 __all__ = [
@@ -100,6 +100,8 @@ def rerank_videos(
 
     try:
         llm_ranked = _llm_rerank(query, videos, config, tracker, skeptical=skeptical)
+    except BudgetExceededError:
+        raise
     except Exception as e:
         console.print(f"  [yellow]Rerank fallback: {e}[/yellow]")
         return baseline[:top_n]
@@ -554,6 +556,8 @@ def rerank_papers(
 
     try:
         llm_ranked = _llm_rerank_papers(query, papers, config, tracker)
+    except BudgetExceededError:
+        raise
     except Exception as e:
         console.print(f"  [yellow]Paper rerank fallback: {e}[/yellow]")
         return baseline[:top_n]

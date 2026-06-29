@@ -26,6 +26,7 @@ def _invoke(fn, *args, **kwargs):
 WRITE_TOOLS = [
     ("distill.mcp.tools.ask", "ask", ("t", "q")),
     ("distill.mcp.tools.discover", "learn_topic", ("q",)),
+    ("distill.mcp.tools.discover", "search_videos", ("q",)),
     ("distill.mcp.tools.discover", "discover", ("goal",)),
     ("distill.mcp.tools.papers", "papers", ("t", "q")),
     ("distill.mcp.tools.sites", "site_batch", ("seeds.json",)),

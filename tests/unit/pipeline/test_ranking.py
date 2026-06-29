@@ -203,6 +203,29 @@ def test_rerank_videos_falls_back_when_llm_errors(tmp_path, monkeypatch):
     assert ranked[0].selected_by == "heuristic"
 
 
+def test_rerank_videos_reraises_budget_exceeded(tmp_path, monkeypatch):
+    from distill.pipeline.costs import BudgetExceededError
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    videos = [
+        VideoInfo(
+            "v1",
+            "Microsoft Fabric architecture",
+            _recent(3),
+            1200,
+            "https://youtube.com/watch?v=v1",
+            "CreatorA",
+        )
+    ]
+    monkeypatch.setattr(
+        "distill.pipeline.ranking._llm_rerank",
+        lambda *args, **kwargs: (_ for _ in ()).throw(BudgetExceededError(0.61, 0.5)),
+    )
+
+    with pytest.raises(BudgetExceededError):
+        rerank_videos("Microsoft Fabric architecture", videos, config)
+
+
 def test_rerank_videos_supplements_partial_llm_results(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     videos = [
@@ -485,6 +508,22 @@ def test_rerank_papers_falls_back_when_llm_errors(tmp_path, monkeypatch):
 
     assert [item.paper.paper_id for item in ranked] == ["p1"]
     assert ranked[0].selected_by == "heuristic"
+
+
+def test_rerank_papers_reraises_budget_exceeded(tmp_path, monkeypatch):
+    from distill.pipeline.costs import BudgetExceededError
+    from distill.pipeline.ranking import rerank_papers
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    papers = [_paper("p1", "Symbolic Music Transformer")]
+
+    def budget_stop(*args, **kwargs):
+        raise BudgetExceededError(0.61, 0.5)
+
+    monkeypatch.setattr("distill.pipeline.ranking._llm_rerank_papers", budget_stop)
+
+    with pytest.raises(BudgetExceededError):
+        rerank_papers("symbolic music transformer", papers, config, top_n=1, use_llm=True)
 
 
 def test_parse_paper_rerank_response_handles_code_fences():

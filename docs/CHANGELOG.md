@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP discovery tools, `learn_topic`, `search_videos`, and
+  `discover`, to Pyright strict mode with public MCP config, registration,
+  write-guard, library, tracker, and cost-summary seams. MCP `search_videos`
+  now goes through the spend-side write guard in read-only deployments, and
+  video or paper rerank budget stops now propagate instead of falling back after
+  the cap is crossed.
 - Ratcheted the MCP concept playbook tools, `find_concepts`, `read_concept`,
   `concept_history`, and `concept_diff`, to Pyright strict mode with public MCP
   config, registration, and path-resolution seams plus typed JSONL search rows,

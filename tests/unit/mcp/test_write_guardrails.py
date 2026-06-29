@@ -199,3 +199,35 @@ class TestToolWiring:
         )
         assert result["status"] == "domain_not_allowed"
         assert "evil.example" in result["error"]
+
+    def test_search_videos_budget_error_becomes_structured_response(self, monkeypatch):
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        from distill.ingestors.youtube.discovery import VideoInfo
+        from distill.mcp.tools.discover import search_videos
+
+        config = DistillConfig(xai_api_key="t", distill_mcp_max_spend_per_call=0.5)
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        monkeypatch.setattr(
+            "distill.mcp.tools.discover._search_candidates",
+            lambda *args, **kwargs: [
+                VideoInfo(
+                    video_id="v1",
+                    title="V",
+                    upload_date="20260101",
+                    duration=100,
+                    url="https://youtube.com/watch?v=v1",
+                    channel_name="C",
+                    view_count=1,
+                )
+            ],
+        )
+
+        def budget_stop(*args, **kwargs):
+            raise BudgetExceededError(0.61, 0.5)
+
+        monkeypatch.setattr("distill.mcp.tools.discover._rank_candidates", budget_stop)
+
+        result = json.loads(search_videos("budget"))
+
+        assert result["status"] == "budget_exceeded"
+        assert result["spent"] == 0.61
