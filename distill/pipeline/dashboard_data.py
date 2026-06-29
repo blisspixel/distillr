@@ -86,6 +86,7 @@ __all__ = [
     "load_all_cost_runs",
     "load_latest_run_payload",
     "load_recent_cost_runs",
+    "load_site_manifest",
     "load_topic_change_history",
     "parse_run_datetime",
     "source_cost_rollups",
@@ -788,6 +789,11 @@ def collect_topic_changes(  # noqa: C901 — legacy, will refactor
 
 
 # ── Site helpers ────────────────────────────────────────────────────
+
+
+def load_site_manifest(path: Path) -> SiteManifest:
+    """Load and parse a site manifest for command and dashboard callers."""
+    return _load_site_manifest(path)
 
 
 def _load_site_manifest(path: Path) -> SiteManifest:

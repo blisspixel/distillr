@@ -1,3 +1,4 @@
+# pyright: strict
 """The `distill report` + `distill export` commands.
 
 report runs the 4-phase Deep Research pipeline into a topic/channel report;

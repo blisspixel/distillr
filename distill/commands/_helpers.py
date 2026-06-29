@@ -77,6 +77,7 @@ __all__ = [
     "record_output_or_issue",
     "require_api_key",
     "require_model",
+    "resolve_intent",
     "resolve_video_channel_name",
     "run_preflight",
     "run_scope_report",
@@ -977,6 +978,11 @@ def _invoke_command(fn, **overrides):
             kwargs[name] = default
         # A required param with no default is left out; fn raises if truly missing.
     return fn(**kwargs)
+
+
+def resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
+    """Public intent-loading seam for command helpers."""
+    return _resolve_intent(config, topic)
 
 
 def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:

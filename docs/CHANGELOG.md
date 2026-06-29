@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the report/export commands and shared site-ingest helper to Pyright
+  strict mode. Site ingest now uses public command intent-loading and
+  site-manifest loading seams and parses previous page metadata as a typed JSON
+  object before unchanged-page reuse.
 - Ratcheted the first-run init command and concepts command group to Pyright
   strict mode. Init now uses the public doctor key-validation seam and a typed
   setup-verdict payload for JSON and console output.

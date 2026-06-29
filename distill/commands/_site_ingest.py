@@ -1,3 +1,4 @@
+# pyright: strict
 """Website ingest helpers shared by CLI and MCP site workflows."""
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from hashlib import sha1
 
 import distill.cli_shared as cli_shared
 from distill._console import console
-from distill.commands._helpers import _resolve_intent
+from distill.commands._helpers import resolve_intent
 from distill.config import DistillConfig
 from distill.ingestors.sites.attachments import (
     collect_page_attachments,
@@ -27,9 +28,14 @@ from distill.library.paths import (
 )
 from distill.pipeline.analysis.site import analyze_site_page, synthesize_site
 from distill.pipeline.costs import CostTracker
-from distill.pipeline.dashboard_data import _load_site_manifest
 from distill.pipeline.dashboard_data import build_site_section_state as _build_site_section_state
-from distill.pipeline.dashboard_records import SiteManifest, SiteSectionState
+from distill.pipeline.dashboard_data import load_site_manifest
+from distill.pipeline.dashboard_records import (
+    JsonObject,
+    SiteManifest,
+    SiteSectionState,
+    json_object,
+)
 from distill.pipeline.summary import RunSummary
 
 __all__ = [
@@ -133,7 +139,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     pages_dir = config.site_pages_dir(seed.topic, site_name)
     pages_dir.mkdir(parents=True, exist_ok=True)
     site_manifest_path = site_dir / "site.json"
-    previous_manifest = _load_site_manifest(site_manifest_path)
+    previous_manifest = load_site_manifest(site_manifest_path)
     crawled_at = datetime.now().isoformat(timespec="seconds")
     section_state = _build_site_section_state(pages)
     for section in section_state:
@@ -207,11 +213,13 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                     summary.add_output(attachment_text_path)
         page_document = build_page_document(page_obj)
         page_content_hash = content_hash(page_document)
-        previous_metadata = {}
+        previous_metadata: JsonObject = {}
         metadata_path = page_dir / "metadata.json"
         if metadata_path.exists():
             try:
-                previous_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                previous_metadata = json_object(
+                    json.loads(metadata_path.read_text(encoding="utf-8"))
+                )
             except (OSError, json.JSONDecodeError):
                 previous_metadata = {}
         page_meta = page_obj.metadata()
@@ -263,7 +271,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             continue
         try:
             insights = analyze_site_page(
-                page_obj, config, tracker=tracker, intent=_resolve_intent(config, seed.topic)
+                page_obj, config, tracker=tracker, intent=resolve_intent(config, seed.topic)
             )
 
             from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
