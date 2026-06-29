@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Protocol
 
 from rich import box
 from rich.table import Table
@@ -45,6 +46,10 @@ from distill.pipeline.summary import RunSummary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 from distill.prompts.discover import paper_query_expansion_prompt, search_query_expansion_prompt
+
+
+class _ScoredRankedItem(Protocol):
+    final_score: float
 
 
 def _expand_learning_queries(
@@ -185,6 +190,17 @@ def _expand_paper_queries(
     return _dedupe_query_strings(variants)[:6]
 
 
+def expand_paper_queries(
+    query: str,
+    config: DistillConfig | None = None,
+    tracker: CostTracker | None = None,
+    *,
+    expand: bool = True,
+) -> list[str]:
+    """Public paper-query expansion seam for command modules."""
+    return _expand_paper_queries(query, config=config, tracker=tracker, expand=expand)
+
+
 def _llm_expand_paper_queries(
     query: str,
     config: DistillConfig,
@@ -239,6 +255,11 @@ def _display_ranked_papers(ranked: list[RankedPaper], title: str) -> None:
             item.rationale,
         )
     console.print(table)
+
+
+def display_ranked_papers(ranked: list[RankedPaper], title: str) -> None:
+    """Public ranked-paper rendering seam for command modules."""
+    _display_ranked_papers(ranked, title)
 
 
 def _replace_case_insensitive(text: str, old: str, new: str) -> str:
@@ -700,7 +721,14 @@ def _apply_ranked_channel_cap(ranked, limit: int, per_channel_cap: int):
     return selected
 
 
-def _apply_source_rigor(ranked: list, *, source: str, rigor: str, rerank_on: bool, limit: int):
+def _apply_source_rigor[T: _ScoredRankedItem](
+    ranked: list[T],
+    *,
+    source: str,
+    rigor: str,
+    rerank_on: bool,
+    limit: int,
+) -> list[T]:
     """Drop reranked items below the per-source rigor bar, then cap at ``limit``."""
     if rigor == "off":
         return ranked[:limit]
@@ -725,6 +753,24 @@ def _apply_source_rigor(ranked: list, *, source: str, rigor: str, rerank_on: boo
             "Try --rigor loose.[/yellow]"
         )
     return kept[:limit]
+
+
+def apply_source_rigor[T: _ScoredRankedItem](
+    ranked: list[T],
+    *,
+    source: str,
+    rigor: str,
+    rerank_on: bool,
+    limit: int,
+) -> list[T]:
+    """Public source-rigor filtering seam for command modules."""
+    return _apply_source_rigor(
+        ranked,
+        source=source,
+        rigor=rigor,
+        rerank_on=rerank_on,
+        limit=limit,
+    )
 
 
 def _display_ranked_videos(ranked, title: str):

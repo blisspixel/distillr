@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the paper ingestion command module to Pyright strict mode through
+  typed public query-expansion, ranked-paper display, and source-rigor seams
+  while preserving legacy command monkeypatch aliases.
 - Aligned the Docker image with the project Python floor by moving the base
   image to Python 3.12, including the package license file in the build context,
   adding a `.dockerignore` for local runtime state, and covering the container

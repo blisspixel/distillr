@@ -1,3 +1,4 @@
+# pyright: strict
 """arXiv paper ingestion commands, extracted from the _logic monolith.
 
 `distill paper` (single arXiv paper) and `distill papers` (query-expanded,
@@ -20,13 +21,13 @@ from distill.commands._concept_ingest import (
 from distill.commands._helpers import (
     _apply_verify_override,
     _persist_lens,
-    _resolve_intent,
     get_config,
+    resolve_intent,
 )
 from distill.commands._learning import (
-    _apply_source_rigor,
-    _display_ranked_papers,
-    _expand_paper_queries,
+    apply_source_rigor,
+    display_ranked_papers,
+    expand_paper_queries,
 )
 from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
 from distill.ingestors.papers.arxiv import (
@@ -43,6 +44,11 @@ from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
 __all__ = ["paper", "papers", "register"]
+
+_apply_source_rigor = apply_source_rigor
+_display_ranked_papers = display_ranked_papers
+_expand_paper_queries = expand_paper_queries
+_resolve_intent = resolve_intent
 
 
 def paper(
