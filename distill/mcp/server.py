@@ -18,7 +18,17 @@ from distill.library import Library
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.gaps import topic_gap_summary, topic_source_inventory, video_list
 
-__all__ = ["load_config", "main", "mcp"]
+__all__ = [
+    "capped_tracker",
+    "cost_summary",
+    "library",
+    "load_config",
+    "main",
+    "mcp",
+    "refuse_if_host_not_allowed",
+    "strip_frontmatter",
+    "write_tool",
+]
 
 mcp = FastMCP(
     "Distill",
@@ -194,13 +204,18 @@ def _lib(config: DistillConfig | None = None) -> Library:
     return Library(config or _config())
 
 
+def library(config: DistillConfig | None = None) -> Library:
+    """Return a Library bound to MCP configuration or the supplied config."""
+    return _lib(config)
+
+
 # Coverage/gap helpers were lifted to distill.pipeline.gaps so the discover
 # command can share them without a commands -> mcp import. Re-exported here under
 # their original private names for resources.py / tools/gaps.py.
 _video_list = video_list
 
 
-def _cost_summary(tracker: CostTracker) -> dict:
+def _cost_summary(tracker: CostTracker) -> dict[str, int | float]:
     return {
         "total_cost": round(tracker.total_cost, 6),
         "total_input_tokens": tracker.total_input_tokens,
@@ -209,12 +224,22 @@ def _cost_summary(tracker: CostTracker) -> dict:
     }
 
 
+def cost_summary(tracker: CostTracker) -> dict[str, int | float]:
+    """Return the JSON-serializable cost summary for an MCP call."""
+    return _cost_summary(tracker)
+
+
 def _strip_frontmatter(content: str) -> str:
     if content.startswith("---"):
         parts = content.split("---", 2)
         if len(parts) >= 3:
             return parts[2].strip()
     return content
+
+
+def strip_frontmatter(content: str) -> str:
+    """Return markdown content with a leading YAML frontmatter block removed."""
+    return _strip_frontmatter(content)
 
 
 def _read_markdown_resource(path: Path, missing_message: str) -> str:

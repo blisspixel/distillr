@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP `process_video_url` topic ingest tool to Pyright strict
+  mode with public MCP registration, write-guard, allowlist, tracker, library,
+  cost-summary, and markdown-stripping seams.
 - Ratcheted the MCP `okf_export` and `okf_validate` tools to Pyright strict
   mode with public MCP config, registration, and write-guard seams.
 - Ratcheted the MCP `costs` tool to Pyright strict mode with parsed cost-log

@@ -1,3 +1,4 @@
+# pyright: strict
 """MCP tools — topics: process_video_url."""
 
 from __future__ import annotations
@@ -6,14 +7,23 @@ import json
 
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    library,
+    load_config,
+    mcp,
+    refuse_if_host_not_allowed,
+    strip_frontmatter,
+    write_tool,
+)
 from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
 
-@_server.mcp.tool()
-@_server.write_tool("process_video_url")
+@mcp.tool()
+@write_tool("process_video_url")
 def process_video_url(url: str, topic: str = "ai") -> str:
     """Transcribe and analyze a single YouTube video.
 
@@ -25,10 +35,10 @@ def process_video_url(url: str, topic: str = "ai") -> str:
     from distill.ingestors.youtube.discovery import get_video_info, resolve_channel_name
     from distill.pipeline.summary import RunSummary
 
-    refusal = _server.refuse_if_host_not_allowed(url)
+    refusal = refuse_if_host_not_allowed(url)
     if refusal is not None:
         return refusal
-    config = _server._config()
+    config = load_config()
     if not model_available():
         return "Error: No model configured (set a cloud key or DISTILL_PROVIDER)."
 
@@ -37,19 +47,19 @@ def process_video_url(url: str, topic: str = "ai") -> str:
         return "Error: Could not get video info. Check the URL."
 
     channel_name = resolve_video_channel_name(url, info, resolve_channel_name)
-    tracker = _server.capped_tracker()
+    tracker = capped_tracker()
     summary = RunSummary(command="video")
-    lib = _server._lib(config)
+    lib = library(config)
     lib.add_channel(topic, info.channel_url or url, channel_name)
 
     ensure_channel_context(topic, channel_name, [info], config, tracker)
     success = process_video(topic, channel_name, info, config, tracker, summary)
 
-    result = {
+    result: dict[str, object] = {
         "title": info.title,
         "channel": channel_name,
         "success": success,
-        "cost": _server._cost_summary(tracker),
+        "cost": cost_summary(tracker),
     }
 
     if success:
@@ -58,9 +68,7 @@ def process_video_url(url: str, topic: str = "ai") -> str:
             "insights",
         )
         if insights_file.exists():
-            result["insights"] = _server._strip_frontmatter(
-                insights_file.read_text(encoding="utf-8")
-            )
+            result["insights"] = strip_frontmatter(insights_file.read_text(encoding="utf-8"))
 
     save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps(result, indent=2)

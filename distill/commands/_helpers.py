@@ -10,9 +10,11 @@ import json
 import os
 import shutil
 import sys
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 # Side-effect import: reconfigures stdout/stderr to UTF-8 *before* rich.Console
@@ -47,6 +49,9 @@ from distill.pipeline.costs import CostTracker, save_run_log
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube.transcripts import get_transcript
+
+if TYPE_CHECKING:
+    from distill.ingestors.youtube.discovery import VideoInfo
 
 __all__ = [
     "SHORTS_THRESHOLD",
@@ -452,7 +457,11 @@ def print_markdown_safely(
         print_text_safely(console, safe_console_text(console, content))
 
 
-def resolve_video_channel_name(url: str, video_info, fallback_resolver) -> str:
+def resolve_video_channel_name(
+    url: str,
+    video_info: "VideoInfo",
+    fallback_resolver: Callable[[str], str],
+) -> str:
     if "/@" in url:
         return fallback_resolver(url)
 
@@ -476,7 +485,7 @@ def resolve_video_channel_name(url: str, video_info, fallback_resolver) -> str:
 def ensure_channel_context(
     topic: str,
     channel_name: str,
-    videos: list,
+    videos: Sequence["VideoInfo"],
     config: DistillConfig,
     tracker: CostTracker,
 ) -> None:
@@ -564,7 +573,7 @@ def _eta_progress_str(eta: ETATracker, step: str, tracker: CostTracker) -> str:
 def process_video(  # noqa: C901 — legacy, will refactor
     topic: str,
     channel_name: str,
-    video,
+    video: "VideoInfo",
     config: DistillConfig,
     tracker: CostTracker,
     summary: RunSummary,
