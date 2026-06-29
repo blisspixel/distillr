@@ -69,6 +69,7 @@ __all__ = [
     "err_console",
     "format_date",
     "get_config",
+    "invoke_command",
     "output_path",
     "print_markdown_safely",
     "print_text_safely",
@@ -956,18 +957,11 @@ def run_preflight() -> None:
     _preflight()
 
 
-def _invoke_command(fn, **overrides):
-    """Call a typer command as a plain Python function from another command.
-
-    Typer command parameters default to ``typer.Option(...)`` / ``typer.Argument(...)``
-    sentinel objects, which are truthy. Calling such a function directly and omitting
-    any parameter leaks that sentinel into the body, so guards like ``if channel:`` or
-    ``sort not in {...}`` misfire. This resolves every unspecified parameter to its real
-    default (the sentinel's ``.default``) so internal dispatch behaves like the CLI.
-    """
+def _invoke_command(fn: Callable[..., object], **overrides: object) -> object:
+    """Call a Typer command internally after resolving omitted defaults."""
     import inspect
 
-    kwargs = dict(overrides)  # always honor the caller's explicit values
+    kwargs: dict[str, object] = dict(overrides)  # always honor the caller's explicit values
     for name, param in inspect.signature(fn).parameters.items():
         if name in kwargs or param.kind in (
             inspect.Parameter.VAR_KEYWORD,
@@ -981,6 +975,9 @@ def _invoke_command(fn, **overrides):
             kwargs[name] = default
         # A required param with no default is left out; fn raises if truly missing.
     return fn(**kwargs)
+
+
+invoke_command = _invoke_command
 
 
 def resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:

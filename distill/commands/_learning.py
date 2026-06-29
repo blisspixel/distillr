@@ -752,6 +752,13 @@ def _generate_and_export_topic_brief(
     )
 
 
+def generate_and_export_topic_brief(
+    topic_name: str, config: DistillConfig, tracker: CostTracker
+) -> None:
+    """Public topic-brief export seam for command helpers."""
+    _generate_and_export_topic_brief(topic_name, config, tracker)
+
+
 def _apply_ranked_channel_cap(ranked, limit: int, per_channel_cap: int):
     selected = []
     counts = {}

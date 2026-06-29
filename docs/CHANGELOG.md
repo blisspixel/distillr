@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the topic command group to Pyright strict mode with typed topic
+  workflow rows, typed saved-profile parsing, and a public command dispatch
+  seam for Typer default normalization.
 - Promoted the watch and catch-up command surface to Pyright strict mode with
   typed latest-insight metadata rows and the public preflight seam.
 - Promoted the learning-flow helper to Pyright strict mode with a typed

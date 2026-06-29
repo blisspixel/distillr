@@ -1,11 +1,14 @@
+# pyright: strict
 """The `distill topic` command group."""
 
 from __future__ import annotations
 
 import json
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import typer
 from rich.panel import Panel
@@ -19,11 +22,17 @@ from distill.cli_shared import (
 from distill.cli_shared import (
     topic_from_query as _topic_from_query,
 )
-from distill.commands._helpers import _complete_topics, _invoke_command, _preflight, get_config
+from distill.commands._helpers import _complete_topics, get_config
+from distill.commands._helpers import invoke_command as _invoke_command
+from distill.commands._helpers import run_preflight as _preflight
 from distill.commands._learning import (
-    _generate_and_export_topic_brief,
-    _preview_learning_selection,
-    _run_learning_command,
+    generate_and_export_topic_brief as _generate_and_export_topic_brief,
+)
+from distill.commands._learning import (
+    preview_learning_selection as _preview_learning_selection,
+)
+from distill.commands._learning import (
+    run_learning_command as _run_learning_command,
 )
 from distill.config import DistillConfig
 from distill.library import Library
@@ -64,6 +73,20 @@ def register(app: typer.Typer) -> None:
 _TOPIC_PROFILE_VERSION = 1
 
 
+@dataclass(frozen=True)
+class _TopicWorkflowConfig:
+    topic: str
+    goal: str
+    videos: int
+    papers: int
+    days: int
+    shorts: bool
+
+    @property
+    def mixed_sources(self) -> bool:
+        return self.papers > 0
+
+
 def _topic_profile_path(config: DistillConfig, topic: str) -> Path:
     return config.topic_dir(topic) / "topic_profile.json"
 
@@ -73,7 +96,7 @@ def _topic_exists(config: DistillConfig, topic: str) -> bool:
     return topic in lib.get_topics() or config.topic_dir(topic).exists()
 
 
-def _load_topic_profile(config: DistillConfig, topic: str) -> dict | None:
+def _load_topic_profile(config: DistillConfig, topic: str) -> dict[str, object] | None:
     path = _topic_profile_path(config, topic)
     if not path.exists():
         return None
@@ -83,7 +106,29 @@ def _load_topic_profile(config: DistillConfig, topic: str) -> dict | None:
         return None
     if not isinstance(data, dict):
         return None
-    return data
+    return cast("dict[str, object]", data)
+
+
+def _profile_str(profile: dict[str, object], key: str, default: str = "") -> str:
+    value = profile.get(key, default)
+    return value if isinstance(value, str) else default
+
+
+def _profile_int(profile: dict[str, object], key: str, default: int) -> int:
+    value = profile.get(key, default)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _profile_bool(profile: dict[str, object], key: str, default: bool) -> bool:
+    value = profile.get(key, default)
+    return value if isinstance(value, bool) else default
 
 
 def _save_topic_profile(
@@ -99,7 +144,7 @@ def _save_topic_profile(
     path = _topic_profile_path(config, topic)
     path.parent.mkdir(parents=True, exist_ok=True)
     prior = _load_topic_profile(config, topic) or {}
-    created_at = str(prior.get("created_at", "")) or datetime.now().isoformat()
+    created_at = _profile_str(prior, "created_at") or datetime.now().isoformat()
     payload = {
         "version": _TOPIC_PROFILE_VERSION,
         "topic": topic,
@@ -124,7 +169,7 @@ def _resolve_topic_workflow_config(
     papers: int,
     days: int,
     shorts: bool,
-) -> dict:
+) -> _TopicWorkflowConfig:
     goal_text = " ".join(goal.split()).strip()
     if not goal_text:
         console.print("[red]Goal cannot be empty[/red]")
@@ -139,15 +184,14 @@ def _resolve_topic_workflow_config(
         console.print("[red]Specify at least one source with --videos or --papers[/red]")
         raise typer.Exit(1)
     topic_name = topic.strip() or _topic_from_query(goal_text[:80])
-    return {
-        "topic": topic_name,
-        "goal": goal_text,
-        "videos": videos,
-        "papers": papers,
-        "days": days,
-        "shorts": shorts,
-        "mixed_sources": papers > 0,
-    }
+    return _TopicWorkflowConfig(
+        topic=topic_name,
+        goal=goal_text,
+        videos=videos,
+        papers=papers,
+        days=days,
+        shorts=shorts,
+    )
 
 
 def _run_topic_workflow(
@@ -173,20 +217,20 @@ def _run_topic_workflow(
         days=days,
         shorts=shorts,
     )
-    topic_name = str(resolved["topic"])
+    topic_name = resolved.topic
 
-    if bool(resolved["mixed_sources"]):
+    if resolved.mixed_sources:
         from distill.commands.discover import discover
 
         _invoke_command(
             discover,
-            goal=str(resolved["goal"]),
+            goal=resolved.goal,
             goal_file=None,
             topic=topic_name,
-            paper_limit=int(resolved["papers"]),
-            video_limit=int(resolved["videos"]),
-            days=int(resolved["days"]),
-            shorts=bool(resolved["shorts"]),
+            paper_limit=resolved.papers,
+            video_limit=resolved.videos,
+            days=resolved.days,
+            shorts=resolved.shorts,
             preview=preview,
             yes=True,
         )
@@ -194,25 +238,25 @@ def _run_topic_workflow(
         # Videos-only preview must not ingest. _run_learning_command always
         # processes real work, so route to the dry-run preview path instead.
         _preview_learning_selection(
-            str(resolved["goal"]),
-            days=int(resolved["days"]),
-            limit=int(resolved["videos"]),
+            resolved.goal,
+            days=resolved.days,
+            limit=resolved.videos,
             sort="relevance",
-            per_channel_cap=max(2, min(int(resolved["videos"]), 3)),
-            shorts=bool(resolved["shorts"]),
+            per_channel_cap=max(2, min(resolved.videos, 3)),
+            shorts=resolved.shorts,
             rerank=True,
             header="Topic Preview",
             table_title="Topic Preview Learning Set",
         )
     else:
         _run_learning_command(
-            str(resolved["goal"]),
+            resolved.goal,
             topic=topic_name,
-            days=int(resolved["days"]),
-            limit=int(resolved["videos"]),
+            days=resolved.days,
+            limit=resolved.videos,
             sort="relevance",
-            per_channel_cap=max(2, min(int(resolved["videos"]), 3)),
-            shorts=bool(resolved["shorts"]),
+            per_channel_cap=max(2, min(resolved.videos, 3)),
+            shorts=resolved.shorts,
             rerank=True,
             save=True,
             report=False,
@@ -223,18 +267,18 @@ def _run_topic_workflow(
 
     if preview:
         console.print(
-            f'\n[dim]Preview only. Run `distill topic create "{resolved["goal"]}" --topic {topic_name}` to ingest.[/dim]'
+            f'\n[dim]Preview only. Run `distill topic create "{resolved.goal}" --topic {topic_name}` to ingest.[/dim]'
         )
         return topic_name
 
     profile_path = _save_topic_profile(
         config,
         topic=topic_name,
-        goal=str(resolved["goal"]),
-        videos=int(resolved["videos"]),
-        papers=int(resolved["papers"]),
-        days=int(resolved["days"]),
-        shorts=bool(resolved["shorts"]),
+        goal=resolved.goal,
+        videos=resolved.videos,
+        papers=resolved.papers,
+        days=resolved.days,
+        shorts=resolved.shorts,
     )
     console.print(f"[dim]Saved topic profile: {profile_path}[/dim]")
 
@@ -260,7 +304,7 @@ def _render_topic_summary(topic: str) -> None:
         state = ChannelState(config.channel_dir(topic, ch.name) / "state.json")
         video_count += state.get_processed_count()
 
-    artifacts = []
+    artifacts: list[str] = []
     topic_dir = config.topic_dir(topic)
     for label, path_obj in [
         ("topic synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
@@ -276,14 +320,14 @@ def _render_topic_summary(topic: str) -> None:
     paper_count = _count_paper_corpus(config, [topic])
     site_count, page_count = _count_site_corpus(config, [topic])
     lines = [f"[bold]{topic}[/bold]"]
-    if profile and profile.get("goal"):
-        lines.append(f"[dim]Goal:[/dim] {profile['goal']}")
+    if profile and _profile_str(profile, "goal"):
+        lines.append(f"[dim]Goal:[/dim] {_profile_str(profile, 'goal')}")
     lines.append(
         f"[dim]Corpus:[/dim] {len(channels)} channel(s), {video_count} processed video(s), {paper_count} paper(s), {site_count} site(s) / {page_count} page(s)"
     )
     if profile:
         lines.append(
-            f"[dim]Plan:[/dim] videos={profile.get('videos', 0)} papers={profile.get('papers', 0)} days={profile.get('days', 0)} shorts={'on' if profile.get('shorts') else 'off'}"
+            f"[dim]Plan:[/dim] videos={_profile_int(profile, 'videos', 0)} papers={_profile_int(profile, 'papers', 0)} days={_profile_int(profile, 'days', 0)} shorts={'on' if _profile_bool(profile, 'shorts', False) else 'off'}"
         )
     if artifacts:
         lines.append(f"[dim]Artifacts:[/dim] {', '.join(artifacts)}")
@@ -313,7 +357,7 @@ def topic_create(
         False, "--report", help="Generate a full topic report after ingestion"
     ),
     test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
-):
+) -> None:
     """Create a topic corpus from a single goal using the configured source mix."""
     _run_topic_workflow(
         goal=goal,
@@ -339,7 +383,7 @@ def topic_preview(
     shorts: bool = typer.Option(
         False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
     ),
-):
+) -> None:
     """Preview the topic plan without ingesting anything."""
     _run_topic_workflow(
         goal=goal,
@@ -369,7 +413,7 @@ def topic_update(
     brief: bool = typer.Option(False, "--brief", help="Generate a brief after update"),
     report_after: bool = typer.Option(False, "--report", help="Generate a report after update"),
     test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
-):
+) -> None:
     """Refresh a topic using its saved topic profile, with optional overrides."""
     _preflight()
     config = get_config()
@@ -380,11 +424,11 @@ def topic_update(
         )
         raise typer.Exit(1)
 
-    resolved_goal = goal or str(profile.get("goal", "")).strip()
-    resolved_videos = int(profile.get("videos", 0) if videos is None else videos)
-    resolved_papers = int(profile.get("papers", 0) if papers is None else papers)
-    resolved_days = int(profile.get("days", 30) if days is None else days)
-    resolved_shorts = bool(profile.get("shorts", False) if shorts is None else shorts)
+    resolved_goal = goal or _profile_str(profile, "goal").strip()
+    resolved_videos = _profile_int(profile, "videos", 0) if videos is None else videos
+    resolved_papers = _profile_int(profile, "papers", 0) if papers is None else papers
+    resolved_days = _profile_int(profile, "days", 30) if days is None else days
+    resolved_shorts = _profile_bool(profile, "shorts", False) if shorts is None else shorts
 
     _run_topic_workflow(
         goal=resolved_goal,
@@ -405,7 +449,7 @@ def topic_brief(
     topic: str = typer.Argument(help="Existing topic name", autocompletion=_complete_topics),
     report_after: bool = typer.Option(False, "--report", help="Also generate a full report"),
     test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
-):
+) -> None:
     """Generate a concise markdown brief from an existing topic corpus."""
     config = get_config()
     if not _topic_exists(config, topic):
@@ -433,7 +477,7 @@ def topic_report(
         None, "--sections", "-s", help="Comma-separated section IDs to write"
     ),
     no_qa: bool = typer.Option(False, "--no-qa", help="Skip QA review phase"),
-):
+) -> None:
     """Generate a full research report for an existing topic."""
     from distill.commands.reports import report
 
@@ -459,7 +503,7 @@ def topic_show(
         "-w",
         help="What to show: summary, synthesis, report",
     ),
-):
+) -> None:
     """Show the current state or key outputs for a topic."""
     from distill.commands.view import findings, synthesis
 
@@ -488,7 +532,7 @@ def topic_export(
     bundle_format: str = typer.Option(
         "bundle", "--format", help="Bundle or citation format: bundle, deepr, okf, bibtex, ris"
     ),
-):
+) -> None:
     """Export topic artifacts in the same formats as the lower-level export command."""
     from distill.commands.reports import export
 
@@ -517,7 +561,7 @@ def topic_watch(
     preview: bool = typer.Option(
         False, "--preview", help="Preview the selected best-pick videos instead of processing"
     ),
-):
+) -> None:
     """Create a recurring topic watch using the saved topic profile."""
     config = get_config()
     profile = _load_topic_profile(config, topic)
@@ -530,12 +574,12 @@ def topic_watch(
     from distill.commands.discover import monitor
 
     monitor(
-        query=str(profile.get("goal", "")).strip(),
+        query=_profile_str(profile, "goal").strip(),
         topic=topic,
         name=name,
         cadence=cadence,
-        days=int(profile.get("days", 30) if days is None else days),
-        limit=int(profile.get("videos", 10) if limit is None else limit),
+        days=_profile_int(profile, "days", 30) if days is None else days,
+        limit=_profile_int(profile, "videos", 10) if limit is None else limit,
         sort="date",
         per_channel_cap=3,
         ranking="balanced",
@@ -564,7 +608,7 @@ def _collect_topic_bundle_files(config: DistillConfig, topic: str) -> list[Path]
 
 def _topic_bundle_manifest(
     config: DistillConfig, topic: str, export_format: str, files: list[Path]
-) -> dict:
+) -> dict[str, object]:
     lib = Library(config)
     channels = lib.get_channels(topic)
     site_count, page_count = _count_site_corpus(config, [topic])
