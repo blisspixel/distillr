@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the watch and catch-up command surface to Pyright strict mode with
+  typed latest-insight metadata rows and the public preflight seam.
 - Promoted the learning-flow helper to Pyright strict mode with a typed
   selected-video protocol that preserves concrete ranked-video return types.
 - Promoted the corpus reprocessing commands to Pyright strict mode with typed

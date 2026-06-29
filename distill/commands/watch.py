@@ -1,3 +1,4 @@
+# pyright: strict
 """Watch commands: the ``watch`` channel-watchlist sub-app and ``catch-up``.
 
 Extracted from the _logic.py monolith. ``watch`` manages a channel watch list;
@@ -9,6 +10,9 @@ callbacks) live in helper modules and are imported back.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, cast
 
 import typer
 
@@ -21,7 +25,6 @@ from distill.cli_shared import strip_frontmatter as _strip_frontmatter
 from distill.commands._helpers import (
     _complete_topics,
     _complete_watched_channels,
-    _preflight,
     get_config,
 )
 from distill.commands._helpers import (
@@ -30,7 +33,12 @@ from distill.commands._helpers import (
 from distill.commands._helpers import (
     process_video as _process_video,
 )
+from distill.commands._helpers import (
+    run_preflight as _preflight,
+)
+from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import (
+    VideoInfo,
     discover_videos,
     resolve_channel_name,
 )
@@ -49,6 +57,37 @@ from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topi
 
 _ACCENT = "rgb(100,149,237)"
 
+__all__ = [
+    "catch_up",
+    "register",
+    "watch_add",
+    "watch_app",
+    "watch_days",
+    "watch_default",
+    "watch_instructions",
+    "watch_remove",
+]
+
+
+@dataclass(frozen=True)
+class _LatestInsight:
+    title: str
+    upload_date: str
+    video_dir: Path
+
+
+def _read_metadata(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        return cast("dict[str, Any]", data)
+    return {}
+
+
+def _metadata_str(metadata: dict[str, Any], key: str, default: str = "") -> str:
+    value = metadata.get(key, default)
+    return value if isinstance(value, str) else default
+
+
 watch_app = typer.Typer(
     help="Manage your channel watch list",
     invoke_without_command=True,
@@ -57,7 +96,7 @@ watch_app = typer.Typer(
 
 
 @watch_app.callback()
-def watch_default(ctx: typer.Context):
+def watch_default(ctx: typer.Context) -> None:
     """Show your watch list."""
     if ctx.invoked_subcommand is not None:
         return
@@ -94,13 +133,13 @@ def watch_default(ctx: typer.Context):
 
 
 def _show_latest_insights(  # noqa: C901 - legacy display helper
-    config, topic: str, channel_name: str, limit: int = 3
+    config: DistillConfig, topic: str, channel_name: str, limit: int = 3
 ) -> None:
     """Print a compact summary of the latest video insights for a channel."""
     videos_dir = config.videos_dir(topic, channel_name)
     if not videos_dir.exists():
         return
-    vid_list = []
+    vid_list: list[_LatestInsight] = []
     for vid_dir in videos_dir.iterdir():
         if not vid_dir.is_dir():
             continue
@@ -109,22 +148,26 @@ def _show_latest_insights(  # noqa: C901 - legacy display helper
         if not meta_file.exists() or not insights_file.exists():
             continue
         try:
-            meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            meta["_dir"] = vid_dir
-            vid_list.append(meta)
+            meta = _read_metadata(meta_file)
+            vid_list.append(
+                _LatestInsight(
+                    title=_metadata_str(meta, "title", "Unknown"),
+                    upload_date=_metadata_str(meta, "upload_date"),
+                    video_dir=vid_dir,
+                )
+            )
         except (OSError, json.JSONDecodeError):
             continue
     if not vid_list:
         return
-    vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
+    vid_list.sort(key=lambda v: v.upload_date, reverse=True)
     selected = vid_list[:limit]
 
     console.print(f"\n  [bold]Latest from {channel_name}[/bold]\n")
-    for i, meta in enumerate(selected, 1):
-        title = meta.get("title", "Unknown")
-        date = _format_date(meta.get("upload_date", ""))
-        vid_dir = meta["_dir"]
-        insights_file = find_artifact(vid_dir, "insights")
+    for i, item in enumerate(selected, 1):
+        title = item.title
+        date = _format_date(item.upload_date)
+        insights_file = find_artifact(item.video_dir, "insights")
         content = insights_file.read_text(encoding="utf-8")
         content = _strip_frontmatter(content)
         summary_text = ""
@@ -157,7 +200,7 @@ def _show_latest_insights(  # noqa: C901 - legacy display helper
     console.print(f"  [dim]distill synthesis {channel_name}                Synthesis[/dim]\n")
 
 
-def _print_goal_refreshes(config, *, topic_filter: str | None = None) -> list[str]:
+def _print_goal_refreshes(config: DistillConfig, *, topic_filter: str | None = None) -> list[str]:
     """Print and return the refresh commands for persisted topic goals."""
     from distill.pipeline.goals import goal_refresh_command, load_topic_goals
 
@@ -185,7 +228,7 @@ def watch_add(
         "-i",
         help="Custom analysis instructions for this channel",
     ),
-):
+) -> None:
     """Add a channel to your watch list.
 
     Examples:
@@ -239,7 +282,7 @@ def watch_remove(
     name: str = typer.Argument(
         help="Channel name to remove", autocompletion=_complete_watched_channels
     ),
-):
+) -> None:
     """Remove a channel from your watch list."""
     config = get_config()
     lib = Library(config)
@@ -253,7 +296,7 @@ def watch_remove(
 def watch_instructions(
     name: str = typer.Argument(help="Channel name", autocompletion=_complete_watched_channels),
     instructions: str = typer.Argument(help="New custom instructions (use quotes)"),
-):
+) -> None:
     """Set or update custom analysis instructions for a watched channel.
 
     Examples:
@@ -272,7 +315,7 @@ def watch_instructions(
 def watch_days(
     name: str = typer.Argument(help="Channel name", autocompletion=_complete_watched_channels),
     days: int = typer.Argument(help="Lookback days for catch-up"),
-):
+) -> None:
     """Set how far back catch-up looks for a channel.
 
     Examples:
@@ -304,7 +347,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
     limit: int | None = typer.Option(None, "--limit", "-n", help="Max videos per channel"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without processing"),
     shorts: bool = typer.Option(True, "--shorts/--no-shorts", help="Include Shorts"),
-):
+) -> None:
     """Refresh watched channels with lightweight scan analysis.
 
     Run with no arguments to refresh all watched channels.
@@ -354,7 +397,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         ch_days = days_override if days_override is not None else entry.days
 
         # ── Discovery ─────────────────────────────────────────
-        videos = None
+        videos: list[VideoInfo] | None = None
         with console.status(
             f"  {entry.name}  [dim]checking past {ch_days}d[/dim]",
             spinner="dots",
