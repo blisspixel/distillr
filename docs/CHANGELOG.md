@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP `site_batch` tool to Pyright strict mode with public MCP
+  config, registration, write-guard, allowlist, tracker, and cost-summary seams,
+  typed page result rows, typed FastMCP progress context, and an explicit
+  compatibility shim for legacy tuple-shaped site ingest results.
 - Ratcheted the MCP watch tools, `catch_up`, `watch_add`, and `watch_remove`,
   to Pyright strict mode with public MCP config, registration, write-guard,
   allowlist, library, tracker, and cost-summary seams. MCP `watch_add` now

@@ -41,8 +41,8 @@ coverage. Five reasons:
    `pipeline/` package is now strict-clean, the MCP helper pass has typed
    optional progress contexts precisely, and the MCP package marker, prompt
    definitions, `research_gaps`, `doctor`, JIT `find`, `costs`, `okf`,
-   `topics`, `summaries`, `ask`, `reports`, `synthesize`, `papers`, and
-   `watch` tools are strict-clean. The
+   `topics`, `summaries`, `ask`, `reports`, `synthesize`, `papers`, `watch`,
+   and `site_batch` tools are strict-clean. The
    topic-change/view command boundary now parses diff, trend, watch-alert, and
    history rows into typed records, the shared required-topic command resolver
    is warning-clean, the maintain costs/status boundary is warning-clean, the

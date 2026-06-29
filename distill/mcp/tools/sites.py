@@ -1,20 +1,32 @@
-"""MCP tools — sites: scrape and analyze pages from a site."""
+# pyright: strict
+"""MCP tools -- sites: scrape and analyze pages from a site."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from distill.commands._site_ingest import SiteIngestResult
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    load_config,
+    mcp,
+    refuse_if_host_not_allowed,
+    write_tool,
+)
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
 _MAX_SEED_FILE_BYTES = 1_000_000
 _MAX_SITE_BATCH_URLS = 50
+
+type SiteBatchPageRow = dict[str, str | int]
 
 
 def _resolve_seed_file(library_dir: Path, seed_file: str) -> Path | None:
@@ -37,16 +49,31 @@ def _resolve_seed_file(library_dir: Path, seed_file: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-@_server.mcp.tool()
-@_server.write_tool("site_batch", allow_preview=True)
-async def site_batch(  # noqa: C901
+def _site_result_parts(
+    site_result: SiteIngestResult | tuple[str, int],
+) -> tuple[str, int, int | None, int | None]:
+    if isinstance(site_result, SiteIngestResult):
+        return (
+            site_result.site_name,
+            site_result.page_count,
+            site_result.analyzed_pages,
+            site_result.skipped_pages,
+        )
+
+    site_name, page_count = site_result
+    return site_name, page_count, None, None
+
+
+@mcp.tool()
+@write_tool("site_batch", allow_preview=True)
+async def site_batch(  # noqa: C901 - legacy site workflow
     topic: str,
     urls: list[str] | None = None,
     seed_file: str | None = None,
     seed_only: bool = False,
     same_section_only: bool = False,
     preview: bool = False,
-    ctx: Context | None = None,
+    ctx: Context[Any, Any, Any] | None = None,
 ) -> str:
     """Scrape and analyze pages from a site seed file or URL list.
 
@@ -58,7 +85,7 @@ async def site_batch(  # noqa: C901
         same_section_only: Keep shallow crawls within the seed section
         preview: Return the resolved plan without model checks, crawling, or writes
     """
-    config = _server._config()
+    config = load_config()
 
     try:
         from distill.commands._site_batch import (
@@ -116,7 +143,7 @@ async def site_batch(  # noqa: C901
         return json.dumps({"status": "error", "error": "No URLs to process."})
 
     for seed in seeds:
-        refusal = _server.refuse_if_host_not_allowed(seed.url)
+        refusal = refuse_if_host_not_allowed(seed.url)
         if refusal is not None:
             return refusal
 
@@ -137,24 +164,24 @@ async def site_batch(  # noqa: C901
             }
         )
 
-    tracker = _server.capped_tracker()
+    tracker = capped_tracker()
     summary = RunSummary(command="site-batch")
-    results = []
+    results: list[SiteBatchPageRow] = []
 
     for i, seed in enumerate(seeds):
         if ctx:
             await ctx.report_progress(progress=i, total=len(seeds))
         try:
-            site_result = process_site_seed(seed, config, tracker, summary)
-            site_name, page_count = site_result
-            page_result = {
+            site_result: SiteIngestResult | tuple[str, int] = process_site_seed(
+                seed, config, tracker, summary
+            )
+            site_name, page_count, analyzed_pages, skipped_pages = _site_result_parts(site_result)
+            page_result: SiteBatchPageRow = {
                 "url": seed.url,
                 "site": site_name,
                 "pages": page_count,
                 "status": "ok" if page_count else "skipped",
             }
-            analyzed_pages = getattr(site_result, "analyzed_pages", None)
-            skipped_pages = getattr(site_result, "skipped_pages", None)
             if isinstance(analyzed_pages, int) and isinstance(skipped_pages, int):
                 page_result["analyzed_pages"] = analyzed_pages
                 page_result["skipped_pages"] = skipped_pages
@@ -175,7 +202,7 @@ async def site_batch(  # noqa: C901
             "status": "complete",
             "pages": results,
             "count": len(results),
-            "cost": _server._cost_summary(tracker),
+            "cost": cost_summary(tracker),
         },
         indent=2,
     )
