@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP `costs` tool to Pyright strict mode with parsed cost-log
+  rows, public MCP config loading, and malformed spend-field tolerance.
 - Ratcheted the MCP JIT `find_insights` and `read_insight` tools to Pyright
   strict mode with public MCP config loading and typed section responses.
 - Ran the scheduled maintenance sweep and ratcheted the MCP `doctor` tool to

@@ -40,7 +40,7 @@ coverage. Five reasons:
    work is the coordinated helper and command surface tail. The full
    `pipeline/` package is now strict-clean, the MCP helper pass has typed
    optional progress contexts precisely, and the MCP package marker, prompt
-   definitions, `research_gaps`, `doctor`, and JIT `find` tools are
+   definitions, `research_gaps`, `doctor`, JIT `find`, and `costs` tools are
    strict-clean. The
    topic-change/view command boundary now parses diff, trend, watch-alert, and
    history rows into typed records, the shared required-topic command resolver

@@ -83,6 +83,24 @@ class TestCostsTool:
         assert result["runs_shown"] == 2
         assert result["total_cost"] == 0.15
 
+    def test_malformed_cost_rows_do_not_break_summary(self, mock_config):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        entries = [
+            "not-json",
+            '["not", "an", "object"]',
+            '{"command": "learn", "actual_cost": 0.25}',
+            '{"command": "bad", "actual_cost": "not-a-number"}',
+        ]
+        log_file.write_text("\n".join(entries), encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            result = json.loads(costs())
+
+        assert result["runs_shown"] == 2
+        assert result["total_cost"] == 0.25
+
 
 class TestDoctorTool:
     def test_returns_checks(self, mock_config):
