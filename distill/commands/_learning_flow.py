@@ -1,21 +1,35 @@
+# pyright: strict
 """Learning command execution helpers for the Distill CLI."""
 
 from __future__ import annotations
 
 import shutil
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 import typer
 
 import distill.cli_shared as cli_shared
 from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.config import DistillConfig
+from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.summary import ETATracker, RunSummary, display_estimate, display_summary
+
+__all__ = [
+    "generate_and_export_topic_brief",
+    "preview_learning_selection",
+    "process_learning_selection",
+    "run_learning_command",
+    "validate_learning_options",
+]
+
+
+class _SelectedVideo(Protocol):
+    video: VideoInfo
 
 
 def validate_learning_options(
@@ -32,7 +46,7 @@ def validate_learning_options(
         raise typer.Exit(1)
 
 
-def preview_learning_selection(
+def preview_learning_selection[SelectedT: _SelectedVideo](
     query: str,
     *,
     days: int,
@@ -47,14 +61,14 @@ def preview_learning_selection(
     cost_tracker_factory: Callable[[], CostTracker],
     auto_skeptical_mode: Callable[..., bool],
     window_label: Callable[[int, int | None], str],
-    select_learning_videos: Callable[..., tuple[Any, Any]],
+    select_learning_videos: Callable[..., tuple[Any, list[SelectedT]]],
     display_ranked_videos: Callable[..., None],
     hours: int | None = None,
     skeptical: bool | None = None,
     expand: bool = True,
     top_by_date: bool = False,
     rigor: str = "off",
-):
+) -> tuple[DistillConfig, CostTracker, list[SelectedT]]:
     config = get_config()
     tracker = cost_tracker_factory()
     skeptical_mode = (
@@ -76,7 +90,7 @@ def preview_learning_selection(
         )
 
     effective_expand = expand and not top_by_date
-    _, selected = select_learning_videos(
+    _raw_ranked, selected = select_learning_videos(
         query,
         config,
         tracker,
@@ -100,7 +114,7 @@ def preview_learning_selection(
     return config, tracker, selected
 
 
-def run_learning_command(
+def run_learning_command[SelectedT: _SelectedVideo](
     query: str,
     *,
     topic: str | None,
@@ -121,7 +135,7 @@ def run_learning_command(
     auto_skeptical_mode: Callable[..., bool],
     default_report_focus: Callable[..., str | None],
     window_label: Callable[[int, int | None], str],
-    select_learning_videos: Callable[..., tuple[Any, Any]],
+    select_learning_videos: Callable[..., tuple[Any, list[SelectedT]]],
     display_ranked_videos: Callable[..., None],
     process_learning_selection: Callable[..., None],
     hours: int | None = None,
@@ -200,7 +214,7 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
     topic_name: str,
     config: DistillConfig,
     tracker: CostTracker,
-    selected,
+    selected: list[_SelectedVideo],
     *,
     save: bool,
     report: bool,
@@ -219,7 +233,7 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
     report_focus: str | None = None,
     post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
 ) -> None:
-    grouped = {}
+    grouped: dict[str, list[VideoInfo]] = {}
     for item in selected:
         video = item.video
         channel_name = (video.channel_name or "unknown").strip() or "unknown"
@@ -414,7 +428,7 @@ def generate_and_export_topic_brief(
     *,
     generate_topic_brief: Callable[..., Any],
     output_path: Callable[[DistillConfig, str], Any],
-):
+) -> None:
     console.print(f"\n[bold cyan]Generating brief for {topic_name}...[/bold cyan]")
     brief_path = generate_topic_brief(topic_name, config, tracker=tracker)
     if not brief_path:

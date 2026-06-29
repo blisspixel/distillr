@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the learning-flow helper to Pyright strict mode with a typed
+  selected-video protocol that preserves concrete ranked-video return types.
 - Promoted the corpus reprocessing commands to Pyright strict mode with typed
   metadata parsing for transcript-backed reanalysis.
 - Promoted the discover helper flow to Pyright strict mode with typed sizing,
