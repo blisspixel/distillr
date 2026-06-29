@@ -1,48 +1,15 @@
 # pyright: strict
-"""MCP tools — JIT retrieval: find_insights, read_insight."""
+"""MCP tools -- JIT retrieval: find_insights, read_insight."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from distill.library.paths import strip_frontmatter
-from distill.mcp.server import load_config, mcp
+from distill.mcp.server import load_config, mcp, resolve_within_library
 from distill.pipeline.search import extract_section, search_corpus
 
 __all__: list[str] = []
-
-
-def _resolve_within_library(library_dir: Path, path: str) -> Path | None:
-    """Resolve ``path`` against ``library_dir`` and return it only when contained.
-
-    Rejects absolute paths (POSIX or Windows) and any value that, once resolved,
-    escapes the library root. Returns ``None`` on rejection so the caller can
-    surface a single uniform error without leaking which check tripped.
-    """
-    if not path:
-        return None
-    windows_path = PureWindowsPath(path)
-    if (
-        PurePosixPath(path).is_absolute()
-        or windows_path.is_absolute()
-        or windows_path.drive
-        or windows_path.root
-    ):
-        return None
-    # Reject null bytes before handing the value to pathlib.
-    if "\x00" in path:
-        return None
-    try:
-        root = library_dir.resolve(strict=False)
-        candidate = (root / path).resolve(strict=False)
-    except (OSError, ValueError):
-        return None
-    try:
-        candidate.relative_to(root)
-    except ValueError:
-        return None
-    return candidate
 
 
 @mcp.tool()
@@ -105,7 +72,7 @@ def read_insight(path: str, section: str | None = None) -> str:
         section: Optional section heading to extract
     """
     config = load_config()
-    full_path = _resolve_within_library(config.library_dir, path)
+    full_path = resolve_within_library(config.library_dir, path)
 
     if full_path is None:
         return json.dumps(

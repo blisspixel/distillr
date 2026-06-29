@@ -8,7 +8,7 @@ and prompts from their respective submodules.  No business logic lives here.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -26,6 +26,7 @@ __all__ = [
     "main",
     "mcp",
     "refuse_if_host_not_allowed",
+    "resolve_within_library",
     "strip_frontmatter",
     "write_tool",
 ]
@@ -240,6 +241,32 @@ def _strip_frontmatter(content: str) -> str:
 def strip_frontmatter(content: str) -> str:
     """Return markdown content with a leading YAML frontmatter block removed."""
     return _strip_frontmatter(content)
+
+
+def resolve_within_library(library_dir: Path, path: str) -> Path | None:
+    """Resolve a library-relative path only when it stays inside the root."""
+    if not path:
+        return None
+    windows_path = PureWindowsPath(path)
+    if (
+        PurePosixPath(path).is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or windows_path.root
+    ):
+        return None
+    if "\x00" in path:
+        return None
+    try:
+        root = library_dir.resolve(strict=False)
+        candidate = (root / path).resolve(strict=False)
+    except (OSError, ValueError):
+        return None
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
 
 
 def _read_markdown_resource(path: Path, missing_message: str) -> str:

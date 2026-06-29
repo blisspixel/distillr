@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP concept playbook tools, `find_concepts`, `read_concept`,
+  `concept_history`, and `concept_diff`, to Pyright strict mode with public MCP
+  config, registration, and path-resolution seams plus typed JSONL search rows,
+  history rows, and concept-result payloads.
 - Ratcheted the MCP `site_batch` tool to Pyright strict mode with public MCP
   config, registration, write-guard, allowlist, tracker, and cost-summary seams,
   typed page result rows, typed FastMCP progress context, and an explicit

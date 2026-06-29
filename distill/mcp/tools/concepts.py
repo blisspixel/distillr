@@ -1,3 +1,4 @@
+# pyright: strict
 """MCP tools for the 0.8 concept playbook: find_concepts, read_concept.
 
 Mirrors the find_insights / read_insight JIT-retrieval pattern. Returns
@@ -11,35 +12,53 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from distill.concepts import recovery
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.library.paths import strip_frontmatter
-from distill.mcp import server as _server
-
-# NOTE: `_resolve_within_library` is imported lazily inside the function that
-# uses it, not at module top. find -> server -> tools.concepts -> find is an
-# import cycle; a module-top import here makes the package import-order-fragile
-# (find-first leaves find half-initialized). The deferred import breaks it.
+from distill.mcp.server import load_config, mcp, resolve_within_library
 
 __all__: list[str] = []
 
+type ConceptJsonRow = dict[str, Any]
+type ConceptSearchRow = dict[str, str | int | bool]
+type ConceptHistoryRow = dict[str, str | None]
+type ConceptRepolarizedRow = dict[str, str]
+type ConceptFieldChangeRow = dict[str, Any]
 
-def _read_jsonl(path: Path) -> list[dict]:
+
+def _read_jsonl(path: Path) -> list[ConceptJsonRow]:
     if not path.exists():
         return []
-    rows: list[dict] = []
+    rows: list[ConceptJsonRow] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line:
             try:
-                rows.append(json.loads(line))
+                decoded: object = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if isinstance(decoded, dict):
+                rows.append(cast("ConceptJsonRow", decoded))
     return rows
 
 
-@_server.mcp.tool()
+def _row_str(row: ConceptJsonRow, key: str) -> str:
+    value = row.get(key, "")
+    return value if isinstance(value, str) else ""
+
+
+def _row_int(row: ConceptJsonRow, key: str) -> int:
+    value = row.get(key, 0)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _row_bool(row: ConceptJsonRow, key: str) -> bool:
+    return bool(row.get(key))
+
+
+@mcp.tool()
 def find_concepts(
     topic: str,
     query: str = "",
@@ -56,7 +75,7 @@ def find_concepts(
         contested_only: Restrict to concepts where both helpful and harmful evidence exist.
         limit: Max rows to return.
     """
-    config = _server._config()
+    config = load_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
@@ -69,42 +88,42 @@ def find_concepts(
         rows = [r for r in rows if r.get("kind") == kind]
     if query:
         q = query.lower()
-        rows = [r for r in rows if q in r.get("name", "").lower()]
+        rows = [r for r in rows if q in _row_str(r, "name").lower()]
 
     # Sort: source_count desc, then alphabetically by slug for stable order
-    rows.sort(key=lambda r: (-r.get("source_count", 0), r.get("slug", "")))
+    rows.sort(key=lambda r: (-_row_int(r, "source_count"), _row_str(r, "slug")))
     rows = rows[:limit]
 
-    results = []
+    results: list[ConceptSearchRow] = []
     for r in rows:
-        is_entity = r.get("kind") in {"person", "organization", "vendor"}
-        path = f"topics/{topic}/{'entities' if is_entity else 'concepts'}/{r.get('slug', '')}.md"
+        kind_value = _row_str(r, "kind")
+        is_entity = kind_value in {"person", "organization", "vendor"}
+        slug = _row_str(r, "slug")
+        path = f"topics/{topic}/{'entities' if is_entity else 'concepts'}/{slug}.md"
         results.append(
             {
                 "path": path,
-                "name": r.get("name", ""),
-                "kind": r.get("kind", ""),
-                "source_count": r.get("source_count", 0),
-                "helpful_count": r.get("helpful_count", 0),
-                "harmful_count": r.get("harmful_count", 0),
-                "contested": bool(r.get("contested")),
+                "name": _row_str(r, "name"),
+                "kind": kind_value,
+                "source_count": _row_int(r, "source_count"),
+                "helpful_count": _row_int(r, "helpful_count"),
+                "harmful_count": _row_int(r, "harmful_count"),
+                "contested": _row_bool(r, "contested"),
             }
         )
 
     return json.dumps({"results": results, "count": len(results), "topic": topic}, indent=2)
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def read_concept(path: str) -> str:
     """Read concept playbook markdown by relative library path.
 
     Args:
         path: Relative path from library root (e.g. ``topics/tkg/concepts/rotational_embedding.md``).
     """
-    from distill.mcp.tools.find import _resolve_within_library
-
-    config = _server._config()
-    full_path = _resolve_within_library(config.library_dir, path)
+    config = load_config()
+    full_path = resolve_within_library(config.library_dir, path)
 
     if full_path is None:
         return json.dumps(
@@ -120,7 +139,7 @@ def read_concept(path: str) -> str:
     # ancestor named ``concepts`` or ``entities`` -- e.g. a user configured
     # ``DISTILL_OUTPUT_DIR=/home/alice/concepts/library``, which makes every
     # library file's absolute parts contain "concepts" and pass the guard).
-    # ``_resolve_within_library`` keeps the read inside ``library_dir``, but
+    # ``resolve_within_library`` keeps the read inside ``library_dir``, but
     # this tool's contract is narrower: only ``topics/<topic>/(concepts|entities)/<file>.md``.
     try:
         relative_parts = full_path.relative_to(config.library_dir.resolve(strict=False)).parts
@@ -155,7 +174,7 @@ def read_concept(path: str) -> str:
 # bought nothing.
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def concept_history(topic: str, slug: str) -> str:
     """List history snapshots for a concept/entity note, newest first.
 
@@ -166,7 +185,7 @@ def concept_history(topic: str, slug: str) -> str:
         topic: Topic name.
         slug: Concept/entity slug (the note's filename stem).
     """
-    config = _server._config()
+    config = load_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
@@ -185,7 +204,7 @@ def concept_history(topic: str, slug: str) -> str:
         else None
     )
     newer_label = "current"
-    steps = []
+    steps: list[ConceptHistoryRow] = []
     for snap in reversed(snapshots):
         snap_fields = recovery.parse_note_fields(snap.path.read_text(encoding="utf-8"))
         steps.append(
@@ -214,7 +233,7 @@ def concept_history(topic: str, slug: str) -> str:
     )
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
     """Diff a concept note across versions; return a structured delta.
 
@@ -227,7 +246,7 @@ def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
         ts_a: Optional older snapshot timestamp.
         ts_b: Optional newer snapshot timestamp.
     """
-    config = _server._config()
+    config = load_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
@@ -285,6 +304,14 @@ def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
             new_label="current",
         )
 
+    sources_repolarized: list[ConceptRepolarizedRow] = [
+        {"source_id": sid, "from": old_pol, "to": new_pol}
+        for sid, old_pol, new_pol in diff.sources_repolarized
+    ]
+    field_changes: list[ConceptFieldChangeRow] = [
+        {"field": c.field, "old": c.old, "new": c.new} for c in diff.field_changes
+    ]
+
     return json.dumps(
         {
             "topic": topic,
@@ -293,13 +320,8 @@ def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
             "new": diff.new_label,
             "sources_added": diff.sources_added,
             "sources_removed": diff.sources_removed,
-            "sources_repolarized": [
-                {"source_id": sid, "from": old_pol, "to": new_pol}
-                for sid, old_pol, new_pol in diff.sources_repolarized
-            ],
-            "field_changes": [
-                {"field": c.field, "old": c.old, "new": c.new} for c in diff.field_changes
-            ],
+            "sources_repolarized": sources_repolarized,
+            "field_changes": field_changes,
             "body_diff": diff.body_diff,
         },
         indent=2,

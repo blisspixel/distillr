@@ -19,15 +19,11 @@ from hypothesis import strategies as st
 
 from distill.ingestors import net
 from distill.ingestors.net import _is_public_ip, is_public_web_url
+from distill.mcp.server import resolve_within_library
 
 
 def _resolve_within_library(root, path):
-    # Lazy import to keep this test module light; the former find<->server<->
-    # concepts import cycle was broken by deferring concepts' import of find, so
-    # a direct import here is safe (find-first no longer half-initializes find).
-    from distill.mcp.tools.find import _resolve_within_library as _impl
-
-    return _impl(root, path)
+    return resolve_within_library(root, path)
 
 
 def _url_for(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
