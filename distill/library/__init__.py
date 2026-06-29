@@ -3,8 +3,34 @@
 Provides artifact path resolution, state management, and export utilities.
 """
 
-from distill.library.paths import *  # noqa: F403
-from distill.library.paths import __all__ as _paths_all
+from distill.library.paths import (
+    ARTIFACT_SUFFIXES,
+    LEGACY_ARTIFACT_NAMES,
+    ProvenanceFields,
+    apply_frontmatter,
+    artifact_exists,
+    artifact_filename,
+    artifact_identity,
+    artifact_path,
+    atomic_write_text,
+    base_frontmatter,
+    dump_frontmatter,
+    extract_frontmatter,
+    find_artifact,
+    legacy_artifact_path,
+    provenance_frontmatter,
+    read_artifact,
+    resolve_slug_collision,
+    sanitize_path_component,
+    sanitize_topic,
+    site_name_from_url,
+    slugify_title,
+    split_frontmatter,
+    strip_frontmatter,
+    tags_for,
+    write_markdown_artifact,
+    write_text_artifact,
+)
 from distill.library.state import (
     ChannelInfo,
     ChannelState,
@@ -14,10 +40,35 @@ from distill.library.state import (
 )
 
 __all__: list[str] = [
-    *_paths_all,
+    "ARTIFACT_SUFFIXES",
+    "LEGACY_ARTIFACT_NAMES",
     "ChannelInfo",
     "ChannelState",
     "Library",
+    "ProvenanceFields",
     "TopicWatchEntry",
     "WatchEntry",
+    "apply_frontmatter",
+    "artifact_exists",
+    "artifact_filename",
+    "artifact_identity",
+    "artifact_path",
+    "atomic_write_text",
+    "base_frontmatter",
+    "dump_frontmatter",
+    "extract_frontmatter",
+    "find_artifact",
+    "legacy_artifact_path",
+    "provenance_frontmatter",
+    "read_artifact",
+    "resolve_slug_collision",
+    "sanitize_path_component",
+    "sanitize_topic",
+    "site_name_from_url",
+    "slugify_title",
+    "split_frontmatter",
+    "strip_frontmatter",
+    "tags_for",
+    "write_markdown_artifact",
+    "write_text_artifact",
 ]

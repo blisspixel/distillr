@@ -3,17 +3,26 @@
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
-from docx import Document
+from docx import Document as new_document
+from docx.document import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
+from docx.styles.style import ParagraphStyle
 
 __all__ = [
     "export_report",
     "markdown_to_docx",
 ]
+
+
+def _paragraph_style(doc: DocxDocument, name: str) -> ParagraphStyle | None:
+    if name not in doc.styles:
+        return None
+    return cast(ParagraphStyle, doc.styles[name])
 
 
 def markdown_to_docx(
@@ -25,7 +34,7 @@ def markdown_to_docx(
 
     content = md_path.read_text(encoding="utf-8")
 
-    doc = Document()
+    doc = new_document()
     _setup_styles(doc)
 
     # Title
@@ -36,7 +45,7 @@ def markdown_to_docx(
     run.font.size = Pt(22)
     run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
     run.bold = True
-    title_para.space_after = Pt(4)
+    title_para.paragraph_format.space_after = Pt(4)
 
     # Subtitle line
     subtitle = doc.add_paragraph()
@@ -45,7 +54,7 @@ def markdown_to_docx(
     run.font.size = Pt(10)
     run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
     run.italic = True
-    subtitle.space_after = Pt(18)
+    subtitle.paragraph_format.space_after = Pt(18)
 
     # Parse and add content
     _parse_markdown(doc, content)
@@ -54,9 +63,12 @@ def markdown_to_docx(
     return docx_path
 
 
-def _setup_styles(doc: Document):
+def _setup_styles(doc: DocxDocument):
     """Configure document styles for clean output."""
-    style = doc.styles["Normal"]
+    style = _paragraph_style(doc, "Normal")
+    if style is None:
+        return
+
     font = style.font
     font.name = "Aptos"
     font.size = Pt(11)
@@ -77,18 +89,19 @@ def _setup_styles(doc: Document):
         start=1,
     ):
         style_name = f"Heading {level}"
-        if style_name in doc.styles:
-            h_style = doc.styles[style_name]
-            h_style.font.name = "Aptos"
-            h_style.font.size = Pt(size)
-            h_style.font.color.rgb = color
-            h_style.font.bold = True
-            h_style.paragraph_format.space_before = Pt(14 if level == 1 else 10)
-            h_style.paragraph_format.space_after = Pt(6)
+        h_style = _paragraph_style(doc, style_name)
+        if h_style is None:
+            continue
+        h_style.font.name = "Aptos"
+        h_style.font.size = Pt(size)
+        h_style.font.color.rgb = color
+        h_style.font.bold = True
+        h_style.paragraph_format.space_before = Pt(14 if level == 1 else 10)
+        h_style.paragraph_format.space_after = Pt(6)
 
     # Add a style for bullet list items
-    if "List Bullet" in doc.styles:
-        lb = doc.styles["List Bullet"]
+    lb = _paragraph_style(doc, "List Bullet")
+    if lb is not None:
         lb.font.name = "Aptos"
         lb.font.size = Pt(11)
 
@@ -102,7 +115,7 @@ def _extract_title(content: str) -> str | None:
     return None
 
 
-def _parse_markdown(doc: Document, content: str):  # noqa: C901 — legacy, will refactor
+def _parse_markdown(doc: DocxDocument, content: str):  # noqa: C901 - single-pass parser
     """Parse markdown content into DOCX elements."""
     lines = content.split("\n")
     i = 0
@@ -277,7 +290,7 @@ def export_report(
 
     content = md_path.read_text(encoding="utf-8")
 
-    doc = Document()
+    doc = new_document()
     _setup_styles(doc)
     _setup_report_styles(doc)
 
@@ -303,11 +316,11 @@ def export_report(
     return docx_path
 
 
-def _setup_report_styles(doc: Document):
+def _setup_report_styles(doc: DocxDocument):
     """Add report-specific styles beyond the base setup."""
     # Heading 4 for sub-sub-sections
-    if "Heading 4" in doc.styles:
-        h4 = doc.styles["Heading 4"]
+    h4 = _paragraph_style(doc, "Heading 4")
+    if h4 is not None:
         h4.font.name = "Aptos"
         h4.font.size = Pt(11)
         h4.font.color.rgb = RGBColor(0x44, 0x55, 0x66)
@@ -315,13 +328,13 @@ def _setup_report_styles(doc: Document):
         h4.font.italic = True
 
     # Ensure List Number style matches
-    if "List Number" in doc.styles:
-        ln = doc.styles["List Number"]
+    ln = _paragraph_style(doc, "List Number")
+    if ln is not None:
         ln.font.name = "Aptos"
         ln.font.size = Pt(11)
 
 
-def _add_cover_page(doc: Document, title: str, content: str):
+def _add_cover_page(doc: DocxDocument, title: str, content: str):
     """Add a professional cover page."""
     # Top spacer
     for _ in range(4):
@@ -334,7 +347,7 @@ def _add_cover_page(doc: Document, title: str, content: str):
     run.font.size = Pt(28)
     run.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
     run.bold = True
-    title_para.space_after = Pt(8)
+    title_para.paragraph_format.space_after = Pt(8)
 
     # Decorative line
     line_para = doc.add_paragraph()
@@ -342,7 +355,7 @@ def _add_cover_page(doc: Document, title: str, content: str):
     run = line_para.add_run("_" * 40)
     run.font.size = Pt(8)
     run.font.color.rgb = RGBColor(0x22, 0x66, 0xBB)
-    line_para.space_after = Pt(16)
+    line_para.paragraph_format.space_after = Pt(16)
 
     # Extract metadata from content (the italic lines after H1)
     meta_lines = []
@@ -360,7 +373,7 @@ def _add_cover_page(doc: Document, title: str, content: str):
         run.font.size = Pt(11)
         run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
         run.italic = True
-        p.space_after = Pt(2)
+        p.paragraph_format.space_after = Pt(2)
 
     # Spacer
     doc.add_paragraph()
@@ -382,7 +395,7 @@ def _add_cover_page(doc: Document, title: str, content: str):
     run.italic = True
 
 
-def _add_toc(doc: Document, content: str):
+def _add_toc(doc: DocxDocument, content: str):
     """Add a table of contents extracted from markdown H2 headings."""
     doc.add_heading("Table of Contents", level=1)
 
@@ -452,7 +465,7 @@ def _strip_front_matter(content: str) -> str:
     return "\n".join(result)
 
 
-def _add_page_numbers(doc: Document):
+def _add_page_numbers(doc: DocxDocument):
     """Add page numbers to the document footer."""
     for section in doc.sections:
         footer = section.footer

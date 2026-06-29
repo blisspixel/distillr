@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the remaining library Pyright warning tail by replacing the dynamic
+  package export list with an explicit public surface, typing the python-docx
+  factory/class boundary in the DOCX renderer, and setting paragraph spacing
+  through `paragraph_format`.
 - Cleared the YouTube yt-dlp Pyright warning cluster by isolating dynamic
   `YoutubeDL` params, extractor rows, and metadata fields behind a typed
   boundary helper.

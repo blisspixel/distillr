@@ -42,10 +42,12 @@ coverage. Five reasons:
    typing optional progress contexts precisely, the topic-change/view command
    boundary now parses diff, trend, watch-alert, and history rows into typed
    records, the shared required-topic command resolver is warning-clean, the
-   maintain costs/status boundary is warning-clean, and the YouTube yt-dlp
-   boundary is warning-clean.
-   The remaining strict work is real, but diminishing per-cycle value, better
-   as background.
+   maintain costs/status boundary is warning-clean, the YouTube yt-dlp boundary
+   is warning-clean, and the library export plus python-docx renderer surfaces
+   are warning-clean. The advisory full-surface Pyright run is now at 0
+   warnings; the remaining strict work is promoting the rest of `commands/` and
+   `mcp/` from warning-clean default mode to blocking strict mode.
+   That work is real, but diminishing per-cycle value, better as background.
    Verification depth is new, high-signal infrastructure scoped to a
    well-understood core.
 
