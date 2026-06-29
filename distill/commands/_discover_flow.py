@@ -1,3 +1,4 @@
+# pyright: strict
 """Discover command helper flow.
 
 These helpers keep the public discover command module below the module-size
@@ -8,18 +9,25 @@ from __future__ import annotations
 
 from datetime import datetime
 from types import SimpleNamespace
+from typing import Any
 
 import distill.pipeline.discovery as _discover_support
 from distill._console import console
 from distill.cli_shared import tty_confirm as _tty_confirm
 from distill.cli_shared import tty_prompt as _tty_prompt
 from distill.commands import _discover_ingest as _discover_ingest_support
-from distill.commands._helpers import _resolve_intent
+from distill.commands._helpers import resolve_intent as _resolve_intent
 from distill.commands._learning import (
-    _dedupe_candidates,
-    _dedupe_query_strings,
-    _filter_recent_candidates,
-    _process_learning_selection,
+    dedupe_candidates as _dedupe_candidates,
+)
+from distill.commands._learning import (
+    dedupe_query_strings as _dedupe_query_strings,
+)
+from distill.commands._learning import (
+    filter_recent_candidates as _filter_recent_candidates,
+)
+from distill.commands._learning import (
+    process_learning_selection as _process_learning_selection,
 )
 from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
 from distill.commands._site_ingest import process_site_seed as _process_site_seed
@@ -32,8 +40,23 @@ from distill.library.paths import find_artifact
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import CostTracker, load_cost_calibration
-from distill.pipeline.summary import display_summary
+from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
+
+__all__ = [
+    "_confirm_discover_ingest",
+    "_discover_fetch_videos",
+    "_discover_generate_queries",
+    "_discover_ingest_papers",
+    "_discover_ingest_set",
+    "_discover_ingest_sites",
+    "_discover_ingest_videos",
+    "_discover_rerank",
+    "_discover_sizing_flow",
+    "_display_ranked_discover",
+    "_is_fresh_topic",
+    "_sizing_option_line",
+]
 
 
 def _discover_generate_queries(
@@ -87,7 +110,7 @@ def _display_ranked_discover(items: list[_discover_support.RankedDiscoverItem], 
     _discover_support.display_ranked_discover(items, title)
 
 
-def _is_fresh_topic(config, topic_name: str) -> bool:
+def _is_fresh_topic(config: DistillConfig, topic_name: str) -> bool:
     """True when the topic has no ingested artifacts yet."""
     topic_dir = config.topic_dir(topic_name)
     if not topic_dir.exists():
@@ -95,9 +118,9 @@ def _is_fresh_topic(config, topic_name: str) -> bool:
     return not any(topic_dir.rglob("*.md"))
 
 
-def _sizing_option_line(index: int, opt) -> str:
+def _sizing_option_line(index: int, opt: _discover_support.SizingOption) -> str:
     """Format one sizing-menu row."""
-    parts = []
+    parts: list[str] = []
     if opt.papers:
         parts.append(f"{opt.papers} paper(s)")
     if opt.videos:
@@ -115,10 +138,10 @@ def _discover_sizing_flow(
     *,
     goal: str,
     topic_name: str,
-    config,
-    tracker,
-    summary,
-    ranked: list,
+    config: DistillConfig,
+    tracker: CostTracker,
+    summary: RunSummary,
+    ranked: list[_discover_support.RankedDiscoverItem],
     paper_limit: int,
     video_limit: int,
     site_limit: int,
@@ -196,9 +219,14 @@ def _discover_sizing_flow(
     )
 
 
-def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_sites) -> bool:
+def _confirm_discover_ingest(
+    topic_name: str,
+    ranked_papers: list[_discover_support.RankedDiscoverItem],
+    ranked_videos: list[_discover_support.RankedDiscoverItem],
+    ranked_sites: list[_discover_support.RankedDiscoverItem],
+) -> bool:
     """Prompt before ingesting; return True to proceed."""
-    parts = []
+    parts: list[str] = []
     if ranked_papers:
         parts.append(f"{len(ranked_papers)} paper(s)")
     if ranked_videos:
@@ -209,7 +237,13 @@ def _confirm_discover_ingest(topic_name, ranked_papers, ranked_videos, ranked_si
     return _tty_confirm(f"\nIngest {ingest_summary} into topic '{topic_name}'?", default=False)
 
 
-def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers) -> None:
+def _discover_ingest_papers(
+    topic_name: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    summary: RunSummary,
+    ranked_papers: list[Any],
+) -> None:
     """Analyze and write selected papers, then refresh paper synthesis."""
     _discover_ingest_support.ingest_papers(
         topic_name,
@@ -225,7 +259,12 @@ def _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers)
     )
 
 
-def _discover_ingest_videos(topic_name, config, tracker, ranked_videos) -> None:
+def _discover_ingest_videos(
+    topic_name: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    ranked_videos: list[_discover_support.RankedDiscoverItem],
+) -> None:
     """Ingest the ranked videos through the shared learning pipeline."""
     console.print(f"\n[bold]Ingesting {len(ranked_videos)} video(s)[/bold]")
     video_items = [
@@ -246,7 +285,14 @@ def _discover_ingest_videos(topic_name, config, tracker, ranked_videos) -> None:
 
 
 def _discover_ingest_sites(
-    topic_name, config, tracker, summary, ranked_sites, ingest_attachments, *, has_videos
+    topic_name: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    summary: RunSummary,
+    ranked_sites: list[Any],
+    ingest_attachments: bool,
+    *,
+    has_videos: bool,
 ) -> None:
     """Ingest selected site seeds, then refresh site topic synthesis."""
     _discover_ingest_support.ingest_sites(
@@ -266,12 +312,12 @@ def _discover_ingest_sites(
 def _discover_ingest_set(
     *,
     topic_name: str,
-    config,
-    tracker,
-    summary,
-    ranked_papers: list,
-    ranked_videos: list,
-    ranked_sites: list,
+    config: DistillConfig,
+    tracker: CostTracker,
+    summary: RunSummary,
+    ranked_papers: list[Any],
+    ranked_videos: list[_discover_support.RankedDiscoverItem],
+    ranked_sites: list[Any],
     ingest_attachments: bool,
     yes: bool,
 ) -> None:

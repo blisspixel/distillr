@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from rich import box
 from rich.table import Table
@@ -34,7 +34,7 @@ from distill.commands._helpers import (
 )
 from distill.config import DistillConfig
 from distill.ingestors.youtube.browser_search import search_youtube_results
-from distill.ingestors.youtube.discovery import enrich_videos, search_videos
+from distill.ingestors.youtube.discovery import VideoInfo, enrich_videos, search_videos
 from distill.library import Library
 from distill.llm import call as llm_call
 from distill.llm.availability import model_available
@@ -167,6 +167,11 @@ def _dedupe_query_strings(queries: list[str]) -> list[str]:
         seen.add(key)
         deduped.append(item.strip())
     return deduped
+
+
+def dedupe_query_strings(queries: list[str]) -> list[str]:
+    """Public query de-duplication seam for command helpers."""
+    return _dedupe_query_strings(queries)
 
 
 def _expand_paper_queries(
@@ -369,6 +374,13 @@ def _filter_recent_candidates(videos: list, days: int, hours: int | None = None)
     return filtered
 
 
+def filter_recent_candidates(
+    videos: list[VideoInfo], days: int, hours: int | None = None
+) -> list[VideoInfo]:
+    """Public recent-video filter seam for command helpers."""
+    return _filter_recent_candidates(videos, days, hours=hours)
+
+
 def _dedupe_candidates(videos: list) -> list:
     deduped = []
     seen = set()
@@ -378,6 +390,11 @@ def _dedupe_candidates(videos: list) -> list:
         seen.add(video.video_id)
         deduped.append(video)
     return deduped
+
+
+def dedupe_candidates(videos: list[VideoInfo]) -> list[VideoInfo]:
+    """Public video de-duplication seam for command helpers."""
+    return _dedupe_candidates(videos)
 
 
 def _format_metric(value: int) -> str:
@@ -662,7 +679,7 @@ def _process_learning_selection(
     topic_name: str,
     config: DistillConfig,
     tracker: CostTracker,
-    selected,
+    selected: list[Any],
     *,
     save: bool,
     report: bool,
@@ -690,6 +707,34 @@ def _process_learning_selection(
         synthesize_corpus=synthesize_corpus,
         run_scope_report=_run_scope_report,
         generate_and_export_topic_brief=_generate_and_export_topic_brief,
+        report_focus=report_focus,
+        post_ingest_callback=post_ingest_callback,
+    )
+
+
+def process_learning_selection(
+    topic_name: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    selected: list[Any],
+    *,
+    save: bool,
+    report: bool,
+    test: bool,
+    generate_brief: bool,
+    report_focus: str | None = None,
+    post_ingest_callback: Any | None = None,
+) -> None:
+    """Public learning-selection ingest seam for command helpers."""
+    _process_learning_selection(
+        topic_name,
+        config,
+        tracker,
+        selected,
+        save=save,
+        report=report,
+        test=test,
+        generate_brief=generate_brief,
         report_focus=report_focus,
         post_ingest_callback=post_ingest_callback,
     )

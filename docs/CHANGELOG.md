@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the discover helper flow to Pyright strict mode with typed sizing,
+  confirmation, and mixed-source ingest boundaries plus public learning seams
+  for query de-duplication, recent-video filtering, and learning selection.
 - Promoted the YouTube process command module to Pyright strict mode through
   public preflight, intent, and file-link seams plus typed transcript tracking.
 - Promoted the audit command module to Pyright strict mode with typed audit
