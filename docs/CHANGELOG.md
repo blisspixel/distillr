@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the maintain command Pyright warning cluster by reusing safe prompt
+  telemetry converters and typing the online status channel queue as
+  `ChannelInfo`.
 - Cleared the adapter-runner timeout stdout/stderr Pyright warning pair by
   normalizing `TimeoutExpired` text or bytes output before result construction.
 - Cleared the shared required-topic command resolver Pyright warning cluster by

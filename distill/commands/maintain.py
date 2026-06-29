@@ -44,7 +44,7 @@ from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
 from distill.library.paths import find_artifact
-from distill.library.state import ChannelState
+from distill.library.state import ChannelInfo, ChannelState
 from distill.pipeline.costs import CostTracker, projected_next_run_cost
 from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
@@ -350,16 +350,8 @@ def _costs_biggest_prompts_section(
     for row in rows[:10]:
         timestamp = str(row.get("timestamp") or "")[:16].replace("T", " ")
         provider = str(row.get("provider_name") or row.get("provider_type") or "-")
-        elapsed = row.get("elapsed_seconds", 0)
-        try:
-            elapsed_float = float(elapsed)
-        except (TypeError, ValueError):
-            elapsed_float = 0.0
-        total_tokens = row.get("total_tokens", 0)
-        try:
-            total_tokens_int = int(total_tokens)
-        except (TypeError, ValueError):
-            total_tokens_int = 0
+        elapsed_float = _safe_float(row.get("elapsed_seconds", 0))
+        total_tokens_int = _safe_int(row.get("total_tokens", 0))
         table.add_row(
             timestamp or "-",
             str(row.get("workload_tag") or "-"),
@@ -691,7 +683,7 @@ def status(  # noqa: C901 — legacy, will refactor
 
     # ── Show everything instantly (local data only) ───────────
     # Collect channel info for potential online check later
-    all_channels: list[tuple[str, object, ChannelState, int]] = []
+    all_channels: list[tuple[str, ChannelInfo, ChannelState, int]] = []
 
     for topic in topics:
         channels = lib.get_channels(topic)

@@ -1522,6 +1522,38 @@ class TestExportOpenCostsAndStatus:
         assert "Latest run breakdown" in result.output
         assert "not-a-number" not in result.output
 
+    def test_costs_tolerates_malformed_biggest_prompt_fields(self, mock_config, monkeypatch):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text(
+            '{"timestamp":"2026-03-13T12:00:00","command":"ask","actual_cost":0.01}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            _maintain,
+            "_biggest_prompt_rows",
+            lambda config: [
+                {
+                    "timestamp": "2026-03-13T12:01:00",
+                    "workload_tag": "ask",
+                    "call_type": "answer",
+                    "model": "local",
+                    "provider_type": "local",
+                    "input_tokens": "bad",
+                    "output_tokens": None,
+                    "elapsed_seconds": "nan",
+                    "outcome": "success",
+                }
+            ],
+        )
+
+        result = runner.invoke(cli.app, ["costs"])
+
+        assert result.exit_code == 0, result.output
+        assert "Biggest Prompts" in result.output
+        assert "ask" in result.output
+        assert "0.0s" in result.output
+
     def test_status_shows_artifacts(self, mock_config_with_library):
         _populate_videos(mock_config_with_library, "ai", "TestCh")
         ch_dir = mock_config_with_library.channel_dir("ai", "TestCh")
@@ -1536,6 +1568,38 @@ class TestExportOpenCostsAndStatus:
         assert result.exit_code == 0
         assert "context, synthesis" in result.output or "synthesis, context" in result.output
         assert "synthesis" in result.output
+
+    def test_status_online_uses_channel_info(self, mock_config_with_library, monkeypatch):
+        from distill.ingestors.youtube.discovery import VideoInfo
+
+        _populate_videos(mock_config_with_library, "ai", "TestCh")
+        seen_urls: list[str] = []
+
+        def discover(
+            url,
+            months=1,
+            include_shorts=False,
+            quiet=True,
+        ):
+            seen_urls.append(url)
+            return [
+                VideoInfo(
+                    "fresh",
+                    "Fresh Video",
+                    _recent(1),
+                    600,
+                    "https://youtube.com/watch?v=fresh",
+                )
+            ]
+
+        monkeypatch.setattr(_maintain, "discover_videos", discover)
+
+        result = runner.invoke(cli.app, ["status", "--online"])
+
+        assert result.exit_code == 0, result.output
+        assert seen_urls == ["https://www.youtube.com/@TestCh"]
+        assert "TestCh" in result.output
+        assert "1 new" in result.output
 
 
 class TestDoctorCleanupAndMigrate:
