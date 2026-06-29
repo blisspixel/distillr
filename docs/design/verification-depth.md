@@ -44,10 +44,11 @@ coverage. Five reasons:
    `doctor`, JIT `find`, `costs`, `okf`, `topics`, `summaries`, `ask`,
    `reports`, `synthesize`, `papers`, `watch`, `site_batch`, `concepts`, and
    `discover` tools. The command package marker, root callback, intent
-   commands, JSON envelope layer, trusted-site discovery loader, self-update
-   command, topic/channel resolver, and topic-watch helper API are now
-   strict-clean, with JSON envelope parsing, trusted-site discovery injection,
-   and topic-watch ranking parsed through typed public seams. The
+   commands, JSON envelope layer, trusted-site discovery loader, discover ingest
+   helpers, site-batch helpers, self-update command, topic/channel resolver,
+   and topic-watch helper API are now strict-clean, with JSON envelope parsing,
+   discover-ingest, site-batch, trusted-site discovery injection, and
+   topic-watch ranking parsed through typed public seams. The
    topic-change/view command boundary now parses diff, trend, watch-alert, and
    history rows into typed records, the shared required-topic command resolver
    is warning-clean, the maintain costs/status boundary is warning-clean, the

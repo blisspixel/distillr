@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 # Side-effect import: reconfigures stdout/stderr to UTF-8 *before* rich.Console
@@ -434,7 +434,7 @@ def print_markdown_safely(
     summary: RunSummary | None = None,
     stage: str = "render",
     context: str = "",
-    details: dict | None = None,
+    details: dict[str, Any] | None = None,
 ) -> None:
     """Render markdown when safe, otherwise fall back to console-safe plain text."""
     if getattr(console, "legacy_windows", False):
@@ -505,7 +505,7 @@ def record_output_or_issue(
     *,
     stage: str,
     context: str,
-    details: dict | None = None,
+    details: dict[str, Any] | None = None,
     missing_message: str,
     severity: str = "error",
 ) -> bool:
@@ -531,7 +531,7 @@ def record_exception_issue(
     stage: str,
     exc: BaseException,
     context: str,
-    details: dict | None = None,
+    details: dict[str, Any] | None = None,
     severity: str = "error",
 ) -> None:
     """Persist a structured exception-backed run issue when a summary exists."""

@@ -1,3 +1,4 @@
+# pyright: strict
 """Website batch command helpers."""
 
 from __future__ import annotations
@@ -6,8 +7,8 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
-import distill.cli_shared as cli_shared
 from distill._console import console
+from distill.commands._helpers import record_exception_issue
 from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.library.paths import find_artifact
@@ -128,7 +129,7 @@ def _site_batch_mode(seed: SiteSeed) -> str:
 def _site_batch_boundary(seed: SiteSeed) -> str:
     if seed.max_depth <= 0 or seed.max_pages <= 1:
         return "seed URL only"
-    parts = []
+    parts: list[str] = []
     if seed.crawl_prefix:
         parts.append(f"prefix {seed.crawl_prefix}")
     if seed.same_section_only:
@@ -165,7 +166,7 @@ def process_site_batch_seed(
         raise
     except Exception as exc:
         console.print(f"  [red]failed: {exc}[/red]")
-        cli_shared.record_exception_issue(
+        record_exception_issue(
             summary,
             stage="site-ingest",
             exc=exc,
@@ -205,7 +206,7 @@ def run_site_batch_syntheses(
                 )
             )
     except Exception as exc:
-        cli_shared.record_exception_issue(
+        record_exception_issue(
             summary,
             stage="site-topic-synthesis",
             exc=exc,

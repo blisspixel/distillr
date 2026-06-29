@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the discover ingest and site-batch helper surfaces to Pyright
+  strict mode, with typed exception-issue detail payloads and direct typed
+  helper imports instead of compatibility-module indirection.
 - Ratcheted the command JSON envelope, trusted-site discovery, and self-update
   surfaces to Pyright strict mode. JSON envelope parsing now rejects malformed
   status or error fields at the boundary, and trusted-site discovery injection

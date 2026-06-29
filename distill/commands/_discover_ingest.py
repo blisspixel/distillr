@@ -1,3 +1,4 @@
+# pyright: strict
 """Discover ingest helpers for mixed-source runs."""
 
 from __future__ import annotations
@@ -5,8 +6,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-import distill.cli_shared as cli_shared
 from distill._console import console
+from distill.commands._helpers import record_exception_issue
 from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.pipeline.costs import BudgetExceededError
@@ -46,7 +47,7 @@ def ingest_papers(
             raise
         except Exception as exc:
             console.print(f"  [red]failed: {exc}[/red]")
-            cli_shared.record_exception_issue(
+            record_exception_issue(
                 summary,
                 stage="paper-analysis",
                 exc=exc,
@@ -116,7 +117,7 @@ def ingest_sites(
             raise
         except Exception as exc:
             console.print(f"  [red]failed: {exc}[/red]")
-            cli_shared.record_exception_issue(
+            record_exception_issue(
                 summary,
                 stage="site-ingest",
                 exc=exc,
@@ -139,7 +140,7 @@ def ingest_sites(
                 )
             )
     except Exception as exc:
-        cli_shared.record_exception_issue(
+        record_exception_issue(
             summary,
             stage="site-topic-synthesis",
             exc=exc,
