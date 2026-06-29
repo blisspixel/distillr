@@ -1,3 +1,4 @@
-"""MCP tools — one file per tool group."""
+# pyright: strict
+"""MCP tools -- one file per tool group."""
 
 __all__: list[str] = []

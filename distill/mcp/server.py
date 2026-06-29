@@ -1,3 +1,4 @@
+# pyright: strict
 """Distill MCP Server -- transport, registration, and lifecycle.
 
 Run with:  distill-mcp          (stdio transport, for Claude Desktop / IDE integrations)
@@ -8,7 +9,14 @@ and prompts from their respective submodules.  No business logic lives here.
 
 from __future__ import annotations
 
+import functools
+import inspect
+import json
+from collections.abc import Awaitable, Callable, Mapping
+from importlib import import_module
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import ParamSpec, TypeVar, cast
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -44,6 +52,9 @@ __all__ = [
     "write_tool",
 ]
 
+P = ParamSpec("P")
+R = TypeVar("R", str, Awaitable[str])
+
 mcp = FastMCP(
     "Distill",
     instructions=(
@@ -77,7 +88,6 @@ def _refuse_if_read_only(action: str) -> str | None:
     """
     if not _config().distill_mcp_read_only:
         return None
-    import json
 
     return json.dumps(
         {
@@ -105,8 +115,6 @@ def capped_tracker() -> CostTracker:
 
 
 def _budget_response(action: str, exc: BudgetExceededError) -> str:
-    import json
-
     return json.dumps(
         {
             "status": "budget_exceeded",
@@ -125,14 +133,18 @@ def _write_tool_read_only_refusal(
     action: str,
     *,
     allow_preview: bool,
-    kwargs: dict,
+    kwargs: Mapping[str, object],
 ) -> str | None:
     if allow_preview and kwargs.get("preview") is True:
         return None
     return _refuse_if_read_only(action)
 
 
-def write_tool(action: str, *, allow_preview: bool = False):
+def write_tool(
+    action: str,
+    *,
+    allow_preview: bool = False,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorator marking an MCP tool as write-side (spend, ingest, or mutation).
 
     Stacks *under* ``@mcp.tool()`` so the registered callable carries the
@@ -142,43 +154,44 @@ def write_tool(action: str, *, allow_preview: bool = False):
     ``preview=True`` is structurally non-mutating. ``functools.wraps`` preserves
     the signature FastMCP introspects for the schema.
     """
-    import functools
-    import inspect
 
-    def deco(fn):
+    def deco(fn: Callable[P, R]) -> Callable[P, R]:
         if inspect.iscoroutinefunction(fn):
+            async_fn = cast("Callable[P, Awaitable[str]]", fn)
 
             @functools.wraps(fn)
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> str:
                 refusal = _write_tool_read_only_refusal(
                     action,
                     allow_preview=allow_preview,
-                    kwargs=kwargs,
+                    kwargs=cast("Mapping[str, object]", kwargs),
                 )
                 if refusal is not None:
                     return refusal
                 try:
-                    return await fn(*args, **kwargs)
+                    return await async_fn(*args, **kwargs)
                 except BudgetExceededError as exc:
                     return _budget_response(action, exc)
 
-            return async_wrapper
+            return cast("Callable[P, R]", async_wrapper)
+
+        sync_fn = cast("Callable[P, str]", fn)
 
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> str:
             refusal = _write_tool_read_only_refusal(
                 action,
                 allow_preview=allow_preview,
-                kwargs=kwargs,
+                kwargs=cast("Mapping[str, object]", kwargs),
             )
             if refusal is not None:
                 return refusal
             try:
-                return fn(*args, **kwargs)
+                return sync_fn(*args, **kwargs)
             except BudgetExceededError as exc:
                 return _budget_response(action, exc)
 
-        return wrapper
+        return cast("Callable[P, R]", wrapper)
 
     return deco
 
@@ -196,12 +209,10 @@ def refuse_if_host_not_allowed(url: str) -> str | None:
     ]
     if not allowlist:
         return None
-    from urllib.parse import urlparse
 
     host = (urlparse(url).hostname or "").lower()
     if host and any(host == entry or host.endswith("." + entry) for entry in allowlist):
         return None
-    import json
 
     return json.dumps(
         {
@@ -311,31 +322,40 @@ _topic_gap_summary = topic_gap_summary
 
 # ── Wire tools, resources, and prompts from submodules ───────────────
 
-# Import submodules so their @mcp decorators register on the shared instance.
-# The submodules import ``mcp`` from this module and decorate their handlers.
-import distill.mcp.prompts as _prompts  # noqa: E402, F401, I001
-import distill.mcp.resources as _resources  # noqa: E402, F401
-import distill.mcp.tools.ask as _tools_ask  # noqa: E402, F401
-import distill.mcp.tools.concepts as _tools_concepts  # noqa: E402, F401
-import distill.mcp.tools.costs as _tools_costs  # noqa: E402, F401
-import distill.mcp.tools.discover as _tools_discover  # noqa: E402, F401
-import distill.mcp.tools.doctor as _tools_doctor  # noqa: E402, F401
-import distill.mcp.tools.find as _tools_find  # noqa: E402, F401
-import distill.mcp.tools.gaps as _tools_gaps  # noqa: E402, F401
-import distill.mcp.tools.okf as _tools_okf  # noqa: E402, F401
-import distill.mcp.tools.papers as _tools_papers  # noqa: E402, F401
-import distill.mcp.tools.reports as _tools_reports  # noqa: E402, F401
-import distill.mcp.tools.sites as _tools_sites  # noqa: E402, F401
-import distill.mcp.tools.summaries as _tools_summaries  # noqa: E402, F401
-import distill.mcp.tools.synthesis as _tools_synthesis  # noqa: E402, F401
-import distill.mcp.tools.topics as _tools_topics  # noqa: E402, F401
-import distill.mcp.tools.watch as _tools_watch  # noqa: E402, F401
+_REGISTRATION_MODULES = (
+    "distill.mcp.prompts",
+    "distill.mcp.resources",
+    "distill.mcp.tools.ask",
+    "distill.mcp.tools.concepts",
+    "distill.mcp.tools.costs",
+    "distill.mcp.tools.discover",
+    "distill.mcp.tools.doctor",
+    "distill.mcp.tools.find",
+    "distill.mcp.tools.gaps",
+    "distill.mcp.tools.okf",
+    "distill.mcp.tools.papers",
+    "distill.mcp.tools.reports",
+    "distill.mcp.tools.sites",
+    "distill.mcp.tools.summaries",
+    "distill.mcp.tools.synthesis",
+    "distill.mcp.tools.topics",
+    "distill.mcp.tools.watch",
+)
+
+
+def _register_mcp_modules() -> None:
+    """Import modules whose decorators register tools, resources, and prompts."""
+    for module_name in _REGISTRATION_MODULES:
+        import_module(module_name)
+
+
+_register_mcp_modules()
 
 
 # ── Entry point ──────────────────────────────────────────────────────
 
 
-def main():
+def main() -> None:
     mcp.run(transport="stdio")
 
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the full MCP package to Pyright strict mode by adding the server
+  registration surface and tools package marker, replacing unused side-effect
+  imports with an explicit registration module list while preserving FastMCP
+  tool, resource, and prompt registration.
 - Ratcheted the MCP resource handlers to Pyright strict mode with public MCP
   config, registration, library, markdown-resource, source-inventory,
   frontmatter-stripping, and video-list seams. `distill://topics/{topic}/videos`

@@ -38,19 +38,19 @@ coverage. Five reasons:
 
 4. **It is greenfield and bounded, not grind.** The strict ratchet's remaining
    work is the coordinated helper and command surface tail. The full
-   `pipeline/` package is now strict-clean, the MCP helper pass has typed
-   optional progress contexts precisely, and the MCP package marker, prompt
-   definitions, resources, `research_gaps`, `doctor`, JIT `find`, `costs`, `okf`,
-   `topics`, `summaries`, `ask`, `reports`, `synthesize`, `papers`, `watch`,
-   `site_batch`, `concepts`, and `discover` tools are strict-clean. The
+   `pipeline/` package is now strict-clean, and the full MCP package is now
+   strict-clean across the server registration surface, optional progress
+   contexts, package marker, prompt definitions, resources, `research_gaps`,
+   `doctor`, JIT `find`, `costs`, `okf`, `topics`, `summaries`, `ask`,
+   `reports`, `synthesize`, `papers`, `watch`, `site_batch`, `concepts`, and
+   `discover` tools. The
    topic-change/view command boundary now parses diff, trend, watch-alert, and
    history rows into typed records, the shared required-topic command resolver
    is warning-clean, the maintain costs/status boundary is warning-clean, the
    YouTube yt-dlp boundary is warning-clean, and the library export plus
    python-docx renderer surfaces are warning-clean. The advisory full-surface
    Pyright run is now at 0 warnings; the remaining strict work is promoting the
-   rest of `commands/` and `mcp/` from warning-clean default mode to blocking
-   strict mode.
+   rest of `commands/` from warning-clean default mode to blocking strict mode.
    That work is real, but diminishing per-cycle value, better as background.
    Verification depth is new, high-signal infrastructure scoped to a
    well-understood core.
