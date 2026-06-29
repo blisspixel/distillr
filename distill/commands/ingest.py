@@ -1,4 +1,5 @@
-"""``distill ingest <target>`` — adaptive single-target ingestion entry point.
+# pyright: strict
+"""``distill ingest <target>`` -- adaptive single-target ingestion entry point.
 
 Routes by target. A local file path (PDF / Markdown / text / saved HTML) is
 extracted and analyzed through the local-file pipeline; otherwise the target is
@@ -16,6 +17,7 @@ import typer
 
 from distill._console import console
 from distill.commands._helpers import get_config
+from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
 from distill.ingestors.podcasts import PodcastFetchError, fetch_feed, looks_like_feed_url
@@ -60,7 +62,7 @@ def ingest_cmd(
         "--episodes",
         help="For podcast feeds: how many of the latest episodes to ingest (default 1).",
     ),
-):
+) -> None:
     """Ingest a single URL or local file into the library, picking the right adapter.
 
     Examples:
@@ -115,7 +117,9 @@ def _spend_line(tracker: CostTracker) -> None:
     console.print(f"\n  [dim]LLM spend: {tracker.format_cost()}[/dim]")
 
 
-def _ingest_local(local_path: Path, topic: str, config, tracker: CostTracker, *, analyze: bool):
+def _ingest_local(
+    local_path: Path, topic: str, config: DistillConfig, tracker: CostTracker, *, analyze: bool
+) -> None:
     try:
         local = ingest_local_file(
             local_path, topic=topic, config=config, analyze=analyze, tracker=tracker
@@ -136,8 +140,14 @@ def _ingest_local(local_path: Path, topic: str, config, tracker: CostTracker, *,
 
 
 def _ingest_tweet_url(
-    url: str, topic: str, config, tracker: CostTracker, *, transcribe: bool, analyze: bool
-):
+    url: str,
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    *,
+    transcribe: bool,
+    analyze: bool,
+) -> None:
     if not parse_tweet_url(url):
         console.print(
             f"[red]Could not parse a tweet id from {url!r}.[/red] "
@@ -166,7 +176,9 @@ def _ingest_tweet_url(
     _spend_line(tracker)
 
 
-def _ingest_media(local_path: Path, topic: str, config, tracker: CostTracker, *, analyze: bool):
+def _ingest_media(
+    local_path: Path, topic: str, config: DistillConfig, tracker: CostTracker, *, analyze: bool
+) -> None:
     result = ingest_media_file(
         local_path, topic=topic, config=config, analyze=analyze, tracker=tracker
     )
@@ -187,13 +199,13 @@ def _ingest_media(local_path: Path, topic: str, config, tracker: CostTracker, *,
 def _ingest_feed(
     url: str,
     topic: str,
-    config,
+    config: DistillConfig,
     tracker: CostTracker,
     *,
     episodes: int,
     transcribe: bool,
     analyze: bool,
-):
+) -> None:
     """One fetch, then route: enclosures mean a podcast, post bodies a newsletter."""
     try:
         feed = fetch_feed(url)
@@ -245,7 +257,9 @@ def _ingest_feed(
     _spend_line(tracker)
 
 
-def _ingest_github(url: str, topic: str, config, tracker: CostTracker, *, analyze: bool):
+def _ingest_github(
+    url: str, topic: str, config: DistillConfig, tracker: CostTracker, *, analyze: bool
+) -> None:
     if parse_github_url(url) is None:
         console.print(
             f"[red]Could not parse an owner/repo from {url!r}.[/red] "

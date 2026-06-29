@@ -1,3 +1,4 @@
+# pyright: strict
 """Recurring research profile commands."""
 
 from __future__ import annotations

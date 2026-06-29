@@ -45,9 +45,10 @@ coverage. Five reasons:
    `reports`, `synthesize`, `papers`, `watch`, `site_batch`, `concepts`, and
    `discover` tools. The command package marker, root callback, intent
    commands, JSON envelope layer, trusted-site discovery loader, discover ingest
-   helpers, site-batch helpers, self-update command, topic/channel resolver,
-   and topic-watch helper API are now strict-clean, with JSON envelope parsing,
-   discover-ingest, site-batch, trusted-site discovery injection, and
+   helpers, site-batch helpers, recurring profile commands, adaptive ingest
+   command, self-update command, topic/channel resolver, and topic-watch helper
+   API are now strict-clean, with JSON envelope parsing, discover-ingest,
+   adaptive-ingest, site-batch, trusted-site discovery injection, and
    topic-watch ranking parsed through typed public seams. The
    topic-change/view command boundary now parses diff, trend, watch-alert, and
    history rows into typed records, the shared required-topic command resolver
