@@ -1,3 +1,4 @@
+# pyright: strict
 """Learning and query-expansion helpers for the Distill CLI."""
 
 from __future__ import annotations
@@ -5,7 +6,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from rich import box
 from rich.table import Table
@@ -14,17 +15,19 @@ from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import format_date as _format_date
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands._helpers import (
-    _preflight,
-    get_config,
+    ensure_channel_context as _ensure_channel_context,
 )
 from distill.commands._helpers import (
-    ensure_channel_context as _ensure_channel_context,
+    get_config,
 )
 from distill.commands._helpers import (
     output_path as _output_path,
 )
 from distill.commands._helpers import (
     process_video as _process_video,
+)
+from distill.commands._helpers import (
+    run_preflight as _preflight,
 )
 from distill.commands._helpers import (
     run_scope_report as _run_scope_report,
@@ -50,6 +53,25 @@ from distill.prompts.discover import paper_query_expansion_prompt, search_query_
 
 class _ScoredRankedItem(Protocol):
     final_score: float
+
+
+class _RankedVideoSelection(Protocol):
+    video: VideoInfo
+
+
+def _query_strings_from_response_text(text: str) -> list[str]:
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        return []
+    payload = cast("dict[str, object]", data)
+    raw_queries = payload.get("queries", [])
+    if not isinstance(raw_queries, list):
+        return []
+    queries: list[str] = []
+    for item in cast(list[object], raw_queries):
+        if isinstance(item, str) and item.strip():
+            queries.append(item.strip())
+    return queries
 
 
 def _expand_learning_queries(
@@ -152,14 +174,12 @@ def _llm_expand_learning_queries(
         if lines and lines[-1].startswith("```"):
             lines = lines[:-1]
         text = "\n".join(lines).strip()
-    data = json.loads(text)
-    queries = data.get("queries", []) if isinstance(data, dict) else []
-    return [q.strip() for q in queries if isinstance(q, str) and q.strip()]
+    return _query_strings_from_response_text(text)
 
 
 def _dedupe_query_strings(queries: list[str]) -> list[str]:
-    deduped = []
-    seen = set()
+    deduped: list[str] = []
+    seen: set[str] = set()
     for item in queries:
         key = item.strip().lower()
         if not key or key in seen:
@@ -230,9 +250,7 @@ def _llm_expand_paper_queries(
         if lines and lines[-1].startswith("```"):
             lines = lines[:-1]
         text = "\n".join(lines).strip()
-    data = json.loads(text)
-    queries = data.get("queries", []) if isinstance(data, dict) else []
-    return [q.strip() for q in queries if isinstance(q, str) and q.strip()]
+    return _query_strings_from_response_text(text)
 
 
 def _display_ranked_papers(ranked: list[RankedPaper], title: str) -> None:
@@ -338,15 +356,17 @@ def _default_report_focus(query: str, *, skeptical: bool) -> str | None:
     )
 
 
-def _filter_recent_candidates(videos: list, days: int, hours: int | None = None) -> list:
+def _filter_recent_candidates(
+    videos: list[VideoInfo], days: int, hours: int | None = None
+) -> list[VideoInfo]:
     cutoff = (
         datetime.now() - timedelta(hours=hours)
         if hours is not None
         else datetime.now() - timedelta(days=days)
     )
-    filtered = []
+    filtered: list[VideoInfo] = []
     for video in videos:
-        published_at = getattr(video, "published_at", "")
+        published_at = video.published_at
         if published_at:
             try:
                 upload_dt = datetime.fromisoformat(published_at)
@@ -361,7 +381,7 @@ def _filter_recent_candidates(videos: list, days: int, hours: int | None = None)
                 if upload_dt >= cutoff:
                     filtered.append(video)
                 continue
-        if not getattr(video, "upload_date", ""):
+        if not video.upload_date:
             filtered.append(video)
             continue
         try:
@@ -381,9 +401,9 @@ def filter_recent_candidates(
     return _filter_recent_candidates(videos, days, hours=hours)
 
 
-def _dedupe_candidates(videos: list) -> list:
-    deduped = []
-    seen = set()
+def _dedupe_candidates(videos: list[VideoInfo]) -> list[VideoInfo]:
+    deduped: list[VideoInfo] = []
+    seen: set[str] = set()
     for video in videos:
         if video.video_id in seen:
             continue
@@ -423,10 +443,10 @@ def _select_learning_videos(
     expand: bool = True,
     top_by_date: bool = False,
     rigor: str = "off",
-):
+) -> tuple[list[VideoInfo], list[RankedVideo]]:
     effective_days = _effective_days(days, hours)
     candidate_limit = max(limit * 2, 12)
-    raw_candidates = []
+    raw_candidates: list[VideoInfo] = []
     # Strict chronological mode bypasses both rerank and the heuristic mix,
     # which means query expansion would only burn tokens and leak the query
     # to the LLM provider without ever influencing the final selection.
@@ -686,7 +706,7 @@ def _process_learning_selection(
     test: bool,
     generate_brief: bool,
     report_focus: str | None = None,
-    post_ingest_callback=None,
+    post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
 ) -> None:
     _learning_flow_support.process_learning_selection(
         topic_name,
@@ -759,9 +779,11 @@ def generate_and_export_topic_brief(
     _generate_and_export_topic_brief(topic_name, config, tracker)
 
 
-def _apply_ranked_channel_cap(ranked, limit: int, per_channel_cap: int):
-    selected = []
-    counts = {}
+def _apply_ranked_channel_cap[T: _RankedVideoSelection](
+    ranked: list[T], limit: int, per_channel_cap: int
+) -> list[T]:
+    selected: list[T] = []
+    counts: dict[str, int] = {}
     for item in ranked:
         channel_key = (item.video.channel_name or "unknown").strip().lower() or "unknown"
         if counts.get(channel_key, 0) >= per_channel_cap:
@@ -825,7 +847,7 @@ def apply_source_rigor[T: _ScoredRankedItem](
     )
 
 
-def _display_ranked_videos(ranked, title: str):
+def _display_ranked_videos(ranked: list[RankedVideo], title: str) -> None:
     table = Table(title=title, box=box.SIMPLE_HEAVY)
     table.add_column("#", justify="right")
     table.add_column("Title", overflow="fold")
