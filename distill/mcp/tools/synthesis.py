@@ -1,39 +1,43 @@
-"""MCP tools — synthesis: run or regenerate synthesis for a topic."""
+# pyright: strict
+"""MCP tools -- synthesis: run or regenerate synthesis for a topic."""
 
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
+from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 __all__: list[str] = []
 
+type SynthesisRow = dict[str, str | bool]
 
-@_server.mcp.tool()
-@_server.write_tool("synthesize")
-async def synthesize(  # noqa: C901
+
+@mcp.tool()
+@write_tool("synthesize")
+async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     topic: str,
     force: bool = False,
     style: str = "",
     two_pass: bool = False,
-    ctx: Context | None = None,
+    ctx: Context[Any, Any, Any] | None = None,
 ) -> str:
     """Run or regenerate synthesis for a topic across all sources.
 
     Args:
         topic: Topic to synthesize
         force: Force regeneration even if fresh
-        style: Optional register for the topic/corpus synthesis -- one of
+        style: Optional register for the topic/corpus synthesis, one of
             exec, pop, landscape, disagreements-only (empty = standard).
         two_pass: When true, the corpus synthesis extracts atomic claims into a
             per-topic claims.jsonl and synthesizes over the claim set (clusters,
             contradictions, per-claim citations). Opt-in; default single-pass.
     """
-    config = _server._config()
+    config = load_config()
     if not model_available():
         return json.dumps(
             {
@@ -54,10 +58,10 @@ async def synthesize(  # noqa: C901
             }
         )
 
-    lib = _server._lib(config)
-    tracker = _server.capped_tracker()
+    lib = library(config)
+    tracker = capped_tracker()
     channels = lib.get_channels(topic)
-    results = []
+    results: list[SynthesisRow] = []
     total_steps = len(channels) + 2  # channels + topic + corpus
 
     for i, ch in enumerate(channels):
@@ -104,7 +108,7 @@ async def synthesize(  # noqa: C901
         {
             "status": "complete",
             "results": results,
-            "cost": _server._cost_summary(tracker),
+            "cost": cost_summary(tracker),
         },
         indent=2,
     )
