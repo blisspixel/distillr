@@ -1,3 +1,4 @@
+# pyright: strict
 """The `distill eval` command + its local-model helpers, extracted from _logic.
 
 Model cost x quality comparison over frozen fixtures (the arbiter of "is a local
@@ -12,7 +13,7 @@ import typer
 
 from distill._console import console
 from distill.cli_shared import require_api_key as _require_api_key
-from distill.commands._helpers import _preflight, get_config
+from distill.commands._helpers import get_config, run_preflight
 from distill.commands._helpers import tty_confirm as _tty_confirm
 
 __all__ = ["eval_cmd", "register"]
@@ -126,7 +127,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     from distill.eval.harness import provider_for_model
     from distill.pipeline.costs import CostTracker, save_run_log
 
-    _preflight()
+    run_preflight()
     valid = (*WORKLOADS, "all")
     if workload not in valid:
         console.print(f"[red]Unknown --workload '{workload}'.[/red] Choose: {', '.join(valid)}.")

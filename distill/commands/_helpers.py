@@ -78,6 +78,7 @@ __all__ = [
     "require_api_key",
     "require_model",
     "resolve_video_channel_name",
+    "run_preflight",
     "run_scope_report",
     "safe_console_text",
     "strip_frontmatter",
@@ -944,6 +945,11 @@ def _preflight() -> None:
     except Exception:
         # An update check must never break a command.
         pass
+
+
+def run_preflight() -> None:
+    """Public command startup hook for shared non-blocking preflight checks."""
+    _preflight()
 
 
 def _invoke_command(fn, **overrides):

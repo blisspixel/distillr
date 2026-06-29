@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the `distill eval` command to Pyright strict mode. Eval startup now
+  uses a public shared preflight helper while preserving model selection, judge
+  selection, cost estimate, report, and results-log behavior.
 - Ratcheted the recurring profile command group and adaptive ingest command to
   Pyright strict mode. The ingest command now carries explicit `DistillConfig`
   helper boundaries while preserving existing adapter dispatch behavior.
