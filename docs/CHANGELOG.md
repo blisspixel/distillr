@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the command package marker, root callback, intent commands,
+  topic/channel resolver, and topic-watch helper surface to Pyright strict
+  mode. Topic-watch naming and ranking helpers now have public names with a
+  typed ranking-strategy record, while legacy private aliases remain for
+  compatibility.
 - Ratcheted the full MCP package to Pyright strict mode by adding the server
   registration surface and tools package marker, replacing unused side-effect
   imports with an explicit registration module list while preserving FastMCP

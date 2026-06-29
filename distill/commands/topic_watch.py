@@ -34,9 +34,9 @@ from distill.commands._topic_changes import (
     _write_watch_alert_digest,
 )
 from distill.commands._topic_watch import (
-    _normalize_topic_watch_ranking_mode,
-    _topic_watch_name,
-    _topic_watch_ranking_strategy,
+    normalize_topic_watch_ranking_mode,
+    topic_watch_name,
+    topic_watch_ranking_strategy,
 )
 from distill.library import Library
 from distill.pipeline.dashboard_data import (
@@ -89,7 +89,7 @@ def topic_watch_default(ctx: typer.Context):
         display_name = e.name if len(e.name) <= max_name else e.name[: max_name - 2] + ".."
         padding = " " * (max_name - len(display_name) + 2)
         mode = "report" if e.report else "learn"
-        ranking_label = _topic_watch_ranking_strategy(e.ranking_mode)["label"]
+        ranking_label = topic_watch_ranking_strategy(e.ranking_mode)["label"]
         trend_label = _topic_trend_label(config, e.topic)
         trend_suffix = f" / {trend_label}" if trend_label else ""
         console.print(
@@ -130,14 +130,14 @@ def topic_watch_add(
     """Add a recurring topic watch for stay-current workflows."""
     if cadence not in {"daily", "weekly"}:
         raise typer.BadParameter("--cadence must be 'daily' or 'weekly'")
-    ranking_mode = _normalize_topic_watch_ranking_mode(ranking)
+    ranking_mode = normalize_topic_watch_ranking_mode(ranking)
     _learning_flow_support.validate_learning_options(sort, limit, days, per_channel_cap)
 
     config = get_config()
     lib = Library(config)
     topic_name = topic or _topic_from_query(query)
-    watch_name = _topic_watch_name(query, topic_name, name)
-    ranking_strategy = _topic_watch_ranking_strategy(ranking_mode)
+    watch_name = topic_watch_name(query, topic_name, name)
+    ranking_strategy = topic_watch_ranking_strategy(ranking_mode)
 
     if lib.add_to_topic_watchlist(
         watch_name,
@@ -218,8 +218,8 @@ def topic_watch_ranking(
     ranking: str = typer.Argument(help="freshness, balanced, or popularity"),
 ):
     """Set ranking mode for a topic watch."""
-    ranking_mode = _normalize_topic_watch_ranking_mode(ranking)
-    ranking_strategy = _topic_watch_ranking_strategy(ranking_mode)
+    ranking_mode = normalize_topic_watch_ranking_mode(ranking)
+    ranking_strategy = topic_watch_ranking_strategy(ranking_mode)
     config = get_config()
     lib = Library(config)
     if lib.update_topic_watch_ranking_mode(name, ranking_mode):
@@ -336,7 +336,7 @@ def topic_watch_run(  # noqa: C901 - legacy, will refactor
     alert_generated_at = datetime.now()
 
     for entry in watchlist:
-        ranking = _topic_watch_ranking_strategy(entry.ranking_mode)
+        ranking = topic_watch_ranking_strategy(entry.ranking_mode)
         console.print()
         console.print(
             f"[bold]Topic Watch: {entry.name}[/bold] [dim]({entry.topic} / {entry.cadence} / {entry.days}d / {entry.limit} picks / {ranking['label']})[/dim]"

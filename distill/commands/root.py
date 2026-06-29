@@ -1,3 +1,4 @@
+# pyright: strict
 """Top-level CLI callback for bare ``distill`` and global options."""
 
 from __future__ import annotations
@@ -16,6 +17,15 @@ from distill.commands._helpers import (
     get_config,
 )
 
+__all__ = [
+    "_default",
+    "_version_callback",
+    "console",
+    "default_callback",
+    "get_model_override",
+    "show_banner",
+]
+
 
 def _version_callback(value: bool) -> None:
     """Eager ``--version`` handler: print the version to stdout and exit 0.
@@ -29,7 +39,7 @@ def _version_callback(value: bool) -> None:
 
 
 @app.callback()
-def _default(
+def default_callback(
     ctx: typer.Context,
     debug: bool = typer.Option(False, "--debug", help="Enable DEBUG-level logging to console"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress human output"),
@@ -75,9 +85,12 @@ def _default(
             console.clear()
         show_banner(console)
         # Lazy import keeps dashboard ownership separate from root wiring.
-        from distill.commands.dashboard import _show_dashboard
+        from distill.commands.dashboard import show_dashboard
 
-        _show_dashboard()
+        show_dashboard()
+
+
+_default = default_callback
 
 
 def get_model_override(ctx: typer.Context | None = None) -> str:

@@ -1,3 +1,4 @@
+# pyright: strict
 """``distill intent`` -- inspect and set a topic's analysis intent.
 
 Extracted from the ``_logic`` monolith (decomposition, how-we-build.md #1).

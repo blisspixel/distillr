@@ -25,6 +25,11 @@ from distill.commands._helpers import _detect_ramp_source
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
+from distill.commands._topic_watch import (
+    normalize_topic_watch_ranking_mode,
+    topic_watch_name,
+    topic_watch_ranking_strategy,
+)
 
 
 class TestEnsureUtf8Stdio:
@@ -180,6 +185,29 @@ class TestResolveRequiredTopicForChannel:
 
         with pytest.raises(typer.BadParameter, match="Topic is required"):
             _resolve_required_topic_for_channel(lib, None, None)
+
+
+class TestTopicWatchHelpers:
+    def test_topic_watch_name_prefers_explicit_name(self):
+        assert topic_watch_name("Microsoft AI news", "microsoft-ai", "daily-ai") == "daily-ai"
+
+    def test_topic_watch_name_falls_back_to_topic_or_query_slug(self):
+        assert topic_watch_name("Microsoft AI news", "microsoft-ai", None) == "microsoft-ai"
+        assert topic_watch_name("Microsoft AI news", None, None) == "microsoft-ai-news"
+
+    def test_topic_watch_ranking_strategy_normalizes_aliases(self):
+        assert normalize_topic_watch_ranking_mode("fresh") == "freshness"
+        assert topic_watch_ranking_strategy("popular") == {
+            "mode": "popularity",
+            "sort": "relevance",
+            "rerank": False,
+            "label": "popularity-biased",
+        }
+        assert topic_watch_ranking_strategy("balanced")["rerank"] is True
+
+    def test_topic_watch_ranking_rejects_unknown_mode(self):
+        with pytest.raises(typer.BadParameter, match="ranking mode"):
+            normalize_topic_watch_ranking_mode("random")
 
 
 class TestWriteVideoMetadata:

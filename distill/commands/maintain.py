@@ -38,7 +38,7 @@ from distill.commands._topic_resolution import (
 from distill.commands.dashboard import (
     _dashboard_snapshot,
     _render_dashboard_html,
-    _show_dashboard,
+    show_dashboard,
 )
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import discover_videos
@@ -916,7 +916,7 @@ def dashboard(
     config = get_config()
     if not web:
         show_banner(console)
-        _show_dashboard()
+        show_dashboard()
         return
 
     snapshot = _dashboard_snapshot(config)

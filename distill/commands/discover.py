@@ -54,9 +54,9 @@ from distill.commands._site_batch import (
 )
 from distill.commands._site_ingest import process_site_seed as _process_site_seed
 from distill.commands._topic_watch import (
-    _normalize_topic_watch_ranking_mode,
-    _topic_watch_name,
-    _topic_watch_ranking_strategy,
+    normalize_topic_watch_ranking_mode,
+    topic_watch_name,
+    topic_watch_ranking_strategy,
 )
 from distill.commands.topic_watch import topic_watch_run
 from distill.ingestors.papers.arxiv import PaperRecord, search_arxiv_multi
@@ -208,14 +208,14 @@ def monitor(
     """Create a recurring topic monitor with optional immediate run."""
     if cadence not in {"daily", "weekly"}:
         raise typer.BadParameter("--cadence must be 'daily' or 'weekly'")
-    ranking_mode = _normalize_topic_watch_ranking_mode(ranking)
+    ranking_mode = normalize_topic_watch_ranking_mode(ranking)
     _validate_learning_options(sort, limit, days, per_channel_cap)
 
     config = get_config()
     lib = Library(config)
     topic_name = topic or _topic_from_query(query)
-    watch_name = _topic_watch_name(query, topic_name, name or None)
-    ranking_strategy = _topic_watch_ranking_strategy(ranking_mode)
+    watch_name = topic_watch_name(query, topic_name, name or None)
+    ranking_strategy = topic_watch_ranking_strategy(ranking_mode)
 
     created = lib.add_to_topic_watchlist(
         watch_name,

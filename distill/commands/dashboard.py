@@ -1,6 +1,6 @@
 """Operational home screen and HTML dashboard rendering.
 
-The no-argument ``distill`` invocation lands here: ``_show_dashboard`` is the
+The no-argument ``distill`` invocation lands here: ``show_dashboard`` is the
 operational home screen, falling back to ``_show_first_run_home`` when the
 library is empty. ``maintain dashboard`` and ``maintain serve`` reuse the same
 shared snapshot and render it to HTML with ``_render_dashboard_html``.
@@ -8,7 +8,7 @@ shared snapshot and render it to HTML with ``_render_dashboard_html``.
 Data collection lives in ``distill.pipeline.dashboard_data`` (shared and tested
 there); this module formats the snapshot for the terminal and embedded HTML
 dashboard. The root callback in ``distill.commands.root`` imports
-``_show_dashboard`` lazily to avoid an import cycle.
+``show_dashboard`` lazily to avoid an import cycle.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from rich.table import Table
 from distill._version import get_version as _get_version
 from distill.cli_shared import console
 from distill.commands._helpers import get_config
-from distill.commands._topic_watch import _topic_watch_ranking_strategy
+from distill.commands._topic_watch import topic_watch_ranking_strategy
 from distill.config import DistillConfig
 from distill.pipeline.dashboard_data import dashboard_snapshot as _shared_dashboard_snapshot
 from distill.pipeline.dashboard_data import format_run_timestamp as _format_run_timestamp
@@ -237,7 +237,7 @@ def _show_dashboard():  # noqa: C901
         topic_watch_lines = []
         for entry in topic_watchlist[:5]:
             mode = "report" if entry.report else "learn"
-            ranking_label = _topic_watch_ranking_strategy(entry.ranking_mode)["label"]
+            ranking_label = topic_watch_ranking_strategy(entry.ranking_mode)["label"]
             trend_label = topic_trends.get(entry.topic)
             last = (
                 f" / last {_format_run_timestamp(entry.last_run_at)}" if entry.last_run_at else ""
@@ -454,6 +454,11 @@ def _show_dashboard():  # noqa: C901
     console.print(Panel(actions, title="Recommended Next Actions", border_style="cyan"))
     console.print()
     console.print("  [dim]distill --help for all commands[/dim]")
+
+
+def show_dashboard() -> None:
+    """Show the operational home screen for the root CLI callback."""
+    _show_dashboard()
 
 
 def _dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:

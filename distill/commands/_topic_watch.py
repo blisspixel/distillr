@@ -1,3 +1,4 @@
+# pyright: strict
 """Topic-watch support helpers (naming + ranking-mode resolution).
 
 Small, pure helpers shared by the topic-watch commands (still in ``_logic``),
@@ -13,13 +14,32 @@ truth, not a semantic judgment, so it stays a rule.
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import typer
 
 from distill.cli_shared import topic_from_query as _topic_from_query
 from distill.library.paths import slugify_title
 
+__all__ = [
+    "TopicWatchRankingStrategy",
+    "_normalize_topic_watch_ranking_mode",
+    "_topic_watch_name",
+    "_topic_watch_ranking_strategy",
+    "normalize_topic_watch_ranking_mode",
+    "topic_watch_name",
+    "topic_watch_ranking_strategy",
+]
 
-def _topic_watch_name(query: str, topic: str | None, name: str | None) -> str:
+
+class TopicWatchRankingStrategy(TypedDict):
+    mode: str
+    sort: str
+    rerank: bool
+    label: str
+
+
+def topic_watch_name(query: str, topic: str | None, name: str | None) -> str:
     if name:
         return name
     base = topic or _topic_from_query(query)
@@ -38,7 +58,7 @@ _TOPIC_WATCH_RANKING_ALIASES = {
 }
 
 
-def _normalize_topic_watch_ranking_mode(value: str) -> str:
+def normalize_topic_watch_ranking_mode(value: str) -> str:
     normalized = _TOPIC_WATCH_RANKING_ALIASES.get(value.lower().strip())
     if not normalized:
         allowed = ", ".join(["freshness", "balanced", "popularity"])
@@ -46,10 +66,15 @@ def _normalize_topic_watch_ranking_mode(value: str) -> str:
     return normalized
 
 
-def _topic_watch_ranking_strategy(ranking_mode: str) -> dict[str, object]:
-    mode = _normalize_topic_watch_ranking_mode(ranking_mode)
+def topic_watch_ranking_strategy(ranking_mode: str) -> TopicWatchRankingStrategy:
+    mode = normalize_topic_watch_ranking_mode(ranking_mode)
     if mode == "freshness":
         return {"mode": mode, "sort": "date", "rerank": False, "label": "freshness-first"}
     if mode == "popularity":
         return {"mode": mode, "sort": "relevance", "rerank": False, "label": "popularity-biased"}
     return {"mode": "balanced", "sort": "date", "rerank": True, "label": "balanced mix"}
+
+
+_topic_watch_name = topic_watch_name
+_normalize_topic_watch_ranking_mode = normalize_topic_watch_ranking_mode
+_topic_watch_ranking_strategy = topic_watch_ranking_strategy

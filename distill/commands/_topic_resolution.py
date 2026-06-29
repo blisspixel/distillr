@@ -1,3 +1,4 @@
+# pyright: strict
 """Topic and channel resolution helpers shared by command modules."""
 
 from __future__ import annotations
