@@ -44,13 +44,15 @@ coverage. Five reasons:
    `doctor`, JIT `find`, `costs`, `okf`, `topics`, `summaries`, `ask`,
    `reports`, `synthesize`, `papers`, `watch`, `site_batch`, `concepts`, and
    `discover` tools. The command package marker, root callback, intent
-   commands, topic/channel resolver, and topic-watch helper API are now
-   strict-clean, with topic-watch ranking parsed through a typed public helper
-   record. The topic-change/view command boundary now parses diff, trend,
-   watch-alert, and history rows into typed records, the shared required-topic
-   command resolver is warning-clean, the maintain costs/status boundary is
-   warning-clean, the YouTube yt-dlp boundary is warning-clean, and the library
-   export plus python-docx renderer surfaces are warning-clean. The advisory
+   commands, JSON envelope layer, trusted-site discovery loader, self-update
+   command, topic/channel resolver, and topic-watch helper API are now
+   strict-clean, with JSON envelope parsing, trusted-site discovery injection,
+   and topic-watch ranking parsed through typed public seams. The
+   topic-change/view command boundary now parses diff, trend, watch-alert, and
+   history rows into typed records, the shared required-topic command resolver
+   is warning-clean, the maintain costs/status boundary is warning-clean, the
+   YouTube yt-dlp boundary is warning-clean, and the library export plus
+   python-docx renderer surfaces are warning-clean. The advisory
    full-surface Pyright run is now at 0 warnings; the remaining strict work is
    promoting the rest of `commands/` from warning-clean default mode to
    blocking strict mode.

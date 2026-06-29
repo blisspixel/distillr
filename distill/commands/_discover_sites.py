@@ -1,16 +1,33 @@
+# pyright: strict
 """Website candidate loading for goal-aware discover."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Protocol
 
 from distill._console import console
-from distill.ingestors.sites.discovery import discover_trusted_site_seeds
+from distill.ingestors.sites.discovery import (
+    TrustedSiteDiscoveryResult,
+    discover_trusted_site_seeds,
+)
 from distill.ingestors.sites.scraper import SiteSeed, canonicalize_url, load_site_batch
 
 __all__ = ["DiscoverSiteCandidates", "load_discover_site_candidates", "show_discover_site_summary"]
+
+
+class TrustedSiteDiscoverer(Protocol):
+    def __call__(
+        self,
+        sources: Sequence[str],
+        *,
+        topic: str,
+        max_candidates: int,
+    ) -> TrustedSiteDiscoveryResult:
+        """Return trusted-site discovery candidates."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -29,7 +46,7 @@ def load_discover_site_candidates(
     trusted_site_cap: int,
     site_crawl_depth: int = 0,
     site_crawl_pages: int = 1,
-    trusted_site_discoverer: Any = discover_trusted_site_seeds,
+    trusted_site_discoverer: TrustedSiteDiscoverer = discover_trusted_site_seeds,
 ) -> DiscoverSiteCandidates:
     """Load curated site seeds and generated trusted-site page candidates."""
     curated: list[SiteSeed] = []

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the command JSON envelope, trusted-site discovery, and self-update
+  surfaces to Pyright strict mode. JSON envelope parsing now rejects malformed
+  status or error fields at the boundary, and trusted-site discovery injection
+  uses a typed result protocol instead of an untyped callable.
 - Ratcheted the command package marker, root callback, intent commands,
   topic/channel resolver, and topic-watch helper surface to Pyright strict
   mode. Topic-watch naming and ranking helpers now have public names with a

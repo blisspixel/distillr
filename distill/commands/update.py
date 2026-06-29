@@ -1,3 +1,4 @@
+# pyright: strict
 """``distill update`` -- self-update to the latest published distillr.
 
 Detects how distillr was installed (uv tool / pipx / pip / source checkout) and

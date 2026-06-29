@@ -1,3 +1,4 @@
+# pyright: strict
 """Structured JSON output layer for the Distill CLI.
 
 Provides the JsonEnvelope wrapper, ExitCode enum, and error handling
@@ -10,7 +11,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, cast
 
 __all__ = [
     "ExitCode",
@@ -44,7 +45,7 @@ class JsonEnvelope:
     """Standard JSON output wrapper for --json mode."""
 
     status: str  # "ok" | "error"
-    data: Any = field(default=None)  # Command-specific payload
+    data: object = field(default=None)  # Command-specific payload
     error: str | None = None  # Error message when status == "error"
 
     def to_json(self) -> str:
@@ -57,20 +58,26 @@ class JsonEnvelope:
     @classmethod
     def from_json(cls, s: str) -> JsonEnvelope:
         """Deserialize from JSON string."""
-        d = json.loads(s)
+        d = cast(dict[str, object], json.loads(s))
+        status = d.get("status")
+        if not isinstance(status, str):
+            raise ValueError("JSON envelope missing string status")
+        error = d.get("error")
+        if error is not None and not isinstance(error, str):
+            raise ValueError("JSON envelope error must be a string")
         return cls(
-            status=d["status"],
+            status=status,
             data=d.get("data"),
-            error=d.get("error"),
+            error=error,
         )
 
     @classmethod
-    def success(cls, data: Any = None) -> JsonEnvelope:
+    def success(cls, data: object = None) -> JsonEnvelope:
         """Create a success envelope."""
         return cls(status="ok", data=data)
 
     @classmethod
-    def fail(cls, error: str, data: Any = None) -> JsonEnvelope:
+    def fail(cls, error: str, data: object = None) -> JsonEnvelope:
         """Create an error envelope."""
         return cls(status="error", data=data, error=error)
 
@@ -87,7 +94,7 @@ def json_mode_active() -> bool:
     return _json_active
 
 
-def emit_json(data: Any = None, *, error: str | None = None) -> None:
+def emit_json(data: object = None, *, error: str | None = None) -> None:
     """Write one JSON envelope to **stdout** (not the console).
 
     Always stdout regardless of the console's ``--json`` stderr redirect, so the

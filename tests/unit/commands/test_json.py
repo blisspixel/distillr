@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -42,6 +43,16 @@ def test_json_envelope_round_trip(status, data, error):
     assert restored.status == envelope.status
     assert restored.data == envelope.data
     assert restored.error == envelope.error
+
+
+def test_json_envelope_from_json_rejects_missing_string_status():
+    with pytest.raises(ValueError, match="missing string status"):
+        JsonEnvelope.from_json('{"data": {"count": 1}}')
+
+
+def test_json_envelope_from_json_rejects_non_string_error():
+    with pytest.raises(ValueError, match="error must be a string"):
+        JsonEnvelope.from_json('{"status": "error", "error": 404}')
 
 
 # ── Property 7: --json flag produces valid JSON on stdout ──
