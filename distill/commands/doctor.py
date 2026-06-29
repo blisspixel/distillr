@@ -9,6 +9,7 @@ distill.cli (mirroring view/maintain/update/init).
 
 from __future__ import annotations
 
+import importlib.metadata as importlib_metadata
 import os
 from pathlib import Path
 
@@ -248,10 +249,8 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
         # yt-dlp
         try:
-            import importlib.metadata
-
-            importlib.metadata.version("yt-dlp")  # raises if not installed
-            checks["yt_dlp"] = importlib.metadata.version("yt-dlp")
+            importlib_metadata.version("yt-dlp")  # raises if not installed
+            checks["yt_dlp"] = importlib_metadata.version("yt-dlp")
         except Exception:
             checks["yt_dlp"] = "not_found"
 
@@ -399,11 +398,9 @@ def doctor(  # noqa: C901 - legacy, will refactor
     console.print(f"  [dim]{'-' * 50}[/dim]")
 
     try:
-        import importlib.metadata
-
         import yt_dlp  # noqa: F401  -- imported to verify availability
 
-        ytdlp_version = importlib.metadata.version("yt-dlp")
+        ytdlp_version = importlib_metadata.version("yt-dlp")
         age = ytdlp_age_days()
         if update_succeeded and (age is None or age > YTDLP_STALE_DAYS):
             # Suppress the "X days old; run --update" nag right after a successful
@@ -454,14 +451,12 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     fw_installed = False
     try:
-        import importlib.metadata
-
-        fw_version = importlib.metadata.version("faster-whisper")
+        fw_version = importlib_metadata.version("faster-whisper")
         fw_installed = True
         console.print(
             f"  [green]OK[/green]  faster-whisper    [dim]v{fw_version} (local provider)[/dim]"
         )
-    except importlib.metadata.PackageNotFoundError:
+    except importlib_metadata.PackageNotFoundError:
         console.print(
             "  [dim]--  faster-whisper    not installed "
             "(pip install faster-whisper for local GPU/CPU transcription)[/dim]"

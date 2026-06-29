@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the doctor command importlib metadata Pyright warning by using a
+  module-level metadata alias for dependency and transcription checks.
 - Cleared the topic-change and view-command Pyright warning cluster by parsing
   diff, trend, watch-alert, and history rows into typed records before command
   rendering or history writes.
