@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from distill.doctor.adapter_runner import (
     AdapterProcessResult,
     AdapterRunSpec,
+    _run_subprocess,
     run_adapter_command,
 )
 
@@ -212,6 +214,23 @@ def test_adapter_runner_blocks_timeout(tmp_path):
     )
     assert not result.ok
     assert any("timed out" in r for r in result.blocked_reasons)
+
+
+def test_run_subprocess_decodes_timeout_byte_output(tmp_path, monkeypatch):
+    def timeout(*_args, **_kwargs):
+        exc = subprocess.TimeoutExpired(cmd=["codex"], timeout=1)
+        exc.stdout = b"partial \xff"
+        exc.stderr = b"error \xff"
+        raise exc
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+
+    result = _run_subprocess(("codex",), tmp_path, {}, 1, "")
+
+    assert result.exit_code == 124
+    assert result.timed_out is True
+    assert result.stdout == "partial \ufffd"
+    assert result.stderr == "error \ufffd"
 
 
 def test_adapter_runner_blocks_nonzero_exit(tmp_path):

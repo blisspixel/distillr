@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the adapter-runner timeout stdout/stderr Pyright warning pair by
+  normalizing `TimeoutExpired` text or bytes output before result construction.
 - Cleared the shared required-topic command resolver Pyright warning cluster by
   promoting the non-null topic wrapper into a dedicated command helper module
   and reusing it across view, process, report/export, reprocess, and open

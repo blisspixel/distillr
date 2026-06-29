@@ -556,7 +556,9 @@ record from scratch when writing the result manifest.
 The `distill.doctor.adapter_runner` primitive runs exact argv arrays with shell
 disabled inside scratch, strips known metered API-key environment variables,
 enforces a timeout, loads the result manifest, and applies the scratch write
-check. It is a boundary helper, not a route recommendation.
+check. Timeout diagnostics normalize captured text or bytes stdout/stderr into
+strings before result construction. It is a boundary helper, not a route
+recommendation.
 The adapter doctor also emits structured support-statement details. Treat
 `no_metered_current=false` as a hard block even when the binary, auth markers,
 and manifest contract look compatible.

@@ -188,10 +188,11 @@ def _run_subprocess(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
+        stderr = _timeout_output_text(exc.stderr)
         return AdapterProcessResult(
             exit_code=124,
-            stdout=exc.stdout or "",
-            stderr=exc.stderr or str(exc),
+            stdout=_timeout_output_text(exc.stdout),
+            stderr=stderr or str(exc),
             timed_out=True,
         )
     except OSError as exc:
@@ -212,6 +213,14 @@ def _blocked_result(spec: AdapterRunSpec, blocked_reasons: list[str]) -> Adapter
         scrubbed_env_vars=(),
         blocked_reasons=blocked_reasons,
     )
+
+
+def _timeout_output_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def _scrub_environment(
