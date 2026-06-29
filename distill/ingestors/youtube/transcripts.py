@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Protocol
 
 import yt_dlp
 
@@ -43,12 +44,18 @@ _sleep = time.sleep
 _MAX_AUDIO_BYTES = 200_000_000
 
 
+class _TranscriptionCostTracker(Protocol):
+    def record_transcription(
+        self, provider: str, duration_s: float, *, model: str = ""
+    ) -> None: ...
+
+
 def get_transcript(
     video_url: str,
     video_id: str,
     output_path: Path,
     config: DistillConfig,
-    tracker=None,
+    tracker: _TranscriptionCostTracker | None = None,
 ) -> bool:
     """Get transcript for a video. Returns True if successful.
 
@@ -139,7 +146,7 @@ def _try_whisper_ladder(
     video_id: str,
     output_path: Path,
     config: DistillConfig,
-    tracker=None,
+    tracker: _TranscriptionCostTracker | None = None,
 ) -> bool:
     """Download bestaudio and run the local-first transcription ladder.
 

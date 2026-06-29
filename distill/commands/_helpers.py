@@ -232,6 +232,9 @@ def _file_link(path: Path) -> str:
     return f"[link={uri}]{resolved}[/link]"
 
 
+file_link = _file_link
+
+
 def _detect_ramp_source(target: str) -> str:
     """Classify a ramp-up target into the workflow that should ingest it.
 
@@ -332,7 +335,7 @@ def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 
     return result
 
 
-def duration_str(seconds) -> str:
+def duration_str(seconds: int | float | None) -> str:
     """Format seconds to human readable duration."""
     if seconds is None or not isinstance(seconds, (int, float)):
         return "?"

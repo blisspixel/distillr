@@ -1,3 +1,4 @@
+# pyright: strict
 """Process commands: ``video``, ``channel``, and ``run``.
 
 Extracted from the _logic.py monolith (Process slice). These commands
@@ -10,6 +11,7 @@ modules and are imported back here.
 from __future__ import annotations
 
 import json
+from typing import cast
 
 import typer
 from rich.panel import Panel
@@ -19,7 +21,6 @@ from distill.cli_shared import (
     SHORTS_THRESHOLD,
     console,
 )
-from distill.cli_shared import duration_str as _duration_str
 from distill.cli_shared import format_date as _format_date
 from distill.cli_shared import print_markdown_safely as _print_markdown_safely
 from distill.cli_shared import print_text_safely as _print_text_safely
@@ -27,10 +28,11 @@ from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import safe_console_text as _safe_console_text
 from distill.cli_shared import strip_frontmatter as _strip_frontmatter
 from distill.commands._helpers import (
-    _file_link,
-    _preflight,
-    _resolve_intent,
+    duration_str,
+    file_link,
     get_config,
+    resolve_intent,
+    run_preflight,
 )
 from distill.commands._helpers import (
     ensure_channel_context as _ensure_channel_context,
@@ -75,6 +77,11 @@ from distill.pipeline.summary import (
     display_summary,
 )
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+
+_duration_str = duration_str
+_file_link = file_link
+_preflight = run_preflight
+_resolve_intent = resolve_intent
 
 
 def video(
@@ -172,7 +179,7 @@ def video(
 def channel_cmd(  # noqa: C901 — legacy, will refactor
     url: str = typer.Argument(help="YouTube channel URL"),
     topic: str = typer.Option("ai", "--topic", "-t", help="Topic to file under"),
-    months: int = typer.Option(
+    months: int | None = typer.Option(
         None, "--months", "-m", help="Lookback window in months (default: 1)"
     ),
     report: bool = typer.Option(
@@ -295,9 +302,9 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
 
 
 def run(  # noqa: C901 — legacy, will refactor
-    topic: str = typer.Argument(None, help="Topic or channel name"),
+    topic: str | None = typer.Argument(None, help="Topic or channel name"),
     channel: str | None = typer.Option(None, "--channel", "-c", help="Process only this channel"),
-    months: int = typer.Option(None, "--months", "-m", help="Lookback window in months"),
+    months: int | None = typer.Option(None, "--months", "-m", help="Lookback window in months"),
     refresh: bool = typer.Option(
         False, "--refresh", "-r", help="Only process new videos since last run"
     ),
@@ -319,7 +326,10 @@ def run(  # noqa: C901 — legacy, will refactor
         console.print("[red]Specify a topic or use --all[/red]")
         raise typer.Exit(1)
 
-    topics = lib.get_topics() if all_topics else [topic]
+    if all_topics:
+        topics = lib.get_topics()
+    else:
+        topics = [cast(str, topic)]
 
     tracker = CostTracker()
     summary = RunSummary(command="run")

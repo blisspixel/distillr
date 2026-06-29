@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the YouTube process command module to Pyright strict mode through
+  public preflight, intent, and file-link seams plus typed transcript tracking.
 - Promoted the audit command module to Pyright strict mode with typed audit
   report, broken-link, and action-handler boundaries.
 - Promoted the paper ingestion command module to Pyright strict mode through
