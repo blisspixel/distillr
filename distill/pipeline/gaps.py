@@ -36,6 +36,9 @@ class VideoMetadata(TypedDict):
     _dir: str
     has_transcript: bool
     has_insights: bool
+    duration: int
+    url: str
+    analysis_mode: str
 
 
 class TopicInventory(TypedDict):
@@ -93,6 +96,16 @@ def _string_value(value: object, default: str = "") -> str:
     return value if isinstance(value, str) else default
 
 
+def _int_value(value: object, default: int = 0) -> int:
+    try:
+        parsed = int(value) if isinstance(value, str) else value
+    except ValueError:
+        return default
+    if isinstance(parsed, bool) or not isinstance(parsed, int):
+        return default
+    return parsed
+
+
 def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -126,6 +139,9 @@ def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[Vid
                 "_dir": str(vid_dir),
                 "has_transcript": artifact_exists(vid_dir, "transcript", extension="txt"),
                 "has_insights": artifact_exists(vid_dir, "insights"),
+                "duration": _int_value(raw_meta.get("duration")),
+                "url": _string_value(raw_meta.get("url")),
+                "analysis_mode": _string_value(raw_meta.get("analysis_mode"), "unknown"),
             }
             vid_list.append(meta)
     vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)

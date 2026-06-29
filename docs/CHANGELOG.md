@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP resource handlers to Pyright strict mode with public MCP
+  config, registration, library, markdown-resource, source-inventory,
+  frontmatter-stripping, and video-list seams. `distill://topics/{topic}/videos`
+  now returns parsed video URL, duration, and analysis mode metadata instead of
+  silently defaulting those fields when metadata is available.
 - Ratcheted the MCP discovery tools, `learn_topic`, `search_videos`, and
   `discover`, to Pyright strict mode with public MCP config, registration,
   write-guard, library, tracker, and cost-summary seams. MCP `search_videos`

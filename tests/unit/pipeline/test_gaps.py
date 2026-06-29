@@ -35,6 +35,42 @@ def test_video_list_degrades_on_corrupt_metadata(tmp_path: Path):
     assert [v.get("title") for v in result] == ["Good"]
 
 
+def test_video_list_parses_video_resource_metadata(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    video_dir = cfg.video_dir("tkg", "Chan", "vid001")
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "metadata.json").write_text(
+        (
+            '{"title": "Contract Video", "upload_date": "20260401", '
+            '"duration": "900", "url": "https://youtube.com/watch?v=vid001", '
+            '"analysis_mode": "scan"}'
+        ),
+        encoding="utf-8",
+    )
+
+    result = video_list(cfg, "tkg", "Chan")
+
+    assert result[0]["duration"] == 900
+    assert result[0]["url"] == "https://youtube.com/watch?v=vid001"
+    assert result[0]["analysis_mode"] == "scan"
+
+
+def test_video_list_defaults_malformed_resource_metadata(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    video_dir = cfg.video_dir("tkg", "Chan", "vid001")
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "metadata.json").write_text(
+        '{"title": "Bad Shape", "upload_date": "20260401", "duration": true, "analysis_mode": 7}',
+        encoding="utf-8",
+    )
+
+    result = video_list(cfg, "tkg", "Chan")
+
+    assert result[0]["duration"] == 0
+    assert result[0]["url"] == ""
+    assert result[0]["analysis_mode"] == "unknown"
+
+
 def test_inventory_and_gaps_on_empty_topic(tmp_path: Path):
     cfg = _cfg(tmp_path)
     inv = topic_source_inventory(cfg, "tkg")

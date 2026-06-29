@@ -368,6 +368,8 @@ class TestGetTopicVideos:
         assert result["topic"] == "ai"
         assert len(result["videos"]) == 2
         assert result["videos"][0]["channel"] == "TestChannel"
+        assert result["videos"][0]["duration"] > 0
+        assert result["videos"][0]["url"].startswith("https://www.youtube.com/watch")
         assert result["videos"][0]["has_insights"] is True
 
     def test_empty_topic(self, mock_config):

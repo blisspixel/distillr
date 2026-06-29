@@ -99,7 +99,7 @@ crawling, writes, or spend, and that preview is allowed even when
 | `distill://topics` | All topics with channel counts |
 | `distill://watchlist` | Watch list with per-channel settings |
 | `distill://watch-alerts` | Latest watch alert digest |
-| `distill://topics/{topic}/videos` | All videos with status |
+| `distill://topics/{topic}/videos` | All videos with URL, duration, analysis mode, and artifact status |
 | `distill://topics/{topic}/synthesis` | Topic synthesis |
 | `distill://topics/{topic}/corpus` | Mixed-source corpus synthesis |
 | `distill://topics/{topic}/sources` | Source inventory and artifact availability |

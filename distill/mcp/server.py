@@ -16,7 +16,17 @@ from mcp.server.fastmcp import FastMCP
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.pipeline.costs import BudgetExceededError, CostTracker
-from distill.pipeline.gaps import topic_gap_summary, topic_source_inventory, video_list
+from distill.pipeline.gaps import (
+    TopicInventory,
+    VideoMetadata,
+    topic_gap_summary,
+)
+from distill.pipeline.gaps import (
+    topic_source_inventory as _pipeline_topic_source_inventory,
+)
+from distill.pipeline.gaps import (
+    video_list as _pipeline_video_list,
+)
 
 __all__ = [
     "capped_tracker",
@@ -25,9 +35,12 @@ __all__ = [
     "load_config",
     "main",
     "mcp",
+    "read_markdown_resource",
     "refuse_if_host_not_allowed",
     "resolve_within_library",
     "strip_frontmatter",
+    "topic_source_inventory",
+    "video_list",
     "write_tool",
 ]
 
@@ -213,7 +226,12 @@ def library(config: DistillConfig | None = None) -> Library:
 # Coverage/gap helpers were lifted to distill.pipeline.gaps so the discover
 # command can share them without a commands -> mcp import. Re-exported here under
 # their original private names for resources.py / tools/gaps.py.
-_video_list = video_list
+_video_list = _pipeline_video_list
+
+
+def video_list(config: DistillConfig, topic: str, channel_name: str) -> list[VideoMetadata]:
+    """Return sorted video metadata for an MCP topic/channel resource."""
+    return _video_list(config, topic, channel_name)
 
 
 def _cost_summary(tracker: CostTracker) -> dict[str, int | float]:
@@ -275,7 +293,17 @@ def _read_markdown_resource(path: Path, missing_message: str) -> str:
     return missing_message
 
 
-_topic_source_inventory = topic_source_inventory
+def read_markdown_resource(path: Path, missing_message: str) -> str:
+    """Read a markdown resource or return the supplied missing-resource text."""
+    return _read_markdown_resource(path, missing_message)
+
+
+_topic_source_inventory = _pipeline_topic_source_inventory
+
+
+def topic_source_inventory(config: DistillConfig, topic: str) -> TopicInventory:
+    """Return source inventory data for an MCP topic resource."""
+    return _topic_source_inventory(config, topic)
 
 
 _topic_gap_summary = topic_gap_summary
