@@ -1,3 +1,4 @@
+# pyright: strict
 """MCP tools — JIT retrieval: find_insights, read_insight."""
 
 from __future__ import annotations
@@ -6,7 +7,7 @@ import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from distill.library.paths import strip_frontmatter
-from distill.mcp import server as _server
+from distill.mcp.server import load_config, mcp
 from distill.pipeline.search import extract_section, search_corpus
 
 __all__: list[str] = []
@@ -19,7 +20,7 @@ def _resolve_within_library(library_dir: Path, path: str) -> Path | None:
     escapes the library root. Returns ``None`` on rejection so the caller can
     surface a single uniform error without leaking which check tripped.
     """
-    if not path or not isinstance(path, str):
+    if not path:
         return None
     windows_path = PureWindowsPath(path)
     if (
@@ -44,7 +45,7 @@ def _resolve_within_library(library_dir: Path, path: str) -> Path | None:
     return candidate
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def find_insights(topic: str, query: str, limit: int = 10) -> str:
     """Search topic corpus; return ranked path/preview/score tuples.
 
@@ -53,12 +54,12 @@ def find_insights(topic: str, query: str, limit: int = 10) -> str:
         query: Search query terms
         limit: Max results to return
     """
-    config = _server._config()
+    config = load_config()
 
     # Check topic exists
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
-        available = []
+        available: list[str] = []
         topics_dir = config.topics_dir()
         if topics_dir.exists():
             available = [d.name for d in topics_dir.iterdir() if d.is_dir()]
@@ -95,7 +96,7 @@ def find_insights(topic: str, query: str, limit: int = 10) -> str:
     )
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def read_insight(path: str, section: str | None = None) -> str:
     """Read artifact content by path, optionally filtered to a section.
 
@@ -103,7 +104,7 @@ def read_insight(path: str, section: str | None = None) -> str:
         path: Relative path from library root
         section: Optional section heading to extract
     """
-    config = _server._config()
+    config = load_config()
     full_path = _resolve_within_library(config.library_dir, path)
 
     if full_path is None:
@@ -133,7 +134,7 @@ def read_insight(path: str, section: str | None = None) -> str:
 
     if section:
         content, found = extract_section(body, section)
-        result: dict = {
+        result: dict[str, object] = {
             "path": path,
             "content": content,
             "section": section,
