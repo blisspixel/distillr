@@ -381,6 +381,16 @@ def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
     }
 
 
+def collect_topic_change_details(
+    config: DistillConfig,
+    lib: Library,
+    topic: str,
+    baseline: datetime | None,
+) -> _TopicChangeDetails:
+    """Public topic-change detail collection seam for command modules."""
+    return _collect_topic_change_details(config, lib, topic, baseline)
+
+
 def _topic_change_snapshot(
     config: DistillConfig, lib: Library, topic: str, baseline: datetime | None
 ) -> tuple[datetime | None, str]:
@@ -553,6 +563,11 @@ def _topic_trend_label(config: DistillConfig, topic: str, *, min_records: int = 
     return "trend: steady"
 
 
+def topic_trend_label(config: DistillConfig, topic: str, *, min_records: int = 2) -> str | None:
+    """Public topic trend label seam for command modules."""
+    return _topic_trend_label(config, topic, min_records=min_records)
+
+
 def _topic_watch_alert_lines(
     *,
     watch_name: str,
@@ -578,6 +593,26 @@ def _topic_watch_alert_lines(
         bits.append(trend_label)
     bits.append(ranking_label)
     return [f"- `{watch_name}` ({topic}): " + " / ".join(bits)]
+
+
+def topic_watch_alert_lines(
+    *,
+    watch_name: str,
+    topic: str,
+    ranking_label: str,
+    summary: str,
+    change_details: _TopicChangeDetails,
+    trend_label: str | None,
+) -> list[str]:
+    """Public topic-watch alert-line seam for command modules."""
+    return _topic_watch_alert_lines(
+        watch_name=watch_name,
+        topic=topic,
+        ranking_label=ranking_label,
+        summary=summary,
+        change_details=change_details,
+        trend_label=trend_label,
+    )
 
 
 def _write_watch_alert_digest(
@@ -613,6 +648,20 @@ def _write_watch_alert_digest(
             synthesis_scope="operational",
             extra={"alerts": len(alert_lines), "legacy_filename": "watch_alerts.md"},
         ),
+    )
+
+
+def write_watch_alert_digest(
+    config: DistillConfig,
+    *,
+    generated_at: datetime,
+    alert_lines: list[str],
+) -> Path:
+    """Public watch-alert digest writer seam for command modules."""
+    return _write_watch_alert_digest(
+        config,
+        generated_at=generated_at,
+        alert_lines=alert_lines,
     )
 
 
@@ -840,6 +889,30 @@ def _write_topic_change_briefing(
         ),
     )
     return briefing_path
+
+
+def write_topic_change_briefing(
+    config: DistillConfig,
+    *,
+    watch_name: str,
+    topic: str,
+    query: str,
+    cadence: str,
+    baseline: datetime | None,
+    summary: str,
+    change_details: _TopicChangeDetails | None = None,
+) -> Path:
+    """Public topic-change briefing writer seam for command modules."""
+    return _write_topic_change_briefing(
+        config,
+        watch_name=watch_name,
+        topic=topic,
+        query=query,
+        cadence=cadence,
+        baseline=baseline,
+        summary=summary,
+        change_details=change_details,
+    )
 
 
 def _resolve_topic_diff_baseline(

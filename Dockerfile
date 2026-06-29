@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Install system dependencies for Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install distillr
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY distill/ ./distill/
 RUN pip install --no-cache-dir -e .
 

@@ -80,6 +80,7 @@ terminals/
 # Agent working files: cycle journal, state analysis, engineering recipes, and
 # the self-review rubric. Local-only by convention so the public repo stays
 # tidy; the shipped record of what changed lives in docs/CHANGELOG.md.
+.agent/
 docs/.agent/
 
 # Dev and run logs

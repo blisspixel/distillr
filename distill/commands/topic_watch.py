@@ -1,3 +1,4 @@
+# pyright: strict
 """Recurring topic-watch command group."""
 
 from __future__ import annotations
@@ -19,19 +20,19 @@ from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands._helpers import (
     _complete_topic_watch_names,
     _complete_topics,
-    _preflight,
     get_config,
+    run_preflight,
 )
 from distill.commands._learning import (
-    _preview_learning_selection,
-    _run_learning_command,
+    preview_learning_selection,
+    run_learning_command,
 )
 from distill.commands._topic_changes import (
-    _collect_topic_change_details,
-    _topic_trend_label,
-    _topic_watch_alert_lines,
-    _write_topic_change_briefing,
-    _write_watch_alert_digest,
+    collect_topic_change_details,
+    topic_trend_label,
+    topic_watch_alert_lines,
+    write_topic_change_briefing,
+    write_watch_alert_digest,
 )
 from distill.commands._topic_watch import (
     normalize_topic_watch_ranking_mode,
@@ -51,6 +52,10 @@ from distill.pipeline.dashboard_data import (
 from distill.pipeline.summary import log_preview_cost
 
 _ACCENT = "rgb(100,149,237)"
+
+_preflight = run_preflight
+_preview_learning_selection = preview_learning_selection
+_run_learning_command = run_learning_command
 
 topic_watch_app = typer.Typer(
     help="Manage your recurring topic watches",
@@ -90,7 +95,7 @@ def topic_watch_default(ctx: typer.Context):
         padding = " " * (max_name - len(display_name) + 2)
         mode = "report" if e.report else "learn"
         ranking_label = topic_watch_ranking_strategy(e.ranking_mode)["label"]
-        trend_label = _topic_trend_label(config, e.topic)
+        trend_label = topic_trend_label(config, e.topic)
         trend_suffix = f" / {trend_label}" if trend_label else ""
         console.print(
             f"  [{_ACCENT}]{display_name}[/{_ACCENT}]{padding}[dim]{e.topic} / {e.cadence} / {e.days}d / {e.limit} picks / {ranking_label} / {mode}{trend_suffix}[/dim]"
@@ -153,7 +158,7 @@ def topic_watch_add(
         max_run_cost=max_run_cost,
         monthly_budget=monthly_budget,
     ):
-        budget_bits = []
+        budget_bits: list[str] = []
         if max_run_cost:
             budget_bits.append(f"max ${max_run_cost:.2f}/run")
         if monthly_budget:
@@ -246,7 +251,7 @@ def topic_watch_budget(
     if lib.update_topic_watch_budget(
         name, max_run_cost=max_run_cost, monthly_budget=monthly_budget
     ):
-        parts = []
+        parts: list[str] = []
         if max_run_cost is not None:
             parts.append(f"max-run ${max_run_cost:.2f}")
         if monthly_budget is not None:
@@ -388,14 +393,14 @@ def topic_watch_run(  # noqa: C901 - legacy, will refactor
             generate_brief=False,
             header=f"Topic Watch: {entry.name}",
         )
-        change_details = _collect_topic_change_details(
+        change_details = collect_topic_change_details(
             config,
             Library(config),
             entry.topic,
             previous_run_at,
         )
         change_summary = str(change_details.get("summary", "no recent change detected"))
-        briefing_path = _write_topic_change_briefing(
+        briefing_path = write_topic_change_briefing(
             config,
             watch_name=entry.name,
             topic=entry.topic,
@@ -405,8 +410,8 @@ def topic_watch_run(  # noqa: C901 - legacy, will refactor
             summary=change_summary,
             change_details=change_details,
         )
-        trend_label = _topic_trend_label(config, entry.topic)
-        alert_lines = _topic_watch_alert_lines(
+        trend_label = topic_trend_label(config, entry.topic)
+        alert_lines = topic_watch_alert_lines(
             watch_name=entry.name,
             topic=entry.topic,
             ranking_label=str(ranking["label"]),
@@ -422,7 +427,7 @@ def topic_watch_run(  # noqa: C901 - legacy, will refactor
         console.print(f"  [dim]{briefing_path}[/dim]")
         lib.mark_topic_watch_run(entry.name, datetime.now().isoformat())
 
-    alerts_path = _write_watch_alert_digest(
+    alerts_path = write_watch_alert_digest(
         config,
         generated_at=alert_generated_at,
         alert_lines=generated_alerts,
