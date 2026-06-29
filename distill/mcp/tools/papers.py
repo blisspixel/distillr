@@ -1,26 +1,55 @@
-"""MCP tools — papers: search arXiv, download, and analyze papers."""
+# pyright: strict
+"""MCP tools -- papers: search arXiv, download, and analyze papers."""
 
 from __future__ import annotations
 
 import json
 import logging
+from typing import Any, Protocol
 
 from mcp.server.fastmcp import Context
 
+from distill.config import DistillConfig
+from distill.ingestors.papers.arxiv import PaperRecord
+from distill.library.intent import CorpusIntent
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
-from distill.pipeline.costs import BudgetExceededError, save_run_log
+from distill.llm.router import RouterConfig
+from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
+from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
 
 logger = logging.getLogger(__name__)
 
 __all__: list[str] = []
+
+type PaperResultRow = dict[str, str]
+
+
+class PaperAnalyzer(Protocol):
+    def __call__(
+        self,
+        paper: PaperRecord,
+        config: DistillConfig,
+        tracker: CostTracker | None = None,
+        router_config: RouterConfig | None = None,
+        *,
+        intent: CorpusIntent | None = None,
+    ) -> tuple[str, str]: ...
+
 
 # Each paper triggers a download + an LLM analysis call, so cap how many a single
 # (possibly prompt-injected) MCP call can process to bound cloud spend.
 _MAX_PAPERS = 25
 
 
-def _analyze_one(paper, topic, config, tracker, intent, *, analyze_paper) -> dict:
+def _analyze_one(
+    paper: PaperRecord,
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    intent: CorpusIntent | None,
+    *,
+    analyze_paper: PaperAnalyzer,
+) -> PaperResultRow:
     """Analyze one paper into its result row; budget aborts re-raise."""
     from distill.commands._paper_artifacts import write_paper_artifacts
 
@@ -34,9 +63,14 @@ def _analyze_one(paper, topic, config, tracker, intent, *, analyze_paper) -> dic
         return {"title": paper.title, "status": "error", "error": str(e)}
 
 
-@_server.mcp.tool()
-@_server.write_tool("papers")
-async def papers(topic: str, query: str, limit: int = 5, ctx: Context | None = None) -> str:
+@mcp.tool()
+@write_tool("papers")
+async def papers(
+    topic: str,
+    query: str,
+    limit: int = 5,
+    ctx: Context[Any, Any, Any] | None = None,
+) -> str:
     """Search arXiv, download, and analyze papers for a topic.
 
     Args:
@@ -44,7 +78,7 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context | None = N
         query: Search query for arXiv
         limit: Max papers to process
     """
-    config = _server._config()
+    config = load_config()
     if not model_available():
         return json.dumps(
             {
@@ -65,8 +99,8 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context | None = N
     except ImportError as e:
         return json.dumps({"status": "error", "error": f"Paper dependencies missing: {e}"})
 
-    tracker = _server.capped_tracker()
-    results = []
+    tracker = capped_tracker()
+    results: list[PaperResultRow] = []
 
     try:
         found = search_arxiv(query, max_results=limit * 2)
@@ -103,7 +137,7 @@ async def papers(topic: str, query: str, limit: int = 5, ctx: Context | None = N
             "status": "complete",
             "papers": results,
             "count": len(results),
-            "cost": _server._cost_summary(tracker),
+            "cost": cost_summary(tracker),
         },
         indent=2,
     )
