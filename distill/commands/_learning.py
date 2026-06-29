@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from rich import box
@@ -38,7 +39,7 @@ from distill.llm import call as llm_call
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
-from distill.pipeline.ranking import RankedPaper, chronological_rank, rerank_videos
+from distill.pipeline.ranking import RankedPaper, RankedVideo, chronological_rank, rerank_videos
 from distill.pipeline.report.briefing import generate_topic_brief
 from distill.pipeline.summary import RunSummary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
@@ -470,7 +471,7 @@ def _preview_learning_selection(
     expand: bool = True,
     top_by_date: bool = False,
     rigor: str = "off",
-):
+) -> tuple[DistillConfig, CostTracker, list[RankedVideo]]:
     return _learning_flow_support.preview_learning_selection(
         query,
         days=days,
@@ -487,6 +488,42 @@ def _preview_learning_selection(
         window_label=_window_label,
         select_learning_videos=_select_learning_videos,
         display_ranked_videos=_display_ranked_videos,
+        hours=hours,
+        skeptical=skeptical,
+        expand=expand,
+        top_by_date=top_by_date,
+        rigor=rigor,
+    )
+
+
+def preview_learning_selection(
+    query: str,
+    *,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    header: str,
+    table_title: str,
+    hours: int | None = None,
+    skeptical: bool | None = None,
+    expand: bool = True,
+    top_by_date: bool = False,
+    rigor: str = "off",
+) -> tuple[DistillConfig, CostTracker, list[RankedVideo]]:
+    """Public learning-preview command seam."""
+    return _preview_learning_selection(
+        query,
+        days=days,
+        limit=limit,
+        sort=sort,
+        per_channel_cap=per_channel_cap,
+        shorts=shorts,
+        rerank=rerank,
+        header=header,
+        table_title=table_title,
         hours=hours,
         skeptical=skeptical,
         expand=expand,
@@ -515,7 +552,7 @@ def _run_learning_command(
     expand: bool = True,
     focus: str | None = None,
     top_by_date: bool = False,
-    post_ingest_callback=None,
+    post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
     rigor: str = "off",
 ) -> None:
     _preflight()
@@ -542,6 +579,54 @@ def _run_learning_command(
         select_learning_videos=_select_learning_videos,
         display_ranked_videos=_display_ranked_videos,
         process_learning_selection=_process_learning_selection,
+        hours=hours,
+        skeptical=skeptical,
+        expand=expand,
+        focus=focus,
+        top_by_date=top_by_date,
+        post_ingest_callback=post_ingest_callback,
+        rigor=rigor,
+    )
+
+
+def run_learning_command(
+    query: str,
+    *,
+    topic: str | None,
+    days: int,
+    limit: int,
+    sort: str,
+    per_channel_cap: int,
+    shorts: bool,
+    rerank: bool,
+    save: bool,
+    report: bool,
+    test: bool,
+    generate_brief: bool,
+    header: str,
+    hours: int | None = None,
+    skeptical: bool | None = None,
+    expand: bool = True,
+    focus: str | None = None,
+    top_by_date: bool = False,
+    post_ingest_callback: Callable[[str, CostTracker], None] | None = None,
+    rigor: str = "off",
+) -> None:
+    """Public learning-ingest command seam."""
+    _run_learning_command(
+        query,
+        topic=topic,
+        days=days,
+        limit=limit,
+        sort=sort,
+        per_channel_cap=per_channel_cap,
+        shorts=shorts,
+        rerank=rerank,
+        save=save,
+        report=report,
+        test=test,
+        generate_brief=generate_brief,
+        header=header,
         hours=hours,
         skeptical=skeptical,
         expand=expand,

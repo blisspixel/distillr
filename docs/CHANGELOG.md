@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the learning-preview command group to Pyright strict mode. The
+  command now uses public typed learning-preview and learning-ingest helper
+  seams while preserving the legacy monkeypatch names used by tests.
 - Ratcheted the `distill eval` command to Pyright strict mode. Eval startup now
   uses a public shared preflight helper while preserving model selection, judge
   selection, cost estimate, report, and results-log behavior.
