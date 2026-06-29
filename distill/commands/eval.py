@@ -162,7 +162,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
 
         if cloud_ok and _neutral("grok-4.3"):
             judge = "grok-4.3"
-        elif _neutral(best_local or ""):
+        elif best_local is not None and _neutral(best_local):
             judge = best_local
         else:
             judge = ""

@@ -20,10 +20,12 @@ from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
     _resolve_intent,
-    _resolve_topic_for_channel,
     get_config,
 )
 from distill.commands._helpers import format_date as _format_date
+from distill.commands._topic_resolution import (
+    resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
+)
 from distill.library import Library
 from distill.library.paths import (
     base_frontmatter,
@@ -89,7 +91,7 @@ def resynthesize(
     config = get_config()
     _require_model()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     channels = lib.get_channels(topic)
     if not channels:
@@ -214,7 +216,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
     config = get_config()
     _require_model()
     lib = Library(config)
-    topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     channels = lib.get_channels(topic)
     if not channels:

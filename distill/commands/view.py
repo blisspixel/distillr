@@ -26,7 +26,6 @@ from distill.commands._helpers import (
     _complete_topics,
     _complete_watched_channels,
     _file_link,
-    _resolve_topic_for_channel,
     get_config,
 )
 from distill.commands._helpers import duration_str as _duration_str
@@ -41,6 +40,9 @@ from distill.commands._topic_changes import (
     _render_topic_trends_markdown,
     _resolve_topic_diff_baseline,
     _topic_change_history_path,
+)
+from distill.commands._topic_resolution import (
+    resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
 from distill.ingestors.youtube.discovery import resolve_channel_name
 from distill.library import Library
@@ -219,15 +221,6 @@ def _videos_payload(config, channels, topic: str, limit: int) -> dict:
         vids.sort(key=lambda v: v.get("upload_date") or "", reverse=True)
         out_channels.append({"channel": ch.name, "total": len(vids), "videos": vids[:limit]})
     return {"topic": topic, "channels": out_channels, "count": len(out_channels)}
-
-
-def _resolve_required_topic_for_channel(
-    lib: Library, topic: str, channel: str | None
-) -> tuple[str, str | None]:
-    resolved_topic, resolved_channel = _resolve_topic_for_channel(lib, topic, channel)
-    if resolved_topic is None:
-        raise typer.BadParameter("Topic is required")
-    return resolved_topic, resolved_channel
 
 
 def videos(  # noqa: C901 — legacy, will refactor

@@ -218,29 +218,6 @@ def _complete_topics(incomplete: str) -> list[str]:
         return []
 
 
-def _resolve_topic_for_channel(
-    lib: Library, topic: str | None, channel: str | None
-) -> tuple[str | None, str | None]:
-    """Auto-resolve topic when only a channel name is given.
-
-    If *topic* looks like a channel name (not a known topic), treat it as the
-    channel and resolve the topic from the library. Returns ``(topic, channel)``
-    with resolved values. (Cross-command helper, kept in the foundation so
-    command modules don't reach into ``_logic`` -- decomposition enabler.)
-    """
-    if topic and channel:
-        return topic, channel
-    if topic and not channel and topic not in lib.get_topics():
-        found = lib.find_channel(topic)
-        if found:
-            return found.topic, found.name
-    if channel and not topic:
-        found = lib.find_channel(channel)
-        if found:
-            return found.topic, found.name
-    return topic, channel
-
-
 def _file_link(path: Path) -> str:
     """Return a clickable ``file://`` link for terminals that support it."""
     resolved = path.resolve()

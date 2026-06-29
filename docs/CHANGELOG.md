@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the shared required-topic command resolver Pyright warning cluster by
+  promoting the non-null topic wrapper into a dedicated command helper module
+  and reusing it across view, process, report/export, reprocess, and open
+  command paths.
+- Cleared the eval command optional local-judge assignment warning while
+  preserving the existing neutral-judge selection behavior.
 - Cleared the doctor command importlib metadata Pyright warning by using a
   module-level metadata alias for dependency and transcription checks.
 - Cleared the topic-change and view-command Pyright warning cluster by parsing

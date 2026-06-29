@@ -25,8 +25,14 @@ from distill._version import get_version as _get_version
 from distill.banner import show_banner
 from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import require_model as _require_model
-from distill.commands._helpers import _complete_topics, _resolve_topic_for_channel, get_config
+from distill.commands._helpers import (
+    _complete_topics,
+    get_config,
+)
 from distill.commands._helpers import tty_confirm as _tty_confirm
+from distill.commands._topic_resolution import (
+    resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
+)
 
 # Dashboard renderers live in commands/dashboard.py.
 from distill.commands.dashboard import (
@@ -590,7 +596,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
     # --- Original open logic ---
     if topic:
         lib = Library(config)
-        topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+        topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     if what == "output" and not topic:
         target = config.library_dir.parent / "output"

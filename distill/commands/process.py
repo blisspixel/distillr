@@ -30,7 +30,6 @@ from distill.commands._helpers import (
     _file_link,
     _preflight,
     _resolve_intent,
-    _resolve_topic_for_channel,
     get_config,
 )
 from distill.commands._helpers import (
@@ -44,6 +43,9 @@ from distill.commands._helpers import (
 )
 from distill.commands._helpers import (
     run_scope_report as _run_scope_report,
+)
+from distill.commands._topic_resolution import (
+    resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
 from distill.ingestors.youtube.discovery import (
     discover_videos,
@@ -310,7 +312,7 @@ def run(  # noqa: C901 — legacy, will refactor
     config = get_config()
     lib = Library(config)
     if topic:
-        topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+        topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
     lookback = months if months is not None else config.distill_default_months
 
     if not topic and not all_topics:

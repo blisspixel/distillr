@@ -14,7 +14,13 @@ import typer
 
 from distill._console import console
 from distill.cli_shared import output_path as _output_path
-from distill.commands._helpers import _complete_topics, _resolve_topic_for_channel, get_config
+from distill.commands._helpers import (
+    _complete_topics,
+    get_config,
+)
+from distill.commands._topic_resolution import (
+    resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
+)
 from distill.commands.topic import (
     _collect_topic_bundle_files,
     _export_topic_bundle,
@@ -154,7 +160,7 @@ def report(  # noqa: C901 - legacy, will refactor
     config = get_config()
     if topic:
         lib = Library(config)
-        topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+        topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     if not config.gemini_api_key:
         console.print("[red]GEMINI_API_KEY required for deep research[/red]")
@@ -322,7 +328,7 @@ def export(
         (what == "bundle" and bundle_format == "okf" and topic.lower() == "all")
         or (what == "citations" and topic.lower() == "all")
     ):
-        topic, channel = _resolve_topic_for_channel(lib, topic, channel)
+        topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
     if what == "bundle":
         if bundle_format == "okf":

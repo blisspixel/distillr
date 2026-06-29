@@ -5,6 +5,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+import typer
 from rich.console import Console
 
 from distill._bootstrap import ensure_utf8_stdio
@@ -21,6 +22,9 @@ from distill.cli_shared import (
     write_video_metadata,
 )
 from distill.commands._helpers import _detect_ramp_source
+from distill.commands._topic_resolution import (
+    resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
+)
 
 
 class TestEnsureUtf8Stdio:
@@ -154,6 +158,28 @@ class TestDetectRampSource:
         assert _detect_ramp_source("https://arxiv.org.evil/abs/2601.00001") == "website"
         assert _detect_ramp_source("https://youtube.com.evil/watch?v=abc") == "website"
         assert _detect_ramp_source("https://youtu.be.evil/abc") == "website"
+
+
+class TestResolveRequiredTopicForChannel:
+    def test_resolves_channel_name_to_topic(self):
+        lib = SimpleNamespace(
+            get_topics=lambda: ["ai"],
+            find_channel=lambda name: SimpleNamespace(topic="research", name=name),
+        )
+
+        topic, channel = _resolve_required_topic_for_channel(lib, "NateBJones", None)
+
+        assert topic == "research"
+        assert channel == "NateBJones"
+
+    def test_rejects_missing_topic_after_resolution(self):
+        lib = SimpleNamespace(
+            get_topics=lambda: [],
+            find_channel=lambda _name: None,
+        )
+
+        with pytest.raises(typer.BadParameter, match="Topic is required"):
+            _resolve_required_topic_for_channel(lib, None, None)
 
 
 class TestWriteVideoMetadata:
