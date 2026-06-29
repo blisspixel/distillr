@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP `generate_report` and `resynthesize_topic` tools to
+  Pyright strict mode with public MCP config, registration, write-guard,
+  library, tracker, and cost-summary seams, plus typed resynthesis result rows.
 - Ratcheted the MCP `ask` tool to Pyright strict mode with public MCP config,
   registration, write-guard, tracker, and cost-summary seams, plus focused MCP
   response-shape coverage.
