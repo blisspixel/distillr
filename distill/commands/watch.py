@@ -213,8 +213,8 @@ def watch_add(
                     auto = generate_watch_instructions(name, titles, config)
                     if auto and auto.strip():
                         instructions = auto.strip()
-            except Exception:
-                pass  # Fall through with no instructions
+            except Exception as exc:
+                console.print(f"  [yellow]auto-instructions skipped: {exc}[/yellow]")
 
     if lib.add_to_watchlist(url, name, topic=topic, instructions=instructions, days=days_opt):
         console.print(f"  Watching [{_ACCENT}]{name}[/{_ACCENT}]  [dim]{topic} / {days_opt}d[/dim]")

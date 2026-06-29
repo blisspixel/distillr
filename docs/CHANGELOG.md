@@ -66,6 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Made `distill watch add` report auto-instruction generation failures instead
+  of silently swallowing discovery or instruction-model errors while still
+  adding the channel without generated instructions.
 - Cleared the remaining library Pyright warning tail by replacing the dynamic
   package export list with an explicit public surface, typing the python-docx
   factory/class boundary in the DOCX renderer, and setting paragraph spacing

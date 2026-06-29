@@ -209,6 +209,29 @@ class TestWatchAdd:
 
         assert result.exit_code == 0
         assert "Watching" in result.output
+        assert "auto-instructions skipped: discover fail" in result.output
+        assert Library(config).get_watchlist()[0].instructions == ""
+
+    def test_add_auto_instructions_generation_failure(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        self._patch(monkeypatch, config)
+        monkeypatch.setattr(watch_mod, "model_available", lambda: True)
+        monkeypatch.setattr(
+            watch_mod,
+            "discover_videos",
+            lambda url, months=1, quiet=True: [_video(title="Deal Roundup")],
+        )
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("generation fail")
+
+        monkeypatch.setattr("distill.pipeline.analysis.video.generate_watch_instructions", boom)
+
+        result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@NewWatch"])
+
+        assert result.exit_code == 0
+        assert "Watching" in result.output
+        assert "auto-instructions skipped: generation fail" in result.output
         assert Library(config).get_watchlist()[0].instructions == ""
 
     def test_add_duplicate(self, tmp_path, monkeypatch):
