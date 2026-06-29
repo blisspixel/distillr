@@ -684,7 +684,7 @@ class TestWatchAdd:
         assert result["status"] == "added"
         assert result["instructions"] == "Extract prices and store names"
 
-    def test_auto_generation_failures_are_ignored(self, mock_config):
+    def test_auto_generation_failures_are_reported(self, mock_config):
         Library(mock_config)
 
         with (
@@ -701,6 +701,7 @@ class TestWatchAdd:
 
         assert result["status"] == "added"
         assert result["instructions"] == "(none)"
+        assert result["warning"] == "Auto-instructions skipped: boom"
 
 
 class TestWatchRemove:

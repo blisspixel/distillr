@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP watch tools, `catch_up`, `watch_add`, and `watch_remove`,
+  to Pyright strict mode with public MCP config, registration, write-guard,
+  allowlist, library, tracker, and cost-summary seams. MCP `watch_add` now
+  reports skipped auto-instruction generation instead of silently discarding
+  the failure.
 - Ratcheted the MCP `papers` tool to Pyright strict mode with public MCP
   config, registration, write-guard, tracker, and cost-summary seams, typed
   paper result rows, and a typed paper-analysis callback contract.

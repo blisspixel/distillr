@@ -1,4 +1,5 @@
-"""MCP tools — watch: catch_up, watch_add, watch_remove."""
+# pyright: strict
+"""MCP tools -- watch: catch_up, watch_add, watch_remove."""
 
 from __future__ import annotations
 
@@ -7,17 +8,28 @@ import logging
 
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    library,
+    load_config,
+    mcp,
+    refuse_if_host_not_allowed,
+    write_tool,
+)
 from distill.pipeline.costs import BudgetExceededError, save_run_log
 
 logger = logging.getLogger(__name__)
 
 __all__: list[str] = []
 
+type CatchUpRow = dict[str, object]
+type ProcessedVideoRow = dict[str, str | bool]
 
-@_server.mcp.tool()
-@_server.write_tool("catch_up")
-def catch_up(  # noqa: C901 — legacy, will refactor
+
+@mcp.tool()
+@write_tool("catch_up")
+def catch_up(  # noqa: C901 - legacy, will refactor
     channel: str | None = None,
     topic: str | None = None,
     days: int | None = None,
@@ -34,11 +46,11 @@ def catch_up(  # noqa: C901 — legacy, will refactor
     from distill.pipeline.summary import ETATracker, RunSummary
     from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
-    config = _server._config()
+    config = load_config()
     if not model_available():
         return "Error: No model configured (set a cloud key or DISTILL_PROVIDER=ollama)."
 
-    lib = _server._lib(config)
+    lib = library(config)
     watchlist = lib.get_watchlist()
     if not watchlist:
         return "Watch list is empty. Use watch_add to start tracking channels."
@@ -52,9 +64,9 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         if not watchlist:
             return f"No watched channels in topic '{topic}'."
 
-    tracker = _server.capped_tracker()
+    tracker = capped_tracker()
     summary = RunSummary(command="catch-up")
-    results = []
+    results: list[CatchUpRow] = []
     topics_touched: set[str] = set()
 
     for entry in watchlist:
@@ -82,7 +94,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         # Process new videos
         ensure_channel_context(entry.topic, entry.name, new_vids, config, tracker)
         eta = ETATracker(total=len(new_vids))
-        processed = []
+        processed: list[ProcessedVideoRow] = []
         for vid in new_vids:
             success = process_video(
                 entry.topic,
@@ -126,11 +138,11 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             logger.warning("catch_up topic synthesis failed for %s: %s", t, exc)
 
     save_run_log(config.library_dir, summary.command, tracker)
-    return json.dumps({"results": results, "cost": _server._cost_summary(tracker)}, indent=2)
+    return json.dumps({"results": results, "cost": cost_summary(tracker)}, indent=2)
 
 
-@_server.mcp.tool()
-@_server.write_tool("watch_add")
+@mcp.tool()
+@write_tool("watch_add")
 def watch_add(
     url: str,
     topic: str = "watch",
@@ -147,12 +159,13 @@ def watch_add(
     """
     from distill.ingestors.youtube.discovery import discover_videos, resolve_channel_name
 
-    refusal = _server.refuse_if_host_not_allowed(url)
+    refusal = refuse_if_host_not_allowed(url)
     if refusal is not None:
         return refusal
-    config = _server._config()
-    lib = _server._lib(config)
+    config = load_config()
+    lib = library(config)
     name = resolve_channel_name(url)
+    instruction_warning = ""
 
     # Auto-generate instructions if none provided
     if not instructions and model_available():
@@ -164,35 +177,36 @@ def watch_add(
                 auto = generate_watch_instructions(name, [v.title for v in vids[:15]], config)
                 if auto and auto.strip():
                     instructions = auto.strip()
-        except Exception:
-            pass
+        except Exception as exc:
+            instruction_warning = f"Auto-instructions skipped: {exc}"
+            logger.warning("watch_add auto-instructions skipped for %s: %s", name, exc)
 
     if lib.add_to_watchlist(url, name, topic=topic, instructions=instructions, days=days):
-        return json.dumps(
-            {
-                "status": "added",
-                "name": name,
-                "topic": topic,
-                "days": days,
-                # Show the resolved instructions (user-provided or auto-generated),
-                # else "(none)". The prior `a or b if a else c` form left the middle
-                # branch unreachable; this is the behavior its test already pinned.
-                "instructions": instructions if instructions else "(none)",
-            },
-            indent=2,
-        )
+        response: dict[str, str | int] = {
+            "status": "added",
+            "name": name,
+            "topic": topic,
+            "days": days,
+            # Show the resolved instructions (user-provided or auto-generated),
+            # else "(none)". The prior `a or b if a else c` form left the middle
+            # branch unreachable; this is the behavior its test already pinned.
+            "instructions": instructions if instructions else "(none)",
+        }
+        if instruction_warning:
+            response["warning"] = instruction_warning
+        return json.dumps(response, indent=2)
     return json.dumps({"status": "already_watching", "name": name})
 
 
-@_server.mcp.tool()
-@_server.write_tool("watch_remove")
+@mcp.tool()
+@write_tool("watch_remove")
 def watch_remove(name: str) -> str:
     """Remove a channel from the watch list.
 
     Args:
         name: Channel name to remove
     """
-    lib = _server._lib()
+    lib = library()
     if lib.remove_from_watchlist(name):
         return json.dumps({"status": "removed", "name": name})
     return json.dumps({"status": "not_found", "name": name})
