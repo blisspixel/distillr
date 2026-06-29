@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP `okf_export` and `okf_validate` tools to Pyright strict
+  mode with public MCP config, registration, and write-guard seams.
 - Ratcheted the MCP `costs` tool to Pyright strict mode with parsed cost-log
   rows, public MCP config loading, and malformed spend-field tolerance.
 - Ratcheted the MCP JIT `find_insights` and `read_insight` tools to Pyright

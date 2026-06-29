@@ -1,3 +1,4 @@
+# pyright: strict
 """MCP tools — OKF export and validation."""
 
 from __future__ import annotations
@@ -6,14 +7,14 @@ import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from distill.library.okf import export_okf_bundle, validate_okf_bundle
-from distill.mcp import server as _server
+from distill.mcp.server import load_config, mcp, write_tool
 
 __all__: list[str] = []
 
 
 def _resolve_workspace_path(workspace: Path, path: str) -> Path | None:
     """Resolve a relative path under the Distill workspace root."""
-    if not path or not isinstance(path, str) or "\x00" in path:
+    if not path or "\x00" in path:
         return None
     windows_path = PureWindowsPath(path)
     if (
@@ -41,15 +42,15 @@ def _bundle_preview(output_dir: Path) -> str:
     return ""
 
 
-@_server.mcp.tool()
-@_server.write_tool("okf_export")
+@mcp.tool()
+@write_tool("okf_export")
 def okf_export(topic: str) -> str:
     """Export a topic (or ``all``) into an OKF v0.1 bundle under output/.
 
     Args:
         topic: Topic name, or ``all`` for the whole library
     """
-    config = _server._config()
+    config = load_config()
     normalized = topic.strip() or "all"
     try:
         result = export_okf_bundle(config, normalized)
@@ -70,14 +71,14 @@ def okf_export(topic: str) -> str:
     return json.dumps(payload, indent=2)
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def okf_validate(path: str) -> str:
     """Validate an OKF bundle directory (read-only structural check).
 
     Args:
         path: Workspace-relative path to the bundle, e.g. output/okf-ai
     """
-    config = _server._config()
+    config = load_config()
     workspace = config.library_dir.parent
     bundle_path = _resolve_workspace_path(workspace, path)
     if bundle_path is None or not bundle_path.is_dir():
