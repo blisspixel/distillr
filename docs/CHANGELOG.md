@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the dashboard command renderer to Pyright strict mode with explicit
+  dashboard list row types and a public HTML renderer seam for maintain commands.
 - Promoted the topic command group to Pyright strict mode with typed topic
   workflow rows, typed saved-profile parsing, and a public command dispatch
   seam for Typer default normalization.

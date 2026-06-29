@@ -1,9 +1,10 @@
+# pyright: strict
 """Operational home screen and HTML dashboard rendering.
 
 The no-argument ``distill`` invocation lands here: ``show_dashboard`` is the
 operational home screen, falling back to ``_show_first_run_home`` when the
 library is empty. ``maintain dashboard`` and ``maintain serve`` reuse the same
-shared snapshot and render it to HTML with ``_render_dashboard_html``.
+shared snapshot and render it to HTML with ``render_dashboard_html``.
 
 Data collection lives in ``distill.pipeline.dashboard_data`` (shared and tested
 there); this module formats the snapshot for the terminal and embedded HTML
@@ -108,7 +109,7 @@ def _show_first_run_home(version: str, help_hint: str = "distill --help for all 
     console.print(f"  [dim]{help_hint}[/dim]")
 
 
-def _show_dashboard():  # noqa: C901
+def _show_dashboard() -> None:  # noqa: C901
     """Show an operational home screen when running `distill` with no arguments."""
     version = _get_version()
 
@@ -212,7 +213,7 @@ def _show_dashboard():  # noqa: C901
     stay_current.add_column(style="bold cyan", width=14)
     stay_current.add_column()
     if topics:
-        topic_lines = []
+        topic_lines: list[str] = []
         for topic in topics[:6]:
             ch_count = len(lib.get_channels(topic))
             topic_lines.append(
@@ -224,7 +225,7 @@ def _show_dashboard():  # noqa: C901
     else:
         stay_current.add_row("Topics", "[dim]No topics yet[/dim]")
     if watchlist:
-        channel_lines = []
+        channel_lines: list[str] = []
         for entry in watchlist[:5]:
             suffix = " / custom" if entry.instructions else ""
             channel_lines.append(f"{entry.name} [dim]{entry.topic} / {entry.days}d{suffix}[/dim]")
@@ -234,7 +235,7 @@ def _show_dashboard():  # noqa: C901
     else:
         stay_current.add_row("Channel Watch", "[dim]No channel watches configured[/dim]")
     if topic_watchlist:
-        topic_watch_lines = []
+        topic_watch_lines: list[str] = []
         for entry in topic_watchlist[:5]:
             mode = "report" if entry.report else "learn"
             ranking_label = topic_watch_ranking_strategy(entry.ranking_mode)["label"]
@@ -242,7 +243,7 @@ def _show_dashboard():  # noqa: C901
             last = (
                 f" / last {_format_run_timestamp(entry.last_run_at)}" if entry.last_run_at else ""
             )
-            budget_bits = []
+            budget_bits: list[str] = []
             if entry.max_run_cost:
                 budget_bits.append(f"max ${entry.max_run_cost:.2f}/run")
             if entry.monthly_budget:
@@ -308,7 +309,7 @@ def _show_dashboard():  # noqa: C901
         (f"{synthesis_count} topic syntheses\n{report_count} reports / {brief_count} briefs"),
     )
     if recent_artifacts:
-        top_artifacts = []
+        top_artifacts: list[str] = []
         for _mtime, kind, label in recent_artifacts[:4]:
             top_artifacts.append(f"{label} [dim]({kind})[/dim]")
         learn_fast.add_row("Newest Work", "\n".join(top_artifacts))
@@ -465,7 +466,7 @@ def _dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     return _shared_dashboard_snapshot(config)
 
 
-def _render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # noqa: C901
+def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # noqa: C901
     def list_items(items: list[str]) -> str:
         if not items:
             return "<li>None</li>"
@@ -492,7 +493,7 @@ def _render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  #
     channel_watch_lines = [
         f"{entry.name} - {entry.topic} / {entry.days}d" for entry in snapshot["watchlist"][:8]
     ]
-    topic_watch_lines = []
+    topic_watch_lines: list[str] = []
     for entry in snapshot["topic_watchlist"][:8]:
         bits = [entry.topic, entry.cadence, f"{entry.days}d", f"{entry.limit} picks"]
         if entry.max_run_cost:
@@ -519,7 +520,7 @@ def _render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  #
         or "<tr><td>-</td><td>No runs logged yet</td><td>-</td><td>-</td></tr>"
     )
 
-    changed_lines = []
+    changed_lines: list[str] = []
     for topic, summary in snapshot["topic_changes"]:
         trend_label = (snapshot.get("topic_trends") or {}).get(topic)
         if trend_label:
@@ -531,7 +532,7 @@ def _render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  #
             f"{kind}: {label} {mtime.strftime('%b %d %I:%M %p')}"
             for mtime, kind, label in snapshot["recent_artifacts"]
         ]
-    attention_lines = []
+    attention_lines: list[str] = []
     if snapshot["latest_results"].get("failed"):
         attention_lines.append(
             f"Latest run failed items: {snapshot['latest_results'].get('failed')}"
@@ -654,3 +655,6 @@ def _render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  #
   </div>
 </body>
 </html>"""
+
+
+_render_dashboard_html = render_dashboard_html
