@@ -1,13 +1,14 @@
+# pyright: strict
 """MCP prompts — prompt definitions for the Distill MCP server."""
 
 from __future__ import annotations
 
-from distill.mcp import server as _server
+from distill.mcp.server import mcp
 
 __all__: list[str] = []
 
 
-@_server.mcp.prompt()
+@mcp.prompt()
 def daily_deals(channel: str) -> str:
     """Get today's deals from a watched channel.
 
@@ -24,7 +25,7 @@ def daily_deals(channel: str) -> str:
     )
 
 
-@_server.mcp.prompt()
+@mcp.prompt()
 def morning_briefing() -> str:
     """Catch up on all watched channels and summarize what's new."""
     return (
@@ -44,7 +45,7 @@ def morning_briefing() -> str:
     )
 
 
-@_server.mcp.prompt()
+@mcp.prompt()
 def topic_gap_review(topic: str) -> str:
     """Review what a tracked topic is missing before triggering more work."""
     return (
@@ -55,7 +56,7 @@ def topic_gap_review(topic: str) -> str:
     )
 
 
-@_server.mcp.prompt()
+@mcp.prompt()
 def topic_research(query: str) -> str:
     """Research a topic from YouTube content end-to-end."""
     return (

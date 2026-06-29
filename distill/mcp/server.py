@@ -18,7 +18,7 @@ from distill.library import Library
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.gaps import topic_gap_summary, topic_source_inventory, video_list
 
-__all__ = ["main", "mcp"]
+__all__ = ["load_config", "main", "mcp"]
 
 mcp = FastMCP(
     "Distill",
@@ -35,6 +35,11 @@ mcp = FastMCP(
 def _config() -> DistillConfig:
     load_dotenv()
     return DistillConfig()
+
+
+def load_config() -> DistillConfig:
+    """Load MCP server configuration with environment files applied."""
+    return _config()
 
 
 def _refuse_if_read_only(action: str) -> str | None:

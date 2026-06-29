@@ -37,6 +37,7 @@ from distill.mcp.server import (
     _topic_gap_summary,
     _topic_source_inventory,
     _video_list,
+    load_config,
     main,
 )
 from distill.mcp.tools.discover import learn_topic, search_videos
@@ -146,6 +147,14 @@ class TestConfigHelpers:
         assert result is fake_config
         mock_load.assert_called_once_with()
         mock_ctor.assert_called_once_with()
+
+    def test_public_load_config_uses_shared_loader(self):
+        fake_config = MagicMock()
+        with patch("distill.mcp.server._config", return_value=fake_config) as mock_config:
+            result = load_config()
+
+        assert result is fake_config
+        mock_config.assert_called_once_with()
 
     def test_lib_uses_explicit_config(self, mock_config):
         lib = _lib(mock_config)

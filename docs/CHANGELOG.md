@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP package marker, prompt definitions, and `research_gaps`
+  tool to Pyright strict mode, with a public server config-loading seam for
+  tool modules that should not reach through private server helpers.
 - Ratcheted `distill.pipeline.summary` to Pyright strict mode, with typed
   run-summary defaults and observable debug logging for non-fatal cost-log
   write failures.
