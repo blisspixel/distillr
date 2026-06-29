@@ -1,3 +1,4 @@
+# pyright: strict
 """``distill audit`` -- the self-maintaining health check, with a report artifact.
 
 Composes the scattered health signals (``distill health`` warnings, contested
@@ -12,6 +13,7 @@ Deterministic and free: no model calls anywhere in an audit run.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import typer
@@ -19,7 +21,9 @@ import typer
 from distill._console import console, set_json_mode
 from distill.commands._helpers import _complete_topics, get_config, tty_prompt
 from distill.commands._json import emit_json, json_mode_active, set_json_active
+from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.links import BrokenLink, LinkCheckResult
 from distill.pipeline.audit import (
     AuditReport,
     ContestedFinding,
@@ -38,6 +42,10 @@ from distill.pipeline.dedup import collect_near_duplicates
 
 __all__ = ["audit_cmd", "register"]
 
+type _ActionHandler = Callable[
+    [DistillConfig, list[str], list[AuditReport], LinkCheckResult, str], None
+]
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -52,7 +60,7 @@ def _resolve_next_action_mode(json_output: bool, next_actions: bool) -> tuple[bo
     return next_actions or wants_json, wants_json
 
 
-def _emit_empty_plan(config, topic: str, generated_at: str) -> None:
+def _emit_empty_plan(config: DistillConfig, topic: str, generated_at: str) -> None:
     emit_json(
         build_next_action_plan(
             config.library_dir,
@@ -63,7 +71,12 @@ def _emit_empty_plan(config, topic: str, generated_at: str) -> None:
     )
 
 
-def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport:
+def _build_report(
+    config: DistillConfig,
+    lib: Library,
+    topic: str,
+    broken_by_topic: dict[str, list[BrokenLink]],
+) -> AuditReport:
     from distill.concepts.contradictions import find_contested
     from distill.pipeline.dashboard_data import collect_corpus_health_warnings
     from distill.pipeline.gaps import topic_gap_summary
@@ -81,12 +94,11 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
     ]
     try:
         gap_summary = topic_gap_summary(config, topic)
-    except Exception as exc:
-        gap_summary = {
-            "gaps": [],
-            "next_actions": [],
-            "_error": f"gap summary unavailable: {exc}",
-        }
+        gaps = gap_summary["gaps"]
+        gap_next_actions = gap_summary["next_actions"]
+    except Exception:
+        gaps = []
+        gap_next_actions = []
     return AuditReport(
         topic=topic,
         health_warnings=collect_corpus_health_warnings(
@@ -98,8 +110,8 @@ def _build_report(config, lib, topic: str, broken_by_topic: dict) -> AuditReport
         ),
         contested=contested,
         broken_links=broken_by_topic.get(topic, []),
-        gaps=list(gap_summary.get("gaps", [])),
-        next_actions=list(gap_summary.get("next_actions", [])),
+        gaps=gaps,
+        next_actions=gap_next_actions,
         verify=collect_verify_rollup(topic_dir),
         staleness=collect_staleness(topic_dir),
         near_duplicates=collect_near_duplicates(topic_dir),
@@ -192,7 +204,9 @@ def audit_cmd(
     _action_menu(config, topics, reports, link_result, now_iso)
 
 
-def _write_topic_audit_report(config, report: AuditReport, *, now_iso: str, quiet: bool) -> None:
+def _write_topic_audit_report(
+    config: DistillConfig, report: AuditReport, *, now_iso: str, quiet: bool
+) -> None:
     path = write_audit_artifact(config.topic_dir(report.topic), report, now_iso=now_iso)
     if quiet:
         return
@@ -211,7 +225,7 @@ def _write_topic_audit_report(config, report: AuditReport, *, now_iso: str, quie
     console.print(f"  [dim]{path}[/dim]")
 
 
-def _write_library_audit(config, now_iso: str, *, quiet: bool = False) -> None:
+def _write_library_audit(config: DistillConfig, now_iso: str, *, quiet: bool = False) -> None:
     """The library-wide hygiene view that ends every ``audit all`` run."""
     from distill.library.paths import atomic_write_text
 
@@ -241,9 +255,9 @@ def _print_next_action_plan(plan: NextActionPlan) -> None:
         console.print(f"    verifier: {' '.join(action.verifier.command)}")
 
 
-def _bucket_broken_links(broken_links: list) -> dict[str, list]:
+def _bucket_broken_links(broken_links: list[BrokenLink]) -> dict[str, list[BrokenLink]]:
     """Bucket one library-wide link scan per topic by source-file path."""
-    by_topic: dict[str, list] = {}
+    by_topic: dict[str, list[BrokenLink]] = {}
     for bl in broken_links:
         parts = bl.source_file.parts
         if "topics" in parts and parts.index("topics") + 1 < len(parts):
@@ -251,14 +265,26 @@ def _bucket_broken_links(broken_links: list) -> dict[str, list]:
     return by_topic
 
 
-def _act_fix_links(config, topics, reports, link_result, now_iso):
+def _act_fix_links(
+    config: DistillConfig,
+    topics: list[str],
+    reports: list[AuditReport],
+    link_result: LinkCheckResult,
+    now_iso: str,
+) -> None:
     from distill.library.links import fix_broken_links
 
     fixed = fix_broken_links(config.library_dir, link_result.broken_links)
     console.print(f"[green]Fixed {fixed} link(s).[/green]")
 
 
-def _act_orientation(config, topics, reports, link_result, now_iso):
+def _act_orientation(
+    config: DistillConfig,
+    topics: list[str],
+    reports: list[AuditReport],
+    link_result: LinkCheckResult,
+    now_iso: str,
+) -> None:
     from distill.library import claude_md
 
     for t in topics:
@@ -267,7 +293,13 @@ def _act_orientation(config, topics, reports, link_result, now_iso):
     console.print("[green]Orientation files regenerated.[/green]")
 
 
-def _act_gaps(config, topics, reports, link_result, now_iso):
+def _act_gaps(
+    config: DistillConfig,
+    topics: list[str],
+    reports: list[AuditReport],
+    link_result: LinkCheckResult,
+    now_iso: str,
+) -> None:
     for r in reports:
         if r.gaps:
             console.print(
@@ -275,7 +307,13 @@ def _act_gaps(config, topics, reports, link_result, now_iso):
             )
 
 
-def _act_stale(config, topics, reports, link_result, now_iso):
+def _act_stale(
+    config: DistillConfig,
+    topics: list[str],
+    reports: list[AuditReport],
+    link_result: LinkCheckResult,
+    now_iso: str,
+) -> None:
     from distill.pipeline.audit import reanalysis_commands
 
     for r in reports:
@@ -284,18 +322,25 @@ def _act_stale(config, topics, reports, link_result, now_iso):
                 console.print(f"  [cyan]{line}[/cyan]")
 
 
-def _act_freshness(config, topics, reports, link_result, now_iso):
+def _act_freshness(
+    config: DistillConfig,
+    topics: list[str],
+    reports: list[AuditReport],
+    link_result: LinkCheckResult,
+    now_iso: str,
+) -> None:
     for r in reports:
         if r.freshness.stale:
             console.print(f"  [cyan]distill corpus {r.topic}[/cyan]")
         for item in r.freshness.shadowed_legacy:
-            legacy_path = config.topic_dir(r.topic) / item["legacy"]
+            active_name = str(item.get("active", ""))
+            legacy_path = config.topic_dir(r.topic) / str(item.get("legacy", ""))
             console.print(
-                f"  [dim]superseded by {item['active']}; remove by hand:[/dim] {legacy_path}"
+                f"  [dim]superseded by {active_name}; remove by hand:[/dim] {legacy_path}"
             )
 
 
-_ACTIONS = {
+_ACTIONS: dict[str, _ActionHandler] = {
     "fix-links": _act_fix_links,
     "orientation": _act_orientation,
     "gaps": _act_gaps,
@@ -304,7 +349,13 @@ _ACTIONS = {
 }
 
 
-def _action_menu(config, topics: list[str], reports: list[AuditReport], link_result, now_iso: str):
+def _action_menu(
+    config: DistillConfig,
+    topics: list[str],
+    reports: list[AuditReport],
+    link_result: LinkCheckResult,
+    now_iso: str,
+) -> None:
     """Phase 2: only safe, free actions execute directly; anything that would
     spend money is printed as a command, never run."""
     options: list[tuple[str, str]] = []
