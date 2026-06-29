@@ -1,3 +1,4 @@
+# pyright: strict
 """``distill init`` -- guided, idempotent first-run setup.
 
 Creates a ``.env`` (without ever clobbering an existing one), helps pick the
@@ -13,12 +14,29 @@ manual next steps. Registered onto the app from ``distill.cli`` (mirroring
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal, NotRequired, TypedDict
 
 import typer
 
 from distill._console import console
 from distill.commands._helpers import tty_confirm, tty_prompt
 from distill.commands._json import emit_json, json_mode_active
+
+type InitProvider = Literal["cloud", "local"]
+
+
+class InitState(TypedDict):
+    env_file: str
+    env_created: bool
+    provider: InitProvider
+    xai_key: str
+    local: str
+    browser: str
+    ready: bool
+    next: str
+    blocking: list[str]
+    local_reachable: NotRequired[bool]
+
 
 __all__ = ["init_cmd", "register"]
 
@@ -131,9 +149,9 @@ def _validate_xai() -> tuple[str, str]:
     """Live-validate the XAI key via the canonical doctor checker (so init and
     doctor can't drift). Lazy import keeps init load-light."""
     from distill.commands._helpers import get_config
-    from distill.doctor.checks import _doctor_validate_key
+    from distill.doctor.checks import doctor_validate_key
 
-    return _doctor_validate_key("xai", get_config())
+    return doctor_validate_key("xai", get_config())
 
 
 _KEY_LABEL = {
@@ -144,7 +162,7 @@ _KEY_LABEL = {
 }
 
 
-def _emit_verdict(state: dict) -> None:
+def _emit_verdict(state: InitState) -> None:
     if json_mode_active():
         emit_json(state)
         return
@@ -222,11 +240,11 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
 
     # 2. Provider choice (cloud is the default; honor an explicit flag or --yes).
     if provider in ("cloud", "local"):
-        choice = provider
+        choice: InitProvider = "local" if provider == "local" else "cloud"
     elif yes:
         choice = "cloud"
     else:
-        choice = (
+        prompt_choice = (
             tty_prompt(
                 "Provider -- cloud (xAI) or local (ollama/lmstudio)?",
                 default="cloud",
@@ -235,9 +253,9 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
             .strip()
             .lower()
         )
-        choice = "local" if choice.startswith("l") else "cloud"
+        choice = "local" if prompt_choice.startswith("l") else "cloud"
 
-    state: dict = {
+    state: InitState = {
         "env_file": str(env_path),
         "env_created": created,
         "provider": choice,

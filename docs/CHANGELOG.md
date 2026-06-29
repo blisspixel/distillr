@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the first-run init command and concepts command group to Pyright
+  strict mode. Init now uses the public doctor key-validation seam and a typed
+  setup-verdict payload for JSON and console output.
 - Ratcheted the learning-preview command group to Pyright strict mode. The
   command now uses public typed learning-preview and learning-ingest helper
   seams while preserving the legacy monkeypatch names used by tests.

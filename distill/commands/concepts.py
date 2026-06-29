@@ -1,3 +1,4 @@
+# pyright: strict
 """``distill concepts`` subcommands: build + the recovery surface (log/diff/rollback).
 
 This module owns the ``concepts_app`` group plus the commands attached to it.
