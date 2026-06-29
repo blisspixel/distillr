@@ -1,3 +1,4 @@
+# pyright: strict
 """MCP tools -- sub-agent surface: list_topics and bounded summaries.
 
 The bounded half of the JIT read layer (roadmap 0.12 "Sub-agent-friendly MCP
@@ -15,7 +16,7 @@ from pathlib import Path
 
 from distill.library.claude_md import count_topic_sources, topic_summary_line
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
+from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
 
 __all__: list[str] = []
 
@@ -27,7 +28,7 @@ def _has_synthesis(topic_dir: Path) -> bool:
     )
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def list_topics(limit: int = 50) -> str:
     """List available corpus topics (free, no model call).
 
@@ -38,7 +39,7 @@ def list_topics(limit: int = 50) -> str:
     Args:
         limit: Maximum topics to return, sorted by name. Clamped to 1..200.
     """
-    config = _server._config()
+    config = load_config()
     topics_dir = config.topics_dir()
     limit = max(1, min(int(limit), 200))
     if not topics_dir.is_dir():
@@ -51,7 +52,7 @@ def list_topics(limit: int = 50) -> str:
             indent=2,
         )
 
-    rows: list[dict] = []
+    rows: list[dict[str, object]] = []
     for topic_dir in sorted(
         (p for p in topics_dir.iterdir() if p.is_dir() and not p.name.startswith(".")),
         key=lambda p: p.name.lower(),
@@ -72,7 +73,7 @@ def list_topics(limit: int = 50) -> str:
         if len(rows) >= limit:
             break
 
-    response = {"topics": rows, "count": len(rows)}
+    response: dict[str, object] = {"topics": rows, "count": len(rows)}
     if not rows:
         response["message"] = (
             "No populated topics found. Ingest sources first or set DISTILL_OUTPUT_DIR to the corpus library."
@@ -80,8 +81,8 @@ def list_topics(limit: int = 50) -> str:
     return json.dumps(response, indent=2)
 
 
-@_server.mcp.tool()
-@_server.write_tool("find_insights_summary")
+@mcp.tool()
+@write_tool("find_insights_summary")
 def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str:
     """Summarize a topic's best-matching insights, focused on a query, within a token budget.
 
@@ -97,7 +98,7 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
     """
     from distill.pipeline.summary_query import summarize_query
 
-    config = _server._config()
+    config = load_config()
     if not model_available():
         return json.dumps(
             {
@@ -110,7 +111,7 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
     max_tokens = max(500, min(int(max_tokens), 16_000))
 
-    tracker = _server.capped_tracker()
+    tracker = capped_tracker()
     result = summarize_query(config, topic, query, max_tokens=max_tokens, tracker=tracker)
     if result is None:
         return json.dumps(
@@ -123,13 +124,13 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
             "sources": result.sources,
             "cached": result.cached,
             "model": result.model,
-            "cost": _server._cost_summary(tracker),
+            "cost": cost_summary(tracker),
         },
         indent=2,
     )
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def list_topic_summary(topic: str) -> str:
     """One-paragraph orientation for a topic (free, no model call).
 
@@ -141,7 +142,7 @@ def list_topic_summary(topic: str) -> str:
     """
     from distill.library.paths import strip_frontmatter
 
-    config = _server._config()
+    config = load_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
