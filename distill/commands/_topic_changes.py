@@ -1,3 +1,4 @@
+# pyright: strict
 """Topic change and trend helpers for the Distill CLI."""
 
 from __future__ import annotations
@@ -114,12 +115,16 @@ def _topic_diff_output_path(config: DistillConfig, topic: str) -> Path:
     return artifact_path(config.topic_dir(topic), "topic_diff", identity=topic)
 
 
-def _topic_trends_output_path(config: DistillConfig, topic: str) -> Path:
+def topic_trends_output_path(config: DistillConfig, topic: str) -> Path:
     return artifact_path(config.topic_dir(topic), "topic_trends", identity=topic)
 
 
-def _watch_alerts_output_path(config: DistillConfig) -> Path:
+def watch_alerts_output_path(config: DistillConfig) -> Path:
     return artifact_path(config.library_dir, "watch_alerts", identity="library")
+
+
+_topic_trends_output_path = topic_trends_output_path
+_watch_alerts_output_path = watch_alerts_output_path
 
 
 def _relative_library_path(config: DistillConfig, path_obj: Path) -> str:
@@ -351,7 +356,7 @@ def _collect_topic_change_details(  # noqa: C901 — legacy, will refactor
     refreshed_outputs.sort(key=lambda item: item["changed_at"], reverse=True)
 
     if new_videos or new_pages or new_papers or refreshed_outputs:
-        parts = []
+        parts: list[str] = []
         if new_videos:
             parts.append(f"+{len(new_videos)} video{'s' if len(new_videos) != 1 else ''}")
         if new_pages:
@@ -391,11 +396,14 @@ def collect_topic_change_details(
     return _collect_topic_change_details(config, lib, topic, baseline)
 
 
-def _topic_change_snapshot(
+def topic_change_snapshot(
     config: DistillConfig, lib: Library, topic: str, baseline: datetime | None
 ) -> tuple[datetime | None, str]:
     details = _collect_topic_change_details(config, lib, topic, baseline)
     return details["last_change"], details["summary"]
+
+
+_topic_change_snapshot = topic_change_snapshot
 
 
 def _render_topic_diff_markdown(
@@ -665,7 +673,7 @@ def write_watch_alert_digest(
     )
 
 
-def _render_topic_trends_markdown(
+def render_topic_trends_markdown(
     config: DistillConfig,
     *,
     topic: str,
@@ -744,6 +752,9 @@ def _render_topic_trends_markdown(
         ]
     )
     return "\n".join(lines)
+
+
+_render_topic_trends_markdown = render_topic_trends_markdown
 
 
 def _write_topic_change_briefing(
@@ -915,7 +926,7 @@ def write_topic_change_briefing(
     )
 
 
-def _resolve_topic_diff_baseline(
+def resolve_topic_diff_baseline(
     lib: Library,
     topic: str,
     *,
@@ -944,3 +955,6 @@ def _resolve_topic_diff_baseline(
         return _parse_run_datetime(entry.last_run_at), entry.name, entry.query, entry.cadence
 
     return datetime.now() - timedelta(days=days), None, None, None
+
+
+_resolve_topic_diff_baseline = resolve_topic_diff_baseline

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the topic-change command helper to Pyright strict mode with public
+  seams for topic trend paths, watch alert paths, snapshots, trend rendering,
+  and baseline resolution while preserving legacy CLI compatibility aliases.
 - Promoted the learning helper module to Pyright strict mode with typed LLM
   query-expansion JSON parsing, recent-video filtering, de-duplication, and
   ranked-video display boundaries.

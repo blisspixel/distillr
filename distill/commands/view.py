@@ -37,9 +37,13 @@ from distill.commands._topic_changes import (
     _collect_topic_change_details,
     _load_topic_change_history,
     _render_topic_diff_markdown,
-    _render_topic_trends_markdown,
-    _resolve_topic_diff_baseline,
     _topic_change_history_path,
+)
+from distill.commands._topic_changes import (
+    render_topic_trends_markdown as _render_topic_trends_markdown,
+)
+from distill.commands._topic_changes import (
+    resolve_topic_diff_baseline as _resolve_topic_diff_baseline,
 )
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
