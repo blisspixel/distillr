@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ran the scheduled maintenance sweep and ratcheted the MCP `doctor` tool to
+  Pyright strict mode with typed check rows, public key-validation access, and
+  import-free Playwright availability probing.
 - Ratcheted the MCP package marker, prompt definitions, and `research_gaps`
   tool to Pyright strict mode, with a public server config-loading seam for
   tool modules that should not reach through private server helpers.

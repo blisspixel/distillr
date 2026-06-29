@@ -12,7 +12,11 @@ present the results.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from distill.config import DistillConfig
+
+type DoctorKeyStatus = Literal["ok", "invalid", "unknown", "missing", "not_set"]
 
 
 def check_retired_models(config: DistillConfig) -> list[str]:
@@ -60,7 +64,12 @@ def _doctor_key_auth_rejected(exc: Exception) -> bool:
     return status in (401, 403)
 
 
-def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[str, str]:  # pyright: ignore[reportUnusedFunction] "called via doctor command (commands/doctor.py and mcp) through dynamic lookup; not direct in this module"
+def doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
+    """Public API-key validation seam for CLI and MCP doctor surfaces."""
+    return _doctor_validate_key(provider, config)
+
+
+def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKeyStatus, str]:  # pyright: ignore[reportUnusedFunction] "called via doctor command (commands/doctor.py and mcp) through dynamic lookup; not direct in this module"
     """Live-validate one provider's API key with a minimal request.
 
     Returns ``(status, detail)`` where ``status`` is one of:

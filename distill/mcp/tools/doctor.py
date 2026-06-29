@@ -1,34 +1,52 @@
+# pyright: strict
 """MCP tools — doctor: check environment health."""
 
 from __future__ import annotations
 
 import json
 import shutil
+from importlib.util import find_spec
+from typing import Literal, NotRequired, TypedDict
 
-from distill.mcp import server as _server
+from distill.doctor.checks import doctor_validate_key
+from distill.mcp.server import load_config, mcp
+
+type DoctorCheckStatus = Literal[
+    "ok", "optional", "not_set", "missing", "invalid", "unknown", "warning"
+]
+
+
+class DoctorCheck(TypedDict):
+    check: str
+    status: DoctorCheckStatus
+    detail: NotRequired[str]
+    path: NotRequired[str]
+    field: NotRequired[str]
+    model: NotRequired[str]
+    retirement_date: NotRequired[str]
+    replacement: NotRequired[str]
+
 
 __all__: list[str] = []
 
 
-@_server.mcp.tool()
+@mcp.tool()
 def doctor() -> str:
     """Check environment health: API keys, yt-dlp, dependencies."""
-    config = _server._config()
-    checks: list[dict] = []
+    config = load_config()
+    checks: list[DoctorCheck] = []
 
     # API keys -- live-validated via the shared CLI helper so the MCP doctor,
     # the CLI doctor, and the --json path never disagree about key health.
     # Presence alone is not health: a revoked/expired key is present but dead,
     # and reporting it "ok" is the false-green this tool used to produce.
-    from distill.doctor.checks import _doctor_validate_key
-
     for provider, label in (
         ("xai", "xai_api_key"),
         ("gemini", "gemini_api_key"),
         ("openai", "openai_api_key"),
     ):
-        status, detail = _doctor_validate_key(provider, config)
-        entry: dict = {"check": label, "status": status}
+        status, detail = doctor_validate_key(provider, config)
+        entry: DoctorCheck = {"check": label, "status": status}
         if status in ("invalid", "unknown"):
             entry["detail"] = detail[:120]
         checks.append(entry)
@@ -54,12 +72,12 @@ def doctor() -> str:
     )
 
     # Playwright
-    try:
-        import playwright  # noqa: F401
-
-        checks.append({"check": "playwright", "status": "ok"})
-    except ImportError:
-        checks.append({"check": "playwright", "status": "missing"})
+    checks.append(
+        {
+            "check": "playwright",
+            "status": "ok" if find_spec("playwright") else "missing",
+        }
+    )
 
     # Retired models
     from distill.llm.router import RETIRED_MODELS, RETIREMENT_DATE
