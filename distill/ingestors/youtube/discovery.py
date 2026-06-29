@@ -8,6 +8,16 @@ from datetime import datetime, timedelta
 import yt_dlp
 
 from distill._console import console
+from distill.ingestors.youtube._yt_dlp_boundary import (
+    YtDlpInfo,
+    date_range,
+    first_text,
+    info_entries,
+    info_mapping,
+    int_field,
+    text_field,
+    ydl_params,
+)
 
 __all__ = [
     "VideoInfo",
@@ -119,8 +129,8 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
             console.print(f"  [dim]Scanning {tab} tab for content after {cutoff_str}...[/dim]")
 
         try:
-            ydl_opts = {
-                "daterange": yt_dlp.utils.DateRange(cutoff_str),
+            ydl_opts: dict[str, object] = {
+                "daterange": date_range(cutoff_str),
                 "quiet": True,
                 "no_warnings": True,
                 "extract_flat": False,
@@ -129,17 +139,14 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
                 "playlistend": playlist_depth,
                 "logger": _QuietLogger("yt-dlp"),
             }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(scan_url, download=False)
+            with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+                info = info_mapping(ydl.extract_info(scan_url, download=False))
 
-                if not info:
+                if info is None:
                     continue
 
                 entries = info.get("entries")
-                if entries is None:
-                    continue
-
-                for entry in entries:
+                for entry in info_entries(entries):
                     video = _entry_to_video_info(entry)
                     if not video:
                         continue
@@ -194,15 +201,15 @@ def get_video_info(video_url: str) -> VideoInfo | None:
     if not is_youtube_url(video_url):
         console.print(f"[red]Refusing non-YouTube URL: {video_url}[/red]")
         return None
-    ydl_opts = {
+    ydl_opts: dict[str, object] = {
         "quiet": True,
         "no_warnings": True,
     }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=False)
-            if not info:
+        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+            info = info_mapping(ydl.extract_info(video_url, download=False))
+            if info is None:
                 return None
             return _entry_to_video_info(info, fallback_url=video_url)
     except Exception as e:
@@ -245,7 +252,7 @@ def search_videos(
     search_expr = _search_expression(query, search_limit, sort)
     cutoff = datetime.now() - timedelta(days=days)
 
-    ydl_opts = {
+    ydl_opts: dict[str, object] = {
         "quiet": True,
         "no_warnings": True,
         "extract_flat": False,
@@ -260,19 +267,19 @@ def search_videos(
     )
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_expr, download=False)
+        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+            info = info_mapping(ydl.extract_info(search_expr, download=False))
     except Exception as e:
         console.print(f"  [red]Search error: {e}[/red]")
         if _looks_like_extractor_failure(str(e)):
             _print_extractor_hint()
         return []
 
-    if not info or info.get("entries") is None:
+    if info is None:
         return []
 
     candidates = []
-    for entry in info.get("entries") or []:
+    for entry in info_entries(info.get("entries")):
         video = _entry_to_video_info(entry)
         if not video:
             continue
@@ -297,9 +304,12 @@ def resolve_channel_name(channel_url: str) -> str:
     if not is_youtube_url(channel_url):
         return "unknown"
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True}) as ydl:
-            info = ydl.extract_info(channel_url, download=False)
-            return info.get("channel", info.get("uploader", "unknown"))
+        ydl_opts: dict[str, object] = {"quiet": True, "no_warnings": True, "extract_flat": True}
+        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+            info = info_mapping(ydl.extract_info(channel_url, download=False))
+            if info is None:
+                return "unknown"
+            return first_text(info, ("channel", "uploader"), "unknown")
     except Exception:
         return "unknown"
 
@@ -309,36 +319,34 @@ def _search_expression(query: str, limit: int, sort: str) -> str:
     return f"{prefix}{limit}:{query}"
 
 
-def _entry_to_video_info(entry: dict | None, fallback_url: str = "") -> VideoInfo | None:
+def _entry_to_video_info(entry: YtDlpInfo | None, fallback_url: str = "") -> VideoInfo | None:
     if not entry:
         return None
 
-    video_id = entry.get("id", "")
-    upload_date = entry.get("upload_date", "")
+    video_id = text_field(entry, "id")
+    upload_date = text_field(entry, "upload_date")
     if not video_id or not upload_date:
         return None
 
-    channel_name = (
-        entry.get("channel") or entry.get("uploader") or entry.get("channel_id") or "unknown"
-    )
+    channel_name = first_text(entry, ("channel", "uploader", "channel_id"), "unknown")
     channel_url = _normalize_channel_url(
-        entry.get("channel_url") or entry.get("uploader_url") or _channel_url_from_metadata(entry)
+        first_text(entry, ("channel_url", "uploader_url")) or _channel_url_from_metadata(entry)
     )
 
     return VideoInfo(
         video_id=video_id,
-        title=entry.get("title", "Unknown"),
+        title=text_field(entry, "title", "Unknown"),
         upload_date=upload_date,
-        duration=int(entry.get("duration") or 0),
-        url=entry.get("webpage_url")
+        duration=int_field(entry, "duration"),
+        url=text_field(entry, "webpage_url")
         or fallback_url
         or f"https://www.youtube.com/watch?v={video_id}",
         channel_name=channel_name,
         channel_url=channel_url,
-        description=(entry.get("description") or "").strip(),
-        view_count=int(entry.get("view_count") or 0),
-        like_count=int(entry.get("like_count") or 0),
-        comment_count=int(entry.get("comment_count") or 0),
+        description=text_field(entry, "description").strip(),
+        view_count=int_field(entry, "view_count"),
+        like_count=int_field(entry, "like_count"),
+        comment_count=int_field(entry, "comment_count"),
     )
 
 
@@ -358,8 +366,8 @@ def _merge_video_info(base: VideoInfo, detailed: VideoInfo) -> VideoInfo:
     )
 
 
-def _channel_url_from_metadata(entry: dict) -> str:
-    uploader_id = entry.get("uploader_id") or entry.get("channel_id") or ""
+def _channel_url_from_metadata(entry: YtDlpInfo) -> str:
+    uploader_id = first_text(entry, ("uploader_id", "channel_id"))
     if not uploader_id:
         return ""
     if uploader_id.startswith("@"):

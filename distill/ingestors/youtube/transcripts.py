@@ -25,6 +25,7 @@ import yt_dlp
 
 from distill._console import console
 from distill.config import DistillConfig
+from distill.ingestors.youtube._yt_dlp_boundary import first_text, info_mapping, ydl_params
 from distill.ingestors.youtube.discovery import is_youtube_url
 
 __all__ = [
@@ -102,7 +103,7 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
     with tempfile.TemporaryDirectory() as tmpdir:
         output_template = str(Path(tmpdir) / video_id)
 
-        ydl_opts = {
+        ydl_opts: dict[str, object] = {
             "writeautomaticsub": True,
             "writesubtitles": True,
             "subtitleslangs": ["en"],
@@ -116,7 +117,7 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
         }
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
                 ydl.download([video_url])
         except Exception:
             return None
@@ -170,7 +171,7 @@ def _try_whisper_ladder(
 
 def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path | None, str]:
     """Fetch bestaudio for the Whisper ladder. Returns ``(path, vocab_hint)``."""
-    ydl_opts = {
+    ydl_opts: dict[str, object] = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": str(tmpdir / f"{video_id}.%(ext)s"),
         "quiet": True,
@@ -181,8 +182,8 @@ def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path |
         "noplaylist": True,
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True) or {}
+        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+            info = info_mapping(ydl.extract_info(video_url, download=True)) or {}
     except Exception as exc:
         console.print(f"    [red]Audio download failed: {exc}[/red]")
         return None, ""
@@ -190,8 +191,8 @@ def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path |
     if not files:
         return None, ""
     audio = max(files, key=lambda f: f.stat().st_size)
-    hint = " — ".join(
-        part for part in (str(info.get("title", "")), str(info.get("uploader", ""))) if part
+    hint = " - ".join(
+        part for part in (first_text(info, ("title",)), first_text(info, ("uploader",))) if part
     )
     return audio, hint
 

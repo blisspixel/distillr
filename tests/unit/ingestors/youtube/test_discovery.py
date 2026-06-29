@@ -314,6 +314,17 @@ class TestResolveChannelName:
         name = resolve_channel_name("https://www.youtube.com/channel/UC123")
         assert name == "unknown"
 
+    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    def test_fallback_ignores_non_string_metadata(self, mock_ydl_cls):
+        mock_ydl = MagicMock()
+        mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl_cls.return_value.__exit__ = MagicMock(return_value=False)
+        mock_ydl.extract_info.return_value = {"channel": 123, "uploader": None}
+
+        name = resolve_channel_name("https://www.youtube.com/channel/UC123")
+
+        assert name == "unknown"
+
 
 class TestSearchVideos:
     @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
@@ -470,6 +481,31 @@ class TestVideoInfoHelpers:
             _normalize_channel_url("https://www.youtube.com/@Creator/")
             == "https://www.youtube.com/@Creator"
         )
+
+    def test_entry_to_video_info_tolerates_malformed_optional_fields(self):
+        entry = {
+            "id": "v1",
+            "title": 7,
+            "upload_date": "20260301",
+            "duration": "bad",
+            "channel": 123,
+            "channel_id": "UC123",
+            "description": 17,
+            "view_count": "bad",
+            "like_count": None,
+            "comment_count": object(),
+        }
+
+        video = _entry_to_video_info(entry)
+
+        assert video is not None
+        assert video.title == "Unknown"
+        assert video.duration == 0
+        assert video.channel_name == "UC123"
+        assert video.description == ""
+        assert video.view_count == 0
+        assert video.like_count == 0
+        assert video.comment_count == 0
 
     def test_recent_rank_and_caps_helpers(self):
         cutoff = datetime.now() - timedelta(days=30)

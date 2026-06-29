@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cleared the YouTube yt-dlp Pyright warning cluster by isolating dynamic
+  `YoutubeDL` params, extractor rows, and metadata fields behind a typed
+  boundary helper.
 - Cleared the maintain command Pyright warning cluster by reusing safe prompt
   telemetry converters and typing the online status channel queue as
   `ChannelInfo`.

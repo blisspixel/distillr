@@ -41,8 +41,9 @@ coverage. Five reasons:
    `pipeline/` package is now strict-clean, the MCP helper pass has started by
    typing optional progress contexts precisely, the topic-change/view command
    boundary now parses diff, trend, watch-alert, and history rows into typed
-   records, the shared required-topic command resolver is warning-clean, and
-   the maintain costs/status boundary is warning-clean.
+   records, the shared required-topic command resolver is warning-clean, the
+   maintain costs/status boundary is warning-clean, and the YouTube yt-dlp
+   boundary is warning-clean.
    The remaining strict work is real, but diminishing per-cycle value, better
    as background.
    Verification depth is new, high-signal infrastructure scoped to a
