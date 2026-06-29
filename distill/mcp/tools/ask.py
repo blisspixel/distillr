@@ -1,3 +1,4 @@
+# pyright: strict
 """MCP tool -- ask: corpus-grounded question answering.
 
 The one deliberate tool addition since the 0.9.30 consolidation. Returns the
@@ -12,13 +13,13 @@ from __future__ import annotations
 import json
 
 from distill.llm.availability import model_available
-from distill.mcp import server as _server
+from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
 
 __all__: list[str] = []
 
 
-@_server.mcp.tool()
-@_server.write_tool("ask")
+@mcp.tool()
+@write_tool("ask")
 def ask(topic: str, question: str) -> str:
     """Answer a question from a topic's corpus, grounded-only with citations.
 
@@ -28,7 +29,7 @@ def ask(topic: str, question: str) -> str:
     """
     from distill.pipeline.ask import ask_corpus
 
-    config = _server._config()
+    config = load_config()
     if not model_available("qa"):
         return json.dumps(
             {
@@ -40,7 +41,7 @@ def ask(topic: str, question: str) -> str:
     if not config.topic_dir(topic).exists():
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
 
-    tracker = _server.capped_tracker()
+    tracker = capped_tracker()
     result = ask_corpus(question, topic=topic, config=config, save=False, tracker=tracker)
     if result.no_coverage:
         return json.dumps(
@@ -57,7 +58,7 @@ def ask(topic: str, question: str) -> str:
             "answer_path": str(result.answer_path.relative_to(config.library_dir))
             if result.answer_path
             else "",
-            "cost": _server._cost_summary(tracker),
+            "cost": cost_summary(tracker),
         },
         indent=2,
     )

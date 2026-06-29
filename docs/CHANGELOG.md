@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ratcheted the MCP `ask` tool to Pyright strict mode with public MCP config,
+  registration, write-guard, tracker, and cost-summary seams, plus focused MCP
+  response-shape coverage.
 - Ratcheted the MCP summary tools, `list_topics`, `find_insights_summary`, and
   `list_topic_summary`, to Pyright strict mode with public MCP config,
   registration, write-guard, tracker, and cost-summary seams.
