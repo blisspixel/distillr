@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused ingest command coverage for local media, GitHub, and feed
+  routing, local extraction errors and insights output, tweet and media
+  skipped-note output, newsletter and podcast feed branches, podcast fetch
+  errors, and GitHub invalid, fetch-error, insights, no-insights, and
+  skipped-note paths. The full coverage gate now reports 92.97%; the enforced
+  floor remains 92.
 - Added focused discover-flow helper coverage for query, video, rerank, and
   display delegation, fresh-topic detection, sizing-menu no-option, cancel,
   invalid, and commit paths, ingest confirmation summaries, video payload
