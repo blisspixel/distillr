@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
 from distill.pipeline import dashboard_data as _dashboard_data
@@ -117,6 +118,34 @@ def test_dashboard_snapshot_uses_shared_rollups_and_health(config):
     assert snapshot["corpus_health_warnings"]
     assert snapshot["latest_results"]["failed"] == 1
     assert snapshot["topic_trends"]["ai"] == "trend: rising"
+
+
+def test_dashboard_snapshot_uses_configured_cost_warning_policy(tmp_path):
+    config = DistillConfig(
+        distill_output_dir=tmp_path / "library",
+        distill_cost_warning_daily_usd=1.0,
+        distill_cost_workflow_budgets="report=1.50",
+    )
+    config.library_dir.mkdir(parents=True, exist_ok=True)
+    (config.library_dir / "cost_log.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-06-03T12:00:00",
+                "command": "report",
+                "actual_cost": 2.5,
+                "metadata": {"topic": "ai"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    snapshot = dashboard_snapshot(config)
+    kinds = {warning["kind"] for warning in snapshot["cost_warnings"]}
+    messages = [warning["message"] for warning in snapshot["cost_warnings"]]
+
+    assert {"daily-threshold", "workflow-budget"} <= kinds
+    assert any("above workflow budget $1.50" in message for message in messages)
 
 
 def test_dashboard_helper_rollups_and_parsing():

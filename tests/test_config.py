@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from distill.config import DistillConfig, _default_library_dir
 from distill.library.paths import sanitize_path_component, slugify_title
 
@@ -90,6 +92,10 @@ class TestDistillConfig:
         assert config.gemini_api_key.get_secret_value() == ""
         assert config.distill_default_months == 1
         assert config.distill_cost_mode == "auto"
+        assert config.distill_cost_warning_daily_usd == 10.0
+        assert config.distill_cost_warning_spike_multiplier == 2.5
+        assert config.distill_cost_warning_run_spike_min_usd == 1.0
+        assert config.cost_workflow_budgets_usd == {}
         assert config.xai_model_for("analysis") == "grok-4.3"
         assert config.xai_model_for("site") == "grok-4.3"
 
@@ -109,6 +115,39 @@ class TestDistillConfig:
         config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
 
         assert config.distill_cost_mode == "no-metered"
+
+    def test_cost_warning_policy_normalizes_env_values(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_COST_WARNING_DAILY_USD", " 3.5 ")
+        monkeypatch.setenv("DISTILL_COST_WARNING_SPIKE_MULTIPLIER", "4")
+        monkeypatch.setenv("DISTILL_COST_WARNING_RUN_SPIKE_MIN_USD", "0")
+        monkeypatch.setenv("DISTILL_COST_WORKFLOW_BUDGETS", " report = 5, site-batch=1.25 ")
+
+        config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
+
+        assert config.distill_cost_warning_daily_usd == 3.5
+        assert config.distill_cost_warning_spike_multiplier == 4
+        assert config.distill_cost_warning_run_spike_min_usd == 0
+        assert config.distill_cost_workflow_budgets == "report=5,site-batch=1.25"
+        assert config.cost_workflow_budgets_usd == {"report": 5.0, "site-batch": 1.25}
+
+    def test_cost_warning_policy_rejects_invalid_values(self, tmp_path):
+        with pytest.raises(ValueError, match="greater than 1"):
+            DistillConfig(
+                distill_output_dir=tmp_path / "lib",
+                distill_cost_warning_spike_multiplier=1,
+            )
+
+        with pytest.raises(ValueError, match="command=usd"):
+            DistillConfig(
+                distill_output_dir=tmp_path / "lib",
+                distill_cost_workflow_budgets="report",
+            )
+
+        with pytest.raises(ValueError, match="greater than 0"):
+            DistillConfig(
+                distill_output_dir=tmp_path / "lib",
+                distill_cost_workflow_budgets="report=0",
+            )
 
     def test_xai_model_overrides(self, tmp_path):
         config = DistillConfig(

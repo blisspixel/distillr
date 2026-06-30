@@ -907,7 +907,13 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     next_sweep_cost = estimated_topic_watch_sweep(topic_watchlist)
     topic_spend = topic_cost_rollups(all_cost_entries, days=30, limit=4)
     source_spend = source_cost_rollups(all_cost_entries, days=30)
-    cost_warnings = cost_anomaly_warnings(all_cost_entries)
+    cost_warnings = cost_anomaly_warnings(
+        all_cost_entries,
+        daily_threshold_usd=config.distill_cost_warning_daily_usd,
+        spike_multiplier=config.distill_cost_warning_spike_multiplier,
+        run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
+        workflow_budgets_usd=config.cost_workflow_budgets_usd,
+    )
     budget_msgs: list[str] = []
     for entry in topic_watchlist:
         budget_msgs.extend(topic_watch_budget_messages(entry, all_cost_entries))

@@ -114,8 +114,8 @@ Shipped: **0.1 through 0.19** (latest release 0.19.2, 2026-06-28). Per-release d
   configured, listing key names only and pointing to fail-closed no-metered
   mode. `distill costs`, JSON cost output, the CLI dashboard, and the local web
   dashboard also surface structural surprise-cost warnings from the ledger,
-  including high daily spend, spend spikes, and any recorded xAI
-  media-generation model ids.
+  including high daily spend, spend spikes, configured per-workflow budget
+  overruns, and any recorded xAI media-generation model ids.
 - **0.18 Batch-run visibility** - the `_logic.py` monolith fully retired, per-item / per-phase progress with running cost and ETA on the long ingest and report loops, and `-q` / `-v` / `--json` verbosity controls before the CLI contracts freeze.
 - **0.17 OKF interop + loop-ready stewardship** - `distill export --what bundle --format okf` and `distill okf validate` (OKF v0.1 bundles projected over the native corpus), plus `distill audit --next-actions --json` as the loop handoff surface. Design: [`docs/design/okf-loop-readiness.md`](docs/design/okf-loop-readiness.md).
 - **0.13-0.16 Engineering legibility + CLI-UX** - the entailment tier + verify-on-every-synthesis (0.13), agent-grade `--json` / strict stdout-stderr split (0.14), in-place `distill update` (0.15), the blocking structural golden-corpus eval gate (0.16), and the full `_logic.py` monolith removal. Design: [`docs/design/logic-decomposition.md`](docs/design/logic-decomposition.md).

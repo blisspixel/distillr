@@ -1,6 +1,8 @@
 # pyright: strict
 
+import math
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal, cast
 
@@ -17,6 +19,87 @@ def _normalize_cost_mode(value: object) -> CostMode:
         allowed = ", ".join(sorted(_VALID_COST_MODES))
         raise ValueError(f"cost_mode must be one of: {allowed}")
     return cast(CostMode, text)
+
+
+def _float_input_text(value: object, *, field_name: str) -> str:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a number")
+    if isinstance(value, int | float):
+        return str(value)
+    if isinstance(value, str):
+        return value.strip()
+    raise ValueError(f"{field_name} must be a number")
+
+
+def _positive_float(value: object, *, field_name: str) -> float:
+    try:
+        result = float(_float_input_text(value, field_name=field_name))
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a positive number") from None
+    if not math.isfinite(result):
+        raise ValueError(f"{field_name} must be finite")
+    if result <= 0:
+        raise ValueError(f"{field_name} must be greater than 0")
+    return result
+
+
+def _non_negative_float(value: object, *, field_name: str) -> float:
+    try:
+        result = float(_float_input_text(value, field_name=field_name))
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a non-negative number") from None
+    if not math.isfinite(result):
+        raise ValueError(f"{field_name} must be finite")
+    if result < 0:
+        raise ValueError(f"{field_name} must be greater than or equal to 0")
+    return result
+
+
+def _normalize_workflow_budget_key(value: object) -> str:
+    key = str(value or "").strip().lower()
+    if not key:
+        raise ValueError("workflow budget command names cannot be empty")
+    if any(char.isspace() for char in key):
+        raise ValueError(f"workflow budget command names cannot contain whitespace: {key!r}")
+    if not all(char.isalnum() or char in {"-", "_", "."} for char in key):
+        raise ValueError(f"workflow budget command names contain an invalid character: {key!r}")
+    return key
+
+
+def parse_cost_workflow_budgets(value: object) -> dict[str, float]:
+    """Parse DISTILL_COST_WORKFLOW_BUDGETS into command -> USD caps."""
+    if value is None:
+        return {}
+    items: list[tuple[object, object]] = []
+    if isinstance(value, Mapping):
+        items = list(cast(Mapping[object, object], value).items())
+    else:
+        text = str(value).strip()
+        if not text:
+            return {}
+        for chunk in text.split(","):
+            piece = chunk.strip()
+            if not piece:
+                continue
+            if "=" not in piece:
+                raise ValueError("distill_cost_workflow_budgets entries must look like command=usd")
+            key, raw_budget = piece.split("=", 1)
+            items.append((key, raw_budget))
+
+    parsed: dict[str, float] = {}
+    for key_value, budget_value in items:
+        key = _normalize_workflow_budget_key(key_value)
+        budget = _positive_float(
+            budget_value,
+            field_name=f"workflow budget for {key}",
+        )
+        parsed[key] = budget
+    return parsed
+
+
+def _normalize_cost_workflow_budgets(value: object) -> str:
+    budgets = parse_cost_workflow_budgets(value)
+    return ",".join(f"{key}={budget:g}" for key, budget in sorted(budgets.items()))
 
 
 def _default_library_dir(package_parent: Path | None = None) -> Path:
@@ -93,6 +176,14 @@ class DistillConfig(BaseSettings):
     # no-metered refuses API-billed or ambiguous routes, and paid-ok allows
     # metered routes within explicit caps.
     distill_cost_mode: CostMode = "auto"
+    # Cost warning policy. These are local ledger warnings, not provider
+    # dashboards and not route-selection rules.
+    distill_cost_warning_daily_usd: float = 10.0
+    distill_cost_warning_spike_multiplier: float = 2.5
+    distill_cost_warning_run_spike_min_usd: float = 1.0
+    # Comma-separated command caps, for example:
+    # DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2"
+    distill_cost_workflow_budgets: str = ""
     # MCP posture (DISTILL_MCP_READ_ONLY): serve only the read surface --
     # write-side tools (spend/ingest/mutation) refuse with a clear message.
     # The recommended setting for agent-facing deployments.
@@ -114,6 +205,36 @@ class DistillConfig(BaseSettings):
     @classmethod
     def _normalize_distill_cost_mode(cls, value: object) -> CostMode:
         return _normalize_cost_mode(value)
+
+    @field_validator("distill_cost_warning_daily_usd", mode="before")
+    @classmethod
+    def _normalize_cost_warning_daily_usd(cls, value: object) -> float:
+        return _positive_float(value, field_name="distill_cost_warning_daily_usd")
+
+    @field_validator("distill_cost_warning_spike_multiplier", mode="before")
+    @classmethod
+    def _normalize_cost_warning_spike_multiplier(cls, value: object) -> float:
+        multiplier = _positive_float(
+            value,
+            field_name="distill_cost_warning_spike_multiplier",
+        )
+        if multiplier <= 1:
+            raise ValueError("distill_cost_warning_spike_multiplier must be greater than 1")
+        return multiplier
+
+    @field_validator("distill_cost_warning_run_spike_min_usd", mode="before")
+    @classmethod
+    def _normalize_cost_warning_run_spike_min_usd(cls, value: object) -> float:
+        return _non_negative_float(value, field_name="distill_cost_warning_run_spike_min_usd")
+
+    @field_validator("distill_cost_workflow_budgets", mode="before")
+    @classmethod
+    def _normalize_distill_cost_workflow_budgets(cls, value: object) -> str:
+        return _normalize_cost_workflow_budgets(value)
+
+    @property
+    def cost_workflow_budgets_usd(self) -> dict[str, float]:
+        return parse_cost_workflow_budgets(self.distill_cost_workflow_budgets)
 
     @property
     def library_dir(self) -> Path:

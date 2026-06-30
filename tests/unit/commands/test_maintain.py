@@ -22,11 +22,12 @@ from distill.library.paths import slugify_title
 runner = CliRunner()
 
 
-def _config(tmp_path) -> DistillConfig:
+def _config(tmp_path, **overrides: object) -> DistillConfig:
     config = DistillConfig(
         xai_api_key="test-key",
         gemini_api_key="test-gemini",
         distill_output_dir=tmp_path / "library",
+        **overrides,
     )
     config.library_dir.mkdir(parents=True, exist_ok=True)
     return config
@@ -53,7 +54,7 @@ def test_costs_json_malformed_log_returns_empty_entries(tmp_path, monkeypatch):
 
 
 def test_costs_json_and_human_output_include_cost_warnings(tmp_path, monkeypatch):
-    config = _config(tmp_path)
+    config = _config(tmp_path, distill_cost_workflow_budgets="report=2")
     _patch_config(monkeypatch, config)
     ops_dir = config.library_dir / ".distill"
     ops_dir.mkdir(parents=True, exist_ok=True)
@@ -87,12 +88,17 @@ def test_costs_json_and_human_output_include_cost_warnings(tmp_path, monkeypatch
     assert json_result.exit_code == 0, json_result.output
     parsed = json.loads(json_result.output)
     warnings = parsed["data"]["cost_warnings"]
-    assert {warning["kind"] for warning in warnings} >= {"xai-media-model", "daily-threshold"}
+    assert {warning["kind"] for warning in warnings} >= {
+        "daily-threshold",
+        "workflow-budget",
+        "xai-media-model",
+    }
 
     human_result = runner.invoke(app, ["costs", "--last", "3"])
 
     assert human_result.exit_code == 0, human_result.output
     assert "Cost warnings" in human_result.output
+    assert "above workflow budget $2.00" in human_result.output
     assert "xAI media-generation model spend recorded" in human_result.output
 
 

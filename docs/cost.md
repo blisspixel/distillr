@@ -72,6 +72,27 @@ These warnings do not decide whether a run was useful. They point to spend that
 deserves operator review. Preview rows are excluded from spike comparisons, and
 malformed or non-finite cost values are ignored.
 
+The default warning policy is:
+
+```bash
+DISTILL_COST_WARNING_DAILY_USD=10
+DISTILL_COST_WARNING_SPIKE_MULTIPLIER=2.5
+DISTILL_COST_WARNING_RUN_SPIKE_MIN_USD=1
+DISTILL_COST_WORKFLOW_BUDGETS=
+```
+
+Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
+workflow should draw attention above a known spend ceiling:
+
+```bash
+DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,site-batch=3"
+```
+
+Workflow budgets are warning policies over the ledger. They do not replace
+`DISTILL_COST_MODE=no-metered`, topic-watch max-run/monthly budgets, or MCP
+per-call spend caps. Use those fail-closed controls when a command must stop
+before or during billable execution.
+
 ## Provider-side caches
 
 Provider-side prompt and context caches are metered-route optimizations, not

@@ -46,7 +46,12 @@ from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
-from distill.pipeline.costs import CostTracker, cost_anomaly_warnings, projected_next_run_cost
+from distill.pipeline.costs import (
+    CostTracker,
+    CostWarning,
+    cost_anomaly_warnings,
+    projected_next_run_cost,
+)
 from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
@@ -62,6 +67,19 @@ __all__ = [
     "serve",
     "status",
 ]
+
+
+def _cost_warnings_for_config(
+    config: DistillConfig,
+    entries: list[dict[str, Any]],
+) -> list[CostWarning]:
+    return cost_anomaly_warnings(
+        entries,
+        daily_threshold_usd=config.distill_cost_warning_daily_usd,
+        spike_multiplier=config.distill_cost_warning_spike_multiplier,
+        run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
+        workflow_budgets_usd=config.cost_workflow_budgets_usd,
+    )
 
 
 def costs(  # noqa: C901 -- legacy, will refactor
@@ -155,7 +173,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     accuracy = estimator_accuracy(entries)
     projected = projected_next_run_cost(entries)
-    cost_warnings = cost_anomaly_warnings(entries)
+    cost_warnings = _cost_warnings_for_config(config, entries)
 
     if json_mode:
         # Compute local/cloud split from telemetry

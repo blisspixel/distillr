@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the CLI dashboard, and the local web dashboard, flagging high daily spend,
   daily or comparable-run spikes, and any recorded xAI media-generation model
   ids in the cost ledger.
+- Made cost-warning thresholds configurable and added workflow-budget warning
+  policies such as `DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2"` so
+  direct CLI runs can surface over-budget ledger evidence outside topic watches.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

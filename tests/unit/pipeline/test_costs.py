@@ -388,6 +388,47 @@ def test_cost_anomaly_warnings_flag_media_daily_and_run_spikes():
     assert all("preview" not in warning["message"] for warning in warnings)
 
 
+def test_cost_anomaly_warnings_apply_custom_thresholds_and_workflow_budgets():
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        {
+            "timestamp": "2026-06-01T12:00:00",
+            "command": "report",
+            "actual_cost": 0.8,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-02T12:00:00",
+            "command": "report",
+            "actual_cost": 0.9,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-03T12:00:00",
+            "command": "report",
+            "actual_cost": 3.0,
+            "metadata": {"topic": "ai"},
+        },
+    ]
+
+    warnings = cost_anomaly_warnings(
+        entries,
+        daily_threshold_usd=2.0,
+        run_spike_min_usd=0.5,
+        workflow_budgets_usd={"report": 1.25},
+        limit=5,
+    )
+    messages = [warning["message"] for warning in warnings]
+    kinds = [warning["kind"] for warning in warnings]
+
+    assert "workflow-budget" in kinds
+    assert "daily-threshold" in kinds
+    assert "daily-spike" in kinds
+    assert "run-spike" in kinds
+    assert any("above workflow budget $1.25" in message for message in messages)
+
+
 def test_cost_anomaly_warnings_ignore_bad_rows_and_zero_costs():
     from distill.pipeline.costs import cost_anomaly_warnings
 
