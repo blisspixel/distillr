@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused ranking branch coverage for malformed model rows, LLM fallback
+  supplementation, no-model paper fallback labels, tracker usage, paper helper
+  ranges, and explicit skeptical-date caution. The full coverage gate now
+  reports 91.20%; the enforced floor remains 91.
 - Raised the branch-coverage floor to 91 after covering dashboard terminal and
   HTML rendering branches plus shared dashboard-data fallbacks for cost logs,
   watch staleness, unreadable artifacts, quiet topic changes, corpus health

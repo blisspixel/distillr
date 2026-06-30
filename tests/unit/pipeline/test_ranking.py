@@ -10,11 +10,20 @@ from distill.ingestors.youtube.discovery import VideoInfo
 from distill.pipeline.ranking import (
     _credibility_score,
     _depth_score,
+    _float_field,
     _freshness_score,
     _heuristic_rank,
+    _heuristic_reason,
+    _paper_credibility_score,
+    _paper_depth_score,
+    _paper_heuristic_reason,
+    _paper_novelty_score,
+    _paper_query_overlap,
+    _parse_object_rows,
     _parse_rerank_response,
     _practicality_score,
     _query_overlap,
+    _skepticism_adjustment,
     _tokenize,
     _topicality_score,
     chronological_rank,
@@ -244,6 +253,39 @@ def test_rerank_videos_supplements_partial_llm_results(tmp_path, monkeypatch):
     assert [item.video.video_id for item in ranked] == ["v2", "v1"]
 
 
+def test_rerank_videos_skips_duplicate_llm_results_when_supplementing(tmp_path, monkeypatch):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    videos = [
+        VideoInfo(
+            "v1",
+            "Microsoft Fabric architecture",
+            _recent(3),
+            1200,
+            "https://youtube.com/watch?v=v1",
+            "CreatorA",
+        ),
+        VideoInfo(
+            "v2",
+            "Weekly roundup",
+            _recent(4),
+            300,
+            "https://youtube.com/watch?v=v2",
+            "CreatorB",
+        ),
+    ]
+    monkeypatch.setattr(
+        "distill.pipeline.ranking._llm_rerank",
+        lambda *args, **kwargs: [
+            SimpleNamespace(video=videos[0], final_score=0.9, selected_by="llm")
+        ],
+    )
+
+    ranked = rerank_videos("Microsoft Fabric architecture", videos, config, top_n=2)
+
+    assert [item.video.video_id for item in ranked] == ["v1", "v2"]
+    assert len({item.video.video_id for item in ranked}) == 2
+
+
 def test_parse_rerank_response_handles_code_fences_and_dicts():
     content = """```json
 {"ranked_videos": [{"video_id": "v1"}]}
@@ -252,6 +294,15 @@ def test_parse_rerank_response_handles_code_fences_and_dicts():
     assert _parse_rerank_response(content) == [{"video_id": "v1"}]
     assert _parse_rerank_response('{"ranked_videos": [{"video_id": "v2"}]}') == [{"video_id": "v2"}]
     assert _parse_rerank_response('[{"video_id": "v3"}]') == [{"video_id": "v3"}]
+
+
+def test_rerank_response_parsers_skip_malformed_shapes():
+    assert _parse_rerank_response("") == []
+    assert _parse_rerank_response("not json") == []
+    assert _parse_object_rows({"video_id": "v1"}) == []
+    assert _parse_object_rows(["skip", {1: "bad-key"}, {"video_id": "v1"}]) == [{"video_id": "v1"}]
+    with pytest.raises(TypeError, match="score must be number-like"):
+        _float_field({"score": object()}, "score")
 
 
 def test_scoring_helpers_cover_edge_cases():
@@ -281,6 +332,8 @@ def test_scoring_helpers_cover_edge_cases():
     assert _practicality_score("best practice", video) > 0.18
     assert _topicality_score("Microsoft Fabric architecture", video) > 0.5
     assert _topicality_score("Obscure Anchor Topic", video) < 0.5
+    assert _topicality_score("Microsoft Obscure Anchor", video) < 0.5
+    assert "recent" in _heuristic_reason(video, 0.1, 0.1, 0.8, 0.1)
     assert _tokenize("A/B test!") == ["a", "b", "test"]
 
 
@@ -404,6 +457,29 @@ def test_skeptical_ranking_prefers_concrete_evidence_terms(tmp_path):
     assert "concrete evidence terms" in ranked[0].rationale
 
 
+def test_skeptical_adjustment_applies_april_first_caution(monkeypatch):
+    video = VideoInfo(
+        "v1",
+        "Unverified claim",
+        "20260401",
+        900,
+        "https://youtube.com/watch?v=v1",
+        "CreatorA",
+    )
+
+    class FakeDateTime:
+        @classmethod
+        def now(cls):
+            return datetime(2026, 4, 1)
+
+    monkeypatch.setattr("distill.pipeline.ranking.datetime", FakeDateTime)
+
+    delta, notes = _skepticism_adjustment(video, skeptical=True)
+
+    assert delta == -0.05
+    assert notes == ["April 1 caution"]
+
+
 # --- RankedPaper / rerank_papers tests ---------------------------------------
 
 
@@ -446,6 +522,19 @@ def test_rerank_papers_falls_back_to_heuristic_when_llm_disabled(tmp_path):
     assert ranked[0].final_score > ranked[1].final_score
 
 
+def test_rerank_papers_handles_empty_inputs_and_no_model_fallback(tmp_path, monkeypatch):
+    from distill.pipeline.ranking import rerank_papers
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+
+    assert rerank_papers("query", [], config) == []
+
+    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+    ranked = rerank_papers("symbolic music", [_paper("p1", "Symbolic Music")], config)
+
+    assert ranked[0].selected_by == "no-model"
+
+
 def test_rerank_papers_uses_llm_response_when_available(tmp_path, monkeypatch):
     from distill.pipeline.ranking import rerank_papers
 
@@ -469,6 +558,32 @@ def test_rerank_papers_uses_llm_response_when_available(tmp_path, monkeypatch):
     assert [item.paper.paper_id for item in ranked] == ["p2"]
     assert ranked[0].selected_by == "llm"
     assert ranked[0].rationale == "best fit"
+
+
+def test_rerank_papers_handles_empty_llm_results_and_supplement_duplicates(
+    tmp_path,
+    monkeypatch,
+):
+    from distill.pipeline.ranking import rerank_papers
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    papers = [
+        _paper("p1", "Symbolic Music Transformer"),
+        _paper("p2", "Image Harmonization Pipeline", abstract="Image compositing."),
+    ]
+
+    monkeypatch.setattr("distill.pipeline.ranking._llm_rerank_papers", lambda *args: [])
+    fallback = rerank_papers("symbolic music transformer", papers, config, top_n=2)
+    assert fallback[0].selected_by == "heuristic"
+
+    monkeypatch.setattr(
+        "distill.pipeline.ranking._llm_rerank_papers",
+        lambda *args: [SimpleNamespace(paper=papers[0], final_score=0.95, selected_by="llm")],
+    )
+    supplemented = rerank_papers("symbolic music transformer", papers, config, top_n=2)
+
+    assert [item.paper.paper_id for item in supplemented] == ["p1", "p2"]
+    assert len({item.paper.paper_id for item in supplemented}) == 2
 
 
 def test_llm_reranks_pin_temperature_for_reproducible_previews(tmp_path, monkeypatch):
@@ -534,6 +649,74 @@ def test_parse_paper_rerank_response_handles_code_fences():
 ```"""
     parsed = _parse_paper_rerank_response(content)
     assert parsed == [{"paper_id": "p1", "final_score": 0.5}]
+
+
+def test_paper_rerank_response_parser_handles_empty_and_malformed_content():
+    from distill.pipeline.ranking import _parse_paper_rerank_response
+
+    assert _parse_paper_rerank_response("") == []
+    assert _parse_paper_rerank_response("not json") == []
+    assert _parse_paper_rerank_response('{"unexpected": []}') == []
+
+
+def test_llm_rerank_papers_tracks_usage_and_skips_unknown_ids(tmp_path, monkeypatch):
+    from distill.llm.router import LLM_Response
+    from distill.pipeline.costs import CostTracker
+    from distill.pipeline.ranking import _llm_rerank_papers
+
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    tracker = CostTracker()
+    papers = [_paper("p1", "One")]
+
+    monkeypatch.setattr(
+        "distill.pipeline.ranking.llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text='[{"paper_id": "missing"}, {"paper_id": "p1", "final_score": 0.8}]',
+            input_tokens=10,
+            output_tokens=4,
+            model="grok-4.3",
+        ),
+    )
+
+    ranked = _llm_rerank_papers("query", papers, config, tracker)
+
+    assert [item.paper.paper_id for item in ranked] == ["p1"]
+    assert ranked[0].rationale == "Best-fit candidate for the query."
+    assert tracker.entries[0].call_type == "paper_rerank"
+
+
+def test_paper_scoring_helpers_cover_fallback_ranges():
+    recent = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00Z")
+    one_year = (datetime.now() - timedelta(days=300)).strftime("%Y-%m-%dT00:00:00Z")
+    two_years = (datetime.now() - timedelta(days=600)).strftime("%Y-%m-%dT00:00:00Z")
+    four_years = (datetime.now() - timedelta(days=1500)).strftime("%Y-%m-%dT00:00:00Z")
+    old = (datetime.now() - timedelta(days=2500)).strftime("%Y-%m-%dT00:00:00Z")
+
+    assert _paper_query_overlap("", _paper("p0", "Empty query")) == 0.5
+    assert _paper_depth_score(_paper("p1", "No abstract", abstract="")) == 0.2
+    assert _paper_depth_score(_paper("p2", "Medium", abstract="x" * 450)) == 0.55
+    assert (
+        _paper_depth_score(
+            _paper("p3", "Long", abstract=("x" * 920) + " experiments benchmark dataset")
+        )
+        == 0.9
+    )
+    assert _paper_novelty_score(_paper("p4", "Missing date", published_at="")) == 0.4
+    assert _paper_novelty_score(_paper("p5", "Bad date", published_at="not-a-date")) == 0.4
+    assert _paper_novelty_score(_paper("p6", "Recent", published_at=recent)) == 1.0
+    assert _paper_novelty_score(_paper("p7", "One year", published_at=one_year)) == 0.85
+    assert _paper_novelty_score(_paper("p8", "Two years", published_at=two_years)) == 0.65
+    assert _paper_novelty_score(_paper("p9", "Four years", published_at=four_years)) == 0.45
+    assert _paper_novelty_score(_paper("p10", "Old", published_at=old)) == 0.25
+    assert (
+        _paper_credibility_score(
+            _paper("p11", "Strong", authors=["A", "B", "C", "D"], categories=["stat.ML"])
+        )
+        >= 0.8
+    )
+    assert _paper_heuristic_reason(0.8, 0.8, 0.9, 0.8) == (
+        "strong title/abstract match, substantive abstract, recent, credibility signals"
+    )
 
 
 def test_search_arxiv_multi_dedupes_and_preserves_order(monkeypatch):
