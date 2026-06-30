@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused topic-resolution helper coverage for explicit topic/channel
+  preservation, known topic passthrough, channel-only topic resolution,
+  unknown-topic fallback, and missing-topic refusal. The full coverage gate now
+  reports 92.05%; the enforced floor remains 92.
 - Added focused post-ingest concept helper coverage for missing topic
   directories and best-effort concept extraction failures. The full coverage
   gate now reports 92.03%; the enforced floor remains 92.

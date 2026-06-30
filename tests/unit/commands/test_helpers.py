@@ -166,6 +166,32 @@ class TestDetectRampSource:
 
 
 class TestResolveRequiredTopicForChannel:
+    def test_preserves_explicit_topic_and_channel(self):
+        calls = []
+        lib = SimpleNamespace(
+            get_topics=lambda: ["ai"],
+            find_channel=lambda name: calls.append(name),
+        )
+
+        topic, channel = _resolve_required_topic_for_channel(lib, "ai", "NateBJones")
+
+        assert topic == "ai"
+        assert channel == "NateBJones"
+        assert calls == []
+
+    def test_preserves_known_topic_without_channel(self):
+        calls = []
+        lib = SimpleNamespace(
+            get_topics=lambda: ["ai"],
+            find_channel=lambda name: calls.append(name),
+        )
+
+        topic, channel = _resolve_required_topic_for_channel(lib, "ai", None)
+
+        assert topic == "ai"
+        assert channel is None
+        assert calls == []
+
     def test_resolves_channel_name_to_topic(self):
         lib = SimpleNamespace(
             get_topics=lambda: ["ai"],
@@ -176,6 +202,37 @@ class TestResolveRequiredTopicForChannel:
 
         assert topic == "research"
         assert channel == "NateBJones"
+
+    def test_resolves_explicit_channel_to_topic(self):
+        lib = SimpleNamespace(
+            get_topics=lambda: ["ai"],
+            find_channel=lambda name: SimpleNamespace(topic="research", name=name),
+        )
+
+        topic, channel = _resolve_required_topic_for_channel(lib, None, "NateBJones")
+
+        assert topic == "research"
+        assert channel == "NateBJones"
+
+    def test_keeps_unknown_topic_when_no_channel_matches(self):
+        lib = SimpleNamespace(
+            get_topics=lambda: ["ai"],
+            find_channel=lambda _name: None,
+        )
+
+        topic, channel = _resolve_required_topic_for_channel(lib, "ghost-topic", None)
+
+        assert topic == "ghost-topic"
+        assert channel is None
+
+    def test_rejects_unknown_channel_without_topic(self):
+        lib = SimpleNamespace(
+            get_topics=lambda: ["ai"],
+            find_channel=lambda _name: None,
+        )
+
+        with pytest.raises(typer.BadParameter, match="Topic is required"):
+            _resolve_required_topic_for_channel(lib, None, "ghost-channel")
 
     def test_rejects_missing_topic_after_resolution(self):
         lib = SimpleNamespace(
