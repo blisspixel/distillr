@@ -89,25 +89,42 @@ def test_json_output_is_valid_and_no_ansi(status, data, error):
 
 class TestExitCodeMapping:
     def test_config_error(self):
-        class ConfigurationError(Exception):
-            pass
+        configuration_error_type = type("ConfigurationError", (Exception,), {})
 
-        code = map_exception_to_exit_code(ConfigurationError("missing key"))
+        code = map_exception_to_exit_code(configuration_error_type("missing key"))
         assert code == ExitCode.CONFIG_ERROR
 
     def test_network_error_timeout(self):
-        class TimeoutError(Exception):
-            pass
+        timeout_error_type = type("TimeoutError", (Exception,), {})
 
-        code = map_exception_to_exit_code(TimeoutError("timed out"))
+        code = map_exception_to_exit_code(timeout_error_type("timed out"))
         assert code == ExitCode.NETWORK_ERROR
 
     def test_not_found_error(self):
-        class ResourceNotFoundError(Exception):
-            pass
+        resource_not_found_error_type = type("ResourceNotFoundError", (Exception,), {})
 
-        code = map_exception_to_exit_code(ResourceNotFoundError("topic not found"))
+        code = map_exception_to_exit_code(resource_not_found_error_type("topic not found"))
         assert code == ExitCode.NOT_FOUND
+
+    def test_provider_http_statuses_map_to_documented_exit_codes(self):
+        provider_error_type = type("ProviderError", (Exception,), {})
+
+        auth = provider_error_type("invalid key")
+        auth.status_code = 401
+        quota = provider_error_type("credits exhausted")
+        quota.code = 403
+        rate_limit = provider_error_type("rate limit")
+        rate_limit.status_code = 429
+        missing = provider_error_type("model missing")
+        missing.response = type("Response", (), {"status_code": 404})()
+        outage = provider_error_type("provider outage")
+        outage.status_code = 503
+
+        assert map_exception_to_exit_code(auth) == ExitCode.CONFIG_ERROR
+        assert map_exception_to_exit_code(quota) == ExitCode.CONFIG_ERROR
+        assert map_exception_to_exit_code(rate_limit) == ExitCode.NETWORK_ERROR
+        assert map_exception_to_exit_code(missing) == ExitCode.NOT_FOUND
+        assert map_exception_to_exit_code(outage) == ExitCode.NETWORK_ERROR
 
     def test_usage_error(self):
         import typer

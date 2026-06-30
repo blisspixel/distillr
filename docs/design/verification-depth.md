@@ -7,7 +7,7 @@ Status: planned (1.0 quality bar). This is the implementation plan for the
 ## What's next, and why this and not something else
 
 The 1.0 quality bar has five strands: the Pyright-strict ratchet, parse-don't-
-validate, branch coverage 89 -> 95, verification depth on the deterministic core,
+validate, branch coverage 90 -> 95, verification depth on the deterministic core,
 and the presentation pass. The recommendation is to make **verification depth the
 next focused milestone**, ahead of grinding the strict hard tail or chasing raw
 coverage. Five reasons:
@@ -31,8 +31,8 @@ coverage. Five reasons:
 3. **Mutation testing is diagnostic for the coverage milestone.** Branch
    coverage answers "did a test execute this line?"; it does not answer "would a
    test *catch* a regression here?". Mutation testing answers the second
-   question. Running it first tells us whether the 3,140+ tests are *effective*
-   or merely *present*, and it reprioritizes the 89 -> 95 push toward efficacy
+   question. Running it first tells us whether the 3,220+ tests are *effective*
+   or merely *present*, and it reprioritizes the 90 -> 95 push toward efficacy
    rather than chasing percentage on presentation-heavy code. Doing
    verification-depth before the coverage grind makes the coverage work smarter.
 
@@ -231,7 +231,7 @@ corpus-poisoning.
 
 ## Interaction with the other 1.0 strands
 
-- **Coverage 89 -> 95** runs *after* Phase 0/2 inform where coverage is
+- **Coverage 90 -> 95** runs *after* Phase 0/2 inform where coverage is
   load-bearing vs cosmetic. Mutation score, not line percentage, drives which
   branches get tests first.
 - **The strict ratchet** continues as background grind (the `mcp/` promotion

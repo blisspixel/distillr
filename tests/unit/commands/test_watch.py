@@ -20,6 +20,17 @@ class _DashboardSnapshotLib:
         return []
 
 
+def _patch_topic_watch_config(monkeypatch, config):
+    monkeypatch.setattr(cli, "get_config", lambda: config)
+    monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
+    monkeypatch.setattr(_topic_watch_cmd, "get_config", lambda: config)
+
+
+def _patch_topic_watch_run_dependencies(monkeypatch):
+    monkeypatch.setattr(_topic_watch_cmd, "_preflight", lambda: None)
+    monkeypatch.setattr(_topic_watch_cmd, "_require_model", lambda: None)
+
+
 def test_topic_watch_library_round_trip(config):
     lib = Library(config)
     result = lib.add_to_topic_watchlist(
@@ -135,6 +146,138 @@ def test_topic_watch_cli_add_and_list(tmp_path):
         _cli_impl.get_config = original
         _topic_watch_cmd.get_config = original
         _dashboard.get_config = original
+
+
+def test_topic_watch_empty_list_shows_add_command(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    _patch_topic_watch_config(monkeypatch, config)
+
+    result = runner.invoke(cli.app, ["topic-watch"])
+
+    assert result.exit_code == 0
+    assert "No recurring topics configured" in result.output
+    assert "topic-watch add" in result.output
+
+
+def test_topic_watch_add_rejects_invalid_cadence():
+    result = runner.invoke(
+        cli.app,
+        [
+            "topic-watch",
+            "add",
+            "Microsoft AI news",
+            "--topic",
+            "microsoft-news",
+            "--cadence",
+            "monthly",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--cadence must be" in result.output
+
+
+def test_topic_watch_add_prints_budgets_and_duplicate(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    _patch_topic_watch_config(monkeypatch, config)
+    argv = [
+        "topic-watch",
+        "add",
+        "Microsoft AI news",
+        "--name",
+        "microsoft-news",
+        "--topic",
+        "microsoft-news",
+        "--max-run-cost",
+        "0.25",
+        "--monthly-budget",
+        "3.00",
+    ]
+
+    first = runner.invoke(cli.app, argv)
+    second = runner.invoke(cli.app, argv)
+
+    assert first.exit_code == 0
+    assert "max $0.25/run" in first.output
+    assert "$3.00/30d" in first.output
+    assert second.exit_code == 0
+    assert "already exists" in second.output
+
+
+def test_topic_watch_management_not_found_and_invalid_branches(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    _patch_topic_watch_config(monkeypatch, config)
+    lib = Library(config)
+    lib.add_to_topic_watchlist("microsoft-news", "Microsoft AI news")
+
+    checks = [
+        (["topic-watch", "remove", "ghost"], "not found on topic-watch list", 0),
+        (["topic-watch", "days", "ghost", "2"], "not found on topic-watch list", 0),
+        (["topic-watch", "cadence", "ghost", "monthly"], "weekly", 2),
+        (["topic-watch", "cadence", "ghost", "daily"], "not found on topic-watch list", 0),
+        (["topic-watch", "ranking", "ghost", "balanced"], "not found on topic-watch list", 0),
+        (
+            ["topic-watch", "budget", "ghost", "--max-run-cost", "1.00"],
+            "not found on topic-watch list",
+            0,
+        ),
+        (["topic-watch", "budget", "ghost"], "Provide --max-run-cost", 2),
+        (["topic-watch", "pause", "ghost"], "not found on topic-watch list", 0),
+        (["topic-watch", "resume", "ghost"], "not found on topic-watch list", 0),
+    ]
+
+    for argv, expected, exit_code in checks:
+        result = runner.invoke(cli.app, argv)
+        assert result.exit_code == exit_code
+        assert expected in result.output
+
+    budget = runner.invoke(
+        cli.app, ["topic-watch", "budget", "microsoft-news", "--monthly-budget", "2.50"]
+    )
+
+    assert budget.exit_code == 0
+    assert "monthly $2.50" in budget.output
+
+
+def test_topic_watch_run_empty_missing_topic_and_paused_branches(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    _patch_topic_watch_config(monkeypatch, config)
+    _patch_topic_watch_run_dependencies(monkeypatch)
+
+    empty = runner.invoke(cli.app, ["topic-watch", "run"])
+    assert empty.exit_code == 0
+    assert "Topic-watch list is empty" in empty.output
+
+    lib = Library(config)
+    lib.add_to_topic_watchlist("ai-daily", "AI daily", topic="ai")
+    lib.set_topic_watch_paused("ai-daily", True)
+
+    missing_name = runner.invoke(cli.app, ["topic-watch", "run", "ghost"])
+    missing_topic = runner.invoke(cli.app, ["topic-watch", "run", "--topic", "ghost"])
+    paused = runner.invoke(cli.app, ["topic-watch", "run", "ai-daily"])
+
+    assert missing_name.exit_code == 0
+    assert "ghost not on topic-watch list" in missing_name.output
+    assert missing_topic.exit_code == 0
+    assert "No watched topics in topic 'ghost'" in missing_topic.output
+    assert paused.exit_code == 0
+    assert "Paused" in paused.output
 
 
 def test_topic_watch_run_invokes_learning(tmp_path, monkeypatch):
@@ -873,3 +1016,46 @@ def test_topic_watch_run_prints_alert_digest_for_notable_change(tmp_path, monkey
         _cli_impl.get_config = original
         _topic_watch_cmd.get_config = original
         _dashboard.get_config = original
+
+
+def test_topic_watch_run_truncates_long_alert_digest(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    lib = Library(config)
+    lib.add_to_topic_watchlist("ai-daily", "AI daily", topic="ai", cadence="daily")
+
+    _patch_topic_watch_config(monkeypatch, config)
+    _patch_topic_watch_run_dependencies(monkeypatch)
+    monkeypatch.setattr(_topic_watch_cmd, "_run_learning_command", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "collect_topic_change_details",
+        lambda *_args, **_kwargs: {"summary": "+10 notable changes"},
+    )
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "write_topic_change_briefing",
+        lambda *_args, **_kwargs: config.topic_dir("ai") / "watch_update.md",
+    )
+    monkeypatch.setattr(
+        _topic_watch_cmd, "topic_trend_label", lambda *_args, **_kwargs: "trend: rising"
+    )
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "topic_watch_alert_lines",
+        lambda **_kwargs: [f"alert {idx}" for idx in range(10)],
+    )
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "write_watch_alert_digest",
+        lambda *_args, **_kwargs: config.library_dir / "watch_alerts.md",
+    )
+
+    result = runner.invoke(cli.app, ["topic-watch", "run", "ai-daily"])
+
+    assert result.exit_code == 0
+    assert "trend: rising" in result.output
+    assert "...and 2 more" in result.output

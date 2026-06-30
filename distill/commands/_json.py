@@ -105,6 +105,34 @@ def emit_json(data: object = None, *, error: str | None = None) -> None:
     sys.stdout.write(envelope.to_json() + "\n")
 
 
+def _int_attr(obj: object, name: str) -> int | None:
+    value = cast(object | None, getattr(obj, name, None))
+    return value if isinstance(value, int) else None
+
+
+def _http_status_code(exc: BaseException) -> int | None:
+    status = _int_attr(exc, "status_code")
+    if status is not None:
+        return status
+    status = _int_attr(exc, "code")
+    if status is not None:
+        return status
+    response = cast(object | None, getattr(exc, "response", None))
+    if response is None:
+        return None
+    return _int_attr(response, "status_code")
+
+
+def _exit_code_from_http_status(status: int | None) -> ExitCode | None:
+    if status in (401, 402, 403):
+        return ExitCode.CONFIG_ERROR
+    if status == 404:
+        return ExitCode.NOT_FOUND
+    if status == 429 or (status is not None and status >= 500):
+        return ExitCode.NETWORK_ERROR
+    return None
+
+
 def map_exception_to_exit_code(exc: BaseException) -> ExitCode:
     """Map an exception to the appropriate exit code."""
     import typer
@@ -114,16 +142,23 @@ def map_exception_to_exit_code(exc: BaseException) -> ExitCode:
     if "ConfigurationError" in exc_type_name or "config" in str(exc).lower():
         return ExitCode.CONFIG_ERROR
 
+    status_code = _exit_code_from_http_status(_http_status_code(exc))
+    if status_code is not None:
+        return status_code
+
     # Network errors
     try:
         import requests
-
-        if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
-            return ExitCode.NETWORK_ERROR
     except ImportError:
-        pass
+        requests_network_error = False
+    else:
+        requests_network_error = isinstance(exc, (requests.ConnectionError, requests.Timeout))
 
-    if "timeout" in exc_type_name.lower() or "connection" in exc_type_name.lower():
+    if (
+        requests_network_error
+        or "timeout" in exc_type_name.lower()
+        or "connection" in exc_type_name.lower()
+    ):
         return ExitCode.NETWORK_ERROR
 
     # Resource not found
