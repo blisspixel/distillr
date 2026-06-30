@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused gap-analysis branch coverage for corrupt and unreadable video
+  metadata, mixed source inventories, stale and incomplete corpus signals,
+  clean no-action summaries, and gap-discovery goal defaults. The full coverage
+  gate now reports 91.33%; the enforced floor remains 91.
 - Added focused ranking branch coverage for malformed model rows, LLM fallback
   supplementation, no-model paper fallback labels, tracker usage, paper helper
   ranges, and explicit skeptical-date caution. The full coverage gate now
