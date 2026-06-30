@@ -225,6 +225,55 @@ class TestDoctorMigrationMode:
 
 
 class TestDoctorHumanOutputBranches:
+    def test_cost_mode_warning_lists_key_names_without_values(self, tmp_path):
+        config = _config(
+            tmp_path,
+            xai_api_key="xai-secret-value",
+            openai_api_key="openai-secret-value",
+        )
+
+        warnings = doctor_mod._cost_mode_warnings(config)
+
+        assert len(warnings) == 1
+        assert "XAI_API_KEY" in warnings[0]
+        assert "OPENAI_API_KEY" in warnings[0]
+        assert "xai-secret-value" not in warnings[0]
+        assert "openai-secret-value" not in warnings[0]
+
+    def test_no_metered_mode_suppresses_auto_cost_warning(self, tmp_path):
+        config = _config(
+            tmp_path,
+            xai_api_key="xai-secret-value",
+            distill_cost_mode="no-metered",
+        )
+
+        assert doctor_mod._cost_mode_warnings(config) == []
+
+    def test_human_output_reports_cost_mode_warning(self, tmp_path, monkeypatch):
+        config = _config(
+            tmp_path,
+            xai_api_key="xai-secret-value",
+            openai_api_key="openai-secret-value",
+        )
+
+        def fake(provider, _config):
+            if provider == "xai":
+                return ("ok", "stub")
+            if provider == "openai":
+                return ("ok", "stub")
+            return ("not_set", "")
+
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(doctor_mod, "_doctor_validate_key", fake)
+
+        result = runner.invoke(cli.app, ["doctor"])
+
+        assert result.exit_code == 0
+        assert "Cost mode:" in result.output
+        assert "API-billed routes" in result.output
+        assert "xai-secret-value" not in result.output
+        assert "openai-secret-value" not in result.output
+
     def test_xai_missing_and_invalid_gemini(self, tmp_path, monkeypatch):
         config = _config(tmp_path, xai_api_key="")
 
@@ -428,6 +477,31 @@ class TestDoctorHumanOutput:
 
 
 class TestDoctorJsonExtras:
+    def test_json_reports_cost_mode_warning_without_secret_values(self, tmp_path, monkeypatch):
+        config = _config(
+            tmp_path,
+            xai_api_key="xai-secret-value",
+            openai_api_key="openai-secret-value",
+        )
+
+        def fake(provider, _config):
+            if provider in {"xai", "openai"}:
+                return ("ok", "stub")
+            return ("not_set", "")
+
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(doctor_mod, "_doctor_validate_key", fake)
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert data["checks"]["cost_mode"] == "auto"
+        warning_text = "\n".join(data["warnings"])
+        assert "XAI_API_KEY" in warning_text
+        assert "OPENAI_API_KEY" in warning_text
+        assert "xai-secret-value" not in warning_text
+        assert "openai-secret-value" not in warning_text
+
     def test_json_flags_invalid_keys_and_missing_ytdlp(self, tmp_path, monkeypatch):
         config = _config(tmp_path, xai_api_key="bad")
 

@@ -108,6 +108,11 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 Shipped: **0.1 through 0.19** (latest release 0.19.2, 2026-06-28). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Remaining to 1.0). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+
+  Cost visibility tightened after the xAI spend review: `distill doctor` reports
+  the active cost mode and warns when `auto` mode has metered API keys
+  configured, listing key names only and pointing to fail-closed no-metered
+  mode.
 - **0.18 Batch-run visibility** - the `_logic.py` monolith fully retired, per-item / per-phase progress with running cost and ETA on the long ingest and report loops, and `-q` / `-v` / `--json` verbosity controls before the CLI contracts freeze.
 - **0.17 OKF interop + loop-ready stewardship** - `distill export --what bundle --format okf` and `distill okf validate` (OKF v0.1 bundles projected over the native corpus), plus `distill audit --next-actions --json` as the loop handoff surface. Design: [`docs/design/okf-loop-readiness.md`](docs/design/okf-loop-readiness.md).
 - **0.13-0.16 Engineering legibility + CLI-UX** - the entailment tier + verify-on-every-synthesis (0.13), agent-grade `--json` / strict stdout-stderr split (0.14), in-place `distill update` (0.15), the blocking structural golden-corpus eval gate (0.16), and the full `_logic.py` monolith removal. Design: [`docs/design/logic-decomposition.md`](docs/design/logic-decomposition.md).

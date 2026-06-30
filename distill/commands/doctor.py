@@ -48,6 +48,30 @@ _check_ollama_status = check_ollama_status
 _doctor_validate_key = doctor_validate_key
 
 
+def _configured_metered_api_keys(config: DistillConfig) -> list[str]:
+    keys: list[str] = []
+    if config.xai_api_key.get_secret_value().strip():
+        keys.append("XAI_API_KEY")
+    if config.gemini_api_key.get_secret_value().strip():
+        keys.append("GEMINI_API_KEY")
+    if config.openai_api_key.get_secret_value().strip():
+        keys.append("OPENAI_API_KEY")
+    return keys
+
+
+def _cost_mode_warnings(config: DistillConfig) -> list[str]:
+    if config.distill_cost_mode != "auto":
+        return []
+    keys = _configured_metered_api_keys(config)
+    if not keys:
+        return []
+    return [
+        "Cost mode is auto and metered API keys are configured: "
+        f"{', '.join(keys)}. Commands may use API-billed routes; pass "
+        "`--cost-mode no-metered` or set `DISTILL_COST_MODE=no-metered` to fail closed."
+    ]
+
+
 class _CTranslate2Module(Protocol):
     def get_cuda_device_count(self) -> int: ...
 
@@ -254,12 +278,14 @@ def doctor(  # noqa: C901 - legacy, will refactor
         checks["xai_api_key"] = xai_status  # ok | invalid | missing
         checks["gemini_api_key"] = gem_status  # ok | invalid | not_set
         checks["openai_api_key"] = oai_status  # ok | invalid | not_set
+        checks["cost_mode"] = config.distill_cost_mode
         if xai_status == "invalid":
             warnings_list.append(f"XAI_API_KEY rejected by provider: {xai_detail[:80]}")
         if gem_status == "invalid":
             warnings_list.append(f"GEMINI_API_KEY rejected by provider: {gem_detail[:80]}")
         if oai_status == "invalid":
             warnings_list.append(f"OPENAI_API_KEY rejected by provider: {oai_detail[:80]}")
+        warnings_list.extend(_cost_mode_warnings(config))
 
         # yt-dlp
         try:
@@ -610,6 +636,9 @@ def doctor(  # noqa: C901 - legacy, will refactor
     console.print(
         f"  Lookback:   [dim]{config.distill_default_months} month{'s' if config.distill_default_months != 1 else ''}[/dim]"
     )
+    console.print(f"  Cost mode:  [dim]{config.distill_cost_mode}[/dim]")
+    for warning in _cost_mode_warnings(config):
+        console.print(f"  [yellow]![/yellow] {warning}")
     console.print(f"  Library:    [dim]{config.library_dir}[/dim]")
     console.print(f"  Version:    [dim]v{_get_version()}[/dim]")
 

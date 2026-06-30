@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Preserved hallucination-risk fixture labels through `distill eval` rows,
   JSONL results, and report artifacts, and surfaced judge-derived review
   findings for risk fixtures without adding deterministic semantic scoring.
+- Made `distill doctor` report the active cost mode and warn when `auto` mode
+  has metered API keys configured, listing only key names and pointing users to
+  `--cost-mode no-metered` for fail-closed local runs.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.
