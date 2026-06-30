@@ -148,6 +148,7 @@ def _show_dashboard() -> None:  # noqa: C901
     due_topic_watches = snapshot["due_topic_watches"]
     topic_spend_rollups = snapshot["topic_spend_rollups"]
     source_spend_rollups = snapshot["source_spend_rollups"]
+    cost_warnings = snapshot["cost_warnings"]
     budget_messages = snapshot["budget_messages"]
 
     is_first_run = not any(
@@ -388,6 +389,9 @@ def _show_dashboard() -> None:  # noqa: C901
     if budget_messages:
         for idx, item in enumerate(budget_messages[:3]):
             attention.add_row("Budget" if idx == 0 else "", f"[yellow]{item}[/yellow]")
+    if cost_warnings:
+        for idx, item in enumerate(cost_warnings[:3]):
+            attention.add_row("Cost" if idx == 0 else "", f"[yellow]{item['message']}[/yellow]")
     if not watchlist and not topic_watchlist:
         attention.add_row("Watch State", "[dim]No recurring watches configured yet[/dim]")
     if attention.row_count == 0:
@@ -545,6 +549,7 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
     attention_lines.extend(snapshot["stale_topic_watches"][:5])
     attention_lines.extend(snapshot["corpus_health_warnings"][:5])
     attention_lines.extend(snapshot["budget_messages"][:5])
+    attention_lines.extend(item["message"] for item in snapshot["cost_warnings"][:5])
     if not attention_lines:
         attention_lines = ["No immediate issues detected"]
 

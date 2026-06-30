@@ -56,6 +56,22 @@ The usage ledger records zero-dollar usage too. Cost-log rows include provider
 and route-class breakdowns, no-metered LLM call counts, local transcription
 counts, and profile-run orchestration rows even when `actual_cost` is `0.0`.
 
+## Cost warnings
+
+`distill costs`, JSON cost output, the CLI dashboard, and the local web
+dashboard read the same ledger and surface structural surprise-cost warnings.
+The warnings are based only on recorded facts:
+
+- daily spend at or above the current attention threshold
+- a latest daily total that is much higher than the recent daily baseline
+- a latest comparable command/topic run that is much higher than its recent
+  baseline
+- any recorded xAI media-generation model id, such as `grok-imagine-image`
+
+These warnings do not decide whether a run was useful. They point to spend that
+deserves operator review. Preview rows are excluded from spike comparisons, and
+malformed or non-finite cost values are ignored.
+
 ## Provider-side caches
 
 Provider-side prompt and context caches are metered-route optimizations, not

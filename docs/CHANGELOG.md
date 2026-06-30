@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Made `distill doctor` report the active cost mode and warn when `auto` mode
   has metered API keys configured, listing only key names and pointing users to
   `--cost-mode no-metered` for fail-closed local runs.
+- Added structural surprise-cost warnings to `distill costs`, JSON cost output,
+  the CLI dashboard, and the local web dashboard, flagging high daily spend,
+  daily or comparable-run spikes, and any recorded xAI media-generation model
+  ids in the cost ledger.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

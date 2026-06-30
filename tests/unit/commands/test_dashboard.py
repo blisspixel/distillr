@@ -117,6 +117,14 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
         "due_topic_watches": 1,
         "topic_spend_rollups": [("topic0", 1.25, 1)],
         "source_spend_rollups": [("youtube", 1.0, 2), ("report", 0.25, 1)],
+        "cost_warnings": [
+            {
+                "kind": "daily-threshold",
+                "message": "Daily spend on 2026-06-03 reached $12.00.",
+                "date": "2026-06-03",
+                "cost": 12.0,
+            }
+        ],
         "budget_messages": ["topic-watch0 projected monthly spend exceeds budget"],
     }
     default.update(overrides)
@@ -158,6 +166,7 @@ def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch)
     assert "paused" in output
     assert "trend: rising" in output
     assert "failed video items" in output
+    assert "Daily spend on 2026-06-03 reached $12.00" in output
     assert "distill run topic0 --refresh" in output
 
 
@@ -182,6 +191,7 @@ def test_show_dashboard_renders_empty_non_first_run_sections(monkeypatch) -> Non
             corpus_health_warnings=[],
             topic_spend_rollups=[],
             source_spend_rollups=[],
+            cost_warnings=[],
             budget_messages=[],
         ),
     )
@@ -206,6 +216,7 @@ def test_render_dashboard_html_renders_budget_trends_changes_and_attention() -> 
     assert "topic0: +2 videos (trend: rising)" in html
     assert "Latest run failed items: 2" in html
     assert "Latest run issues: 1" in html
+    assert "Daily spend on 2026-06-03 reached $12.00" in html
 
 
 def test_render_dashboard_html_uses_artifact_and_empty_fallbacks() -> None:
@@ -237,6 +248,7 @@ def test_render_dashboard_html_uses_artifact_and_empty_fallbacks() -> None:
             due_topic_watches=0,
             topic_spend_rollups=[],
             source_spend_rollups=[],
+            cost_warnings=[],
             budget_messages=[],
             recent_artifacts=[(datetime(2026, 6, 1, 8, 0), "brief", "topic0")],
         ),

@@ -49,6 +49,51 @@ def test_costs_json_malformed_log_returns_empty_entries(tmp_path, monkeypatch):
     assert parsed["status"] == "ok"
     assert parsed["data"]["runs"] == []
     assert parsed["data"]["message"] == "No cost entries found."
+    assert parsed["data"]["cost_warnings"] == []
+
+
+def test_costs_json_and_human_output_include_cost_warnings(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    ops_dir = config.library_dir / ".distill"
+    ops_dir.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {
+            "timestamp": "2026-06-01T12:00:00",
+            "command": "report",
+            "actual_cost": 1.0,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-02T12:00:00",
+            "command": "report",
+            "actual_cost": 1.0,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-03T12:00:00",
+            "command": "report",
+            "actual_cost": 12.0,
+            "metadata": {"topic": "ai"},
+            "by_model": {"grok-imagine-image": {"calls": 24}},
+        },
+    ]
+    (ops_dir / "cost_log.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
+    )
+
+    json_result = runner.invoke(app, ["--json", "costs"])
+
+    assert json_result.exit_code == 0, json_result.output
+    parsed = json.loads(json_result.output)
+    warnings = parsed["data"]["cost_warnings"]
+    assert {warning["kind"] for warning in warnings} >= {"xai-media-model", "daily-threshold"}
+
+    human_result = runner.invoke(app, ["costs", "--last", "3"])
+
+    assert human_result.exit_code == 0, human_result.output
+    assert "Cost warnings" in human_result.output
+    assert "xAI media-generation model spend recorded" in human_result.output
 
 
 def test_costs_human_renders_sources_accuracy_and_breakdown(tmp_path, monkeypatch):

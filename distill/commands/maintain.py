@@ -46,7 +46,7 @@ from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
-from distill.pipeline.costs import CostTracker, projected_next_run_cost
+from distill.pipeline.costs import CostTracker, cost_anomaly_warnings, projected_next_run_cost
 from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
@@ -98,6 +98,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
+                    "cost_warnings": [],
                 }
             )
             import sys
@@ -133,6 +134,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
+                    "cost_warnings": [],
                 }
             )
             import sys
@@ -153,6 +155,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     accuracy = estimator_accuracy(entries)
     projected = projected_next_run_cost(entries)
+    cost_warnings = cost_anomaly_warnings(entries)
 
     if json_mode:
         # Compute local/cloud split from telemetry
@@ -169,6 +172,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                 "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                 "estimator_accuracy": accuracy,
                 "biggest_prompts": biggest_prompts,
+                "cost_warnings": cost_warnings,
             }
         )
         import sys
@@ -237,6 +241,11 @@ def costs(  # noqa: C901 -- legacy, will refactor
         console.print(
             f"[bold]Projected for next similar run[/bold] (avg last up to 5): ${projected:.4f}"
         )
+
+    if cost_warnings:
+        console.print("\n[bold yellow]Cost warnings[/bold yellow]")
+        for warning in cost_warnings:
+            console.print(f"  [yellow]{warning['message']}[/yellow]")
 
     # Local vs Cloud split from telemetry
     _costs_local_cloud_section(config)

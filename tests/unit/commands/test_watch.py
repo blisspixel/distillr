@@ -542,6 +542,7 @@ def test_dashboard_cli_home_uses_shared_snapshot(tmp_path, monkeypatch):
             "due_topic_watches": 0,
             "topic_spend_rollups": [],
             "source_spend_rollups": [],
+            "cost_warnings": [],
             "budget_messages": [],
         }
 

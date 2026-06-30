@@ -347,6 +347,59 @@ def test_projected_next_run_cost():
     assert projected_next_run_cost([{"command": "z", "actual_cost": 0.0}]) == 0.0
 
 
+def test_cost_anomaly_warnings_flag_media_daily_and_run_spikes():
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        {
+            "timestamp": "2026-06-01T12:00:00",
+            "command": "report",
+            "actual_cost": 1.0,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-02T12:00:00",
+            "command": "report",
+            "actual_cost": 1.2,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-03T12:00:00",
+            "command": "discover_preview",
+            "actual_cost": 99.0,
+            "metadata": {"topic": "ai"},
+        },
+        {
+            "timestamp": "2026-06-03T12:00:00",
+            "command": "report",
+            "actual_cost": 12.0,
+            "metadata": {"topic": "ai"},
+            "by_model": {"grok-imagine-image": {"calls": 24}},
+        },
+    ]
+
+    warnings = cost_anomaly_warnings(entries, daily_threshold_usd=10.0, limit=5)
+    kinds = [warning["kind"] for warning in warnings]
+
+    assert "xai-media-model" in kinds
+    assert "daily-threshold" in kinds
+    assert "daily-spike" in kinds
+    assert "run-spike" in kinds
+    assert all("preview" not in warning["message"] for warning in warnings)
+
+
+def test_cost_anomaly_warnings_ignore_bad_rows_and_zero_costs():
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        {"timestamp": "bad", "command": "learn", "actual_cost": "nan"},
+        {"timestamp": "bad", "command": "learn", "actual_cost": True},
+        {"timestamp": "2026-06-01T12:00:00", "command": "learn", "actual_cost": 0},
+    ]
+
+    assert cost_anomaly_warnings(entries) == []
+
+
 def test_estimate_run_cost_zero_items_no_accordion():
     # Covers the false branches for if full_videos, if shorts, if accordion.
     text = estimate_run_cost(0, 0, accordion=False)

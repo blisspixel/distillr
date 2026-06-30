@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import NotRequired, TypedDict, cast
 
 from distill.library import Library, TopicWatchEntry, WatchEntry
+from distill.pipeline.costs import CostWarning
 
 __all__ = [
     "CostRollup",
@@ -95,6 +96,7 @@ class DashboardSnapshot(TypedDict):
     due_topic_watches: int
     topic_spend_rollups: list[CostRollup]
     source_spend_rollups: list[CostRollup]
+    cost_warnings: list[CostWarning]
     budget_messages: list[str]
 
 

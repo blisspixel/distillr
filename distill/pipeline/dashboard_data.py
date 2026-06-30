@@ -14,7 +14,11 @@ from distill.library import Library, TopicWatchEntry
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
 from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
-from distill.pipeline.costs import estimate_stage_cost, report_deep_research_estimate
+from distill.pipeline.costs import (
+    cost_anomaly_warnings,
+    estimate_stage_cost,
+    report_deep_research_estimate,
+)
 from distill.pipeline.dashboard_records import (
     CostRollup,
     CostRun,
@@ -903,6 +907,7 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     next_sweep_cost = estimated_topic_watch_sweep(topic_watchlist)
     topic_spend = topic_cost_rollups(all_cost_entries, days=30, limit=4)
     source_spend = source_cost_rollups(all_cost_entries, days=30)
+    cost_warnings = cost_anomaly_warnings(all_cost_entries)
     budget_msgs: list[str] = []
     for entry in topic_watchlist:
         budget_msgs.extend(topic_watch_budget_messages(entry, all_cost_entries))
@@ -936,5 +941,6 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
         "due_topic_watches": len(stale_watches),
         "topic_spend_rollups": topic_spend,
         "source_spend_rollups": source_spend,
+        "cost_warnings": cost_warnings,
         "budget_messages": budget_msgs,
     }

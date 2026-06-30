@@ -122,7 +122,12 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [x] **Estimator calibration accountability** - shipped 0.12.3: estimate-of-record lands in `cost_log.jsonl`, and `distill costs` reports median absolute error, signed bias, and trend for comparable runs.
 - [~] Rolling cost by topic and source type so users can see where spend is going
 - [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place. Thin long-video transcript warnings now appear in `distill health` and the durable `distill audit` report; the broader dashboard rollup remains partial.
-- [~] Cost anomaly detection and budget guardrails per topic or workflow so expensive runs are predictable
+- [~] Cost anomaly detection and budget guardrails per topic or workflow so
+  expensive runs are predictable. `distill costs`, JSON cost output, the CLI
+  dashboard, and the local web dashboard now flag high daily spend, daily or
+  comparable-run spikes, and any recorded xAI media-generation model ids from
+  the cost ledger. Remaining: configurable warning thresholds and per-workflow
+  budget policies outside topic watches.
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
 - [x] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem. `papers`, `site-batch`, `discover` paper/site ingestion, and default `report` show phase/item/completed/failed/spend output, with ETA when enough items have completed. Video-backed loops used by `latest`, `catch-up`, and the video branch of `discover` print persistent per-video completed/failed/spend progress after each item and include spend in live phase labels. Global `--quiet` / `--verbose` output controls and recurring-workflow help examples are now wired.
 - [x] **Preview-table rendering at narrow widths** - fixed 0.9.31 (stacked layout below 110 columns); detail in [`CHANGELOG.md`](CHANGELOG.md).
