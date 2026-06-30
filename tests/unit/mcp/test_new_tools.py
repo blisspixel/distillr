@@ -12,7 +12,7 @@ from hypothesis import strategies as st
 
 from distill.config import DistillConfig
 from distill.library import Library
-from distill.pipeline.costs import BudgetExceededError
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 _FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0, "calls": 0}
 
@@ -204,6 +204,170 @@ class TestPapersTool:
 
         assert result["status"] == "complete"
         assert result["papers"] == [{"title": "Agent Memory Systems", "status": "ok"}]
+
+    def test_analyze_one_records_per_paper_errors(self, mock_config):
+        from distill.ingestors.papers.arxiv import PaperRecord
+        from distill.mcp.tools import papers as papers_tool
+
+        paper = PaperRecord(
+            paper_id="2602.00001v1",
+            title="Broken Paper",
+            abstract="Abstract",
+        )
+
+        def analyze(paper_arg, config_arg, tracker=None, router_config=None, *, intent=None):
+            assert paper_arg is paper
+            assert config_arg is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert router_config is None
+            assert intent is None
+            raise RuntimeError("analysis failed")
+
+        row = papers_tool._analyze_one(
+            paper,
+            "ai",
+            mock_config,
+            CostTracker(),
+            None,
+            analyze_paper=analyze,
+        )
+
+        assert row == {
+            "title": "Broken Paper",
+            "status": "error",
+            "error": "analysis failed",
+        }
+
+    def test_search_failure_uses_default_limit_for_invalid_limit(self, mock_config, monkeypatch):
+        seen: dict[str, int] = {}
+
+        def search(query, max_results):
+            seen["max_results"] = max_results
+            raise RuntimeError("search down")
+
+        monkeypatch.setattr("distill.ingestors.papers.arxiv.search_arxiv", search)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.papers import papers
+
+            result = json.loads(asyncio.run(papers("ai", "agent memory", limit="bad")))
+
+        assert seen["max_results"] == 10
+        assert result == {"status": "error", "error": "arXiv search failed: search down"}
+
+    def test_progress_and_synthesis_warning_do_not_fail_tool(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        from distill.ingestors.papers.arxiv import PaperRecord
+        from distill.mcp.tools import papers as papers_tool
+
+        class ProgressContext:
+            def __init__(self):
+                self.calls = []
+
+            async def report_progress(self, *, progress, total):
+                self.calls.append((progress, total))
+
+        paper = PaperRecord(
+            paper_id="2602.12670v1",
+            title="Agent Memory Systems",
+            abstract="A paper about memory systems.",
+            authors=["Alice"],
+        )
+        ctx = ProgressContext()
+
+        def search(query, max_results):
+            assert query == "agent memory"
+            assert max_results == 2
+            return [paper]
+
+        def analyze_paper(paper_arg, config_arg, tracker=None, router_config=None, *, intent=None):
+            assert paper_arg is paper
+            assert config_arg is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert router_config is None
+            assert intent is None
+            return "# Insights", "# Paper"
+
+        def write_artifacts(topic, paper_arg, config_arg, insights, document=None):
+            assert topic == "ai"
+            assert paper_arg is paper
+            assert config_arg is mock_config
+            assert insights == "# Insights"
+            assert document == "# Paper"
+            return tmp_path / "paper"
+
+        def fail_paper_synthesis(topic, config_arg, tracker=None):
+            assert topic == "ai"
+            assert config_arg is mock_config
+            assert isinstance(tracker, CostTracker)
+            raise RuntimeError("synthesis down")
+
+        def synthesize_corpus(
+            topic,
+            config_arg,
+            tracker=None,
+            *,
+            style="",
+            two_pass=False,
+            now_iso=None,
+        ):
+            assert topic == "ai"
+            assert config_arg is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert style == ""
+            assert two_pass is False
+            assert now_iso is None
+            return "# Corpus"
+
+        def save_log(
+            log_dir,
+            command,
+            tracker,
+            estimated_cost=None,
+            full_videos=0,
+            shorts=0,
+            elapsed_seconds=0,
+            metadata=None,
+            preview=False,
+        ):
+            assert log_dir == mock_config.library_dir
+            assert command == "papers"
+            assert isinstance(tracker, CostTracker)
+            assert estimated_cost is None
+            assert full_videos == 0
+            assert shorts == 0
+            assert elapsed_seconds == 0
+            assert metadata is None
+            assert preview is False
+
+        monkeypatch.setattr("distill.ingestors.papers.arxiv.search_arxiv", search)
+        monkeypatch.setattr(
+            "distill.pipeline.analysis.paper.analyze_paper",
+            analyze_paper,
+        )
+        monkeypatch.setattr(
+            "distill.commands._paper_artifacts.write_paper_artifacts",
+            write_artifacts,
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.analysis.paper.synthesize_papers",
+            fail_paper_synthesis,
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.synthesis.corpus.synthesize_corpus",
+            synthesize_corpus,
+        )
+        monkeypatch.setattr(papers_tool, "save_run_log", save_log)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.papers import papers
+
+            result = json.loads(asyncio.run(papers("ai", "agent memory", limit=1, ctx=ctx)))
+
+        assert result["status"] == "complete"
+        assert result["papers"] == [{"title": "Agent Memory Systems", "status": "ok"}]
+        assert ctx.calls == [(0, 1), (1, 1)]
 
 
 class TestSiteBatchTool:

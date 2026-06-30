@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Raised the branch-coverage floor to 93 after adding focused MCP papers tool
+  coverage for per-paper error rows, invalid-limit fallback, arXiv search
+  failures, progress reporting, and synthesis-warning tolerance. The full
+  coverage gate now reports 93.01%.
 - Added focused ingest command coverage for local media, GitHub, and feed
   routing, local extraction errors and insights output, tweet and media
   skipped-note output, newsletter and podcast feed branches, podcast fetch
