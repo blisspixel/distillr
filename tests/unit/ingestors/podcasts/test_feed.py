@@ -9,6 +9,27 @@ from distill.ingestors.podcasts import feed as feed_mod
 from distill.ingestors.podcasts import looks_like_feed_url, parse_feed
 
 
+class _BytesResponse:
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self, size):
+        return self._data
+
+
+def _stub_urlopen(monkeypatch, data: bytes):
+    def fake_urlopen(_request, timeout=60):
+        return _BytesResponse(data)
+
+    monkeypatch.setattr(feed_mod, "safe_urlopen", fake_urlopen)
+
+
 class TestFetchErrorTranslation:
     def test_network_error_becomes_podcast_fetch_error(self, monkeypatch):
         """Regression: ``safe_urlopen`` wraps every failure in ``NetworkError``;
@@ -77,6 +98,82 @@ class TestParseFeed:
             parse_feed("<html><body>nope</body></html>")
         with pytest.raises(feed_mod.PodcastFetchError, match="XML"):
             parse_feed("{json: true}")
+
+    def test_non_episode_items_are_skipped(self):
+        feed = parse_feed(
+            """<rss><channel><title>Empty</title><item><description>not an episode</description></item></channel></rss>"""
+        )
+
+        assert feed.episodes == []
+
+    def test_invalid_dates_and_durations_preserve_feed_order(self):
+        feed = parse_feed(
+            """<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+              <channel>
+                <item>
+                  <title>First in feed</title>
+                  <guid>first</guid>
+                  <pubDate>not a date</pubDate>
+                  <enclosure url="https://example.com/first.mp3" type="audio/mpeg"/>
+                  <itunes:duration></itunes:duration>
+                </item>
+                <item>
+                  <title>Second in feed</title>
+                  <guid>second</guid>
+                  <enclosure url="https://example.com/second.mp3" type="audio/mpeg"/>
+                  <itunes:duration>1:2:bad:4</itunes:duration>
+                </item>
+              </channel>
+            </rss>"""
+        )
+
+        assert [ep.guid for ep in feed.episodes] == ["first", "second"]
+        assert [ep.duration_s for ep in feed.episodes] == [0, 0]
+        assert feed.episodes[0].published_dt() is None
+
+
+class TestFetchSuccess:
+    def test_fetch_feed_decodes_response(self, monkeypatch):
+        _stub_urlopen(monkeypatch, _RSS.encode("utf-8"))
+
+        feed = feed_mod.fetch_feed("https://example.com/feed.xml")
+
+        assert feed.title == "Research Pod"
+        assert [ep.guid for ep in feed.episodes] == ["ep-2", "ep-1"]
+
+    def test_fetch_transcript_normalizes_vtt(self, monkeypatch):
+        _stub_urlopen(
+            monkeypatch,
+            b"WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.000\nhello\n\n",
+        )
+
+        transcript = feed_mod.fetch_transcript(
+            "https://example.com/ep.vtt", transcript_type="text/vtt"
+        )
+
+        assert transcript == "hello"
+
+    def test_fetch_transcript_strips_plain_text(self, monkeypatch):
+        _stub_urlopen(monkeypatch, b"\n Plain transcript. \n")
+
+        transcript = feed_mod.fetch_transcript("https://example.com/ep.txt")
+
+        assert transcript == "Plain transcript."
+
+    def test_fetch_transcript_size_cap_raises(self, monkeypatch):
+        _stub_urlopen(monkeypatch, b"abcd")
+        monkeypatch.setattr(feed_mod, "_MAX_TRANSCRIPT_BYTES", 3)
+
+        with pytest.raises(feed_mod.PodcastFetchError, match="exceeds"):
+            feed_mod.fetch_transcript("https://example.com/ep.txt")
+
+    def test_download_audio_writes_file_with_default_suffix(self, monkeypatch, tmp_path):
+        _stub_urlopen(monkeypatch, b"audio-bytes")
+
+        path = feed_mod.download_audio("https://example.com/download", tmp_path / "audio")
+
+        assert path.name == "episode.mp3"
+        assert path.read_bytes() == b"audio-bytes"
 
 
 class TestCaptionStripping:

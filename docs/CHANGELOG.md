@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused podcast-feed boundary coverage for invalid dates, blank and
+  invalid durations, skipped non-episode RSS items, successful feed decoding,
+  transcript normalization, transcript size-cap refusal, and audio writes. The
+  full coverage gate now reports 91.99%; the enforced floor remains 91 until
+  unrounded coverage clears the next ratchet.
 - Added focused podcast-analysis branch coverage for explicit pre-fetched feed
   routing, empty parsed feeds, publisher transcript fallback, transcribe-disabled
   skips, transcription failures, URL-shaped identity digests, and unknown
