@@ -136,9 +136,9 @@ def test_rerank_uses_model_with_local_provider_and_no_cloud_key(tmp_path, monkey
 def test_rerank_videos_labels_no_model_fallback(tmp_path, monkeypatch):
     # No usable model for the workload (use_llm=True but nothing configured): fall
     # back to the deterministic baseline AND label it "no-model" (P2), so a
-    # consumer sees a forced degraded order, not a chosen one. 'anthropic' is
-    # configured-but-not-implemented -> deterministic "no model", env-decoupled.
-    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+    # consumer sees a forced degraded order, not a chosen one. 'openai' is
+    # unimplemented -> deterministic "no model", env-decoupled.
+    monkeypatch.setenv("DISTILL_PROVIDER", "openai")
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     videos = [
         VideoInfo("v1", "Kubernetes guide", _recent(3), 1200, "https://y.tube/v1", "A"),
@@ -529,7 +529,7 @@ def test_rerank_papers_handles_empty_inputs_and_no_model_fallback(tmp_path, monk
 
     assert rerank_papers("query", [], config) == []
 
-    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+    monkeypatch.setenv("DISTILL_PROVIDER", "openai")
     ranked = rerank_papers("symbolic music", [_paper("p1", "Symbolic Music")], config)
 
     assert ranked[0].selected_by == "no-model"

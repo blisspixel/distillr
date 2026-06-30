@@ -730,7 +730,7 @@ class TestCatchUp:
         assert "empty" in result.lower()
 
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
@@ -982,7 +982,7 @@ class TestSearchVideos:
 
 class TestLearnTopic:
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             result = learn_topic("ai agents")
@@ -1052,7 +1052,7 @@ class TestLearnTopic:
 
 class TestProcessVideoUrl:
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             result = process_video_url("https://youtube.com/watch?v=abc")
@@ -1144,7 +1144,7 @@ class TestGenerateReport:
 
 class TestResynthesizeTopic:
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",

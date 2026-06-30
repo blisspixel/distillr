@@ -17,6 +17,7 @@ from distill._console import console
 from distill.cli_shared import output_path as _output_path
 from distill.commands._helpers import (
     _complete_topics,
+    budgeted_cost_tracker,
     get_config,
 )
 from distill.commands._topic_resolution import (
@@ -32,7 +33,6 @@ from distill.library.citations import collect_paper_citations, render_citations
 from distill.library.export import markdown_to_docx
 from distill.library.okf import export_okf_bundle
 from distill.library.paths import find_artifact
-from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.deep_research import run_deep_research
 from distill.pipeline.summary import RunSummary, display_summary
 
@@ -180,7 +180,7 @@ def report(  # noqa: C901 - legacy, will refactor
     )
     method = "Legacy (single-shot)" if legacy else "Accordion (4-phase)"
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "report")
     summary = RunSummary(command="report")
     if topic:
         summary.set_metadata(topic=topic, workflow="report")

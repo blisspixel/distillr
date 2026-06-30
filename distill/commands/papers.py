@@ -21,6 +21,7 @@ from distill.commands._concept_ingest import (
 from distill.commands._helpers import (
     _apply_verify_override,
     _persist_lens,
+    budgeted_cost_tracker,
     get_config,
     resolve_intent,
 )
@@ -38,7 +39,7 @@ from distill.ingestors.papers.arxiv import (
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import BudgetExceededError
 from distill.pipeline.ranking import rerank_papers
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
@@ -58,7 +59,7 @@ def paper(
     """Ingest and analyze a single arXiv paper."""
     config = get_config()
     _require_model()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "paper")
     summary = RunSummary(command="paper")
     summary.set_metadata(topic=topic, workflow="paper", source_type="paper")
 
@@ -154,7 +155,7 @@ def papers(  # noqa: C901 — legacy, will refactor
 
     config = get_config()
     _require_model()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "papers")
     topic_name = topic or _topic_from_query(query)
     if lens:
         _persist_lens(config, topic_name, query, lens)

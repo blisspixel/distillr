@@ -14,10 +14,10 @@ import typer
 from rich.markdown import Markdown
 
 from distill._console import console
-from distill.commands._helpers import _complete_topics, get_config
+from distill.commands._helpers import _complete_topics, budgeted_cost_tracker, get_config
 from distill.commands._helpers import require_model as _require_model
 from distill.pipeline.ask import ask_corpus
-from distill.pipeline.costs import CostTracker, save_run_log
+from distill.pipeline.costs import save_run_log
 
 __all__ = ["ask_cmd", "register"]
 
@@ -47,7 +47,7 @@ def ask_cmd(
     """
     config = get_config()
     _require_model("qa")
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "ask")
 
     result = ask_corpus(question, topic=topic, config=config, save=save, tracker=tracker)
 

@@ -209,7 +209,7 @@ class TestMcpTools:
         from distill.mcp import server as _server
         from distill.mcp.tools.summaries import find_insights_summary
 
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         monkeypatch.setattr(_server, "_config", lambda: config)
 

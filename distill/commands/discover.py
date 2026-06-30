@@ -30,6 +30,7 @@ from distill.commands._discover_sites import (
 )
 from distill.commands._helpers import (
     _apply_verify_override,
+    budgeted_cost_tracker,
     get_config,
 )
 from distill.commands._helpers import (
@@ -79,7 +80,7 @@ from distill.library.ingested import ingested_source_ids
 from distill.library.intent import make_intent, save_intent
 from distill.library.paths import find_artifact, site_name_from_url
 from distill.pipeline.analysis.site import synthesize_site_topic
-from distill.pipeline.costs import CostTracker, estimate_discover_items, load_cost_calibration
+from distill.pipeline.costs import estimate_discover_items, load_cost_calibration
 from distill.pipeline.discovery import (
     RIGOR_LEVELS,
     detect_score_cliff,
@@ -166,7 +167,7 @@ def synthesize_cmd(
     config = get_config()
     _require_model()
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "synthesize")
     output_path = run_synthesis(
         topics=expanded,
         context=context_text,
@@ -405,7 +406,7 @@ def site_cmd(
         raise typer.Exit(2)
     if not scrape_only:
         _require_model()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "site")
     summary = RunSummary(command="site")
     summary.set_metadata(topic=topic, workflow="site", source_type="website")
     seed = SiteSeed(
@@ -508,7 +509,7 @@ def site_batch_cmd(
         return
     if not scrape_only:
         _require_model()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "site-batch")
     summary = RunSummary(command="site-batch")
     summary.set_metadata(topic=target_topic, workflow="site-batch", source_type="website")
 
@@ -674,7 +675,7 @@ def discover(  # noqa: C901 — legacy, will refactor
 
     config = get_config()
     _require_model()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "discover")
 
     if from_preview:
         from distill.pipeline.preview_cache import (

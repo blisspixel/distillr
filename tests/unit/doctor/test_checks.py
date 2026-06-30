@@ -114,6 +114,66 @@ def test_doctor_validate_gemini_key_auth_rejection(monkeypatch) -> None:
     assert detail == "forbidden"
 
 
+def test_doctor_validate_anthropic_key_success(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class _Response:
+        @staticmethod
+        def raise_for_status() -> None:
+            return None
+
+    def _post(url: str, **kwargs) -> _Response:
+        kwargs["url"] = url
+        calls.append(kwargs)
+        return _Response()
+
+    monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(post=_post))
+
+    status, detail = checks.doctor_validate_key(
+        "anthropic",
+        DistillConfig(anthropic_api_key="test-key"),
+    )
+
+    assert (status, detail) == ("ok", "claude-sonnet-5")
+    assert calls[0]["headers"] == {
+        "x-api-key": "test-key",
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    assert calls[0]["json"] == {
+        "model": "claude-sonnet-5",
+        "max_tokens": 1,
+        "messages": [{"role": "user", "content": "hi"}],
+        "output_config": {"effort": "low"},
+    }
+
+
+def test_doctor_validate_anthropic_key_auth_rejection(monkeypatch) -> None:
+    class _AuthError(Exception):
+        def __init__(self) -> None:
+            self.response = types.SimpleNamespace(status_code=401)
+            super().__init__("unauthorized")
+
+    class _Response:
+        @staticmethod
+        def raise_for_status() -> None:
+            raise _AuthError()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "httpx",
+        types.SimpleNamespace(post=lambda *_args, **_kw: _Response()),
+    )
+
+    status, detail = checks.doctor_validate_key(
+        "anthropic",
+        DistillConfig(anthropic_api_key="test-key"),
+    )
+
+    assert status == "invalid"
+    assert detail == "unauthorized"
+
+
 def test_doctor_validate_openai_key_success(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
 

@@ -1,6 +1,6 @@
 # Cost model
 
-Distill runs on a mix of free and paid stages. YouTube captions and local PDF extraction are free. Model calls are metered per-token by xAI (Grok) and per-query by Google (Gemini Deep Research).
+Distill runs on a mix of free and paid stages. YouTube captions and local PDF extraction are free. Model calls are metered per-token by xAI, Anthropic, and Gemini chat routes, and per-query by Google Gemini Deep Research.
 
 Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table - and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. grok-4.3 is the **cloud floor**: xAI retired the cheaper fast tiers (grok-4-1-fast, grok-4-fast, grok-3, …) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](migration-grok-4.3.md)). To go cheaper than grok-4.3 you run analysis on a **local model** (Ollama/LM Studio, $0 marginal) - measure the tradeoff first with `distill eval --models grok-4.3,<local-model>`, which scores quality and cost over frozen fixtures and recommends the cheapest model that clears your bar.
 
@@ -17,7 +17,8 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Deterministic fetch, parse, audit, and local extraction | Yes | No model bill | Still uses network for public sources when the command asks for them. |
 | Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill | Uses local hardware, electricity, and time. Quality must clear `distill eval` before a workload should default to it. |
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
-| Opt-in Anthropic and OpenAI API routes | Partial | Metered API spend | Providers exist in-tree, but they are not calibrated defaults. |
+| Opt-in Anthropic API route | Yes | Metered API spend | Claude Sonnet 5 is wired for explicit opt-in use, but it is not a calibrated default. |
+| Reserved OpenAI analysis route | No | Metered API spend when implemented | OpenAI is not a live analysis provider yet. OpenAI Whisper transcription is separate. |
 | Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, Gemini CLI, and Antigravity `agy` | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, structured support-statement details checked against current 2026-06-30 vendor docs, local config auth-marker scanning, strict `adapter-workload.v1` input packages, strict `adapter-result.v1` manifest checks with quota-stop metadata, a scratch-only runner primitive, a checked workload runner, a native result writer, adapter-specific native usage capture, a manifest-to-ledger helper, and blocked read-only command planners exist. No plan-quota support statement is current for no-metered routing yet because paid credits, overages, API-key modes, gateway routes, or unproved session auth remain possible. Routes still need included-plan auth proof, native schema enforcement where the CLI supports it, real installed-session validation, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
@@ -208,6 +209,7 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Still available; selectable via env override for higher-fidelity passes |
 | `deep-research-preview-04-2026` | pay-as-you-go | ~$2-5/query | N/A | Report Phase 1, `distill research-brief` |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19) |
+| `claude-sonnet-5` | $3.00/1M | $15.00/1M | 1M | Optional Anthropic-provider chat model; list-rate estimate, not a default route |
 
 Since 0.3.1, both fast and premium tiers default to `grok-4.3`. The older models remain available via `.env` overrides for users who prefer them.
 
@@ -223,10 +225,12 @@ XAI_SITE_MODEL=
 XAI_SYNTHESIS_MODEL=
 ACCORDION_SECTION_MODEL=
 
-# Multi-provider support (added in 0.3.1)
-# Implemented providers: xai, gemini, agent, ollama, lmstudio.
-# anthropic/openai are reserved names and are not implemented in this release.
-DISTILL_PROVIDER=xai                    # xai | gemini | agent | ollama | lmstudio
+# Multi-provider support
+# Implemented providers: xai, gemini, anthropic, agent, ollama, lmstudio.
+# openai is a reserved analysis route and is not implemented in this release.
+ANTHROPIC_API_KEY=
+DISTILL_PROVIDER=xai                    # xai | gemini | anthropic | agent | ollama | lmstudio
+DISTILL_MODEL=                          # e.g. claude-sonnet-5 with DISTILL_PROVIDER=anthropic
 DISTILL_ANALYSIS_PROVIDER=              # per-workload provider override
 DISTILL_SYNTHESIS_PROVIDER=
 ```

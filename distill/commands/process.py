@@ -28,6 +28,7 @@ from distill.cli_shared import require_model as _require_model
 from distill.cli_shared import safe_console_text as _safe_console_text
 from distill.cli_shared import strip_frontmatter as _strip_frontmatter
 from distill.commands._helpers import (
+    budgeted_cost_tracker,
     duration_str,
     file_link,
     get_config,
@@ -68,7 +69,7 @@ from distill.pipeline.analysis.video import (
     analyze_video,
     generate_channel_context,
 )
-from distill.pipeline.costs import CostTracker, estimate_run_cost
+from distill.pipeline.costs import estimate_run_cost
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
@@ -101,7 +102,7 @@ def video(
     config = get_config()
     _require_model()
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "video")
     summary = RunSummary(command="video")
 
     console.print("\n[bold]Fetching video info...[/bold]")
@@ -228,7 +229,7 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
         console.print("[yellow]No videos found in date range[/yellow]")
         return
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "channel")
     summary = RunSummary(command="channel")
     state = ChannelState(config.channel_dir(topic, name) / "state.json")
 
@@ -331,7 +332,7 @@ def run(  # noqa: C901 — legacy, will refactor
     else:
         topics = [cast(str, topic)]
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "run")
     summary = RunSummary(command="run")
     total_new = 0
     total_analyzed = 0

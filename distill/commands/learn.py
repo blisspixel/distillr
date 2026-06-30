@@ -23,6 +23,7 @@ from distill.commands._concept_ingest import (
 from distill.commands._helpers import (
     _apply_verify_override,
     _persist_lens,
+    budgeted_cost_tracker,
     get_config,
     run_preflight,
 )
@@ -208,7 +209,7 @@ def research_brief_cmd(
     config = get_config()
     _require_api_key(config.gemini_api_key, "GEMINI_API_KEY required for Deep Research")
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "research-brief")
     summary = RunSummary(command="research-brief")
     summary.set_metadata(topic=",".join(expanded), workflow="research-brief")
 

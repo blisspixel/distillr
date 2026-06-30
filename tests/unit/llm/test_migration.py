@@ -24,12 +24,12 @@ from hypothesis import strategies as st
 from distill.config import DistillConfig
 from distill.doctor.checks import check_retired_models
 from distill.llm.cost import PRICING, compute_cost, get_pricing
+from distill.llm.reasoning import resolve_xai_reasoning_effort
 from distill.llm.router import (
     RETIRED_MODELS,
     RETIREMENT_DATE,
     WORKLOAD_TAGS,
     RouterConfig,
-    _resolve_reasoning_effort,
 )
 
 # =============================================================================
@@ -178,7 +178,7 @@ def test_per_workload_reasoning_effort_override(
     monkeypatch.setenv(env_key, effort)
 
     config = RouterConfig()
-    result = _resolve_reasoning_effort(config, workload_tag)
+    result = resolve_xai_reasoning_effort(config, workload_tag)
     assert result == effort, (
         f"Expected reasoning effort '{effort}' for workload '{workload_tag}', got '{result}'"
     )
@@ -241,7 +241,7 @@ class TestReasoningEffortDefaultsAndCostInvariance:
                 os.environ.pop(env_key, None)
 
             for tag in ("site", "report"):
-                result = _resolve_reasoning_effort(config, tag)
+                result = resolve_xai_reasoning_effort(config, tag)
                 assert result == "high", (
                     f"Premium workload '{tag}' should default to 'high', got '{result}'"
                 )
@@ -255,7 +255,7 @@ class TestReasoningEffortDefaultsAndCostInvariance:
                 os.environ.pop(env_key, None)
 
             for tag in ("analysis", "rerank", "synthesis"):
-                result = _resolve_reasoning_effort(config, tag)
+                result = resolve_xai_reasoning_effort(config, tag)
                 assert result == "medium", (
                     f"Fast-tier workload '{tag}' should default to 'medium', got '{result}'"
                 )
@@ -266,7 +266,7 @@ class TestReasoningEffortDefaultsAndCostInvariance:
         invalid_values = ["invalid", "EXTREME", "none", "1", ""]
         for invalid in invalid_values:
             monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", invalid)
-            result = _resolve_reasoning_effort(config, "analysis")
+            result = resolve_xai_reasoning_effort(config, "analysis")
             assert result == "medium", (
                 f"Invalid value '{invalid}' should be ignored, expected 'medium', got '{result}'"
             )

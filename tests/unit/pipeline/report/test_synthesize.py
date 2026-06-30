@@ -35,10 +35,10 @@ def test_compose_synthesis_prompt_includes_context_and_sources():
 
 
 def test_run_synthesis_returns_none_when_no_model_available(tmp_path, monkeypatch):
-    # No usable model for the workload -> clean abort, not a crash. 'anthropic' is
-    # configured-but-not-implemented, so the router reports no model regardless of
+    # No usable model for the workload -> clean abort, not a crash. 'openai' is
+    # unimplemented, so the router reports no model regardless of
     # any ambient cloud key (deterministic, no env coupling).
-    monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+    monkeypatch.setenv("DISTILL_PROVIDER", "openai")
     no_key = DistillConfig(distill_output_dir=tmp_path / "lib")
     assert run_synthesis(["ai"], "ctx", "demo", no_key) is None
 

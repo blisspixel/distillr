@@ -247,7 +247,7 @@ def test_unknown_provider_raises_configuration_error() -> None:
         call(config, "analysis", "test prompt")
 
 
-@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+@pytest.mark.parametrize("provider", ["openai"])
 def test_unimplemented_providers_fail_validation(provider: str) -> None:
     """Reserved provider names fail early instead of raising at first LLM call."""
     config = RouterConfig(
@@ -258,6 +258,64 @@ def test_unimplemented_providers_fail_validation(provider: str) -> None:
 
     with pytest.raises(ConfigurationError, match="not implemented"):
         call(config, "analysis", "test prompt")
+
+
+def test_anthropic_provider_routes_with_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Anthropic is a live metered route when an API key is explicitly configured."""
+    monkeypatch.delenv("DISTILL_ANALYSIS_REASONING_EFFORT", raising=False)
+    config = RouterConfig(
+        provider="anthropic",
+        anthropic_api_key="test-anthropic",
+        model="claude-sonnet-5",
+    )
+    mock_prov = _mock_provider(model="claude-sonnet-5")
+
+    with patch("distill.llm.router._get_provider", return_value=mock_prov):
+        result = call(config, "analysis", "test prompt")
+
+    assert result.provider_name == "anthropic"
+    assert result.provider_type == "cloud"
+    assert result.model == "claude-sonnet-5"
+    assert mock_prov.call.call_args.kwargs["reasoning_effort"] is None
+
+
+def test_anthropic_missing_key_raises_configuration_error() -> None:
+    config = RouterConfig(provider="anthropic", anthropic_api_key="")
+
+    with pytest.raises(ConfigurationError, match="ANTHROPIC_API_KEY"):
+        call(config, "analysis", "test prompt")
+
+
+def test_anthropic_sonnet5_configured_effort_is_forwarded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", "xhigh")
+    config = RouterConfig(
+        provider="anthropic",
+        anthropic_api_key="test-anthropic",
+        model="claude-sonnet-5",
+    )
+    mock_prov = _mock_provider(model="claude-sonnet-5")
+
+    with patch("distill.llm.router._get_provider", return_value=mock_prov):
+        call(config, "analysis", "test prompt")
+
+    assert mock_prov.call.call_args.kwargs["reasoning_effort"] == "xhigh"
+
+
+def test_anthropic_invalid_effort_is_not_forwarded(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", "extreme")
+    config = RouterConfig(
+        provider="anthropic",
+        anthropic_api_key="test-anthropic",
+        model="claude-sonnet-5",
+    )
+    mock_prov = _mock_provider(model="claude-sonnet-5")
+
+    with patch("distill.llm.router._get_provider", return_value=mock_prov):
+        call(config, "analysis", "test prompt")
+
+    assert mock_prov.call.call_args.kwargs["reasoning_effort"] is None
 
 
 def test_router_config_defaults_ops_dir_to_library(monkeypatch: Any, tmp_path: Path) -> None:

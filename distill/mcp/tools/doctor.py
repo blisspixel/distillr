@@ -43,6 +43,7 @@ def doctor() -> str:
     for provider, label in (
         ("xai", "xai_api_key"),
         ("gemini", "gemini_api_key"),
+        ("anthropic", "anthropic_api_key"),
         ("openai", "openai_api_key"),
     ):
         status, detail = doctor_validate_key(provider, config)

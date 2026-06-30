@@ -21,7 +21,7 @@ from distill.cli_shared import (
     topic_from_query,
     write_video_metadata,
 )
-from distill.commands._helpers import _detect_ramp_source
+from distill.commands._helpers import _detect_ramp_source, budgeted_cost_tracker
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
@@ -30,6 +30,20 @@ from distill.commands._topic_watch import (
     topic_watch_name,
     topic_watch_ranking_strategy,
 )
+
+
+class TestBudgetedCostTracker:
+    def test_applies_exact_configured_workflow_cap(self, tmp_path):
+        from distill.config import DistillConfig
+
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "library",
+            distill_cost_workflow_budgets="learn=0.01,site-batch=2",
+        )
+
+        assert budgeted_cost_tracker(config, "learn").budget == 0.01
+        assert budgeted_cost_tracker(config, " site-batch ").budget == 2.0
+        assert budgeted_cost_tracker(config, "ask").budget is None
 
 
 class TestEnsureUtf8Stdio:
@@ -663,6 +677,26 @@ class TestProcessVideo:
         result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
         assert result is False
         assert "API error" in summary.results[0].error
+
+    def test_budget_exceeded_is_hard_stop(self, config, monkeypatch):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import BudgetExceededError, CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        video = self._make_video()
+        vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "transcript.txt").write_text("Content here", encoding="utf-8")
+
+        def raise_budget(*_args, **_kwargs):
+            raise BudgetExceededError(0.6, 0.5)
+
+        monkeypatch.setattr("distill.commands._helpers.analyze_video", raise_budget)
+        summary = RunSummary(command="test")
+
+        with pytest.raises(BudgetExceededError):
+            process_video("ai", "TestCh", video, config, CostTracker(), summary)
+        assert summary.results == []
 
 
 class TestHelperRecording:

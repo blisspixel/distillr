@@ -21,6 +21,7 @@ from distill.llm.model_policy import (
     is_xai_media_generation_model,
     xai_media_generation_refusal,
 )
+from distill.llm.reasoning import configured_anthropic_effort, resolve_xai_reasoning_effort
 
 logger = logging.getLogger(__name__)
 
@@ -222,14 +223,15 @@ class RouterConfig(BaseSettings):
         key_map: dict[str, tuple[str | None, str | None]] = {
             "xai": ("xai_api_key", "XAI_API_KEY"),
             "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
+            "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
             "agent": (None, None),
             "ollama": (None, None),
             "lmstudio": (None, None),
         }
-        if provider_name in {"anthropic", "openai"}:
+        if provider_name == "openai":
             raise ConfigurationError(
                 f"Provider '{provider_name}' is not implemented yet. "
-                "Use xai, gemini, agent, ollama, or lmstudio."
+                "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
             )
 
         if provider_name not in key_map:
@@ -284,14 +286,18 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
         from distill.llm.providers.gemini import GeminiProvider
 
         provider = GeminiProvider(config.gemini_api_key)
+    elif provider_name == "anthropic":
+        from distill.llm.providers.anthropic import AnthropicProvider
+
+        provider = AnthropicProvider(config.anthropic_api_key)
     elif provider_name == "agent":
         from distill.llm.providers.agent import AgentProvider
 
         provider = AgentProvider(config.ops_dir)
-    elif provider_name in {"anthropic", "openai"}:
+    elif provider_name == "openai":
         raise ConfigurationError(
             f"Provider '{provider_name}' is not implemented yet. "
-            "Use xai, gemini, agent, ollama, or lmstudio."
+            "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
         )
     elif provider_name == "ollama":
         from distill.llm.providers.ollama import OllamaProvider
@@ -302,7 +308,7 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
 
         provider = LMStudioProvider()
     else:
-        valid = "xai, gemini, agent, ollama, lmstudio"
+        valid = "xai, gemini, anthropic, agent, ollama, lmstudio"
         raise ConfigurationError(f"Unknown provider '{provider_name}'. Valid providers: {valid}")
 
     _provider_cache[cache_key] = provider
@@ -310,21 +316,6 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
 
 
 get_provider = _get_provider
-
-
-_VALID_REASONING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high"})
-
-
-def _resolve_reasoning_effort(config: RouterConfig, workload_tag: str) -> str | None:
-    """Resolve reasoning effort for a workload."""
-    env_key = f"DISTILL_{workload_tag.upper()}_REASONING_EFFORT"
-    env_val = os.environ.get(env_key, "").strip().lower()
-    if env_val in _VALID_REASONING_EFFORTS:
-        return env_val
-    # Default based on tier
-    if workload_tag in config.PREMIUM_WORKLOADS:
-        return "high"
-    return "medium"
 
 
 def _fallback_target(
@@ -374,7 +365,9 @@ def call(
         provider = _get_provider(p_name, config)
         reasoning_effort: str | None = None
         if p_name == "xai" and m_id.startswith("grok-4.3"):
-            reasoning_effort = _resolve_reasoning_effort(config, workload_tag)
+            reasoning_effort = resolve_xai_reasoning_effort(config, workload_tag)
+        elif p_name == "anthropic" and m_id.startswith("claude-sonnet-5"):
+            reasoning_effort = configured_anthropic_effort(workload_tag)
         coro = provider.call(
             m_id,
             prompt,

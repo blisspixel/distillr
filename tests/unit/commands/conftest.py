@@ -10,5 +10,5 @@ def _model_available(monkeypatch):
     # a keyless local provider so commands proceed under test the way they did when
     # a test set xai_api_key="test-key" -- env-isolated (ollama needs no key, so
     # this is independent of any ambient .env cloud key). Tests of the no-model
-    # path override the provider (e.g. DISTILL_PROVIDER=anthropic, not implemented).
+    # path override the provider to an unimplemented route such as openai.
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")

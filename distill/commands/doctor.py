@@ -54,6 +54,8 @@ def _configured_metered_api_keys(config: DistillConfig) -> list[str]:
         keys.append("XAI_API_KEY")
     if config.gemini_api_key.get_secret_value().strip():
         keys.append("GEMINI_API_KEY")
+    if config.anthropic_api_key.get_secret_value().strip():
+        keys.append("ANTHROPIC_API_KEY")
     if config.openai_api_key.get_secret_value().strip():
         keys.append("OPENAI_API_KEY")
     return keys
@@ -274,15 +276,19 @@ def doctor(  # noqa: C901 - legacy, will refactor
         # human doctor path (which makes a live call) would never produce.
         xai_status, xai_detail = _doctor_validate_key("xai", config)
         gem_status, gem_detail = _doctor_validate_key("gemini", config)
+        ant_status, ant_detail = _doctor_validate_key("anthropic", config)
         oai_status, oai_detail = _doctor_validate_key("openai", config)
         checks["xai_api_key"] = xai_status  # ok | invalid | missing
         checks["gemini_api_key"] = gem_status  # ok | invalid | not_set
+        checks["anthropic_api_key"] = ant_status  # ok | invalid | not_set
         checks["openai_api_key"] = oai_status  # ok | invalid | not_set
         checks["cost_mode"] = config.distill_cost_mode
         if xai_status == "invalid":
             warnings_list.append(f"XAI_API_KEY rejected by provider: {xai_detail[:80]}")
         if gem_status == "invalid":
             warnings_list.append(f"GEMINI_API_KEY rejected by provider: {gem_detail[:80]}")
+        if ant_status == "invalid":
+            warnings_list.append(f"ANTHROPIC_API_KEY rejected by provider: {ant_detail[:80]}")
         if oai_status == "invalid":
             warnings_list.append(f"OPENAI_API_KEY rejected by provider: {oai_detail[:80]}")
         warnings_list.extend(_cost_mode_warnings(config))
@@ -418,6 +424,19 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
     else:
         console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{gem_detail:.60}[/red]")
+
+    # Anthropic -- optional metered analysis route
+    ant_status, ant_detail = _doctor_validate_key("anthropic", config)
+    if ant_status == "ok":
+        console.print("  [green]OK[/green]  ANTHROPIC_API_KEY [dim]claude-sonnet-5[/dim]")
+    elif ant_status == "not_set":
+        console.print("  [dim]--  ANTHROPIC_API_KEY not set (optional)[/dim]")
+    elif ant_status == "unknown":
+        console.print(
+            f"  [yellow]--[/yellow]  ANTHROPIC_API_KEY [yellow]could not verify: {ant_detail:.45}[/yellow]"
+        )
+    else:
+        console.print(f"  [red]XX[/red]  ANTHROPIC_API_KEY [red]{ant_detail:.60}[/red]")
 
     # OpenAI -- optional
     oai_status, oai_detail = _doctor_validate_key("openai", config)

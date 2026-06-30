@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import typer
 
 from distill._console import console
-from distill.commands._helpers import get_config
+from distill.commands._helpers import budgeted_cost_tracker, get_config
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
@@ -71,7 +71,7 @@ def ingest_cmd(
       distill ingest https://example.com/feed.xml --rss --episodes 3 --topic feeds
     """
     config = get_config()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "ingest")
 
     # Local file path takes precedence: if the target exists on disk, ingest it
     # through the media pipeline (audio/video -> transcript -> insight) or the

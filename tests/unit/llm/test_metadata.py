@@ -79,6 +79,13 @@ def test_exact_cloud_model_lookup() -> None:
     assert metadata.provider_type == "cloud"
 
 
+def test_anthropic_sonnet5_context_window_lookup() -> None:
+    """Claude Sonnet 5 resolves to the documented 1M context window."""
+    metadata = asyncio.run(resolve_metadata("anthropic", "claude-sonnet-5"))
+    assert metadata.context_window == 1_000_000
+    assert metadata.provider_type == "cloud"
+
+
 def test_prefix_cloud_model_lookup() -> None:
     """Cloud models with suffixes resolve via prefix matching."""
     metadata = asyncio.run(resolve_metadata("xai", "grok-4.3-some-variant"))

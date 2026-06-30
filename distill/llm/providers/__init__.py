@@ -31,6 +31,7 @@ class Provider(Protocol):
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
+        reasoning_effort: str | None = None,
     ) -> LLM_Response:
         """Send a prompt to the LLM and return a uniform response."""
         ...

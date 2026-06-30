@@ -13,7 +13,7 @@ import typer
 
 from distill._console import console
 from distill.cli_shared import require_api_key as _require_api_key
-from distill.commands._helpers import get_config, run_preflight
+from distill.commands._helpers import budgeted_cost_tracker, get_config, run_preflight
 from distill.commands._helpers import tty_confirm as _tty_confirm
 
 __all__ = ["eval_cmd", "register"]
@@ -127,7 +127,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         summarize,
     )
     from distill.eval.harness import provider_for_model
-    from distill.pipeline.costs import CostTracker, save_run_log
+    from distill.pipeline.costs import save_run_log
 
     run_preflight()
     valid = (*WORKLOADS, "all")
@@ -237,7 +237,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         console.print("[yellow]Aborted.[/yellow]")
         raise typer.Exit(0)
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "eval")
     cache_dir = None if no_cache else (config.library_dir / ".distill" / "eval_cache")
     rows = run_model_eval(
         workload, model_list, anchor=anchor, judge_model=judge, tracker=tracker, cache_dir=cache_dir

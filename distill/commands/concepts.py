@@ -17,7 +17,12 @@ from pathlib import Path
 import typer
 
 from distill._console import console
-from distill.commands._helpers import _complete_topics, get_config, tty_confirm
+from distill.commands._helpers import (
+    _complete_topics,
+    budgeted_cost_tracker,
+    get_config,
+    tty_confirm,
+)
 from distill.commands._json import emit_json, json_mode_active
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
@@ -79,7 +84,6 @@ def concepts_build(
     """
     from distill.concepts import run_concepts
     from distill.llm import RouterConfig
-    from distill.pipeline.costs import CostTracker
 
     config = get_config()
     topic_dir = config.topic_dir(topic)
@@ -88,7 +92,7 @@ def concepts_build(
         raise typer.Exit(1)
 
     rc = RouterConfig()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "concepts")
     summary = run_concepts(
         topic=topic,
         topic_dir=topic_dir,

@@ -28,6 +28,7 @@ from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
+    budgeted_cost_tracker,
     get_config,
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
@@ -47,7 +48,6 @@ from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
 from distill.pipeline.costs import (
-    CostTracker,
     CostWarning,
     cost_anomaly_warnings,
     projected_next_run_cost,
@@ -927,7 +927,7 @@ def corpus(
     """Build a mixed-source corpus synthesis for a topic."""
     config = get_config()
     _require_model()
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "corpus")
     summary = RunSummary(command="corpus")
     summary.set_metadata(topic=topic, workflow="corpus", source_type="mixed")
 

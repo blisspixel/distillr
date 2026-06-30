@@ -75,6 +75,7 @@ PRICING: dict[str, dict[str, float]] = {
     "deep-research-max-preview-04-2026": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
     # Anthropic reserved route pricing estimates
+    "claude-sonnet-5": {"input": 3.00, "output": 15.00},
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
     # OpenAI reserved route pricing estimates

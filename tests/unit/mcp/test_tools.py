@@ -180,13 +180,13 @@ class TestToolRegistration:
 class TestMissingConfigErrors:
     """Error responses when no model is configured (no cloud key AND no local provider).
 
-    'anthropic' is a configured-but-not-implemented provider, so the router
+    'openai' is an unimplemented provider, so the router
     reports no usable model regardless of any ambient cloud key -- a deterministic
     'no model' independent of the environment.
     """
 
     def test_papers_missing_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.papers import papers
@@ -196,7 +196,7 @@ class TestMissingConfigErrors:
         assert "model" in result["error"].lower()
 
     def test_discover_missing_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.discover import discover
@@ -206,7 +206,7 @@ class TestMissingConfigErrors:
         assert "model" in result["error"].lower()
 
     def test_synthesize_missing_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.synthesis import synthesize
@@ -216,7 +216,7 @@ class TestMissingConfigErrors:
         assert "model" in result["error"].lower()
 
     def test_site_batch_missing_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.sites import site_batch

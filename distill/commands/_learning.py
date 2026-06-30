@@ -15,10 +15,11 @@ from distill.cli_shared import SHORTS_THRESHOLD, console
 from distill.cli_shared import format_date as _format_date
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands._helpers import (
-    ensure_channel_context as _ensure_channel_context,
+    budgeted_cost_tracker,
+    get_config,
 )
 from distill.commands._helpers import (
-    get_config,
+    ensure_channel_context as _ensure_channel_context,
 )
 from distill.commands._helpers import (
     output_path as _output_path,
@@ -530,6 +531,7 @@ def _preview_learning_selection(
     top_by_date: bool = False,
     rigor: str = "off",
 ) -> tuple[DistillConfig, CostTracker, list[RankedVideo]]:
+    command = _learning_command_from_header(header)
     return _learning_flow_support.preview_learning_selection(
         query,
         days=days,
@@ -541,7 +543,7 @@ def _preview_learning_selection(
         header=header,
         table_title=table_title,
         get_config=get_config,
-        cost_tracker_factory=CostTracker,
+        cost_tracker_factory=lambda: budgeted_cost_tracker(get_config(), command),
         auto_skeptical_mode=_auto_skeptical_mode,
         window_label=_window_label,
         select_learning_videos=_select_learning_videos,
@@ -614,6 +616,7 @@ def _run_learning_command(
     rigor: str = "off",
 ) -> None:
     _preflight()
+    command = _learning_command_from_header(header)
     _learning_flow_support.run_learning_command(
         query,
         topic=topic,
@@ -629,7 +632,7 @@ def _run_learning_command(
         generate_brief=generate_brief,
         header=header,
         get_config=get_config,
-        cost_tracker_factory=CostTracker,
+        cost_tracker_factory=lambda: budgeted_cost_tracker(get_config(), command),
         topic_from_query=_topic_from_query,
         auto_skeptical_mode=_auto_skeptical_mode,
         default_report_focus=_default_report_focus,
@@ -645,6 +648,11 @@ def _run_learning_command(
         post_ingest_callback=post_ingest_callback,
         rigor=rigor,
     )
+
+
+def _learning_command_from_header(header: str) -> str:
+    normalized = header.strip().lower()
+    return {"learning": "learn", "briefing": "brief"}.get(normalized, normalized)
 
 
 def run_learning_command(

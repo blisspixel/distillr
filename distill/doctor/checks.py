@@ -82,7 +82,7 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKe
       carries the error. This is NOT a key failure and must not be reported as
       "rejected" -- doing so was a false alarm on every flaky-network run.
     - ``"missing"`` -- a required key (xai) is unset
-    - ``"not_set"`` -- an optional key (gemini/openai) is unset
+    - ``"not_set"`` -- an optional key (gemini/anthropic/openai) is unset
 
     On ``"ok"``, ``detail`` is the human label shown next to the key.
 
@@ -92,50 +92,95 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKe
     human check that let a dead key report as healthy.
     """
     if provider == "xai":
-        if not config.xai_api_key:
-            return ("missing", "")
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(
-                api_key=config.xai_api_key.get_secret_value(),
-                base_url="https://api.x.ai/v1",
-            )
-            client.chat.completions.create(
-                model=config.xai_model_for("analysis"),
-                messages=[{"role": "user", "content": "hi"}],
-                max_completion_tokens=5,
-            )
-            return ("ok", config.xai_model_for("analysis"))
-        except Exception as e:
-            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
+        return _validate_xai_key(config)
     if provider == "gemini":
-        if not config.gemini_api_key:
-            return ("not_set", "")
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
-            client.models.generate_content(model="gemini-3.5-flash", contents="hi")  # pyright: ignore[reportUnknownMemberType] "third-party google-genai stub is partially untyped; consistent with other providers in llm/"
-            return ("ok", "Deep Research")
-        except Exception as e:
-            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
+        return _validate_gemini_key(config)
+    if provider == "anthropic":
+        return _validate_anthropic_key(config)
     if provider == "openai":
-        if not config.openai_api_key:
-            return ("not_set", "")
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(api_key=config.openai_api_key.get_secret_value())
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": "hi"}],
-                max_tokens=5,
-            )
-            return ("ok", "optional")
-        except Exception as e:
-            return (("invalid" if _doctor_key_auth_rejected(e) else "unknown"), str(e))
+        return _validate_openai_key(config)
     raise ValueError(f"unknown provider: {provider}")
+
+
+def _key_error_status(exc: Exception) -> DoctorKeyStatus:
+    return "invalid" if _doctor_key_auth_rejected(exc) else "unknown"
+
+
+def _validate_xai_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
+    if not config.xai_api_key:
+        return ("missing", "")
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(
+            api_key=config.xai_api_key.get_secret_value(),
+            base_url="https://api.x.ai/v1",
+        )
+        client.chat.completions.create(
+            model=config.xai_model_for("analysis"),
+            messages=[{"role": "user", "content": "hi"}],
+            max_completion_tokens=5,
+        )
+        return ("ok", config.xai_model_for("analysis"))
+    except Exception as e:
+        return (_key_error_status(e), str(e))
+
+
+def _validate_gemini_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
+    if not config.gemini_api_key:
+        return ("not_set", "")
+    try:
+        from google import genai
+
+        client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
+        client.models.generate_content(model="gemini-3.5-flash", contents="hi")  # pyright: ignore[reportUnknownMemberType] "third-party google-genai stub is partially untyped; consistent with other providers in llm/"
+        return ("ok", "Deep Research")
+    except Exception as e:
+        return (_key_error_status(e), str(e))
+
+
+def _validate_anthropic_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
+    if not config.anthropic_api_key:
+        return ("not_set", "")
+    try:
+        import httpx
+
+        response = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": config.anthropic_api_key.get_secret_value(),
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-5",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {"effort": "low"},
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        return ("ok", "claude-sonnet-5")
+    except Exception as e:
+        return (_key_error_status(e), str(e))
+
+
+def _validate_openai_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
+    if not config.openai_api_key:
+        return ("not_set", "")
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=config.openai_api_key.get_secret_value())
+        client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=5,
+        )
+        return ("ok", "optional")
+    except Exception as e:
+        return (_key_error_status(e), str(e))
 
 
 def check_ollama_status() -> tuple[str, list[str]]:

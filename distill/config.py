@@ -156,6 +156,7 @@ class DistillConfig(BaseSettings):
 
     xai_api_key: SecretStr = SecretStr("")
     gemini_api_key: SecretStr = SecretStr("")
+    anthropic_api_key: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
     scribe_path: str = ""
     distill_output_dir: Path = _default_library_dir()

@@ -265,7 +265,7 @@ class TestDoctorTool:
 
 class TestPapersTool:
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
@@ -665,7 +665,7 @@ class TestSiteBatchTool:
         assert calls == []
 
     def test_preview_returns_plan_without_model_or_processing(self, mock_config, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         seed_file = mock_config.library_dir / "sites.json"
         seed_file.write_text(
             json.dumps(
@@ -859,7 +859,7 @@ class TestSiteBatchTool:
 
 class TestSynthesizeTool:
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",
@@ -1114,7 +1114,7 @@ class TestSynthesizeTool:
 
 class TestDiscoverTool:
     def test_no_model(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DISTILL_PROVIDER", "anthropic")  # not implemented -> no model
+        monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(
             xai_api_key="",
             distill_output_dir=tmp_path / "library",

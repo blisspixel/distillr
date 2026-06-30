@@ -25,6 +25,7 @@ from distill.cli_shared import strip_frontmatter as _strip_frontmatter
 from distill.commands._helpers import (
     _complete_topics,
     _complete_watched_channels,
+    budgeted_cost_tracker,
     get_config,
 )
 from distill.commands._helpers import (
@@ -46,7 +47,6 @@ from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
-from distill.pipeline.costs import CostTracker
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
@@ -386,7 +386,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         if not watchlist:
             console.print(f"  [red]No watched channels in topic '{topic}'[/red]")
             return
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "catch-up")
     summary = RunSummary(command="catch-up")
 
     # Discover + process per channel (live updates)

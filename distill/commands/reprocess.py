@@ -22,6 +22,7 @@ from distill.cli_shared import SHORTS_THRESHOLD
 from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
+    budgeted_cost_tracker,
     get_config,
 )
 from distill.commands._helpers import format_date as _format_date
@@ -39,7 +40,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.pipeline.analysis.video import analyze_short, analyze_video
-from distill.pipeline.costs import CostTracker, estimate_run_cost
+from distill.pipeline.costs import estimate_run_cost
 from distill.pipeline.summary import (
     RunSummary,
     VideoResult,
@@ -144,7 +145,7 @@ def resynthesize(
     num_calls = len(channels) + 1
     display_estimate(synthesis_calls=num_calls, console=console)
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "resynthesize")
     summary = RunSummary(command="resynthesize")
 
     for ch in channels:
@@ -315,7 +316,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
 
     display_estimate(full_count, short_count, console=console)
 
-    tracker = CostTracker()
+    tracker = budgeted_cost_tracker(config, "reanalyze")
     summary = RunSummary(command="reanalyze")
     current_channel = None
 

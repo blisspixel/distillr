@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added opt-in Anthropic Claude Messages API support for `claude-sonnet-5`,
+  including `ANTHROPIC_API_KEY` routing, Sonnet 5 effort forwarding via
+  `output_config`, doctor key checks, 1M context metadata, and list-rate cost
+  estimates.
 - Added an `ask` workload to `distill eval` with adversarial fixtures for
   false premises, no-evidence questions, citation-request traps, unsupported
   numbers, and route disagreement, including structural checks that golden
