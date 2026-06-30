@@ -31,7 +31,7 @@ Background and the reasoning behind the design.
 - [Architecture](architecture.md) - data flow, the report pipeline, model routing, security hardening.
 - [Invariants](invariants.md) - the design charter: what distill is, is not, and the rules that do not bend.
 - [Roadmap](roadmap.md) - the area-by-area backlog ([top-level ROADMAP](../ROADMAP.md) is the milestone spine).
-- [Design notes](design/) - per-feature design docs (ask loop, entailment tier, decomposition, how-we-build).
+- [Design notes](design/) - per-feature design docs (ask loop, entailment tier, decomposition, provider caching, how-we-build).
 
 ## Project
 

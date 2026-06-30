@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Documented the provider-side prompt and context caching policy for Anthropic,
+  OpenAI, Azure OpenAI in Microsoft Foundry, Gemini, Bedrock, and xAI, including
+  cost-mode behavior, retention, telemetry, lifecycle, and ledger requirements
+  before any adapter exposes cache controls.
+
 ## 0.19.10 - 2026-06-30
 
 ### Changed

@@ -55,6 +55,26 @@ The usage ledger records zero-dollar usage too. Cost-log rows include provider
 and route-class breakdowns, no-metered LLM call counts, local transcription
 counts, and profile-run orchestration rows even when `actual_cost` is `0.0`.
 
+## Provider-side caches
+
+Provider-side prompt and context caches are metered-route optimizations, not
+proof that a route is no-metered. A cached OpenAI, Anthropic, Gemini, Bedrock,
+Foundry, or xAI token still belongs in the usage ledger, and a cache discount
+does not change the route cost class.
+
+The provider cache policy is in
+[`docs/design/provider-caching.md`](design/provider-caching.md). In short:
+
+- Distill must keep opaque provider caches separate from local durable
+  intermediate caches.
+- Cache writes, reads, TTL, retention, storage charges, rate-limit effects, and
+  telemetry fields differ by provider.
+- Explicit provider cache controls stay blocked until the adapter has a
+  provider-specific policy, ledger fields, bounded lifecycle, and cleanup
+  semantics.
+- Pre-warming or background refresh is blocked unless the command owns the
+  lifecycle and records a positive, bounded savings projection before the write.
+
 ## Per-stage cost
 
 | Stage | Typical cost | Basis (@ grok-4.3) |
