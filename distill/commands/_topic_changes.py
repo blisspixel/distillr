@@ -111,6 +111,9 @@ def _topic_change_history_path(config: DistillConfig, topic: str) -> Path:
     return config.topic_dir(topic) / "change_history.jsonl"
 
 
+topic_change_history_path = _topic_change_history_path
+
+
 def _topic_diff_output_path(config: DistillConfig, topic: str) -> Path:
     return artifact_path(config.topic_dir(topic), "topic_diff", identity=topic)
 
@@ -473,6 +476,9 @@ def _render_topic_diff_markdown(
     return "\n".join(lines)
 
 
+render_topic_diff_markdown = _render_topic_diff_markdown
+
+
 def _append_topic_change_history(
     config: DistillConfig,
     *,
@@ -510,6 +516,9 @@ def _append_topic_change_history(
     return history_path
 
 
+append_topic_change_history = _append_topic_change_history
+
+
 def _load_topic_change_history(
     config: DistillConfig, topic: str
 ) -> list[_TopicChangeHistoryRecord]:
@@ -543,6 +552,9 @@ def _load_topic_change_history(
         )
     records.sort(key=lambda item: item["generated_at"], reverse=True)
     return records
+
+
+load_topic_change_history = _load_topic_change_history
 
 
 def _topic_trend_direction(records: list[_TopicChangeHistoryRecord]) -> str:

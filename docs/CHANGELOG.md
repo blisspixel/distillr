@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the view command module to Pyright strict mode with typed video
+  metadata parsing, JSON view payloads, artifact-content emission, and public
+  topic-change rendering seams.
 - Promoted the topic-change command helper to Pyright strict mode with public
   seams for topic trend paths, watch alert paths, snapshots, trend rendering,
   and baseline resolution while preserving legacy CLI compatibility aliases.

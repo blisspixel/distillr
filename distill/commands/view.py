@@ -1,3 +1,4 @@
+# pyright: strict
 """Corpus-browsing / view commands, extracted from the `_logic` monolith.
 
 First command-group slice of the decomposition (how-we-build.md remediation #1).
@@ -25,31 +26,28 @@ from distill.commands._helpers import (
     _complete_topic_watch_names,
     _complete_topics,
     _complete_watched_channels,
-    _file_link,
     get_config,
 )
 from distill.commands._helpers import duration_str as _duration_str
+from distill.commands._helpers import file_link as _file_link
 from distill.commands._helpers import format_date as _format_date
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
 from distill.commands._topic_changes import (
-    _append_topic_change_history,
-    _collect_topic_change_details,
-    _load_topic_change_history,
-    _render_topic_diff_markdown,
-    _topic_change_history_path,
-)
-from distill.commands._topic_changes import (
-    render_topic_trends_markdown as _render_topic_trends_markdown,
-)
-from distill.commands._topic_changes import (
-    resolve_topic_diff_baseline as _resolve_topic_diff_baseline,
+    append_topic_change_history,
+    collect_topic_change_details,
+    load_topic_change_history,
+    render_topic_diff_markdown,
+    render_topic_trends_markdown,
+    resolve_topic_diff_baseline,
+    topic_change_history_path,
 )
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
+from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import resolve_channel_name
-from distill.library import Library
+from distill.library import ChannelInfo, Library
 from distill.library.paths import (
     artifact_exists,
     base_frontmatter,
@@ -59,6 +57,7 @@ from distill.library.paths import (
 )
 from distill.library.state import ChannelState
 from distill.pipeline.costs import CostTracker
+from distill.pipeline.dashboard_records import JsonObject, json_object
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
 __all__ = [
@@ -76,11 +75,43 @@ __all__ = [
 ]
 
 
-def _library_payload(config, lib, topics: list[str]) -> dict:
+def _read_json_object(path: Path) -> JsonObject | None:
+    try:
+        return json_object(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _text_field(record: JsonObject, key: str, default: str = "") -> str:
+    value = record.get(key)
+    return default if value is None else str(value)
+
+
+def _int_field(record: JsonObject, key: str, default: int = 0) -> int:
+    value = record.get(key)
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (OverflowError, ValueError):
+            return default
+    return default
+
+
+def _bool_field(record: JsonObject, key: str, default: bool = False) -> bool:
+    value = record.get(key)
+    return value if isinstance(value, bool) else default
+
+
+def _path_field(record: JsonObject, key: str) -> Path | None:
+    value = record.get(key)
+    return value if isinstance(value, Path) else None
+
+
+def _library_payload(config: DistillConfig, lib: Library, topics: list[str]) -> dict[str, object]:
     """Structured library inventory for ``--json`` (topics -> channels + artifacts)."""
-    result = []
+    result: list[dict[str, object]] = []
     for topic in topics:
-        channels = []
+        channels: list[dict[str, object]] = []
         for ch in lib.get_channels(topic):
             channel_dir = config.channel_dir(topic, ch.name)
             state = ChannelState(channel_dir / "state.json")
@@ -119,7 +150,7 @@ def _library_payload(config, lib, topics: list[str]) -> dict:
     return {"topics": result, "count": len(result)}
 
 
-def library_cmd():
+def library_cmd() -> None:
     """Show what's in your library."""
     config = get_config()
     lib = Library(config)
@@ -158,7 +189,7 @@ def library_cmd():
             state_file = config.channel_dir(topic, ch.name) / "state.json"
             state = ChannelState(state_file)
 
-            artifacts = []
+            artifacts: list[str] = []
             channel_dir = config.channel_dir(topic, ch.name)
             if artifact_exists(channel_dir, "synthesis", identity=f"{topic}_{ch.name}"):
                 artifacts.append("synthesis")
@@ -175,7 +206,7 @@ def library_cmd():
         console.print(table)
 
         # Topic-level artifacts
-        topic_artifacts = []
+        topic_artifacts: list[str] = []
         topic_dir = config.topic_dir(topic)
         if artifact_exists(topic_dir, "topic_synthesis", identity=topic):
             topic_artifacts.append("topic synthesis")
@@ -193,23 +224,24 @@ def library_cmd():
         console.print()
 
 
-def _videos_payload(config, channels, topic: str, limit: int) -> dict:
+def _videos_payload(
+    config: DistillConfig, channels: list[ChannelInfo], topic: str, limit: int
+) -> dict[str, object]:
     """Structured per-channel video inventory for ``--json``."""
-    out_channels = []
+    out_channels: list[dict[str, object]] = []
     for ch in channels:
         videos_dir = config.videos_dir(topic, ch.name)
         if not videos_dir.exists():
             continue
-        vids = []
+        vids: list[dict[str, object]] = []
         for vid_dir in sorted(videos_dir.iterdir()):
             if not vid_dir.is_dir():
                 continue
             meta_file = vid_dir / "metadata.json"
             if not meta_file.exists():
                 continue
-            try:
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            meta = _read_json_object(meta_file)
+            if meta is None:
                 continue
             vids.append(
                 {
@@ -222,7 +254,7 @@ def _videos_payload(config, channels, topic: str, limit: int) -> dict:
                     "has_insights": artifact_exists(vid_dir, "insights"),
                 }
             )
-        vids.sort(key=lambda v: v.get("upload_date") or "", reverse=True)
+        vids.sort(key=lambda v: str(v.get("upload_date") or ""), reverse=True)
         out_channels.append({"channel": ch.name, "total": len(vids), "videos": vids[:limit]})
     return {"topic": topic, "channels": out_channels, "count": len(out_channels)}
 
@@ -233,7 +265,7 @@ def videos(  # noqa: C901 — legacy, will refactor
         None, "--channel", "-c", help="Specific channel (default: all in topic)"
     ),
     limit: int = typer.Option(20, "--limit", "-n", help="Max videos to show"),
-):
+) -> None:
     """List processed videos with metadata."""
     config = get_config()
     lib = Library(config)
@@ -260,13 +292,15 @@ def videos(  # noqa: C901 — legacy, will refactor
             continue
 
         # Collect all video metadata
-        vid_list = []
+        vid_list: list[JsonObject] = []
         for vid_dir in sorted(videos_dir.iterdir()):
             if not vid_dir.is_dir():
                 continue
             meta_file = vid_dir / "metadata.json"
             if meta_file.exists():
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                meta = _read_json_object(meta_file)
+                if meta is None:
+                    continue
                 meta["_dir"] = vid_dir
                 meta["_has_transcript"] = artifact_exists(
                     vid_dir,
@@ -277,7 +311,7 @@ def videos(  # noqa: C901 — legacy, will refactor
                 vid_list.append(meta)
 
         # Sort by upload date, newest first
-        vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
+        vid_list.sort(key=lambda v: _text_field(v, "upload_date"), reverse=True)
 
         table = Table(
             title=f"{ch.name} - {len(vid_list)} videos",
@@ -292,8 +326,8 @@ def videos(  # noqa: C901 — legacy, will refactor
         table.add_column("Status", justify="center")
 
         for i, v in enumerate(vid_list[:limit], 1):
-            has_t = v.get("_has_transcript", False)
-            has_i = v.get("_has_insights", False)
+            has_t = _bool_field(v, "_has_transcript")
+            has_i = _bool_field(v, "_has_insights")
 
             if has_t and has_i:
                 status = "[green]complete[/green]"
@@ -304,9 +338,9 @@ def videos(  # noqa: C901 — legacy, will refactor
 
             table.add_row(
                 str(i),
-                _format_date(v.get("upload_date", "")),
-                v.get("title", "Unknown")[:70],
-                _duration_str(v.get("duration", 0)),
+                _format_date(_text_field(v, "upload_date")),
+                _text_field(v, "title", "Unknown")[:70],
+                _duration_str(_int_field(v, "duration")),
                 status,
             )
 
@@ -328,10 +362,10 @@ def videos(  # noqa: C901 — legacy, will refactor
         console.print()
 
 
-def _show_payload(vid_dir, video: dict, what: str) -> dict:
+def _show_payload(vid_dir: Path, video: JsonObject, what: str) -> dict[str, object]:
     """Structured payload for ``show --json`` (insights / transcript / metadata)."""
     meta = {k: v for k, v in video.items() if not k.startswith("_")}
-    base = {"title": video.get("title"), "what": what, "metadata": meta}
+    base: dict[str, object] = {"title": video.get("title"), "what": what, "metadata": meta}
     if what == "metadata":
         return {**base, "found": True, "content": None}
     if what == "transcript":
@@ -347,7 +381,7 @@ def _show_payload(vid_dir, video: dict, what: str) -> dict:
     }
 
 
-def _emit_content_json(label: str, file_path) -> None:
+def _emit_content_json(label: str, file_path: Path) -> None:
     """Emit a read-artifact's content as a ``--json`` envelope (read-only: never
     triggers generation, so an agent querying with --json can't cause spend)."""
     exists = file_path.exists()
@@ -378,7 +412,7 @@ def show(  # noqa: C901 — legacy, will refactor
     what: str = typer.Option(
         "insights", "--what", "-w", help="What to show: insights, transcript, metadata"
     ),
-):
+) -> None:
     """Read insights or transcript for a specific video."""
     config = get_config()
     lib = Library(config)
@@ -407,31 +441,36 @@ def show(  # noqa: C901 — legacy, will refactor
         return
 
     # Collect and sort videos
-    vid_list = []
+    vid_list: list[JsonObject] = []
     for vid_dir in sorted(videos_dir.iterdir()):
         if not vid_dir.is_dir():
             continue
         meta_file = vid_dir / "metadata.json"
         if meta_file.exists():
-            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            meta = _read_json_object(meta_file)
+            if meta is None:
+                continue
             meta["_dir"] = vid_dir
             vid_list.append(meta)
 
-    vid_list.sort(key=lambda v: v.get("upload_date", ""), reverse=True)
+    vid_list.sort(key=lambda v: _text_field(v, "upload_date"), reverse=True)
 
     if index < 1 or index > len(vid_list):
         console.print(f"[red]Video #{index} not found. Range: 1-{len(vid_list)}[/red]")
         return
 
     video = vid_list[index - 1]
-    vid_dir = video["_dir"]
+    vid_dir = _path_field(video, "_dir")
+    if vid_dir is None:
+        console.print("[red]Video metadata is missing its library path[/red]")
+        return
 
     if _json_mode_active():
         _emit_json(_show_payload(vid_dir, video, what))
         return
 
-    title = video.get("title", "Unknown")
-    date = _format_date(video.get("upload_date", ""))
+    title = _text_field(video, "title", "Unknown")
+    date = _format_date(_text_field(video, "upload_date"))
 
     total = len(vid_list)
     ch_name = ch.name
@@ -446,8 +485,8 @@ def show(  # noqa: C901 — legacy, will refactor
         console.print(
             Panel(
                 f"{pos_label}  [bold]{title}[/bold]\n"
-                f"[dim]{date} | {_duration_str(video.get('duration', 0))} | {ch_name}[/dim]\n"
-                f"[dim]{video.get('url', '')}[/dim]",
+                f"[dim]{date} | {_duration_str(_int_field(video, 'duration'))} | {ch_name}[/dim]\n"
+                f"[dim]{_text_field(video, 'url')}[/dim]",
                 border_style="cyan",
             )
         )
@@ -461,7 +500,7 @@ def show(  # noqa: C901 — legacy, will refactor
 
         # Footer: navigation + file link
         console.print()
-        nav = []
+        nav: list[str] = []
         if index > 1:
             nav.append(f"[dim]<< distill show {ch_name} {index - 1}[/dim]")
         if index < total:
@@ -516,7 +555,7 @@ def package_latest(  # noqa: C901 — legacy, will refactor
     include_transcript: bool = typer.Option(
         False, "--transcript", "-t", help="Include full transcripts (can be large)"
     ),
-):
+) -> None:
     """Package the latest videos into a single markdown file with links, insights, and optionally transcripts."""
     config = get_config()
     lib = Library(config)
@@ -530,7 +569,7 @@ def package_latest(  # noqa: C901 — legacy, will refactor
         return
 
     # Collect videos across selected channels
-    all_videos: list[tuple[str, dict, Path]] = []
+    all_videos: list[tuple[str, JsonObject, Path]] = []
     for ch in channels:
         videos_dir = config.videos_dir(topic, ch.name)
         if not videos_dir.exists():
@@ -540,10 +579,12 @@ def package_latest(  # noqa: C901 — legacy, will refactor
                 continue
             meta_file = vid_dir / "metadata.json"
             if meta_file.exists():
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                meta = _read_json_object(meta_file)
+                if meta is None:
+                    continue
                 all_videos.append((ch.name, meta, vid_dir))
 
-    all_videos.sort(key=lambda v: v[1].get("upload_date", ""), reverse=True)
+    all_videos.sort(key=lambda v: _text_field(v[1], "upload_date"), reverse=True)
     selected = all_videos[:limit]
 
     if not selected:
@@ -557,10 +598,10 @@ def package_latest(  # noqa: C901 — legacy, will refactor
     parts.append(f"\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
 
     for i, (ch_name, meta, vid_dir) in enumerate(selected, 1):
-        title = meta.get("title", "Unknown")
-        date = _format_date(meta.get("upload_date", ""))
-        duration = _duration_str(meta.get("duration", 0))
-        url = meta.get("url", "")
+        title = _text_field(meta, "title", "Unknown")
+        date = _format_date(_text_field(meta, "upload_date"))
+        duration = _duration_str(_int_field(meta, "duration"))
+        url = _text_field(meta, "url")
 
         parts.append(f"---\n\n## {i}. {title}\n")
         parts.append(f"**Channel:** {ch_name}  ")
@@ -606,7 +647,7 @@ def synthesis(  # noqa: C901 — legacy, will refactor
     channel: str | None = typer.Option(
         None, "--channel", "-c", help="Channel synthesis (default: topic synthesis)"
     ),
-):
+) -> None:
     """Read the synthesis document for a channel or topic."""
     config = get_config()
     lib = Library(config)
@@ -707,7 +748,7 @@ def findings(
     channel: str | None = typer.Option(
         None, "--channel", "-c", help="Channel report (default: topic report)"
     ),
-):
+) -> None:
     """Read the generated report."""
     config = get_config()
     lib = Library(config)
@@ -746,7 +787,7 @@ def findings(
 def add(
     topic: str = typer.Argument(help="Topic to add channel to (e.g., 'ai', 'security')"),
     url: str = typer.Argument(help="YouTube channel URL"),
-):
+) -> None:
     """Add a channel to a topic."""
     config = get_config()
     lib = Library(config)
@@ -765,7 +806,7 @@ def remove(
     topic: str = typer.Argument(help="Topic", autocompletion=_complete_topics),
     url: str = typer.Argument(help="YouTube channel URL to remove"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
-):
+) -> None:
     """Remove a channel from a topic."""
     config = get_config()
     lib = Library(config)
@@ -798,7 +839,7 @@ def diff(
         "--write/--no-write",
         help="Write the latest topic diff as a slugged Markdown artifact",
     ),
-):
+) -> None:
     """Show what changed in a topic since the last watch run or a fallback window."""
     config = get_config()
     lib = Library(config)
@@ -808,13 +849,13 @@ def diff(
         console.print(f"[red]Topic not found: {topic}[/red]")
         raise typer.Exit(1)
 
-    baseline, watch_name, query, cadence = _resolve_topic_diff_baseline(
+    baseline, watch_name, query, cadence = resolve_topic_diff_baseline(
         lib,
         topic,
         watch_name=watch,
         days=days,
     )
-    details = _collect_topic_change_details(config, lib, topic, baseline)
+    details = collect_topic_change_details(config, lib, topic, baseline)
     summary = details["summary"]
     generated_at = details["generated_at"]
     effective_baseline = details["effective_baseline"]
@@ -822,7 +863,7 @@ def diff(
     new_pages = details["new_pages"]
     new_papers = details["new_papers"]
     refreshed_outputs = details["refreshed_outputs"]
-    rendered = _render_topic_diff_markdown(
+    rendered = render_topic_diff_markdown(
         config,
         title=f"# Topic Diff: {topic}",
         topic=topic,
@@ -864,7 +905,7 @@ def diff(
                 },
             ),
         )
-        history_path = _append_topic_change_history(
+        history_path = append_topic_change_history(
             config,
             topic=topic,
             summary=summary,
@@ -894,7 +935,7 @@ def trends(
         "--write/--no-write",
         help="Write the latest topic trends as a slugged Markdown artifact",
     ),
-):
+) -> None:
     """Show recent topic momentum using recorded diff history."""
     config = get_config()
     lib = Library(config)
@@ -904,8 +945,8 @@ def trends(
         console.print(f"[red]Topic not found: {topic}[/red]")
         raise typer.Exit(1)
 
-    records = _load_topic_change_history(config, topic)
-    rendered = _render_topic_trends_markdown(
+    records = load_topic_change_history(config, topic)
+    rendered = render_topic_trends_markdown(
         config,
         topic=topic,
         records=records,
@@ -934,7 +975,7 @@ def trends(
         )
         console.print()
         console.print(f"  {_file_link(trends_path)}")
-        console.print(f"  {_file_link(_topic_change_history_path(config, topic))}")
+        console.print(f"  {_file_link(topic_change_history_path(config, topic))}")
         console.print(f"  [dim]distill diff {topic}  |  distill findings {topic}[/dim]")
 
 
