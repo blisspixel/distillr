@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Raised the branch-coverage floor to 92 after adding focused X media boundary
+  coverage for malformed URL refusal, non-public resolved IP refusal,
+  allowlisted redirects, and redirect exhaustion. The full coverage gate now
+  reports 92.02%.
 - Added focused podcast-feed boundary coverage for invalid dates, blank and
   invalid durations, skipped non-episode RSS items, successful feed decoding,
   transcript normalization, transcript size-cap refusal, and audio writes. The
