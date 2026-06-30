@@ -408,6 +408,18 @@ class TestPapersTool:
 
 
 class TestSiteBatchTool:
+    def test_resolve_seed_file_rejects_empty_null_and_parent_escape(self, tmp_path):
+        from distill.mcp.tools.sites import _resolve_seed_file
+
+        library_dir = tmp_path / "library"
+        library_dir.mkdir()
+        outside = tmp_path / "outside.txt"
+        outside.write_text("https://example.com/outside\n", encoding="utf-8")
+
+        assert _resolve_seed_file(library_dir, "") is None
+        assert _resolve_seed_file(library_dir, "seed\x00file.txt") is None
+        assert _resolve_seed_file(library_dir, "../outside.txt") is None
+
     def test_no_urls_or_seed(self, mock_config):
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
@@ -423,6 +435,28 @@ class TestSiteBatchTool:
             result = json.loads(asyncio.run(site_batch("ai", seed_file="/nonexistent.txt")))
         assert result["status"] == "error"
         assert "inside the library root" in result["error"]
+
+    def test_seed_file_size_cap_refuses_large_file(self, mock_config):
+        seed_file = mock_config.library_dir / "huge-seeds.txt"
+        seed_file.write_bytes(b"x" * 1_000_001)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="huge-seeds.txt")))
+
+        assert result == {"status": "error", "error": "Seed file is too large."}
+
+    def test_comment_only_seed_file_refuses_empty_seed_set(self, mock_config):
+        seed_file = mock_config.library_dir / "comments.txt"
+        seed_file.write_text("# docs\n\n   # more docs\n", encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="comments.txt")))
+
+        assert result == {"status": "error", "error": "No URLs to process."}
 
     def test_seed_file_must_stay_inside_library(self, mock_config, tmp_path):
         outside = tmp_path / "seeds.txt"
@@ -627,6 +661,96 @@ class TestSiteBatchTool:
         assert result["status"] == "complete"
         assert result["pages"][0]["status"] == "skipped"
         assert seen == [("https://example.com/guide", 0, 1)]
+
+    def test_site_batch_records_processing_errors_and_progress(self, mock_config, monkeypatch):
+        from distill.commands._site_ingest import SiteIngestResult
+
+        class ProgressContext:
+            def __init__(self):
+                self.calls = []
+
+            async def report_progress(self, *, progress, total):
+                self.calls.append((progress, total))
+
+        seed_file = mock_config.library_dir / "seeds.txt"
+        seed_file.write_text(
+            "https://example.com/fails\nhttps://example.com/works\n",
+            encoding="utf-8",
+        )
+        ctx = ProgressContext()
+
+        def process_site_seed(seed, config, tracker, summary):
+            assert config is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert summary.command == "site-batch"
+            if seed.url.endswith("/fails"):
+                raise RuntimeError("site failed")
+            return SiteIngestResult(
+                site_name="Example",
+                page_count=2,
+                analyzed_pages=1,
+                skipped_pages=1,
+            )
+
+        def save_log(log_dir, command, tracker):
+            assert log_dir == mock_config.library_dir
+            assert command == "site-batch"
+            assert isinstance(tracker, CostTracker)
+
+        def summarize_cost(tracker):
+            assert isinstance(tracker, CostTracker)
+            return _FAKE_COST
+
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            process_site_seed,
+        )
+        monkeypatch.setattr("distill.mcp.tools.sites.save_run_log", save_log)
+        monkeypatch.setattr("distill.mcp.tools.sites.cost_summary", summarize_cost)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="seeds.txt", ctx=ctx)))
+
+        assert result["status"] == "complete"
+        assert result["pages"] == [
+            {
+                "url": "https://example.com/fails",
+                "status": "error",
+                "error": "site failed",
+            },
+            {
+                "url": "https://example.com/works",
+                "site": "Example",
+                "pages": 2,
+                "status": "ok",
+                "analyzed_pages": 1,
+                "skipped_pages": 1,
+            },
+        ]
+        assert ctx.calls == [(0, 2), (1, 2), (2, 2)]
+
+    def test_site_batch_budget_error_is_hard_stop(self, mock_config, monkeypatch):
+        def process_site_seed(seed, config, tracker, summary):
+            assert seed.url == "https://example.com/guide"
+            assert config is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert summary.command == "site-batch"
+            raise BudgetExceededError(0.61, 0.5)
+
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            process_site_seed,
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", urls=["https://example.com/guide"])))
+
+        assert result["status"] == "budget_exceeded"
+        assert result["spent"] == 0.61
 
     def test_site_batch_reports_unchanged_counts(self, mock_config, monkeypatch):
         from distill.commands._site_ingest import SiteIngestResult

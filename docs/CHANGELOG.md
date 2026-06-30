@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused MCP site-batch coverage for seed-file path refusal, oversized
+  seed files, comment-only seed files, processing error rows, progress
+  callbacks, analyzed and skipped page counts, and budget hard stops. The full
+  coverage gate now reports 93.15%; the enforced floor remains 93.
 - Added focused MCP discover tool coverage for limit fallback, YouTube search
   fallback, empty search results, no-model ranking labels, learn-channel failed
   rows, synthesis-warning tolerance, discover progress callbacks, structured
