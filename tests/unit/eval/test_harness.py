@@ -111,6 +111,17 @@ def test_ask_faithfulness_judge_receives_question_and_sources(monkeypatch):
     assert any("[checker_paper_Insights]" in source for source in seen_sources)
 
 
+def test_risk_patterns_flow_into_eval_rows():
+    rows = run_model_eval("ask", ["grok-4.3"], anchor="grok-4.3", analyze=_fake_analyze_factory([]))
+
+    by_fixture = {row.fixture_id: row for row in rows}
+    assert by_fixture["ask-false-premise"].risk_patterns == (
+        "false_premise",
+        "unsupported_number",
+    )
+    assert by_fixture["ask-route-disagreement"].risk_patterns == ("route_disagreement",)
+
+
 def test_faithfulness_not_judged_when_no_judge_or_errored(monkeypatch):
     # No judge configured -> no faithfulness call. An errored/empty output is
     # skipped too (nothing to ground).

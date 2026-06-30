@@ -83,6 +83,7 @@ class EvalRow:
     judge_rationale: str = ""
     faithfulness: str = ""  # absolute source-anchored verdict; "" = not judged
     faithfulness_rationale: str = ""
+    risk_patterns: tuple[str, ...] = ()
     cached: bool = False
     error: str = ""  # non-empty when analysis failed (timeout / provider error)
 
@@ -427,6 +428,7 @@ def run_model_eval(
                     judge_rationale=rationale,
                     faithfulness=faith_label,
                     faithfulness_rationale=faith_rationale,
+                    risk_patterns=fixture.risk_patterns,
                     cached=a.cached,
                     error=a.error,
                 )

@@ -44,9 +44,11 @@ __all__ = [
     "MIGRATION_WINRATE_FLOOR",
     "EvalSummary",
     "ModelSummary",
+    "ReviewFinding",
     "console_lines",
     "render_markdown",
     "results_log_lines",
+    "review_findings",
     "summarize",
 ]
 
@@ -86,6 +88,18 @@ class EvalSummary:
     threshold: float
     confidence: str  # "high" | "tentative"
     confidence_reason: str
+
+
+@dataclass(frozen=True)
+class ReviewFinding:
+    workload: str
+    fixture_id: str
+    model: str
+    risk_patterns: tuple[str, ...]
+    reason: str
+    faithfulness: str = ""
+    pairwise_winrate: float | None = None
+    error: str = ""
 
 
 def _mean(values: list[float]) -> float:
@@ -328,6 +342,45 @@ def console_lines(summary: EvalSummary) -> list[str]:
     return lines
 
 
+def _review_reason(row: EvalRow, anchor: str) -> str:
+    if row.error:
+        return "analysis failed"
+    if row.faithfulness == "unfaithful":
+        return "faithfulness judge found unsupported output"
+    if row.faithfulness == "minor":
+        return "faithfulness judge found minor support issues"
+    if row.risk_patterns and not row.faithfulness:
+        return "risk fixture has no faithfulness judge signal"
+    if "route_disagreement" in row.risk_patterns and row.model != anchor:
+        if row.pairwise_winrate is None:
+            return "route-disagreement fixture has no pairwise judge signal"
+        if row.pairwise_winrate < _WINRATE_FLOOR:
+            return "pairwise judge did not certify candidate on route-disagreement fixture"
+    return ""
+
+
+def review_findings(rows: list[EvalRow], *, anchor: str) -> list[ReviewFinding]:
+    """Return row-level review findings from existing judge signals and fixture labels."""
+    findings: list[ReviewFinding] = []
+    for row in rows:
+        reason = _review_reason(row, anchor)
+        if not reason:
+            continue
+        findings.append(
+            ReviewFinding(
+                workload=row.workload,
+                fixture_id=row.fixture_id,
+                model=row.model,
+                risk_patterns=row.risk_patterns,
+                reason=reason,
+                faithfulness=row.faithfulness,
+                pairwise_winrate=row.pairwise_winrate,
+                error=row.error,
+            )
+        )
+    return findings
+
+
 def results_log_lines(
     rows: list[EvalRow], *, now_iso: str, anchor: str, judge_model: str
 ) -> list[str]:
@@ -346,6 +399,8 @@ def results_log_lines(
                     "composite": round(r.quality.composite, 4),
                     "pairwise_winrate": r.pairwise_winrate,
                     "faithfulness": r.faithfulness or None,
+                    "risk_patterns": list(r.risk_patterns),
+                    "review_finding": _review_reason(r, anchor) or None,
                     "cost": round(r.cost, 6),
                     "input_tokens": r.input_tokens,
                     "output_tokens": r.output_tokens,
@@ -356,7 +411,35 @@ def results_log_lines(
     return lines
 
 
-def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
+def _finding_winrate(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.2f}"
+
+
+def _render_review_findings(rows: list[EvalRow], *, anchor: str) -> list[str]:
+    findings = review_findings(rows, anchor=anchor)
+    out = ["", "## Review Findings", ""]
+    if not findings:
+        out.append("No review findings from judged risk fixtures.")
+        out.append("")
+        return out
+    out += [
+        "| Model | Fixture | Workload | Risk patterns | Finding | Faithfulness | Win-rate |",
+        "|---|---|---|---|---|---|---:|",
+    ]
+    for finding in findings:
+        patterns = ", ".join(finding.risk_patterns) if finding.risk_patterns else "n/a"
+        faithfulness = finding.faithfulness or "n/a"
+        out.append(
+            f"| `{finding.model}` | `{finding.fixture_id}` | {finding.workload} | {patterns} "
+            f"| {finding.reason} | {faithfulness} | {_finding_winrate(finding.pairwise_winrate)} |"
+        )
+    out.append("")
+    return out
+
+
+def render_markdown(
+    summary: EvalSummary, *, now_iso: str, rows: list[EvalRow] | None = None
+) -> str:
     """A report artifact: the cost x quality table + the recommendation."""
     out = [
         f"# Model eval — {summary.workload}",
@@ -385,6 +468,8 @@ def render_markdown(summary: EvalSummary, *, now_iso: str) -> str:
             f"| {s.max_composite:.2f} | {_winrate_str(s, summary.anchor)} "
             f"| {_faithful_str(s)} | ${s.total_cost:.4f} |"
         )
+    if rows is not None:
+        out.extend(_render_review_findings(rows, anchor=summary.anchor))
     out += [
         "",
         "The recommendation is gated by two **model judges**, never the deterministic composite. "

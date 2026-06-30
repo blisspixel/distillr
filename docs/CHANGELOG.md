@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Refused cached sub-agent query summaries that omit source-stem citations or
   cite unknown stems, and avoided caching refused summaries so MCP summaries do
   not overstate provenance.
+- Preserved hallucination-risk fixture labels through `distill eval` rows,
+  JSONL results, and report artifacts, and surfaced judge-derived review
+  findings for risk fixtures without adding deterministic semantic scoring.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

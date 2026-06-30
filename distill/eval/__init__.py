@@ -45,9 +45,11 @@ from distill.eval.report import (
     MIGRATION_WINRATE_FLOOR,
     EvalSummary,
     ModelSummary,
+    ReviewFinding,
     console_lines,
     render_markdown,
     results_log_lines,
+    review_findings,
     summarize,
 )
 from distill.eval.route_availability import (
@@ -91,6 +93,7 @@ __all__ = [
     "ModelSummary",
     "PairwiseResult",
     "QualityScore",
+    "ReviewFinding",
     "RouteAvailabilityDecision",
     "RouteAvailabilitySignal",
     "RouteAvailabilitySnapshot",
@@ -114,6 +117,7 @@ __all__ = [
     "provider_for_model",
     "render_markdown",
     "results_log_lines",
+    "review_findings",
     "route_availability_decision",
     "route_availability_signal_from_manifest",
     "run_model_eval",

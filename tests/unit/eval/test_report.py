@@ -1,7 +1,15 @@
 """Tests for distill.eval.report (deterministic recommendation + confidence)."""
 
+import json
+
 from distill.eval.harness import EvalRow
-from distill.eval.report import console_lines, render_markdown, results_log_lines, summarize
+from distill.eval.report import (
+    console_lines,
+    render_markdown,
+    results_log_lines,
+    review_findings,
+    summarize,
+)
 from distill.eval.scoring import QualityScore
 
 
@@ -11,10 +19,12 @@ def _rows(
     cost_each: float,
     winrate: float | None,
     faithfulness: str = "",
+    workload: str = "paper",
+    risk_patterns: tuple[str, ...] = (),
 ) -> list:
     return [
         EvalRow(
-            workload="paper",
+            workload=workload,
             fixture_id=f"f{i}",
             model=model,
             quality=QualityScore(dimensions=[], composite=c),
@@ -23,6 +33,7 @@ def _rows(
             output_tokens=0,
             pairwise_winrate=winrate,
             faithfulness=faithfulness,
+            risk_patterns=risk_patterns,
         )
         for i, c in enumerate(composites)
     ]
@@ -252,3 +263,67 @@ def test_render_surfaces_anchor_confidence_and_winrate():
     )
     assert len(log) == 2
     assert '"anchor": "grok-4.3"' in log[0]
+
+
+def test_results_log_preserves_risk_patterns_and_review_finding():
+    rows = _rows(
+        "local",
+        [0.92],
+        0.0,
+        0.55,
+        faithfulness="minor",
+        workload="ask",
+        risk_patterns=("no_evidence",),
+    )
+
+    log = results_log_lines(
+        rows, now_iso="2026-06-30T00:00:00", anchor="grok-4.3", judge_model="judge"
+    )
+    payload = json.loads(log[0])
+
+    assert payload["risk_patterns"] == ["no_evidence"]
+    assert payload["review_finding"] == "faithfulness judge found minor support issues"
+
+
+def test_review_findings_flags_missing_judge_on_risk_fixture():
+    rows = _rows(
+        "local",
+        [0.92],
+        0.0,
+        None,
+        workload="ask",
+        risk_patterns=("citation_request_trap",),
+    )
+
+    findings = review_findings(rows, anchor="grok-4.3")
+
+    assert len(findings) == 1
+    assert findings[0].reason == "risk fixture has no faithfulness judge signal"
+
+
+def test_render_markdown_surfaces_review_findings():
+    rows = _rows(
+        "grok-4.3",
+        [0.95],
+        0.10,
+        None,
+        faithfulness="faithful",
+        workload="ask",
+        risk_patterns=("route_disagreement",),
+    )
+    rows += _rows(
+        "local",
+        [0.90],
+        0.0,
+        0.30,
+        faithfulness="faithful",
+        workload="ask",
+        risk_patterns=("route_disagreement",),
+    )
+    summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
+
+    md = render_markdown(summary, now_iso="2026-06-30T00:00:00", rows=rows)
+
+    assert "## Review Findings" in md
+    assert "route_disagreement" in md
+    assert "pairwise judge did not certify candidate on route-disagreement fixture" in md

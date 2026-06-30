@@ -172,7 +172,10 @@ workflow that makes unsupported certainty hard to write and easy to audit.
   middle of a receipt.
 - Multi-route agreement is only weak support. Disagreement is a strong
   uncertainty signal and should feed review queues, route-pool eviction, or
-  low-confidence output labels rather than be averaged away.
+  low-confidence output labels rather than be averaged away. `distill eval`
+  now preserves hallucination-risk fixture labels in rows, JSONL logs, and
+  reports, with review findings derived from model-judge signals rather than
+  deterministic semantic scoring.
 
 ### 1.0.0 - Stability commitment + quality bar
 

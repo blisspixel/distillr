@@ -259,7 +259,9 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
 
     if report:
         path = out_dir / f"{workload}_{now.strftime('%Y%m%dT%H%M%S')}.md"
-        path.write_text(render_markdown(summary, now_iso=now.isoformat()), encoding="utf-8")
+        path.write_text(
+            render_markdown(summary, now_iso=now.isoformat(), rows=rows), encoding="utf-8"
+        )
         console.print(f"\n[dim]Report written to {path}[/dim]")
 
     save_run_log(config.library_dir, "eval", tracker)

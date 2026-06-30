@@ -202,11 +202,15 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   citations such as `[cite: 1]` instead of stripping them; cached sub-agent
   query summaries now refuse uncited output or unknown source stems instead of
   caching an overbroad source list.
-- [ ] **Uncertainty routing and disagreement surfacing.** Promote
+- [~] **Uncertainty routing and disagreement surfacing.** Promote
   low-confidence, single-source, contradicted, or multi-route-disagreed claims
   into explicit reviewable findings instead of smoothing them into confident
   prose. Model judges own whether uncertainty is warranted; Python records the
   finding, preserves the evidence handles, and keeps review actions bounded.
+  Initial slice: `distill eval` now carries hallucination-risk fixture labels
+  into eval rows, append-only JSONL results, and report artifacts, and emits
+  review findings from existing judge signals for unfaithful, minor,
+  unjudged-risk, and route-disagreement rows.
 
 ### 8. Expand cross-source intelligence
 
