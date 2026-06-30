@@ -47,6 +47,7 @@ _ADAPTER_NAMES = frozenset(
 _NO_METERED_AUTH_CLASSES = frozenset({"local", "included-plan"})
 _QUOTA_STOP_REASONS = frozenset({"quota", "rate-limit"})
 _ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
+_METERED_ROUTE_MARKER_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
 
 class AdapterManifestError(ValueError):
@@ -113,6 +114,7 @@ class AdapterPolicy(BaseModel):
 
     cost_mode: Literal["auto", "no-metered", "paid-ok"]
     blocked_api_key_env: list[str]
+    blocked_metered_routes: list[str] = Field(default_factory=list)
     metered_allowed: bool
 
     @field_validator("blocked_api_key_env")
@@ -124,6 +126,19 @@ class AdapterPolicy(BaseModel):
             if not _ENV_NAME_RE.fullmatch(env_name):
                 raise ValueError(f"invalid environment variable name: {value!r}")
             normalized.append(env_name)
+        return sorted(set(normalized))
+
+    @field_validator("blocked_metered_routes")
+    @classmethod
+    def _valid_metered_route_markers(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for value in values:
+            marker = value.strip()
+            if not marker:
+                raise ValueError("metered route marker must be non-empty")
+            if not _METERED_ROUTE_MARKER_RE.fullmatch(marker):
+                raise ValueError(f"invalid metered route marker: {value!r}")
+            normalized.append(marker)
         return sorted(set(normalized))
 
 
@@ -196,17 +211,30 @@ class AdapterResultManifest(BaseModel):
 
     @model_validator(mode="after")
     def _enforce_policy(self) -> Self:
+        self._ensure_usage_signal()
+        self._ensure_command_write_shape()
+        self._ensure_quota_stop_shape()
+        self._ensure_no_metered_policy()
+        return self
+
+    def _ensure_usage_signal(self) -> None:
         if not self.usage.has_signal:
             raise ValueError("usage must include token counts or native usage metadata")
+
+    def _ensure_command_write_shape(self) -> None:
         if self.command_class == "read-only" and self.files_written:
             raise ValueError("read-only manifests cannot record files_written")
         if self.command_class == "scratch-write" and not self.files_written:
             raise ValueError("scratch-write manifests must record files_written")
+
+    def _ensure_quota_stop_shape(self) -> None:
         quota_stop_reason = _is_quota_stop_reason(self.stop_reason)
         if quota_stop_reason and (self.quota_stop is None or not self.quota_stop.reached):
             raise ValueError("quota or rate-limit stop_reason requires quota_stop.reached")
         if self.quota_stop is not None and self.quota_stop.reached and not quota_stop_reason:
             raise ValueError("quota_stop.reached requires quota or rate-limit stop_reason")
+
+    def _ensure_no_metered_policy(self) -> None:
         if self.policy.cost_mode == "no-metered":
             if self.auth_class not in _NO_METERED_AUTH_CLASSES:
                 raise ValueError("no-metered adapter results require local or included-plan auth")
@@ -214,7 +242,8 @@ class AdapterResultManifest(BaseModel):
                 raise ValueError("no-metered adapter results cannot allow metered usage")
             if self.policy.blocked_api_key_env:
                 raise ValueError("no-metered adapter results cannot carry API-key blockers")
-        return self
+            if self.policy.blocked_metered_routes:
+                raise ValueError("no-metered adapter results cannot carry metered route blockers")
 
     def resolve_written_paths(self, scratch_root: Path) -> tuple[Path, ...]:
         """Resolve declared written paths and ensure they stay under scratch_root."""
@@ -271,6 +300,12 @@ def adapter_result_manifest_contract() -> dict[str, Any]:
         "path_fields": list(ADAPTER_MANIFEST_PATH_FIELDS),
         "auth_classes": ["local", "included-plan", "metered-api", "unknown"],
         "command_classes": ["read-only", "scratch-write"],
+        "policy_fields": [
+            "cost_mode",
+            "blocked_api_key_env",
+            "blocked_metered_routes",
+            "metered_allowed",
+        ],
         "no_metered_auth_classes": sorted(_NO_METERED_AUTH_CLASSES),
         "quota_stop": {
             "required_when_stop_reason": ["quota", "rate_limit", "rate-limit"],

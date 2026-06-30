@@ -531,17 +531,18 @@ output: object|string
 policy:
   cost_mode: no-metered|auto|paid-ok
   blocked_api_key_env: [string]
+  blocked_metered_routes: [string]
   metered_allowed: boolean
 ```
 
 The checked parser lives in `distill.doctor.adapter_manifest`. It rejects
 unknown fields, unsafe relative paths, missing usage signals, unknown adapters,
-and `no-metered` results that report metered auth, API-key blockers, or metered
-usage allowance. If `stop_reason` is `quota`, `rate_limit`, or `rate-limit`,
-the manifest must include `quota_stop.reached=true` with a reason. The same
-module also provides scratch before/after snapshot checks so a runner can
-reject missing declared files or unexpected new files without treating
-pre-staged source files as adapter writes.
+and `no-metered` results that report metered auth, API-key blockers, metered
+route blockers, or metered usage allowance. If `stop_reason` is `quota`,
+`rate_limit`, or `rate-limit`, the manifest must include
+`quota_stop.reached=true` with a reason. The same module also provides scratch
+before/after snapshot checks so a runner can reject missing declared files or
+unexpected new files without treating pre-staged source files as adapter writes.
 
 ```yaml
 schema_version: adapter-native-usage.v1

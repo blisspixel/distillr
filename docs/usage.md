@@ -271,15 +271,17 @@ distill --json doctor --adapters
 
 The adapter doctor is read-only. It checks candidate CLI adapter binaries,
 version/help commands, required structured-output flags, route class, support
-statement status and detail, API-key environment blockers, and the required
+statement status and detail, metered environment blockers, and the required
 `adapter-workload.v1`, `adapter-native-usage.v1`, and `adapter-result.v1`
 scratch contracts. Support details include the
 checked date, source URLs, required evidence, notes, and whether the statement
 is current for no-metered routing. It also scans known local adapter config
-files and selected JSON auth-command outputs for API-key and session markers,
-reporting marker names without secret values. The manifest contract includes
-the before/after scratch write check future runners must use, plus structured
-`quota_stop` metadata for future quota and rate-limit stops. A reusable runner
+files and selected JSON auth-command outputs for metered-route and session
+markers, reporting marker names without secret values. The manifest contract
+includes no-metered rejection of API-key blockers, broader metered-route
+blockers, metered auth, and metered usage allowance, plus the before/after
+scratch write check future runners must use and structured `quota_stop`
+metadata for future quota and rate-limit stops. A reusable runner
 primitive can execute exact argv
 arrays inside scratch with shell disabled and API-key environment variables
 stripped. A workload runner can load a checked `adapter-workload.v1` package,
@@ -295,7 +297,7 @@ blocked `claude -p --input-format text --output-format json` shape, and the
 Grok planner records a blocked `grok --no-auto-update --prompt-file ...
 --output-format json` shape. The Gemini planner records a blocked
 `gemini --approval-mode plan --output-format json --prompt ""` shape. The
-Antigravity planner records a blocked `antigravity chat --mode ask -` shape.
+Antigravity planner records a blocked `agy -p` shape.
 Plans include staged prompt, schema, result capture, native usage capture, and
 allowed scratch capture metadata; Claude schema paths can be inlined from
 staged JSON schema files. Plans stay blocked until support, auth, and eval

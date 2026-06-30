@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Generalized adapter doctor metered-route auth modes and refusal messages so
   API-key, gateway, cloud-provider, and credential markers are reported as the
   same fail-closed cost boundary instead of API-key-only auth.
+- Added a `blocked_metered_routes` policy field to `adapter-result.v1`
+  manifests and the native result writer, so no-metered adapter results cannot
+  carry paid-credit, overage, gateway, or other non-env metered-route blockers.
 
 ## 0.19.10 - 2026-06-30
 

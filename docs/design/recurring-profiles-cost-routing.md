@@ -307,7 +307,8 @@ boundaries:
 8. **Same result schema for all adapters.** The result manifest records route,
    provider, model when available, auth mode, command class, usage signal,
    elapsed time, quota-stop metadata, files read, files written, output text,
-   citations or receipts, and policy decisions.
+   citations or receipts, API-key blockers, broader metered-route blockers,
+   and policy decisions.
    Workload packages and native usage records are scratch-relative and
    validated before an adapter result can feed the ledger. Verified manifests
    can be transformed into cost-log rows, and checked workload runs verify

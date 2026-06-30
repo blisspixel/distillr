@@ -41,6 +41,7 @@ class AdapterResultWriteSpec:
     stop_reason: str = "complete"
     quota_stop: AdapterQuotaStop | None = None
     blocked_api_key_env: tuple[str, ...] = ()
+    blocked_metered_routes: tuple[str, ...] = ()
     metered_allowed: bool = False
     files_read: tuple[str, ...] = ()
     files_written: tuple[str, ...] = ()
@@ -75,6 +76,7 @@ def write_adapter_result_manifest(spec: AdapterResultWriteSpec) -> AdapterResult
         "policy": {
             "cost_mode": spec.workload.cost_mode,
             "blocked_api_key_env": list(spec.blocked_api_key_env),
+            "blocked_metered_routes": list(spec.blocked_metered_routes),
             "metered_allowed": spec.metered_allowed,
         },
         "citations": list(spec.citations),

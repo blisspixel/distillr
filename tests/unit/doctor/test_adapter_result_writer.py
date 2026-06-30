@@ -135,6 +135,23 @@ def test_adapter_result_writer_rejects_missing_usage_signal(tmp_path):
         )
 
 
+def test_adapter_result_writer_rejects_no_metered_metered_route_blockers(tmp_path):
+    _stage_inputs(tmp_path)
+
+    with pytest.raises(ValidationError, match="metered route blockers"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                blocked_metered_routes=("ai-credit-overage",),
+                native={"event_count": 1},
+            )
+        )
+
+
 def test_adapter_result_writer_rejects_result_path_escape(tmp_path):
     _stage_inputs(tmp_path)
 

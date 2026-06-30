@@ -66,6 +66,7 @@ def test_adapter_manifest_loads_json_and_reports_contract(tmp_path):
     assert "usage" in contract["required_fields"]
     assert "quota_stop" in contract["optional_fields"]
     assert "files_written" in contract["path_fields"]
+    assert "blocked_metered_routes" in contract["policy_fields"]
 
 
 def test_adapter_manifest_requires_usage_signal():
@@ -159,7 +160,16 @@ def test_adapter_manifest_rejects_negative_retry_after():
             "policy": {
                 "cost_mode": "no-metered",
                 "blocked_api_key_env": [],
+                "blocked_metered_routes": [],
                 "metered_allowed": True,
+            }
+        },
+        {
+            "policy": {
+                "cost_mode": "no-metered",
+                "blocked_api_key_env": [],
+                "blocked_metered_routes": ["ai-credit-overage"],
+                "metered_allowed": False,
             }
         },
     ],
@@ -167,6 +177,24 @@ def test_adapter_manifest_rejects_negative_retry_after():
 def test_adapter_manifest_fails_closed_for_no_metered_policy(override):
     with pytest.raises(ValidationError):
         validate_adapter_result_manifest(_manifest(**override))
+
+
+@pytest.mark.parametrize(
+    "marker",
+    ["", "ai credit overage", "https://gateway.example/route"],
+)
+def test_adapter_manifest_rejects_unsafe_metered_route_markers(marker):
+    payload = _manifest(
+        policy={
+            "cost_mode": "paid-ok",
+            "blocked_api_key_env": [],
+            "blocked_metered_routes": [marker],
+            "metered_allowed": True,
+        }
+    )
+
+    with pytest.raises(ValidationError, match="metered route marker"):
+        validate_adapter_result_manifest(payload)
 
 
 @pytest.mark.parametrize(
