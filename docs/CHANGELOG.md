@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused post-ingest concept helper coverage for missing topic
+  directories and best-effort concept extraction failures. The full coverage
+  gate now reports 92.03%; the enforced floor remains 92.
 - Raised the branch-coverage floor to 92 after adding focused X media boundary
   coverage for malformed URL refusal, non-public resolved IP refusal,
   allowlisted redirects, and redirect exhaustion. The full coverage gate now

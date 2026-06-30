@@ -91,6 +91,38 @@ class TestConceptsCommand:
 
         assert calls == [("tkg", fixture_config.topic_dir("tkg"), tracker)]
 
+    def test_post_ingest_helper_skips_missing_topic_dir(
+        self, fixture_config: DistillConfig, monkeypatch
+    ) -> None:
+        from distill.commands import _concept_ingest
+
+        calls = []
+        monkeypatch.setattr(_concept_ingest, "get_config", lambda: fixture_config)
+        monkeypatch.setattr("distill.concepts.run_concepts", lambda *a, **k: calls.append(a))
+
+        _concept_ingest.run_concepts_after_ingest("ghost")
+
+        assert calls == []
+
+    def test_post_ingest_helper_treats_extraction_failure_as_best_effort(
+        self, fixture_config: DistillConfig, monkeypatch
+    ) -> None:
+        from distill.commands import _concept_ingest
+
+        _seed_topic(fixture_config.library_dir)
+        calls = []
+        monkeypatch.setattr(_concept_ingest, "get_config", lambda: fixture_config)
+
+        def fail_concepts(*_args, **_kwargs):
+            calls.append("run")
+            raise RuntimeError("model unavailable")
+
+        monkeypatch.setattr("distill.concepts.run_concepts", fail_concepts)
+
+        _concept_ingest.run_concepts_after_ingest("tkg")
+
+        assert calls == ["run"]
+
     def test_runs_end_to_end(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)
         rows = [
