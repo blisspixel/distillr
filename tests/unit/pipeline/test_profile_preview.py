@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
 from distill.ingestors.podcasts.feed import PodcastEpisode, PodcastFeed
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library.profiles import ResearchProfile
-from distill.pipeline.profile_preview import build_profile_preview
+from distill.pipeline.profile_preview import build_profile_preview, command_text
 
 
 def _profile(payload: dict) -> ResearchProfile:
@@ -17,6 +19,42 @@ def _profile(payload: dict) -> ResearchProfile:
     }
     base.update(payload)
     return ResearchProfile.model_validate(base)
+
+
+class _TextResponse:
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback):
+        return False
+
+    def read(self, _limit: int) -> bytes:
+        return self._body
+
+
+def _episode(
+    title: str,
+    guid: str,
+    published: str,
+    *,
+    link: str = "",
+    audio_url: str = "",
+    audio_type: str = "",
+    duration_s: int = 0,
+) -> PodcastEpisode:
+    return PodcastEpisode(
+        title=title,
+        guid=guid,
+        published=published,
+        audio_url=audio_url,
+        audio_type=audio_type,
+        duration_s=duration_s,
+        description="",
+        link=link,
+    )
 
 
 def test_profile_preview_expands_feed_items_and_source_seeds():
@@ -38,24 +76,16 @@ def test_profile_preview_expands_feed_items_and_source_seeds():
             link="https://example.com",
             description="",
             episodes=[
-                PodcastEpisode(
-                    title="Older post",
-                    guid="old",
-                    published="Thu, 18 Jun 2026 10:00:00 GMT",
-                    audio_url="",
-                    audio_type="",
-                    duration_s=0,
-                    description="",
+                _episode(
+                    "Older post",
+                    "old",
+                    "Thu, 18 Jun 2026 10:00:00 GMT",
                     link="https://example.com/old",
                 ),
-                PodcastEpisode(
-                    title="Newer post",
-                    guid="new",
-                    published="Fri, 19 Jun 2026 10:00:00 GMT",
-                    audio_url="",
-                    audio_type="",
-                    duration_s=0,
-                    description="",
+                _episode(
+                    "Newer post",
+                    "new",
+                    "Fri, 19 Jun 2026 10:00:00 GMT",
                     link="https://example.com/new",
                 ),
             ],
@@ -206,14 +236,10 @@ def test_profile_preview_sorts_youtube_compact_dates_with_feed_dates():
             link="https://example.com",
             description="",
             episodes=[
-                PodcastEpisode(
-                    title="Older feed post",
-                    guid="old",
-                    published="Thu, 18 Jun 2026 10:00:00 GMT",
-                    audio_url="",
-                    audio_type="",
-                    duration_s=0,
-                    description="",
+                _episode(
+                    "Older feed post",
+                    "old",
+                    "Thu, 18 Jun 2026 10:00:00 GMT",
                     link="https://example.com/old",
                 )
             ],
@@ -294,3 +320,241 @@ def test_profile_preview_auto_cost_mode_keeps_commands_short():
         "agent-loops",
         "--preview",
     ]
+
+
+def test_profile_preview_rejects_negative_limit():
+    profile = _profile({"queries": ["agent loops"]})
+
+    with pytest.raises(ValueError, match="fresh_item_limit must be at least 1"):
+        build_profile_preview(profile, fresh_item_limit=-1, fetch_sources=False)
+
+
+def test_profile_preview_warning_dict_and_youtube_seed_when_atom_unreadable():
+    profile = _profile({"sources": {"youtube_channels": [{"channel_id": "UCabc123"}]}})
+
+    def failing_text_fetcher(_url: str) -> str:
+        raise RuntimeError("feed unavailable")
+
+    result = build_profile_preview(profile, text_fetcher=failing_text_fetcher)
+
+    assert result.candidates[0].kind == "youtube_channel"
+    assert result.candidates[0].url == "https://www.youtube.com/channel/UCabc123"
+    assert result.to_dict()["warnings"] == [{"source": "UCabc123", "message": "feed unavailable"}]
+
+
+def test_profile_preview_handles_feed_items_without_page_and_dedupes():
+    profile = _profile({"sources": {"feeds": ["https://example.com/feed.xml"]}})
+
+    def fake_feed_fetcher(_url: str) -> PodcastFeed:
+        return PodcastFeed(
+            title="Example",
+            link="https://example.com",
+            description="",
+            episodes=[
+                _episode(
+                    "Audio only",
+                    "same",
+                    "Fri, 19 Jun 2026 10:00:00 GMT",
+                    audio_url="https://cdn.example.com/audio.mp3",
+                    audio_type="audio/mpeg",
+                    duration_s=600,
+                ),
+                _episode(
+                    "Duplicate audio",
+                    "same",
+                    "Fri, 20 Jun 2026 10:00:00 GMT",
+                    audio_url="https://cdn.example.com/duplicate.mp3",
+                    audio_type="audio/mpeg",
+                    duration_s=600,
+                ),
+            ],
+        )
+
+    result = build_profile_preview(profile, feed_fetcher=fake_feed_fetcher)
+
+    feed_items = [candidate for candidate in result.candidates if candidate.kind == "feed_item"]
+    assert len(feed_items) == 1
+    assert feed_items[0].title == "Audio only"
+    assert feed_items[0].command == [
+        "distill",
+        "--cost-mode",
+        "no-metered",
+        "ingest",
+        "https://example.com/feed.xml",
+        "--topic",
+        "agent-loops",
+        "--rss",
+        "--episodes",
+        "1",
+    ]
+    assert feed_items[0].note.startswith("Feed item without a page link")
+
+
+def test_profile_preview_youtube_atom_fallbacks_and_skips_unusable_entries():
+    profile = _profile({"sources": {"youtube_channels": [{"channel_id": "UCabc123"}]}})
+    atom = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+  <entry>
+    <yt:videoId>fallback123</yt:videoId>
+    <published>2026-06-19T12:00:00+00:00</published>
+  </entry>
+  <entry>
+    <title>No usable URL</title>
+  </entry>
+</feed>"""
+
+    result = build_profile_preview(profile, text_fetcher=lambda _url: atom)
+
+    assert len(result.candidates) == 1
+    assert result.candidates[0].title == "fallback123"
+    assert result.candidates[0].url == "https://www.youtube.com/watch?v=fallback123"
+
+
+def test_profile_preview_orders_unknown_and_naive_dates_after_dated_items():
+    profile = _profile(
+        {
+            "sources": {"feeds": ["https://example.com/feed.xml"]},
+            "limits": {"max_new_items": 5, "max_metered_usd": 0},
+        }
+    )
+
+    def fake_feed_fetcher(_url: str) -> PodcastFeed:
+        return PodcastFeed(
+            title="Example",
+            link="https://example.com",
+            description="",
+            episodes=[
+                _episode(
+                    "Missing date",
+                    "missing",
+                    "",
+                    link="https://example.com/missing",
+                ),
+                _episode(
+                    "Bad date",
+                    "bad",
+                    "not-a-date",
+                    link="https://example.com/bad",
+                ),
+                _episode(
+                    "Naive date",
+                    "naive",
+                    "2026-06-20T10:00:00",
+                    link="https://example.com/naive",
+                ),
+            ],
+        )
+
+    result = build_profile_preview(profile, feed_fetcher=fake_feed_fetcher)
+
+    assert [candidate.title for candidate in result.candidates] == [
+        "Naive date",
+        "Missing date",
+        "Bad date",
+    ]
+
+
+def test_profile_preview_channel_url_seeds_and_command_text_quoting():
+    profile = _profile(
+        {
+            "sources": {
+                "youtube_channels": [
+                    {"url": "https://www.youtube.com/@ByUrl"},
+                    {"channel_id": "UCseed"},
+                ]
+            }
+        }
+    )
+
+    result = build_profile_preview(profile, fetch_sources=False)
+
+    assert [candidate.url for candidate in result.candidates] == [
+        "https://www.youtube.com/@ByUrl",
+        "https://www.youtube.com/channel/UCseed",
+    ]
+    assert (
+        command_text(["distill", "latest", "", 'quoted "value"', "plain"])
+        == 'distill latest "" "quoted \\"value\\"" plain'
+    )
+
+
+def test_profile_preview_default_text_fetcher_decodes_atom(monkeypatch):
+    profile = _profile({"sources": {"youtube_channels": [{"channel_id": "UCabc123"}]}})
+    atom = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+  <entry>
+    <yt:videoId>video123</yt:videoId>
+    <title>Fetched atom</title>
+    <published>2026-06-19T12:00:00+00:00</published>
+  </entry>
+</feed>"""
+
+    def safe_urlopen(_request, *, timeout: int):
+        assert timeout == 30
+        return _TextResponse(atom.encode("utf-8"))
+
+    monkeypatch.setattr("distill.pipeline.profile_preview.safe_urlopen", safe_urlopen)
+
+    result = build_profile_preview(profile)
+
+    assert result.candidates[0].title == "Fetched atom"
+    assert result.candidates[0].url == "https://www.youtube.com/watch?v=video123"
+
+
+def test_profile_preview_default_text_fetcher_caps_large_feeds(monkeypatch):
+    profile = _profile({"sources": {"youtube_channels": [{"channel_id": "UCabc123"}]}})
+
+    def safe_urlopen(_request, *, timeout: int):
+        assert timeout == 30
+        return _TextResponse(b"too-large")
+
+    monkeypatch.setattr("distill.pipeline.profile_preview._MAX_FEED_BYTES", 4)
+    monkeypatch.setattr("distill.pipeline.profile_preview.safe_urlopen", safe_urlopen)
+
+    result = build_profile_preview(profile)
+
+    assert result.candidates[0].kind == "youtube_channel"
+    assert "exceeds the 4-byte cap" in result.warnings[0].message
+
+
+def test_profile_preview_default_text_fetcher_reports_open_errors(monkeypatch):
+    profile = _profile({"sources": {"youtube_channels": [{"channel_id": "UCabc123"}]}})
+
+    def safe_urlopen(_request, *, timeout: int):
+        assert timeout == 30
+        raise OSError("network unavailable")
+
+    monkeypatch.setattr("distill.pipeline.profile_preview.safe_urlopen", safe_urlopen)
+
+    result = build_profile_preview(profile)
+
+    assert result.candidates[0].kind == "youtube_channel"
+    assert "Could not fetch" in result.warnings[0].message
+
+
+def test_profile_preview_invalid_youtube_atom_becomes_warning():
+    profile = _profile({"sources": {"youtube_channels": [{"channel_id": "UCabc123"}]}})
+
+    result = build_profile_preview(profile, text_fetcher=lambda _url: "<feed")
+
+    assert result.candidates[0].kind == "youtube_channel"
+    assert "YouTube feed is not parseable XML" in result.warnings[0].message
+
+
+def test_profile_preview_invalid_stale_after_defaults_to_week():
+    profile = _profile({"sources": {"youtube_channels": [{"handle": "@Example"}]}})
+    profile = profile.model_copy(
+        update={"freshness": profile.freshness.model_copy(update={"stale_after": "invalid"})}
+    )
+    calls: list[dict] = []
+
+    def fake_discoverer(channel_url: str, **kwargs):
+        calls.append({"channel_url": channel_url, **kwargs})
+        return []
+
+    result = build_profile_preview(profile, youtube_discoverer=fake_discoverer)
+
+    assert calls[0]["days"] == 7
+    assert result.candidates[0].kind == "youtube_channel"

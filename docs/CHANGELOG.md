@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused recurring-profile preview branch coverage for invalid limits,
+  source-fetch warnings, YouTube Atom fallback parsing, feed-item replay
+  commands, duplicate candidate suppression, date ordering, fetch caps, and
+  command quoting. The full coverage gate now reports 91.54%; the enforced floor
+  remains 91.
 - Added focused recurring-profile health branch coverage for clean recent
   profiles, manual cadence behavior, invalid run-state payloads, stale timestamp
   fallbacks, unreadable source counts, and path or duration fallback helpers.
