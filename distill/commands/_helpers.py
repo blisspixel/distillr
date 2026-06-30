@@ -1,4 +1,5 @@
 # ruff: noqa: I001  -- bootstrap must import before rich/typer to set UTF-8 stdio
+# pyright: strict
 """Cross-command UI helpers, shared console, and video-processing utilities.
 
 Migrated from ``distill/cli_shared.py`` during the 0.3 → 0.4 restructure.
@@ -21,7 +22,7 @@ from urllib.parse import urlparse
 # is constructed below or any other distill module creates its own Console.
 # Required for Windows cp1252 consoles to render the preflight banner without
 # raising UnicodeEncodeError. Don't move this lower.
-from distill import _bootstrap  # noqa: F401  -- imported for stdio side effect
+from distill import _bootstrap  # noqa: F401  -- imported for stdio side effect  # pyright: ignore[reportUnusedImport] "import applies UTF-8 stdio side effect"
 
 import typer
 from dotenv import load_dotenv
@@ -52,7 +53,6 @@ from distill.ingestors.youtube.transcripts import get_transcript
 
 if TYPE_CHECKING:
     from distill.ingestors.youtube.discovery import VideoInfo
-
 __all__ = [
     "SHORTS_THRESHOLD",
     "_apply_cost_mode_override",
@@ -237,12 +237,7 @@ file_link = _file_link
 
 
 def _detect_ramp_source(target: str) -> str:
-    """Classify a ramp-up target into the workflow that should ingest it.
-
-    Structural dispatch on the literal shape of the argument (an existing path,
-    an arxiv URL, a YouTube URL, any other URL, or a bare query) — ground truth,
-    not a semantic judgment, so it stays a deterministic rule.
-    """
+    """Classify a ramp-up target by structural argument shape."""
     target_path = Path(target)
     if target_path.exists():
         return "website-batch"
@@ -257,6 +252,9 @@ def _detect_ramp_source(target: str) -> str:
             return "youtube-url"
         return "website"
     return "youtube-query"
+
+
+detect_ramp_source = _detect_ramp_source
 
 
 def _host_matches(host: str, domain: str) -> bool:
@@ -336,7 +334,7 @@ def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 
     return result
 
 
-def duration_str(seconds: int | float | None) -> str:
+def duration_str(seconds: int | float | str | None) -> str:
     """Format seconds to human readable duration."""
     if seconds is None or not isinstance(seconds, (int, float)):
         return "?"
@@ -368,15 +366,22 @@ def topic_from_query(query: str) -> str:
 
 
 def write_video_metadata(
-    vid_dir: Path, video, channel_name: str = "", analysis_mode: str = "full"
+    vid_dir: Path,
+    video: "VideoInfo",
+    channel_name: str = "",
+    analysis_mode: str = "full",
 ) -> None:
-    meta = {
+    try:
+        resolved_channel = video.channel_name
+    except AttributeError:
+        resolved_channel = channel_name
+    meta: dict[str, object] = {
         "video_id": video.video_id,
         "title": video.title,
         "upload_date": video.upload_date,
         "duration": video.duration,
         "url": video.url,
-        "channel": getattr(video, "channel_name", "") or channel_name or "",
+        "channel": resolved_channel or channel_name or "",
         "analysis_mode": analysis_mode,
     }
     (vid_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -480,8 +485,6 @@ def resolve_video_channel_name(
 
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
             full_info = ydl.extract_info(url, download=False)
-            if not isinstance(full_info, dict):
-                return "standalone"
             candidate = full_info.get("channel") or full_info.get("uploader")
             return candidate if isinstance(candidate, str) and candidate else "standalone"
     except Exception:

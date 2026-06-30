@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the shared command helper module to Pyright strict mode with typed
+  metadata writing, duration formatting, dispatch, preflight, and safe console
+  rendering seams.
 - Promoted the view command module to Pyright strict mode with typed video
   metadata parsing, JSON view payloads, artifact-content emission, and public
   topic-change rendering seams.
