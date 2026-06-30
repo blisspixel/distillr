@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused maintain-command branch coverage for malformed cost logs,
+  telemetry split summaries, cleanup store filtering, non-vault open fallbacks,
+  status online outcomes, migration skip and error paths, corpus failure
+  handling, dashboard launch branches, and serve delegation. The full coverage
+  gate now reports 90.53%.
 - Raised the branch-coverage floor to 90 after covering CLI provider-status
   exit-code mapping, CLI entrypoint provider-error exits, and deterministic
   topic-watch management and alert branches. The full coverage gate now reports
