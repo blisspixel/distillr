@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Tightened two-pass corpus synthesis so outputs that cite non-existent claim
+  handles refuse the artifact write instead of promoting unsupported citations.
 - Tightened `distill ask --save` promotion so answers that cite unknown
   bracketed source stems, or cite no retrieved source at all, refuse promotion
   while keeping the answer artifact and verification sidecar inspectable.

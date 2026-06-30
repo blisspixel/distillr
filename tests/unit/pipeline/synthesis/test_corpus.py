@@ -3,10 +3,11 @@
 import json
 from unittest.mock import patch
 
+from distill.claims.records import Claim, ClaimRole
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
-from distill.pipeline.synthesis.corpus import synthesize_corpus
+from distill.pipeline.synthesis.corpus import synthesize_corpus, synthesize_corpus_from_claims
 
 
 def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
@@ -14,6 +15,18 @@ def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
         return LLM_Response(text=text, input_tokens=10, output_tokens=20, model=model)
 
     return _call
+
+
+def _claim(claim_id: str, source_id: str, text: str) -> Claim:
+    return Claim(
+        claim_id=claim_id,
+        source_id=source_id,
+        artifact_path=f"papers/{source_id}/{source_id}_Insights.md",
+        claim_text=text,
+        rhetorical_role=ClaimRole.RESULT,
+        role_confidence=0.9,
+        extracted_at="2026-06-30T00:00:00Z",
+    )
 
 
 def test_synthesize_corpus_writes_output(tmp_path):
@@ -149,3 +162,50 @@ def test_two_pass_strict_refusal_does_not_fall_back(tmp_path):
         result = synthesize_corpus(topic, config, two_pass=True)
 
     assert result == ""
+
+
+def test_two_pass_writes_when_claim_handles_exist(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+    topic_dir = config.topic_dir(topic)
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    claims = [
+        _claim("c1", "source-one", "The first source reports a repeatable result."),
+        _claim("c2", "source-two", "The second source independently supports it."),
+    ]
+
+    with (
+        patch("distill.claims.pipeline.run_claims"),
+        patch("distill.claims.exports.read_claims", return_value=claims),
+        patch(
+            "distill.pipeline.synthesis.corpus.llm_call",
+            _fake_llm_call("The result is independently supported (C1, C2)."),
+        ),
+    ):
+        result = synthesize_corpus_from_claims(topic, config)
+
+    assert result == "The result is independently supported (C1, C2)."
+    output = find_artifact(topic_dir, "corpus_synthesis", identity=topic)
+    assert output.exists()
+    assert "independently supported" in strip_frontmatter(output.read_text(encoding="utf-8"))
+
+
+def test_two_pass_refuses_unknown_claim_handle(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+    topic_dir = config.topic_dir(topic)
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    claims = [_claim("c1", "source-one", "The source reports a repeatable result.")]
+
+    with (
+        patch("distill.claims.pipeline.run_claims"),
+        patch("distill.claims.exports.read_claims", return_value=claims),
+        patch(
+            "distill.pipeline.synthesis.corpus.llm_call",
+            _fake_llm_call("The result is triangulated with another source (C1, C2)."),
+        ),
+    ):
+        result = synthesize_corpus_from_claims(topic, config)
+
+    assert result is None
+    assert not find_artifact(topic_dir, "corpus_synthesis", identity=topic).exists()

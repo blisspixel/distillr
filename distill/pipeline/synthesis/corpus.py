@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from distill.config import DistillConfig
@@ -27,6 +28,22 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+_CLAIM_HANDLE_RE = re.compile(r"(?<![A-Za-z0-9_])C(\d+)(?![A-Za-z0-9_])")
+
+
+def _unknown_claim_handles(synthesis: str, claim_count: int) -> tuple[str, ...]:
+    """Return cited claim handles that are outside the rendered claim set."""
+    allowed = {f"C{index}" for index in range(1, claim_count + 1)}
+    unknown: list[str] = []
+    seen: set[str] = set()
+    for match in _CLAIM_HANDLE_RE.finditer(synthesis):
+        handle = f"C{match.group(1)}"
+        if handle in allowed or handle in seen:
+            continue
+        unknown.append(handle)
+        seen.add(handle)
+    return tuple(unknown)
 
 
 def synthesize_corpus_from_claims(
@@ -77,6 +94,15 @@ def synthesize_corpus_from_claims(
     synthesis = response.text
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="corpus_synthesis_two_pass"))
+
+    unknown_handles = _unknown_claim_handles(synthesis, len(claims))
+    if unknown_handles:
+        logger.warning(
+            "corpus synthesis for %s not written: unknown claim handle(s): %s",
+            topic,
+            ", ".join(unknown_handles),
+        )
+        return None
 
     # Verify against the rendered claim set -- exactly the evidence the
     # synthesis prompt embedded, so a number or assertion the model introduced

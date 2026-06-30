@@ -428,6 +428,9 @@ Paper outputs land under:
 
 Single-pass synthesis remains the default; `--two-pass` is opt-in and falls back to single-pass if a topic has no extractable claims. The same path is available to agents through the MCP `synthesize` tool's `two_pass` argument.
 
+If a two-pass synthesis cites a claim handle that is not present in the extracted
+claim set, Distill refuses the write and keeps any previous synthesis in place.
+
 ```bash
 distill resynthesize my-research --two-pass
 ```
