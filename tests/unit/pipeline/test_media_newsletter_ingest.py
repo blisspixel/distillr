@@ -120,6 +120,11 @@ _SUBSTACK_RSS = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 class TestNewsletterIngest:
+    def test_empty_feed_is_not_newsletter(self):
+        feed = PodcastFeed(title="", link="", description="", episodes=[])
+
+        assert not feed_is_newsletter(feed)
+
     def test_feed_routing_heuristic(self):
         newsletter = parse_feed(_SUBSTACK_RSS)
         assert feed_is_newsletter(newsletter)
@@ -163,6 +168,59 @@ class TestNewsletterIngest:
             ],
         )
         assert feed_is_newsletter(narrated)
+
+    def test_fetches_feed_when_not_supplied_and_reports_empty_feed(self, config, monkeypatch):
+        feed = PodcastFeed(title="Empty Letter", link="", description="", episodes=[])
+        monkeypatch.setattr(nl_mod, "fetch_feed", lambda _url: feed)
+
+        result = nl_mod.ingest_newsletter(
+            "https://example.substack.com/feed", topic="letters", config=config
+        )
+
+        assert result.feed_title == "Empty Letter"
+        assert result.content_paths == []
+        assert result.insight_paths == []
+        assert result.skipped_reasons == ["Feed parsed but contains no posts."]
+
+    def test_skips_feed_item_without_body(self, config):
+        feed = PodcastFeed(
+            title="One Useful Letter",
+            link="https://example.substack.com",
+            description="Essays",
+            episodes=[
+                PodcastEpisode(
+                    title="Empty post",
+                    guid="empty-post",
+                    published="",
+                    audio_url="",
+                    audio_type="",
+                    duration_s=0,
+                    description=" ",
+                )
+            ],
+        )
+
+        result = nl_mod.ingest_newsletter(
+            "https://example.substack.com/feed", topic="letters", config=config, feed=feed
+        )
+
+        assert result.content_paths == []
+        assert result.insight_paths == []
+        assert result.skipped_reasons == ["Empty post: feed item carries no post body"]
+
+    def test_can_capture_content_without_analysis(self, config):
+        feed = parse_feed(_SUBSTACK_RSS)
+
+        result = nl_mod.ingest_newsletter(
+            "https://example.substack.com/feed",
+            topic="letters",
+            config=config,
+            feed=feed,
+            analyze=False,
+        )
+
+        assert len(result.content_paths) == 1
+        assert result.insight_paths == []
 
     def test_ingest_captures_post_and_verified_insight(self, config, monkeypatch):
         feed = parse_feed(_SUBSTACK_RSS)
