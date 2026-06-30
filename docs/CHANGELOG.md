@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   gateway and cloud-provider environment routes plus Gemini-family Google Cloud
   credential environment routes, keeping those paths out of no-metered
   plan-quota routing.
+- Generalized adapter doctor metered-route auth modes and refusal messages so
+  API-key, gateway, cloud-provider, and credential markers are reported as the
+  same fail-closed cost boundary instead of API-key-only auth.
 
 ## 0.19.10 - 2026-06-30
 

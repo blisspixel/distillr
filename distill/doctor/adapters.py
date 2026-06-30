@@ -510,9 +510,9 @@ def _probe_adapter(
     for blocker in env_blockers_present:
         blocked_reasons.append(f"{blocker} is set")
     for evidence in config_result.metered_evidence:
-        blocked_reasons.append(f"{evidence} references API-key auth")
+        blocked_reasons.append(f"{evidence} references a metered route")
     for evidence in auth_command_result.metered_evidence:
-        blocked_reasons.append(f"{evidence} references API-key auth")
+        blocked_reasons.append(f"{evidence} references a metered route")
 
     command_result = _CommandProbeResult(version="", missing_flags=[], blocked_reasons=[])
     if installed:
@@ -764,11 +764,11 @@ def _auth_mode(
     if spec.route_class == "credit-metered":
         return "credit-metered"
     if env_blockers_present:
-        return "api-key-env"
+        return "metered-env"
     if config_result.metered_evidence:
-        return "api-key-config"
+        return "metered-config"
     if auth_command_result.metered_evidence:
-        return "api-key-command"
+        return "metered-command"
     if auth_command_result.session_evidence:
         return "session-command"
     if config_result.session_evidence:

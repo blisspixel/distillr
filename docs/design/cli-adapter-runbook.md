@@ -37,13 +37,16 @@ a command.
   `CLAUDE_CODE_USE_VERTEX`. Gemini-family blockers include
   `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_LOCATION`, and
   `GOOGLE_CLOUD_PROJECT`.
-- Scan provider config files for `api_key`, `env_key`, or provider API-key
-  environment references. Presence classifies the route as metered unless the
-  user selected `paid-ok`.
+- Scan provider config files for `api_key`, `env_key`, provider API-key
+  environment references, gateway routes, cloud-provider routes, and credential
+  routes. Presence classifies the route as metered unless the user selected
+  `paid-ok`.
 - Run read-only JSON auth probes when the CLI exposes them, such as
   `claude auth status --json` or `grok inspect --json`.
 - Report only matched config or auth-command marker names and display paths.
-  Never emit secret values from provider config files or auth command output.
+  Report the auth mode as `metered-env`, `metered-config`, or
+  `metered-command` when any metered-route marker is found. Never emit secret
+  values from provider config files or auth command output.
 - Treat support statements as structured evidence records: status, checked date,
   source URLs, required evidence, no-metered current flag, and notes. A
   plan-quota route remains blocked unless the statement is current for

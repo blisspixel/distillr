@@ -291,8 +291,9 @@ boundaries:
    API key blocks plan-quota routing unless the user selected `paid-ok`. For
    Codex, an OpenAI API-key route is treated as metered unless the adapter can
    prove a ChatGPT-plan session is being used. For Google or any other included
-   quota route, unknown entitlement or API-key auth blocks no-metered claims.
-   For GitHub Copilot, AI-credit usage is metered unless a future support
+   quota route, unknown entitlement, API-key auth, cloud-provider auth, gateway
+   auth, or credential-backed auth blocks no-metered claims. For GitHub Copilot,
+   AI-credit usage is metered unless a future support
    statement proves a no-incremental-cost entitlement.
 6. **Provider-specific safety flags.** Codex uses `read-only` or
    `workspace-write` sandboxes and avoids `danger-full-access`. Grok scripts use

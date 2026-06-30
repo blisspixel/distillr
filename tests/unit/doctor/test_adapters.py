@@ -48,7 +48,7 @@ def test_adapter_doctor_records_required_flags_and_env_blockers(monkeypatch):
     codex = next(probe for probe in report.adapters if probe.name == "codex")
     assert codex.installed
     assert codex.version == "codex 0.140.0"
-    assert codex.auth_mode == "api-key-env"
+    assert codex.auth_mode == "metered-env"
     assert codex.env_blockers_present == ["OPENAI_API_KEY"]
     assert "--output-schema" in codex.missing_flags
     assert not codex.no_metered_eligible
@@ -64,10 +64,10 @@ def test_adapter_doctor_blocks_google_api_key_for_gemini(monkeypatch):
 
     gemini = next(probe for probe in report.adapters if probe.name == "gemini-cli")
     antigravity = next(probe for probe in report.adapters if probe.name == "antigravity")
-    assert gemini.auth_mode == "api-key-env"
+    assert gemini.auth_mode == "metered-env"
     assert gemini.env_blockers_present == ["GOOGLE_API_KEY"]
     assert "GOOGLE_API_KEY is set" in gemini.blocked_reasons
-    assert antigravity.auth_mode == "api-key-env"
+    assert antigravity.auth_mode == "metered-env"
     assert antigravity.env_blockers_present == ["GOOGLE_API_KEY"]
     assert "GOOGLE_API_KEY is set" in antigravity.blocked_reasons
 
@@ -105,6 +105,43 @@ def test_adapter_doctor_blocks_claude_gateway_and_cloud_provider_routes(monkeypa
     assert not claude.no_metered_eligible
 
 
+def test_adapter_doctor_blocks_gateway_and_credential_config_routes(monkeypatch, tmp_path):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "settings.json").write_text(
+        '{"env":{"ANTHROPIC_BASE_URL":"https://gateway.example"}}',
+        encoding="utf-8",
+    )
+    gemini_dir = tmp_path / ".gemini"
+    gemini_dir.mkdir()
+    (gemini_dir / "settings.json").write_text(
+        '{"auth":{"GOOGLE_APPLICATION_CREDENTIALS":"creds.json"}}',
+        encoding="utf-8",
+    )
+
+    report = adapters.adapter_doctor_report(
+        environ={},
+        home_dir=tmp_path,
+        runner=_runner_with_required_flags,
+    )
+
+    claude = next(probe for probe in report.adapters if probe.name == "claude")
+    gemini = next(probe for probe in report.adapters if probe.name == "gemini-cli")
+    assert claude.auth_mode == "metered-config"
+    assert "~/.claude/settings.json: ANTHROPIC_BASE_URL" in claude.auth_evidence
+    assert (
+        "~/.claude/settings.json: ANTHROPIC_BASE_URL references a metered route"
+        in claude.blocked_reasons
+    )
+    assert gemini.auth_mode == "metered-config"
+    assert "~/.gemini/settings.json: GOOGLE_APPLICATION_CREDENTIALS" in gemini.auth_evidence
+    assert (
+        "~/.gemini/settings.json: GOOGLE_APPLICATION_CREDENTIALS references a metered route"
+        in gemini.blocked_reasons
+    )
+
+
 def test_credit_metered_copilot_is_not_no_metered_candidate(monkeypatch):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
@@ -139,11 +176,11 @@ def test_adapter_doctor_detects_metered_config_without_leaking_secret(monkeypatc
     )
 
     codex = next(probe for probe in report.adapters if probe.name == "codex")
-    assert codex.auth_mode == "api-key-config"
+    assert codex.auth_mode == "metered-config"
     assert codex.config_files_found == ["~/.codex/config.toml"]
     assert "~/.codex/config.toml: api_key" in codex.auth_evidence
     assert "secret-value" not in " ".join(codex.auth_evidence + codex.blocked_reasons)
-    assert any("references API-key auth" in reason for reason in codex.blocked_reasons)
+    assert any("references a metered route" in reason for reason in codex.blocked_reasons)
     assert not codex.no_metered_eligible
 
 
@@ -233,9 +270,9 @@ def test_adapter_doctor_reports_metered_auth_command(monkeypatch):
     report = adapters.adapter_doctor_report(environ={}, runner=runner)
 
     claude = next(probe for probe in report.adapters if probe.name == "claude")
-    assert claude.auth_mode == "api-key-command"
+    assert claude.auth_mode == "metered-command"
     assert "auth_status: api_key" in claude.auth_evidence
-    assert "auth_status: api_key references API-key auth" in claude.blocked_reasons
+    assert "auth_status: api_key references a metered route" in claude.blocked_reasons
     assert not claude.no_metered_eligible
 
 
