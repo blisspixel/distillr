@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused discover-flow helper coverage for query, video, rerank, and
+  display delegation, fresh-topic detection, sizing-menu no-option, cancel,
+  invalid, and commit paths, ingest confirmation summaries, video payload
+  filtering, paper and site helper delegation, ingest-set aborts, and corpus
+  output recording. The full coverage gate now reports 92.85%; the enforced
+  floor remains 92.
 - Completed the Cycle 42 maintenance sweep by replacing ambiguous no-op fallback
   `pass` sites with explicit fallback flow, tightening source-metadata parsing,
   and adding focused topic command helper coverage for profile parsing,
