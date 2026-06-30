@@ -6,13 +6,23 @@ Foundational: imports only typer/click/difflib, nothing from ``distill``, so it
 sits at the bottom of the import graph beside ``_console`` / ``_bootstrap``.
 """
 
+# pyright: strict
+
 from __future__ import annotations
 
 import difflib
+from typing import TYPE_CHECKING
 
 import click
 import typer
 from typer.core import TyperGroup
+
+if TYPE_CHECKING:
+    from typer._click.core import Command as TyperClickCommand
+    from typer._click.core import Context as TyperClickContext
+else:
+    TyperClickCommand = click.Command
+    TyperClickContext = click.Context
 
 
 class DistillGroup(TyperGroup):
@@ -25,11 +35,15 @@ class DistillGroup(TyperGroup):
     original usage error and its exit code are unchanged.
     """
 
-    def resolve_command(self, ctx, args):
+    def resolve_command(
+        self, ctx: TyperClickContext, args: list[str]
+    ) -> tuple[str | None, TyperClickCommand | None, list[str]]:
+        if not args:
+            return None, None, []
         try:
             return super().resolve_command(ctx, args)
         except click.UsageError as exc:
-            typed = args[0] if args else ""
+            typed = args[0]
             matches = difflib.get_close_matches(typed, self.list_commands(ctx), n=3, cutoff=0.5)
             if matches and exc.message:
                 hint = matches[0] if len(matches) == 1 else ", ".join(matches)

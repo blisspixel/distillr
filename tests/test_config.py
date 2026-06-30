@@ -39,6 +39,38 @@ class TestVersion:
         assert version != "dev"
         assert version[0].isdigit()  # looks like a real version, e.g. 0.9.13
 
+    def test_get_version_falls_back_to_legacy_distribution_name(self, monkeypatch):
+        from distill import _version
+
+        calls = []
+
+        def fake_version(name):
+            calls.append(name)
+            if name == "distillr":
+                raise RuntimeError("missing")
+            return "1.2.3"
+
+        monkeypatch.setattr(_version, "version", fake_version)
+
+        assert _version.get_version() == "1.2.3"
+        assert calls == ["distillr", "distill"]
+
+    def test_get_version_returns_dev_when_metadata_is_missing_or_empty(self, monkeypatch):
+        from distill import _version
+
+        calls = []
+
+        def fake_version(name):
+            calls.append(name)
+            if name == "distillr":
+                return ""
+            raise RuntimeError("missing")
+
+        monkeypatch.setattr(_version, "version", fake_version)
+
+        assert _version.get_version() == "dev"
+        assert calls == ["distillr", "distill"]
+
 
 class TestDistillConfig:
     def test_default_config(self, tmp_path, monkeypatch):

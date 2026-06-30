@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the top-level Typer command group to Pyright strict mode, added a
+  defensive empty-argument resolver guard, and covered command suggestions,
+  version fallback metadata, and legacy topic-change compatibility shims. The
+  full coverage gate now reports 89.79%.
 - Promoted the discover command module to Pyright strict mode, completing the
   command-package strict ratchet with public preflight, dispatch,
   ramp-source, learning-preview, and learning-run seams.
