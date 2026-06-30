@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 from rich.console import Console
 
-from distill.commands import _discover_flow
+from distill.commands import _discover_flow, _discover_ingest
 from distill.commands._site_ingest import SiteIngestResult
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
@@ -34,6 +34,19 @@ def _ranked_paper(paper_id: str, title: str):
             abs_url=f"https://arxiv.org/abs/{paper_id}",
         )
     )
+
+
+def _ranked_site(url: str = "https://example.com/a"):
+    return SimpleNamespace(
+        site_seed=SiteSeed(url=url, topic="old"),
+        title="site",
+    )
+
+
+def _successful_site_ingest(
+    seed, config, tracker, summary, scrape_only=False, ingest_attachments=False
+):
+    return SiteIngestResult(site_name="example.com", page_count=1)
 
 
 class TestPaperLoopIsolation:
@@ -91,6 +104,21 @@ class TestPaperLoopIsolation:
 
         with pytest.raises(BudgetExceededError):
             self._run(tmp_path, analyze)
+
+    def test_none_paper_candidate_is_skipped(self, tmp_path):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+        ranked = [SimpleNamespace(paper=None)]
+
+        with (
+            patch.object(_discover_flow, "analyze_paper") as analyze,
+            patch.object(_discover_flow, "synthesize_papers", return_value=None) as synth,
+        ):
+            _discover_flow._discover_ingest_papers("t", config, CostTracker(), summary, ranked)
+
+        analyze.assert_not_called()
+        synth.assert_called_once()
+        assert summary.output_files == []
 
 
 class TestSiteLoopIsolation:
@@ -155,6 +183,100 @@ class TestSiteLoopIsolation:
         issues = [i for i in summary.issues if i.stage == "site-ingest"]
         assert len(issues) == 1
         assert issues[0].context == "https://bad.example.com/a"
+
+    def test_none_site_candidate_is_skipped_and_video_runs_skip_site_synthesis(self, tmp_path):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+        ranked = [SimpleNamespace(site_seed=None, title="missing")]
+
+        with (
+            patch.object(_discover_flow, "_process_site_seed") as process,
+            patch.object(_discover_flow, "synthesize_site_topic") as synth,
+        ):
+            _discover_flow._discover_ingest_sites(
+                "web",
+                config,
+                CostTracker(),
+                summary,
+                ranked,
+                ingest_attachments=False,
+                has_videos=True,
+            )
+
+        process.assert_not_called()
+        synth.assert_not_called()
+        assert summary.output_files == []
+
+    def test_site_budget_exceeded_is_a_hard_stop(self, tmp_path):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+        ranked = [_ranked_site()]
+
+        def process(seed, config, tracker, summary, scrape_only=False, ingest_attachments=False):
+            raise BudgetExceededError(0.6, 0.5)
+
+        with (
+            patch.object(_discover_flow, "_process_site_seed", side_effect=process),
+            pytest.raises(BudgetExceededError),
+        ):
+            _discover_flow._discover_ingest_sites(
+                "web",
+                config,
+                CostTracker(),
+                summary,
+                ranked,
+                ingest_attachments=False,
+                has_videos=False,
+            )
+
+    def test_site_synthesis_output_is_recorded(self, tmp_path):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+        ranked = [_ranked_site()]
+        output = tmp_path / "topic_synthesis.md"
+        output.write_text("# Synthesis", encoding="utf-8")
+
+        _discover_ingest.ingest_sites(
+            "web",
+            config,
+            CostTracker(),
+            summary,
+            ranked,
+            ingest_attachments=False,
+            has_videos=False,
+            process_site_seed_fn=_successful_site_ingest,
+            synthesize_site_topic_fn=lambda topic, config, tracker=None: True,
+            find_artifact_fn=lambda *args, **kwargs: output,
+        )
+
+        assert summary.output_files == [output.resolve()]
+
+    def test_site_synthesis_failure_is_recorded(self, tmp_path):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+        ranked = [_ranked_site()]
+
+        with (
+            patch.object(_discover_flow, "_process_site_seed", side_effect=_successful_site_ingest),
+            patch.object(
+                _discover_flow,
+                "synthesize_site_topic",
+                side_effect=RuntimeError("synthesis exploded"),
+            ),
+        ):
+            _discover_flow._discover_ingest_sites(
+                "web",
+                config,
+                CostTracker(),
+                summary,
+                ranked,
+                ingest_attachments=False,
+                has_videos=False,
+            )
+
+        issues = [i for i in summary.issues if i.stage == "site-topic-synthesis"]
+        assert len(issues) == 1
+        assert issues[0].context == "web"
 
 
 class TestVideoLoopIsolation:
