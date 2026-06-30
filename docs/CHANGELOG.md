@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the discover command module to Pyright strict mode, completing the
+  command-package strict ratchet with public preflight, dispatch,
+  ramp-source, learning-preview, and learning-run seams.
 - Promoted the maintain command module to Pyright strict mode with typed
   cost-log parsing, local/cloud telemetry summaries, status artifact rows,
   migration rename tuples, and public dashboard rendering seams.

@@ -1,3 +1,4 @@
+# pyright: strict
 from __future__ import annotations
 
 import re
@@ -29,18 +30,26 @@ from distill.commands._discover_sites import (
 )
 from distill.commands._helpers import (
     _apply_verify_override,
-    _detect_ramp_source,
-    _invoke_command,
-    _preflight,
     get_config,
+)
+from distill.commands._helpers import (
+    detect_ramp_source as _detect_ramp_source,
+)
+from distill.commands._helpers import (
+    invoke_command as _invoke_command,
+)
+from distill.commands._helpers import (
+    run_preflight as _preflight,
 )
 from distill.commands._helpers import (
     run_scope_report as _run_scope_report,
 )
 from distill.commands._json import emit_json, json_mode_active
 from distill.commands._learning import (
-    _preview_learning_selection,
-    _run_learning_command,
+    preview_learning_selection as _preview_learning_selection,
+)
+from distill.commands._learning import (
+    run_learning_command as _run_learning_command,
 )
 from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
