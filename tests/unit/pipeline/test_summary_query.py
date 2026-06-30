@@ -26,11 +26,15 @@ def _seed(config, name="checker", body=None):
     return d / f"{name}_Insights.md"
 
 
-def _patch_llm(monkeypatch, calls: list):
+def _patch_llm(
+    monkeypatch,
+    calls: list,
+    text: str = "HHEM hits 0.878 ROC-AUC [checker_Insights].",
+):
     def fake(rc, **kwargs):
         calls.append(kwargs)
         return LLM_Response(
-            text="HHEM hits 0.878 ROC-AUC [checker_Insights].",
+            text=text,
             input_tokens=10,
             output_tokens=10,
             model="grok-4.3",
@@ -81,6 +85,37 @@ class TestSummarizeQuery:
 
         assert result is not None and not result.cached
         assert len(calls) == 2
+
+    def test_summary_refuses_unknown_source_citation_without_cache(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(
+            monkeypatch,
+            calls,
+            text="HHEM hits 0.878 ROC-AUC [fabricated_Insights].",
+        )
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert "unknown source" in result.refused_reason
+        assert "fabricated_Insights" in result.refused_reason
+        assert result.sources == []
+        cache_dir = config.library_dir / ".distill" / "summary_cache"
+        assert not cache_dir.exists() or list(cache_dir.glob("*.json")) == []
+
+    def test_summary_refuses_uncited_output_without_cache(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls, text="HHEM hits 0.878 ROC-AUC.")
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert "no valid source citations" in result.refused_reason
+        assert result.sources == []
+        cache_dir = config.library_dir / ".distill" / "summary_cache"
+        assert not cache_dir.exists() or list(cache_dir.glob("*.json")) == []
 
     def test_distinct_budgets_cache_separately(self, config, monkeypatch):
         _seed(config)
@@ -232,6 +267,33 @@ class TestMcpTools:
         assert result["sources"] == summary.sources
         assert result["cached"] is True
         assert result["model"] == "grok-4.3"
+        assert result["cost"] == _FAKE_COST
+
+    def test_find_insights_summary_refusal_status(self, config, monkeypatch):
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import find_insights_summary
+
+        self._enable_model(monkeypatch)
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        config.topic_dir("t").mkdir(parents=True)
+        summary = QuerySummary(
+            summary="Brief without citations.",
+            sources=[],
+            cached=False,
+            model="grok-4.3",
+            refused_reason="summary includes no valid source citations; nothing to cache",
+        )
+
+        with (
+            patch("distill.pipeline.summary_query.summarize_query", return_value=summary),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(find_insights_summary("t", "grounding", max_tokens=4000))
+
+        assert result["status"] == "refused"
+        assert "no valid source citations" in result["error"]
+        assert result["summary"] == summary.summary
+        assert result["sources"] == []
         assert result["cost"] == _FAKE_COST
 
     def test_find_insights_summary_clamps_max_tokens(self, config, monkeypatch):

@@ -25,6 +25,10 @@ from distill.config import DistillConfig
 from distill.library.paths import strip_frontmatter
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.pipeline.citation_refs import (
+    citation_refusal_reason,
+    extract_source_citations,
+)
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.search import search_corpus
 from distill.prompts.summary_query import summary_query_prompt
@@ -44,6 +48,7 @@ class QuerySummary:
     sources: list[str]  # artifact stems the summary drew from
     cached: bool
     model: str
+    refused_reason: str = ""
 
 
 def _corpus_revision(files: list[Path]) -> str:
@@ -60,6 +65,19 @@ def _corpus_revision(files: list[Path]) -> str:
 
 def _cache_path(config: DistillConfig, key: str) -> Path:
     return config.library_dir / ".distill" / _CACHE_DIRNAME / f"{key}.json"
+
+
+def _cited_sources(summary: str, allowed_stems: list[str]) -> tuple[list[str], str]:
+    citations = extract_source_citations(summary)
+    cited = [citation for citation in citations if citation in allowed_stems]
+    refusal = citation_refusal_reason(
+        citations,
+        cited,
+        allowed_stems,
+        subject="summary",
+        action="cache",
+    )
+    return cited, refusal
 
 
 def summarize_query(
@@ -80,21 +98,26 @@ def summarize_query(
         return None
 
     files = [config.library_dir / r.path for r in results]
+    allowed_stems = [Path(r.path).stem for r in results]
     revision = _corpus_revision(files)
     key = hashlib.sha256(f"{topic}|{query}|{max_tokens}|{revision}".encode()).hexdigest()[:20]
     cache_file = _cache_path(config, key)
     if cache_file.exists():
         try:
             data = json.loads(cache_file.read_text(encoding="utf-8"))
-            return QuerySummary(
-                summary=data["summary"],
-                sources=list(data.get("sources", [])),
-                cached=True,
-                model=str(data.get("model", "")),
-            )
+            summary = str(data["summary"])
+            cited, refusal = _cited_sources(summary, allowed_stems)
+            if not refusal:
+                return QuerySummary(
+                    summary=summary,
+                    sources=cited,
+                    cached=True,
+                    model=str(data.get("model", "")),
+                )
         except (OSError, json.JSONDecodeError, KeyError):
-            with suppress(OSError):
-                cache_file.unlink()
+            pass
+        with suppress(OSError):
+            cache_file.unlink()
 
     blocks: list[str] = []
     stems: list[str] = []
@@ -123,7 +146,15 @@ def summarize_query(
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="find_summary"))
     summary = response.text.strip()
-    cited = [s for s in stems if f"[{s}]" in summary] or stems
+    cited, refusal = _cited_sources(summary, stems)
+    if refusal:
+        return QuerySummary(
+            summary=summary,
+            sources=cited,
+            cached=False,
+            model=response.model,
+            refused_reason=refusal,
+        )
 
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(

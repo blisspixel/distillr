@@ -118,6 +118,19 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
             {"status": "no_matches", "message": f"Nothing in '{topic}' matches this query."},
             indent=2,
         )
+    if result.refused_reason:
+        return json.dumps(
+            {
+                "status": "refused",
+                "error": result.refused_reason,
+                "summary": result.summary,
+                "sources": result.sources,
+                "cached": result.cached,
+                "model": result.model,
+                "cost": cost_summary(tracker),
+            },
+            indent=2,
+        )
     return json.dumps(
         {
             "summary": result.summary,

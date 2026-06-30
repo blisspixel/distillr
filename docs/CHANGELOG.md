@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Refused accordion report section writes and QA rewrites that contain
   unresolved numbered report citations such as `[cite: 1]`, so section
   promotion cannot hide unresolvable citation handles by stripping them.
+- Refused cached sub-agent query summaries that omit source-stem citations or
+  cite unknown stems, and avoided caching refused summaries so MCP summaries do
+  not overstate provenance.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

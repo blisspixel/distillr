@@ -199,7 +199,9 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   synthesis artifact; BibTeX and RIS citation exports now refuse records whose
   local paper artifact or metadata receipt path no longer exists; accordion
   report section writes and QA rewrites now refuse unresolved numbered report
-  citations such as `[cite: 1]` instead of stripping them.
+  citations such as `[cite: 1]` instead of stripping them; cached sub-agent
+  query summaries now refuse uncited output or unknown source stems instead of
+  caching an overbroad source list.
 - [ ] **Uncertainty routing and disagreement surfacing.** Promote
   low-confidence, single-source, contradicted, or multi-route-disagreed claims
   into explicit reviewable findings instead of smoothing them into confident
