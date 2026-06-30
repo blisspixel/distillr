@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Refused accordion report section writes and QA rewrites that contain
   unresolved numbered report citations such as `[cite: 1]`, so section
   promotion cannot hide unresolvable citation handles by stripping them.
+- Refused lightweight topic brief writes that contain unresolved numbered
+  report citations such as `[cite: 1]`, reusing the same structural citation
+  guard as accordion report sections.
 - Refused cached sub-agent query summaries that omit source-stem citations or
   cite unknown stems, and avoided caching refused summaries so MCP summaries do
   not overstate provenance.

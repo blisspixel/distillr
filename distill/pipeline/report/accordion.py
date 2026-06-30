@@ -28,6 +28,9 @@ from distill.llm import call as llm_call
 from distill.llm.call import LLMCall
 from distill.llm.retry import retry_with_backoff
 from distill.llm.router import RouterConfig
+from distill.pipeline.citation_refs import (
+    unresolved_numbered_citation_reason as _unresolved_numbered_citation_reason,
+)
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.deep_research import _get_report_path
@@ -919,15 +922,6 @@ def _read_video_metadata_title_and_id(meta_file: Path, fallback: str) -> tuple[s
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────
-
-
-def _unresolved_numbered_citation_reason(content: str) -> str:
-    refs = tuple(re.findall(r"\[cite:\s*[\d,\s]+\]", content, flags=re.IGNORECASE))
-    if not refs:
-        return ""
-    joined = ", ".join(refs[:3])
-    suffix = "" if len(refs) <= 3 else f", and {len(refs) - 3} more"
-    return f"unresolved numbered report citation(s): {joined}{suffix}"
 
 
 def _clean_section_output(content: str) -> str:

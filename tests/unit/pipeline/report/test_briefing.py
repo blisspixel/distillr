@@ -83,3 +83,21 @@ def test_generate_topic_brief_returns_none_when_llm_returns_empty(tmp_path):
 
     assert result is None
     assert not find_artifact(topic_dir, "brief", identity="fabric").exists()
+
+
+def test_generate_topic_brief_refuses_unresolved_numbered_citation(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic_dir = config.topic_dir("fabric")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "topic_synthesis.md").write_text("# Synthesis", encoding="utf-8")
+    tracker = CostTracker()
+
+    with patch(
+        "distill.pipeline.report.briefing.llm_call",
+        _fake_llm_call("Brief claims an unresolvable fact [cite: 1]."),
+    ):
+        result = generate_topic_brief("fabric", config, tracker=tracker)
+
+    assert result is None
+    assert not find_artifact(topic_dir, "brief", identity="fabric").exists()
+    assert len(tracker.entries) == 1

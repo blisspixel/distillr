@@ -5,9 +5,14 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["citation_refusal_reason", "extract_source_citations"]
+__all__ = [
+    "citation_refusal_reason",
+    "extract_source_citations",
+    "unresolved_numbered_citation_reason",
+]
 
 _SOURCE_CITATION_RE = re.compile(r"\[([A-Za-z0-9][A-Za-z0-9_.-]*)\]")
+_NUMBERED_REPORT_CITATION_RE = re.compile(r"\[cite:\s*[\d,\s]+\]", flags=re.IGNORECASE)
 _NON_SOURCE_BRACKET_LABELS = frozenset(
     {"Analysis", "Confirmed", "Estimated", "Reported", "Speculated"}
 )
@@ -46,3 +51,14 @@ def citation_refusal_reason(
     if not resolved:
         return f"{subject} includes no valid source citations; nothing to {action}"
     return ""
+
+
+def unresolved_numbered_citation_reason(content: str) -> str:
+    """Return a refusal reason for report citations that have no resolvable map."""
+
+    refs = tuple(_NUMBERED_REPORT_CITATION_RE.findall(content))
+    if not refs:
+        return ""
+    joined = ", ".join(refs[:3])
+    suffix = "" if len(refs) <= 3 else f", and {len(refs) - 3} more"
+    return f"unresolved numbered report citation(s): {joined}{suffix}"

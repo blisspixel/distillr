@@ -162,8 +162,10 @@ workflow that makes unsupported certainty hard to write and easy to audit.
   source ids, exported bibliography rows, and generated answer citations should
   resolve to real local receipts or refuse promotion. Report section numbered
   citations now refuse promotion rather than being stripped when the handle
-  cannot resolve, and cached sub-agent query summaries now refuse uncited or
-  unknown source-stem citations instead of overstating provenance.
+  cannot resolve, lightweight topic briefs now refuse the same unresolvable
+  numbered citations before corpus writes, and cached sub-agent query summaries
+  now refuse uncited or unknown source-stem citations instead of overstating
+  provenance.
 - Premise truth, faithfulness, source fit, and appropriate uncertainty are
   semantic judgments. They belong in `distill eval` model-judge fixtures and
   write-time verdicts, with Python aggregating explicit per-criterion decisions.

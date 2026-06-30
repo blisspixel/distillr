@@ -19,6 +19,7 @@ from distill.library.paths import (
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import topic_brief_prompt
@@ -101,6 +102,10 @@ def generate_topic_brief(  # noqa: C901 - legacy orchestration kept intact
 
     content = response.text
     if not content:
+        return None
+    refusal = unresolved_numbered_citation_reason(content)
+    if refusal:
+        logger.warning("Refused topic brief for %s: %s", topic, refusal)
         return None
 
     return write_markdown_artifact(
