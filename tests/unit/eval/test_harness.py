@@ -92,6 +92,25 @@ def test_faithfulness_judged_for_every_model_including_anchor(monkeypatch):
     assert all(r.faithfulness == "unfaithful" for r in cand_rows)
 
 
+def test_ask_faithfulness_judge_receives_question_and_sources(monkeypatch):
+    monkeypatch.setattr(harness_mod, "judge_pairwise", lambda *a, **k: None)
+    seen_sources: list[str] = []
+
+    def fake_faith(source, output, **k):
+        seen_sources.append(source)
+        return FaithfulnessVerdict(label="faithful", unsupported=(), rationale="")
+
+    monkeypatch.setattr(harness_mod, "judge_faithfulness", fake_faith)
+
+    rows = run_model_eval("ask", ["grok-4.3"], anchor="grok-4.3", analyze=_fake_analyze_factory([]))
+
+    assert len(rows) == len(load_fixtures("ask"))
+    assert seen_sources
+    assert all("QUESTION:" in source for source in seen_sources)
+    assert all("CORPUS EXCERPTS:" in source for source in seen_sources)
+    assert any("[checker_paper_Insights]" in source for source in seen_sources)
+
+
 def test_faithfulness_not_judged_when_no_judge_or_errored(monkeypatch):
     # No judge configured -> no faithfulness call. An errored/empty output is
     # skipped too (nothing to ground).

@@ -29,9 +29,11 @@ docs/design/agentic-balance.md).
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
-from distill.eval.fixtures import load_fixtures
+from distill.eval.fixtures import HALLUCINATION_PATTERNS, load_fixtures
 from distill.eval.golden import GOLDEN_OUTPUTS, degraded_output
 from distill.eval.harness import _run_analysis, run_model_eval
 from distill.eval.scoring import score_output
@@ -53,6 +55,25 @@ def test_fixtures_and_goldens_are_in_sync():
         f"fixtures without goldens: {fixture_ids - golden_ids}; "
         f"goldens without fixtures: {golden_ids - fixture_ids}"
     )
+
+
+def test_hallucination_pattern_fixtures_cover_required_cases():
+    ask_fixtures = load_fixtures("ask")
+    assert ask_fixtures
+    covered = {pattern for fx in ask_fixtures for pattern in fx.risk_patterns}
+    assert set(HALLUCINATION_PATTERNS) <= covered
+    for fx in ask_fixtures:
+        assert fx.question
+        assert fx.source_stems
+        assert fx.risk_patterns
+
+
+def test_ask_goldens_cite_only_declared_sources():
+    for fx in load_fixtures("ask"):
+        declared = set(fx.source_stems)
+        cited = set(re.findall(r"\[([A-Za-z0-9][A-Za-z0-9_.-]*)\]", GOLDEN_OUTPUTS[fx.id]))
+        assert cited
+        assert cited <= declared, f"{fx.id}: unexpected citation(s) {cited - declared}"
 
 
 @pytest.mark.parametrize("fx", _ALL, ids=lambda fx: fx.id)
@@ -103,7 +124,9 @@ def test_end_to_end_harness_scores_goldens_high(monkeypatch):
         assert r.quality.composite >= COMPOSITE_FLOOR, f"{r.fixture_id}: {r.quality.composite:.3f}"
 
 
-@pytest.mark.parametrize("workload", ["paper", "video", "site"], ids=["paper", "video", "site"])
+@pytest.mark.parametrize(
+    "workload", ["paper", "video", "site", "ask"], ids=["paper", "video", "site", "ask"]
+)
 def test_real_prompt_assembly_runs_for_each_workload(workload, monkeypatch):
     """Exercise the real per-workload prompt builders with a mock LLM, so a
     prompt-builder signature break surfaces here instead of in production."""
@@ -115,7 +138,7 @@ def test_real_prompt_assembly_runs_for_each_workload(workload, monkeypatch):
 
     def fake_llm_call(rc, *, workload_tag, prompt, call_type, **kwargs):
         # The prompt must be a non-empty string built from the fixture fields.
-        assert isinstance(prompt, str) and fx.title in prompt
+        assert isinstance(prompt, str) and (fx.title in prompt or fx.question in prompt)
         return LLM_Response(
             text=GOLDEN_OUTPUTS[fx.id], input_tokens=500, output_tokens=300, model="mock"
         )

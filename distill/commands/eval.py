@@ -62,7 +62,9 @@ def _best_local_model() -> str | None:
 
 
 def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + results log
-    workload: str = typer.Option("all", "--workload", "-w", help="paper | video | site | all"),
+    workload: str = typer.Option(
+        "all", "--workload", "-w", help="paper | video | site | ask | all"
+    ),
     models: str = typer.Option(
         "auto",
         "--models",

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added an `ask` workload to `distill eval` with adversarial fixtures for
+  false premises, no-evidence questions, citation-request traps, unsupported
+  numbers, and route disagreement, including structural checks that golden
+  answers cite only declared source stems while live quality remains judged by
+  model verdicts.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

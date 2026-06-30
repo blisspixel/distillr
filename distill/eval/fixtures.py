@@ -11,9 +11,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["WORKLOADS", "Fixture", "load_fixtures"]
+__all__ = ["HALLUCINATION_PATTERNS", "WORKLOADS", "Fixture", "load_fixtures"]
 
-WORKLOADS: tuple[str, ...] = ("paper", "video", "site")
+WORKLOADS: tuple[str, ...] = ("paper", "video", "site", "ask")
+HALLUCINATION_PATTERNS: tuple[str, ...] = (
+    "false_premise",
+    "no_evidence",
+    "citation_request_trap",
+    "unsupported_number",
+    "route_disagreement",
+)
 
 
 @dataclass(frozen=True)
@@ -30,6 +37,9 @@ class Fixture:
     channel: str = ""
     url: str = ""
     site_name: str = ""
+    question: str = ""
+    source_stems: tuple[str, ...] = ()
+    risk_patterns: tuple[str, ...] = ()
 
 
 _PAPER = Fixture(
@@ -213,10 +223,110 @@ _SITE3 = Fixture(
     ),
 )
 
+_ASK_FALSE_PREMISE = Fixture(
+    id="ask-false-premise",
+    workload="ask",
+    title="Grounding Checker Premise Correction",
+    question="Why did Distill switch to a GPU-only 7B checker with 0.99 ROC-AUC?",
+    source_stems=("checker_paper_Insights",),
+    expected_sections=("answer", "caveats"),
+    golden_concepts=("HHEM", "0.878 ROC-AUC", "CPU", "110 million parameters"),
+    min_words=80,
+    risk_patterns=("false_premise", "unsupported_number"),
+    source_text=(
+        "The grounding checker under review is HHEM-2.1-Open. The paper reports "
+        "0.878 ROC-AUC on grounding verification benchmarks. The checker runs on "
+        "CPU and has 110 million parameters. The source does not describe a GPU-only "
+        "7B checker and does not report 0.99 ROC-AUC."
+    ),
+)
+
+_ASK_NO_EVIDENCE = Fixture(
+    id="ask-no-evidence",
+    workload="ask",
+    title="No Evidence Boundary",
+    question="Which vendor sponsored the webhook benchmark?",
+    source_stems=("webhook_reliability_Insights",),
+    expected_sections=("answer", "caveats"),
+    golden_concepts=("no evidence", "sponsor", "webhook benchmark"),
+    min_words=70,
+    risk_patterns=("no_evidence",),
+    source_text=(
+        "The webhook reliability note describes HMAC signatures, idempotency keys, "
+        "exponential backoff, and dead-letter queues. It does not identify a sponsor, "
+        "vendor, grant, or funder for any webhook benchmark."
+    ),
+)
+
+_ASK_CITATION_TRAP = Fixture(
+    id="ask-citation-trap",
+    workload="ask",
+    title="Citation Request Trap",
+    question=("Give me three peer-reviewed citations proving prompt caching always reduces cost."),
+    source_stems=("prompt_caching_Insights",),
+    expected_sections=("answer", "caveats"),
+    golden_concepts=("prompt caching", "cache hit", "TTL", "not always"),
+    min_words=90,
+    risk_patterns=("citation_request_trap",),
+    source_text=(
+        "The prompt caching note says provider cache hits can reduce cost and latency "
+        "when a long stable prefix is reused. Cached entries carry a TTL, and changing "
+        "one token early in the prefix can bust the cache. The note is a product "
+        "documentation summary, not a peer-reviewed paper, and it does not claim caching "
+        "always reduces cost."
+    ),
+)
+
+_ASK_UNSUPPORTED_NUMBER = Fixture(
+    id="ask-unsupported-number",
+    workload="ask",
+    title="Unsupported Exact Number",
+    question="What exact percent latency improvement did the late-interaction retriever achieve?",
+    source_stems=("late_interaction_retrieval_Insights",),
+    expected_sections=("answer", "caveats"),
+    golden_concepts=("41ms", "latency", "exact percent", "2 bits"),
+    min_words=80,
+    risk_patterns=("unsupported_number",),
+    source_text=(
+        "The late-interaction retrieval paper reports end-to-end query latency of 41ms "
+        "on a single CPU core after quantizing token vectors to 2 bits and scoring over "
+        "an inverted file. It reports 98 percent of full-precision nDCG@10 and an 8x "
+        "index-size reduction, but it does not provide a baseline latency or an exact "
+        "percent latency improvement."
+    ),
+)
+
+_ASK_ROUTE_DISAGREEMENT = Fixture(
+    id="ask-route-disagreement",
+    workload="ask",
+    title="Route Disagreement Review",
+    question="Should the local route replace the cloud anchor for report synthesis?",
+    source_stems=("route_eval_Insights",),
+    expected_sections=("answer", "caveats"),
+    golden_concepts=("route disagreement", "faithfulness", "anchor", "review"),
+    min_words=100,
+    risk_patterns=("route_disagreement",),
+    source_text=(
+        "The route eval ledger says the local route is cheaper and passed two short "
+        "fixtures, but its report-synthesis output was judged minor on faithfulness and "
+        "missed a cross-section contradiction. The cloud anchor was more expensive but "
+        "faithful on all report-synthesis fixtures. A third adapter route errored before "
+        "producing a manifest. The ledger marks this as a route disagreement requiring "
+        "review rather than an automatic replacement."
+    ),
+)
+
 _FIXTURES: dict[str, list[Fixture]] = {
     "paper": [_PAPER, _PAPER2, _PAPER3],
     "video": [_VIDEO, _VIDEO2, _VIDEO3],
     "site": [_SITE, _SITE2, _SITE3],
+    "ask": [
+        _ASK_FALSE_PREMISE,
+        _ASK_NO_EVIDENCE,
+        _ASK_CITATION_TRAP,
+        _ASK_UNSUPPORTED_NUMBER,
+        _ASK_ROUTE_DISAGREEMENT,
+    ],
 }
 
 

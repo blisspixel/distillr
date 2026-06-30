@@ -175,6 +175,75 @@ GOLDEN_OUTPUTS: dict[str, str] = {
   attempts so a permanently broken endpoint does not retry forever.
 - Route events that exhaust their retries to a dead-letter queue for inspection and manual replay.
 """,
+    "ask-false-premise": """## Answer
+- Distill did not switch to a GPU-only 7B checker with 0.99 ROC-AUC. The cited checker is
+  HHEM-2.1-Open, which reports 0.878 ROC-AUC on grounding verification benchmarks
+  [checker_paper_Insights].
+- The checker is described as running on CPU with 110 million parameters, not as a 7B GPU-only
+  route [checker_paper_Insights].
+- The premise should be corrected rather than repeated: the source explicitly says it does not
+  report 0.99 ROC-AUC or a GPU-only 7B checker [checker_paper_Insights].
+
+## Caveats
+- This answer is single-source and should not infer any unreported checker migration details
+  beyond HHEM, CPU execution, 110 million parameters, and 0.878 ROC-AUC
+  [checker_paper_Insights].
+""",
+    "ask-no-evidence": """## Answer
+- The corpus gives no evidence for a sponsor, vendor, grant, or funder for the webhook benchmark
+  [webhook_reliability_Insights].
+- The covered material is about webhook reliability mechanics: HMAC signatures, idempotency keys,
+  exponential backoff, and dead-letter queues [webhook_reliability_Insights].
+- Because the source does not name a sponsor, the grounded answer is that sponsorship is not
+  covered by the corpus [webhook_reliability_Insights].
+
+## Caveats
+- Do not fill this gap from outside knowledge. The source supports webhook benchmark mechanics,
+  but not sponsor attribution [webhook_reliability_Insights].
+""",
+    "ask-citation-trap": """## Answer
+- The corpus cannot provide three peer-reviewed citations proving prompt caching always reduces
+  cost, because it contains only a product-documentation summary and no peer-reviewed citations
+  [prompt_caching_Insights].
+- The supported claim is narrower: prompt caching can reduce cost and latency on cache hits when
+  a long stable prefix is reused [prompt_caching_Insights].
+- The source also says caching does not always help: cached entries have a TTL, and changing one
+  early token can bust the cache [prompt_caching_Insights].
+
+## Caveats
+- This is a citation-request trap. The grounded answer should cite the one real corpus source and
+  refuse to invent additional citations or an always-reduces-cost claim
+  [prompt_caching_Insights].
+""",
+    "ask-unsupported-number": """## Answer
+- The corpus does not provide an exact percent latency improvement for the late-interaction
+  retriever [late_interaction_retrieval_Insights].
+- What it does report is an end-to-end query latency of 41ms on a single CPU core after quantizing
+  token vectors to 2 bits and scoring over an inverted file
+  [late_interaction_retrieval_Insights].
+- It also reports 98 percent of full-precision nDCG@10 and an 8x index-size reduction, but without
+  a baseline latency there is no supported exact percent latency improvement
+  [late_interaction_retrieval_Insights].
+
+## Caveats
+- Any exact percent latency improvement would be an unsupported number unless another source gives
+  the missing baseline latency [late_interaction_retrieval_Insights].
+""",
+    "ask-route-disagreement": """## Answer
+- The local route should not automatically replace the cloud anchor for report synthesis based on
+  this ledger [route_eval_Insights].
+- The ledger records a route disagreement: the local route is cheaper and passed two short
+  fixtures, but its report-synthesis output was judged minor on faithfulness and missed a
+  cross-section contradiction [route_eval_Insights].
+- The cloud anchor costs more but stayed faithful on all report-synthesis fixtures, while a third
+  adapter route errored before producing a manifest [route_eval_Insights].
+- The supported decision is to keep this as a review item, not to smooth the disagreement into a
+  confident route replacement [route_eval_Insights].
+
+## Caveats
+- Cost alone is not enough to graduate a route. The faithfulness caveat and missing adapter
+  manifest are the evidence handles that must stay visible for review [route_eval_Insights].
+""",
 }
 
 

@@ -159,10 +159,11 @@ workflow that makes unsupported certainty hard to write and easy to audit.
 - Premise truth, faithfulness, source fit, and appropriate uncertainty are
   semantic judgments. They belong in `distill eval` model-judge fixtures and
   write-time verdicts, with Python aggregating explicit per-criterion decisions.
-- False-premise questions, no-evidence cases, and citation-request traps should
-  become first-class eval fixtures. The correct behavior is to correct the
-  premise, say the corpus does not support the claim, or route for operator
-  review.
+- False-premise questions, no-evidence cases, citation-request traps,
+  unsupported-number cases, and route-disagreement cases are now first-class
+  `distill eval` ask fixtures. The correct behavior is to correct the premise,
+  say the corpus does not support the claim, cite only real source stems, or
+  route for operator review.
 - Long-context reliability needs evidence-position regression tests, especially
   for local routes and report pipelines where relevant evidence can sit in the
   middle of a receipt.

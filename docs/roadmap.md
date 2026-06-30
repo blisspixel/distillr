@@ -181,14 +181,13 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [x] Structured logging - shipped 0.16.10: the `distill` logger stays at DEBUG, console verbosity is controlled by handler levels, `--debug` and `--verbose` show DEBUG on stderr, and `library/.distill/distill.log` captures DEBUG records for post-run review across reused CLI processes.
 - [x] **`distill audit`** - shipped 0.10.2 with the verify-sidecar coverage rollup, report artifact, and spend-safe action menu; grown through 0.12.x (staleness, near-duplicates, re-analysis commands); scheduling recipes shipped 0.12.1. Detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [x] **Output->input loop (`distill ask`)** - shipped 0.12.0 with strict-by-definition `--save` promotion and the MCP `ask` tool; design in [`design/ask-loop.md`](design/ask-loop.md), detail in [`CHANGELOG.md`](CHANGELOG.md).
-- [ ] **Hallucination-pattern eval expansion.** Extend `distill eval`
-  fixtures with false-premise questions, no-evidence requests,
-  citation-request traps, unsupported-number cases, and route-disagreement
-  examples. The expected behavior is not forced refusal: the model judge should
-  decide whether the output corrected the premise, stated uncertainty, cited
-  only real evidence, and avoided laundering unsupported claims. Python owns
-  fixture loading, citation/source existence checks, verdict aggregation, and
-  the gate.
+- [x] **Hallucination-pattern eval expansion.** `distill eval` now includes an
+  `ask` workload with false-premise, no-evidence, citation-request trap,
+  unsupported-number, and route-disagreement fixtures. The expected behavior is
+  not forced refusal: the model judge decides whether the output corrected the
+  premise, stated uncertainty, cited only real evidence, and avoided laundering
+  unsupported claims. Python owns fixture loading, structural golden citation
+  checks against declared source stems, verdict aggregation, and the gate.
 - [~] **Citation and source existence hardening.** Treat citation handles, claim
   ids, source ids, exported bibliography keys, and `distill ask` citations as
   structural references that must resolve to real local artifacts or receipt

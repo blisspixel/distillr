@@ -28,6 +28,7 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.analysis import pass1_extraction_prompt, pass2_synthesis_prompt
+from distill.prompts.ask import ask_prompt
 from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_prompt
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,13 @@ def _run_analysis(fixture: Fixture, rc: RouterConfig, tracker: CostTracker) -> s
             fixture.title, fixture.url, fixture.site_name, "documentation", fixture.source_text
         )
         return _call(rc, "site", prompt, "eval_site", tracker)
+    if fixture.workload == "ask":
+        prompt = ask_prompt(
+            topic="eval",
+            question=fixture.question,
+            sources_block=_sources_block(fixture),
+        )
+        return _call(rc, "qa", prompt, "eval_ask", tracker)
     raise ValueError(f"unknown workload: {fixture.workload}")
 
 
@@ -129,7 +137,23 @@ def _hash(*parts: str) -> str:
 
 
 def _src_hash(fixture: Fixture) -> str:
-    return hashlib.sha256(fixture.source_text.encode("utf-8")).hexdigest()[:8]
+    if not fixture.question and not fixture.source_stems:
+        return hashlib.sha256(fixture.source_text.encode("utf-8")).hexdigest()[:8]
+    payload = "\n".join([fixture.question, ",".join(fixture.source_stems), fixture.source_text])
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+
+
+def _sources_block(fixture: Fixture) -> str:
+    stems = fixture.source_stems or (f"{fixture.id}_source",)
+    if len(stems) == 1:
+        return f"[{stems[0]}]\n{fixture.source_text}"
+    return "\n\n---\n\n".join(f"[{stem}]\n{fixture.source_text}" for stem in stems)
+
+
+def _judge_source(fixture: Fixture) -> str:
+    if not fixture.question:
+        return fixture.source_text
+    return f"QUESTION:\n{fixture.question}\n\nCORPUS EXCERPTS:\n{_sources_block(fixture)}"
 
 
 @dataclass(frozen=True)
@@ -261,7 +285,7 @@ def _pairwise(
 
     try:
         result = judge_pairwise(
-            fixture.source_text,
+            _judge_source(fixture),
             candidate_output,
             anchor_output,
             judge_model=judge_model,
@@ -306,7 +330,7 @@ def _faithfulness(
             )
     try:
         verdict = judge_faithfulness(
-            fixture.source_text, output, judge_model=judge_model, tracker=run_tracker
+            _judge_source(fixture), output, judge_model=judge_model, tracker=run_tracker
         )
     except Exception as exc:
         logger.warning("eval faithfulness judge failed for %s on %s: %s", model, fixture.id, exc)
