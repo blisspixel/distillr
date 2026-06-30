@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused video-analysis branch coverage for explicit intent resolution,
+  no-tracker two-pass analysis, and token tracking in short, scan, channel
+  context, and watch-instruction helpers. The full coverage gate now reports
+  91.83%; the enforced floor remains 91.
 - Added focused site-analysis branch coverage for no-tracker analysis, empty
   existing page trees, skipped non-page entries, missing insights, synthesis
   tracker recording, and strict verification refusal on site and site-topic

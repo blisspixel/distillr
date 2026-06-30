@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from distill.config import DistillConfig
+from distill.library.intent import CorpusIntent
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis.video import (
     analyze_scan,
@@ -64,6 +65,20 @@ def test_analyze_video_builds_frontmatter(tmp_path):
     assert tracker.entries[1].call_type == "pass2"
 
 
+def test_analyze_video_accepts_intent_without_tracker(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    intent = CorpusIntent(goal="Find operating constraints", lens="technical")
+
+    with patch(
+        "distill.pipeline.analysis.video.llm_call",
+        _fake_llm_call_sequence(["pass1 body", "pass2 body"]),
+    ):
+        result = analyze_video("Title", "20260312", "Creator", "transcript", config, intent=intent)
+
+    assert "lens: technical" in result
+    assert result.rstrip().endswith("pass2 body")
+
+
 def test_analyze_short_marks_content_type(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
 
@@ -74,6 +89,18 @@ def test_analyze_short_marks_content_type(tmp_path):
     assert result.rstrip().endswith("short body")
 
 
+def test_analyze_short_records_tracker(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    tracker = CostTracker()
+
+    with patch("distill.pipeline.analysis.video.llm_call", _fake_llm_call("short body")):
+        result = analyze_short("Short title", "20260312", "Creator", "transcript", config, tracker)
+
+    assert result.rstrip().endswith("short body")
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].call_type == "short"
+
+
 def test_generate_channel_context_delegates_to_router(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
 
@@ -81,6 +108,18 @@ def test_generate_channel_context_delegates_to_router(tmp_path):
         result = generate_channel_context("Creator", ["One", "Two"], config)
 
     assert result == "channel context"
+
+
+def test_generate_channel_context_records_tracker(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    tracker = CostTracker()
+
+    with patch("distill.pipeline.analysis.video.llm_call", _fake_llm_call("channel context")):
+        result = generate_channel_context("Creator", ["One", "Two"], config, tracker)
+
+    assert result == "channel context"
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].call_type == "channel_context"
 
 
 def test_analyze_scan_marks_scan_mode(tmp_path):
@@ -93,6 +132,18 @@ def test_analyze_scan_marks_scan_mode(tmp_path):
     assert result.rstrip().endswith("scan body")
 
 
+def test_analyze_scan_records_tracker(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    tracker = CostTracker()
+
+    with patch("distill.pipeline.analysis.video.llm_call", _fake_llm_call("scan body")):
+        result = analyze_scan("Scan title", "20260312", "Creator", "transcript", config, tracker)
+
+    assert result.rstrip().endswith("scan body")
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].call_type == "scan"
+
+
 def test_generate_watch_instructions_delegates_to_router(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
 
@@ -100,6 +151,18 @@ def test_generate_watch_instructions_delegates_to_router(tmp_path):
         result = generate_watch_instructions("Creator", ["One", "Two"], config)
 
     assert result == "watch instructions"
+
+
+def test_generate_watch_instructions_records_tracker(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    tracker = CostTracker()
+
+    with patch("distill.pipeline.analysis.video.llm_call", _fake_llm_call("watch instructions")):
+        result = generate_watch_instructions("Creator", ["One", "Two"], config, tracker)
+
+    assert result == "watch instructions"
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].call_type == "watch_instructions"
 
 
 def test_analyze_video_tracker_records_tokens(tmp_path):
