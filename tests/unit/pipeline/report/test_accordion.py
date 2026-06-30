@@ -22,6 +22,7 @@ from distill.pipeline.report.accordion import (
     _run_dossier_phase,
     _run_qa_phase,
     _scope_label,
+    _unresolved_numbered_citation_reason,
     _write_sections,
     run_accordion_research,
 )
@@ -430,6 +431,28 @@ class TestWriteSections:
         assert "completed 2/2" in rendered
         assert "spent $" in rendered
 
+    @patch("distill.pipeline.report.accordion.time.sleep")
+    @patch("distill.pipeline.report.accordion.llm_call")
+    def test_refuses_section_with_unresolved_numbered_citation(self, mock_call, mock_sleep, config):
+        mock_call.return_value = LLM_Response(
+            text="Section content with unresolvable source handle [cite: 1].",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
+        )
+
+        result = _write_sections(
+            topic="ai",
+            config=config,
+            dossier="test dossier",
+            scope="topic",
+            channel_name=None,
+            tagged_materials={},
+            active_sections=[REPORT_SECTIONS[0]],
+        )
+
+        assert result == []
+
 
 class TestQaHelpers:
     def test_parse_qa_failures_ignores_stray_fail_in_prose(self):
@@ -480,10 +503,19 @@ Needs less repetition
         assert "Needs more evidence" in feedback["Executive Briefing"]
         assert "Needs less repetition" in feedback["Strategic Synthesis"]
 
-    def test_clean_section_output_strips_word_counts_and_citations(self):
+    def test_clean_section_output_strips_trailing_word_counts_only(self):
         content = "Body text [cite: 1, 2] (Word count: 1,234)"
 
-        assert _clean_section_output(content) == "Body text"
+        assert _clean_section_output(content) == "Body text [cite: 1, 2]"
+
+    def test_unresolved_numbered_citation_reason_lists_report_refs(self):
+        reason = _unresolved_numbered_citation_reason(
+            "A [cite: 1] B [cite: 2, 3] C [cite: 4] D [cite: 5]."
+        )
+
+        assert reason == (
+            "unresolved numbered report citation(s): [cite: 1], [cite: 2, 3], [cite: 4], and 1 more"
+        )
 
 
 class TestTaggedHelpers:
@@ -586,7 +618,7 @@ class TestQaPhase:
                 model="grok-4.3",
             ),
             LLM_Response(
-                text="rewritten content [cite: 1]",
+                text="rewritten content",
                 input_tokens=10,
                 output_tokens=20,
                 model="grok-4.3",
@@ -598,6 +630,36 @@ class TestQaPhase:
         assert rewrote == 1
         assert updated[0]["content"] == "rewritten content"
         assert updated[1]["content"] == "keep content"
+
+    @patch("distill.pipeline.report.accordion.llm_call")
+    def test_run_qa_phase_refuses_rewrite_with_unresolved_citation(self, mock_call, config):
+        written_sections = [
+            {
+                "id": "executive_briefing",
+                "title": "Executive Briefing",
+                "content": "old content",
+                "word_count": 2,
+            },
+        ]
+        mock_call.side_effect = [
+            LLM_Response(
+                text="### Executive Briefing\n**Score**: FAIL\nFix this.",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
+            ),
+            LLM_Response(
+                text="rewritten content [cite: 1]",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
+            ),
+        ]
+
+        updated, rewrote = _run_qa_phase("ai", config, "dossier", "report", written_sections)
+
+        assert rewrote == 0
+        assert updated[0]["content"] == "old content"
 
     @patch("distill.pipeline.report.accordion.llm_call")
     def test_run_qa_phase_prints_rewrite_progress(self, mock_call, config, monkeypatch):

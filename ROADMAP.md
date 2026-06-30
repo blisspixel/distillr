@@ -155,7 +155,9 @@ workflow that makes unsupported certainty hard to write and easy to audit.
 
 - Citation and source identity are structural truth. Handles, citation keys,
   source ids, exported bibliography rows, and generated answer citations should
-  resolve to real local receipts or refuse promotion.
+  resolve to real local receipts or refuse promotion. Report section numbered
+  citations now refuse promotion rather than being stripped when the handle
+  cannot resolve.
 - Premise truth, faithfulness, source fit, and appropriate uncertainty are
   semantic judgments. They belong in `distill eval` model-judge fixtures and
   write-time verdicts, with Python aggregating explicit per-criterion decisions.

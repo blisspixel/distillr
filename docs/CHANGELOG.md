@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   numbers, and route disagreement, including structural checks that golden
   answers cite only declared source stems while live quality remains judged by
   model verdicts.
+- Refused accordion report section writes and QA rewrites that contain
+  unresolved numbered report citations such as `[cite: 1]`, so section
+  promotion cannot hide unresolvable citation handles by stripping them.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

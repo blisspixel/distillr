@@ -4,6 +4,7 @@
 import hashlib
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -461,8 +462,14 @@ def _write_sections(
             console.print(f"  [red]Failed after retries: {e}[/red]")
             content = ""
 
-        if not content:
-            console.print(f"  [red]Failed to write {section_title}[/red]")
+        refusal = _unresolved_numbered_citation_reason(content)
+        if not content or refusal:
+            message = (
+                f"  [red]Refused {section_title}: {refusal}[/red]"
+                if refusal
+                else f"  [red]Failed to write {section_title}[/red]"
+            )
+            console.print(message)
             progress.finish_item(item_start, success=False)
             console.print(progress.status_line("failed"))
             consecutive_failures += 1
@@ -598,6 +605,13 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
             rewrite = ""
 
         if rewrite:
+            refusal = _unresolved_numbered_citation_reason(rewrite)
+            if refusal:
+                console.print(f"  [yellow]Rewrite refused for {title}: {refusal}[/yellow]")
+                progress.finish_item(item_start, success=False)
+                console.print(progress.status_line("failed"))
+                continue
+
             rewrite = _clean_section_output(rewrite)
             new_words = len(rewrite.split())
             old_words = section["word_count"]
@@ -626,8 +640,6 @@ def _normalize_qa_title(title: str) -> str:
     failed section from being silently skipped (never rewritten) on cosmetic
     drift between the QA output and the canonical section title.
     """
-    import re
-
     s = re.sub(r"^\s*\d+[.)]\s*", "", title.strip().lower())
     s = s.replace("&", " and ")
     s = re.sub(r"[^a-z0-9]+", " ", s)
@@ -636,8 +648,6 @@ def _normalize_qa_title(title: str) -> str:
 
 def _parse_qa_failures(qa_result: str) -> list[str]:
     """Extract section titles that scored FAIL from QA output."""
-    import re
-
     failed: list[str] = []
     current_section: str | None = None
 
@@ -911,17 +921,23 @@ def _read_video_metadata_title_and_id(meta_file: Path, fallback: str) -> tuple[s
 # ─── Helpers ─────────────────────────────────────────────────────────
 
 
-def _clean_section_output(content: str) -> str:
-    """Strip word counts, numbered citations, and meta-commentary from LLM output."""
-    import re
+def _unresolved_numbered_citation_reason(content: str) -> str:
+    refs = tuple(re.findall(r"\[cite:\s*[\d,\s]+\]", content, flags=re.IGNORECASE))
+    if not refs:
+        return ""
+    joined = ", ".join(refs[:3])
+    suffix = "" if len(refs) <= 3 else f", and {len(refs) - 3} more"
+    return f"unresolved numbered report citation(s): {joined}{suffix}"
 
+
+def _clean_section_output(content: str) -> str:
+    """Strip trailing word counts and meta-commentary from LLM output."""
     # Only strip a self-annotation the model appends at the very end. The
     # earlier unanchored variants also deleted legitimate inline parentheticals
-    # like "short (200 words) and dense" from report prose, so they are gone --
+    # like "short (200 words) and dense" from report prose, so they are gone,
     # an end-anchored strip is enough for the model's trailing count.
     content = re.sub(r"\n*\(Word count:?\s*[\d,]+\)\s*$", "", content, flags=re.IGNORECASE)
     content = re.sub(r"\n*\([\d,]+\s*words?\)\s*$", "", content, flags=re.IGNORECASE)
-    content = re.sub(r"\s*\[cite:\s*[\d,\s]+\]", "", content)
     return content.strip()
 
 

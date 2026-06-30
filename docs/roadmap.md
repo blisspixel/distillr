@@ -197,7 +197,9 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   unknown bracketed source stem or cites no retrieved source stem; two-pass
   corpus synthesis now refuses invented claim handles before writing the
   synthesis artifact; BibTeX and RIS citation exports now refuse records whose
-  local paper artifact or metadata receipt path no longer exists.
+  local paper artifact or metadata receipt path no longer exists; accordion
+  report section writes and QA rewrites now refuse unresolved numbered report
+  citations such as `[cite: 1]` instead of stripping them.
 - [ ] **Uncertainty routing and disagreement surfacing.** Promote
   low-confidence, single-source, contradicted, or multi-route-disagreed claims
   into explicit reviewable findings instead of smoothing them into confident
