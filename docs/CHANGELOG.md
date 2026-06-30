@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused recurring-profile health branch coverage for clean recent
+  profiles, manual cadence behavior, invalid run-state payloads, stale timestamp
+  fallbacks, unreadable source counts, and path or duration fallback helpers.
+  The full coverage gate now reports 91.41%; the enforced floor remains 91.
 - Added focused gap-analysis branch coverage for corrupt and unreadable video
   metadata, mixed source inventories, stale and incomplete corpus signals,
   clean no-action summaries, and gap-discovery goal defaults. The full coverage

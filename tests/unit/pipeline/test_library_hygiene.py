@@ -19,6 +19,7 @@ from distill.pipeline.audit import (
     collect_profile_health,
     render_library_audit_md,
 )
+from distill.pipeline.profile_health import _library_relative, _parse_profile_duration
 from distill.pipeline.profile_run import profile_run_state_path
 
 
@@ -149,6 +150,108 @@ class TestCollect:
         assert h.checked == 1
         assert h.missing_goal[0]["profile"] == "missing-goal"
         assert h.invalid[0]["profile"] == "bad"
+
+    def test_profile_health_reports_clean_recent_profile(self, tmp_path):
+        _profile(tmp_path, "agent-news", topic="agent-news", stale_after="P1D")
+        _topic(tmp_path, "agent-news", sources=1, orientation=True)
+        state_path = profile_run_state_path(tmp_path, "agent-news")
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "profile-run-state.v1",
+                    "last_run_at": "2026-06-19T00:00:00Z",
+                    "last_failure": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        h = collect_profile_health(
+            tmp_path,
+            now=datetime(2026, 6, 19, 1, 0, tzinfo=UTC),
+        )
+
+        assert h.checked == 1
+        assert h.issue_count == 0
+
+    def test_profile_health_skips_required_run_for_manual_profile(self, tmp_path):
+        _profile(tmp_path, "manual-news", topic="manual-news", cadence="manual")
+        _profile(tmp_path, "manual-never", topic="manual-never", cadence="manual")
+        _topic(tmp_path, "manual-news", sources=1, orientation=True)
+        _topic(tmp_path, "manual-never", sources=1, orientation=True)
+        state_path = profile_run_state_path(tmp_path, "manual-news")
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "profile-run-state.v1",
+                    "last_run_at": "2020-01-01T00:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        h = collect_profile_health(
+            tmp_path,
+            now=datetime(2026, 6, 19, 1, 0, tzinfo=UTC),
+        )
+
+        assert h.never_run == []
+        assert h.stale == []
+        assert h.issue_count == 0
+
+    def test_profile_health_reports_invalid_run_state_shapes(self, tmp_path):
+        for name, state in {"array-state": "[]", "broken-json": "{"}.items():
+            _profile(tmp_path, name, topic=name)
+            _topic(tmp_path, name, sources=1, orientation=True)
+            state_path = profile_run_state_path(tmp_path, name)
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(state, encoding="utf-8")
+
+        h = collect_profile_health(tmp_path)
+
+        details = {item["profile"]: item["detail"] for item in h.invalid_state}
+        assert details["array-state"] == "state is not a JSON object"
+        assert details["broken-json"]
+
+    def test_profile_health_treats_missing_and_bad_timestamps_as_stale(self, tmp_path):
+        for name, state in {
+            "missing-time": {},
+            "bad-time": {"last_run_at": "not-a-time"},
+        }.items():
+            _profile(tmp_path, name, topic=name, stale_after="P1D")
+            _topic(tmp_path, name, sources=1, orientation=True)
+            state_path = profile_run_state_path(tmp_path, name)
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        h = collect_profile_health(
+            tmp_path,
+            now=datetime(2026, 6, 19, 1, 0, tzinfo=UTC),
+        )
+
+        stale = {item["profile"]: item["last_run_at"] for item in h.stale}
+        assert stale == {"bad-time": "not-a-time", "missing-time": "never"}
+
+    def test_profile_health_counts_unreadable_topic_sources_as_thin(self, tmp_path, monkeypatch):
+        _profile(tmp_path, "agent-news", topic="agent-news")
+        _topic(tmp_path, "agent-news", sources=1, orientation=True)
+
+        def count_topic_sources(_topic_dir):
+            raise OSError("locked")
+
+        monkeypatch.setattr("distill.library.claude_md.count_topic_sources", count_topic_sources)
+
+        h = collect_profile_health(tmp_path)
+
+        assert h.thin_corpus[0]["profile"] == "agent-news"
+
+    def test_profile_health_pure_fallback_helpers(self, tmp_path):
+        assert _parse_profile_duration("not-duration").days == 7
+        assert _library_relative(tmp_path / "outside.md", tmp_path / "library") == str(
+            tmp_path / "outside.md"
+        )
 
 
 class TestRender:
