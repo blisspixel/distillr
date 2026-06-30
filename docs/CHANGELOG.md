@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused podcast-analysis branch coverage for explicit pre-fetched feed
+  routing, empty parsed feeds, publisher transcript fallback, transcribe-disabled
+  skips, transcription failures, URL-shaped identity digests, and unknown
+  duration receipts. The full coverage gate now reports 91.91%; the enforced
+  floor remains 91.
 - Added focused newsletter-analysis branch coverage for empty feed routing,
   default feed fetching, empty parsed feeds, bodyless feed items, and
   content-only capture without analysis. The full coverage gate now reports

@@ -127,6 +127,102 @@ def test_no_transcript_no_audio_skips_analysis(config, monkeypatch):
     assert any("no audio enclosure" in r for r in result.skipped_reasons)
 
 
+def test_empty_feed_fetch_records_no_episode_skip(config, monkeypatch):
+    feed = PodcastFeed(title="", link="https://example.com/empty", description="", episodes=[])
+    monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: feed)
+
+    result = pod_mod.ingest_podcast("https://example.com/empty.rss", topic="pods", config=config)
+
+    assert result.feed_title == "https://example.com/empty.rss"
+    assert result.episode_paths == []
+    assert result.insight_paths == []
+    assert result.skipped_reasons == ["Feed parsed but contains no episodes."]
+
+
+def test_failed_publisher_transcript_falls_back_to_no_audio_skip(config, monkeypatch):
+    ep = _episode(
+        transcript_url="https://example.com/ep42.vtt",
+        transcript_type="text/vtt",
+        audio_url="",
+    )
+    monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
+
+    def fail_transcript(url, transcript_type=""):
+        raise pod_mod.PodcastFetchError("transcript timeout")
+
+    monkeypatch.setattr(pod_mod, "fetch_transcript", fail_transcript)
+    _patch_llm(monkeypatch)
+
+    result = pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
+
+    assert len(result.episode_paths) == 1
+    assert result.insight_paths == []
+    assert any("publisher transcript failed" in r for r in result.skipped_reasons)
+    assert any("no audio enclosure" in r for r in result.skipped_reasons)
+    assert any("no transcript; analysis skipped" in r for r in result.skipped_reasons)
+
+
+def test_empty_publisher_transcript_can_skip_transcription(config, monkeypatch):
+    ep = _episode(transcript_url="https://example.com/ep42.txt")
+    monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
+    monkeypatch.setattr(pod_mod, "fetch_transcript", lambda url, transcript_type="": "   ")
+    monkeypatch.setattr(
+        pod_mod,
+        "download_audio",
+        lambda *args, **kwargs: pytest.fail("transcription was disabled"),
+    )
+    _patch_llm(monkeypatch)
+
+    result = pod_mod.ingest_podcast(
+        "https://example.com/pod.rss",
+        topic="pods",
+        config=config,
+        transcribe=False,
+    )
+
+    assert len(result.episode_paths) == 1
+    assert result.insight_paths == []
+    assert any("--no-transcribe set" in r for r in result.skipped_reasons)
+    assert any("no transcript; analysis skipped" in r for r in result.skipped_reasons)
+
+
+def test_transcription_failure_skips_analysis(config, monkeypatch, tmp_path):
+    ep = _episode()
+    monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
+    audio_file = tmp_path / "ep.mp3"
+    audio_file.write_bytes(b"fake")
+    monkeypatch.setattr(pod_mod, "download_audio", lambda url, dest_dir: audio_file)
+
+    def fail_transcribe(path, cfg, *, vocabulary_hint="", **kwargs):
+        raise pod_mod.TranscriptionError("no provider available")
+
+    monkeypatch.setattr(pod_mod, "transcribe_media", fail_transcribe)
+    _patch_llm(monkeypatch)
+
+    result = pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
+
+    assert len(result.episode_paths) == 1
+    assert result.insight_paths == []
+    assert any("transcription failed" in r for r in result.skipped_reasons)
+    assert any("no transcript; analysis skipped" in r for r in result.skipped_reasons)
+
+
+def test_url_shaped_feed_and_episode_ids_use_stable_digest(config):
+    guid = "https://pod.example.com/episodes/42"
+    feed_url = "feed-without-netloc"
+    ep = _episode(guid=guid, audio_url="", transcript_url="", duration_s=0)
+
+    result = pod_mod.ingest_podcast(
+        feed_url, topic="pods", config=config, analyze=False, feed=_feed(ep)
+    )
+
+    assert len(result.episode_paths) == 1
+    path_parts = result.episode_paths[0].parts
+    assert f"research-pod_{pod_mod._short_id(feed_url)}" in path_parts
+    assert result.episode_paths[0].parent.name.endswith(f"_{pod_mod._short_id(guid)}")
+    assert "unknown length" in result.episode_paths[0].read_text(encoding="utf-8")
+
+
 def test_strict_refusal_on_unsupported_claim(config, monkeypatch):
     ep = _episode(transcript_url="https://example.com/t.txt")
     monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
