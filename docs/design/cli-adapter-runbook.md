@@ -31,6 +31,12 @@ a command.
   missing usage metadata, or unexpected file writes.
 - Remove paid API key environment variables from plan-quota subprocesses. At
   minimum: `OPENAI_API_KEY`, `CODEX_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`.
+- Block documented cloud-provider, gateway, or credential routes in
+  `no-metered` before any subprocess runs. Claude Code blockers include
+  `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK`, and
+  `CLAUDE_CODE_USE_VERTEX`. Gemini-family blockers include
+  `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_LOCATION`, and
+  `GOOGLE_CLOUD_PROJECT`.
 - Scan provider config files for `api_key`, `env_key`, or provider API-key
   environment references. Presence classifies the route as metered unless the
   user selected `paid-ok`.

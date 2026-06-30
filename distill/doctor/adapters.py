@@ -32,6 +32,38 @@ __all__ = [
 
 CommandRunner = Callable[[Sequence[str], int], tuple[int, str, str]]
 
+_CLAUDE_METERED_ENV_BLOCKERS = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+)
+_CLAUDE_CONFIG_METERED_MARKERS = (
+    "apiKeyHelper",
+    "api_key",
+    "env_key",
+    *_CLAUDE_METERED_ENV_BLOCKERS,
+)
+_CLAUDE_AUTH_METERED_MARKERS = (
+    *_CLAUDE_CONFIG_METERED_MARKERS,
+    "apiKey",
+    "console",
+)
+
+_GEMINI_FAMILY_METERED_ENV_BLOCKERS = (
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_LOCATION",
+    "GOOGLE_CLOUD_PROJECT",
+)
+_GEMINI_FAMILY_CONFIG_METERED_MARKERS = (
+    "api_key",
+    "env_key",
+    *_GEMINI_FAMILY_METERED_ENV_BLOCKERS,
+)
+
 
 @dataclass(frozen=True)
 class ConfigProbe:
@@ -230,18 +262,18 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     "workspace or API-credit route."
                 ),
             ),
-            env_blockers=("ANTHROPIC_API_KEY",),
+            env_blockers=_CLAUDE_METERED_ENV_BLOCKERS,
             config_probes=(
                 ConfigProbe(
                     "~/.claude/settings.json",
                     (".claude", "settings.json"),
-                    ("apiKeyHelper", "api_key", "env_key", "ANTHROPIC_API_KEY"),
+                    _CLAUDE_CONFIG_METERED_MARKERS,
                     ("oauth", "subscription", "session"),
                 ),
                 ConfigProbe(
                     "~/.claude.json",
                     (".claude.json",),
-                    ("apiKeyHelper", "api_key", "env_key", "ANTHROPIC_API_KEY"),
+                    _CLAUDE_CONFIG_METERED_MARKERS,
                     ("oauth", "subscription", "session"),
                 ),
             ),
@@ -257,7 +289,7 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                 AuthCommandProbe(
                     "auth_status",
                     ("claude", "auth", "status", "--json"),
-                    ("api_key", "apiKeyHelper", "apiKey", "ANTHROPIC_API_KEY", "console"),
+                    _CLAUDE_AUTH_METERED_MARKERS,
                     ("oauth", "subscription", "logged_in", "authenticated"),
                 ),
             ),
@@ -323,12 +355,12 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     "class, and non-API usage can be proved."
                 ),
             ),
-            env_blockers=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+            env_blockers=_GEMINI_FAMILY_METERED_ENV_BLOCKERS,
             config_probes=(
                 ConfigProbe(
                     "~/.gemini/settings.json",
                     (".gemini", "settings.json"),
-                    ("api_key", "env_key", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
+                    _GEMINI_FAMILY_CONFIG_METERED_MARKERS,
                     ("oauth", "login", "session"),
                 ),
             ),
@@ -362,18 +394,18 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     "or bounded, native usage evidence, and eval graduation."
                 ),
             ),
-            env_blockers=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+            env_blockers=_GEMINI_FAMILY_METERED_ENV_BLOCKERS,
             config_probes=(
                 ConfigProbe(
                     "~/.gemini/antigravity-cli/settings.json",
                     (".gemini", "antigravity-cli", "settings.json"),
-                    ("api_key", "env_key", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
+                    _GEMINI_FAMILY_CONFIG_METERED_MARKERS,
                     ("oauth", "login", "session"),
                 ),
                 ConfigProbe(
                     "~/.antigravity/settings.json",
                     (".antigravity", "settings.json"),
-                    ("api_key", "env_key", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
+                    _GEMINI_FAMILY_CONFIG_METERED_MARKERS,
                     ("oauth", "login", "session"),
                 ),
             ),

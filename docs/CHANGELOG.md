@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Replaced the default adapter eval harness synthetic output with explicit
   zero-cost errored rows, so plan-quota route graduation cannot use synthetic
   adapter output when no live adapter analyzer has been supplied.
+- Added machine-checkable adapter doctor blockers for documented Claude Code
+  gateway and cloud-provider environment routes plus Gemini-family Google Cloud
+  credential environment routes, keeping those paths out of no-metered
+  plan-quota routing.
 
 ## 0.19.10 - 2026-06-30
 

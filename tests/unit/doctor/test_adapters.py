@@ -72,6 +72,39 @@ def test_adapter_doctor_blocks_google_api_key_for_gemini(monkeypatch):
     assert "GOOGLE_API_KEY is set" in antigravity.blocked_reasons
 
 
+def test_adapter_doctor_blocks_google_cloud_credential_routes(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+
+    report = adapters.adapter_doctor_report(
+        environ={"GOOGLE_APPLICATION_CREDENTIALS": "creds.json"},
+        runner=_runner_with_required_flags,
+    )
+
+    gemini = next(probe for probe in report.adapters if probe.name == "gemini-cli")
+    antigravity = next(probe for probe in report.adapters if probe.name == "antigravity")
+    assert gemini.env_blockers_present == ["GOOGLE_APPLICATION_CREDENTIALS"]
+    assert "GOOGLE_APPLICATION_CREDENTIALS is set" in gemini.blocked_reasons
+    assert not gemini.no_metered_eligible
+    assert antigravity.env_blockers_present == ["GOOGLE_APPLICATION_CREDENTIALS"]
+    assert "GOOGLE_APPLICATION_CREDENTIALS is set" in antigravity.blocked_reasons
+    assert not antigravity.no_metered_eligible
+
+
+def test_adapter_doctor_blocks_claude_gateway_and_cloud_provider_routes(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+
+    report = adapters.adapter_doctor_report(
+        environ={"ANTHROPIC_BASE_URL": "https://gateway.example", "CLAUDE_CODE_USE_VERTEX": "1"},
+        runner=_runner_with_required_flags,
+    )
+
+    claude = next(probe for probe in report.adapters if probe.name == "claude")
+    assert claude.env_blockers_present == ["ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_VERTEX"]
+    assert "ANTHROPIC_BASE_URL is set" in claude.blocked_reasons
+    assert "CLAUDE_CODE_USE_VERTEX is set" in claude.blocked_reasons
+    assert not claude.no_metered_eligible
+
+
 def test_credit_metered_copilot_is_not_no_metered_candidate(monkeypatch):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
