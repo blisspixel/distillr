@@ -707,9 +707,10 @@ Each answer is written to `answers/<slug>_Answer.md` with provenance and a
 
 `--save` is the compounding step: a **clean** answer is re-ingested as a
 first-class insight (`synthesis_scope: derived-answer`) that synthesis,
-concepts, and future answers build on. Promotion is strict by definition --
-any unsupported load-bearing claim refuses the save (the answer and sidecar
-remain, so you can see why). MCP parity: an `ask` tool (read-only; promotion
+concepts, and future answers build on. Promotion is strict by definition:
+unsupported load-bearing claims, unknown bracketed source stems, or answers
+with no retrieved source citation refuse the save. The answer and sidecar
+remain, so you can see why. MCP parity: an `ask` tool (read-only; promotion
 stays CLI-only).
 
 ### Claim verification (the verify hook)

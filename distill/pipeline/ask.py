@@ -38,6 +38,10 @@ __all__ = ["AskResult", "ask_corpus"]
 PROMPT_ID = PROMPT_IDS["ask"]
 _TOP_K = 6
 _MAX_SOURCE_CHARS = 6_000
+_SOURCE_CITATION_RE = re.compile(r"\[([A-Za-z0-9][A-Za-z0-9_.-]*)\]")
+_NON_SOURCE_BRACKET_LABELS = frozenset(
+    {"Analysis", "Confirmed", "Estimated", "Reported", "Speculated"}
+)
 
 
 @dataclass(slots=True)
@@ -102,7 +106,8 @@ def ask_corpus(
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="ask"))
     answer = response.text.strip()
-    cited = [s for s in stems if f"[{s}]" in answer]
+    answer_citations = _extract_source_citations(answer)
+    cited = [citation for citation in answer_citations if citation in stems]
 
     slug = slugify_title(question, source_id="ask")
     answers_dir = config.topic_dir(topic) / "answers"
@@ -172,6 +177,10 @@ def ask_corpus(
             "answer states the corpus does not cover the question; nothing to promote"
         )
         return result
+    citation_refusal = _citation_refusal_reason(answer_citations, cited, stems)
+    if citation_refusal:
+        result.save_refused_reason = citation_refusal
+        return result
 
     insight_dir = answers_dir / slug
     result.saved_insight_path = write_markdown_artifact(
@@ -219,3 +228,31 @@ def _looks_like_no_coverage(answer: str) -> bool:
     """Cheap guard: don't promote an answer whose substance is 'no coverage'."""
     head = answer[:300]
     return bool(_NO_COVERAGE_RE.search(head))
+
+
+def _extract_source_citations(answer: str) -> list[str]:
+    """Return bracketed source stems from an answer, preserving first-use order."""
+    citations: list[str] = []
+    seen: set[str] = set()
+    for match in _SOURCE_CITATION_RE.finditer(answer):
+        citation = match.group(1)
+        if citation in _NON_SOURCE_BRACKET_LABELS or citation in seen:
+            continue
+        seen.add(citation)
+        citations.append(citation)
+    return citations
+
+
+def _citation_refusal_reason(
+    answer_citations: list[str], cited: list[str], allowed_stems: list[str]
+) -> str:
+    """Structural promotion gate for source identity in bracket citations."""
+    allowed = set(allowed_stems)
+    unknown = [citation for citation in answer_citations if citation not in allowed]
+    if unknown:
+        sample = ", ".join(unknown[:5])
+        extra = "" if len(unknown) <= 5 else f", +{len(unknown) - 5} more"
+        return f"answer cites unknown source(s): {sample}{extra}"
+    if not cited:
+        return "answer includes no valid source citations; nothing to promote"
+    return ""

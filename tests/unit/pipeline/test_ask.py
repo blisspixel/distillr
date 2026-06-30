@@ -101,6 +101,33 @@ class TestAsk:
         )
         assert sidecar["unsupported"][0]["token"] == "0.999"
 
+    def test_save_refused_on_unknown_source_citation(self, config, monkeypatch):
+        _seed_corpus(config)
+        _llm(
+            monkeypatch,
+            "HHEM reaches 0.878 ROC-AUC [fabricated_Insights].",
+        )
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+
+        assert result.saved_insight_path is None
+        assert "unknown source" in result.save_refused_reason
+        assert "fabricated_Insights" in result.save_refused_reason
+        assert result.answer_path is not None and result.answer_path.exists()
+        sidecar = json.loads(
+            next(result.answer_path.parent.glob("*_Verify.json")).read_text(encoding="utf-8")
+        )
+        assert sidecar["unsupported"] == []
+
+    def test_save_refused_without_valid_source_citation(self, config, monkeypatch):
+        _seed_corpus(config)
+        _llm(monkeypatch, "HHEM reaches 0.878 ROC-AUC and runs on CPU.")
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+
+        assert result.saved_insight_path is None
+        assert "no valid source citations" in result.save_refused_reason
+
     def test_uses_qa_workload(self, config, monkeypatch):
         _seed_corpus(config)
         seen = {}

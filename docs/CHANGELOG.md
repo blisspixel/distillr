@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Tightened `distill ask --save` promotion so answers that cite unknown
+  bracketed source stems, or cite no retrieved source at all, refuse promotion
+  while keeping the answer artifact and verification sidecar inspectable.
 - Added a roadmap-level trust-hardening pass for citation/source existence
   checks, false-premise evals, calibrated uncertainty, evidence-position
   regressions, and route-disagreement review, without changing application code.

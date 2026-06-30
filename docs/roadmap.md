@@ -189,11 +189,13 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   only real evidence, and avoided laundering unsupported claims. Python owns
   fixture loading, citation/source existence checks, verdict aggregation, and
   the gate.
-- [ ] **Citation and source existence hardening.** Treat citation handles, claim
+- [~] **Citation and source existence hardening.** Treat citation handles, claim
   ids, source ids, exported bibliography keys, and `distill ask` citations as
   structural references that must resolve to real local artifacts or receipt
   rows before an answer, synthesis, report section, or export is promoted. This
-  is a rule-owned identity check, separate from semantic faithfulness.
+  is a rule-owned identity check, separate from semantic faithfulness. Initial
+  slice: `distill ask --save` now refuses promotion when an answer cites an
+  unknown bracketed source stem or cites no retrieved source stem.
 - [ ] **Uncertainty routing and disagreement surfacing.** Promote
   low-confidence, single-source, contradicted, or multi-route-disagreed claims
   into explicit reviewable findings instead of smoothing them into confident
