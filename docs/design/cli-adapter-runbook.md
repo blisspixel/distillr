@@ -593,6 +593,9 @@ on the same fixtures. The rubric is faithfulness to receipts, specificity,
 citation use, synthesis quality, contradiction handling, actionability, and
 concision. Promote the cheapest no-incremental-metered-cost route that clears
 the quality bar. Do not promote a route merely because it is available.
+Adapter models require a live adapter analyzer in the eval harness. If no live
+analyzer is supplied, eval records zero-cost errored rows rather than synthetic
+adapter output, and graduation fails closed.
 
 ## Sources
 

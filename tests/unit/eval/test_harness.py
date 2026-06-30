@@ -215,12 +215,14 @@ def test_estimate_adapter_plan_quota_is_free():
     assert est == 0.0
 
 
-def test_adapter_model_stubs_with_default_runner():
-    # When no custom analyze provided for adapter model, stub allows eval flow (graduation test).
-    # Uses default runner path.
+def test_adapter_model_requires_custom_analyzer_with_default_runner():
+    # The default runner must not synthesize adapter output because that could
+    # become false eval evidence for route graduation.
     rows = run_model_eval("paper", ["adapter:grok-4.3"], anchor="adapter:grok-4.3")
     assert len(rows) == 3  # paper fixtures
     assert all(r.cost == 0.0 for r in rows)
+    assert all(r.error == "adapter eval requires a live adapter analyzer" for r in rows)
+    assert all(not r.faithfulness for r in rows)
 
 
 def test_phase1_is_model_outer_to_avoid_vram_thrash(monkeypatch):

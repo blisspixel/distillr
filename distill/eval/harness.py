@@ -170,16 +170,16 @@ def _analyze(
         "adapter:"
     )  # local + plan-quota adapter: free (no incremental metered)
     if provider_for_model(model) == "adapter" and runner is _run_analysis:
-        # Adapter plan-quota routes graduate via eval when a custom analyze func is supplied
-        # that invokes the CLI adapter on the fixture's prompt and returns the insight text.
-        # Default runner here stubs so the rest of eval (judges, report, cost=0, flow) can exercise
-        # the graduation path without a live CLI in the test/CI env.
+        # Adapter plan-quota routes require a live adapter analyzer. A synthetic
+        # output would create false graduation evidence, so the default path
+        # records an errored zero-cost row instead.
         return _Analysis(
-            output="[stub-adapter-analysis for eval graduation test]",
+            output="",
             cost=0.0,
             input_tokens=0,
             output_tokens=0,
             cached=False,
+            error="adapter eval requires a live adapter analyzer",
         )
     # A single model failing (timeout, provider error, OOM on a local model) must
     # not abort the whole sweep — record the partial cost, mark the row errored,

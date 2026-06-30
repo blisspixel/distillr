@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the stale `antigravity` binary to the current `agy` CLI and
   `~/.gemini/antigravity-cli/settings.json` config path. All plan-quota routes
   remain fail-closed for no-metered routing.
+- Replaced the default adapter eval harness synthetic output with explicit
+  zero-cost errored rows, so plan-quota route graduation cannot use synthetic
+  adapter output when no live adapter analyzer has been supplied.
 
 ## 0.19.10 - 2026-06-30
 
