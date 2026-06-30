@@ -147,6 +147,29 @@ What remains from the 0.19 theme is genuinely forward and sits after 1.0 - it ga
 - **Plan-quota route graduation (vendor-gated).** A plan-quota CLI route (Codex CLI, Claude Code, Grok Build, Gemini CLI, Antigravity) becomes a live no-metered route only once an adapter doctor proves included-plan auth (not an API key), machine-readable output, scratch-only writes, complete usage ledgering, live availability, and `distill eval` quality. The doctor scaffolding, the strict `adapter-workload.v1` / `adapter-native-usage.v1` / `adapter-result.v1` scratch contracts, the capture writers, and the pure graduation decision are all in-tree; the open gates are current official no-metered support statements and installed-session auth proof, which are provider-specific and may change. GitHub Copilot CLI stays a credit-metered candidate under explicit paid policy.
 - **Route orchestration strategies.** A strategy layer over several validated routes used together (ensemble best-of-N with a cross-family judge, maker-checker, bounded critic-refine), scored by `distill eval` on cost per accepted change, pool-aware. Buildable and testable against local + mock routes today. Design: [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
+### Trust hardening implications for the remaining spine
+
+Recent hallucination failure-pattern review reinforces the existing direction:
+Distill's advantage is not a better model guess, it is a verified source-to-corpus
+workflow that makes unsupported certainty hard to write and easy to audit.
+
+- Citation and source identity are structural truth. Handles, citation keys,
+  source ids, exported bibliography rows, and generated answer citations should
+  resolve to real local receipts or refuse promotion.
+- Premise truth, faithfulness, source fit, and appropriate uncertainty are
+  semantic judgments. They belong in `distill eval` model-judge fixtures and
+  write-time verdicts, with Python aggregating explicit per-criterion decisions.
+- False-premise questions, no-evidence cases, and citation-request traps should
+  become first-class eval fixtures. The correct behavior is to correct the
+  premise, say the corpus does not support the claim, or route for operator
+  review.
+- Long-context reliability needs evidence-position regression tests, especially
+  for local routes and report pipelines where relevant evidence can sit in the
+  middle of a receipt.
+- Multi-route agreement is only weak support. Disagreement is a strong
+  uncertainty signal and should feed review queues, route-pool eviction, or
+  low-confidence output labels rather than be averaged away.
+
 ### 1.0.0 - Stability commitment + quality bar
 
 Public-API freeze plus a documented quality posture. The shape of distillr stops changing under users and agents, and the codebase ships at the polish bar a 1.0 release deserves.

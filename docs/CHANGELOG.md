@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added a roadmap-level trust-hardening pass for citation/source existence
+  checks, false-premise evals, calibrated uncertainty, evidence-position
+  regressions, and route-disagreement review, without changing application code.
 - Documented the provider-side prompt and context caching policy for Anthropic,
   OpenAI, Azure OpenAI in Microsoft Foundry, Gemini, Bedrock, and xAI, including
   cost-mode behavior, retention, telemetry, lifecycle, and ledger requirements

@@ -181,6 +181,24 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [x] Structured logging - shipped 0.16.10: the `distill` logger stays at DEBUG, console verbosity is controlled by handler levels, `--debug` and `--verbose` show DEBUG on stderr, and `library/.distill/distill.log` captures DEBUG records for post-run review across reused CLI processes.
 - [x] **`distill audit`** - shipped 0.10.2 with the verify-sidecar coverage rollup, report artifact, and spend-safe action menu; grown through 0.12.x (staleness, near-duplicates, re-analysis commands); scheduling recipes shipped 0.12.1. Detail in [`CHANGELOG.md`](CHANGELOG.md).
 - [x] **Output->input loop (`distill ask`)** - shipped 0.12.0 with strict-by-definition `--save` promotion and the MCP `ask` tool; design in [`design/ask-loop.md`](design/ask-loop.md), detail in [`CHANGELOG.md`](CHANGELOG.md).
+- [ ] **Hallucination-pattern eval expansion.** Extend `distill eval`
+  fixtures with false-premise questions, no-evidence requests,
+  citation-request traps, unsupported-number cases, and route-disagreement
+  examples. The expected behavior is not forced refusal: the model judge should
+  decide whether the output corrected the premise, stated uncertainty, cited
+  only real evidence, and avoided laundering unsupported claims. Python owns
+  fixture loading, citation/source existence checks, verdict aggregation, and
+  the gate.
+- [ ] **Citation and source existence hardening.** Treat citation handles, claim
+  ids, source ids, exported bibliography keys, and `distill ask` citations as
+  structural references that must resolve to real local artifacts or receipt
+  rows before an answer, synthesis, report section, or export is promoted. This
+  is a rule-owned identity check, separate from semantic faithfulness.
+- [ ] **Uncertainty routing and disagreement surfacing.** Promote
+  low-confidence, single-source, contradicted, or multi-route-disagreed claims
+  into explicit reviewable findings instead of smoothing them into confident
+  prose. Model judges own whether uncertainty is warranted; Python records the
+  finding, preserves the evidence handles, and keeps review actions bounded.
 
 ### 8. Expand cross-source intelligence
 
@@ -279,7 +297,14 @@ for the principles these items derive from.
 
 - [~] **Just-in-time MCP context (paths-not-payloads)** - *promoted into the agent-legible 0.9 pass (see `../ROADMAP.md`); current status: `find_insights` (ranked path/preview/score) + `read_insight(path, section?)` are shipped and the default shape; `list_contested` is folded into `find_concepts(contested_only=True)`; the live surface is 24 tools; remaining work is collapsing overlapping action tools.* Today `distill-mcp` returns full markdown files; a 50KB synthesis artifact blows the consuming agent's window for what may be a one-line lookup. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. Add `find_insights(topic, query)` returning ranked `(path, one_line_preview, score)` tuples; add `read_insight(path, section?)` for drill-down. Existing tools that return full bodies stay (for explicit "give me the file" calls) but stop being the default response shape. At ~500-1,000 schema tokens per always-loaded tool, the consolidation matters as much as the response shape.
 - [ ] **Compaction in the 4-phase report pipeline.** Phase 2 (section writing) and Phase 4 (QA) currently carry full prior-section context forward to enforce no-repeat. Switch to high-recall-then-precision compaction (the Anthropic pattern) and OpenAI-style opaque continuation items where the API supports them. Goal: significant token-spend reduction on long reports with no loss of cross-section coherence. Measure via the per-prompt token telemetry from section 2.
-- [ ] **Effective-context regression tests.** Add a small fixture suite that runs paper-analysis / synthesis / report prompts against representative long inputs and asserts the output covers known mid-document evidence (a "lost-in-the-middle" smoke test). Wire into CI so regressions surface in PRs rather than user reports.
+- [ ] **Effective-context regression tests.** Add a small fixture suite that runs
+  paper-analysis / synthesis / report prompts against representative long
+  inputs and asserts the output covers known mid-document evidence, edge
+  evidence, and deliberately placed disconfirming evidence. The deterministic
+  fixture owns evidence placement and receipt existence; semantic success
+  belongs to a model-judge verdict in `distill eval`, not a keyword gate. Wire
+  the structural smoke tests into CI so context-position regressions surface in
+  PRs rather than user reports.
 - [ ] **Tool-result clearing in iterative loops.** Long-running watch and discover loops accumulate tool-call results that are no longer relevant. Implement Anthropic's "clear stale tool results" pattern as a baseline compaction step before each new LLM call in those loops.
 - [x] **Document the principles in the contributor guide.** `docs/CONTRIBUTING.md` now names the context-engineering rules for prompt, MCP, report, pipeline, and loop changes: paths before payloads, provenance in context, prompt-budget measurement through biggest-prompts telemetry, evidence-preserving compaction, structured deltas, stale intermediate-context clearing, and model-owned semantic judgment.
 
