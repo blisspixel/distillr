@@ -163,8 +163,9 @@ workflow that makes unsupported certainty hard to write and easy to audit.
   resolve to real local receipts or refuse promotion. Report section numbered
   citations now refuse promotion rather than being stripped when the handle
   cannot resolve, lightweight topic briefs now refuse the same unresolvable
-  numbered citations before corpus writes, and cached sub-agent query summaries
-  now refuse uncited or unknown source-stem citations instead of overstating
+  numbered citations before corpus writes, single-call synthesis outputs refuse
+  them before writing output files, and cached sub-agent query summaries now
+  refuse uncited or unknown source-stem citations instead of overstating
   provenance.
 - Premise truth, faithfulness, source fit, and appropriate uncertainty are
   semantic judgments. They belong in `distill eval` model-judge fixtures and

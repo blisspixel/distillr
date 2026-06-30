@@ -19,6 +19,7 @@ from distill._console import console
 from distill.config import DistillConfig
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.report.brief import gather_topic_files
 
@@ -116,6 +117,10 @@ def run_synthesis(
 
     if not result:
         console.print("[red]No output received from LLM[/red]")
+        return None
+    refusal = unresolved_numbered_citation_reason(result)
+    if refusal:
+        console.print(f"[red]Synthesis refused:[/red] {refusal}")
         return None
 
     output_path = Path("output") / f"synthesis-{name}.md"

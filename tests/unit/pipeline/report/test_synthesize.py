@@ -75,3 +75,24 @@ def test_run_synthesis_success(tmp_path):
     assert result.read_text(encoding="utf-8") == "final synthesis"
     assert len(tracker.entries) == 1
     assert tracker.entries[0].call_type == "synthesis"
+
+
+def test_run_synthesis_refuses_unresolved_numbered_citation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    tracker = CostTracker()
+    with (
+        patch(
+            "distill.pipeline.report.synthesize.gather_topic_files",
+            return_value=[("doc", "body")],
+        ),
+        patch(
+            "distill.pipeline.report.synthesize.llm_call",
+            _fake_llm_call("Unsupported synthesis claim [cite: 1]."),
+        ),
+    ):
+        result = run_synthesis(["ai"], "ctx", "refused", config, tracker=tracker)
+
+    assert result is None
+    assert not (tmp_path / "output" / "synthesis-refused.md").exists()
+    assert len(tracker.entries) == 1
