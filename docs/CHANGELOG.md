@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   transcription sizing, JSON parsing, summary-cache recovery, and preflight
   cache writes. The final release gate reports 93.19% branch coverage; the
   enforced floor remains 93.
+- Normalized topic-watch CLI validation assertions against Rich-styled CI
+  output so release CI sees the same validation messages under `CI=true` while
+  preserving the user-facing command behavior.
 - Added focused MCP OKF tool coverage for workspace-relative path refusal,
   absolute path refusal, index-preview fallback, and empty-preview defaults.
   The full coverage gate now reports 93.21%; the enforced floor remains 93.

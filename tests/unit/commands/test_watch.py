@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 
+from click import unstyle
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
@@ -13,6 +14,10 @@ from distill.library import Library, TopicWatchEntry
 from distill.library.paths import artifact_path
 
 runner = CliRunner()
+
+
+def _plain_cli_output(output: str) -> str:
+    return unstyle(output)
 
 
 class _DashboardSnapshotLib:
@@ -178,7 +183,7 @@ def test_topic_watch_add_rejects_invalid_cadence():
     )
 
     assert result.exit_code == 2
-    assert "--cadence must be" in result.output
+    assert "--cadence must be" in _plain_cli_output(result.output)
 
 
 def test_topic_watch_add_prints_budgets_and_duplicate(tmp_path, monkeypatch):
@@ -241,7 +246,7 @@ def test_topic_watch_management_not_found_and_invalid_branches(tmp_path, monkeyp
     for argv, expected, exit_code in checks:
         result = runner.invoke(cli.app, argv)
         assert result.exit_code == exit_code
-        assert expected in result.output
+        assert expected in _plain_cli_output(result.output)
 
     budget = runner.invoke(
         cli.app, ["topic-watch", "budget", "microsoft-news", "--monthly-budget", "2.50"]
