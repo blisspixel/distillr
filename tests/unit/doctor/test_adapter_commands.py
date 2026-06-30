@@ -70,6 +70,34 @@ def test_codex_command_plan_requires_output_schema():
     assert not plan.ok
 
 
+def test_codex_command_plan_can_be_ok_with_ready_probe():
+    probe = AdapterProbe(
+        name="codex",
+        binary="codex",
+        route_class="included-plan",
+        installed=True,
+        no_metered_candidate=True,
+        no_metered_eligible=True,
+        support_statement="current",
+    )
+
+    plan = plan_adapter_command("codex", _workload(), probe=probe)
+
+    assert plan.ok is True
+    assert plan.blocked_reasons == []
+
+
+def test_codex_command_plan_blocks_scratch_write_workloads():
+    plan = plan_adapter_command(
+        "codex",
+        _workload(command_class="scratch-write", allowed_write_paths=["result.txt"]),
+    )
+
+    assert "codex command template currently supports read-only workloads only" in (
+        plan.blocked_reasons
+    )
+
+
 def test_claude_command_plan_records_read_only_argv_but_stays_blocked():
     plan = plan_adapter_command("claude", _workload())
 
@@ -124,6 +152,22 @@ def test_inline_adapter_command_schema_materializes_claude_schema(tmp_path):
     )
 
 
+def test_claude_command_plan_blocks_scratch_write_and_missing_schema():
+    plan = plan_adapter_command(
+        "claude",
+        _workload(
+            command_class="scratch-write",
+            output_schema_path=None,
+            allowed_write_paths=["result.txt"],
+        ),
+    )
+
+    assert "claude command template currently supports read-only workloads only" in (
+        plan.blocked_reasons
+    )
+    assert "claude command template requires output_schema_path" in plan.blocked_reasons
+
+
 def test_inline_adapter_command_schema_rejects_non_object_schema(tmp_path):
     (tmp_path / "schemas").mkdir()
     (tmp_path / "schemas" / "result.json").write_text("[]", encoding="utf-8")
@@ -133,11 +177,51 @@ def test_inline_adapter_command_schema_rejects_non_object_schema(tmp_path):
         inline_adapter_command_schema(plan, scratch_root=tmp_path)
 
 
+def test_inline_adapter_command_schema_rejects_invalid_json_schema(tmp_path):
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas" / "result.json").write_text("{not json", encoding="utf-8")
+    plan = plan_adapter_command("claude", _workload())
+
+    with pytest.raises(AdapterCommandError, match="schema is invalid JSON"):
+        inline_adapter_command_schema(plan, scratch_root=tmp_path)
+
+
 def test_inline_adapter_command_schema_rejects_path_escape(tmp_path):
     plan = replace(plan_adapter_command("claude", _workload()), schema_path="../schema.json")
 
     with pytest.raises(AdapterCommandError, match="escapes scratch workspace"):
         inline_adapter_command_schema(plan, scratch_root=tmp_path)
+
+
+def test_inline_adapter_command_schema_returns_non_claude_or_unblocked_plans(tmp_path):
+    codex = plan_adapter_command("codex", _workload())
+    claude_without_blocker = replace(
+        plan_adapter_command("claude", _workload()),
+        blocked_reasons=["adapter doctor probe is required"],
+    )
+    claude_without_schema = replace(plan_adapter_command("claude", _workload()), schema_path="")
+
+    assert inline_adapter_command_schema(codex, scratch_root=tmp_path) is codex
+    assert inline_adapter_command_schema(claude_without_blocker, scratch_root=tmp_path) == (
+        claude_without_blocker
+    )
+    assert inline_adapter_command_schema(claude_without_schema, scratch_root=tmp_path) == (
+        claude_without_schema
+    )
+
+
+def test_inline_adapter_command_schema_appends_when_marker_is_missing(tmp_path):
+    schema = {"type": "object"}
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas" / "result.json").write_text(json.dumps(schema), encoding="utf-8")
+    plan = replace(plan_adapter_command("claude", _workload()), argv=("claude", "-p"))
+
+    materialized = inline_adapter_command_schema(plan, scratch_root=tmp_path)
+
+    assert materialized.argv[-2:] == (
+        "--json-schema",
+        json.dumps(schema, separators=(",", ":"), sort_keys=True),
+    )
 
 
 def test_grok_command_plan_records_read_only_argv_but_stays_blocked():
@@ -167,6 +251,13 @@ def test_grok_command_plan_records_read_only_argv_but_stays_blocked():
         "grok command template does not enforce output_schema_path natively" in plan.blocked_reasons
     )
     assert not plan.ok
+
+
+def test_grok_command_plan_requires_output_schema():
+    plan = plan_adapter_command("grok", _workload(output_schema_path=None))
+
+    assert "grok command template requires output_schema_path" in plan.blocked_reasons
+    assert plan.schema_path == "schemas/result.json"
 
 
 def test_gemini_command_plan_records_headless_argv_but_stays_blocked():
@@ -201,6 +292,17 @@ def test_gemini_command_plan_requires_output_schema():
     assert not plan.ok
 
 
+def test_gemini_command_plan_blocks_scratch_write_workloads():
+    plan = plan_adapter_command(
+        "gemini-cli",
+        _workload(command_class="scratch-write", allowed_write_paths=["result.txt"]),
+    )
+
+    assert "gemini command template currently supports read-only workloads only" in (
+        plan.blocked_reasons
+    )
+
+
 def test_antigravity_command_plan_records_chat_argv_but_stays_blocked():
     plan = plan_adapter_command("antigravity", _workload())
 
@@ -232,6 +334,24 @@ def test_antigravity_command_plan_requires_output_schema():
     assert not plan.ok
 
 
+def test_grok_and_antigravity_command_plans_block_scratch_write_workloads():
+    grok = plan_adapter_command(
+        "grok",
+        _workload(command_class="scratch-write", allowed_write_paths=["result.txt"]),
+    )
+    antigravity = plan_adapter_command(
+        "antigravity",
+        _workload(command_class="scratch-write", allowed_write_paths=["result.txt"]),
+    )
+
+    assert "grok command template currently supports read-only workloads only" in (
+        grok.blocked_reasons
+    )
+    assert "antigravity command template currently supports read-only workloads only" in (
+        antigravity.blocked_reasons
+    )
+
+
 def test_codex_command_plan_inherits_probe_blockers():
     probe = AdapterProbe(
         name="codex",
@@ -251,6 +371,24 @@ def test_codex_command_plan_inherits_probe_blockers():
     assert "adapter missing required flags: --output-schema" in plan.blocked_reasons
     assert "adapter is not no-metered eligible" in plan.blocked_reasons
     assert not plan.ok
+
+
+def test_command_plan_blocks_uninstalled_probe_once():
+    probe = AdapterProbe(
+        name="codex",
+        binary="codex",
+        route_class="included-plan",
+        installed=False,
+        no_metered_candidate=True,
+        no_metered_eligible=False,
+        support_statement="planned",
+        blocked_reasons=["adapter is not no-metered eligible"],
+    )
+
+    plan = plan_adapter_command("codex", _workload(), probe=probe)
+
+    assert "codex is not installed" in plan.blocked_reasons
+    assert plan.blocked_reasons.count("adapter is not no-metered eligible") == 1
 
 
 def test_command_plan_blocks_unknown_adapter_template():

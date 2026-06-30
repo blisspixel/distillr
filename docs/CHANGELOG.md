@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   malformed usage rows, Claude JSON and JSONL refusals, Claude failure stop
   reasons, bad cost fields, Gemini session fallback, and tolerant generic event
   parsing. The focused native-usage coverage slice now reports 97%.
+- Added focused adapter command-plan coverage for ready probes, uninstalled
+  probe blocker de-duplication, scratch-write blockers, missing-schema blockers,
+  schema inlining no-ops, invalid schema files, marker-missing schema insertion,
+  and Codex, Claude, Grok, Gemini, and Antigravity blocked-plan boundaries. The
+  focused command-plan coverage slice now reports 100%.
 
 ## 0.19.10 - 2026-06-30
 
