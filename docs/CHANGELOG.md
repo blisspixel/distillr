@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused OKF command wrapper coverage for valid and invalid bundle
+  validation in both human and JSON output modes. The full coverage gate now
+  reports 92.09%; the enforced floor remains 92.
 - Added focused topic-resolution helper coverage for explicit topic/channel
   preservation, known topic passthrough, channel-only topic resolution,
   unknown-topic fallback, and missing-topic refusal. The full coverage gate now

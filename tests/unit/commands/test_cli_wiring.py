@@ -1363,6 +1363,42 @@ class TestExportOpenCostsAndStatus:
         assert "TY  - JOUR" in text
         assert "DO  - 10.5555/agent-memory" in text
 
+    def _write_valid_okf_bundle(self, bundle):
+        (bundle / "concepts").mkdir(parents=True)
+        (bundle / "index.md").write_text(
+            "---\ntitle: Test\n---\n\n# Index\n\n- [Item](concepts/item.md)\n",
+            encoding="utf-8",
+        )
+        (bundle / "log.md").write_text("# Log\n", encoding="utf-8")
+        (bundle / "concepts" / "item.md").write_text(
+            "---\ntype: Concept\n---\n\n# Item\n",
+            encoding="utf-8",
+        )
+
+    def test_okf_validate_reports_valid_bundle(self, tmp_path):
+        bundle = tmp_path / "bundle"
+        self._write_valid_okf_bundle(bundle)
+
+        result = runner.invoke(cli.app, ["okf", "validate", str(bundle)])
+
+        assert result.exit_code == 0
+        assert "OKF valid" in result.output
+        assert "Markdown files checked: 3" in result.output
+        assert "Errors" not in result.output
+        assert "Warnings" not in result.output
+
+    def test_okf_validate_json_reports_valid_bundle(self, tmp_path):
+        bundle = tmp_path / "bundle"
+        self._write_valid_okf_bundle(bundle)
+
+        result = runner.invoke(cli.app, ["--json", "okf", "validate", str(bundle)])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["status"] == "ok"
+        assert payload["data"]["ok"] is True
+        assert payload["data"]["files_checked"] == 3
+
     def test_okf_validate_reports_invalid_bundle(self, tmp_path):
         bundle = tmp_path / "bundle"
         bundle.mkdir()
@@ -1373,6 +1409,21 @@ class TestExportOpenCostsAndStatus:
         assert result.exit_code == 1
         assert "OKF invalid" in result.output
         assert "type" in result.output
+
+    def test_okf_validate_json_reports_invalid_bundle(self, tmp_path):
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "concept.md").write_text(
+            "---\ntitle: Missing type\n---\n\n# Concept\n", encoding="utf-8"
+        )
+
+        result = runner.invoke(cli.app, ["--json", "okf", "validate", str(bundle)])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["status"] == "error"
+        assert payload["error"] == "OKF validation failed"
+        assert payload["data"]["ok"] is False
 
     def test_export_bundle_sanitizes_archive_topic_prefix(self, mock_config):
         raw_topic = "../escape"
