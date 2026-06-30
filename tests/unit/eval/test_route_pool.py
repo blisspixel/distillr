@@ -16,6 +16,7 @@ from distill.eval.route_availability import (
     load_route_availability_snapshot,
     local_service_route_availability_signal,
     parse_route_availability_snapshot,
+    route_availability_decision,
     route_availability_signal_from_manifest,
 )
 from distill.eval.route_pool import RouteCandidate, select_route_pool
@@ -391,6 +392,58 @@ def test_rolled_over_window_is_treated_as_fresh() -> None:
     assert selection.selected.availability.headroom_percent == 100.0
 
 
+def test_route_availability_decision_serializes_open_signal_without_windows() -> None:
+    signal = RouteAvailabilitySignal(provider="grok", workload=" ")
+
+    decision = route_availability_decision(signal, now=1_000)
+
+    assert signal.normalized_workload() == "default"
+    assert decision.available is True
+    assert decision.to_dict() == {
+        "available": True,
+        "headroom_percent": None,
+        "binding_window": None,
+        "resets_at": None,
+        "stale": False,
+        "blocked_until": None,
+        "blocked_reasons": [],
+    }
+
+
+def test_quota_stop_without_retry_blocks_without_deadline() -> None:
+    decision = route_availability_decision(
+        RouteAvailabilitySignal(
+            provider="grok",
+            quota_stop=RouteQuotaStop(reached=True, reason="daily quota exhausted"),
+        ),
+        now=1_000,
+    )
+
+    assert decision.available is False
+    assert decision.blocked_until is None
+    assert decision.blocked_reasons == ("daily quota exhausted",)
+
+
+def test_low_headroom_keeps_existing_quota_retry_deadline() -> None:
+    decision = route_availability_decision(
+        RouteAvailabilitySignal(
+            provider="grok",
+            quota_stop=RouteQuotaStop(
+                reached=True,
+                reason="daily quota exhausted",
+                retry_after_seconds=120,
+            ),
+            windows=(RouteQuotaWindow(label="weekly", remaining_percent=0.0, resets_at=9_000),),
+        ),
+        now=1_000,
+    )
+
+    assert decision.blocked_until == 1_120
+    assert decision.binding_window is not None
+    assert decision.binding_window.label == "weekly"
+    assert "binding quota window 'weekly' has 0.0% headroom" in decision.blocked_reasons
+
+
 def test_adapter_manifest_quota_stop_builds_availability_signal() -> None:
     manifest = validate_adapter_result_manifest(
         {
@@ -436,6 +489,55 @@ def test_adapter_manifest_quota_stop_builds_availability_signal() -> None:
     assert signal.quota_stop.blocked_until(2_000) == 2_120
 
 
+def test_adapter_manifest_without_quota_stop_builds_observation_signal() -> None:
+    manifest = validate_adapter_result_manifest(
+        {
+            "schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
+            "adapter": "claude",
+            "adapter_version": "claude 2.0.0",
+            "auth_class": "included-plan",
+            "command_class": "read-only",
+            "model": "adapter:opus",
+            "prompt_hash": "sha256:prompt",
+            "source_hash": "sha256:source",
+            "elapsed_ms": 100,
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "native": {"adapter_format": "claude-json"},
+            },
+            "stop_reason": "complete",
+            "files_read": ["sources/input.md"],
+            "files_written": [],
+            "output": {"summary": "ok"},
+            "policy": {
+                "cost_mode": "no-metered",
+                "blocked_api_key_env": [],
+                "metered_allowed": False,
+            },
+        }
+    )
+
+    signal = route_availability_signal_from_manifest(manifest, now=2_000)
+
+    assert signal.provider == "claude"
+    assert signal.model == "adapter:opus"
+    assert signal.workload == ""
+    assert signal.quota_stop is None
+
+
+def test_local_service_signal_blocks_missing_installed_model() -> None:
+    signal = local_service_route_availability_signal(
+        provider="ollama",
+        status="running",
+        checked_at=1_000,
+        models=("qwen3.5:27b",),
+        model="missing-model",
+    )
+
+    assert signal.unavailable_reason == "ollama local model 'missing-model' is not installed"
+
+
 def test_portable_route_availability_snapshot_parses_quota_windows() -> None:
     snapshot = parse_route_availability_snapshot(
         {
@@ -461,6 +563,26 @@ def test_portable_route_availability_snapshot_parses_quota_windows() -> None:
     assert snapshot.to_dict()["schema_version"] == "route-availability.v1"
 
 
+def test_load_route_availability_snapshot_accepts_json(tmp_path) -> None:
+    path = tmp_path / "availability.json"
+    path.write_text(
+        """{"schema_version":"route-availability.v1","checked_at":1000,"signals":[{"provider":"grok"}]}""",
+        encoding="utf-8",
+    )
+
+    snapshot = load_route_availability_snapshot(path)
+
+    assert snapshot.signals[0].provider == "grok"
+
+
+def test_load_route_availability_snapshot_rejects_non_mapping_json(tmp_path) -> None:
+    path = tmp_path / "availability.json"
+    path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="snapshot must be a mapping"):
+        load_route_availability_snapshot(path)
+
+
 def test_portable_route_availability_snapshot_rejects_identity_metadata() -> None:
     with pytest.raises(ValueError, match="identity field 'email'"):
         parse_route_availability_snapshot(
@@ -479,6 +601,117 @@ def test_portable_route_availability_snapshot_rejects_identity_metadata() -> Non
                 ],
             }
         )
+
+
+def test_portable_route_availability_snapshot_rejects_nested_identity_metadata() -> None:
+    with pytest.raises(ValueError, match="identity field 'token'"):
+        parse_route_availability_snapshot(
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [
+                    {
+                        "provider": "claude",
+                        "quota_stop": {
+                            "reached": False,
+                            "native": {"events": [{"token": "secret"}]},
+                        },
+                    }
+                ],
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": -1,
+                "signals": [],
+            },
+            "checked_at must be non-negative",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [{"provider": " "}],
+            },
+            "provider must be non-empty",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [{"provider": "grok", "checked_at": -1}],
+            },
+            "checked_at must be non-negative",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [{"provider": "grok", "windows": [{"label": " "}]}],
+            },
+            "quota window label must be non-empty",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [
+                    {"provider": "grok", "windows": [{"label": "daily", "used_percent": 101.0}]}
+                ],
+            },
+            "quota percentages must be between 0 and 100",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [{"provider": "grok", "windows": [{"label": "daily", "resets_at": -1}]}],
+            },
+            "resets_at must be non-negative",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [
+                    {
+                        "provider": "grok",
+                        "quota_stop": {"reached": True, "reason": " "},
+                    }
+                ],
+            },
+            "quota_stop.reason is required when quota was reached",
+        ),
+        (
+            {
+                "schema_version": "route-availability.v1",
+                "checked_at": 1_000,
+                "signals": [
+                    {
+                        "provider": "grok",
+                        "quota_stop": {
+                            "reached": True,
+                            "reason": "quota",
+                            "retry_after_seconds": -1,
+                        },
+                    }
+                ],
+            },
+            "retry_after_seconds must be non-negative",
+        ),
+    ],
+)
+def test_portable_route_availability_snapshot_rejects_invalid_boundary_rows(
+    payload, message
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        parse_route_availability_snapshot(payload)
 
 
 def test_load_route_availability_snapshot_accepts_yaml(tmp_path) -> None:

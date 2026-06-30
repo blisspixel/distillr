@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   OpenAI, Azure OpenAI in Microsoft Foundry, Gemini, Bedrock, and xAI, including
   cost-mode behavior, retention, telemetry, lifecycle, and ledger requirements
   before any adapter exposes cache controls.
+- Added focused route-availability boundary coverage for quota-stop
+  serialization, open signals, manifest signals without quota stops, local
+  missing-model evidence, JSON snapshot loading, non-mapping refusals, nested
+  identity metadata rejection, and invalid quota snapshot rows. The focused
+  route-availability coverage slice now reports 95%.
 
 ## 0.19.10 - 2026-06-30
 
