@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused recurring-profile run branch coverage for subprocess outcome
+  normalization, durable state failure modes, completed-item resume behavior,
+  command hash keys, auto cost-mode next actions, and pure fallback helpers. The
+  full coverage gate now reports 91.66%; the enforced floor remains 91.
 - Added focused recurring-profile preview branch coverage for invalid limits,
   source-fetch warnings, YouTube Atom fallback parsing, feed-item replay
   commands, duplicate candidate suppression, date ordering, fetch caps, and
