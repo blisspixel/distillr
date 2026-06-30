@@ -138,7 +138,12 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKe
     raise ValueError(f"unknown provider: {provider}")
 
 
-def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUnusedFunction] "called via doctor command through dynamic lookup; not direct in this module"
+def check_ollama_status() -> tuple[str, list[str]]:
+    """Public local-provider probe for CLI and MCP doctor surfaces."""
+    return _check_ollama_status()
+
+
+def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUnusedFunction] "called via public check_ollama_status seam and tests through dynamic lookup"
     """Check if Ollama server is running and list available models.
 
     Returns (status, model_names) where status is "running" or "unavailable".
@@ -160,7 +165,12 @@ def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUn
         return ("unavailable", [])
 
 
-def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "called via doctor command through dynamic lookup; not direct in this module"
+def check_lmstudio_status() -> str:
+    """Public LM Studio probe for CLI and MCP doctor surfaces."""
+    return _check_lmstudio_status()
+
+
+def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "called via public check_lmstudio_status seam and tests through dynamic lookup"
     """Check if LM Studio server is running. Returns 'running' or 'unavailable'."""
     import httpx
 

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the doctor command module to Pyright strict mode with public
+  key-validation and local-provider probe seams while preserving existing
+  monkeypatch compatibility for command tests.
 - Promoted the shared command helper module to Pyright strict mode with typed
   metadata writing, duration formatting, dispatch, preflight, and safe console
   rendering seams.

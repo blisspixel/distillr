@@ -1,3 +1,4 @@
+# pyright: strict
 """Doctor + health commands, extracted from the _logic monolith.
 
 `distill doctor` is the environment/key/dependency diagnostic; `distill health`
@@ -9,9 +10,12 @@ distill.cli (mirroring view/maintain/update/init).
 
 from __future__ import annotations
 
+import importlib
 import importlib.metadata as importlib_metadata
+import importlib.util as importlib_util
 import os
 from pathlib import Path
+from typing import Protocol, cast
 
 import typer
 
@@ -20,10 +24,10 @@ from distill._version import get_version as _get_version
 from distill.commands._helpers import _complete_topics, get_config
 from distill.config import DistillConfig
 from distill.doctor.checks import (
-    _check_lmstudio_status,
-    _check_ollama_status,
-    _doctor_validate_key,
+    check_lmstudio_status,
+    check_ollama_status,
     check_retired_models,
+    doctor_validate_key,
 )
 from distill.library import Library
 from distill.library.state import ChannelState
@@ -38,6 +42,16 @@ from distill.preflight import (
 )
 
 __all__ = ["doctor", "health", "register"]
+
+_check_lmstudio_status = check_lmstudio_status
+_check_ollama_status = check_ollama_status
+_doctor_validate_key = doctor_validate_key
+
+
+class _CTranslate2Module(Protocol):
+    def get_cuda_device_count(self) -> int: ...
+
+    def get_supported_compute_types(self, device: str) -> set[str]: ...
 
 
 def doctor(  # noqa: C901 - legacy, will refactor
@@ -398,8 +412,8 @@ def doctor(  # noqa: C901 - legacy, will refactor
     console.print(f"  [dim]{'-' * 50}[/dim]")
 
     try:
-        import yt_dlp  # noqa: F401  -- imported to verify availability
-
+        if importlib_util.find_spec("yt_dlp") is None:
+            raise importlib_metadata.PackageNotFoundError("yt-dlp")
         ytdlp_version = importlib_metadata.version("yt-dlp")
         age = ytdlp_age_days()
         if update_succeeded and (age is None or age > YTDLP_STALE_DAYS):
@@ -466,11 +480,10 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     if fw_installed:
         try:
-            import ctranslate2  # type: ignore[import-not-found]
-
-            cuda_count = ctranslate2.get_cuda_device_count()
+            ct2 = cast(_CTranslate2Module, importlib.import_module("ctranslate2"))
+            cuda_count = ct2.get_cuda_device_count()
             if cuda_count > 0:
-                compute_types = ctranslate2.get_supported_compute_types("cuda")
+                compute_types = ct2.get_supported_compute_types("cuda")
                 preferred = "float16" if "float16" in compute_types else next(iter(compute_types))
                 console.print(
                     f"  [green]OK[/green]  CUDA device       "
@@ -507,7 +520,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     # Routing surface: which providers transcribe.py will pick from
     # today, in order. Helps debug "why did this go to cloud?" surprises.
-    providers = []
+    providers: list[str] = []
     if fw_installed:
         providers.append("local (faster-whisper large-v3)")
     if config.xai_api_key:
@@ -821,14 +834,14 @@ def health(  # noqa: C901 -- straight-line walk over topics + warning categories
 ):
     """Audit corpus quality signals like stale syntheses and thin artifacts."""
     from distill.commands._json import emit_json, json_mode_active
-    from distill.concepts.contradictions import find_contested
+    from distill.concepts.contradictions import ContestedConcept, find_contested
 
     config = get_config()
     lib = Library(config)
     topics = lib.get_topics() if topic == "all" else [topic]
     warnings = _collect_corpus_health_warnings(config, lib, topics, limit=50)
 
-    contested_by_topic: dict[str, list] = {}
+    contested_by_topic: dict[str, list[ContestedConcept]] = {}
     for t in topics:
         topic_dir = config.topic_dir(t)
         if topic_dir.exists():
