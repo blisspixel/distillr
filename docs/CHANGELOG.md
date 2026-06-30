@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused search branch coverage for unreadable artifacts, empty bodies,
+  directory entries, library-relative parent classification, malformed section
+  headings, preview fallback, markdown cleanup, empty previews, and truncation
+  branches. The full coverage gate now reports 91.74%; the enforced floor
+  remains 91.
 - Added focused recurring-profile run branch coverage for subprocess outcome
   normalization, durable state failure modes, completed-item resume behavior,
   command hash keys, auto cost-mode next actions, and pure fallback helpers. The

@@ -199,6 +199,61 @@ class TestSearchCorpus:
         assert len(results) == 1
         assert results[0].artifact_type == "insights"  # not "paper"
 
+    def test_skips_directories_unreadable_files_and_empty_bodies(self, tmp_path, monkeypatch):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        topic_dir = config.topic_dir("test-topic")
+        (topic_dir / "skip.md").mkdir(parents=True)
+        empty_artifact = topic_dir / "empty.md"
+        unreadable_artifact = topic_dir / "unreadable.md"
+        readable_artifact = topic_dir / "artifact.md"
+        _write_artifact(empty_artifact, "---\ntitle: empty\n---\n   \n")
+        _write_artifact(unreadable_artifact, "machine learning hidden")
+        _write_artifact(readable_artifact, "machine learning visible")
+
+        original_read_text = Path.read_text
+
+        def read_text_or_raise(path: Path, *args, **kwargs):
+            if path == unreadable_artifact:
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")
+            return original_read_text(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", read_text_or_raise)
+
+        results = search_corpus(config, "test-topic", "machine learning")
+
+        assert [Path(result.path) for result in results] == [Path("topics/test-topic/artifact.md")]
+
+    @pytest.mark.parametrize(
+        ("relative_path", "expected_type"),
+        [
+            (Path("topics/test-topic/papers/source/artifact.md"), "paper"),
+            (Path("topics/test-topic/sites/source/artifact.md"), "insights"),
+            (Path("topics/test-topic/channels/source/artifact.md"), "insights"),
+        ],
+    )
+    def test_artifact_type_falls_back_to_library_relative_parent_dirs(
+        self,
+        tmp_path,
+        relative_path,
+        expected_type,
+    ):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        _write_artifact(
+            config.library_dir / relative_path,
+            "machine learning visible",
+        )
+
+        results = search_corpus(config, "test-topic", "machine learning")
+
+        assert len(results) == 1
+        assert results[0].artifact_type == expected_type
+
 
 class TestExtractSection:
     def test_found_section(self):
@@ -219,3 +274,64 @@ class TestExtractSection:
         extracted, found = extract_section(content, "key findings")
         assert found is True
         assert "Important stuff" in extracted
+
+    def test_ignores_malformed_headings_and_keeps_nested_content(self):
+        content = (
+            "#Intro\n"
+            "ignored malformed heading\n"
+            "## Details\n"
+            "parent text\n"
+            "### Nested\n"
+            "nested text\n"
+            "#Not a real boundary\n"
+            "still details\n"
+            "## End\n"
+            "outside"
+        )
+
+        extracted, found = extract_section(content, "Details")
+
+        assert found is True
+        assert "nested text" in extracted
+        assert "still details" in extracted
+        assert "outside" not in extracted
+
+    def test_extracts_final_section_without_following_heading(self):
+        content = "# Intro\nignored\n## Tail\nfinal text"
+
+        extracted, found = extract_section(content, "Tail")
+
+        assert found is True
+        assert extracted == "## Tail\nfinal text"
+
+
+class TestPreviewGeneration:
+    def test_preview_falls_back_to_first_content_line_and_strips_markdown(self):
+        from distill.pipeline.search import _generate_preview, _tokenize
+
+        body = "\n#\n- **Alpha** and *beta* with [docs](https://example.test) plus `code`."
+
+        preview = _generate_preview(body, _tokenize("missing"))
+
+        assert preview == "Alpha and beta with docs plus code."
+
+    def test_preview_returns_empty_for_blank_and_marker_only_content(self):
+        from distill.pipeline.search import _generate_preview, _tokenize
+
+        preview = _generate_preview("\n   \n###\n", _tokenize("missing"))
+
+        assert preview == ""
+
+    def test_preview_hard_truncates_when_no_word_boundary_exists(self):
+        from distill.pipeline.search import _generate_preview, _tokenize
+
+        preview = _generate_preview("x" * 140, _tokenize("missing"))
+
+        assert preview == ("x" * 117) + "..."
+
+    def test_truncates_at_word_boundary_when_available(self):
+        from distill.pipeline.search import _truncate_at_word
+
+        preview = _truncate_at_word("alpha beta gamma delta", 18)
+
+        assert preview == "alpha beta gamma..."
