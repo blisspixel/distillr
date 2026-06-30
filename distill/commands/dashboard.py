@@ -466,6 +466,9 @@ def _dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     return _shared_dashboard_snapshot(config)
 
 
+dashboard_snapshot = _dashboard_snapshot
+
+
 def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # noqa: C901
     def list_items(items: list[str]) -> str:
         if not items:

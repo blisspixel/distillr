@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Promoted the maintain command module to Pyright strict mode with typed
+  cost-log parsing, local/cloud telemetry summaries, status artifact rows,
+  migration rename tuples, and public dashboard rendering seams.
 - Promoted the doctor command module to Pyright strict mode with public
   key-validation and local-provider probe seams while preserving existing
   monkeypatch compatibility for command tests.

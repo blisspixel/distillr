@@ -1,3 +1,4 @@
+# pyright: strict
 """Maintenance command group, extracted from the ``_logic`` monolith.
 
 Holds the "Maintain" panel utilities: cost history, store cleanup, open, watch
@@ -14,7 +15,7 @@ import os
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import typer
 from rich import box
@@ -36,8 +37,8 @@ from distill.commands._topic_resolution import (
 
 # Dashboard renderers live in commands/dashboard.py.
 from distill.commands.dashboard import (
-    _dashboard_snapshot,
-    _render_dashboard_html,
+    dashboard_snapshot,
+    render_dashboard_html,
     show_dashboard,
 )
 from distill.config import DistillConfig
@@ -108,13 +109,15 @@ def costs(  # noqa: C901 -- legacy, will refactor
             _costs_biggest_prompts_section(config, biggest_prompts)
         return
 
-    entries = []
+    entries: list[dict[str, Any]] = []
     for line in log_file.read_text(encoding="utf-8").strip().split("\n"):
         if line.strip():
             try:
-                entries.append(_json.loads(line))
+                loaded = _json.loads(line)
             except _json.JSONDecodeError:
                 continue
+            if isinstance(loaded, dict):
+                entries.append(cast("dict[str, Any]", loaded))
 
     if not entries:
         if json_mode:
@@ -183,11 +186,11 @@ def costs(  # noqa: C901 -- legacy, will refactor
     table.add_column("Time", justify="right")
 
     for e in recent:
-        ts = e.get("timestamp", "")[:10]
-        cmd = e.get("command", "?")
+        ts = str(e.get("timestamp", ""))[:10]
+        cmd = str(e.get("command", "?"))
         # Topic from metadata
         metadata = _dict_or_empty(e.get("metadata", {}))
-        topic = metadata.get("topic", "-")
+        topic = str(metadata.get("topic", "-") or "-")
         # Sources: combine video/paper/page counts
         source_parts: list[str] = []
         fv = _safe_int(e.get("full_videos", 0))
@@ -251,10 +254,10 @@ def costs(  # noqa: C901 -- legacy, will refactor
         None,
     )
     if latest_detailed is not None:
-        by_type = latest_detailed["by_call_type"]
+        by_type = _dict_or_empty(latest_detailed.get("by_call_type"))
         console.print("\n[dim]Latest run breakdown:[/dim]")
-        run_ts = latest_detailed.get("timestamp", "")[:16]
-        run_cmd = latest_detailed.get("command", "?")
+        run_ts = str(latest_detailed.get("timestamp", ""))[:16]
+        run_cmd = str(latest_detailed.get("command", "?"))
         breakdown_table = Table(
             title=f"Breakdown: {run_cmd} ({run_ts})",
             box=box.SIMPLE,
@@ -265,20 +268,21 @@ def costs(  # noqa: C901 -- legacy, will refactor
         breakdown_table.add_column("Input Tokens", justify="right")
         breakdown_table.add_column("Output Tokens", justify="right")
         for ct, data in sorted(by_type.items()):
-            if not isinstance(data, dict):
+            row = _dict_or_empty(data)
+            if not row:
                 continue
             breakdown_table.add_row(
                 str(ct),
-                str(_safe_int(data.get("calls", 0))),
-                f"{_safe_int(data.get('input_tokens', 0)):,}",
-                f"{_safe_int(data.get('output_tokens', 0)):,}",
+                str(_safe_int(row.get("calls", 0))),
+                f"{_safe_int(row.get('input_tokens', 0)):,}",
+                f"{_safe_int(row.get('output_tokens', 0)):,}",
             )
         console.print(breakdown_table)
 
 
 def _dict_or_empty(value: object) -> dict[str, Any]:
     """Return a dict for runtime log fields, or empty for malformed rows."""
-    return value if isinstance(value, dict) else {}
+    return cast("dict[str, Any]", value) if isinstance(value, dict) else {}
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
@@ -366,7 +370,7 @@ def _costs_biggest_prompts_section(
     console.print(table)
 
 
-def _compute_local_cloud_stats(config: DistillConfig) -> dict:
+def _compute_local_cloud_stats(config: DistillConfig) -> dict[str, float | int]:
     """Compute local/cloud inference stats from telemetry.jsonl for JSON output."""
     ops_dir = str(config.library_dir / ".distill")
     telemetry_path = Path(ops_dir) / "telemetry.jsonl"
@@ -386,7 +390,9 @@ def _compute_local_cloud_stats(config: DistillConfig) -> dict:
             if not line:
                 continue
             try:
-                data = _json.loads(line)
+                data = _dict_or_empty(_json.loads(line))
+                if not data:
+                    continue
                 if data.get("provider_type") == "local":
                     local_records_count += 1
                     local_total_seconds += float(data.get("elapsed_seconds", 0))
@@ -431,7 +437,9 @@ def _costs_local_cloud_section(config: DistillConfig) -> None:  # noqa: C901
             if not line:
                 continue
             try:
-                data = _json.loads(line)
+                data = _dict_or_empty(_json.loads(line))
+                if not data:
+                    continue
                 provider_type = data.get("provider_type", "cloud")
                 if provider_type == "local":
                     local_records_count += 1
@@ -719,7 +727,7 @@ def status(  # noqa: C901 — legacy, will refactor
 
             # Artifacts
             ch_dir = config.channel_dir(topic, ch.name)
-            artifacts = []
+            artifacts: list[str] = []
             for a_name, path in [
                 ("context", ch_dir / "channel_context.md"),
                 ("synthesis", find_artifact(ch_dir, "synthesis", identity=f"{topic}_{ch.name}")),
@@ -751,7 +759,7 @@ def status(  # noqa: C901 — legacy, will refactor
 
         # Topic-level outputs with dates
         topic_dir = config.topic_dir(topic)
-        topic_outs = []
+        topic_outs: list[str] = []
         for label, path in [
             ("synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
             ("brief", find_artifact(topic_dir, "brief", identity=topic)),
@@ -828,7 +836,7 @@ def migrate(  # noqa: C901 — legacy, will refactor
         return
 
     # Scan for directories that need migration
-    to_rename = []
+    to_rename: list[tuple[Path, Path, str]] = []
     for topic in topics:
         for ch in lib.get_channels(topic):
             videos_dir = config.videos_dir(topic, ch.name)
@@ -840,9 +848,11 @@ def migrate(  # noqa: C901 — legacy, will refactor
                 meta_file = vid_dir / "metadata.json"
                 if not meta_file.exists():
                     continue
-                meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                meta = _dict_or_empty(json.loads(meta_file.read_text(encoding="utf-8")))
                 video_id = meta.get("video_id", "")
                 title = meta.get("title", "")
+                if not isinstance(title, str) or not isinstance(video_id, str):
+                    continue
                 if not title or not video_id:
                     continue
                 new_name = slugify_title(title, video_id)
@@ -919,9 +929,9 @@ def dashboard(
         show_dashboard()
         return
 
-    snapshot = _dashboard_snapshot(config)
+    snapshot = dashboard_snapshot(config)
     version = _get_version()
-    html = _render_dashboard_html(version, snapshot)
+    html = render_dashboard_html(version, snapshot)
     html_path = _output_path(config, "dashboard.html")
     html_path.write_text(html, encoding="utf-8")
     console.print(f"[green]Dashboard written: {html_path}[/green]")
