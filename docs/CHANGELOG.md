@@ -9,14 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Raised the branch-coverage floor to 91 after covering dashboard terminal and
+  HTML rendering branches plus shared dashboard-data fallbacks for cost logs,
+  watch staleness, unreadable artifacts, quiet topic changes, corpus health
+  warnings, and source-relative synthesis warnings. The full coverage gate now
+  reports 91.02%.
 - Added focused maintain-command branch coverage for malformed cost logs,
   telemetry split summaries, cleanup store filtering, non-vault open fallbacks,
   status online outcomes, migration skip and error paths, corpus failure
-  handling, dashboard launch branches, and serve delegation. The full coverage
-  gate now reports 90.53%.
+  handling, dashboard launch branches, and serve delegation. That full coverage
+  gate reported 90.53%.
 - Raised the branch-coverage floor to 90 after covering CLI provider-status
   exit-code mapping, CLI entrypoint provider-error exits, and deterministic
-  topic-watch management and alert branches. The full coverage gate now reports
+  topic-watch management and alert branches. That full coverage gate reported
   90.14%.
 - Promoted the top-level Typer command group to Pyright strict mode, added a
   defensive empty-argument resolver guard, and covered command suggestions,

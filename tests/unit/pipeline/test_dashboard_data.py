@@ -1,8 +1,12 @@
 import json
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
+from types import SimpleNamespace
 
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
+from distill.pipeline import dashboard_data as _dashboard_data
 from distill.pipeline.dashboard_data import (
     _load_site_manifest,
     build_site_section_state,
@@ -14,6 +18,7 @@ from distill.pipeline.dashboard_data import (
     count_site_corpus,
     count_topic_outputs,
     dashboard_snapshot,
+    duration_str,
     entry_source_type,
     estimate_topic_watch_cost,
     estimated_topic_watch_sweep,
@@ -23,7 +28,10 @@ from distill.pipeline.dashboard_data import (
     load_recent_cost_runs,
     load_topic_change_history,
     parse_run_datetime,
+    read_json_dict,
     source_cost_rollups,
+    stale_synthesis_warnings,
+    strip_frontmatter,
     sum_recent_cost,
     topic_cost_rollups,
     topic_recent_costs,
@@ -150,6 +158,73 @@ def test_dashboard_helper_rollups_and_parsing():
     assert entry_source_type({"command": "report", "metadata": {}}) == "report"
 
 
+def test_dashboard_data_parser_helpers_handle_structural_fallbacks(tmp_path):
+    assert duration_str(None) == "?"
+    assert duration_str(42) == "42s"
+    assert duration_str(125) == "2m05s"
+    assert duration_str(3661) == "1h01m"
+    assert strip_frontmatter("---\ntitle: One\n---\nBody\n") == "Body"
+    assert strip_frontmatter("---\nunterminated") == "---\nunterminated"
+
+    malformed = tmp_path / "bad.json"
+    malformed.write_text("{bad json", encoding="utf-8")
+    assert read_json_dict(malformed) == {}
+    assert read_json_dict(tmp_path / "missing.json") == {}
+
+    log_file = tmp_path / "cost_log.jsonl"
+    log_file.write_text('{"actual_cost": 1}\n', encoding="utf-8")
+    log_file.chmod(0)
+    try:
+        # On Unix this reaches the OSError branch. On Windows the owner can
+        # still read the file, so the assertion accepts the parsed fallback too.
+        assert load_recent_cost_runs(log_file) in ([], [{"actual_cost": 1}])
+    finally:
+        log_file.chmod(0o600)
+
+    bad_time = {"timestamp": "not-a-date", "actual_cost": 3, "metadata": {"topic": "ai"}}
+    stale_time = {
+        "timestamp": (datetime.now() - timedelta(days=60)).isoformat(),
+        "actual_cost": 5,
+        "metadata": {"topic": "ai"},
+    }
+    bad_cost = {
+        "timestamp": datetime.now().isoformat(),
+        "actual_cost": "not-money",
+        "metadata": {"topic": "ai"},
+        "command": "learn",
+    }
+    no_topic = {
+        "timestamp": datetime.now().isoformat(),
+        "actual_cost": 2,
+        "metadata": {},
+        "command": "learn",
+    }
+    assert format_run_timestamp("not-a-date") == "not-a-date"
+    assert parse_run_datetime("2026-06-01T00:00:00+00:00").tzinfo is None
+    assert topic_spend_last_days([bad_time, stale_time], "ai") == 0.0
+    assert topic_recent_costs([bad_time], "ai") == []
+    assert topic_cost_rollups([bad_time, bad_cost, no_topic], days=30) == []
+    assert source_cost_rollups([bad_time, bad_cost], days=30) == []
+
+
+def test_dashboard_data_private_numeric_helpers_and_cost_log_read_errors(tmp_path, monkeypatch):
+    assert _dashboard_data._float_value(object(), default=2.5) == 2.5
+    assert _dashboard_data._int_value(object(), default=7) == 7
+
+    log_file = tmp_path / "cost_log.jsonl"
+    log_file.write_text('{"actual_cost": 1}\n', encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def read_text(path: Path, *args, **kwargs):
+        if path == log_file:
+            raise OSError("locked")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    assert load_recent_cost_runs(log_file) == []
+
+
 def test_topic_watch_budget_messages_and_stale_detection(config):
     lib = Library(config)
     lib.add_to_topic_watchlist(
@@ -192,6 +267,32 @@ def test_topic_watch_budget_messages_and_stale_detection(config):
     assert any("max-run budget" in message for message in messages)
     assert any("monthly spend" in message for message in messages)
     assert any("spend spike" in message for message in messages)
+
+    safe_entry = SimpleNamespace(
+        name="safe",
+        topic="ai",
+        limit=1,
+        report=False,
+        max_run_cost=None,
+        monthly_budget=100.0,
+    )
+    assert topic_watch_budget_messages(safe_entry, []) == []
+
+
+def test_stale_topic_watch_states_cover_invalid_stale_and_fresh_entries():
+    stale_weekly = (datetime.now() - timedelta(days=9)).replace(microsecond=0).isoformat()
+    fresh_daily = (datetime.now() - timedelta(hours=12)).replace(microsecond=0).isoformat()
+    entries = [
+        SimpleNamespace(name="invalid", cadence="daily", last_run_at="not-a-date"),
+        SimpleNamespace(name="weekly", cadence="weekly", last_run_at=stale_weekly),
+        SimpleNamespace(name="fresh", cadence="daily", last_run_at=fresh_daily),
+    ]
+
+    stale = collect_stale_topic_watches(entries)
+
+    assert "invalid has invalid last-run state" in stale
+    assert "weekly is stale for its weekly cadence" in stale
+    assert not any("fresh" in item for item in stale)
 
 
 def test_load_latest_payload_and_site_section_state(config):
@@ -338,6 +439,46 @@ def test_corpus_counting_and_recent_artifacts(config):
     assert any(kind == "report" for _, kind, _ in artifacts)
 
 
+def test_collect_recent_artifacts_skips_unreadable_stat(config, monkeypatch):
+    topic_dir = config.topic_dir("ai")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    artifact = topic_dir / "ai_Topic_Synthesis.md"
+    artifact.write_text("# synth", encoding="utf-8")
+    original_exists = Path.exists
+    original_stat = Path.stat
+
+    def exists(path: Path, *args, **kwargs):
+        if path == artifact:
+            return True
+        return original_exists(path, *args, **kwargs)
+
+    def stat(path: Path, *args, **kwargs):
+        if path == artifact:
+            raise OSError("locked")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", exists)
+    monkeypatch.setattr(Path, "stat", stat)
+
+    assert collect_recent_artifacts(config, ["ai"]) == []
+
+
+def test_corpus_counting_skips_missing_files_and_empty_directories(config):
+    sites_root = config.sites_dir("ai")
+    sites_root.mkdir(parents=True, exist_ok=True)
+    (sites_root / "not-a-site.txt").write_text("skip", encoding="utf-8")
+    (sites_root / "empty-site").mkdir()
+
+    papers_root = config.papers_dir("ai")
+    papers_root.mkdir(parents=True, exist_ok=True)
+    (papers_root / "not-a-paper.txt").write_text("skip", encoding="utf-8")
+    (papers_root / "empty-paper").mkdir()
+
+    assert count_site_corpus(config, ["missing", "ai"]) == (1, 0)
+    assert count_paper_corpus(config, ["missing", "ai"]) == 0
+    assert count_topic_outputs(config, ["missing"]) == (0, 0, 0)
+
+
 def test_topic_change_history_and_labels(config):
     history_path = config.topic_dir("ai") / "change_history.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
@@ -355,6 +496,273 @@ def test_topic_change_history_and_labels(config):
     history = load_topic_change_history(config, "ai")
     assert history[0]["summary"] == "fresh"
     assert topic_trend_label(config, "ai") == "trend: rising"
+
+
+def test_topic_change_history_handles_missing_cooling_and_steady_labels(config):
+    assert load_topic_change_history(config, "missing") == []
+    assert topic_trend_label(config, "missing") is None
+
+    history_path = config.topic_dir("cooling") / "change_history.jsonl"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(
+        "\n".join(
+            [
+                '{"generated_at":"2026-04-10T08:00:00","summary":"fresh","counts":{"videos":1,"pages":0,"papers":0,"outputs":0}}',
+                '{"generated_at":"2026-04-09T08:00:00","summary":"older","counts":{"videos":2,"pages":1,"papers":0,"outputs":0}}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert topic_trend_label(config, "cooling") == "trend: cooling"
+
+    history_path = config.topic_dir("steady") / "change_history.jsonl"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(
+        "\n".join(
+            [
+                '{"generated_at":"2026-04-10T08:00:00","summary":"fresh","counts":{"videos":1,"pages":1,"papers":0,"outputs":0}}',
+                '{"generated_at":"2026-04-09T08:00:00","summary":"older","counts":{"videos":2,"pages":0,"papers":0,"outputs":0}}',
+                '{"generated_at":"2026-04-08T08:00:00","summary":"bad","counts":{"videos":"bad","pages":0,"papers":0,"outputs":0}}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert topic_trend_label(config, "steady") == "trend: steady"
+
+
+def test_topic_change_history_returns_empty_on_read_error(config, monkeypatch):
+    history_path = config.topic_dir("ai") / "change_history.jsonl"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text('{"generated_at":"2026-04-10T08:00:00"}', encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def read_text(path: Path, *args, **kwargs):
+        if path == history_path:
+            raise OSError("locked")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    assert load_topic_change_history(config, "ai") == []
+
+
+def test_collect_topic_changes_reports_quiet_watched_topics(config):
+    lib = Library(config)
+    lib.add_channel("ai", "https://www.youtube.com/@Empty", "Empty")
+    lib.add_to_topic_watchlist("ai-daily", "AI daily", topic="ai", cadence="daily")
+    baseline = (datetime.now() - timedelta(days=2)).replace(microsecond=0).isoformat()
+    lib.mark_topic_watch_run("ai-daily", baseline)
+    videos_dir = config.videos_dir("ai", "Empty")
+    videos_dir.mkdir(parents=True, exist_ok=True)
+    (videos_dir / "not-a-video.txt").write_text("skip", encoding="utf-8")
+    sites_root = config.sites_dir("ai")
+    sites_root.mkdir(parents=True, exist_ok=True)
+    (sites_root / "not-a-site.txt").write_text("skip", encoding="utf-8")
+    pages_dir = config.site_dir("ai", "empty-site") / "pages"
+    pages_dir.mkdir(parents=True, exist_ok=True)
+    (pages_dir / "not-a-page.txt").write_text("skip", encoding="utf-8")
+
+    changes = collect_topic_changes(config, lib, ["ai"], lib.get_topic_watchlist(), limit=5)
+
+    assert changes[0][0] == "ai"
+    assert changes[0][1].startswith("quiet since")
+
+
+def test_collect_topic_changes_skips_unreadable_change_stats(config, monkeypatch):
+    lib = Library(config)
+    lib.add_channel("ai", "https://www.youtube.com/@TestChannel", "TestChannel")
+    baseline = datetime.now() - timedelta(days=1)
+
+    video_insights = config.video_dir("ai", "TestChannel", "vid001") / "insights.md"
+    video_insights.parent.mkdir(parents=True, exist_ok=True)
+    video_insights.write_text("insight", encoding="utf-8")
+    page_content = config.site_page_dir("ai", "example.com", "Page") / "content.md"
+    page_content.parent.mkdir(parents=True, exist_ok=True)
+    page_content.write_text("content", encoding="utf-8")
+    site_synthesis = config.site_dir("ai", "example.com") / "ai_example.com_Site_Synthesis.md"
+    site_synthesis.write_text("synthesis", encoding="utf-8")
+    topic_report = config.topic_dir("ai") / "ai_Report.md"
+    topic_report.write_text("report", encoding="utf-8")
+
+    unreadable = {video_insights, page_content, site_synthesis, topic_report}
+    original_exists = Path.exists
+    original_stat = Path.stat
+
+    def exists(path: Path, *args, **kwargs):
+        if path in unreadable:
+            return True
+        return original_exists(path, *args, **kwargs)
+
+    def stat(path: Path, *args, **kwargs):
+        if path in unreadable:
+            raise OSError("locked")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", exists)
+    monkeypatch.setattr(Path, "stat", stat)
+
+    assert collect_topic_changes(config, lib, ["ai"], [], limit=5) == []
+
+    lib.add_to_topic_watchlist("ai-daily", "AI daily", topic="ai", cadence="daily")
+    lib.mark_topic_watch_run("ai-daily", baseline.replace(microsecond=0).isoformat())
+
+    changes = collect_topic_changes(config, lib, ["ai"], lib.get_topic_watchlist(), limit=5)
+    assert changes[0][1].startswith("quiet since")
+
+
+def test_corpus_health_warning_limits_and_directory_skips(config):
+    lib = Library(config)
+    lib.add_channel("ai", "https://www.youtube.com/@Empty", "Empty")
+    lib.add_channel("ai", "https://www.youtube.com/@Thin", "Thin")
+
+    topic_dir = config.topic_dir("ai")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    stale_synthesis = topic_dir / "ai_Topic_Synthesis.md"
+    stale_synthesis.write_text("# stale", encoding="utf-8")
+    old = (datetime.now() - timedelta(days=120)).timestamp()
+    os.utime(stale_synthesis, (old, old))
+    assert collect_corpus_health_warnings(config, lib, ["ai"], limit=1) == [
+        "ai topic synthesis is stale (120d old)"
+    ]
+
+    stale_synthesis.unlink()
+    video_dir = config.video_dir("ai", "Thin", "vid001")
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir.parent / "not-a-video.txt").write_text("skip", encoding="utf-8")
+    (video_dir / "metadata.json").write_text(json.dumps({"title": "Thin Video"}), encoding="utf-8")
+    (video_dir / "insights.md").write_text("brief", encoding="utf-8")
+    video_warnings = collect_corpus_health_warnings(
+        config, lib, ["ai"], limit=1, include_thin_transcripts=False
+    )
+    assert video_warnings == ["ai / Thin: Thin Video insights look thin (5 chars)"]
+
+
+def test_site_and_paper_health_warning_limits(config):
+    lib = Library(config)
+
+    sites_root = config.sites_dir("ai")
+    sites_root.mkdir(parents=True, exist_ok=True)
+    (sites_root / "not-a-site.txt").write_text("skip", encoding="utf-8")
+    site_dir = config.site_dir("ai", "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "site.json").write_text(
+        json.dumps(
+            {
+                "sections": [
+                    {
+                        "section": "docs",
+                        "last_crawled_at": (datetime.now() - timedelta(days=45))
+                        .replace(microsecond=0)
+                        .isoformat(),
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert collect_corpus_health_warnings(config, lib, ["ai"], limit=1) == [
+        "ai / example.com: section docs is stale (45d old)"
+    ]
+
+    (site_dir / "site.json").unlink()
+    pages_dir = site_dir / "pages"
+    pages_dir.mkdir(parents=True, exist_ok=True)
+    (pages_dir / "not-a-page.txt").write_text("skip", encoding="utf-8")
+    page_dir = config.site_page_dir("ai", "example.com", "Thin Page")
+    page_dir.mkdir(parents=True, exist_ok=True)
+    (page_dir / "metadata.json").write_text(json.dumps({"title": "Thin Page"}), encoding="utf-8")
+    (page_dir / "insights.md").write_text("tiny", encoding="utf-8")
+    assert collect_corpus_health_warnings(config, lib, ["ai"], limit=1) == [
+        "ai / example.com: Thin Page page insights look thin (4 chars)"
+    ]
+
+    (page_dir / "insights.md").unlink()
+    papers_dir = config.papers_dir("ai")
+    papers_dir.mkdir(parents=True, exist_ok=True)
+    (papers_dir / "not-a-paper.txt").write_text("skip", encoding="utf-8")
+    paper_dir = config.paper_dir("ai", "Thin Paper", "2602.12670")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "metadata.json").write_text(json.dumps({"title": "Thin Paper"}), encoding="utf-8")
+    (paper_dir / "insights.md").write_text("tiny", encoding="utf-8")
+    assert collect_corpus_health_warnings(config, lib, ["ai"], limit=1) == [
+        "ai: Thin Paper paper insights look thin (4 chars)"
+    ]
+
+
+def test_corpus_health_warnings_tolerate_unreadable_insights(config, monkeypatch):
+    lib = Library(config)
+    lib.add_channel("ai", "https://www.youtube.com/@Video", "Video")
+
+    video_insights = config.video_dir("ai", "Video", "vid001") / "insights.md"
+    video_insights.parent.mkdir(parents=True, exist_ok=True)
+    video_insights.write_text("brief", encoding="utf-8")
+    page_insights = config.site_page_dir("ai", "example.com", "Page") / "insights.md"
+    page_insights.parent.mkdir(parents=True, exist_ok=True)
+    page_insights.write_text("tiny", encoding="utf-8")
+    paper_insights = config.paper_dir("ai", "Paper", "2602.12670") / "insights.md"
+    paper_insights.parent.mkdir(parents=True, exist_ok=True)
+    paper_insights.write_text("tiny", encoding="utf-8")
+
+    unreadable = {video_insights, page_insights, paper_insights}
+    original_read_text = Path.read_text
+
+    def read_text(path: Path, *args, **kwargs):
+        if path in unreadable:
+            raise OSError("locked")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    assert (
+        collect_corpus_health_warnings(
+            config,
+            lib,
+            ["ai"],
+            include_thin_transcripts=False,
+        )
+        == []
+    )
+
+
+def test_stale_synthesis_warning_uses_source_relative_freshness(config):
+    topic_dir = config.topic_dir("ai")
+    insight_path = topic_dir / "papers" / "p1" / "p1_Insights.md"
+    insight_path.parent.mkdir(parents=True, exist_ok=True)
+    insight_path.write_text(
+        '---\ngenerated_at: "2026-06-10T12:00:00"\n---\n\nInsight',
+        encoding="utf-8",
+    )
+    synthesis_path = topic_dir / "ai_Corpus_Synthesis.md"
+    synthesis_path.write_text(
+        '---\ngenerated_at: "2026-04-01T12:00:00"\n---\n\nSynthesis',
+        encoding="utf-8",
+    )
+
+    warnings = stale_synthesis_warnings(config, ["ai"])
+
+    assert len(warnings) == 1
+    assert "ai ai_Corpus_Synthesis.md predates 1 newer source(s)" in warnings[0]
+    assert "distill corpus ai" in warnings[0]
+
+
+def test_stale_synthesis_warning_respects_limit(config):
+    for topic in ("ai", "ml"):
+        topic_dir = config.topic_dir(topic)
+        insight_path = topic_dir / "papers" / "p1" / "p1_Insights.md"
+        insight_path.parent.mkdir(parents=True, exist_ok=True)
+        insight_path.write_text(
+            '---\ngenerated_at: "2026-06-10T12:00:00"\n---\n\nInsight',
+            encoding="utf-8",
+        )
+        synthesis_path = topic_dir / f"{topic}_Corpus_Synthesis.md"
+        synthesis_path.write_text(
+            '---\ngenerated_at: "2026-04-01T12:00:00"\n---\n\nSynthesis',
+            encoding="utf-8",
+        )
+
+    warnings = stale_synthesis_warnings(config, ["ai", "ml"], limit=1)
+
+    assert len(warnings) == 1
 
 
 def test_collect_topic_changes_and_corpus_warnings(config):
