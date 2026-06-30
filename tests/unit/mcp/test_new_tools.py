@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -137,6 +138,77 @@ class TestCostsTool:
 
         assert result["runs_shown"] == 2
         assert result["total_cost"] == 0.25
+
+    def test_ops_cost_log_takes_precedence_over_legacy_log(self, mock_config):
+        legacy_log = mock_config.library_dir / "cost_log.jsonl"
+        legacy_log.write_text(
+            json.dumps({"command": "legacy", "actual_cost": 99.0}),
+            encoding="utf-8",
+        )
+
+        ops_dir = mock_config.library_dir / ".distill"
+        ops_dir.mkdir(parents=True)
+        ops_log = ops_dir / "cost_log.jsonl"
+        ops_log.write_text(
+            json.dumps({"command": "ops", "actual_cost": 0.03}),
+            encoding="utf-8",
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            result = json.loads(costs())
+
+        assert result["runs_shown"] == 1
+        assert result["total_cost"] == 0.03
+        assert result["runs"][0]["command"] == "ops"
+
+    def test_cost_history_filters_timestamps_and_ignores_boolean_costs(self, mock_config):
+        old_timestamp = (datetime.now() - timedelta(days=45)).isoformat()
+        current_timestamp = datetime.now().isoformat()
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        entries = [
+            json.dumps(
+                {
+                    "command": "old",
+                    "timestamp": old_timestamp,
+                    "actual_cost": 10.0,
+                }
+            ),
+            "",
+            json.dumps(
+                {
+                    "command": "invalid-timestamp",
+                    "timestamp": "not-a-timestamp",
+                    "actual_cost": 0.02,
+                }
+            ),
+            json.dumps(
+                {
+                    "command": "boolean-cost",
+                    "timestamp": current_timestamp,
+                    "actual_cost": True,
+                }
+            ),
+            json.dumps(
+                {
+                    "command": "recent",
+                    "timestamp": current_timestamp,
+                    "actual_cost": 0.33333,
+                }
+            ),
+        ]
+        log_file.write_text("\n".join(entries), encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            result = json.loads(costs(days=30, limit=10))
+
+        commands = [run["command"] for run in result["runs"]]
+        assert commands == ["invalid-timestamp", "boolean-cost", "recent"]
+        assert result["runs_shown"] == 3
+        assert result["total_cost"] == 0.3533
 
 
 class TestDoctorTool:

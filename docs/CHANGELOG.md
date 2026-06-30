@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused MCP cost-history coverage for ops-log precedence, timestamp
+  filtering, invalid timestamp tolerance, empty rows, malformed rows, and
+  boolean cost exclusion. The full coverage gate now reports 93.19%; the
+  enforced floor remains 93.
 - Added focused MCP site-batch coverage for seed-file path refusal, oversized
   seed files, comment-only seed files, processing error rows, progress
   callbacks, analyzed and skipped page counts, and budget hard stops. The full
