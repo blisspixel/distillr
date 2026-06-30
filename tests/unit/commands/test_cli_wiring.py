@@ -44,6 +44,17 @@ runner = CliRunner()
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+class _RootCallbackContext:
+    def __init__(self, *, invoked_subcommand=None, obj=None):
+        self.invoked_subcommand = invoked_subcommand
+        self.obj = obj
+
+    def ensure_object(self, _type):
+        if self.obj is None:
+            self.obj = {}
+        return self.obj
+
+
 @pytest.fixture
 def mock_config(tmp_path, monkeypatch):
     """Patch get_config to return a test config."""
@@ -243,6 +254,60 @@ class TestTopLevelExperience:
 
         assert result.exit_code == 0
         assert captured["debug"] is True
+
+    def test_root_callback_logs_without_config(self, monkeypatch):
+        captured: dict[str, object] = {}
+
+        def configure_logging(*, debug, ops_dir):
+            captured["debug"] = debug
+            captured["ops_dir"] = ops_dir
+
+        monkeypatch.setattr("distill._logging.configure_logging", configure_logging)
+        monkeypatch.setattr(
+            _root, "get_config", lambda: (_ for _ in ()).throw(RuntimeError("no config"))
+        )
+
+        _root.default_callback(
+            _RootCallbackContext(invoked_subcommand="status"),
+            debug=False,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+            model="",
+            cost_mode="",
+            version=False,
+        )
+
+        assert captured == {"debug": False, "ops_dir": None}
+
+    def test_root_callback_clears_interactive_terminal(self, mock_config, monkeypatch):
+        calls: list[str] = []
+
+        monkeypatch.setattr("distill._logging.configure_logging", lambda **_kwargs: None)
+        monkeypatch.setattr(_root.sys.stdout, "isatty", lambda: True)
+        monkeypatch.setattr(_root.console, "clear", lambda: calls.append("clear"))
+        monkeypatch.setattr(_root, "show_banner", lambda _console: calls.append("banner"))
+        monkeypatch.setattr(_dashboard, "show_dashboard", lambda: calls.append("dashboard"))
+
+        _root.default_callback(
+            _RootCallbackContext(),
+            debug=False,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+            model="",
+            cost_mode="",
+            version=False,
+        )
+
+        assert calls == ["clear", "banner", "dashboard"]
+
+    def test_root_model_override_reads_context_object(self):
+        assert (
+            _root.get_model_override(_RootCallbackContext(obj={"model": "grok-4.3"})) == "grok-4.3"
+        )
+        assert _root.get_model_override(_RootCallbackContext(obj={})) == ""
+        assert _root.get_model_override(None) == ""
 
 
 class TestVideoCommand:

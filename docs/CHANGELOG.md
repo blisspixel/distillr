@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused root command wrapper coverage for config-load failure logging,
+  interactive terminal clearing, and global model override lookup. The full
+  coverage gate now reports 92.14%; the enforced floor remains 92.
 - Added focused ask command wrapper coverage for no-coverage refusal,
   answer-without-artifact display, promoted answer output, and save-refusal
   output. The full coverage gate now reports 92.12%; the enforced floor remains
