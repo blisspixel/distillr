@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused discover command wrapper coverage for invalid option refusals,
+  single-source query toggles, missing goal and site seed files, clean
+  empty-candidate and malformed-rerank exits, low-score rigor refusal, and
+  synthesize command context handling. The full coverage gate now reports
+  92.44%; the enforced floor remains 92.
 - Added focused site-batch helper coverage for same-host preview boundaries,
   budget hard stops, successful synthesis output recording, and synthesis
   failure recording. The full coverage gate now reports 92.21%; the enforced
