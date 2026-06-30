@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused site-analysis branch coverage for no-tracker analysis, empty
+  existing page trees, skipped non-page entries, missing insights, synthesis
+  tracker recording, and strict verification refusal on site and site-topic
+  writes. The full coverage gate now reports 91.80%; the enforced floor remains
+  91.
 - Added focused search branch coverage for unreadable artifacts, empty bodies,
   directory entries, library-relative parent classification, malformed section
   headings, preview fallback, markdown cleanup, empty previews, and truncation
