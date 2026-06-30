@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused MCP discover tool coverage for limit fallback, YouTube search
+  fallback, empty search results, no-model ranking labels, learn-channel failed
+  rows, synthesis-warning tolerance, discover progress callbacks, structured
+  video and paper search errors, ranked video results, and paper budget hard
+  stops. The full coverage gate now reports 93.11%; the enforced floor remains
+  93.
 - Raised the branch-coverage floor to 93 after adding focused MCP papers tool
   coverage for per-paper error rows, invalid-limit fallback, arXiv search
   failures, progress reporting, and synthesis-warning tolerance. The full

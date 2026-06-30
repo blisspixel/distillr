@@ -13,3 +13,4 @@ def test_clamp_limit_bounds_and_defaults() -> None:
     assert _clamp_limit(-5) == 1
     assert _clamp_limit(7) == 7
     assert _clamp_limit("bad") == 5  # type: ignore[arg-type]
+    assert _clamp_limit(False) == 5

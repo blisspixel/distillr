@@ -35,6 +35,43 @@ def _setup_library(config, topic="ai", channel="TestChannel"):
     return lib
 
 
+def _mcp_video(
+    video_id: str = "v1",
+    title: str = "Agent Memory Systems",
+    *,
+    channel_name: str = "Research Lab",
+    channel_url: str = "https://youtube.com/@ResearchLab",
+):
+    from distill.ingestors.youtube.discovery import VideoInfo
+
+    return VideoInfo(
+        video_id=video_id,
+        title=title,
+        upload_date="20260601",
+        duration=600,
+        url=f"https://youtube.com/watch?v={video_id}",
+        channel_name=channel_name,
+        channel_url=channel_url,
+        view_count=1000,
+    )
+
+
+def _ranked_mcp_video(video, *, score: float = 8.456, selected_by: str = "llm"):
+    from distill.pipeline.ranking import RankedVideo
+
+    return RankedVideo(
+        video=video,
+        final_score=score,
+        relevance_score=8.0,
+        depth_score=8.0,
+        practicality_score=8.0,
+        freshness_score=8.0,
+        credibility_score=8.0,
+        rationale="Relevant source",
+        selected_by=selected_by,
+    )
+
+
 # ── Property 10: Progress events have valid structure ──
 # Feature: mcp-first-surface, Property 10: Progress events have valid structure
 # **Validates: Requirements 9.2**
@@ -922,3 +959,229 @@ class TestDiscoverTool:
                 "url": "https://arxiv.org/abs/2602.12670v1",
             }
         ]
+
+    def test_search_candidates_falls_back_when_browser_search_is_empty(self, monkeypatch):
+        from distill.mcp.tools.discover import _search_candidates
+
+        video = _mcp_video()
+
+        def browser_search(query, *, days, limit):
+            assert query == "agent memory"
+            assert days == 30
+            assert limit == 3
+            return []
+
+        def youtube_search(query, *, days, limit):
+            assert query == "agent memory"
+            assert days == 30
+            assert limit == 3
+            return [video]
+
+        monkeypatch.setattr(
+            "distill.ingestors.youtube.browser_search.search_youtube_results",
+            browser_search,
+        )
+        monkeypatch.setattr("distill.ingestors.youtube.discovery.search_videos", youtube_search)
+
+        assert _search_candidates("agent memory", days=30, limit=3) == [video]
+
+    def test_search_videos_empty_candidates_returns_message(self, mock_config, monkeypatch):
+        from distill.mcp.tools import discover as discover_tool
+
+        def search(query, *, days, limit):
+            assert query == "agent memory"
+            assert days == 60
+            assert limit == 12
+            return []
+
+        monkeypatch.setattr(discover_tool, "_search_candidates", search)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(discover_tool.search_videos("agent memory", limit=2))
+
+        assert result == {"results": [], "message": "No videos found"}
+
+    def test_search_videos_labels_no_model_ranking(self, mock_config, monkeypatch):
+        from distill.mcp.tools import discover as discover_tool
+
+        video = _mcp_video()
+
+        def search(query, *, days, limit):
+            assert query == "agent memory"
+            assert days == 60
+            assert limit == 12
+            return [video]
+
+        def rank(query, candidates, config, tracker, *, limit):
+            assert query == "agent memory"
+            assert candidates == [video]
+            assert config is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert limit == 2
+            return [_ranked_mcp_video(video, selected_by="no-model")]
+
+        monkeypatch.setattr(discover_tool, "_search_candidates", search)
+        monkeypatch.setattr(discover_tool, "_rank_candidates", rank)
+        monkeypatch.setattr(discover_tool, "cost_summary", lambda tracker: _FAKE_COST)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(discover_tool.search_videos("agent memory", limit=2))
+
+        assert result["ranked_by"] == "no-model"
+        assert result["results"][0]["ranked_by"] == "no-model"
+        assert "deterministic fallback" in result["notice"]
+
+    def test_learn_one_channel_records_failed_rows_and_synthesis_warning(self, mock_config, caplog):
+        from distill.mcp.tools.discover import _learn_one_channel
+        from distill.pipeline.summary import RunSummary
+
+        video = _mcp_video(video_id="failed", title="Failed Video")
+        lib = Library(mock_config)
+        cost_tracker = CostTracker()
+        summary = RunSummary(command="learn")
+
+        def ensure_context(topic, channel, videos, config, tracker_arg):
+            assert topic == "ai"
+            assert channel == "Research Lab"
+            assert videos == [video]
+            assert config is mock_config
+            assert tracker_arg is cost_tracker
+
+        def process_video(topic, channel, vid, config, tracker_arg, summary_arg, *, state, eta):
+            assert topic == "ai"
+            assert channel == "Research Lab"
+            assert vid is video
+            assert config is mock_config
+            assert tracker_arg is cost_tracker
+            assert summary_arg is summary
+            assert state.state_file.name == "state.json"
+            assert eta.total == 1
+            return False
+
+        def synthesize_channel(topic, channel, config, tracker=None):
+            assert topic == "ai"
+            assert channel == "Research Lab"
+            assert config is mock_config
+            assert tracker is cost_tracker
+            raise RuntimeError("synthesis down")
+
+        with caplog.at_level("WARNING", logger="distill.mcp.tools.discover"):
+            rows = _learn_one_channel(
+                "ai",
+                "Research Lab",
+                [video],
+                mock_config,
+                cost_tracker,
+                summary,
+                lib=lib,
+                ensure_channel_context=ensure_context,
+                process_video=process_video,
+                synthesize_channel=synthesize_channel,
+            )
+
+        assert rows == [{"title": "Failed Video", "status": "failed"}]
+        assert "discover channel synthesis failed" in caplog.text
+
+    def test_discover_records_video_and_paper_errors_with_progress(self, mock_config, monkeypatch):
+        from distill.mcp.tools import discover as discover_tool
+
+        class ProgressContext:
+            def __init__(self):
+                self.calls = []
+
+            async def report_progress(self, *, progress, total):
+                self.calls.append((progress, total))
+
+        def fail_video_search(query, *, days, limit):
+            assert query == "agent memory"
+            assert days == 60
+            assert limit == 12
+            raise RuntimeError("video search down")
+
+        def fail_paper_search(query, max_results):
+            assert query == "agent memory"
+            assert max_results == 2
+            raise RuntimeError("paper search down")
+
+        def save_log(log_dir, command, tracker):
+            assert log_dir == mock_config.library_dir
+            assert command == "discover"
+            assert isinstance(tracker, CostTracker)
+
+        ctx = ProgressContext()
+        monkeypatch.setattr(discover_tool, "_search_candidates", fail_video_search)
+        monkeypatch.setattr("distill.ingestors.papers.arxiv.search_arxiv", fail_paper_search)
+        monkeypatch.setattr(discover_tool, "save_run_log", save_log)
+        monkeypatch.setattr(discover_tool, "cost_summary", lambda tracker: _FAKE_COST)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(
+                asyncio.run(discover_tool.discover("agent memory", limit=2, ctx=ctx))
+            )
+
+        assert result["status"] == "complete"
+        assert result["video_error"] == "video search down"
+        assert result["paper_error"] == "paper search down"
+        assert ctx.calls == [(0, 3), (1, 3), (3, 3)]
+
+    def test_discover_videos_only_returns_ranked_video_results(self, mock_config, monkeypatch):
+        from distill.mcp.tools import discover as discover_tool
+
+        video = _mcp_video(channel_name="", channel_url="")
+
+        def search(query, *, days, limit):
+            assert query == "agent memory"
+            assert days == 60
+            assert limit == 12
+            return [video]
+
+        def rank(query, candidates, config, tracker, *, limit):
+            assert query == "agent memory"
+            assert candidates == [video]
+            assert config is mock_config
+            assert isinstance(tracker, CostTracker)
+            assert limit == 2
+            return [_ranked_mcp_video(video, score=7.895)]
+
+        def save_log(log_dir, command, tracker):
+            assert log_dir == mock_config.library_dir
+            assert command == "discover"
+            assert isinstance(tracker, CostTracker)
+
+        monkeypatch.setattr(discover_tool, "_search_candidates", search)
+        monkeypatch.setattr(discover_tool, "_rank_candidates", rank)
+        monkeypatch.setattr(discover_tool, "save_run_log", save_log)
+        monkeypatch.setattr(discover_tool, "cost_summary", lambda tracker: _FAKE_COST)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(
+                asyncio.run(discover_tool.discover("agent memory", limit=2, videos_only=True))
+            )
+
+        assert result["videos"] == [
+            {
+                "title": "Agent Memory Systems",
+                "channel": "unknown",
+                "url": "https://youtube.com/watch?v=v1",
+                "score": 7.89,
+            }
+        ]
+        assert result["papers"] == []
+
+    def test_discover_paper_budget_error_is_hard_stop(self, mock_config, monkeypatch):
+        from distill.mcp.tools import discover as discover_tool
+
+        def fail_paper_search(query, max_results):
+            assert query == "agent memory"
+            assert max_results == 1
+            raise BudgetExceededError(0.61, 0.5)
+
+        monkeypatch.setattr("distill.ingestors.papers.arxiv.search_arxiv", fail_paper_search)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(
+                asyncio.run(discover_tool.discover("agent memory", limit=1, papers_only=True))
+            )
+
+        assert result["status"] == "budget_exceeded"
+        assert result["spent"] == 0.61
