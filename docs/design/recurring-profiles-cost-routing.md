@@ -73,13 +73,17 @@ live in [`cli-adapter-runbook.md`](cli-adapter-runbook.md).
   [Copilot CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference),
   and [GitHub Copilot usage limits](https://docs.github.com/en/copilot/concepts/usage-limits).
 - Gemini CLI and Antigravity are useful but volatile Google routes. Gemini CLI
-  documents terminal and automation use, while Google's own guidance positions
-  Antigravity as the agent manager or IDE path and Gemini CLI as the terminal
-  or headless path. Treat both as candidate plan-quota routes until adapter
-  doctor proves the installed binary, auth mode, output format, and current
-  support statement. Sources:
+  documents terminal and automation use, while Google's current guidance
+  positions Antigravity as the agent manager or IDE path with the `agy` CLI and
+  Gemini CLI as the terminal or headless path. Treat both as candidate
+  plan-quota routes until adapter doctor proves the installed binary, auth
+  mode, output format, current support statement, and that API-key, AI-credit,
+  or overage routes are not being used. Sources:
   [Gemini CLI repository](https://github.com/google-gemini/gemini-cli),
+  [Gemini CLI authentication](https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/authentication.mdx),
+  [Gemini CLI quota and pricing](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/quota-and-pricing.md),
   [Antigravity CLI overview](https://antigravity.google/docs/cli-overview),
+  [Antigravity plans](https://antigravity.google/docs/plans),
   and [Choosing Antigravity or Gemini CLI](https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli).
 - Agent eval guidance is clear on the operating model: define success criteria,
   evaluate the produced outcome, and track cost, token use, latency, and errors.

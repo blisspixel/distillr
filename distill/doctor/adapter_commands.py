@@ -316,13 +316,12 @@ def _antigravity_command(
     blocked_reasons.append(
         "antigravity command template does not enforce output_schema_path natively"
     )
+    blocked_reasons.append("antigravity command template requires prompt argument materialization")
     return (
         (
-            "antigravity",
-            "chat",
-            "--mode",
-            "ask",
-            "-",
+            "agy",
+            "-p",
+            "",
         ),
         blocked_reasons,
         {

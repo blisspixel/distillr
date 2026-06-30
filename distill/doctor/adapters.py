@@ -177,10 +177,18 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
             support_statement=_support_statement(
                 status="planned",
                 sources=(
+                    "https://developers.openai.com/codex/auth",
+                    "https://developers.openai.com/codex/pricing",
                     "https://developers.openai.com/codex/cli/reference",
                     "https://developers.openai.com/codex/noninteractive",
                     "https://developers.openai.com/codex/concepts/sandboxing",
                     "https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan",
+                ),
+                notes=(
+                    "Codex supports ChatGPT-managed auth with included plan usage, "
+                    "but credits can extend usage after included limits and API-key "
+                    "auth uses standard API billing. Keep blocked until doctor can "
+                    "prove ChatGPT-managed auth plus non-credit no-metered policy."
                 ),
             ),
             env_blockers=("OPENAI_API_KEY", "CODEX_API_KEY"),
@@ -210,7 +218,16 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                 sources=(
                     "https://code.claude.com/docs/en/cli-reference",
                     "https://code.claude.com/docs/en/settings",
+                    "https://docs.anthropic.com/en/docs/claude-code/costs",
+                    "https://docs.anthropic.com/en/docs/claude-code/iam",
                     "https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan",
+                ),
+                notes=(
+                    "Claude Code Pro, Max, Team, and Enterprise usage can be "
+                    "included in subscription limits, but API, cloud-provider, "
+                    "gateway, and usage-credit paths are billable. Keep blocked "
+                    "until doctor proves a subscription session and no paid "
+                    "workspace or API-credit route."
                 ),
             ),
             env_blockers=("ANTHROPIC_API_KEY",),
@@ -256,6 +273,13 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                     "https://docs.x.ai/build/enterprise",
                     "https://docs.x.ai/build/modes-and-commands",
                 ),
+                notes=(
+                    "Grok Build exposes headless automation, cached-token session "
+                    "markers, and API-key markers, but the current docs do not "
+                    "provide a machine-checkable no-metered fixed-quota statement "
+                    "for Distill. Keep blocked until route-class and quota proof "
+                    "are explicit."
+                ),
             ),
             env_blockers=("XAI_API_KEY",),
             config_probes=(
@@ -287,7 +311,16 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                 status="planned",
                 sources=(
                     "https://github.com/google-gemini/gemini-cli",
+                    "https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/authentication.mdx",
+                    "https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/quota-and-pricing.md",
                     "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
+                ),
+                notes=(
+                    "Gemini CLI supports Google-account quota and API-key modes, "
+                    "and current Google guidance routes consumer Free, Pro, and "
+                    "Ultra users toward Antigravity after the 2026-06-18 "
+                    "transition. Keep blocked until installed auth mode, quota "
+                    "class, and non-API usage can be proved."
                 ),
             ),
             env_blockers=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
@@ -310,17 +343,33 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
         ),
         AdapterSpec(
             name="antigravity",
-            binary="antigravity",
+            binary="agy",
             route_class="included-plan",
             support_statement=_support_statement(
                 status="planned",
                 sources=(
+                    "https://antigravity.google/docs/cli-install",
                     "https://antigravity.google/docs/cli-overview",
+                    "https://antigravity.google/docs/cli-using",
+                    "https://antigravity.google/docs/plans",
+                    "https://codelabs.developers.google.com/antigravity-cli-hands-on",
                     "https://cloud.google.com/blog/topics/developers-practitioners/choosing-antigravity-or-gemini-cli",
+                ),
+                notes=(
+                    "Antigravity now documents the `agy` CLI, Google-account "
+                    "plans, fixed quota, and AI-credit overages. Keep blocked "
+                    "until doctor can prove logged-in plan auth, overages disabled "
+                    "or bounded, native usage evidence, and eval graduation."
                 ),
             ),
             env_blockers=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
             config_probes=(
+                ConfigProbe(
+                    "~/.gemini/antigravity-cli/settings.json",
+                    (".gemini", "antigravity-cli", "settings.json"),
+                    ("api_key", "env_key", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
+                    ("oauth", "login", "session"),
+                ),
                 ConfigProbe(
                     "~/.antigravity/settings.json",
                     (".antigravity", "settings.json"),
@@ -329,9 +378,8 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                 ),
             ),
             probes=(
-                CommandProbe("version", ("antigravity", "--version")),
-                CommandProbe("help", ("antigravity", "--help")),
-                CommandProbe("chat_help", ("antigravity", "chat", "--help"), ("--mode",)),
+                CommandProbe("version", ("agy", "--version")),
+                CommandProbe("help", ("agy", "--help"), ("-p",)),
             ),
         ),
         AdapterSpec(
@@ -495,20 +543,26 @@ def _run_command(command: Sequence[str], timeout_seconds: int) -> tuple[int, str
     return result.returncode, result.stdout, result.stderr
 
 
-def _support_statement(*, status: str, sources: tuple[str, ...]) -> SupportStatement:
+def _support_statement(
+    *,
+    status: str,
+    sources: tuple[str, ...],
+    notes: str = "Planned route. Blocked until proof and eval evidence exist.",
+) -> SupportStatement:
     return SupportStatement(
         status=status,
-        checked_on="2026-06-18",
+        checked_on="2026-06-30",
         sources=sources,
         required_evidence=(
             "official installed-session auth proof",
             "no API-key environment or config blockers",
+            "no paid credit, overage, gateway, or API-backed route",
             "adapter-result.v1 manifest with native usage signal",
             "scratch-only write check",
             "distill eval evidence for the workload",
         ),
         no_metered_current=False,
-        notes="Planned route. Blocked until proof and eval evidence exist.",
+        notes=notes,
     )
 
 

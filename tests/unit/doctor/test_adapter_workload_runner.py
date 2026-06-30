@@ -685,7 +685,7 @@ def test_adapter_workload_runner_uses_default_capture_for_antigravity(tmp_path):
     result = run_adapter_workload(
         AdapterWorkloadRunSpec(
             adapter="antigravity",
-            argv=("antigravity", "chat", "--mode", "ask", "-"),
+            argv=("agy", "-p", ""),
             scratch_root=tmp_path,
             allowed_new_files=("native-usage.json", "result.txt"),
             # no capture_writer -> uses default

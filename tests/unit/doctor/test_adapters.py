@@ -20,9 +20,14 @@ def test_adapter_doctor_blocks_missing_binaries(monkeypatch):
     assert "codex is not installed" in codex.blocked_reasons
     assert codex.support_statement == "planned"
     assert codex.support_statement_detail["status"] == "planned"
+    assert codex.support_statement_detail["checked_on"] == "2026-06-30"
     assert codex.support_statement_detail["no_metered_current"] is False
     assert (
         "official installed-session auth proof"
+        in codex.support_statement_detail["required_evidence"]
+    )
+    assert (
+        "no paid credit, overage, gateway, or API-backed route"
         in codex.support_statement_detail["required_evidence"]
     )
     assert any("codex" in source for source in codex.support_statement_detail["sources"])
@@ -132,6 +137,35 @@ def test_adapter_doctor_reports_session_config_but_keeps_route_blocked(monkeypat
     assert not grok.no_metered_eligible
 
 
+def test_antigravity_uses_current_agy_cli_and_config_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    config_dir = tmp_path / ".gemini" / "antigravity-cli"
+    config_dir.mkdir(parents=True)
+    (config_dir / "settings.json").write_text(
+        '{"auth":{"session":"present"}}',
+        encoding="utf-8",
+    )
+
+    report = adapters.adapter_doctor_report(
+        environ={},
+        home_dir=tmp_path,
+        runner=_runner_with_required_flags,
+    )
+
+    antigravity = next(probe for probe in report.adapters if probe.name == "antigravity")
+    assert antigravity.binary == "agy"
+    assert "~/.gemini/antigravity-cli/settings.json" in antigravity.config_files_checked
+    assert antigravity.config_files_found == ["~/.gemini/antigravity-cli/settings.json"]
+    assert "~/.gemini/antigravity-cli/settings.json: session" in antigravity.auth_evidence
+    assert antigravity.auth_mode == "session-config"
+    assert antigravity.support_statement_detail["checked_on"] == "2026-06-30"
+    assert (
+        "https://antigravity.google/docs/plans" in antigravity.support_statement_detail["sources"]
+    )
+    assert "support statement is not current" in antigravity.blocked_reasons
+    assert not antigravity.no_metered_eligible
+
+
 def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monkeypatch):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
@@ -198,9 +232,8 @@ def _runner_with_required_flags(command: Sequence[str], _timeout: int) -> tuple[
         ("grok", "inspect", "--json"): "{}",
         ("gemini", "--version"): "gemini 1.0.0",
         ("gemini", "--help"): "--prompt --approval-mode --output-format",
-        ("antigravity", "--version"): "antigravity 1.0.0",
-        ("antigravity", "--help"): "",
-        ("antigravity", "chat", "--help"): "--mode",
+        ("agy", "--version"): "agy 1.0.0",
+        ("agy", "--help"): "-p",
         ("gh", "--version"): "gh 2.0.0",
         ("gh", "copilot", "--help"): "",
     }

@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   schema inlining no-ops, invalid schema files, marker-missing schema insertion,
   and Codex, Claude, Grok, Gemini, and Antigravity blocked-plan boundaries. The
   focused command-plan coverage slice now reports 100%.
+- Refreshed CLI adapter support statements against current 2026-06-30 vendor
+  docs for Codex, Claude Code, Grok Build, Gemini CLI, and Antigravity, added
+  paid-credit, overage, gateway, and API-backed route blockers to the required
+  evidence, and updated Antigravity probing plus blocked command templates from
+  the stale `antigravity` binary to the current `agy` CLI and
+  `~/.gemini/antigravity-cli/settings.json` config path. All plan-quota routes
+  remain fail-closed for no-metered routing.
 
 ## 0.19.10 - 2026-06-30
 

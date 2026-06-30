@@ -393,50 +393,49 @@ Avoid in Distill automation:
 ### Antigravity
 
 Antigravity is currently the weakest included-plan CLI candidate for Distill
-automation. Local 1.107.0 help exposes `antigravity chat --mode ask -`, but it
-does not expose headless JSON output, schema enforcement, or native usage
-signals in the local help surface.
+automation. Current Google docs expose the `agy` CLI and non-interactive `-p`
+prompt mode, but they do not expose a stable headless JSON result contract,
+schema enforcement, or native usage signal that Distill can trust. Antigravity
+also has AI-credit overages, so no-metered routing must prove those overages are
+disabled or otherwise bounded before any workload can run.
 
 Preflight:
 
-- `antigravity --version`
-- `antigravity --help`
-- `antigravity chat --help`
-- Scan `~/.antigravity/settings.json` for API-key routing fields.
+- `agy --version`
+- `agy --help`, checking for the `-p` non-interactive prompt flag
+- Scan `~/.gemini/antigravity-cli/settings.json` and the legacy
+  `~/.antigravity/settings.json` for API-key routing fields.
 - Remove `GEMINI_API_KEY` and `GOOGLE_API_KEY` from the subprocess
   environment for plan-quota routing.
 - If auth cannot be classified as an included plan session, block in
   `no-metered`.
 
-Blocked chat command shape:
+Blocked non-interactive command shape:
 
 ```text
-antigravity chat \
-  --mode ask \
-  -
+agy -p ""
 ```
 
 Current blockers:
 
-- The local chat command lacks observed headless JSON output.
-- The local CLI has no observed native `--output-schema` enforcement in 1.107.0
-  help.
+- The current CLI docs lack observed headless JSON output.
+- The current CLI docs lack observed native `--output-schema` enforcement.
+- The command template still needs prompt-file materialization into the
+  non-interactive prompt argument.
+- AI-credit overage status is not yet machine-checked.
 - Included-plan auth proof and eval graduation are still pending.
 
-Useful flags observed locally in 1.107.0:
+Useful documented surfaces:
 
-- `chat [prompt]` for a chat session in the current working directory.
-- `--mode ask|edit|agent|<custom>` for mode selection.
-- `--add-file <path>` for context files, avoided until eval.
-- Stdin can be provided by appending `-`.
+- `agy -p "<prompt>"` for non-interactive prompt execution.
+- `agy login` and the local keyring flow for account auth.
+- Google account plans with fixed quota and separate AI-credit overage controls.
 
 Avoid in Distill automation:
 
-- `--mode edit` and `--mode agent` until scratch-write eval exists.
-- `--add-file <library>` because additional files increase the readable
-  surface. Stage sources into scratch instead.
-- Top-level editor window flags such as `--reuse-window`, `--new-window`, and
-  `--wait` for batch workloads.
+- Any agent or editing mode until scratch-write eval exists.
+- Passing library paths as context. Stage sources into scratch instead.
+- Any AI-credit overage route in `no-metered` mode.
 
 ## Credit-metered CLI candidates
 
@@ -599,6 +598,9 @@ the quality bar. Do not promote a route merely because it is available.
 
 - OpenAI Codex CLI reference:
   <https://developers.openai.com/codex/cli/reference>
+- OpenAI Codex auth and pricing:
+  <https://developers.openai.com/codex/auth>
+  and <https://developers.openai.com/codex/pricing>
 - OpenAI Codex non-interactive mode:
   <https://developers.openai.com/codex/noninteractive>
 - OpenAI Codex sandboxing and approvals:
@@ -609,11 +611,23 @@ the quality bar. Do not promote a route merely because it is available.
 - Claude Code permissions and settings:
   <https://code.claude.com/docs/en/permissions>
   and <https://code.claude.com/docs/en/settings>
+- Claude Code costs and IAM:
+  <https://docs.anthropic.com/en/docs/claude-code/costs>
+  and <https://docs.anthropic.com/en/docs/claude-code/iam>
 - xAI Grok Build headless scripting and enterprise auth:
   <https://docs.x.ai/build/cli/headless-scripting>
   and <https://docs.x.ai/build/enterprise>
 - xAI Grok Build modes and commands:
   <https://docs.x.ai/build/modes-and-commands>
+- Gemini CLI authentication and quotas:
+  <https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/authentication.mdx>
+  and <https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/quota-and-pricing.md>
+- Antigravity CLI and plans:
+  <https://antigravity.google/docs/cli-install>,
+  <https://antigravity.google/docs/cli-using>,
+  and <https://antigravity.google/docs/plans>
+- Antigravity CLI codelab:
+  <https://codelabs.developers.google.com/antigravity-cli-hands-on>
 - Ollama generate API and structured outputs:
   <https://docs.ollama.com/api/generate>
   and <https://docs.ollama.com/capabilities/structured-outputs>

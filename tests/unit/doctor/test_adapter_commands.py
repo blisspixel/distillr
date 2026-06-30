@@ -303,15 +303,13 @@ def test_gemini_command_plan_blocks_scratch_write_workloads():
     )
 
 
-def test_antigravity_command_plan_records_chat_argv_but_stays_blocked():
+def test_antigravity_command_plan_records_agy_argv_but_stays_blocked():
     plan = plan_adapter_command("antigravity", _workload())
 
     assert plan.argv == (
-        "antigravity",
-        "chat",
-        "--mode",
-        "ask",
-        "-",
+        "agy",
+        "-p",
+        "",
     )
     assert plan.stdin_path == "prompt.md"
     assert plan.schema_path == "schemas/result.json"
@@ -321,6 +319,9 @@ def test_antigravity_command_plan_records_chat_argv_but_stays_blocked():
     assert "adapter doctor probe is required" in plan.blocked_reasons
     assert "antigravity command template lacks headless JSON output" in plan.blocked_reasons
     assert "antigravity command template does not enforce output_schema_path natively" in (
+        plan.blocked_reasons
+    )
+    assert "antigravity command template requires prompt argument materialization" in (
         plan.blocked_reasons
     )
     assert not plan.ok
