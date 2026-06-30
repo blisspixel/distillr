@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   validation success and rejection paths, Ollama running-loop fallback, local
   provider failures, and LM Studio running, HTTP-error, and exception paths. The
   focused doctor check coverage slice now reports 100%.
+- Tightened adapter native-usage parsing by rejecting boolean and non-integer
+  Gemini token counts, and added focused coverage for YAML/native usage loading,
+  non-mapping payload refusals, scratch-root path refusal, Codex failure and
+  malformed usage rows, Claude JSON and JSONL refusals, Claude failure stop
+  reasons, bad cost fields, Gemini session fallback, and tolerant generic event
+  parsing. The focused native-usage coverage slice now reports 97%.
 
 ## 0.19.10 - 2026-06-30
 

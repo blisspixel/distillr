@@ -443,8 +443,11 @@ def _get_first_positive_int(d: dict[str, Any], *keys: str) -> int | None:
     for k in keys:
         if k in d and d[k] is not None:
             v = d[k]
-            if isinstance(v, (int, float)) and v >= 0:
-                return int(v)
+            if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                raise AdapterNativeUsageError(
+                    f"gemini-cli JSON usage field {k} must be a non-negative integer"
+                )
+            return v
     return None
 
 

@@ -67,6 +67,38 @@ def test_load_adapter_native_usage_from_scratch(tmp_path):
     }
 
 
+def test_load_adapter_native_usage_accepts_yaml_without_scratch_root(tmp_path):
+    path = tmp_path / "native-usage.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "schema_version: adapter-native-usage.v1",
+                "adapter: codex",
+                "source: usage-file",
+                "usage:",
+                "  input_tokens: 2",
+                "  output_tokens: 1",
+                "  native:",
+                "    event_count: 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    record = load_adapter_native_usage(path)
+
+    assert record.adapter == "codex"
+    assert record.to_adapter_usage().input_tokens == 2
+
+
+def test_load_adapter_native_usage_rejects_non_mapping_payload(tmp_path):
+    path = tmp_path / "native-usage.json"
+    path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(AdapterNativeUsageError, match="native usage must be a mapping"):
+        load_adapter_native_usage(path)
+
+
 def test_adapter_native_usage_accepts_metadata_only_signal():
     record = validate_adapter_native_usage(
         _usage_payload(
@@ -102,6 +134,11 @@ def test_adapter_native_usage_rejects_unknown_adapter():
 def test_load_adapter_native_usage_rejects_path_escape(tmp_path):
     with pytest.raises(AdapterNativeUsageError, match="escapes scratch workspace"):
         load_adapter_native_usage(Path("..") / "native-usage.json", scratch_root=tmp_path)
+
+
+def test_load_adapter_native_usage_rejects_absolute_path_with_scratch_root(tmp_path):
+    with pytest.raises(AdapterNativeUsageError, match="must be scratch relative"):
+        load_adapter_native_usage(tmp_path / "native-usage.json", scratch_root=tmp_path)
 
 
 def test_codex_jsonl_native_usage_collects_turn_completed_usage():
@@ -163,6 +200,31 @@ def test_codex_jsonl_native_usage_rejects_bad_token_field():
         codex_jsonl_native_usage(
             '{"type":"turn.completed","usage":{"input_tokens":true,"output_tokens":1}}'
         )
+
+
+def test_codex_jsonl_native_usage_marks_failed_turn_and_skips_blank_lines():
+    record = codex_jsonl_native_usage(
+        "\n".join(
+            [
+                "",
+                '{"type":"turn.failed"}',
+                '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}',
+            ]
+        )
+    )
+
+    assert record.stop_reason == "failed"
+    assert record.to_adapter_usage().native["event_count"] == 2
+
+
+def test_codex_jsonl_native_usage_rejects_non_object_line():
+    with pytest.raises(AdapterNativeUsageError, match="line must be an object: 1"):
+        codex_jsonl_native_usage("[]")
+
+
+def test_codex_jsonl_native_usage_rejects_non_object_completed_usage():
+    with pytest.raises(AdapterNativeUsageError, match=r"turn\.completed usage must be an object"):
+        codex_jsonl_native_usage('{"type":"turn.completed","usage":[]}')
 
 
 def test_claude_json_native_usage_collects_result_usage():
@@ -237,6 +299,56 @@ def test_claude_json_native_usage_rejects_bad_token_field():
         claude_json_native_usage('{"type":"result","usage":{"input_tokens":-1,"output_tokens":1}}')
 
 
+def test_claude_json_native_usage_rejects_empty_output():
+    with pytest.raises(AdapterNativeUsageError, match="claude JSON output is empty"):
+        claude_json_native_usage("   ")
+
+
+def test_claude_json_native_usage_rejects_non_mapping_json_output():
+    with pytest.raises(AdapterNativeUsageError, match="must be an object or JSONL objects"):
+        claude_json_native_usage("[]")
+
+
+def test_claude_json_native_usage_rejects_invalid_jsonl_line():
+    with pytest.raises(AdapterNativeUsageError, match="invalid JSON: 2"):
+        claude_json_native_usage('{"type":"system"}\n{not json')
+
+
+def test_claude_json_native_usage_rejects_non_object_jsonl_line():
+    with pytest.raises(AdapterNativeUsageError, match="line must be an object: 1"):
+        claude_json_native_usage("[]\n{}")
+
+
+def test_claude_json_native_usage_rejects_top_level_usage_array():
+    with pytest.raises(AdapterNativeUsageError, match="claude JSON usage must be an object"):
+        claude_json_native_usage('{"type":"result","usage":[]}')
+
+
+def test_claude_json_native_usage_rejects_message_usage_array():
+    with pytest.raises(AdapterNativeUsageError, match="message usage must be an object"):
+        claude_json_native_usage('{"type":"assistant","message":{"usage":[]}}')
+
+
+def test_claude_json_native_usage_failed_result_and_explicit_stop_reason():
+    failed = claude_json_native_usage(
+        '{"type":"result","is_error":true,"usage":{"input_tokens":1,"output_tokens":1}}'
+    )
+    explicit = claude_json_native_usage(
+        '{"type":"result","is_error":true,"usage":{"input_tokens":1,"output_tokens":1}}',
+        stop_reason="rate-limit",
+    )
+
+    assert failed.stop_reason == "failed"
+    assert explicit.stop_reason == "rate-limit"
+
+
+def test_claude_json_native_usage_rejects_bad_total_cost():
+    with pytest.raises(AdapterNativeUsageError, match="total_cost_usd must be a non-negative"):
+        claude_json_native_usage(
+            '{"type":"result","total_cost_usd":true,"usage":{"input_tokens":1,"output_tokens":1}}'
+        )
+
+
 # --- New adapter parser tests (0.19 native usage wiring) ---
 
 
@@ -298,6 +410,20 @@ def test_gemini_cli_json_native_usage_accepts_alternative_keys():
     assert usage.output_tokens == 25
 
 
+def test_gemini_cli_json_native_usage_rejects_boolean_token_counts():
+    with pytest.raises(AdapterNativeUsageError, match="must be a non-negative integer"):
+        gemini_cli_json_native_usage(
+            json.dumps({"usageMetadata": {"promptTokenCount": True, "candidatesTokenCount": 1}})
+        )
+
+
+def test_gemini_cli_json_native_usage_rejects_float_token_counts():
+    with pytest.raises(AdapterNativeUsageError, match="prompt_tokens must be a non-negative"):
+        gemini_cli_json_native_usage(
+            json.dumps({"usage": {"prompt_tokens": 1.5, "completion_tokens": 1}})
+        )
+
+
 def test_grok_json_native_usage_rejects_bad_json():
     with pytest.raises(AdapterNativeUsageError, match="usage not found"):
         grok_json_native_usage("not json at all")
@@ -335,6 +461,19 @@ def test_gemini_cli_json_native_usage_usage_metadata_list_fallback():
     assert record.to_adapter_usage().output_tokens == 10
 
 
+def test_gemini_cli_json_native_usage_uses_session_id_fallback():
+    record = gemini_cli_json_native_usage(
+        json.dumps(
+            {
+                "session_id": "session-1",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            }
+        )
+    )
+
+    assert record.request_id == "session-1"
+
+
 def test_antigravity_reuses_gemini_and_overrides_name():
     record = antigravity_json_native_usage('{"usage": {"input_tokens": 77, "output_tokens": 3}}')
     assert record.adapter == "antigravity"
@@ -348,6 +487,13 @@ def test_generic_jsonl_parse_and_empty():
     assert _parse_generic_json_events("") == []
     events = _parse_generic_json_events('{"a":1}\n{"b":2}')
     assert len(events) == 2
+
+
+def test_generic_json_parser_ignores_noise_and_non_mapping_list_entries():
+    from distill.doctor.adapter_native_usage import _parse_generic_json_events
+
+    assert _parse_generic_json_events('[{"a": 1}, 2, {"b": 3}]') == [{"a": 1}, {"b": 3}]
+    assert _parse_generic_json_events('noise\n{"a": 1}\n[]') == [{"a": 1}]
 
 
 def test_new_adapters_validate_and_contract_roundtrip():
