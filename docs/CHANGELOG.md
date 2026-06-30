@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused ask command wrapper coverage for no-coverage refusal,
+  answer-without-artifact display, promoted answer output, and save-refusal
+  output. The full coverage gate now reports 92.12%; the enforced floor remains
+  92.
 - Added focused OKF command wrapper coverage for valid and invalid bundle
   validation in both human and JSON output modes. The full coverage gate now
   reports 92.09%; the enforced floor remains 92.

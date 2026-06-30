@@ -156,3 +156,103 @@ def test_ask_command_wiring(config, monkeypatch):
         "command": "ask",
         "metadata": {"topic": "t", "workflow": "ask", "source_type": "answer"},
     }
+
+
+def test_ask_command_no_coverage_exits(config, monkeypatch):
+    from typer.testing import CliRunner
+
+    from distill import cli
+
+    monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.ask._require_model", lambda _workload: None)
+    monkeypatch.setattr(
+        "distill.commands.ask.ask_corpus",
+        lambda question, *, topic, config, save, tracker: ask_mod.AskResult(
+            question=question,
+            answer_path=None,
+            answer_text="",
+            no_coverage=True,
+        ),
+    )
+
+    result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "empty"])
+
+    assert result.exit_code == 1
+    assert "no matching artifacts" in result.output
+
+
+def test_ask_command_prints_promoted_answer(config, monkeypatch):
+    from typer.testing import CliRunner
+
+    from distill import cli
+
+    answer_path = config.topic_dir("t") / "answers" / "which_checker_Answer.md"
+    saved_path = config.topic_dir("t") / "answers" / "which_checker_Insights.md"
+    monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.ask._require_model", lambda _workload: None)
+    monkeypatch.setattr("distill.commands.ask.save_run_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "distill.commands.ask.ask_corpus",
+        lambda question, *, topic, config, save, tracker: ask_mod.AskResult(
+            question=question,
+            answer_path=answer_path,
+            answer_text="Grounded answer [source].",
+            saved_insight_path=saved_path,
+        ),
+    )
+
+    result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t", "--save"])
+
+    assert result.exit_code == 0, result.output
+    assert "Promoted" in result.output
+    assert "answers" in result.output
+
+
+def test_ask_command_handles_answer_without_artifact_path(config, monkeypatch):
+    from typer.testing import CliRunner
+
+    from distill import cli
+
+    monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.ask._require_model", lambda _workload: None)
+    monkeypatch.setattr("distill.commands.ask.save_run_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "distill.commands.ask.ask_corpus",
+        lambda question, *, topic, config, save, tracker: ask_mod.AskResult(
+            question=question,
+            answer_path=None,
+            answer_text="Grounded answer [source].",
+        ),
+    )
+
+    result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t"])
+
+    assert result.exit_code == 0, result.output
+    assert "Grounded answer" in result.output
+    assert "Answer" not in result.output
+
+
+def test_ask_command_prints_save_refusal(config, monkeypatch):
+    from typer.testing import CliRunner
+
+    from distill import cli
+
+    answer_path = config.topic_dir("t") / "answers" / "which_checker_Answer.md"
+    monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.ask._require_model", lambda _workload: None)
+    monkeypatch.setattr("distill.commands.ask.save_run_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "distill.commands.ask.ask_corpus",
+        lambda question, *, topic, config, save, tracker: ask_mod.AskResult(
+            question=question,
+            answer_path=answer_path,
+            answer_text="Grounded answer [source].",
+            save_refused_reason="refused: unsupported claim",
+        ),
+    )
+
+    result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t", "--save"])
+
+    assert result.exit_code == 0, result.output
+    assert "Not promoted" in result.output
+    assert "unsupported claim" in result.output
