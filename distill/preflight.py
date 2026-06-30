@@ -80,7 +80,7 @@ def _write_cache(path: Path | None, data: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data), encoding="utf-8")
     except Exception:
-        pass
+        return
 
 
 def _is_cache_fresh(entry: dict[str, Any], now: datetime) -> bool:

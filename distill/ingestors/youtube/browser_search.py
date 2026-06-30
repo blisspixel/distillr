@@ -124,7 +124,7 @@ def _published_to_datetime(video: VideoInfo) -> datetime | None:
         try:
             return datetime.fromisoformat(published_at)
         except ValueError:
-            pass
+            return _parse_upload_date(video.upload_date)
     return _parse_upload_date(video.upload_date)
 
 

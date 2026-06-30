@@ -37,6 +37,7 @@ def _default_library_dir(package_parent: Path | None = None) -> Path:
     ``site-packages``/``dist-packages`` tree, and the marker file must
     actually be distillr's own pyproject.
     """
+    fallback = Path.home() / ".distill" / "library"
     parent = (package_parent or Path(__file__).resolve().parent).parent
     in_installed_tree = any(
         part.lower() in {"site-packages", "dist-packages"} for part in parent.parts
@@ -47,8 +48,8 @@ def _default_library_dir(package_parent: Path | None = None) -> Path:
             if 'name = "distillr"' in marker.read_text(encoding="utf-8"):
                 return parent / "library"
         except OSError:
-            pass
-    return Path.home() / ".distill" / "library"
+            return fallback
+    return fallback
 
 
 def sanitize_path_component(value: str) -> str:

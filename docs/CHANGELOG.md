@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.10 - 2026-06-30
+
 ### Changed
 
+- Replaced the remaining production no-op `pass` fallback sites with explicit
+  returns, continues, or best-effort cleanup paths across config discovery,
+  banner rendering, hardware probes, network resolution, YouTube discovery,
+  transcription sizing, JSON parsing, summary-cache recovery, and preflight
+  cache writes. The final release gate reports 93.19% branch coverage; the
+  enforced floor remains 93.
 - Added focused MCP OKF tool coverage for workspace-relative path refusal,
   absolute path refusal, index-preview fallback, and empty-preview defaults.
   The full coverage gate now reports 93.21%; the enforced floor remains 93.

@@ -87,7 +87,7 @@ def _try_parse(text: str) -> dict[str, Any] | list[Any] | None:
         if isinstance(result, list):
             return result  # type: ignore[reportUnknownVariableType]
     except (json.JSONDecodeError, ValueError):
-        pass
+        return None
     return None
 
 

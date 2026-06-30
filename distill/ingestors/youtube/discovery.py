@@ -54,16 +54,16 @@ class _QuietLogger(logging.Logger):
     """Swallow yt-dlp error messages (e.g. members-only videos) to keep output clean."""
 
     def debug(self, msg, *args, **kwargs):
-        pass
+        return None
 
     def info(self, msg, *args, **kwargs):
-        pass
+        return None
 
     def warning(self, msg, *args, **kwargs):
-        pass
+        return None
 
     def error(self, msg, *args, **kwargs):
-        pass
+        return None
 
 
 @dataclass

@@ -403,7 +403,8 @@ def _pick_batch_size(device: str) -> int:
                 slots = int(usable_gb / 0.25)
                 return max(2, min(32, slots))
         except ImportError:
-            pass
+            _ = ctranslate2
+            return 4
         # No torch: pick a small batch that works on a 6 GB card.
         _ = ctranslate2
         return 4

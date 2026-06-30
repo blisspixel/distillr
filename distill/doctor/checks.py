@@ -183,5 +183,5 @@ def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "c
             if resp.status_code == 200:
                 return "running"
     except Exception:
-        pass
+        return "unavailable"
     return "unavailable"

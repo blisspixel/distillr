@@ -58,10 +58,11 @@ def _resolve_host_to_addrs(host: str) -> list[str]:
     so callers fail closed.
     """
     try:
-        ipaddress.ip_address(host)
-        return [host]
+        parsed_ip = ipaddress.ip_address(host)
     except ValueError:
-        pass
+        parsed_ip = None
+    if parsed_ip is not None:
+        return [host]
     try:
         infos = socket.getaddrinfo(host, None)
     except (socket.gaierror, UnicodeError, OSError):

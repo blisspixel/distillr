@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -92,7 +93,8 @@ def summarize_query(
                 model=str(data.get("model", "")),
             )
         except (OSError, json.JSONDecodeError, KeyError):
-            pass  # corrupt cache entry: fall through and regenerate
+            with suppress(OSError):
+                cache_file.unlink()
 
     blocks: list[str] = []
     stems: list[str] = []

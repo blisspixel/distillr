@@ -17,6 +17,7 @@ import os
 import platform
 import sys
 import time
+from contextlib import suppress
 
 from rich.console import Console
 from rich.markup import escape
@@ -73,7 +74,7 @@ def _precise_sleep(target_time: float) -> None:
     if remaining > 0.002:
         time.sleep(remaining - 0.002)
     while time.perf_counter() < target_time:
-        pass
+        continue
 
 
 # ─── Raw ANSI Frame Rendering ───────────────────────────────────────────
@@ -288,11 +289,9 @@ def _animate_sweep(
 
     except Exception:
         # Ensure cursor is visible on any error
-        try:
+        with suppress(Exception):
             out = console.file or sys.stdout
             out.write(_ANSI_SHOW_CURSOR + _ANSI_RESET + "\n")
             out.flush()
-        except Exception:
-            pass
         # Fall back to static banner via Rich
         console.print(Text.from_markup(render_banner_static(art)))

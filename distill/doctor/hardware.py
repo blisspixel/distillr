@@ -97,7 +97,7 @@ def _get_apple_chip_name() -> str:
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
+        return "Apple Silicon"
     return "Apple Silicon"
 
 
@@ -136,7 +136,7 @@ def _get_windows_ram() -> float:
         if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):  # type: ignore[attr-defined]
             return round(stat.ullTotalPhys / (1024**3), 1)
     except (OSError, AttributeError, ValueError):
-        pass
+        return 0.0
     return 0.0
 
 
@@ -148,7 +148,7 @@ def _get_macos_ram() -> float:
             bytes_val = int(result.stdout.strip())
             return round(bytes_val / (1024**3), 1)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError, ValueError):
-        pass
+        return 0.0
     return 0.0
 
 
@@ -176,7 +176,7 @@ def _get_linux_ram() -> float:
                     kb = int(parts[1])
                     return round(kb / (1024**2), 1)
     except (OSError, ValueError):
-        pass
+        return 0.0
     return 0.0
 
 
@@ -192,6 +192,6 @@ def _is_container() -> bool:
         if "docker" in cgroup or "containerd" in cgroup or "kubepods" in cgroup:
             return True
     except OSError:
-        pass
+        return False
 
     return False
