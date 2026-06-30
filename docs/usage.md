@@ -422,6 +422,10 @@ Paper outputs land under:
 - `library/topics/<topic>/<topic>_Corpus_Synthesis.md` (mixed-source view)
 - `output/citations-<topic>.bib` or `output/citations-<topic>.ris` when exported with `distill export <topic> --what citations`
 
+Citation export only writes entries whose local paper artifact or metadata
+receipt still exists; stale bibliography records refuse the export instead of
+producing dangling keys.
+
 ### Two-pass synthesis (`--two-pass`)
 
 `distill resynthesize <topic> --two-pass` runs a claim-based corpus synthesis instead of summarizing the per-source insights directly. Pass 1 extracts atomic claims from every `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl` (one cheap LLM call per not-yet-extracted source - re-runs skip sources already in the store). Pass 2 synthesizes over the claim set: it clusters claims by what they assert, names contradictions between sources explicitly, and cites each statement back to specific claim handles (`[C7]`), surfacing low-confidence and single-source claims as the corpus's soft spots rather than dropping them.

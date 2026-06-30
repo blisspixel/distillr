@@ -3,6 +3,7 @@
 import json
 
 from distill.library.citations import (
+    CitationRecord,
     collect_paper_citations,
     render_bibtex,
     render_citations,
@@ -51,6 +52,24 @@ def _seed_paper(config, topic="ai", title="Agent Memory Systems", paper_id="2602
         },
     )
     return paper_dir
+
+
+def _record(path, title="Agent Memory Systems"):
+    return CitationRecord(
+        topic="ai",
+        title=title,
+        authors=("Alice Example",),
+        year="2026",
+        published_at="2026-02-17T00:00:00Z",
+        updated_at="",
+        paper_id="2602.12670v1",
+        doi="10.5555/agent-memory",
+        url="https://arxiv.org/abs/2602.12670v1",
+        pdf_url="",
+        categories=("cs.AI",),
+        abstract="",
+        path=path,
+    )
 
 
 def test_collect_paper_citations_reads_frontmatter_and_metadata(config):
@@ -111,5 +130,28 @@ def test_render_citations_rejects_unknown_format():
         render_citations([], "docx")
     except ValueError as exc:
         assert "bibtex or ris" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_render_bibtex_rejects_missing_record_path(tmp_path):
+    missing_path = tmp_path / "missing_Insights.md"
+
+    try:
+        render_bibtex([_record(missing_path)])
+    except ValueError as exc:
+        assert "citation record path does not exist" in str(exc)
+        assert str(missing_path) in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_render_ris_rejects_missing_record_path(tmp_path):
+    missing_path = tmp_path / "missing_Insights.md"
+
+    try:
+        render_ris([_record(missing_path)])
+    except ValueError as exc:
+        assert "citation record path does not exist" in str(exc)
     else:
         raise AssertionError("expected ValueError")

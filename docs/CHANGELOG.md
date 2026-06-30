@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added a narrow `.gitleaksignore` entry for a historical false positive and
+  expanded env-file ignore coverage to `.env.*` while preserving
+  `.env.example`.
+- Tightened BibTeX and RIS citation export so bibliography records whose local
+  paper artifact or metadata receipt path no longer exists refuse the export.
 - Tightened two-pass corpus synthesis so outputs that cite non-existent claim
   handles refuse the artifact write instead of promoting unsupported citations.
 - Tightened `distill ask --save` promotion so answers that cite unknown

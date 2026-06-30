@@ -55,7 +55,9 @@ Desktop.ini
 # Environment / secrets (never commit real keys)
 .env
 .env.local
+.env.*
 .env.*.local
+!.env.example
 
 # Distill runtime data (per-user, sometimes large)
 /library/

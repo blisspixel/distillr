@@ -197,7 +197,8 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   slice: `distill ask --save` now refuses promotion when an answer cites an
   unknown bracketed source stem or cites no retrieved source stem; two-pass
   corpus synthesis now refuses invented claim handles before writing the
-  synthesis artifact.
+  synthesis artifact; BibTeX and RIS citation exports now refuse records whose
+  local paper artifact or metadata receipt path no longer exists.
 - [ ] **Uncertainty routing and disagreement surfacing.** Promote
   low-confidence, single-source, contradicted, or multi-route-disagreed claims
   into explicit reviewable findings instead of smoothing them into confident

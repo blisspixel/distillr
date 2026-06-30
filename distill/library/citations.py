@@ -65,6 +65,7 @@ def render_citations(records: list[CitationRecord], export_format: str) -> str:
 
 
 def render_bibtex(records: list[CitationRecord]) -> str:
+    records = _require_existing_record_paths(records)
     keys: dict[str, int] = {}
     entries: list[str] = []
     for record in records:
@@ -90,6 +91,7 @@ def render_bibtex(records: list[CitationRecord]) -> str:
 
 
 def render_ris(records: list[CitationRecord]) -> str:
+    records = _require_existing_record_paths(records)
     entries: list[str] = []
     for record in records:
         lines = ["TY  - JOUR", f"T1  - {_ris_line(record.title)}"]
@@ -122,6 +124,22 @@ def _topic_dirs(config: DistillConfig, topic: str) -> list[tuple[str, Path]]:
         return sorted((path.name, path) for path in topics_root.iterdir() if path.is_dir())
     topic_dir = config.topic_dir(topic)
     return [(topic_dir.name, topic_dir)] if topic_dir.exists() else []
+
+
+def _require_existing_record_paths(records: Iterable[CitationRecord]) -> list[CitationRecord]:
+    """Refuse bibliography entries that no longer resolve to local evidence."""
+    checked: list[CitationRecord] = []
+    missing: list[str] = []
+    for record in records:
+        if record.path.exists():
+            checked.append(record)
+        else:
+            missing.append(str(record.path))
+    if missing:
+        preview = ", ".join(missing[:3])
+        suffix = f" (+{len(missing) - 3} more)" if len(missing) > 3 else ""
+        raise ValueError(f"citation record path does not exist: {preview}{suffix}")
+    return checked
 
 
 def _citation_from_paper_dir(topic_name: str, paper_dir: Path) -> CitationRecord | None:

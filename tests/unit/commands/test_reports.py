@@ -12,6 +12,7 @@ from distill import cli
 from distill.commands import reports as reports_mod
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.citations import CitationRecord
 from distill.library.okf import OkfExportResult, OkfIssue, OkfValidationResult
 from distill.library.paths import artifact_path
 
@@ -338,6 +339,36 @@ class TestExportCommand:
 
         assert result.exit_code == 1
         assert "unsupported format" in result.output
+
+    def test_citations_refuses_missing_record_path(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_topic(config)
+        self._patch_config(monkeypatch, config)
+        missing_path = config.topic_dir("ai") / "papers" / "missing" / "metadata.json"
+        record = CitationRecord(
+            topic="ai",
+            title="Missing Evidence",
+            authors=("Alice Example",),
+            year="2026",
+            published_at="2026-02-17T00:00:00Z",
+            updated_at="",
+            paper_id="2602.12670v1",
+            doi="",
+            url="https://arxiv.org/abs/2602.12670v1",
+            pdf_url="",
+            categories=(),
+            abstract="",
+            path=missing_path,
+        )
+        monkeypatch.setattr(
+            reports_mod, "collect_paper_citations", lambda *args, **kwargs: [record]
+        )
+
+        result = runner.invoke(cli.app, ["export", "ai", "--what", "citations"])
+
+        assert result.exit_code == 1
+        assert "citation record path does not exist" in result.output
+        assert not (config.library_dir.parent / "output" / "citations-ai.bib").exists()
 
     def test_citations_success_writes_file(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
