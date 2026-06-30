@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   missing-model evidence, JSON snapshot loading, non-mapping refusals, nested
   identity metadata rejection, and invalid quota snapshot rows. The focused
   route-availability coverage slice now reports 95%.
+- Added focused doctor check coverage for retired-model warnings, provider key
+  validation success and rejection paths, Ollama running-loop fallback, local
+  provider failures, and LM Studio running, HTTP-error, and exception paths. The
+  focused doctor check coverage slice now reports 100%.
 
 ## 0.19.10 - 2026-06-30
 
