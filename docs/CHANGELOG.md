@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused site-batch helper coverage for same-host preview boundaries,
+  budget hard stops, successful synthesis output recording, and synthesis
+  failure recording. The full coverage gate now reports 92.21%; the enforced
+  floor remains 92.
 - Added focused discover-ingest helper coverage for skipped null candidates,
   budget hard stops, video-present site synthesis skips, successful site
   synthesis output recording, and site synthesis failure recording. The full
