@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added focused MCP OKF tool coverage for workspace-relative path refusal,
+  absolute path refusal, index-preview fallback, and empty-preview defaults.
+  The full coverage gate now reports 93.21%; the enforced floor remains 93.
 - Added focused MCP cost-history coverage for ops-log precedence, timestamp
   filtering, invalid timestamp tolerance, empty rows, malformed rows, and
   boolean cost exclusion. The full coverage gate now reports 93.19%; the

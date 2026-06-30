@@ -82,3 +82,23 @@ def test_okf_export_refused_in_read_only_mode(tmp_path: Path, monkeypatch) -> No
         result = json.loads(okf_export("ai"))
 
     assert result["status"] == "read_only"
+
+
+def test_okf_workspace_path_resolver_rejects_empty_null_and_absolute_paths(tmp_path: Path) -> None:
+    from distill.mcp.tools.okf import _resolve_workspace_path
+
+    assert _resolve_workspace_path(tmp_path, "") is None
+    assert _resolve_workspace_path(tmp_path, "bundle\x00name") is None
+    assert _resolve_workspace_path(tmp_path, "/outside") is None
+    assert _resolve_workspace_path(tmp_path, "C:/outside") is None
+
+
+def test_okf_bundle_preview_uses_index_fallback_and_empty_default(tmp_path: Path) -> None:
+    from distill.mcp.tools.okf import _bundle_preview
+
+    output_dir = tmp_path / "okf-bundle"
+    output_dir.mkdir()
+    (output_dir / "index.md").write_text("# Bundle\n", encoding="utf-8")
+
+    assert _bundle_preview(output_dir) == "# Bundle\n"
+    assert _bundle_preview(tmp_path / "empty") == ""
