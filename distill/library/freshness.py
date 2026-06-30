@@ -66,7 +66,7 @@ def _artifact_timestamp(path: Path) -> datetime | None:
         try:
             return datetime.fromisoformat(recorded.replace("Z", "+00:00")).replace(tzinfo=None)
         except ValueError:
-            pass
+            recorded = ""
     try:
         return datetime.fromtimestamp(path.stat().st_mtime)
     except OSError:

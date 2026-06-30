@@ -270,7 +270,7 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
     # 3. Provider-specific setup.
     if choice == "cloud":
         # Offer to capture a key interactively; under --yes / no-TTY we don't
-        # prompt -- we leave the placeholder and tell the user where to set it.
+        # prompt, so we leave the template value and tell the user where to set it.
         if not yes:
             entered = tty_prompt(
                 "Paste your XAI_API_KEY (blank to skip and set it later)",

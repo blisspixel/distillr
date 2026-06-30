@@ -312,7 +312,7 @@ def format_date(date_str: str) -> str:
             dt = datetime.strptime(date_str, "%Y%m%d")
             return dt.strftime("%b %d, %Y")
     except (ValueError, TypeError):
-        pass
+        return date_str
     return date_str
 
 
@@ -952,7 +952,7 @@ def _preflight() -> None:
         check_for_update(console, library_dir)
     except Exception:
         # An update check must never break a command.
-        pass
+        return
 
 
 def run_preflight() -> None:

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Completed the Cycle 42 maintenance sweep by replacing ambiguous no-op fallback
+  `pass` sites with explicit fallback flow, tightening source-metadata parsing,
+  and adding focused topic command helper coverage for profile parsing,
+  workflow validation, command dispatch, summary artifacts, watch/update
+  refusals, and bundle export boundaries. The full coverage gate now reports
+  92.72%; the enforced floor remains 92.
 - Added focused discover command wrapper coverage for invalid option refusals,
   single-source query toggles, missing goal and site seed files, clean
   empty-candidate and malformed-rerank exits, low-score rigor refusal, and

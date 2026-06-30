@@ -46,7 +46,7 @@ def _format_date(date_str: str) -> str:
             dt = datetime.strptime(date_str, "%Y%m%d")
             return dt.strftime("%b %d, %Y")
     except (ValueError, TypeError):
-        pass
+        return date_str
     return date_str
 
 

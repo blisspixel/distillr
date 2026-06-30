@@ -65,10 +65,10 @@ def costs(days: int = 30, limit: int = 20) -> str:
         if isinstance(ts, str) and ts:
             try:
                 entry_dt = datetime.fromisoformat(ts)
-                if entry_dt < cutoff:
-                    continue
             except ValueError:
-                pass
+                entry_dt = None
+            if entry_dt is not None and entry_dt < cutoff:
+                continue
         entries.append(entry)
 
     recent = entries[-limit:]

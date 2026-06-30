@@ -281,14 +281,21 @@ def resolve_slug_collision(
         meta_file = candidate_path / ".source_meta.json"
         if meta_file.exists():
             try:
-                import json as _json
-
-                meta = _json.loads(meta_file.read_text(encoding="utf-8"))
-                if meta.get("source_type") == source_type and meta.get("source_id") == source_id:
-                    # Same source, reuse the slug.
-                    return candidate
+                raw_meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                meta = (
+                    cast("Mapping[str, object]", raw_meta)
+                    if isinstance(raw_meta, Mapping)
+                    else None
+                )
             except (OSError, ValueError):
-                pass
+                meta = None
+            if (
+                meta is not None
+                and meta.get("source_type") == source_type
+                and meta.get("source_id") == source_id
+            ):
+                # Same source, reuse the slug.
+                return candidate
         # Different source or unreadable meta, try next suffix.
         counter += 1
         candidate = f"{slug}_{counter}"

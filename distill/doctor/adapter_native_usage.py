@@ -603,12 +603,12 @@ def _parse_generic_json_events(text: str) -> list[dict[str, Any]]:
     # Try as single JSON first
     try:
         obj = json.loads(stripped)
-        if isinstance(obj, list):
-            return [dict(e) for e in obj if isinstance(e, Mapping)]
-        if isinstance(obj, Mapping):
-            return [dict(obj)]
-    except Exception:
-        pass
+    except json.JSONDecodeError:
+        obj = None
+    if isinstance(obj, list):
+        return [dict(e) for e in obj if isinstance(e, Mapping)]
+    if isinstance(obj, Mapping):
+        return [dict(obj)]
     # JSONL fallback
     for _line_number, line in enumerate(stripped.splitlines(), start=1):
         s = line.strip()

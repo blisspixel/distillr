@@ -256,7 +256,7 @@ def get_default_capture_writer(adapter: str) -> WorkloadCaptureWriter | None:
                 write_fn(spec_cls(**kwargs))
             except Exception:
                 # tolerate non-usage stdout in test/mixed cases; real use provides matching stdout
-                pass
+                return
 
         return _writer
 
