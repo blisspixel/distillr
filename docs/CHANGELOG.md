@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Refused xAI image and video generation model slugs in the text-analysis
+  router and Grok provider before any API call, so media-generation models
+  cannot be accidentally used through Distill's LLM workloads.
 - Added a narrow `.gitleaksignore` entry for a historical false positive and
   expanded env-file ignore coverage to `.env.*` while preserving
   `.env.example`.

@@ -15,6 +15,12 @@ from pydantic_settings import BaseSettings
 from distill.llm.async_compat import run_coroutine_sync
 from distill.llm.cost_policy import CostMode, normalize_cost_mode, route_block_reason
 from distill.llm.metadata import LOCAL_PROVIDERS
+from distill.llm.model_policy import (
+    RETIRED_MODELS,
+    RETIREMENT_DATE,
+    is_xai_media_generation_model,
+    xai_media_generation_refusal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +52,6 @@ class PendingTaskError(LLMRouterError):
         super().__init__(message)
         self.task_path = task_path
 
-
-RETIREMENT_DATE = "May 15, 2026"
-RETIRED_MODELS: dict[str, str] = {
-    "grok-4-1-fast-reasoning": "grok-4.3",
-    "grok-4-1-fast-non-reasoning": "grok-4.20-non-reasoning",
-    "grok-4-fast-reasoning": "grok-4.3",
-    "grok-4-fast-non-reasoning": "grok-4.20-non-reasoning",
-    "grok-4-0709": "grok-4.3",
-    "grok-code-fast-1": "grok-4.3",
-    "grok-3": "grok-4.3",
-    "grok-imagine-image-pro": "grok-imagine-image",
-}
 
 WORKLOAD_TAGS: frozenset[str] = frozenset(
     "analysis rerank synthesis site accordion brief report qa maintenance concepts".split()  # noqa: SIM905
@@ -212,7 +206,11 @@ class RouterConfig(BaseSettings):
 
     def validate_config(self, workload_tag: str = "") -> None:
         """Validate configuration eagerly.  Raise ``ConfigurationError`` early."""
-        provider_name = self.resolve(workload_tag)[0] if workload_tag else self.provider
+        provider_name, model_id = (
+            self.resolve(workload_tag)
+            if workload_tag
+            else (self.provider, self.model or self.fast_model)
+        )
         blocked = route_block_reason(
             cost_mode=self.cost_mode,
             provider=provider_name,
@@ -245,6 +243,9 @@ class RouterConfig(BaseSettings):
                 f"Provider '{provider_name}' requires {env_name} to be set. "
                 f"Add it to your .env file."
             )
+
+        if provider_name == "xai" and is_xai_media_generation_model(model_id):
+            raise ConfigurationError(xai_media_generation_refusal(model_id))
 
     def with_model_override(self, override: str) -> RouterConfig:
         """Return a new RouterConfig with the model override applied."""

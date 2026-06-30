@@ -12,6 +12,10 @@ import time
 
 from openai import OpenAI
 
+from distill.llm.model_policy import (
+    is_xai_media_generation_model,
+    xai_media_generation_refusal,
+)
 from distill.llm.retry import is_permanent_error
 from distill.llm.router import LLM_Response
 
@@ -42,6 +46,9 @@ class GrokProvider:
 
         Retries on transient errors with exponential backoff (base 5s, factor 2).
         """
+        if is_xai_media_generation_model(model):
+            raise ValueError(xai_media_generation_refusal(model))
+
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:

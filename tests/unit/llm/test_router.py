@@ -177,6 +177,19 @@ def test_missing_api_key_raises_configuration_error() -> None:
         call(config, "analysis", "test prompt")
 
 
+def test_xai_media_model_refused_before_provider_call() -> None:
+    """xAI media generation models are never sent through the chat route."""
+    config = _make_config(model="grok-imagine-image")
+
+    with (
+        patch("distill.llm.router._get_provider") as get_provider,
+        pytest.raises(ConfigurationError, match="media generation model"),
+    ):
+        call(config, "analysis", "test prompt")
+
+    get_provider.assert_not_called()
+
+
 def test_no_metered_blocks_api_billed_route_before_key_validation() -> None:
     """Cost policy fails closed before a cloud route can spend or ask for keys."""
     config = RouterConfig(provider="xai", xai_api_key="test-key", cost_mode="no-metered")

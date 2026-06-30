@@ -93,6 +93,15 @@ def test_retry_count(retries: int) -> None:
 class TestGrokProviderSuccess:
     """Test successful GrokProvider calls."""
 
+    def test_media_generation_model_is_refused_before_api_call(self) -> None:
+        """Media model slugs are not valid for xAI chat completions."""
+        provider, mock_client = _build_provider()
+
+        with pytest.raises(ValueError, match="media generation model"):
+            asyncio.run(provider.call("grok-imagine-image", "hello"))
+
+        mock_client.chat.completions.create.assert_not_called()
+
     def test_successful_call_returns_correct_fields(self) -> None:
         """A successful call returns an LLM_Response with correct fields."""
         provider, mock_client = _build_provider()
