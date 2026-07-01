@@ -22,7 +22,12 @@ from distill.cli_shared import (
 from distill.cli_shared import (
     topic_from_query as _topic_from_query,
 )
-from distill.commands._helpers import _complete_topics, get_config
+from distill.commands._helpers import (
+    _complete_topics,
+    budgeted_cost_tracker,
+    get_config,
+    save_command_cost,
+)
 from distill.commands._helpers import invoke_command as _invoke_command
 from distill.commands._helpers import run_preflight as _preflight
 from distill.commands._learning import (
@@ -38,7 +43,6 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_exists, find_artifact
 from distill.library.state import ChannelState
-from distill.pipeline.costs import CostTracker
 from distill.pipeline.dashboard_data import count_paper_corpus as _count_paper_corpus
 from distill.pipeline.dashboard_data import count_site_corpus as _count_site_corpus
 from distill.pipeline.dashboard_data import count_topic_outputs as _count_topic_outputs
@@ -89,6 +93,14 @@ class _TopicWorkflowConfig:
 
 def _topic_profile_path(config: DistillConfig, topic: str) -> Path:
     return config.topic_dir(topic) / "topic_profile.json"
+
+
+def _generate_budgeted_topic_brief(topic: str, config: DistillConfig) -> None:
+    tracker = budgeted_cost_tracker(config, "topic-brief")
+    try:
+        _generate_and_export_topic_brief(topic, config, tracker)
+    finally:
+        save_command_cost(config, "topic-brief", tracker, metadata={"topic": topic})
 
 
 def _topic_exists(config: DistillConfig, topic: str) -> bool:
@@ -283,7 +295,7 @@ def _run_topic_workflow(
     console.print(f"[dim]Saved topic profile: {profile_path}[/dim]")
 
     if brief:
-        _generate_and_export_topic_brief(topic_name, config, CostTracker())
+        _generate_budgeted_topic_brief(topic_name, config)
     if report_after:
         from distill.commands.reports import report
 
@@ -455,7 +467,7 @@ def topic_brief(
     if not _topic_exists(config, topic):
         console.print(f"[red]Topic not found: {topic}[/red]")
         raise typer.Exit(1)
-    _generate_and_export_topic_brief(topic, config, CostTracker())
+    _generate_budgeted_topic_brief(topic, config)
     if report_after:
         from distill.commands.reports import report
 

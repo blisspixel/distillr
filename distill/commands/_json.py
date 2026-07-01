@@ -38,6 +38,7 @@ class ExitCode(IntEnum):
     CONFIG_ERROR = 3
     NETWORK_ERROR = 4
     NOT_FOUND = 5
+    BUDGET_EXCEEDED = 6
 
 
 @dataclass
@@ -133,9 +134,22 @@ def _exit_code_from_http_status(status: int | None) -> ExitCode | None:
     return None
 
 
+def _is_requests_network_error(exc: BaseException) -> bool:
+    try:
+        import requests
+    except ImportError:
+        return False
+    return isinstance(exc, (requests.ConnectionError, requests.Timeout))
+
+
 def map_exception_to_exit_code(exc: BaseException) -> ExitCode:
     """Map an exception to the appropriate exit code."""
     import typer
+
+    from distill.pipeline.costs import BudgetExceededError
+
+    if isinstance(exc, BudgetExceededError):
+        return ExitCode.BUDGET_EXCEEDED
 
     # Check for configuration errors
     exc_type_name = type(exc).__name__
@@ -146,16 +160,8 @@ def map_exception_to_exit_code(exc: BaseException) -> ExitCode:
     if status_code is not None:
         return status_code
 
-    # Network errors
-    try:
-        import requests
-    except ImportError:
-        requests_network_error = False
-    else:
-        requests_network_error = isinstance(exc, (requests.ConnectionError, requests.Timeout))
-
     if (
-        requests_network_error
+        _is_requests_network_error(exc)
         or "timeout" in exc_type_name.lower()
         or "connection" in exc_type_name.lower()
     ):

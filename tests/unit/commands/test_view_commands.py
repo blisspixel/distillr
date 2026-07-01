@@ -6,6 +6,7 @@ import json
 import shutil
 from datetime import datetime, timedelta
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
@@ -15,6 +16,7 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
 from distill.library.state import ChannelState
+from distill.pipeline.costs import BudgetExceededError, TokenUsage
 
 runner = CliRunner()
 
@@ -528,6 +530,61 @@ class TestSynthesisAndFindings:
         assert result.exit_code == 0
         assert "Topic synthesis generated" in result.output
         assert "Generated topic synth" in result.output
+
+    def test_synthesis_generation_uses_workflow_budget(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "synthesis=0.25"
+        _seed_library(config)
+        _seed_video(config)
+        self._patch(monkeypatch, config)
+        budgets: list[float | None] = []
+
+        def fake_topic(topic, cfg, tracker=None):
+            budgets.append(tracker.budget if tracker else None)
+            if tracker:
+                tracker.record(
+                    TokenUsage(prompt_tokens=1000, completion_tokens=0, model="grok-4.3")
+                )
+            topic_dir = config.topic_dir(topic)
+            topic_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path(topic_dir, "topic_synthesis", identity=topic).write_text(
+                "# Generated topic synth", encoding="utf-8"
+            )
+
+        monkeypatch.setattr(view_mod, "synthesize_topic", fake_topic)
+
+        result = runner.invoke(cli.app, ["synthesis", "ai"])
+
+        assert result.exit_code == 0
+        assert budgets == [0.25]
+        log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+        rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+        assert rows[-1]["command"] == "synthesis"
+        assert rows[-1]["metadata"] == {"topic": "ai"}
+        assert rows[-1]["actual_cost"] > 0
+
+    def test_synthesis_budget_stop_is_not_swallowed(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "synthesis=0.0001"
+        _seed_library(config)
+        _seed_video(config)
+        self._patch(monkeypatch, config)
+
+        def stop_for_budget(topic, cfg, tracker=None):
+            if tracker:
+                tracker.record(
+                    TokenUsage(prompt_tokens=1000, completion_tokens=0, model="grok-4.3")
+                )
+
+        monkeypatch.setattr(view_mod, "synthesize_topic", stop_for_budget)
+
+        with pytest.raises(BudgetExceededError):
+            view_mod.synthesis("ai", channel=None)
+        log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+        rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+        assert rows[-1]["command"] == "synthesis"
+        assert rows[-1]["metadata"] == {"topic": "ai"}
+        assert rows[-1]["actual_cost"] > 0
 
     def test_synthesis_no_processed_videos(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

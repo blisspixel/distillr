@@ -14,6 +14,7 @@ from distill.commands._json import (
     handle_cli_error,
     map_exception_to_exit_code,
 )
+from distill.pipeline.costs import BudgetExceededError
 
 # ── Property 12: JSON envelope serialization round-trip ──
 # Feature: mcp-first-surface, Property 12: JSON envelope serialization round-trip
@@ -135,6 +136,10 @@ class TestExitCodeMapping:
     def test_runtime_error_default(self):
         code = map_exception_to_exit_code(ValueError("something broke"))
         assert code == ExitCode.RUNTIME_ERROR
+
+    def test_budget_exceeded(self):
+        code = map_exception_to_exit_code(BudgetExceededError(0.61, 0.5))
+        assert code == ExitCode.BUDGET_EXCEEDED
 
     def test_handle_cli_error_json_mode(self, capsys):
         code = handle_cli_error(RuntimeError("boom"), json_mode=True)

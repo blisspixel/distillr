@@ -128,8 +128,11 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   comparable-run spikes, configured per-workflow budget overruns, and any
   recorded xAI media-generation model ids from the cost ledger. Warning
   thresholds and workflow-budget caps are configurable through environment or
-  `.env` settings. Remaining: fail-closed pre-run or mid-run budget enforcement
-  for direct CLI workflows outside topic watches.
+  `.env` settings. Budgeted direct CLI trackers now stop on recorded-spend
+  cap crossings for writer workflows, including `topic brief` and auto-generated
+  `synthesis` read fallbacks, and the installed CLI maps those stops to a clean
+  budget exit in human and JSON modes. Remaining: broader pre-run projected
+  spend checks for direct one-off CLI commands before the first billable call.
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
 - [x] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem. `papers`, `site-batch`, `discover` paper/site ingestion, and default `report` show phase/item/completed/failed/spend output, with ETA when enough items have completed. Video-backed loops used by `latest`, `catch-up`, and the video branch of `discover` print persistent per-video completed/failed/spend progress after each item and include spend in live phase labels. Global `--quiet` / `--verbose` output controls and recurring-workflow help examples are now wired.
 - [x] **Preview-table rendering at narrow widths** - fixed 0.9.31 (stacked layout below 110 columns); detail in [`CHANGELOG.md`](CHANGELOG.md).

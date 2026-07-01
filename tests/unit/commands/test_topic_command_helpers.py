@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from distill.commands import topic as _topic
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_path
+from distill.pipeline.costs import TokenUsage
 
 runner = CliRunner()
 
@@ -169,6 +171,50 @@ def test_topic_create_videos_only_runs_brief_and_report_hooks(
     assert (mock_config.topic_dir("memory") / "topic_profile.json").exists()
 
 
+def test_topic_create_brief_uses_topic_brief_budget(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_config.distill_cost_workflow_budgets = "topic-brief=0.25"
+    budgets: list[float | None] = []
+
+    monkeypatch.setattr(_topic, "_run_learning_command", lambda *args, **kwargs: None)
+
+    def fake_brief(topic: str, config: DistillConfig, tracker: Any) -> None:
+        budgets.append(tracker.budget)
+        tracker.record(TokenUsage(prompt_tokens=1000, completion_tokens=0, model="grok-4.3"))
+
+    monkeypatch.setattr(
+        _topic,
+        "_generate_and_export_topic_brief",
+        fake_brief,
+    )
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "topic",
+            "create",
+            "Agent memory",
+            "--topic",
+            "memory",
+            "--videos",
+            "2",
+            "--papers",
+            "0",
+            "--brief",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert budgets == [0.25]
+    log_path = mock_config.library_dir / ".distill" / "cost_log.jsonl"
+    rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    assert rows[-1]["command"] == "topic-brief"
+    assert rows[-1]["metadata"] == {"topic": "memory"}
+    assert rows[-1]["actual_cost"] > 0
+
+
 def test_topic_update_missing_profile_is_clean_exit(
     mock_config: DistillConfig,
     monkeypatch: pytest.MonkeyPatch,
@@ -200,12 +246,13 @@ def test_topic_brief_report_hook_runs_for_existing_topic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_config.topic_dir("t").mkdir(parents=True, exist_ok=True)
+    mock_config.distill_cost_workflow_budgets = "topic-brief=0.25"
     calls: dict[str, Any] = {}
 
     monkeypatch.setattr(
         _topic,
         "_generate_and_export_topic_brief",
-        lambda topic, config, tracker: calls.setdefault("brief", topic),
+        lambda topic, config, tracker: calls.setdefault("brief", (topic, tracker.budget)),
     )
     monkeypatch.setattr(
         _topic,
@@ -216,7 +263,7 @@ def test_topic_brief_report_hook_runs_for_existing_topic(
     result = runner.invoke(cli.app, ["topic", "brief", "t", "--report"])
 
     assert result.exit_code == 0, result.output
-    assert calls == {"brief": "t", "report": {"topic": "t", "test": False}}
+    assert calls == {"brief": ("t", 0.25), "report": {"topic": "t", "test": False}}
 
 
 def test_topic_show_dispatches_synthesis_report_and_unknown_modes(

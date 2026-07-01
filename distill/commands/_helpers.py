@@ -45,7 +45,7 @@ from distill.config import DistillConfig
 from distill.commands._report_helpers import run_scope_report
 from distill.library import Library
 from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube.transcripts import get_transcript
@@ -83,6 +83,8 @@ __all__ = [
     "run_preflight",
     "run_scope_report",
     "safe_console_text",
+    "save_command_cost",
+    "save_synthesis_command_cost",
     "strip_frontmatter",
     "topic_from_query",
     "tty_confirm",
@@ -121,6 +123,31 @@ def budgeted_cost_tracker(config: DistillConfig, command: str) -> CostTracker:
     normalized = " ".join(command.split()).strip().lower()
     budget = config.cost_workflow_budgets_usd.get(normalized)
     return CostTracker(budget=budget if budget is not None else None)
+
+
+def save_command_cost(
+    config: DistillConfig,
+    command: str,
+    tracker: CostTracker,
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Persist a command cost row when a direct workflow has recorded spend."""
+    if tracker.total_cost <= 0:
+        return
+    save_run_log(config.library_dir, command, tracker, metadata=metadata)
+
+
+def save_synthesis_command_cost(
+    config: DistillConfig,
+    topic: str,
+    channel: str | None,
+    tracker: CostTracker,
+) -> None:
+    metadata = {"topic": topic}
+    if channel:
+        metadata["channel"] = channel
+    save_command_cost(config, "synthesis", tracker, metadata=metadata)
 
 
 def _apply_verify_override(verify: str) -> None:

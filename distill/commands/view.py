@@ -26,7 +26,9 @@ from distill.commands._helpers import (
     _complete_topic_watch_names,
     _complete_topics,
     _complete_watched_channels,
+    budgeted_cost_tracker,
     get_config,
+    save_synthesis_command_cost,
 )
 from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import file_link as _file_link
@@ -56,7 +58,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.library.state import ChannelState
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError
 from distill.pipeline.dashboard_records import JsonObject, json_object
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
@@ -661,11 +663,9 @@ def synthesis(  # noqa: C901 — legacy, will refactor
         )
         label = f"Channel Synthesis: {channel}"
     else:
-        # Try topic synthesis first, fall back to first channel
         file_path = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
         label = f"Topic Synthesis: {topic}"
         if not file_path.exists():
-            # Fall back to first channel synthesis
             lib = Library(config)
             channels = lib.get_channels(topic)
             if channels:
@@ -682,7 +682,6 @@ def synthesis(  # noqa: C901 — legacy, will refactor
         return
 
     if not file_path.exists():
-        # Check if there are any processed videos at all
         lib = Library(config)
         ch_list = lib.get_channels(topic)
         total_processed = 0
@@ -705,24 +704,29 @@ def synthesis(  # noqa: C901 — legacy, will refactor
             return
         else:
             console.print("[yellow]No synthesis found. Generating one now...[/yellow]")
+            tracker = budgeted_cost_tracker(config, "synthesis")
             try:
-                tracker = CostTracker()
-                if channel:
-                    synthesize_channel(topic, channel, config, tracker=tracker)
-                    console.print(f"[green]Synthesis generated for {channel}[/green]")
-                    file_path = find_artifact(
-                        config.channel_dir(topic, channel),
-                        "synthesis",
-                        identity=f"{topic}_{channel}",
-                    )
-                else:
-                    synthesize_topic(topic, config, tracker=tracker)
-                    console.print(f"[green]Topic synthesis generated for {topic}[/green]")
-                    file_path = find_artifact(
-                        config.topic_dir(topic),
-                        "topic_synthesis",
-                        identity=topic,
-                    )
+                try:
+                    if channel:
+                        synthesize_channel(topic, channel, config, tracker=tracker)
+                        console.print(f"[green]Synthesis generated for {channel}[/green]")
+                        file_path = find_artifact(
+                            config.channel_dir(topic, channel),
+                            "synthesis",
+                            identity=f"{topic}_{channel}",
+                        )
+                    else:
+                        synthesize_topic(topic, config, tracker=tracker)
+                        console.print(f"[green]Topic synthesis generated for {topic}[/green]")
+                        file_path = find_artifact(
+                            config.topic_dir(topic),
+                            "topic_synthesis",
+                            identity=topic,
+                        )
+                finally:
+                    save_synthesis_command_cost(config, topic, channel, tracker)
+            except BudgetExceededError:
+                raise
             except Exception as e:
                 console.print(f"[red]Synthesis failed: {e}[/red]")
                 return

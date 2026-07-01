@@ -86,13 +86,28 @@ Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
 workflow should draw attention above a known spend ceiling:
 
 ```bash
-DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,site-batch=3"
+DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,site-batch=3,topic-brief=1,synthesis=1"
 ```
 
-Workflow budgets are warning policies over the ledger. They do not replace
-`DISTILL_COST_MODE=no-metered`, topic-watch max-run/monthly budgets, or MCP
-per-call spend caps. Use those fail-closed controls when a command must stop
-before or during billable execution.
+Workflow budgets serve two roles. First, direct CLI workflows that create a
+budgeted tracker stop when their recorded spend crosses the configured cap.
+The crossing model call has already happened and stays in the ledger, then the
+installed `distill` command exits with code `6`; JSON mode emits a structured
+`budget_exceeded` envelope. Second, `distill costs`, the CLI dashboard, JSON
+cost output, and the local web dashboard use the same caps to flag historical
+over-budget ledger rows.
+
+Use the user-facing command key for the cap. Common keys include `ask`,
+`catch-up`, `channel`, `concepts`, `corpus`, `discover`, `eval`, `ingest`,
+`paper`, `papers`, `reanalyze`, `report`, `research-brief`, `resynthesize`,
+`run`, `site`, `site-batch`, `synthesize`, `synthesis`, `topic-brief`, and
+`video`.
+
+Workflow budgets do not replace `DISTILL_COST_MODE=no-metered`, topic-watch
+max-run/monthly budgets, or MCP per-call spend caps. Cost mode is the pre-call
+route policy. Topic-watch budgets are projected-run controls for recurring
+topic watches. MCP caps are per-tool-call controls for agent-facing write
+tools.
 
 ## Provider-side caches
 

@@ -167,12 +167,31 @@ def main() -> None:
     bad key, rate limit) print a clean one-line message instead of a full
     traceback. Unrecognized errors propagate unchanged.
     """
-    from distill.commands._json import map_exception_to_exit_code
+    from distill.commands._json import (
+        ExitCode,
+        emit_json,
+        json_mode_active,
+        map_exception_to_exit_code,
+    )
     from distill.llm.errors import describe_provider_error
+    from distill.pipeline.costs import BudgetExceededError
 
     app.pretty_exceptions_enable = False
     try:
         app()
+    except BudgetExceededError as exc:
+        if json_mode_active():
+            emit_json(
+                {
+                    "reason": "budget_exceeded",
+                    "spent_usd": round(exc.spent, 6),
+                    "budget_usd": round(exc.budget, 6),
+                },
+                error=str(exc),
+            )
+        else:
+            console.print(f"\n[red]Budget exceeded: {exc}[/red]")
+        raise SystemExit(int(ExitCode.BUDGET_EXCEEDED)) from exc
     except Exception as exc:
         message = describe_provider_error(exc)
         if message is None:
