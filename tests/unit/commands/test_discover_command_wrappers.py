@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from typer.testing import CliRunner
@@ -12,6 +13,7 @@ from distill import _cli_impl, cli
 from distill.commands import discover as _discover
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
+from distill.pipeline.costs import ProjectedBudgetExceededError
 from distill.pipeline.discovery import RankedDiscoverItem
 
 runner = CliRunner()
@@ -312,6 +314,34 @@ def test_synthesize_exits_when_synthesis_returns_no_output(
     assert result.exit_code == 1
     assert calls["topics"] == ["alpha", "beta", "gamma"]
     assert calls["context"] == "Summarize."
+
+
+def test_synthesize_refuses_projected_budget_before_synthesis(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_config.distill_cost_workflow_budgets = "synthesize=0.0001"
+    run_synthesis = MagicMock()
+
+    monkeypatch.setattr(_discover, "_require_model", lambda: None)
+    monkeypatch.setattr(_discover, "run_synthesis", run_synthesis)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "synthesize",
+            "--topic",
+            "alpha",
+            "--name",
+            "brief",
+            "--context",
+            "Summarize.",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert isinstance(result.exception, ProjectedBudgetExceededError)
+    run_synthesis.assert_not_called()
 
 
 def test_synthesize_combines_inline_and_file_context(

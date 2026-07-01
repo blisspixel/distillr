@@ -81,7 +81,11 @@ from distill.library.ingested import ingested_source_ids
 from distill.library.intent import make_intent, save_intent
 from distill.library.paths import find_artifact, site_name_from_url
 from distill.pipeline.analysis.site import synthesize_site_topic
-from distill.pipeline.costs import estimate_discover_items, load_cost_calibration
+from distill.pipeline.costs import (
+    estimate_discover_items,
+    estimate_synthesis_workflow_cost,
+    load_cost_calibration,
+)
 from distill.pipeline.discovery import (
     RIGOR_LEVELS,
     detect_score_cliff,
@@ -138,10 +142,6 @@ def synthesize_cmd(
     truth and web augmentation would add noise. grok-4.3's 1M-token context
     swallows the full corpus in one call, producing a long-form synthesis
     without the consulting-report compression bias that Deep Research imposes.
-
-    Example:
-        distill synthesize -t rag-research,vector-dbs \\
-            --context-file docs/briefing-contexts/lit-review.md --name rag-lit
     """
     expanded: list[str] = []
     for entry in topics:
@@ -168,6 +168,11 @@ def synthesize_cmd(
     config = get_config()
     _require_model()
 
+    enforce_projected_workflow_budget(
+        config,
+        "synthesize",
+        estimate_synthesis_workflow_cost(),
+    )
     tracker = budgeted_cost_tracker(config, "synthesize")
     output_path = run_synthesis(
         topics=expanded,

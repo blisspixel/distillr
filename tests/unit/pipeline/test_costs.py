@@ -9,6 +9,7 @@ from distill.pipeline.costs import (
     CostTracker,
     TokenUsage,
     estimate_run_cost,
+    estimate_synthesis_workflow_cost,
     estimate_video_workflow_cost,
     report_deep_research_estimate,
     save_run_log,
@@ -122,6 +123,13 @@ def test_video_workflow_estimate_matches_display_components():
         + report_deep_research_estimate()
     )
     assert estimate == expected
+
+
+def test_synthesis_workflow_estimate_counts_known_calls():
+    from distill.pipeline.costs import estimate_stage_cost
+
+    assert estimate_synthesis_workflow_cost(0) == 0.0
+    assert estimate_synthesis_workflow_cost(3) == 3 * estimate_stage_cost("synthesis")
 
 
 def test_report_deep_research_estimate_uses_central_pricing():

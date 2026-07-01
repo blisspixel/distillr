@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.16 - 2026-07-01
+
+Synthesis workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made direct `distill synthesize`, `distill topic brief`, and on-demand
+  `distill synthesis` generation refuse before known synthesis-call model work
+  when projected spend exceeds the configured workflow cap.
+
 ## 0.19.15 - 2026-07-01
 
 Video workflow cost-guard patch release. No new provider routes.

@@ -25,6 +25,7 @@ from distill.cli_shared import (
 from distill.commands._helpers import (
     _complete_topics,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
     save_command_cost,
 )
@@ -43,6 +44,7 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_exists, find_artifact
 from distill.library.state import ChannelState
+from distill.pipeline.costs import estimate_synthesis_workflow_cost
 from distill.pipeline.dashboard_data import count_paper_corpus as _count_paper_corpus
 from distill.pipeline.dashboard_data import count_site_corpus as _count_site_corpus
 from distill.pipeline.dashboard_data import count_topic_outputs as _count_topic_outputs
@@ -96,6 +98,11 @@ def _topic_profile_path(config: DistillConfig, topic: str) -> Path:
 
 
 def _generate_budgeted_topic_brief(topic: str, config: DistillConfig) -> None:
+    enforce_projected_workflow_budget(
+        config,
+        "topic-brief",
+        estimate_synthesis_workflow_cost(),
+    )
     tracker = budgeted_cost_tracker(config, "topic-brief")
     try:
         _generate_and_export_topic_brief(topic, config, tracker)

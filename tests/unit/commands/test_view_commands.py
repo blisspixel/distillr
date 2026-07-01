@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 import typer
@@ -16,7 +17,12 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
 from distill.library.state import ChannelState
-from distill.pipeline.costs import BudgetExceededError, TokenUsage
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    ProjectedBudgetExceededError,
+    TokenUsage,
+    estimate_synthesis_workflow_cost,
+)
 
 runner = CliRunner()
 
@@ -563,9 +569,27 @@ class TestSynthesisAndFindings:
         assert rows[-1]["metadata"] == {"topic": "ai"}
         assert rows[-1]["actual_cost"] > 0
 
-    def test_synthesis_budget_stop_is_not_swallowed(self, tmp_path, monkeypatch):
+    def test_synthesis_refuses_projected_budget_before_generation(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "synthesis=0.0001"
+        _seed_library(config)
+        _seed_video(config)
+        self._patch(monkeypatch, config)
+        synthesize_topic = MagicMock()
+
+        monkeypatch.setattr(view_mod, "synthesize_topic", synthesize_topic)
+
+        result = runner.invoke(cli.app, ["synthesis", "ai"])
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        synthesize_topic.assert_not_called()
+
+    def test_synthesis_budget_stop_is_not_swallowed(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = (
+            f"synthesis={estimate_synthesis_workflow_cost() + 0.01:.2f}"
+        )
         _seed_library(config)
         _seed_video(config)
         self._patch(monkeypatch, config)
@@ -573,7 +597,11 @@ class TestSynthesisAndFindings:
         def stop_for_budget(topic, cfg, tracker=None):
             if tracker:
                 tracker.record(
-                    TokenUsage(prompt_tokens=1000, completion_tokens=0, model="grok-4.3")
+                    TokenUsage(
+                        prompt_tokens=1_000_000,
+                        completion_tokens=1_000_000,
+                        model="grok-4.3",
+                    )
                 )
 
         monkeypatch.setattr(view_mod, "synthesize_topic", stop_for_budget)

@@ -16,7 +16,7 @@ ships when its promise is true and tested, and not before.
 ### 0.x (now) -- "The loop works"
 
 The promise being built: one tool takes a research goal to a verified,
-agent-legible, self-auditing local corpus. As of 0.19.15, the feature spine is
+agent-legible, self-auditing local corpus. As of 0.19.16, the feature spine is
 complete through OKF export/validation, loop-ready audit next-actions,
 recurring research profiles, cost-mode routing, adapter doctors, and the route
 availability primitives. The remaining 0.x work is the 1.0 quality gate:

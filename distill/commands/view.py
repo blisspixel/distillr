@@ -1,11 +1,5 @@
 # pyright: strict
-"""Corpus-browsing / view commands, extracted from the `_logic` monolith.
-
-First command-group slice of the decomposition (how-we-build.md remediation #1).
-Registered onto the app via :func:`register` from ``distill.cli`` (mirroring
-ask / audit / update), so `_logic` no longer owns these commands. Pure
-relocation -- no behavior change.
-"""
+"""Corpus-browsing and view commands."""
 
 from __future__ import annotations
 
@@ -27,6 +21,7 @@ from distill.commands._helpers import (
     _complete_topics,
     _complete_watched_channels,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
     save_synthesis_command_cost,
 )
@@ -58,7 +53,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.library.state import ChannelState
-from distill.pipeline.costs import BudgetExceededError
+from distill.pipeline.costs import BudgetExceededError, estimate_synthesis_workflow_cost
 from distill.pipeline.dashboard_records import JsonObject, json_object
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
@@ -704,6 +699,11 @@ def synthesis(  # noqa: C901 — legacy, will refactor
             return
         else:
             console.print("[yellow]No synthesis found. Generating one now...[/yellow]")
+            enforce_projected_workflow_budget(
+                config,
+                "synthesis",
+                estimate_synthesis_workflow_cost(),
+            )
             tracker = budgeted_cost_tracker(config, "synthesis")
             try:
                 try:

@@ -86,7 +86,7 @@ Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
 workflow should draw attention above a known spend ceiling:
 
 ```bash
-DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,eval=1,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site-batch=3,topic-brief=1,synthesis=1"
+DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,eval=1,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site-batch=3,topic-brief=1,synthesize=1,synthesis=1"
 ```
 
 Workflow budgets serve three roles. First, direct CLI workflows with credible
@@ -95,7 +95,9 @@ checks its fixture-aware estimate before model execution; `distill video`,
 `distill channel`, `distill catch-up`, `distill reanalyze`, and
 `distill resynthesize` runs check known video-analysis and synthesis estimates
 before their model work starts; `distill report` and `distill research-brief`
-check their Deep Research estimates before the Gemini call; and
+check their Deep Research estimates before the Gemini call; direct
+`distill synthesize`, `distill topic brief`, and on-demand `distill synthesis`
+generation check their known synthesis-call estimates before model execution; and
 `distill discover` checks saved preview estimates and freshly ranked
 ingest-plan estimates before ingest. Second, direct CLI workflows that create a
 budgeted tracker stop when

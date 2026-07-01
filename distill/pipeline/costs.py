@@ -49,6 +49,7 @@ __all__ = [
     "estimate_discover_items",
     "estimate_run_cost",
     "estimate_stage_cost",
+    "estimate_synthesis_workflow_cost",
     "estimate_video_workflow_cost",
     "estimator_accuracy",
     "load_cost_calibration",
@@ -86,6 +87,13 @@ def estimate_stage_cost(stage: str, *, model: str = "") -> float:
     return compute_cost(model or DEFAULT_MODEL, tin, tout)
 
 
+def estimate_synthesis_workflow_cost(calls: int = 1) -> float:
+    """Projected USD cost for known synthesis calls before model execution."""
+    if calls <= 0:
+        return 0.0
+    return calls * estimate_stage_cost("synthesis")
+
+
 def estimate_video_workflow_cost(
     full_videos: int = 0,
     shorts: int = 0,
@@ -100,7 +108,7 @@ def estimate_video_workflow_cost(
         + shorts * estimate_stage_cost("video_short")
         + scan_videos * estimate_stage_cost("video_scan")
     )
-    synthesis_cost = synthesis_calls * estimate_stage_cost("synthesis")
+    synthesis_cost = estimate_synthesis_workflow_cost(synthesis_calls)
     gemini_cost = deep_research_query_cost() if include_report else 0.0
     accordion_grok = ACCORDION_GROK_ESTIMATE if include_report else 0.0
     return grok_cost + synthesis_cost + gemini_cost + accordion_grok

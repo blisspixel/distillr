@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 import typer
@@ -15,7 +16,7 @@ from distill.commands import topic as _topic
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_path
-from distill.pipeline.costs import TokenUsage
+from distill.pipeline.costs import ProjectedBudgetExceededError, TokenUsage
 
 runner = CliRunner()
 
@@ -239,6 +240,23 @@ def test_topic_brief_rejects_missing_topic(mock_config: DistillConfig) -> None:
 
     assert result.exit_code == 1
     assert "Topic not found: missing" in result.output
+
+
+def test_topic_brief_refuses_projected_budget_before_generation(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_config.topic_dir("t").mkdir(parents=True, exist_ok=True)
+    mock_config.distill_cost_workflow_budgets = "topic-brief=0.0001"
+    generate_brief = MagicMock()
+
+    monkeypatch.setattr(_topic, "_generate_and_export_topic_brief", generate_brief)
+
+    result = runner.invoke(cli.app, ["topic", "brief", "t"])
+
+    assert result.exit_code != 0
+    assert isinstance(result.exception, ProjectedBudgetExceededError)
+    generate_brief.assert_not_called()
 
 
 def test_topic_brief_report_hook_runs_for_existing_topic(
