@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.21 - 2026-07-01
+
+Corpus workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill corpus` refuse before model preflight when a topic has corpus
+  source sections and one synthesis-call projection exceeds the configured
+  `corpus` workflow cap, while preserving empty and paper-only no-synthesis
+  paths.
+
 ## 0.19.20 - 2026-07-01
 
 Paper workflow cost-guard patch release. No new provider routes.

@@ -7,7 +7,11 @@ from distill.claims.records import Claim, ClaimRole
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
-from distill.pipeline.synthesis.corpus import synthesize_corpus, synthesize_corpus_from_claims
+from distill.pipeline.synthesis.corpus import (
+    has_corpus_synthesis_inputs,
+    synthesize_corpus,
+    synthesize_corpus_from_claims,
+)
 
 
 def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
@@ -47,6 +51,25 @@ def test_synthesize_corpus_writes_output(tmp_path):
     output = find_artifact(topic_dir, "corpus_synthesis", identity="mixed")
     assert output.name == "mixed_Corpus_Synthesis.md"
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "corpus synthesis"
+
+
+def test_has_corpus_synthesis_inputs_matches_single_pass_boundaries(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+
+    assert not has_corpus_synthesis_inputs(topic, config)
+
+    topic_dir = config.topic_dir(topic)
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "paper_synthesis.md").write_text("# Paper", encoding="utf-8")
+
+    assert not has_corpus_synthesis_inputs(topic, config)
+
+    channel_dir = config.channel_dir(topic, "CreatorOne")
+    channel_dir.mkdir(parents=True, exist_ok=True)
+    (channel_dir / "synthesis.md").write_text("# Channel", encoding="utf-8")
+
+    assert has_corpus_synthesis_inputs(topic, config)
 
 
 def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesis(tmp_path):

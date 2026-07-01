@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from distill.config import DistillConfig
@@ -23,6 +24,7 @@ from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import corpus_synthesis_prompt
 
 __all__ = [
+    "has_corpus_synthesis_inputs",
     "synthesize_corpus",
     "synthesize_corpus_from_claims",
 ]
@@ -159,6 +161,25 @@ def synthesize_corpus_from_claims(
     return synthesis
 
 
+def _iter_subdir_artifacts(
+    parent_dir: Path,
+    topic: str,
+    artifact_type: str,
+    *,
+    identity_prefix: str | None = None,
+) -> Iterator[tuple[Path, Path]]:
+    if not parent_dir.exists():
+        return
+    prefix = identity_prefix or topic
+    for sub_dir in sorted(parent_dir.iterdir()):
+        if not sub_dir.is_dir():
+            continue
+        identity = f"{prefix}_{sub_dir.name}"
+        synth_file = find_artifact(sub_dir, artifact_type, identity=identity)
+        if synth_file.exists():
+            yield sub_dir, synth_file
+
+
 def _collect_subdir_sections(
     parent_dir: Path,
     topic: str,
@@ -169,20 +190,27 @@ def _collect_subdir_sections(
     """Collect per-subdirectory synthesis artifacts (channels or sites) as
     labeled corpus sections, each prefixed with a wikilink to its source."""
     sections: dict[str, str] = {}
-    if not parent_dir.exists():
-        return sections
-    for sub_dir in sorted(parent_dir.iterdir()):
-        if not sub_dir.is_dir():
-            continue
+    for sub_dir, synth_file in _iter_subdir_artifacts(parent_dir, topic, artifact_type):
         identity = f"{topic}_{sub_dir.name}"
-        synth_file = find_artifact(sub_dir, artifact_type, identity=identity)
-        if not synth_file.exists():
-            continue
         link = emit_wiki_link(f"{link_title_prefix}: {sub_dir.name}", identity, artifact_type)
         sections[f"{section_prefix}: {sub_dir.name}"] = f"Source: {link}\n" + synth_file.read_text(
             encoding="utf-8"
         )
     return sections
+
+
+def has_corpus_synthesis_inputs(topic: str, config: DistillConfig) -> bool:
+    """Return true when single-pass corpus synthesis would make an LLM call."""
+    topic_dir = config.topic_dir(topic)
+    channel_count = sum(
+        1 for _ in _iter_subdir_artifacts(topic_dir / "channels", topic, "synthesis")
+    )
+    site_count = sum(
+        1 for _ in _iter_subdir_artifacts(config.sites_dir(topic), topic, "site_synthesis")
+    )
+    has_paper = find_artifact(topic_dir, "paper_synthesis", identity=topic).exists()
+    source_count = channel_count + site_count + int(has_paper)
+    return source_count > 0 and not (source_count == 1 and has_paper)
 
 
 def synthesize_corpus(

@@ -37,6 +37,7 @@ from distill.pipeline.costs import (
     ProjectedBudgetExceededError,
     estimate_paper_workflow_cost,
     estimate_site_batch_workflow_cost,
+    estimate_synthesis_workflow_cost,
 )
 
 
@@ -2914,6 +2915,28 @@ class TestWatchCommands:
 
         assert result.exit_code == 0
         assert (mock_config.topic_dir("mixed") / "corpus_synthesis.md").exists()
+
+    def test_corpus_projected_budget_refuses_before_model_or_synthesis(
+        self, mock_config, monkeypatch
+    ):
+        channel_dir = mock_config.channel_dir("mixed", "CreatorOne")
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text("# Channel", encoding="utf-8")
+        projected = estimate_synthesis_workflow_cost()
+        mock_config.distill_cost_workflow_budgets = f"corpus={projected / 2:.8f}"
+        calls: list[str] = []
+
+        monkeypatch.setattr(_maintain, "_require_model", lambda: calls.append("model"))
+        monkeypatch.setattr(
+            _maintain,
+            "synthesize_corpus",
+            lambda *a, **k: calls.append("synthesis") or "corpus synthesis",
+        )
+
+        result = runner.invoke(cli.app, ["corpus", "mixed"])
+
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        assert calls == []
 
 
 class TestCatchUpCommand:

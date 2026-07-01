@@ -29,6 +29,7 @@ from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
@@ -50,10 +51,11 @@ from distill.library.state import ChannelInfo, ChannelState
 from distill.pipeline.costs import (
     CostWarning,
     cost_anomaly_warnings,
+    estimate_synthesis_workflow_cost,
     projected_next_run_cost,
 )
 from distill.pipeline.summary import RunSummary, display_summary
-from distill.pipeline.synthesis.corpus import synthesize_corpus
+from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
 
 __all__ = [
     "alerts",
@@ -926,10 +928,15 @@ def corpus(
 ):
     """Build a mixed-source corpus synthesis for a topic."""
     config = get_config()
+    projected_cost = 0.0
+    if has_corpus_synthesis_inputs(topic, config):
+        projected_cost = estimate_synthesis_workflow_cost()
+        enforce_projected_workflow_budget(config, "corpus", projected_cost)
     _require_model()
     tracker = budgeted_cost_tracker(config, "corpus")
     summary = RunSummary(command="corpus")
     summary.set_metadata(topic=topic, workflow="corpus", source_type="mixed")
+    summary.estimated_cost = projected_cost or None
 
     result = synthesize_corpus(topic, config, tracker=tracker)
     if not result:
