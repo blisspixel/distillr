@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.20 - 2026-07-01
+
+Paper workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill paper` refuse before model preflight when one full-PDF analysis
+  plus the known paper and corpus synthesis projection exceeds the configured
+  `paper` workflow cap.
+- Made non-preview `distill papers` refuse before model preflight when the
+  requested paper-limit upper bound exceeds the configured `papers` workflow
+  cap, then re-check the selected-paper analysis plus known synthesis projection
+  before full-PDF analysis.
+
 ## 0.19.19 - 2026-07-01
 
 Site workflow cost-guard patch release. No new provider routes.

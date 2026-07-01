@@ -49,6 +49,7 @@ __all__ = [
     "estimate_ask_workflow_cost",
     "estimate_discover_cost",
     "estimate_discover_items",
+    "estimate_paper_workflow_cost",
     "estimate_run_cost",
     "estimate_site_batch_workflow_cost",
     "estimate_stage_cost",
@@ -99,6 +100,17 @@ def estimate_synthesis_workflow_cost(calls: int = 1) -> float:
     if calls <= 0:
         return 0.0
     return calls * estimate_stage_cost("synthesis")
+
+
+def estimate_paper_workflow_cost(
+    paper_count: int,
+    *,
+    synthesis_calls: int = 0,
+) -> float:
+    """Projected USD cost for paper analysis plus known synthesis calls."""
+    paper_cost = max(0, paper_count) * estimate_stage_cost("paper")
+    synthesis_cost = estimate_synthesis_workflow_cost(synthesis_calls)
+    return paper_cost + synthesis_cost
 
 
 def estimate_ask_workflow_cost(

@@ -33,7 +33,11 @@ from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
-from distill.pipeline.costs import ProjectedBudgetExceededError, estimate_site_batch_workflow_cost
+from distill.pipeline.costs import (
+    ProjectedBudgetExceededError,
+    estimate_paper_workflow_cost,
+    estimate_site_batch_workflow_cost,
+)
 
 
 def _recent(days_ago: int = 1) -> str:
@@ -2012,6 +2016,23 @@ class TestWatchCommands:
         written = list(papers_dir.glob("*/*_Paper.md"))
         assert written
 
+    def test_paper_projected_budget_refuses_before_model_or_fetch(self, mock_config, monkeypatch):
+        projected = estimate_paper_workflow_cost(1, synthesis_calls=2)
+        mock_config.distill_cost_workflow_budgets = f"paper={projected / 2:.8f}"
+        calls: list[str] = []
+
+        monkeypatch.setattr(_papers, "_require_model", lambda *a, **k: calls.append("model"))
+        monkeypatch.setattr(
+            _papers,
+            "fetch_arxiv_paper",
+            lambda *a, **k: calls.append("fetch"),
+        )
+
+        result = runner.invoke(cli.app, ["paper", "2602.12670", "--topic", "papers"])
+
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        assert calls == []
+
     def test_papers_command_searches_and_writes_synthesis(self, mock_config, monkeypatch):
         from distill.ingestors.papers.arxiv import PaperRecord
 
@@ -2075,6 +2096,63 @@ class TestWatchCommands:
         assert "spent $" in result.output
         assert (mock_config.topic_dir("papers") / "paper_synthesis.md").exists()
         assert (mock_config.topic_dir("papers") / "corpus_synthesis.md").exists()
+
+    def test_papers_projected_budget_refuses_before_analysis(self, mock_config, monkeypatch):
+        from distill.ingestors.papers.arxiv import PaperRecord
+
+        projected = estimate_paper_workflow_cost(1, synthesis_calls=2)
+        mock_config.distill_cost_workflow_budgets = f"papers={projected / 2:.8f}"
+        calls: list[str] = []
+
+        monkeypatch.setattr(_papers, "_require_model", lambda *a, **k: calls.append("model"))
+        monkeypatch.setattr(
+            _papers,
+            "search_arxiv_papers",
+            lambda *a, **k: (
+                calls.append("search")
+                or [
+                    PaperRecord(
+                        paper_id="2602.12670v1",
+                        title="Agent Memory Systems",
+                        abstract="A paper about memory systems.",
+                        authors=["Alice"],
+                        abs_url="https://arxiv.org/abs/2602.12670v1",
+                    )
+                ]
+            ),
+        )
+        monkeypatch.setattr(
+            _papers,
+            "analyze_paper",
+            lambda *a, **k: calls.append("analyze") or ("# Insight", "# Paper doc"),
+        )
+        monkeypatch.setattr(
+            _papers,
+            "synthesize_papers",
+            lambda *a, **k: calls.append("paper synthesis"),
+        )
+        monkeypatch.setattr(
+            _papers,
+            "synthesize_corpus",
+            lambda *a, **k: calls.append("corpus synthesis"),
+        )
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "papers",
+                "agent memory systems",
+                "--topic",
+                "papers",
+                "--limit",
+                "1",
+                "--no-expand",
+                "--no-rerank",
+            ],
+        )
+
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        assert calls == []
 
     def test_site_batch_progress_continues_after_seed_failure(
         self, mock_config, monkeypatch, tmp_path

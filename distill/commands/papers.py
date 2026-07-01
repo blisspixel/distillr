@@ -22,6 +22,7 @@ from distill.commands._helpers import (
     _apply_verify_override,
     _persist_lens,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
     resolve_intent,
 )
@@ -39,7 +40,7 @@ from distill.ingestors.papers.arxiv import (
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
-from distill.pipeline.costs import BudgetExceededError
+from distill.pipeline.costs import BudgetExceededError, estimate_paper_workflow_cost
 from distill.pipeline.ranking import rerank_papers
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
@@ -58,6 +59,8 @@ def paper(
 ):
     """Ingest and analyze a single arXiv paper."""
     config = get_config()
+    projected_cost = estimate_paper_workflow_cost(1, synthesis_calls=2)
+    enforce_projected_workflow_budget(config, "paper", projected_cost)
     _require_model()
     tracker = budgeted_cost_tracker(config, "paper")
     summary = RunSummary(command="paper")
@@ -154,9 +157,12 @@ def papers(  # noqa: C901 — legacy, will refactor
     _apply_verify_override(verify)
 
     config = get_config()
+    topic_name = topic or _topic_from_query(query)
+    if not preview:
+        projected_limit_cost = estimate_paper_workflow_cost(max(0, limit), synthesis_calls=2)
+        enforce_projected_workflow_budget(config, "papers", projected_limit_cost)
     _require_model()
     tracker = budgeted_cost_tracker(config, "papers")
-    topic_name = topic or _topic_from_query(query)
     if lens:
         _persist_lens(config, topic_name, query, lens)
     summary = RunSummary(command="papers")
@@ -250,10 +256,13 @@ def papers(  # noqa: C901 — legacy, will refactor
         )
         return
 
+    records = [item.paper for item in ranked]
+    projected_cost = estimate_paper_workflow_cost(len(records), synthesis_calls=2)
+    enforce_projected_workflow_budget(config, "papers", projected_cost)
+
     _display_ranked_papers(ranked, title="Selected Papers")
     console.print()
 
-    records = [item.paper for item in ranked]
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
     progress = BatchProgress("paper", len(records), tracker)
     for record in records:

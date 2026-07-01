@@ -9,6 +9,7 @@ from distill.pipeline.costs import (
     CostTracker,
     TokenUsage,
     estimate_ask_workflow_cost,
+    estimate_paper_workflow_cost,
     estimate_run_cost,
     estimate_site_batch_workflow_cost,
     estimate_stage_cost,
@@ -133,6 +134,16 @@ def test_synthesis_workflow_estimate_counts_known_calls():
 
     assert estimate_synthesis_workflow_cost(0) == 0.0
     assert estimate_synthesis_workflow_cost(3) == 3 * estimate_stage_cost("synthesis")
+
+
+def test_paper_workflow_estimate_counts_papers_and_synthesis():
+    from distill.pipeline.costs import estimate_stage_cost
+
+    estimate = estimate_paper_workflow_cost(3, synthesis_calls=2)
+
+    expected = 3 * estimate_stage_cost("paper") + 2 * estimate_stage_cost("synthesis")
+    assert estimate == expected
+    assert estimate_paper_workflow_cost(-1) == 0.0
 
 
 def test_ask_workflow_estimate_uses_retrieved_source_size():
