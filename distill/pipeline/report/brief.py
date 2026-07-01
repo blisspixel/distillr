@@ -25,6 +25,7 @@ from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
+from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
 from distill.pipeline.report._file_search_upload import upload_documents
@@ -239,6 +240,10 @@ def run_research_brief(
         result_text = interaction_text(completed)
         if not result_text:
             console.print("[red]Research completed but no output received[/red]")
+            return None
+        refusal = unresolved_numbered_citation_reason(result_text)
+        if refusal:
+            console.print(f"[red]Briefing refused:[/red] {refusal}")
             return None
 
         output_path = Path("output") / f"briefing-{name}.md"

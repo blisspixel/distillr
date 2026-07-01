@@ -201,3 +201,57 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     assert result.read_text(encoding="utf-8") == "brief body"
     assert tracker.gemini_queries == 1
     assert deleted
+
+
+def test_run_research_brief_refuses_unresolved_numbered_citation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    deleted = []
+
+    class FakeInteractions:
+        def create(self, **_kwargs):
+            return SimpleNamespace(id="job-1")
+
+        def get(self, _interaction_id):
+            return SimpleNamespace(
+                status="completed",
+                steps=[
+                    SimpleNamespace(
+                        type="model_output",
+                        content=[
+                            SimpleNamespace(
+                                type="text",
+                                text="Unsupported briefing claim [cite: 1].",
+                            )
+                        ],
+                    )
+                ],
+            )
+
+    class FakeClient:
+        def __init__(self):
+            self.file_search_stores = SimpleNamespace(
+                create=lambda **_kwargs: SimpleNamespace(name="store-1")
+            )
+            self.interactions = FakeInteractions()
+
+    monkeypatch.setattr("distill.pipeline.report.brief._upload_files", lambda *_args: 1)
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.delete_store", lambda _client, name: deleted.append(name)
+    )
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.gather_topic_files",
+        lambda *_args, **_kwargs: [("doc", "body")],
+    )
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.genai.Client",
+        lambda **_kwargs: FakeClient(),
+    )
+    tracker = CostTracker()
+
+    result = run_research_brief(["ai"], "ctx", "refused", config, tracker=tracker)
+
+    assert result is None
+    assert tracker.gemini_queries == 1
+    assert not (tmp_path / "output" / "briefing-refused.md").exists()
+    assert deleted == ["store-1"]

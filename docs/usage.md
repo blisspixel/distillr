@@ -521,6 +521,10 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).
 
 Output lands in `output/briefing-{name}.md` or `output/synthesis-{name}.md`.
+Report-style outputs refuse unresolved numbered citation handles such as
+`[cite: 1]` before writing when Distill has no structural citation map for
+them. The completed model call remains on the cost ledger; the unsafe report,
+briefing, or synthesis file is not promoted.
 
 ## Library management
 

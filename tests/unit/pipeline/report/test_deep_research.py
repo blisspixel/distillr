@@ -108,6 +108,41 @@ def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
     assert deleted == ["store-1"]
 
 
+def test_run_deep_research_refuses_unresolved_numbered_citation(tmp_path, monkeypatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+
+    class FakeInteractions:
+        def create(self, **kwargs):
+            return SimpleNamespace(id="job-1")
+
+        def get(self, interaction_id):
+            return _completed("Unsupported report claim [cite: 1].")
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.interactions = FakeInteractions()
+
+    monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", FakeClient)
+    monkeypatch.setattr(
+        "distill.pipeline.report.deep_research.create_research_store",
+        lambda *args, **kwargs: ("store-1", 2),
+    )
+    deleted = []
+    monkeypatch.setattr(
+        "distill.pipeline.report.deep_research.delete_store",
+        lambda client, name: deleted.append(name),
+    )
+    tracker = CostTracker()
+
+    result = run_deep_research("ai", config, tracker=tracker)
+
+    assert result is None
+    assert tracker.gemini_queries == 1
+    report_path = artifact_path(config.topic_dir("ai"), "report", identity="ai")
+    assert not report_path.exists()
+    assert deleted == ["store-1"]
+
+
 def test_run_deep_research_handles_failed_interaction(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
 

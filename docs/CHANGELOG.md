@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.13 - 2026-07-01
+
+Report citation-hardening patch release. No new provider routes.
+
+### Changed
+
+- Made Gemini Deep Research reports and multi-topic research briefs refuse
+  unresolved numbered report citations such as `[cite: 1]` before writing
+  report or briefing artifacts.
+
 ## 0.19.12 - 2026-07-01
 
 MCP trust-hardening patch release. No new provider routes.

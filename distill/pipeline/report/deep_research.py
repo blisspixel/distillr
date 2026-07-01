@@ -14,6 +14,7 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.file_search import create_research_store, delete_store
@@ -80,6 +81,10 @@ def run_deep_research(
         result_text = interaction_text(completed)
         if not result_text:
             console.print("[red]Research completed but no output received[/red]")
+            return None
+        refusal = unresolved_numbered_citation_reason(result_text)
+        if refusal:
+            console.print(f"[red]Deep research refused:[/red] {refusal}")
             return None
 
         output_path = _write_report_artifact(result_text, topic, config, scope, channel_name)
