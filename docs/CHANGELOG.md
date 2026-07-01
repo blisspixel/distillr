@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.14 - 2026-07-01
+
+Deep Research cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill report` and `distill research-brief` refuse before the Gemini
+  Deep Research call when their projected spend exceeds the configured
+  workflow cap.
+
 ## 0.19.13 - 2026-07-01
 
 Report citation-hardening patch release. No new provider routes.

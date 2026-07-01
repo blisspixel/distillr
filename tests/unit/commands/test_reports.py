@@ -15,6 +15,7 @@ from distill.library import Library
 from distill.library.citations import CitationRecord
 from distill.library.okf import OkfExportResult, OkfIssue, OkfValidationResult
 from distill.library.paths import artifact_path
+from distill.pipeline.costs import ProjectedBudgetExceededError
 
 runner = CliRunner()
 
@@ -78,6 +79,23 @@ class TestReportCommand:
 
         assert result.exit_code == 1
         assert "GEMINI_API_KEY" in result.output
+
+    def test_refuses_projected_report_budget_before_deep_research(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "report=0.0001"
+        _seed_topic(config)
+        self._patch_common(monkeypatch, config)
+        run_report = MagicMock(return_value="# Should not run")
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.run_accordion_research",
+            run_report,
+        )
+
+        result = runner.invoke(cli.app, ["report", "ai"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        run_report.assert_not_called()
 
     def test_accordion_report_success(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

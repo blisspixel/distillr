@@ -91,9 +91,11 @@ DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,eval=1,site-batch=3,topic-bri
 
 Workflow budgets serve three roles. First, direct CLI workflows with credible
 pre-run estimates can refuse before the estimated work starts. `distill eval`
-checks its fixture-aware estimate before model execution, and `distill discover`
-checks saved preview estimates and freshly ranked ingest-plan estimates before
-ingest. Second, direct CLI workflows that create a budgeted tracker stop when
+checks its fixture-aware estimate before model execution, `distill report` and
+`distill research-brief` check their Deep Research estimates before the Gemini
+call, and `distill discover` checks saved preview estimates and freshly ranked
+ingest-plan estimates before ingest. Second, direct CLI workflows that create a
+budgeted tracker stop when
 their recorded spend crosses the configured cap. The crossing model call has
 already happened and stays in the ledger, then the installed `distill` command
 exits with code `6`; JSON mode emits a structured `budget_exceeded` envelope.

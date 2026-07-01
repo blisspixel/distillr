@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import typer
 from typer.testing import CliRunner
 
 from distill import cli
 from distill.commands import learn as learn_mod
 from distill.config import DistillConfig
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import CostTracker, ProjectedBudgetExceededError
 
 runner = CliRunner()
 
@@ -162,6 +164,24 @@ class TestResearchBrief:
 
         assert result.exit_code == 1
         assert "GEMINI_API_KEY" in result.output
+
+    def test_refuses_projected_research_brief_budget_before_deep_research(
+        self, tmp_path, monkeypatch
+    ):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "research-brief=0.0001"
+        self._patch_common(monkeypatch, config)
+        run_brief = MagicMock(return_value=tmp_path / "output" / "briefing-demo.md")
+        monkeypatch.setattr(learn_mod, "run_research_brief", run_brief)
+
+        result = runner.invoke(
+            cli.app,
+            ["research-brief", "--topic", "ai", "--name", "demo", "--context", "Brief me"],
+        )
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        run_brief.assert_not_called()
 
     def test_success_writes_output(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

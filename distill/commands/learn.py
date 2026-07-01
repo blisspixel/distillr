@@ -24,6 +24,7 @@ from distill.commands._helpers import (
     _apply_verify_override,
     _persist_lens,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
     run_preflight,
 )
@@ -35,7 +36,7 @@ from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
 from distill.llm.availability import model_available
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import CostTracker, report_deep_research_estimate
 from distill.pipeline.report.brief import run_research_brief
 from distill.pipeline.summary import RunSummary, display_summary, log_preview_cost
 
@@ -209,8 +210,12 @@ def research_brief_cmd(
     config = get_config()
     _require_api_key(config.gemini_api_key, "GEMINI_API_KEY required for Deep Research")
 
+    projected_cost = report_deep_research_estimate(include_section_writing=False)
+    enforce_projected_workflow_budget(config, "research-brief", projected_cost)
+
     tracker = budgeted_cost_tracker(config, "research-brief")
     summary = RunSummary(command="research-brief")
+    summary.estimated_cost = projected_cost
     summary.set_metadata(topic=",".join(expanded), workflow="research-brief")
 
     try:
