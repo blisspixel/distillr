@@ -401,9 +401,7 @@ def site_cmd(
         "--ingest-attachments",
         help="Pull PDF text and supported embedded video transcripts into the page corpus",
     ),
-    report: bool = typer.Option(
-        False, "--report", help="Run Deep Research report after processing"
-    ),
+    report: bool = typer.Option(False, "--report", help="Run report after processing"),
     test: bool = typer.Option(False, "--test", help="Pass --test through to report generation"),
 ):
     """Crawl a website, extract page insights, synthesize, and optionally report."""
@@ -411,11 +409,6 @@ def site_cmd(
     if report and scrape_only:
         console.print("[red]--report cannot be used with --scrape-only[/red]")
         raise typer.Exit(2)
-    if not scrape_only:
-        _require_model()
-    tracker = budgeted_cost_tracker(config, "site")
-    summary = RunSummary(command="site")
-    summary.set_metadata(topic=topic, workflow="site", source_type="website")
     seed = SiteSeed(
         url=url,
         topic=topic,
@@ -425,6 +418,13 @@ def site_cmd(
         crawl_prefix=crawl_prefix,
         same_section_only=same_section_only,
     )
+    if not scrape_only:
+        projected_cost = estimate_site_batch_plan_cost([seed], include_report=report)
+        enforce_projected_workflow_budget(config, "site", projected_cost)
+        _require_model()
+    tracker = budgeted_cost_tracker(config, "site")
+    summary = RunSummary(command="site")
+    summary.set_metadata(topic=topic, workflow="site", source_type="website")
     _process_site_seed(
         seed,
         config,

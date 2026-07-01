@@ -3410,6 +3410,26 @@ class TestSiteCommands:
             _cli_impl.get_config = original_impl
             _discover.get_config = original_discover_gc
 
+    def test_site_projected_budget_refuses_before_model_or_processing(
+        self, mock_config, monkeypatch
+    ):
+        projected = estimate_site_batch_workflow_cost(1, synthesis_calls=2)
+        mock_config.distill_cost_workflow_budgets = f"site={projected / 2:.8f}"
+        calls: list[str] = []
+
+        monkeypatch.setattr(_discover, "_require_model", lambda *a, **k: calls.append("model"))
+        monkeypatch.setattr(
+            _discover, "_process_site_seed", lambda *a, **k: calls.append("process")
+        )
+
+        result = runner.invoke(
+            cli.app,
+            ["site", "https://example.com/agent", "--topic", "web", "--seed-only"],
+        )
+
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        assert calls == []
+
     def test_site_scrape_only_rejects_report(self, tmp_path):
         config = DistillConfig(
             xai_api_key="",

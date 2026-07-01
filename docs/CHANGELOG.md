@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.19 - 2026-07-01
+
+Site workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill site` refuse before model preflight when the resolved maximum
+  page analysis, known synthesis, and optional report-tail projection exceeds
+  the configured `site` workflow cap, while preserving free scrape-only paths.
+
 ## 0.19.18 - 2026-07-01
 
 Site-batch workflow cost-guard patch release. No new provider routes.

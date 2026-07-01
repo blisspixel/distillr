@@ -86,15 +86,15 @@ Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
 workflow should draw attention above a known spend ceiling:
 
 ```bash
-DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site-batch=3,topic-brief=1,synthesize=1,synthesis=1"
+DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,topic-brief=1,synthesize=1,synthesis=1"
 ```
 
 Workflow budgets serve three roles. First, direct CLI workflows with credible
 pre-run estimates can refuse before the estimated work starts. `distill ask`
 checks its bounded corpus-excerpt estimate after no-coverage retrieval and
-before the QA model call; `distill site-batch` checks its resolved maximum page
-count plus known synthesis and optional report tail before model preflight,
-while preview and scrape-only paths stay free; `distill eval` checks its
+before the QA model call; `distill site` and `distill site-batch` check their
+resolved maximum page count plus known synthesis and optional report tail before
+model preflight, while preview and scrape-only paths stay free; `distill eval` checks its
 fixture-aware estimate before model execution; `distill video`,
 `distill channel`, `distill catch-up`, `distill reanalyze`, and
 `distill resynthesize` runs check known video-analysis and synthesis estimates
