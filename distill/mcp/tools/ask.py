@@ -51,6 +51,18 @@ def ask(topic: str, question: str) -> str:
             },
             indent=2,
         )
+    if result.answer_refused_reason:
+        return json.dumps(
+            {
+                "status": "refused",
+                "error": result.answer_refused_reason,
+                "answer": result.answer_text,
+                "sources": result.sources,
+                "answer_path": "",
+                "cost": cost_summary(tracker),
+            },
+            indent=2,
+        )
     return json.dumps(
         {
             "answer": result.answer_text,

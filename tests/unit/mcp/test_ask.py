@@ -69,6 +69,36 @@ def test_ask_no_coverage_returns_status(tmp_path, monkeypatch) -> None:
     assert "no matching artifacts" in result["message"]
 
 
+def test_ask_refused_answer_returns_status(tmp_path, monkeypatch) -> None:
+    from distill.mcp import server as _server
+    from distill.mcp.tools.ask import ask
+
+    config = _config(tmp_path)
+    config.topic_dir("t").mkdir(parents=True)
+    monkeypatch.setattr(_server, "_config", lambda: config)
+    monkeypatch.setattr("distill.mcp.tools.ask.model_available", lambda workload: True)
+    monkeypatch.setattr("distill.mcp.server._cost_summary", lambda tracker: _FAKE_COST)
+    monkeypatch.setattr(
+        "distill.pipeline.ask.ask_corpus",
+        lambda question, *, topic, config, save, tracker: AskResult(
+            question=question,
+            answer_path=None,
+            answer_text="Claim that cites a fabricated receipt [fabricated_Insights].",
+            sources=[],
+            answer_refused_reason="answer cites unknown source(s): fabricated_Insights",
+        ),
+    )
+
+    result = json.loads(ask("t", "q"))
+
+    assert result["status"] == "refused"
+    assert "unknown source" in result["error"]
+    assert result["answer"] == "Claim that cites a fabricated receipt [fabricated_Insights]."
+    assert result["sources"] == []
+    assert result["answer_path"] == ""
+    assert result["cost"] == _FAKE_COST
+
+
 def test_ask_happy_path_returns_answer_payload(tmp_path, monkeypatch) -> None:
     from distill.mcp import server as _server
     from distill.mcp.tools.ask import ask

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.12 - 2026-07-01
+
+MCP trust-hardening patch release. No new provider routes.
+
+### Changed
+
+- Made MCP `ask` return a structured `status: refused` response when the
+  underlying corpus answer fails citation identity checks, instead of returning
+  refused text as a normal answer with an empty artifact path.
+
 ## 0.19.11 - 2026-07-01
 
 Provider, trust, and cost-hardening release. Adds current Anthropic Sonnet 5

@@ -718,7 +718,8 @@ concepts, and future answers build on. Promotion is strict by definition:
 unsupported load-bearing claims, unknown bracketed source stems, or answers
 with no retrieved source citation refuse the save. The answer and sidecar
 remain, so you can see why. MCP parity: an `ask` tool (read-only; promotion
-stays CLI-only).
+stays CLI-only) returns `status: refused` for the same source-citation identity
+failures instead of returning them as normal answers.
 
 ### Claim verification (the verify hook)
 
