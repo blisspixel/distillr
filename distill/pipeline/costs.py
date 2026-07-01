@@ -50,6 +50,7 @@ __all__ = [
     "estimate_discover_cost",
     "estimate_discover_items",
     "estimate_run_cost",
+    "estimate_site_batch_workflow_cost",
     "estimate_stage_cost",
     "estimate_synthesis_workflow_cost",
     "estimate_video_workflow_cost",
@@ -112,6 +113,19 @@ def estimate_ask_workflow_cost(
     prompt_chars = max(0, source_chars) + max(0, question_chars) + _ASK_PROMPT_OVERHEAD_CHARS
     input_tokens = max(1, math.ceil(prompt_chars / _CHARS_PER_TOKEN_ESTIMATE))
     return compute_cost(model or DEFAULT_MODEL, input_tokens, _ASK_OUTPUT_TOKENS)
+
+
+def estimate_site_batch_workflow_cost(
+    page_count: int,
+    *,
+    synthesis_calls: int = 0,
+    include_report: bool = False,
+) -> float:
+    """Projected USD upper bound for a resolved site-batch run."""
+    page_cost = max(0, page_count) * estimate_stage_cost("site_page")
+    synthesis_cost = estimate_synthesis_workflow_cost(synthesis_calls)
+    report_cost = report_deep_research_estimate() if include_report else 0.0
+    return page_cost + synthesis_cost + report_cost
 
 
 def estimate_video_workflow_cost(

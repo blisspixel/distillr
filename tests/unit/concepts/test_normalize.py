@@ -78,6 +78,7 @@ class TestCanonicalize:
     # in scope of every future run, not just the runs hypothesis happens to
     # generate it on.
     @example(s="000ss")
+    @example(s="0:'S")
     def test_idempotent(self, s: str) -> None:
         once = canonicalize(s)
         twice = canonicalize(once)

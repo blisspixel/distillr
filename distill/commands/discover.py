@@ -57,6 +57,7 @@ from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
 from distill.commands._site_batch import (
+    estimate_site_batch_plan_cost,
     print_site_batch_plan,
     process_site_batch_seed,
     resolve_site_batch_seeds,
@@ -485,9 +486,7 @@ def site_batch_cmd(
         "--preview",
         help="Show the resolved exact-page or shallow-crawl plan without writes",
     ),
-    report: bool = typer.Option(
-        False, "--report", help="Run Deep Research report after processing"
-    ),
+    report: bool = typer.Option(False, "--report", help="Run report after processing"),
     test: bool = typer.Option(False, "--test", help="Pass --test through to report generation"),
     concepts_flag: bool = typer.Option(
         False,
@@ -514,6 +513,8 @@ def site_batch_cmd(
             print_site_batch_plan(topic=target_topic, seeds=planned_seeds)
         return
     if not scrape_only:
+        projected_cost = estimate_site_batch_plan_cost(planned_seeds, include_report=report)
+        enforce_projected_workflow_budget(config, "site-batch", projected_cost)
         _require_model()
     tracker = budgeted_cost_tracker(config, "site-batch")
     summary = RunSummary(command="site-batch")

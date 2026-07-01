@@ -10,6 +10,8 @@ from distill.pipeline.costs import (
     TokenUsage,
     estimate_ask_workflow_cost,
     estimate_run_cost,
+    estimate_site_batch_workflow_cost,
+    estimate_stage_cost,
     estimate_synthesis_workflow_cost,
     estimate_video_workflow_cost,
     report_deep_research_estimate,
@@ -140,6 +142,22 @@ def test_ask_workflow_estimate_uses_retrieved_source_size():
 
     assert empty == 0.0
     assert 0 < short < long
+
+
+def test_site_batch_workflow_estimate_counts_pages_synthesis_and_report():
+    estimate = estimate_site_batch_workflow_cost(
+        3,
+        synthesis_calls=2,
+        include_report=True,
+    )
+
+    expected = (
+        3 * estimate_stage_cost("site_page")
+        + 2 * estimate_stage_cost("synthesis")
+        + report_deep_research_estimate()
+    )
+    assert estimate == expected
+    assert estimate_site_batch_workflow_cost(0) == 0.0
 
 
 def test_report_deep_research_estimate_uses_central_pricing():

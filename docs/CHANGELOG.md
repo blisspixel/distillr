@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.18 - 2026-07-01
+
+Site-batch workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill site-batch` refuse before model preflight when the resolved
+  maximum page analysis, known synthesis, and optional report-tail projection
+  exceeds the configured `site-batch` workflow cap, while preserving free
+  preview and scrape-only paths.
+
+### Fixed
+
+- Fixed concept-name canonicalization so possessive stripping cannot expose
+  trailing punctuation that violates the idempotence contract.
+
 ## 0.19.17 - 2026-07-01
 
 Ask workflow cost-guard patch release. No new provider routes.

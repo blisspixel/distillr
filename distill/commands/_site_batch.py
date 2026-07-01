@@ -13,12 +13,17 @@ from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.library.paths import find_artifact
 from distill.pipeline.analysis.site import synthesize_site_topic
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    CostTracker,
+    estimate_site_batch_workflow_cost,
+)
 from distill.pipeline.summary import BatchProgress, RunSummary
 from distill.pipeline.synthesis.corpus import synthesize_corpus
 
 __all__ = [
     "SiteBatchPlanRow",
+    "estimate_site_batch_plan_cost",
     "print_site_batch_plan",
     "process_site_batch_seed",
     "resolve_site_batch_seeds",
@@ -105,6 +110,19 @@ def site_batch_plan_payload(*, topic: str, seeds: list[SiteSeed]) -> dict[str, A
         "writes": False,
         "seeds": [asdict(row) for row in rows],
     }
+
+
+def estimate_site_batch_plan_cost(
+    seeds: list[SiteSeed],
+    *,
+    include_report: bool = False,
+) -> float:
+    planned_pages = sum(max(0, seed.max_pages) for seed in seeds)
+    return estimate_site_batch_workflow_cost(
+        planned_pages,
+        synthesis_calls=2 if planned_pages > 0 else 0,
+        include_report=include_report,
+    )
 
 
 def _site_batch_plan_row(index: int, seed: SiteSeed) -> SiteBatchPlanRow:

@@ -129,6 +129,7 @@ def _canonicalize_impl(name: str) -> str:
     if folded.endswith("'s"):
         folded = folded[:-2]
     folded = _TRAILING_PLURAL.sub(r"\1", folded)
+    folded = _TRAILING_PUNCT.sub("", folded).strip()
     return folded
 
 

@@ -33,6 +33,7 @@ from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
+from distill.pipeline.costs import ProjectedBudgetExceededError, estimate_site_batch_workflow_cost
 
 
 def _recent(days_ago: int = 1) -> str:
@@ -2110,9 +2111,32 @@ class TestWatchCommands:
         assert "failed 1" in result.output
         assert "site-ingest" in result.output
 
+    def test_site_batch_projected_budget_refuses_before_processing(
+        self, mock_config, monkeypatch, tmp_path
+    ):
+        seeds = tmp_path / "seeds.txt"
+        seeds.write_text("https://good.example.com\n", encoding="utf-8")
+        projected = estimate_site_batch_workflow_cost(1, synthesis_calls=2)
+        mock_config.distill_cost_workflow_budgets = f"site-batch={projected / 2:.8f}"
+        calls: list[str] = []
+
+        monkeypatch.setattr(_discover, "_require_model", lambda *a, **k: calls.append("model"))
+        monkeypatch.setattr(
+            _discover, "_process_site_seed", lambda *a, **k: calls.append("process")
+        )
+
+        result = runner.invoke(
+            cli.app,
+            ["site-batch", str(seeds), "--topic", "web", "--seed-only"],
+        )
+
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        assert calls == []
+
     def test_site_batch_preview_shows_mixed_crawl_plan_without_writes(
         self, mock_config, monkeypatch, tmp_path
     ):
+        mock_config.distill_cost_workflow_budgets = "site-batch=0.000001"
         seeds = tmp_path / "sites.json"
         seeds.write_text(
             json.dumps(
