@@ -241,3 +241,28 @@ def test_eval_rejects_unknown_workload(mock_config):
     result = runner.invoke(cli.app, ["eval", "--workload", "bogus", "--yes"])
     assert result.exit_code == 1
     assert "Unknown --workload" in result.output
+
+
+def test_eval_refuses_projected_spend_before_model_run(mock_config, monkeypatch):
+    import distill.eval as eval_pkg
+    from distill.pipeline.costs import ProjectedBudgetExceededError
+
+    mock_config.distill_cost_workflow_budgets = "eval=0.05"
+    monkeypatch.setattr(eval_pkg, "estimate_eval_cost", lambda *a, **k: 0.12)
+    called = {"run": False}
+
+    def fake_run(*_args, **_kwargs):
+        called["run"] = True
+        return _rows()
+
+    monkeypatch.setattr(eval_pkg, "run_model_eval", fake_run)
+
+    with pytest.raises(ProjectedBudgetExceededError) as raised:
+        runner.invoke(
+            cli.app,
+            ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"],
+            catch_exceptions=False,
+        )
+
+    assert raised.value.projected == 0.12
+    assert called["run"] is False

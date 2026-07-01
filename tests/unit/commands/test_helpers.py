@@ -21,7 +21,11 @@ from distill.cli_shared import (
     topic_from_query,
     write_video_metadata,
 )
-from distill.commands._helpers import _detect_ramp_source, budgeted_cost_tracker
+from distill.commands._helpers import (
+    _detect_ramp_source,
+    budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
+)
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
@@ -44,6 +48,32 @@ class TestBudgetedCostTracker:
         assert budgeted_cost_tracker(config, "learn").budget == 0.01
         assert budgeted_cost_tracker(config, " site-batch ").budget == 2.0
         assert budgeted_cost_tracker(config, "ask").budget is None
+
+    def test_projected_budget_refuses_before_run(self, tmp_path):
+        from distill.config import DistillConfig
+        from distill.pipeline.costs import ProjectedBudgetExceededError
+
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "library",
+            distill_cost_workflow_budgets="eval=0.05",
+        )
+
+        with pytest.raises(ProjectedBudgetExceededError) as raised:
+            enforce_projected_workflow_budget(config, "eval", 0.12)
+
+        assert raised.value.projected == 0.12
+        assert raised.value.budget == 0.05
+
+    def test_projected_budget_allows_missing_or_lower_cap(self, tmp_path):
+        from distill.config import DistillConfig
+
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "library",
+            distill_cost_workflow_budgets="eval=0.20",
+        )
+
+        enforce_projected_workflow_budget(config, "eval", 0.12)
+        enforce_projected_workflow_budget(config, "discover", 999.0)
 
 
 class TestEnsureUtf8Stdio:

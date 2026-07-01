@@ -31,6 +31,7 @@ from distill.commands._discover_sites import (
 from distill.commands._helpers import (
     _apply_verify_override,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
 )
 from distill.commands._helpers import (
@@ -708,6 +709,9 @@ def discover(  # noqa: C901 — legacy, will refactor
             save_intent(
                 config.topic_dir(replay_topic), make_intent(snapshot.goal, lens=lens, rigor=rigor)
             )
+        snapshot_estimate = snapshot.estimate.get("expected")
+        if isinstance(snapshot_estimate, int | float) and not isinstance(snapshot_estimate, bool):
+            enforce_projected_workflow_budget(config, "discover", float(snapshot_estimate))
         _discover_ingest_set(
             topic_name=replay_topic,
             config=config,
@@ -839,11 +843,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         video_stats = format_video_content_stats(summarize_video_content(videos))
         console.print(f"[dim]Found {video_stats} across {len(video_queries)} search(es)[/dim]")
 
-    # Corpus-aware dedup: drop searched candidates the topic already contains so
-    # rerank slots and ingest spend go to new material, and gap-driven re-runs
-    # converge instead of re-suggesting the corpus. Curated site seeds are kept
-    # (user-provided intent; the site pipeline reuses unchanged page insights).
-
+    # Drop already-ingested search hits so rerank and ingest spend goes to new material.
     papers, videos, excluded_ingested = filter_ingested_candidates(
         papers, videos, ingested=ingested_source_ids(config.topic_dir(topic_name))
     )
@@ -871,17 +871,14 @@ def discover(  # noqa: C901 — legacy, will refactor
     try:
         ranked = _discover_rerank(goal, papers, videos, sites, config, tracker)
     except (TypeError, ValueError) as exc:
-        # Malformed rerank output (e.g. a null/non-numeric score) must not crash
-        # discover with a traceback; surface a clean error like the empty case.
+        # Malformed rerank output should fail cleanly like the empty case.
         console.print(f"[red]Rerank produced malformed output: {exc}[/red]")
         raise typer.Exit(1) from exc
     if not ranked:
         console.print("[red]Rerank produced no ranked items.[/red]")
         raise typer.Exit(1)
 
-    # Preview-as-default: on a fresh topic (or when --size is forced), present the
-    # size-then-approve menu instead of auto-applying --rigor. --yes and --preview
-    # keep the non-interactive paths below.
+    # Fresh topics get the size menu unless --yes or --preview selects a loop path.
     if not preview and not yes and (size or _is_fresh_topic(config, topic_name)):
         _discover_sizing_flow(
             goal=goal,
@@ -925,10 +922,7 @@ def discover(  # noqa: C901 — legacy, will refactor
 
     _display_ranked_discover(shortlist, title=f"Goal-Ranked Corpus Plan ({len(shortlist)} items)")
 
-    # Size the set: the score "cliff" marks the clearly-excellent top, and a
-    # metadata-aware, self-calibrating cost estimate shows the likely spend
-    # before committing (per-video duration scales the estimate; rates calibrate
-    # against cost_log.jsonl history once enough runs accrue).
+    # Show a self-calibrating ingest estimate before committing the shortlist.
     cliff = detect_score_cliff([r.final_score for r in shortlist])
     calibration = load_cost_calibration(config.library_dir)
     estimate = estimate_discover_items(
@@ -941,8 +935,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         f"  [dim]Top {cliff} sit above the score cliff (the clearly-excellent set). "
         f"Estimated ingest cost: {estimate.format()}.[/dim]"
     )
-    # Record the shown estimate so the run log carries estimated-vs-actual and
-    # `distill costs` can report estimator accuracy.
+    # Preserve the shown estimate for estimator accuracy reporting.
     summary.estimated_cost = estimate.expected
 
     if preview:
@@ -976,6 +969,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         )
         return
 
+    enforce_projected_workflow_budget(config, "discover", estimate.expected)
     _discover_ingest_set(
         topic_name=topic_name,
         config=config,

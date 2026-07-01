@@ -10,6 +10,7 @@ from distill.commands import topic as _topic
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
+from distill.pipeline.costs import ProjectedBudgetExceededError
 from distill.pipeline.discovery import RankedDiscoverItem
 from distill.pipeline.preview_cache import preview_cache_dir, save_preview
 
@@ -100,6 +101,27 @@ def test_from_preview_rejects_combination_with_preview(mock_config):
     result = runner.invoke(cli.app, ["discover", "--from-preview", "abcabc1234", "--preview"])
     assert result.exit_code == 1
     assert "can't combine" in result.output
+
+
+def test_from_preview_refuses_projected_spend_before_ingest(mock_config, monkeypatch):
+    mock_config.distill_cost_workflow_budgets = "discover=0.01"
+    preview_id = _seed_preview(mock_config)
+    called = {"ingest": False}
+    monkeypatch.setattr(
+        _discover,
+        "_discover_ingest_set",
+        lambda **_kwargs: called.__setitem__("ingest", True),
+    )
+
+    with pytest.raises(ProjectedBudgetExceededError) as raised:
+        runner.invoke(
+            cli.app,
+            ["discover", "--from-preview", preview_id, "--topic", "t", "--yes"],
+            catch_exceptions=False,
+        )
+
+    assert raised.value.projected == 0.02
+    assert called["ingest"] is False
 
 
 # ---- preview-as-default sizing flow (0.9.3) --------------------------------
@@ -206,6 +228,27 @@ def test_yes_bypasses_sizing_menu_on_fresh_topic(mock_config, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "How much of this should I ingest?" not in result.output
     assert captured["yes"] is True
+
+
+def test_discover_refuses_projected_ingest_spend_before_ingest(mock_config, monkeypatch):
+    mock_config.distill_cost_workflow_budgets = "discover=0.0001"
+    _patch_discover_pipeline(monkeypatch)
+    called = {"ingest": False}
+    monkeypatch.setattr(
+        _discover,
+        "_discover_ingest_set",
+        lambda **_kwargs: called.__setitem__("ingest", True),
+    )
+
+    with pytest.raises(ProjectedBudgetExceededError) as raised:
+        runner.invoke(
+            cli.app,
+            ["discover", "compose music", "--topic", "fresh", "--yes"],
+            catch_exceptions=False,
+        )
+
+    assert raised.value.projected > raised.value.budget
+    assert called["ingest"] is False
 
 
 def test_topic_create_drives_real_discover_wiring(mock_config, monkeypatch):

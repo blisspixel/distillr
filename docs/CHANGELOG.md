@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `topic brief` and `synthesis` auto-generation, and mapped installed CLI
   budget stops to exit code `6` with a structured `budget_exceeded` JSON
   envelope under global `--json`.
+- Made workflow caps refuse projected spend before model execution for
+  `distill eval` and before ingest for saved or freshly ranked `distill discover`
+  plans when their estimates exceed configured caps. JSON budget envelopes now
+  mark projected stops with `projected: true` and `projected_usd`.
 - Refused xAI image and video generation model slugs in the text-analysis
   router and Grok provider before any API call, so media-generation models
   cannot be accidentally used through Distill's LLM workloads.

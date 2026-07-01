@@ -155,13 +155,20 @@ def test_cost_tracker_treats_no_metered_provider_responses_as_zero():
 
 
 def test_budget_exceeded_error_formats_small_and_large_budgets():
-    from distill.pipeline.costs import BudgetExceededError
+    from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
 
     err_small = BudgetExceededError(0.00123, 0.0005)
     assert "$0.0005" in str(err_small)
 
     err_large = BudgetExceededError(1.2345, 1.0)
     assert "$1.00" in str(err_large)
+
+    projected = ProjectedBudgetExceededError(0.12, 0.05)
+    assert isinstance(projected, BudgetExceededError)
+    assert projected.spent == 0.12
+    assert projected.projected == 0.12
+    assert "projected spend" in str(projected)
+    assert "before the run starts" in str(projected)
 
 
 def test_cost_tracker_budget_exceeded_raises_on_record():

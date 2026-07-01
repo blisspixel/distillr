@@ -86,16 +86,20 @@ Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
 workflow should draw attention above a known spend ceiling:
 
 ```bash
-DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,site-batch=3,topic-brief=1,synthesis=1"
+DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2,eval=1,site-batch=3,topic-brief=1,synthesis=1"
 ```
 
-Workflow budgets serve two roles. First, direct CLI workflows that create a
-budgeted tracker stop when their recorded spend crosses the configured cap.
-The crossing model call has already happened and stays in the ledger, then the
-installed `distill` command exits with code `6`; JSON mode emits a structured
-`budget_exceeded` envelope. Second, `distill costs`, the CLI dashboard, JSON
-cost output, and the local web dashboard use the same caps to flag historical
-over-budget ledger rows.
+Workflow budgets serve three roles. First, direct CLI workflows with credible
+pre-run estimates can refuse before the estimated work starts. `distill eval`
+checks its fixture-aware estimate before model execution, and `distill discover`
+checks saved preview estimates and freshly ranked ingest-plan estimates before
+ingest. Second, direct CLI workflows that create a budgeted tracker stop when
+their recorded spend crosses the configured cap. The crossing model call has
+already happened and stays in the ledger, then the installed `distill` command
+exits with code `6`; JSON mode emits a structured `budget_exceeded` envelope.
+Projected stops add `projected: true` and `projected_usd` to that envelope.
+Third, `distill costs`, the CLI dashboard, JSON cost output, and the local web
+dashboard use the same caps to flag historical over-budget ledger rows.
 
 Use the user-facing command key for the cap. Common keys include `ask`,
 `catch-up`, `channel`, `concepts`, `corpus`, `discover`, `eval`, `ingest`,

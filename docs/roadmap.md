@@ -118,7 +118,13 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [x] Shared dashboard data source for CLI and web. The CLI home dashboard now
   renders from `dashboard_snapshot()`, so terminal and web views share counts,
   spend rollups, topic changes, budget warnings, and corpus health warnings.
-- [~] Projected next-run cost by workflow, not just historical spend
+- [~] Projected next-run cost by workflow, not just historical spend.
+  `distill eval` now refuses before model execution when its fixture-aware
+  estimate exceeds the configured `eval` workflow cap. Saved preview replay and
+  freshly ranked `distill discover` ingest plans now refuse before ingest when
+  their projected ingest estimate exceeds the configured `discover` cap.
+  Remaining: extend the same pre-run guard to additional direct commands once
+  they expose credible estimates before their billable phase.
 - [x] **Estimator calibration accountability** - shipped 0.12.3: estimate-of-record lands in `cost_log.jsonl`, and `distill costs` reports median absolute error, signed bias, and trend for comparable runs.
 - [~] Rolling cost by topic and source type so users can see where spend is going
 - [~] Surface stale corpora, failed runs, thin transcripts, and crawl drift in one place. Thin long-video transcript warnings now appear in `distill health` and the durable `distill audit` report; the broader dashboard rollup remains partial.
@@ -131,8 +137,11 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   `.env` settings. Budgeted direct CLI trackers now stop on recorded-spend
   cap crossings for writer workflows, including `topic brief` and auto-generated
   `synthesis` read fallbacks, and the installed CLI maps those stops to a clean
-  budget exit in human and JSON modes. Remaining: broader pre-run projected
-  spend checks for direct one-off CLI commands before the first billable call.
+  budget exit in human and JSON modes. Estimate-bearing `eval` and `discover`
+  ingest plans now stop before the estimated work starts when projected spend
+  exceeds the configured workflow cap. Remaining: broader pre-run projected
+  spend checks for direct one-off CLI commands before their billable phase where
+  a reliable estimate exists.
 - [~] Interactive library browser (TUI first or lightweight local web view) for scanning topics, channels, videos, pages, and artifacts at scale
 - [x] Live mixed-source run progress so long `discover` / `report` / site-heavy jobs show current phase, current item, completed/failed counts, and where time is going without making the user inspect the filesystem. `papers`, `site-batch`, `discover` paper/site ingestion, and default `report` show phase/item/completed/failed/spend output, with ETA when enough items have completed. Video-backed loops used by `latest`, `catch-up`, and the video branch of `discover` print persistent per-video completed/failed/spend progress after each item and include spend in live phase labels. Global `--quiet` / `--verbose` output controls and recurring-workflow help examples are now wired.
 - [x] **Preview-table rendering at narrow widths** - fixed 0.9.31 (stacked layout below 110 columns); detail in [`CHANGELOG.md`](CHANGELOG.md).

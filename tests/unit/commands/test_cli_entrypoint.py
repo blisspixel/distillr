@@ -8,7 +8,7 @@ import pytest
 
 from distill import cli
 from distill.commands._json import ExitCode, set_json_active
-from distill.pipeline.costs import BudgetExceededError
+from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
 
 
 class _FailingApp:
@@ -72,6 +72,27 @@ def test_main_emits_budget_error_json(monkeypatch, capsys):
     assert payload["data"]["reason"] == "budget_exceeded"
     assert payload["data"]["spent_usd"] == 0.61
     assert payload["data"]["budget_usd"] == 0.5
+
+
+def test_main_emits_projected_budget_error_json(monkeypatch, capsys):
+    fake_app = _FailingApp(ProjectedBudgetExceededError(0.12, 0.05))
+    monkeypatch.setattr(cli, "app", fake_app)
+
+    set_json_active(True)
+    try:
+        with pytest.raises(SystemExit) as raised:
+            cli.main()
+        captured = capsys.readouterr()
+    finally:
+        set_json_active(False)
+
+    assert raised.value.code == int(ExitCode.BUDGET_EXCEEDED)
+    payload = json.loads(captured.out)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "budget_exceeded"
+    assert payload["data"]["projected"] is True
+    assert payload["data"]["projected_usd"] == 0.12
+    assert payload["data"]["budget_usd"] == 0.05
 
 
 def test_main_reraises_unrecognized_errors(monkeypatch):

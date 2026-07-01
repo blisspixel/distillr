@@ -13,7 +13,12 @@ import typer
 
 from distill._console import console
 from distill.cli_shared import require_api_key as _require_api_key
-from distill.commands._helpers import budgeted_cost_tracker, get_config, run_preflight
+from distill.commands._helpers import (
+    budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
+    get_config,
+    run_preflight,
+)
 from distill.commands._helpers import tty_confirm as _tty_confirm
 
 __all__ = ["eval_cmd", "register"]
@@ -219,6 +224,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         f"({workload}). Anchor: {anchor}. Judge: {judge_label}."
     )
     console.print(f"[dim]Estimated spend ~${est:.2f}.[/dim]")
+    enforce_projected_workflow_budget(config, "eval", est)
     if not judge:
         console.print(
             "[yellow]No neutral judge available[/yellow] — only the anchor's own family is "

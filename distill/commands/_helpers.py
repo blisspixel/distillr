@@ -8,6 +8,7 @@ re-exported here so that both old and new import paths work.
 """
 
 import json
+import math
 import os
 import sys
 from collections.abc import Callable, Sequence
@@ -45,7 +46,12 @@ from distill.config import DistillConfig
 from distill.commands._report_helpers import run_scope_report
 from distill.library import Library
 from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
-from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    CostTracker,
+    ProjectedBudgetExceededError,
+    save_run_log,
+)
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube.transcripts import get_transcript
@@ -65,6 +71,7 @@ __all__ = [
     "budgeted_cost_tracker",
     "console",
     "duration_str",
+    "enforce_projected_workflow_budget",
     "ensure_channel_context",
     "err_console",
     "format_date",
@@ -120,9 +127,28 @@ def get_config() -> DistillConfig:
 
 def budgeted_cost_tracker(config: DistillConfig, command: str) -> CostTracker:
     """Create a run tracker with the configured workflow cap, if any."""
-    normalized = " ".join(command.split()).strip().lower()
-    budget = config.cost_workflow_budgets_usd.get(normalized)
+    budget = _workflow_budget_usd(config, command)
     return CostTracker(budget=budget if budget is not None else None)
+
+
+def _workflow_budget_usd(config: DistillConfig, command: str) -> float | None:
+    normalized = " ".join(command.split()).strip().lower()
+    return config.cost_workflow_budgets_usd.get(normalized)
+
+
+def enforce_projected_workflow_budget(
+    config: DistillConfig,
+    command: str,
+    projected_cost: float,
+) -> None:
+    """Refuse a workflow before execution when its credible estimate exceeds its cap."""
+    budget = _workflow_budget_usd(config, command)
+    if budget is None:
+        return
+    if not math.isfinite(projected_cost) or projected_cost <= 0:
+        return
+    if projected_cost > budget:
+        raise ProjectedBudgetExceededError(projected_cost, budget)
 
 
 def save_command_cost(

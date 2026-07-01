@@ -174,21 +174,22 @@ def main() -> None:
         map_exception_to_exit_code,
     )
     from distill.llm.errors import describe_provider_error
-    from distill.pipeline.costs import BudgetExceededError
+    from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
 
     app.pretty_exceptions_enable = False
     try:
         app()
     except BudgetExceededError as exc:
         if json_mode_active():
-            emit_json(
-                {
-                    "reason": "budget_exceeded",
-                    "spent_usd": round(exc.spent, 6),
-                    "budget_usd": round(exc.budget, 6),
-                },
-                error=str(exc),
-            )
+            payload: dict[str, object] = {
+                "reason": "budget_exceeded",
+                "spent_usd": round(exc.spent, 6),
+                "budget_usd": round(exc.budget, 6),
+            }
+            if isinstance(exc, ProjectedBudgetExceededError):
+                payload["projected"] = True
+                payload["projected_usd"] = round(exc.projected, 6)
+            emit_json(payload, error=str(exc))
         else:
             console.print(f"\n[red]Budget exceeded: {exc}[/red]")
         raise SystemExit(int(ExitCode.BUDGET_EXCEEDED)) from exc

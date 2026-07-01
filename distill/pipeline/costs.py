@@ -41,6 +41,7 @@ __all__ = [
     "CostEstimate",
     "CostTracker",
     "CostWarning",
+    "ProjectedBudgetExceededError",
     "TokenUsage",
     "TranscriptionUsage",
     "cost_anomaly_warnings",
@@ -140,6 +141,20 @@ class BudgetExceededError(Exception):
         self.budget = budget
         cap = f"${budget:.4f}" if budget < 0.01 else f"${budget:.2f}"
         super().__init__(f"spend ${spent:.4f} exceeded the {cap} budget")
+
+
+class ProjectedBudgetExceededError(BudgetExceededError):
+    """A credible pre-run estimate exceeds the configured workflow budget."""
+
+    def __init__(self, projected: float, budget: float):
+        self.spent = projected
+        self.projected = projected
+        self.budget = budget
+        cap = f"${budget:.4f}" if budget < 0.01 else f"${budget:.2f}"
+        Exception.__init__(
+            self,
+            f"projected spend ${projected:.4f} exceeds the {cap} budget before the run starts",
+        )
 
 
 @dataclass
