@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.17 - 2026-07-01
+
+Ask workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill ask` refuse after corpus retrieval but before the QA model call
+  when the bounded source-excerpt cost projection exceeds the configured `ask`
+  workflow cap, while preserving free no-coverage exits before projection.
+
 ## 0.19.16 - 2026-07-01
 
 Synthesis workflow cost-guard patch release. No new provider routes.

@@ -8,6 +8,7 @@ from distill.pipeline.costs import (
     ACCORDION_GROK_ESTIMATE,
     CostTracker,
     TokenUsage,
+    estimate_ask_workflow_cost,
     estimate_run_cost,
     estimate_synthesis_workflow_cost,
     estimate_video_workflow_cost,
@@ -130,6 +131,15 @@ def test_synthesis_workflow_estimate_counts_known_calls():
 
     assert estimate_synthesis_workflow_cost(0) == 0.0
     assert estimate_synthesis_workflow_cost(3) == 3 * estimate_stage_cost("synthesis")
+
+
+def test_ask_workflow_estimate_uses_retrieved_source_size():
+    empty = estimate_ask_workflow_cost(0, question_chars=100)
+    short = estimate_ask_workflow_cost(1_000, question_chars=100)
+    long = estimate_ask_workflow_cost(8_000, question_chars=100)
+
+    assert empty == 0.0
+    assert 0 < short < long
 
 
 def test_report_deep_research_estimate_uses_central_pricing():

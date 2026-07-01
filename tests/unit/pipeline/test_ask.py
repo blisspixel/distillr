@@ -10,6 +10,7 @@ import pytest
 from distill.config import DistillConfig
 from distill.llm.router import LLM_Response
 from distill.pipeline import ask as ask_mod
+from distill.pipeline.costs import ProjectedBudgetExceededError, estimate_ask_workflow_cost
 
 
 @pytest.fixture
@@ -64,6 +65,36 @@ class TestAsk:
         result = ask_mod.ask_corpus("anything?", topic="empty", config=config)
         assert result.no_coverage
         assert result.answer_path is None
+
+    def test_no_coverage_topic_does_not_project_budget(self, config, monkeypatch):
+        config = config.model_copy(update={"distill_cost_workflow_budgets": "ask=0.0001"})
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("no-coverage ask should not estimate a model call")
+
+        monkeypatch.setattr(ask_mod, "estimate_ask_workflow_cost", fail_if_called)
+
+        result = ask_mod.ask_corpus("anything?", topic="empty", config=config)
+
+        assert result.no_coverage
+        assert result.answer_path is None
+
+    def test_projected_budget_refuses_before_model_call(self, config, monkeypatch):
+        _seed_corpus(config)
+        projected = estimate_ask_workflow_cost(1, question_chars=1)
+        config = config.model_copy(
+            update={"distill_cost_workflow_budgets": f"ask={projected / 2:.8f}"}
+        )
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("ask model call should not run after projected budget refusal")
+
+        monkeypatch.setattr(ask_mod, "llm_call", fail_if_called)
+
+        with pytest.raises(ProjectedBudgetExceededError) as raised:
+            ask_mod.ask_corpus("which checker?", topic="t", config=config)
+
+        assert raised.value.projected > raised.value.budget
 
     def test_save_promotes_clean_answer(self, config, monkeypatch):
         _seed_corpus(config)

@@ -10,6 +10,7 @@ registry in ``distill.llm.cost`` — this module no longer owns pricing data.
 from __future__ import annotations
 
 import json
+import math
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -45,6 +46,7 @@ __all__ = [
     "TokenUsage",
     "TranscriptionUsage",
     "cost_anomaly_warnings",
+    "estimate_ask_workflow_cost",
     "estimate_discover_cost",
     "estimate_discover_items",
     "estimate_run_cost",
@@ -75,6 +77,10 @@ _STAGE_TOKENS: dict[str, tuple[int, int]] = {
     "synthesis": (20_000, 4_000),  # channel/topic synthesis
 }
 
+_ASK_PROMPT_OVERHEAD_CHARS: int = 1_200
+_ASK_OUTPUT_TOKENS: int = 2_000
+_CHARS_PER_TOKEN_ESTIMATE: int = 4
+
 
 def estimate_stage_cost(stage: str, *, model: str = "") -> float:
     """USD estimate for one ingested unit of ``stage`` at the default model's pricing.
@@ -92,6 +98,20 @@ def estimate_synthesis_workflow_cost(calls: int = 1) -> float:
     if calls <= 0:
         return 0.0
     return calls * estimate_stage_cost("synthesis")
+
+
+def estimate_ask_workflow_cost(
+    source_chars: int,
+    *,
+    question_chars: int = 0,
+    model: str = "",
+) -> float:
+    """Projected USD cost for one corpus ask call after source retrieval."""
+    if source_chars <= 0:
+        return 0.0
+    prompt_chars = max(0, source_chars) + max(0, question_chars) + _ASK_PROMPT_OVERHEAD_CHARS
+    input_tokens = max(1, math.ceil(prompt_chars / _CHARS_PER_TOKEN_ESTIMATE))
+    return compute_cost(model or DEFAULT_MODEL, input_tokens, _ASK_OUTPUT_TOKENS)
 
 
 def estimate_video_workflow_cost(

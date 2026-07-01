@@ -32,7 +32,7 @@ from distill.pipeline.citation_refs import (
     citation_refusal_reason,
     extract_source_citations,
 )
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import CostTracker, TokenUsage, estimate_ask_workflow_cost
 from distill.pipeline.search import search_corpus
 from distill.prompts.ask import ask_prompt
 from distill.prompts.registry import PROMPT_IDS
@@ -84,6 +84,26 @@ def _gather_sources(config: DistillConfig, topic: str, question: str) -> tuple[l
     return stems, "\n\n---\n\n".join(blocks), "\n\n".join(receipt_parts)
 
 
+def _ask_workflow_budget_usd(config: DistillConfig) -> float | None:
+    return config.cost_workflow_budgets_usd.get("ask")
+
+
+def _enforce_ask_projected_budget(
+    config: DistillConfig,
+    *,
+    source_chars: int,
+    question_chars: int,
+) -> None:
+    from distill.pipeline.costs import ProjectedBudgetExceededError
+
+    budget = _ask_workflow_budget_usd(config)
+    if budget is None:
+        return
+    projected = estimate_ask_workflow_cost(source_chars, question_chars=question_chars)
+    if projected > budget:
+        raise ProjectedBudgetExceededError(projected, budget)
+
+
 def ask_corpus(
     question: str,
     *,
@@ -97,6 +117,11 @@ def ask_corpus(
     if not stems:
         return AskResult(question=question, answer_path=None, answer_text="", no_coverage=True)
 
+    _enforce_ask_projected_budget(
+        config,
+        source_chars=len(sources_block),
+        question_chars=len(question),
+    )
     rc = RouterConfig()
     response = llm_call(
         rc,
