@@ -121,10 +121,10 @@ def test_cost_tracker_uses_model_specific_pricing():
     assert tracker.summary_dict()["by_model"]["grok-4.20"]["calls"] == 1
 
 
-def test_anthropic_sonnet5_uses_list_rate_pricing():
+def test_anthropic_sonnet5_uses_current_intro_pricing():
     from distill.llm.cost import compute_cost
 
-    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 18.0
+    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
 
 
 def test_cost_tracker_treats_no_metered_provider_responses_as_zero():

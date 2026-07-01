@@ -54,6 +54,7 @@ class AskResult:
     sources: list[str] = field(  # pyright: ignore[reportUnknownVariableType] -- default_factory=list reads as list[Unknown] under strict; the annotation is the real element type
         default_factory=list
     )  # artifact stems, cited order
+    answer_refused_reason: str = ""
     saved_insight_path: Path | None = None
     save_refused_reason: str = ""
     no_coverage: bool = False
@@ -108,6 +109,32 @@ def ask_corpus(
     answer = response.text.strip()
     answer_citations = extract_source_citations(answer)
     cited = [citation for citation in answer_citations if citation in stems]
+    if _looks_like_no_coverage(answer):
+        refusal = "answer states the corpus does not cover the question; nothing to write"
+        return AskResult(
+            question=question,
+            answer_path=None,
+            answer_text=answer,
+            sources=cited,
+            answer_refused_reason=refusal,
+            save_refused_reason=refusal if save else "",
+        )
+    citation_refusal = citation_refusal_reason(
+        answer_citations,
+        cited,
+        stems,
+        subject="answer",
+        action="write",
+    )
+    if citation_refusal:
+        return AskResult(
+            question=question,
+            answer_path=None,
+            answer_text=answer,
+            sources=cited,
+            answer_refused_reason=citation_refusal,
+            save_refused_reason=citation_refusal if save else "",
+        )
 
     slug = slugify_title(question, source_id="ask")
     answers_dir = config.topic_dir(topic) / "answers"
@@ -172,22 +199,6 @@ def ask_corpus(
     if outcome is not None and outcome.refused:
         result.save_refused_reason = outcome.summary_line
         return result
-    if _looks_like_no_coverage(answer):
-        result.save_refused_reason = (
-            "answer states the corpus does not cover the question; nothing to promote"
-        )
-        return result
-    citation_refusal = citation_refusal_reason(
-        answer_citations,
-        cited,
-        stems,
-        subject="answer",
-        action="promote",
-    )
-    if citation_refusal:
-        result.save_refused_reason = citation_refusal
-        return result
-
     insight_dir = answers_dir / slug
     result.saved_insight_path = write_markdown_artifact(
         insight_dir,

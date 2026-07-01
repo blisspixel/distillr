@@ -7,6 +7,7 @@ Feature: llm-router-model-upgrade
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any
 
 import pytest
@@ -50,7 +51,7 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
 
     **Validates: Requirements 5.1**
     """
-    rates = PRICING[model]
+    rates = get_pricing(model)
     expected = (input_tokens * rates["input"] + output_tokens * rates["output"]) / 1_000_000
     assert compute_cost(model, input_tokens, output_tokens) == expected
 
@@ -63,7 +64,11 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
 def test_all_listed_models_return_correct_pricing() -> None:
     """Every model in PRICING is retrievable via get_pricing with exact match."""
     for model, expected_rates in PRICING.items():
-        assert get_pricing(model) is expected_rates
+        if model == "claude-sonnet-5":
+            rates = get_pricing(model)
+            assert set(rates) == set(expected_rates)
+            continue
+        assert get_pricing(model) == expected_rates
 
 
 def test_unknown_model_falls_back_to_default(caplog: Any) -> None:
@@ -120,6 +125,7 @@ def test_prefix_matching_for_versioned_model_names() -> None:
         ("grok-4.20", 2.00, 6.00),
         ("gemini-3.1-pro", 2.00, 12.00),
         ("gemini-3.1-flash", 0.25, 1.50),
+        ("claude-sonnet-5", 2.00, 10.00),
         ("claude-sonnet-4", 3.00, 15.00),
         ("claude-haiku-4", 0.80, 4.00),
         ("gpt-4.1", 2.00, 8.00),
@@ -131,6 +137,17 @@ def test_per_token_model_rates(model: str, expected_input: float, expected_outpu
     rates = get_pricing(model)
     assert rates["input"] == expected_input
     assert rates["output"] == expected_output
+
+
+def test_sonnet5_standard_pricing_after_intro_period(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2026, 9, 1))
+
+    rates = get_pricing("claude-sonnet-5")
+    assert rates["input"] == 3.00
+    assert rates["output"] == 15.00
+    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 18.0
 
 
 def test_deep_research_query_cost_model_aware() -> None:

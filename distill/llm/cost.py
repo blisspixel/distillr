@@ -9,6 +9,7 @@ source of truth.  Supports per-token and per-query pricing models.
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,9 @@ DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
 )
 _GEMINI_DEEP_RESEARCH_PRICING: dict[str, float] = {"per_query": GEMINI_DEEP_RESEARCH_COST}
 _DEEP_RESEARCH_MAX_PRICING: dict[str, float] = {"per_query": DEEP_RESEARCH_MAX_COST}
+_SONNET_5_INTRO_PRICING_END = date(2026, 8, 31)
+_SONNET_5_INTRO_PRICING: dict[str, float] = {"input": 2.00, "output": 10.00}
+_SONNET_5_STANDARD_PRICING: dict[str, float] = {"input": 3.00, "output": 15.00}
 
 # Cloud speech-to-text pricing, USD per hour of audio (batch rates). Local
 # faster-whisper is free. Keyed by the provider/model string TranscriptionResult
@@ -75,7 +79,7 @@ PRICING: dict[str, dict[str, float]] = {
     "deep-research-max-preview-04-2026": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
     # Anthropic reserved route pricing estimates
-    "claude-sonnet-5": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-5": _SONNET_5_INTRO_PRICING,
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
     # OpenAI reserved route pricing estimates
@@ -128,10 +132,13 @@ def get_pricing(model: str) -> dict[str, float]:
     """Look up pricing for *model*, with prefix-match and default fallback.
 
     Resolution order:
-    1. Exact match in ``PRICING``.
-    2. Prefix match — e.g. ``"grok-4.3-beta"`` matches ``"grok-4.3"``.
-    3. Fall back to ``DEFAULT_MODEL`` and log a warning.
+    1. Date-resolved temporary pricing windows.
+    2. Exact match in ``PRICING``.
+    3. Prefix match, e.g. ``"grok-4.3-beta"`` matches ``"grok-4.3"``.
+    4. Fall back to ``DEFAULT_MODEL`` and log a warning.
     """
+    if _is_sonnet_5_model(model):
+        return _sonnet_5_pricing()
     if model in PRICING:
         return PRICING[model]
     # Prefix matching for versioned model names. Longest key first so the most
@@ -147,3 +154,17 @@ def get_pricing(model: str) -> dict[str, float]:
         DEFAULT_MODEL,
     )
     return PRICING[DEFAULT_MODEL]
+
+
+def _is_sonnet_5_model(model: str) -> bool:
+    return model.startswith("claude-sonnet-5")
+
+
+def _sonnet_5_pricing() -> dict[str, float]:
+    if _pricing_reference_date() <= _SONNET_5_INTRO_PRICING_END:
+        return _SONNET_5_INTRO_PRICING
+    return _SONNET_5_STANDARD_PRICING
+
+
+def _pricing_reference_date() -> date:
+    return date.today()

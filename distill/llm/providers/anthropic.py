@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_API_VERSION = "2023-06-01"
+_SONNET_5_PREFIX = "claude-sonnet-5"
 
 
 class AnthropicProvider:
@@ -51,7 +52,7 @@ class AnthropicProvider:
                     "max_tokens": max_tokens,
                     "messages": [{"role": "user", "content": prompt}],
                 }
-                if temperature is not None:
+                if temperature is not None and _supports_custom_sampling(model):
                     payload["temperature"] = temperature
                 if reasoning_effort is not None:
                     payload["output_config"] = {"effort": reasoning_effort}
@@ -119,6 +120,10 @@ def _content_block_text(block: object) -> str:
         return ""
     text = row.get("text")
     return text if isinstance(text, str) else ""
+
+
+def _supports_custom_sampling(model: str) -> bool:
+    return not model.startswith(_SONNET_5_PREFIX)
 
 
 def _non_negative_int(value: object) -> int:

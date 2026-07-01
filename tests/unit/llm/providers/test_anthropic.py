@@ -116,8 +116,19 @@ def test_successful_call_builds_messages_request(monkeypatch: pytest.MonkeyPatch
         "model": "claude-sonnet-5",
         "max_tokens": 128_000,
         "messages": [{"role": "user", "content": "hello"}],
-        "temperature": 0.2,
     }
+
+
+def test_non_sonnet5_models_keep_temperature(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_client(monkeypatch)
+    _FakeAsyncClient.responses.append(_FakeResponse(_success_payload(model="claude-sonnet-4")))
+    provider = AnthropicProvider("test-key")
+
+    asyncio.run(provider.call("claude-sonnet-4", "hello", temperature=0.2))
+
+    payload = _FakeAsyncClient.posts[0]["json"]
+    assert isinstance(payload, dict)
+    assert payload["temperature"] == 0.2
 
 
 def test_reasoning_effort_uses_output_config_only(monkeypatch: pytest.MonkeyPatch) -> None:

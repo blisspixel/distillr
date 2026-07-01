@@ -65,6 +65,8 @@ def ask_cmd(
         console.print(
             f"  [green]Answer[/green]    {result.answer_path.relative_to(config.library_dir)}"
         )
+    elif result.answer_refused_reason:
+        console.print(f"  [red]Answer not saved[/red] {result.answer_refused_reason}")
     if result.saved_insight_path is not None:
         console.print(
             f"  [green]Promoted[/green]  {result.saved_insight_path.relative_to(config.library_dir)} "

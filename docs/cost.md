@@ -228,7 +228,7 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Still available; selectable via env override for higher-fidelity passes |
 | `deep-research-preview-04-2026` | pay-as-you-go | ~$2-5/query | N/A | Report Phase 1, `distill research-brief` |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19) |
-| `claude-sonnet-5` | $3.00/1M | $15.00/1M | 1M | Optional Anthropic-provider chat model; list-rate estimate, not a default route |
+| `claude-sonnet-5` | $2.00/1M through 2026-08-31, then $3.00/1M | $10.00/1M through 2026-08-31, then $15.00/1M | 1M | Optional Anthropic-provider chat model; current intro-rate estimate, not a default route |
 
 Since 0.3.1, both fast and premium tiers default to `grok-4.3`. The older models remain available via `.env` overrides for users who prefer them.
 
@@ -255,3 +255,7 @@ DISTILL_SYNTHESIS_PROVIDER=
 ```
 
 Leave the narrow overrides blank to use the broader `XAI_FAST_MODEL` / `XAI_PREMIUM_MODEL` defaults. Both default to `grok-4.3` since 0.3.1.
+Claude Sonnet 5 uses Anthropic adaptive thinking by default. Distill omits
+explicit sampling parameters such as `temperature` for Sonnet 5 compatibility,
+while still forwarding `DISTILL_<WORKLOAD>_REASONING_EFFORT` as
+`output_config.effort` when explicitly set.

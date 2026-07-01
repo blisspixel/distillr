@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.11 - 2026-07-01
+
+Provider, trust, and cost-hardening release. Adds current Anthropic Sonnet 5
+compatibility, expands citation write guards, and tightens surprise-cost
+controls while keeping metered providers explicit opt-in routes.
+
 ### Changed
 
 - Added opt-in Anthropic Claude Messages API support for `claude-sonnet-5`,
   including `ANTHROPIC_API_KEY` routing, Sonnet 5 effort forwarding via
-  `output_config`, doctor key checks, 1M context metadata, and list-rate cost
-  estimates.
+  `output_config`, doctor key checks, 1M context metadata, current intro-rate
+  and scheduled standard cost estimates, and provider compatibility for Sonnet
+  5's sampling-parameter restrictions.
 - Added an `ask` workload to `distill eval` with adversarial fixtures for
   false premises, no-evidence questions, citation-request traps, unsupported
   numbers, and route disagreement, including structural checks that golden
@@ -64,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Tightened `distill ask --save` promotion so answers that cite unknown
   bracketed source stems, or cite no retrieved source at all, refuse promotion
   while keeping the answer artifact and verification sidecar inspectable.
+- Tightened ordinary `distill ask` answer artifact writes so answers that cite
+  unknown bracketed source stems, or cite no retrieved source at all, refuse
+  the artifact write before an `Answer.md` or verify sidecar is created.
 - Added a roadmap-level trust-hardening pass for citation/source existence
   checks, false-premise evals, calibrated uncertainty, evidence-position
   regressions, and route-disagreement review, without changing application code.

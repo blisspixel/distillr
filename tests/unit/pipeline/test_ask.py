@@ -111,13 +111,12 @@ class TestAsk:
         result = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
 
         assert result.saved_insight_path is None
+        assert result.answer_path is None
+        assert "unknown source" in result.answer_refused_reason
         assert "unknown source" in result.save_refused_reason
         assert "fabricated_Insights" in result.save_refused_reason
-        assert result.answer_path is not None and result.answer_path.exists()
-        sidecar = json.loads(
-            next(result.answer_path.parent.glob("*_Verify.json")).read_text(encoding="utf-8")
-        )
-        assert sidecar["unsupported"] == []
+        assert not list((config.topic_dir("t") / "answers").glob("*_Answer.md"))
+        assert not list((config.topic_dir("t") / "answers").glob("*_Verify.json"))
 
     def test_save_refused_without_valid_source_citation(self, config, monkeypatch):
         _seed_corpus(config)
@@ -126,7 +125,32 @@ class TestAsk:
         result = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
 
         assert result.saved_insight_path is None
+        assert result.answer_path is None
+        assert "no valid source citations" in result.answer_refused_reason
         assert "no valid source citations" in result.save_refused_reason
+        assert not list((config.topic_dir("t") / "answers").glob("*_Answer.md"))
+
+    def test_answer_artifact_refused_on_unknown_source_citation(self, config, monkeypatch):
+        _seed_corpus(config)
+        _llm(monkeypatch, "HHEM reaches 0.878 ROC-AUC [fabricated_Insights].")
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config)
+
+        assert result.answer_path is None
+        assert "unknown source" in result.answer_refused_reason
+        assert "fabricated_Insights" in result.answer_refused_reason
+        assert not list((config.topic_dir("t") / "answers").glob("*_Answer.md"))
+        assert not list((config.topic_dir("t") / "answers").glob("*_Verify.json"))
+
+    def test_answer_artifact_refused_without_valid_source_citation(self, config, monkeypatch):
+        _seed_corpus(config)
+        _llm(monkeypatch, "HHEM reaches 0.878 ROC-AUC and runs on CPU.")
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config)
+
+        assert result.answer_path is None
+        assert "no valid source citations" in result.answer_refused_reason
+        assert not list((config.topic_dir("t") / "answers").glob("*_Answer.md"))
 
     def test_uses_qa_workload(self, config, monkeypatch):
         _seed_corpus(config)
@@ -257,6 +281,32 @@ def test_ask_command_handles_answer_without_artifact_path(config, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "Grounded answer" in result.output
     assert "Answer" not in result.output
+
+
+def test_ask_command_prints_answer_refusal(config, monkeypatch):
+    from typer.testing import CliRunner
+
+    from distill import cli
+
+    monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
+    monkeypatch.setattr("distill.commands.ask._require_model", lambda _workload: None)
+    monkeypatch.setattr("distill.commands.ask.save_run_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "distill.commands.ask.ask_corpus",
+        lambda question, *, topic, config, save, tracker: ask_mod.AskResult(
+            question=question,
+            answer_path=None,
+            answer_text="Grounded answer [fabricated].",
+            answer_refused_reason="answer cites unknown source(s): fabricated",
+        ),
+    )
+
+    result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t"])
+
+    assert result.exit_code == 0, result.output
+    assert "Grounded answer" in result.output
+    assert "Answer not saved" in result.output
+    assert "unknown source" in result.output
 
 
 def test_ask_command_prints_save_refusal(config, monkeypatch):
