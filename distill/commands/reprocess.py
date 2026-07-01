@@ -23,6 +23,7 @@ from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
 )
 from distill.commands._helpers import format_date as _format_date
@@ -40,7 +41,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.pipeline.analysis.video import analyze_short, analyze_video
-from distill.pipeline.costs import estimate_run_cost
+from distill.pipeline.costs import estimate_run_cost, estimate_video_workflow_cost
 from distill.pipeline.summary import (
     RunSummary,
     VideoResult,
@@ -143,10 +144,15 @@ def resynthesize(
 
     # synthesis_calls = 1 per channel + 1 for topic
     num_calls = len(channels) + 1
-    display_estimate(synthesis_calls=num_calls, console=console)
+    projected_cost = estimate_video_workflow_cost(
+        synthesis_calls=num_calls + (1 if two_pass else 0)
+    )
+    enforce_projected_workflow_budget(config, "resynthesize", projected_cost)
+    display_estimate(synthesis_calls=num_calls + (1 if two_pass else 0), console=console)
 
     tracker = budgeted_cost_tracker(config, "resynthesize")
     summary = RunSummary(command="resynthesize")
+    summary.estimated_cost = projected_cost
 
     for ch in channels:
         console.print(f"  Synthesizing [bold]{ch.name}[/bold]...")
@@ -314,10 +320,22 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
         )
         return
 
-    display_estimate(full_count, short_count, console=console)
+    projected_cost = estimate_video_workflow_cost(
+        full_videos=full_count,
+        shorts=short_count,
+        synthesis_calls=len(channels) + 1,
+    )
+    enforce_projected_workflow_budget(config, "reanalyze", projected_cost)
+    display_estimate(
+        full_count,
+        short_count,
+        console=console,
+        synthesis_calls=len(channels) + 1,
+    )
 
     tracker = budgeted_cost_tracker(config, "reanalyze")
     summary = RunSummary(command="reanalyze")
+    summary.estimated_cost = projected_cost
     current_channel = None
 
     for ch_name, vid_dir, meta, is_short in all_videos:

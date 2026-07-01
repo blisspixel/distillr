@@ -12,6 +12,7 @@ from distill.commands import process as process_mod
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
+from distill.pipeline.costs import ProjectedBudgetExceededError
 
 runner = CliRunner()
 
@@ -72,6 +73,21 @@ class TestVideoCommand:
         result = runner.invoke(cli.app, ["video", info.url])
 
         assert result.exit_code == 1
+
+    def test_refuses_projected_video_budget_before_processing(self, tmp_path, monkeypatch):
+        info = _video()
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "video=0.0001"
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "get_video_info", lambda _url: info)
+        process_video = MagicMock(return_value=True)
+        monkeypatch.setattr(process_mod, "_process_video", process_video)
+
+        result = runner.invoke(cli.app, ["video", info.url])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        process_video.assert_not_called()
 
     def test_video_show_prints_insights_inline(self, tmp_path, monkeypatch):
         info = _video()
@@ -182,6 +198,22 @@ class TestChannelCommand:
         assert result.exit_code == 0
         assert "No videos found in date range" in result.output
 
+    def test_refuses_projected_channel_budget_before_processing(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "channel=0.0001"
+        self._patch_common(monkeypatch, config, [_video()])
+        process_video = MagicMock(return_value=True)
+        synthesize_channel = MagicMock()
+        monkeypatch.setattr(process_mod, "_process_video", process_video)
+        monkeypatch.setattr(process_mod, "synthesize_channel", synthesize_channel)
+
+        result = runner.invoke(cli.app, ["channel", "https://www.youtube.com/@TestCh"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        process_video.assert_not_called()
+        synthesize_channel.assert_not_called()
+
     def test_channel_synthesis_failure_is_reported(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         self._patch_common(monkeypatch, config, [_video()])
@@ -286,6 +318,8 @@ class TestRunCommand:
 
         state = ChannelState(config.channel_dir("ai", "TestCh") / "state.json")
         state.mark_processed("v1", "Video 1", _recent(2))
+        synthesize_topic = MagicMock()
+        monkeypatch.setattr(process_mod, "synthesize_topic", synthesize_topic)
 
         result = runner.invoke(cli.app, ["run", "ai", "--dry-run", "--shorts"])
 
@@ -293,6 +327,22 @@ class TestRunCommand:
         assert "[SKIP]" in result.output
         assert "[NEW]" in result.output
         assert "Dry run: 1 videos would be processed" in result.output
+        synthesize_topic.assert_not_called()
+
+    def test_refuses_projected_run_budget_before_processing(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "run=0.0001"
+        _seed_library(config)
+        self._patch_discover(monkeypatch, [_video()])
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        generate_context = MagicMock(return_value="# Context\n")
+        monkeypatch.setattr(process_mod, "generate_channel_context", generate_context)
+
+        result = runner.invoke(cli.app, ["run", "ai"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        generate_context.assert_not_called()
 
     def test_run_refresh_and_limit(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

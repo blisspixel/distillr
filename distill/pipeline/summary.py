@@ -14,11 +14,9 @@ from typing import Any
 
 from rich.console import Console
 
-from distill.llm.cost import deep_research_query_cost
 from distill.pipeline.costs import (
-    ACCORDION_GROK_ESTIMATE,
     CostTracker,
-    estimate_stage_cost,
+    estimate_video_workflow_cost,
     report_deep_research_estimate,
 )
 
@@ -295,15 +293,13 @@ def display_estimate(
 ) -> None:
     con = console or Console()
 
-    grok_cost = (
-        full_videos * estimate_stage_cost("video_full")
-        + shorts * estimate_stage_cost("video_short")
-        + scan_videos * estimate_stage_cost("video_scan")
+    total = estimate_video_workflow_cost(
+        full_videos,
+        shorts,
+        scan_videos=scan_videos,
+        include_report=include_report,
+        synthesis_calls=synthesis_calls,
     )
-    synthesis_cost = synthesis_calls * estimate_stage_cost("synthesis")
-    gemini_cost = deep_research_query_cost() if include_report else 0.0
-    accordion_grok = ACCORDION_GROK_ESTIMATE if include_report else 0.0
-    total = grok_cost + synthesis_cost + gemini_cost + accordion_grok
 
     parts: list[str] = []
     if full_videos:
@@ -312,7 +308,7 @@ def display_estimate(
         parts.append(f"{scan_videos} video{'s' if scan_videos != 1 else ''} (scan)")
     if shorts:
         parts.append(f"{shorts} Short{'s' if shorts != 1 else ''}")
-    if synthesis_calls and not full_videos and not shorts and not scan_videos:
+    if synthesis_calls:
         parts.append(f"{synthesis_calls} synthesis call{'s' if synthesis_calls != 1 else ''}")
     desc_str = " + ".join(parts) if parts else "0 videos"
 

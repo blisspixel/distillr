@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
 import typer
 from typer.testing import CliRunner
@@ -13,6 +14,7 @@ from distill.commands import reprocess as reprocess_mod
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import find_artifact
+from distill.pipeline.costs import ProjectedBudgetExceededError
 
 runner = CliRunner()
 
@@ -100,6 +102,23 @@ class TestResynthesize:
 
         assert result.exit_code == 1
         assert "not found" in result.output
+
+    def test_refuses_projected_resynthesize_budget_before_synthesis(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "resynthesize=0.0001"
+        _seed_library(config)
+        self._patch_common(monkeypatch, config)
+        synthesize_channel = MagicMock()
+        synthesize_topic = MagicMock()
+        monkeypatch.setattr(reprocess_mod, "synthesize_channel", synthesize_channel)
+        monkeypatch.setattr(reprocess_mod, "synthesize_topic", synthesize_topic)
+
+        result = runner.invoke(cli.app, ["resynthesize", "ai"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        synthesize_channel.assert_not_called()
+        synthesize_topic.assert_not_called()
 
     def test_resynthesizes_channel_and_topic(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -289,6 +308,21 @@ class TestReanalyze:
 
         assert result.exit_code == 0
         assert "No videos with transcripts found" in result.output
+
+    def test_refuses_projected_reanalyze_budget_before_analysis(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "reanalyze=0.0001"
+        _seed_library(config)
+        _seed_video(config)
+        self._patch_common(monkeypatch, config)
+        analyze_video = MagicMock()
+        monkeypatch.setattr(reprocess_mod, "analyze_video", analyze_video)
+
+        result = runner.invoke(cli.app, ["reanalyze", "ai"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        analyze_video.assert_not_called()
 
     def test_dry_run_lists_videos(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

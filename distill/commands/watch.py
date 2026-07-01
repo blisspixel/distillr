@@ -26,6 +26,7 @@ from distill.commands._helpers import (
     _complete_topics,
     _complete_watched_channels,
     budgeted_cost_tracker,
+    enforce_projected_workflow_budget,
     get_config,
 )
 from distill.commands._helpers import (
@@ -47,6 +48,7 @@ from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
+from distill.pipeline.costs import estimate_video_workflow_cost
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
@@ -451,6 +453,17 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             continue
 
         # ── Process each video ────────────────────────────────
+        scan_count = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
+        short_count = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
+        projected_batch_cost = estimate_video_workflow_cost(
+            scan_videos=scan_count,
+            shorts=short_count,
+            synthesis_calls=1,
+        )
+        projected_total = (summary.estimated_cost or 0.0) + projected_batch_cost
+        enforce_projected_workflow_budget(config, "catch-up", projected_total)
+        summary.estimated_cost = projected_total
+
         _ensure_channel_context(entry.topic, entry.name, new_vids, config, tracker)
         eta = ETATracker(total=len(new_vids))
 

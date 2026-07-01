@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.19.14"
+version = "0.19.15"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = "Apache-2.0"

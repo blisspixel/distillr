@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
 import typer
 from typer.testing import CliRunner
@@ -15,6 +16,7 @@ from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
 from distill.library.state import ChannelState
+from distill.pipeline.costs import ProjectedBudgetExceededError
 
 runner = CliRunner()
 
@@ -587,6 +589,28 @@ class TestCatchUp:
         assert "7 new" in result.output
         assert "...and 2 more" in result.output
         assert estimates == [(4, 3)]
+
+    def test_refuses_projected_catch_up_budget_before_processing(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_workflow_budgets = "catch-up=0.0001"
+        _seed_watch(config)
+        self._patch_common(monkeypatch, config)
+        monkeypatch.setattr(
+            watch_mod,
+            "discover_videos",
+            lambda url, days=7, include_shorts=True, quiet=True: [_video(video_id="n1")],
+        )
+        process_video = MagicMock()
+        synthesize_channel = MagicMock()
+        monkeypatch.setattr(watch_mod, "_process_video", process_video)
+        monkeypatch.setattr(watch_mod, "synthesize_channel", synthesize_channel)
+
+        result = runner.invoke(cli.app, ["catch-up"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, ProjectedBudgetExceededError)
+        process_video.assert_not_called()
+        synthesize_channel.assert_not_called()
 
     def test_processes_new_videos_and_synthesizes(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

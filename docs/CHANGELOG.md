@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.15 - 2026-07-01
+
+Video workflow cost-guard patch release. No new provider routes.
+
+### Changed
+
+- Made `distill video`, `distill channel`, `distill run`, `distill catch-up`,
+  `distill reanalyze`, and `distill resynthesize` refuse before known
+  video-analysis or synthesis model work when projected spend exceeds the
+  configured workflow cap.
+- Kept `distill run --dry-run` from falling through to topic synthesis after
+  previewing videos.
+
 ## 0.19.14 - 2026-07-01
 
 Deep Research cost-guard patch release. No new provider routes.

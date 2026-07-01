@@ -9,6 +9,7 @@ from distill.pipeline.costs import (
     CostTracker,
     TokenUsage,
     estimate_run_cost,
+    estimate_video_workflow_cost,
     report_deep_research_estimate,
     save_run_log,
 )
@@ -100,6 +101,27 @@ def test_estimate_run_cost_includes_accordion():
     assert "Accordion" in text
     assert f"${report_deep_research_estimate():.2f}" in text
     assert f"Gemini ${deep_research_query_cost():.2f}" in text
+
+
+def test_video_workflow_estimate_matches_display_components():
+    from distill.pipeline.costs import estimate_stage_cost
+
+    estimate = estimate_video_workflow_cost(
+        full_videos=2,
+        shorts=1,
+        scan_videos=3,
+        include_report=True,
+        synthesis_calls=2,
+    )
+
+    expected = (
+        2 * estimate_stage_cost("video_full")
+        + estimate_stage_cost("video_short")
+        + 3 * estimate_stage_cost("video_scan")
+        + 2 * estimate_stage_cost("synthesis")
+        + report_deep_research_estimate()
+    )
+    assert estimate == expected
 
 
 def test_report_deep_research_estimate_uses_central_pricing():

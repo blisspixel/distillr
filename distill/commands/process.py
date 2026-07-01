@@ -30,6 +30,7 @@ from distill.cli_shared import strip_frontmatter as _strip_frontmatter
 from distill.commands._helpers import (
     budgeted_cost_tracker,
     duration_str,
+    enforce_projected_workflow_budget,
     file_link,
     get_config,
     resolve_intent,
@@ -69,7 +70,7 @@ from distill.pipeline.analysis.video import (
     analyze_video,
     generate_channel_context,
 )
-from distill.pipeline.costs import estimate_run_cost
+from distill.pipeline.costs import estimate_run_cost, estimate_video_workflow_cost
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
@@ -121,6 +122,13 @@ def video(
     channel_name = _resolve_video_channel_name(url, info, resolve_channel_name)
     console.print(f"[bold]{info.title}[/bold]")
     console.print(f"[dim]{_format_date(info.upload_date)} | {_duration_str(info.duration)}[/dim]\n")
+
+    projected_cost = estimate_video_workflow_cost(
+        full_videos=0 if info.duration <= SHORTS_THRESHOLD else 1,
+        shorts=1 if info.duration <= SHORTS_THRESHOLD else 0,
+    )
+    enforce_projected_workflow_budget(config, "video", projected_cost)
+    summary.estimated_cost = projected_cost
 
     success = _process_video(topic, channel_name, info, config, tracker, summary)
     if not success:
@@ -229,16 +237,31 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
         console.print("[yellow]No videos found in date range[/yellow]")
         return
 
-    tracker = budgeted_cost_tracker(config, "channel")
-    summary = RunSummary(command="channel")
     state = ChannelState(config.channel_dir(topic, name) / "state.json")
 
     # Pre-run estimate
     new_vids = [v for v in videos if not state.is_processed(v.video_id)]
+    full_est = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
+    short_est = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
+    projected_cost = estimate_video_workflow_cost(
+        full_videos=full_est,
+        shorts=short_est,
+        include_report=report,
+        synthesis_calls=1,
+    )
+    enforce_projected_workflow_budget(config, "channel", projected_cost)
+
+    tracker = budgeted_cost_tracker(config, "channel")
+    summary = RunSummary(command="channel")
+    summary.estimated_cost = projected_cost
     if new_vids:
-        full_est = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
-        short_est = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
-        display_estimate(full_est, short_est, console=console, include_report=report)
+        display_estimate(
+            full_est,
+            short_est,
+            console=console,
+            include_report=report,
+            synthesis_calls=1,
+        )
 
     _ensure_channel_context(topic, name, videos, config, tracker)
     eta = ETATracker(total=len(new_vids))
@@ -390,10 +413,23 @@ def run(  # noqa: C901 — legacy, will refactor
 
             # Pre-run estimate
             new_to_process = [v for v in videos if not state.is_processed(v.video_id)]
+            full_count = sum(1 for v in new_to_process if v.duration > SHORTS_THRESHOLD)
+            short_count = sum(1 for v in new_to_process if v.duration <= SHORTS_THRESHOLD)
+            projected_channel_cost = estimate_video_workflow_cost(
+                full_videos=full_count,
+                shorts=short_count,
+                synthesis_calls=1,
+            )
+            projected_total = (summary.estimated_cost or 0.0) + projected_channel_cost
+            enforce_projected_workflow_budget(config, "run", projected_total)
+            summary.estimated_cost = projected_total
             if new_to_process:
-                full_count = sum(1 for v in new_to_process if v.duration > SHORTS_THRESHOLD)
-                short_count = sum(1 for v in new_to_process if v.duration <= SHORTS_THRESHOLD)
-                display_estimate(full_count, short_count, console=console)
+                display_estimate(
+                    full_count,
+                    short_count,
+                    console=console,
+                    synthesis_calls=1,
+                )
 
             # Generate channel context if we don't have one
             ctx_file = config.channel_dir(t, ch.name) / "channel_context.md"
@@ -582,7 +618,14 @@ def run(  # noqa: C901 — legacy, will refactor
                     details={"topic": t, "channel": ch.name},
                 )
 
-        # Topic synthesis (only if multiple channels)
+        if dry_run:
+            continue
+
+        # Topic synthesis
+        projected_topic_cost = estimate_video_workflow_cost(synthesis_calls=1)
+        projected_total = (summary.estimated_cost or 0.0) + projected_topic_cost
+        enforce_projected_workflow_budget(config, "run", projected_total)
+        summary.estimated_cost = projected_total
         try:
             synthesize_topic(t, config, tracker=tracker)
             topic_synth = find_artifact(config.topic_dir(t), "topic_synthesis", identity=t)
