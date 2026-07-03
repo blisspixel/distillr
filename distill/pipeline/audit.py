@@ -19,6 +19,7 @@ layer, not here.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any, cast
@@ -66,9 +67,17 @@ from distill.pipeline.profile_health import (
     collect_profile_health,
     render_profile_health_section,
 )
+from distill.pipeline.quality_history import (
+    append_quality_snapshot,
+    load_last_quality_snapshot,
+    quality_snapshot_from_report,
+)
+from distill.pipeline.quality_trend import render_quality_trend
 from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 _action_id = action_id
+
+logger = logging.getLogger(__name__)
 _loop = loop_metadata
 
 
@@ -759,8 +768,14 @@ def _gaps_section(report: AuditReport) -> list[str]:
     return lines
 
 
-def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
-    """Render one topic's audit as markdown. Pure."""
+def render_audit_md(
+    report: AuditReport, *, now_iso: str, quality_trend: list[str] | None = None
+) -> str:
+    """Render one topic's audit as markdown. Pure.
+
+    ``quality_trend`` (when provided) is the pre-rendered Corpus Quality Trend
+    section; it is inserted after the header so the compounding view leads.
+    """
     lines: list[str] = [
         f"# Audit: {report.topic}",
         "",
@@ -768,6 +783,8 @@ def render_audit_md(report: AuditReport, *, now_iso: str) -> str:
         f"{report.issue_count} finding(s).",
         "",
     ]
+    if quality_trend:
+        lines += quality_trend
     for section in (
         _verify_section,
         _staleness_section,
@@ -890,11 +907,20 @@ def render_library_audit_md(hygiene: LibraryHygiene, *, now_iso: str) -> str:
 
 
 def write_audit_artifact(topic_dir: Path, report: AuditReport, *, now_iso: str) -> Path:
-    """Write ``<topic>_Audit.md`` with standard frontmatter. Returns the path."""
-    return write_markdown_artifact(
+    """Write ``<topic>_Audit.md`` with standard frontmatter. Returns the path.
+
+    Also records a corpus-quality snapshot and renders the trend since the prior
+    audit, so the report shows whether the corpus is *compounding* rather than
+    only its point-in-time state. The snapshot append is best-effort: a
+    history-write failure is logged and never blocks the report.
+    """
+    snapshot = quality_snapshot_from_report(report, generated_at=now_iso)
+    previous = load_last_quality_snapshot(topic_dir)
+    trend = render_quality_trend(snapshot, previous)
+    path = write_markdown_artifact(
         topic_dir,
         "audit",
-        render_audit_md(report, now_iso=now_iso),
+        render_audit_md(report, now_iso=now_iso, quality_trend=trend),
         identity=report.topic,
         frontmatter=base_frontmatter(
             artifact_type="audit",
@@ -905,3 +931,8 @@ def write_audit_artifact(topic_dir: Path, report: AuditReport, *, now_iso: str) 
             extra={"findings": report.issue_count, "generated_at": now_iso},
         ),
     )
+    try:
+        append_quality_snapshot(topic_dir, snapshot)
+    except OSError:
+        logger.warning("Could not record quality snapshot for topic %s", report.topic)
+    return path

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- `distill audit` now records a per-topic corpus-quality snapshot and renders a
+  "Corpus Quality Trend" section that shows the change since the previous audit
+  (verified-clean rate, plus flagged, stale, gap, and contested counts), so the
+  report shows whether the corpus is compounding over refreshes rather than only
+  its point-in-time state. Deterministic; the append-only history lives under
+  `<topic>/.distill/quality-history.jsonl`.
+
 ## 0.19.23 - 2026-07-03
 
 Security patch: site-crawl redirect confinement.
