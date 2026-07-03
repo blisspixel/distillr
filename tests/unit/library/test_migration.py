@@ -11,12 +11,36 @@ from pathlib import Path
 import pytest
 
 from distill.library.migration import (
+    FrontmatterFieldAction,
+    MigrationAction,
     _compute_modern_name,
+    _find_library_root,
     apply_frontmatter_field_migration,
     apply_migration,
     scan_confidence_field,
     scan_legacy_artifacts,
 )
+
+
+def _raise_oserror(*args: object, **kwargs: object) -> None:
+    """Test helper: unconditionally raise OSError to simulate an IO failure."""
+    raise OSError("simulated IO failure")
+
+
+def _legacy_insights_with_reference(
+    library_dir: Path,
+) -> tuple[Path, Path, list[MigrationAction]]:
+    """Create a legacy ``insights.md`` plus a file that wiki-links its stem.
+
+    Returns ``(artifact_dir, referencing_file, scanned_actions)`` for tests that
+    exercise the rename-then-link-update path.
+    """
+    artifact_dir = library_dir / "topics" / "my-topic"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "insights.md").write_text("# Insights\n", encoding="utf-8")
+    ref = library_dir / "topics" / "ref.md"
+    ref.write_text("See [[insights|X]].\n", encoding="utf-8")
+    return artifact_dir, ref, scan_legacy_artifacts(library_dir)
 
 
 @pytest.fixture
@@ -131,6 +155,21 @@ class TestScanLegacyArtifacts:
         actions = scan_legacy_artifacts(library_dir)
         assert len(actions) >= 3  # insights.md, synthesis.md, transcript.txt
 
+    def test_skips_legacy_files_in_hidden_dirs(self, library_dir: Path) -> None:
+        """Legacy-named files inside hidden dirs are immutable history, never migrated."""
+        for hidden in (".history", ".distill", ".concepts"):
+            snap_dir = library_dir / "topics" / "tkg" / hidden / "gpt5_abc123"
+            snap_dir.mkdir(parents=True)
+            (snap_dir / "insights.md").write_text("# Snapshot\n", encoding="utf-8")
+        # A visible sibling is the positive control: it proves the scan discriminates
+        # (finds live artifacts) rather than trivially skipping everything.
+        visible = library_dir / "topics" / "tkg" / "live" / "insights.md"
+        visible.parent.mkdir(parents=True)
+        visible.write_text("# Live\n", encoding="utf-8")
+
+        actions = scan_legacy_artifacts(library_dir)
+        assert [action.source_path for action in actions] == [visible]
+
 
 class TestApplyMigration:
     """Tests for apply_migration (executing renames and link updates)."""
@@ -228,6 +267,84 @@ class TestApplyMigration:
         assert result.conflicts_skipped == 1  # topic-b is a conflict
         assert isinstance(result.errors, list)
 
+    def test_skips_non_rename_actions(self, tmp_path: Path) -> None:
+        """apply_migration only executes rename actions; other action types are ignored."""
+        action = MigrationAction(
+            source_path=tmp_path / "a.md",
+            target_path=tmp_path / "b.md",
+            action_type="link_update",
+            details="not a rename",
+        )
+        result = apply_migration([action], library_dir=tmp_path)
+        assert result.files_renamed == 0
+        assert result.conflicts_skipped == 0
+        assert result.errors == []
+
+    def test_rename_failure_is_recorded_as_error(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An OSError during rename degrades to a recorded error, not a crash."""
+        _artifact_dir, _ref, actions = _legacy_insights_with_reference(library_dir)
+
+        monkeypatch.setattr(Path, "rename", _raise_oserror)
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.files_renamed == 0
+        assert len(result.errors) == 1
+        assert "rename failed" in result.errors[0].lower()
+
+    def test_apply_without_library_dir_updates_links_via_common_ancestor(
+        self, library_dir: Path
+    ) -> None:
+        """Without an explicit library_dir, links update under the actions' common ancestor."""
+        topics = library_dir / "topics"
+        (topics / "a").mkdir(parents=True)
+        (topics / "a" / "insights.md").write_text("# A\n", encoding="utf-8")
+        (topics / "b").mkdir(parents=True)
+        (topics / "b" / "synthesis.md").write_text("# B\n", encoding="utf-8")
+        ref = topics / "ref.md"
+        ref.write_text("See [[insights|A]] and [[synthesis|B]].\n", encoding="utf-8")
+
+        actions = scan_legacy_artifacts(library_dir)
+        result = apply_migration(actions)  # no library_dir; common ancestor is topics/
+
+        assert result.files_renamed == 2
+        assert result.links_updated == 2
+        updated = ref.read_text(encoding="utf-8")
+        assert "[[insights" not in updated
+        assert "[[synthesis" not in updated
+        assert "[[a_Insights" in updated
+        assert "[[b_Synthesis" in updated
+
+    def test_link_update_read_failure_degrades_cleanly(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unreadable file during link update is skipped; the rename still succeeds."""
+        artifact_dir, _ref, actions = _legacy_insights_with_reference(library_dir)
+
+        monkeypatch.setattr(Path, "read_text", _raise_oserror)
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.files_renamed == 1
+        assert result.links_updated == 0
+        # The rename genuinely happened on disk even though link update could not read.
+        assert not (artifact_dir / "insights.md").exists()
+        assert (artifact_dir / "my-topic_Insights.md").exists()
+
+    def test_link_update_write_failure_degrades_cleanly(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A write failure during link update is swallowed with a warning, not a crash."""
+        _artifact_dir, ref, actions = _legacy_insights_with_reference(library_dir)
+
+        monkeypatch.setattr("distill.library.migration.atomic_write_text", _raise_oserror)
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.files_renamed == 1
+        assert result.links_updated == 0
+        # The referencing file is left untouched on disk.
+        assert "[[insights|X]]" in ref.read_text(encoding="utf-8")
+
 
 class TestComputeModernName:
     """Tests for _compute_modern_name helper."""
@@ -255,6 +372,34 @@ class TestComputeModernName:
         path = tmp_path / "my-slug" / "unknown_file.md"
         path.parent.mkdir(parents=True)
         assert _compute_modern_name(path) == "unknown_file.md"
+
+
+class TestFindLibraryRoot:
+    """Tests for the _find_library_root common-ancestor fallback."""
+
+    def test_empty_actions_returns_none(self) -> None:
+        """No actions means there is no root to infer."""
+        assert _find_library_root([]) is None
+
+    def test_returns_shared_parent(self, tmp_path: Path) -> None:
+        """Actions in the same directory resolve to that directory."""
+        d = tmp_path / "topics" / "a"
+        actions = [
+            MigrationAction(d / "insights.md", d / "a_Insights.md", "rename", "x"),
+            MigrationAction(d / "transcript.txt", d / "a_Transcript.txt", "rename", "y"),
+        ]
+        assert _find_library_root(actions) == d
+
+    def test_walks_up_to_common_ancestor(self, tmp_path: Path) -> None:
+        """Actions in sibling directories resolve to their nearest shared ancestor."""
+        topics = tmp_path / "topics"
+        a = topics / "a"
+        b = topics / "b"
+        actions = [
+            MigrationAction(a / "insights.md", a / "a_Insights.md", "rename", "x"),
+            MigrationAction(b / "synthesis.md", b / "b_Synthesis.md", "rename", "y"),
+        ]
+        assert _find_library_root(actions) == topics
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +447,31 @@ class TestScanConfidenceField:
         plain.parent.mkdir(parents=True)
         plain.write_text("# Just a note\nNo frontmatter, no confidence:\n", encoding="utf-8")
         assert scan_confidence_field(library_dir) == []
+
+    def test_skips_unterminated_frontmatter(self, library_dir: Path) -> None:
+        """A frontmatter block with no closing marker is treated as absent, not a crash."""
+        broken = library_dir / "topics" / "tkg" / "notes.md"
+        broken.parent.mkdir(parents=True)
+        broken.write_text('---\nconfidence: "x"\nnever closed\n', encoding="utf-8")
+        # Positive control: a properly-closed sibling proves only the unterminated
+        # block is skipped, not that the scan silently finds nothing.
+        valid = library_dir / "topics" / "tkg" / "ok.md"
+        valid.write_text('---\nconfidence: "y"\n---\nbody\n', encoding="utf-8")
+
+        actions = scan_confidence_field(library_dir)
+        assert [action.path for action in actions] == [valid]
+
+    def test_skips_undecodable_file(self, library_dir: Path) -> None:
+        """A file whose bytes are not valid UTF-8 is skipped rather than crashing the scan."""
+        corrupt = library_dir / "topics" / "tkg" / "corrupt.md"
+        corrupt.parent.mkdir(parents=True)
+        corrupt.write_bytes(b"\xff\xfe\x00\x01 not utf-8")
+        # Positive control: a valid sibling proves only the undecodable file is skipped.
+        valid = library_dir / "topics" / "tkg" / "ok.md"
+        valid.write_text('---\nconfidence: "y"\n---\nbody\n', encoding="utf-8")
+
+        actions = scan_confidence_field(library_dir)
+        assert [action.path for action in actions] == [valid]
 
 
 class TestApplyFrontmatterFieldMigration:
@@ -364,3 +534,59 @@ class TestApplyFrontmatterFieldMigration:
         apply_frontmatter_field_migration(scan_confidence_field(library_dir))
         text = target.read_text(encoding="utf-8")
         assert 'synthesis_scope: "corpus-consensus"' in text
+
+    def test_missing_file_records_error(self, tmp_path: Path) -> None:
+        """A file deleted between scan and apply becomes a recorded error, not a crash."""
+        action = FrontmatterFieldAction(
+            path=tmp_path / "gone.md",
+            old_field="confidence",
+            new_field="synthesis_scope",
+            value='"single-paper"',
+        )
+        result = apply_frontmatter_field_migration([action])
+        assert result.files_rewritten == 0
+        assert len(result.errors) == 1
+        assert "read failed" in result.errors[0].lower()
+
+    def test_skips_file_without_frontmatter(self, tmp_path: Path) -> None:
+        """If the file lost its frontmatter since scan, it is skipped."""
+        plain = tmp_path / "plain.md"
+        plain.write_text("# No frontmatter here\n", encoding="utf-8")
+        action = FrontmatterFieldAction(
+            path=plain,
+            old_field="confidence",
+            new_field="synthesis_scope",
+            value='"x"',
+        )
+        result = apply_frontmatter_field_migration([action])
+        assert result.files_skipped == 1
+        assert result.files_rewritten == 0
+
+    def test_skips_when_confidence_absent(self, tmp_path: Path) -> None:
+        """If the confidence line vanished since scan, the rewrite is a no-op skip."""
+        target = tmp_path / "already.md"
+        target.write_text('---\ntitle: "x"\n---\nbody\n', encoding="utf-8")
+        action = FrontmatterFieldAction(
+            path=target,
+            old_field="confidence",
+            new_field="synthesis_scope",
+            value='"x"',
+        )
+        result = apply_frontmatter_field_migration([action])
+        assert result.files_skipped == 1
+        assert result.files_rewritten == 0
+
+    def test_write_failure_records_error(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An OSError while writing the rewritten file is recorded, not raised."""
+        target = library_dir / "topics" / "tkg" / "papers" / "x" / "x_Insights.md"
+        _write_md(target, ['confidence: "single-paper"'])
+        actions = scan_confidence_field(library_dir)
+
+        monkeypatch.setattr("distill.library.migration.atomic_write_text", _raise_oserror)
+        result = apply_frontmatter_field_migration(actions)
+
+        assert result.files_rewritten == 0
+        assert len(result.errors) == 1
+        assert "write failed" in result.errors[0].lower()
