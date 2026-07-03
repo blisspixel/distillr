@@ -523,6 +523,191 @@ def test_cost_anomaly_warnings_ignore_bad_rows_and_zero_costs():
     assert cost_anomaly_warnings(entries) == []
 
 
+def _anomaly_row(
+    command: str,
+    cost: object,
+    *,
+    timestamp: str | None = "2026-06-01T12:00:00",
+    topic: str | None = "ai",
+    **extra: object,
+) -> dict[str, object]:
+    """Build one cost-ledger row for cost_anomaly_warnings tests."""
+    row: dict[str, object] = {"command": command, "actual_cost": cost, "timestamp": timestamp}
+    if topic is not None:
+        row["metadata"] = {"topic": topic}
+    row.update(extra)
+    return row
+
+
+def test_cost_anomaly_warnings_media_dedup_and_non_media_skip():
+    """Media warnings dedupe per model+date, read a top-level model, and skip non-media models."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row(
+            "video",
+            1.0,
+            timestamp="2026-06-01T00:00:00",
+            by_model={"grok-imagine-image": {"calls": 1}},
+        ),
+        _anomaly_row("video", 1.0, timestamp="2026-06-01T09:00:00", model="grok-imagine-image"),
+        _anomaly_row(
+            "report", 2.0, timestamp="2026-06-02T00:00:00", by_model={"grok-4.3": {"calls": 1}}
+        ),
+        _anomaly_row(
+            "video",
+            1.0,
+            timestamp="2026-06-02T09:00:00",
+            by_model={"grok-imagine-image": {"calls": 1}},
+        ),
+    ]
+
+    media = [w for w in cost_anomaly_warnings(entries, limit=5) if w["kind"] == "xai-media-model"]
+    joined = " ".join(str(w["message"]) for w in media)
+    assert len(media) == 2  # one per date; the same-date duplicate is deduped
+    assert "grok-imagine-image" in joined
+    assert "grok-4.3" not in joined  # non-media model never warned
+
+
+def test_cost_anomaly_warnings_respect_limit_after_media():
+    """The total limit caps output and short-circuits after the media pass."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row(
+            "video",
+            1.0,
+            timestamp="2026-06-01T00:00:00",
+            by_model={"grok-imagine-image": {"calls": 1}},
+        ),
+        _anomaly_row(
+            "video",
+            1.0,
+            timestamp="2026-06-02T00:00:00",
+            by_model={"grok-imagine-image": {"calls": 1}},
+        ),
+    ]
+
+    warnings = cost_anomaly_warnings(entries, limit=1)
+    assert len(warnings) == 1
+    assert warnings[0]["kind"] == "xai-media-model"
+
+
+def test_cost_anomaly_warnings_skip_non_overrun_workflow_budgets():
+    """Invalid budgets, unbudgeted commands, and under-budget runs never warn."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("learn", 5.0),  # not budgeted
+        _anomaly_row("report", 0.5),  # budgeted but under budget
+    ]
+
+    warnings = cost_anomaly_warnings(
+        entries,
+        workflow_budgets_usd={"report": 1.25, "bad": 0.0, "  ": 2.0},  # last two are invalid
+        limit=5,
+    )
+    assert all(w["kind"] != "workflow-budget" for w in warnings)
+
+
+def test_cost_anomaly_warnings_skip_non_spike_runs():
+    """A gentle rise below the multiplier, and a latest run below the floor, are not spikes."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("report", 1.0, timestamp="2026-06-01T00:00:00"),
+        _anomaly_row("report", 1.1, timestamp="2026-06-01T01:00:00"),
+        _anomaly_row("report", 1.2, timestamp="2026-06-01T02:00:00"),  # below multiplier
+        _anomaly_row("channel", 1.0, topic="ml", timestamp="2026-06-01T00:00:00"),
+        _anomaly_row("channel", 1.1, topic="ml", timestamp="2026-06-01T01:00:00"),
+        _anomaly_row("channel", 0.6, topic="ml", timestamp="2026-06-01T02:00:00"),  # below floor
+    ]
+
+    warnings = cost_anomaly_warnings(entries, run_spike_min_usd=1.0, limit=5)
+    assert all(w["kind"] != "run-spike" for w in warnings)
+
+
+def test_cost_anomaly_warnings_skip_non_spike_daily_totals():
+    """Four modest days (odd-length baseline) below the spike bar produce no daily warning."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("report", 1.0, topic=None, timestamp="2026-06-01T00:00:00"),
+        _anomaly_row("report", 1.1, topic=None, timestamp="2026-06-02T00:00:00"),
+        _anomaly_row("report", 1.2, topic=None, timestamp="2026-06-03T00:00:00"),
+        _anomaly_row("report", 1.15, topic=None, timestamp="2026-06-04T00:00:00"),
+    ]
+
+    assert cost_anomaly_warnings(entries, daily_threshold_usd=10.0, limit=5) == []
+
+
+def test_cost_anomaly_warnings_parse_malformed_rows_without_crashing():
+    """Non-numeric costs, missing timestamps, and unparseable dates degrade to no warning."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("a", None),  # non-numeric cost -> dropped
+        _anomaly_row("a", "not-a-number"),  # unparseable cost string -> dropped
+        _anomaly_row("a", 1.0, timestamp=None),  # missing timestamp -> no date
+        _anomaly_row("a", 1.0, timestamp="9999-99-99T00:00"),  # unparseable, >=10 chars
+    ]
+
+    assert cost_anomaly_warnings(entries) == []
+
+
+def test_cost_anomaly_warnings_cap_workflow_warnings_at_limit():
+    """More budget overruns than the limit are capped, short-circuiting later passes."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("report", 5.0),
+        _anomaly_row("discover", 5.0),
+        _anomaly_row("papers", 5.0),
+    ]
+
+    warnings = cost_anomaly_warnings(
+        entries,
+        workflow_budgets_usd={"report": 1.0, "discover": 1.0, "papers": 1.0},
+        limit=2,
+    )
+    assert len(warnings) == 2
+    assert all(w["kind"] == "workflow-budget" for w in warnings)
+
+
+def test_cost_anomaly_warnings_cap_daily_warnings_at_limit():
+    """More over-threshold days than the limit are capped, short-circuiting later passes."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("report", 15.0, topic=None, timestamp="2026-06-01T00:00:00"),
+        _anomaly_row("report", 16.0, topic=None, timestamp="2026-06-02T00:00:00"),
+        _anomaly_row("report", 17.0, topic=None, timestamp="2026-06-03T00:00:00"),
+    ]
+
+    warnings = cost_anomaly_warnings(entries, daily_threshold_usd=10.0, limit=2)
+    assert len(warnings) == 2
+    assert all(w["kind"] == "daily-threshold" for w in warnings)
+
+
+def test_cost_anomaly_warnings_cap_run_spikes_at_limit():
+    """More run spikes than the limit are capped and stop the scan."""
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    entries = [
+        _anomaly_row("report", 1.0, timestamp="2026-06-01T00:00:00"),
+        _anomaly_row("report", 1.0, timestamp="2026-06-02T00:00:00"),
+        _anomaly_row("report", 5.0, timestamp="2026-06-03T00:00:00"),
+        _anomaly_row("channel", 1.0, topic="ml", timestamp="2026-06-01T00:00:00"),
+        _anomaly_row("channel", 1.0, topic="ml", timestamp="2026-06-02T00:00:00"),
+        _anomaly_row("channel", 5.0, topic="ml", timestamp="2026-06-03T00:00:00"),
+    ]
+
+    # A high daily threshold isolates the run-spike pass from daily warnings.
+    warnings = cost_anomaly_warnings(entries, daily_threshold_usd=100.0, limit=1)
+    assert len(warnings) == 1
+    assert warnings[0]["kind"] == "run-spike"
+
+
 def test_estimate_run_cost_zero_items_no_accordion():
     # Covers the false branches for if full_videos, if shorts, if accordion.
     text = estimate_run_cost(0, 0, accordion=False)
