@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.23 - 2026-07-03
+
+Security patch: site-crawl redirect confinement.
+
+### Security
+
+- Confined site-crawl redirect targets to the seed host, the same-host invariant
+  already enforced on followed links. Previously a page that redirected off the
+  seed host was ingested anyway, letting a crawl escape its scope and letting an
+  allowlisted MCP ingest seed that redirects off-host bypass
+  `DISTILL_MCP_INGEST_ALLOWLIST` (which checks only the seed URL). Legitimate
+  same-host redirects (http to https, www and apex, path changes) are
+  unaffected; a seed that redirects to a genuinely different host now yields
+  nothing.
+
 ## 0.19.22 - 2026-07-03
 
 Trust-surface hardening patch release. Branch coverage raised across the
