@@ -155,3 +155,100 @@ def test_render_ris_rejects_missing_record_path(tmp_path):
         assert "citation record path does not exist" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_collect_skips_topic_without_papers_dir(config):
+    """A topic directory that exists but has no papers/ subdir yields no records."""
+    config.topic_dir("empty").mkdir(parents=True, exist_ok=True)
+    assert collect_paper_citations(config, "empty") == []
+
+
+def test_collect_skips_empty_paper_dir(config):
+    """A paper directory with neither a paper artifact nor metadata is skipped."""
+    papers = config.topic_dir("ai") / "papers"
+    (papers / "hollow").mkdir(parents=True)
+    assert collect_paper_citations(config, "ai") == []
+
+
+def test_collect_all_topics_missing_root_returns_empty(config):
+    """Collecting 'all' with no populated topics returns no records rather than raising."""
+    assert collect_paper_citations(config, "all") == []
+
+
+def test_collect_handles_corrupt_metadata_json(config):
+    """A corrupt metadata.json degrades to empty metadata; frontmatter still yields a record."""
+    paper_dir = config.paper_dir("ai", "Corrupt", "2604.00001v1")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "metadata.json").write_text("{not valid json", encoding="utf-8")
+    write_markdown_artifact(
+        paper_dir,
+        "paper",
+        "# Corrupt\n",
+        frontmatter={
+            "title": "Corrupt",
+            "type": "paper",
+            "paper_id": "2604.00001v1",
+            "date": "2026-01-01",
+        },
+    )
+
+    records = collect_paper_citations(config, "ai")
+    assert [record.title for record in records] == ["Corrupt"]
+
+
+def test_render_citations_dispatches_bibtex_and_ris(tmp_path):
+    """render_citations routes to bibtex and ris by format name."""
+    existing = tmp_path / "paper_Paper.md"
+    existing.write_text("# Paper\n", encoding="utf-8")
+    records = [_record(existing)]
+
+    assert "@misc{" in render_citations(records, "bib")
+    assert "TY  - JOUR" in render_citations(records, "ris")
+
+
+def test_render_ris_omits_absent_optional_fields(tmp_path):
+    """RIS rendering emits only the fields present on a sparse record."""
+    existing = tmp_path / "paper_Paper.md"
+    existing.write_text("# Paper\n", encoding="utf-8")
+    sparse = CitationRecord(
+        topic="ai",
+        title="Sparse",
+        authors=("Solo Author",),
+        year="",
+        published_at="",
+        updated_at="",
+        paper_id="",
+        doi="",
+        url="",
+        pdf_url="",
+        categories=(),
+        abstract="",
+        path=existing,
+    )
+
+    ris = render_ris([sparse])
+    assert "T1  - Sparse" in ris
+    assert "AU  - Solo Author" in ris
+    for absent in ("PY  -", "Y1  -", "DO  -", "UR  -", "M3  -", "KW  -", "N2  -"):
+        assert absent not in ris
+
+
+def test_first_text_coerces_non_string_values():
+    """_first_text stringifies non-str values and skips blank ones."""
+    from distill.library.citations import _first_text
+
+    assert _first_text(None, 123) == "123"
+    assert _first_text(None, "", "  kept  ") == "kept"
+    assert _first_text() == ""
+
+
+def test_list_value_normalizes_varied_shapes():
+    """_list_value coerces lists, JSON-list strings, plain strings, and scalars."""
+    from distill.library.citations import _list_value
+
+    assert _list_value(["a", " b ", ""]) == ["a", "b"]
+    assert _list_value("   ") == []
+    assert _list_value('["x", "y"]') == ["x", "y"]
+    assert _list_value("[not valid json]") == ["[not valid json]"]
+    assert _list_value("Alice Example") == ["Alice Example"]
+    assert _list_value(123) == ["123"]
