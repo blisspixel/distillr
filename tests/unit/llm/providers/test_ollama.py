@@ -164,6 +164,28 @@ def test_model_name_passthrough(model: str) -> None:
     assert captured_payload["model"] == model
 
 
+def test_get_context_window_defaults_when_show_errors() -> None:
+    """A reachable-but-erroring /api/show (e.g. an unpulled model 404s) degrades
+    to the default context window instead of failing the run.
+    """
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    mock_response = _mock_httpx_response({}, status_code=404)
+
+    async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        return mock_response
+
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post = mock_post
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_cls.return_value = mock_client
+
+        ctx = asyncio.run(provider.get_context_window("model-not-pulled"))
+
+    assert ctx == 4096
+
+
 # ---------------------------------------------------------------------------
 # Property test — P3: Retry attempt count
 # ---------------------------------------------------------------------------

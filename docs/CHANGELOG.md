@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- The Ollama provider now degrades to a default context window when `/api/show`
+  returns an error status (an unpulled model returns 404) instead of letting the
+  error propagate, so a local run whose model-info lookup fails continues with a
+  safe default. Connection and timeout errors are unchanged - they still surface
+  the "start Ollama" hint and honor retry/backoff. Surfaced by a local dogfood
+  run.
+
 ## 0.19.25 - 2026-07-03
 
 House-style polish: em-dashes are normalized out of authored corpus artifacts and

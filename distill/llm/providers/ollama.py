@@ -231,6 +231,19 @@ class OllamaProvider:
             raise ConnectionError(
                 f"Cannot reach Ollama at {self._base_url}. Run `ollama serve` to start the server."
             ) from exc
+        except httpx.HTTPStatusError as exc:
+            # Ollama is reachable but /api/show returned an error status for this
+            # model (an unpulled model 404s). Degrade to the default context
+            # window rather than failing the run. Connection and timeout errors
+            # are deliberately not caught here, so retry/backoff behavior and the
+            # "start Ollama" hint above are unchanged.
+            logger.warning(
+                "Ollama /api/show returned %s for '%s'; defaulting context window to 4096",
+                exc.response.status_code,
+                model,
+            )
+            self._context_window_cache[model] = 4096
+            return 4096
 
     @staticmethod
     def _parse_context_window(data: dict[str, Any]) -> int:
