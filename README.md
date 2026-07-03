@@ -402,6 +402,36 @@ Start at the [documentation index](docs/README.md), which groups everything belo
 - [`docs/briefing-contexts/TEMPLATE.md`](docs/briefing-contexts/TEMPLATE.md) - starting point for `--context-file` prompts
 - [`private/README.md`](private/README.md) - where personal/client-specific files go (git-ignored)
 
+## Project status, and the road to 1.0
+
+Distillr is in active use and ships frequent patch releases; the feature spine -
+eight source types, goal-aware discovery, the write-time verify gate,
+cross-source synthesis, `ask`, `audit`, MCP, and the dashboard - is complete. The
+`0.x` version is deliberate and does **not** mean "unfinished" or "unreliable":
+every release clears the same CI gate (3,600+ tests at 93%+ **branch** coverage,
+ruff + Pyright + import-linter + bandit + pip-audit, a Linux/macOS/Windows x
+Python 3.12-3.14 matrix, and PEP 740 build provenance). What `0.x` means is that
+the **public contracts are not frozen yet**.
+
+1.0 is a *stability commitment*, not a feature milestone - and that distinction
+is why it is a deliberate step rather than an imminent one. It is the point where
+the CLI flags, MCP tool/resource/prompt schemas, `library/` layout, and
+frontmatter fields become versioned and promised not to break until 2.0 (a 0.5
+corpus opens cleanly in 1.0), backed by a documented backwards-compatibility
+policy and a published performance baseline. Crossing it is a one-way door:
+distillr keeps evolving those shapes while the agent ecosystem (MCP conventions,
+OKF, context-engineering practice) is still moving, and freezing early would mean
+freezing the wrong shape. The remaining distance is three things, none of them a
+calendar item: the tail of the CI-enforced quality ratchet (branch coverage to
+>=95%, Pyright-strict across the full surface, parse-don't-validate at every
+boundary), the contract freeze itself, and a presentation pass (README media,
+onboarding docs). Full definition:
+[`ROADMAP.md`](ROADMAP.md#100--stability-commitment--quality-bar).
+
+Practically: build on the `library/` plain files and the CLI today; if you
+integrate against the MCP schemas or frontmatter fields, pin the version until
+1.0 freezes them.
+
 ## Roadmap and changelog
 
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) - what shipped

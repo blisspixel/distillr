@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from distill.pipeline.audit import write_audit_artifact
 from distill.pipeline.audit_records import AuditReport, VerifyRollup
 from distill.pipeline.quality_history import (
@@ -12,6 +14,10 @@ from distill.pipeline.quality_history import (
     quality_snapshot_from_report,
 )
 from distill.pipeline.quality_trend import QualitySnapshot
+
+
+def _raise_oserror(*args: object, **kwargs: object) -> None:
+    raise OSError("simulated history write failure")
 
 
 def _report(gaps: list[str] | None = None, **verify_kw: int) -> AuditReport:
@@ -90,3 +96,15 @@ def test_write_audit_artifact_records_baseline_then_trend(tmp_path: Path):
     assert "Baseline recorded" not in second_text
     assert "100%" in second_text
     assert "pp" in second_text  # a rate delta rendered
+
+
+def test_write_audit_artifact_survives_history_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A quality-history write failure is logged and never blocks the audit report."""
+    monkeypatch.setattr("distill.pipeline.audit.append_quality_snapshot", _raise_oserror)
+
+    path = write_audit_artifact(tmp_path, _report(), now_iso="2026-07-03T00:00:00")
+
+    assert path.exists()  # the report is still written despite the history-write failure
+    assert "## Corpus Quality Trend" in path.read_text(encoding="utf-8")
