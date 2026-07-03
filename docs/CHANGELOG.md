@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.26 - 2026-07-03
+
+Local-inference robustness patch.
+
 ### Fixed
 
 - The Ollama provider now degrades to a default context window when `/api/show`
