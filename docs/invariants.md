@@ -30,9 +30,10 @@ point-an-agent-at-a-folder tools leave to improvisation.
 - A **source → intelligence pipeline** (capture → analyze → synthesize) that produces a
   local, plain-Markdown corpus with structured per-source insights and cross-source
   synthesis.
-- The **persistent memory layer** agents query - over MCP and over the filesystem - and
-  that humans browse in Obsidian/grep. It is the corpus other tools consult, not a chat
-  agent itself.
+- The **persistent, verifiable research corpus** agents query - over MCP and over the
+  filesystem - and that humans browse in Obsidian/grep. It is the corpus other tools
+  consult, not a chat agent itself, and deliberately not a conversation "memory layer"
+  (a different category - see the roadmap's competitive landscape).
 - **Provenance-first and verifiable.** Every artifact carries its source, URL, and the
   `prompt_id` / `model_version` that produced it. You can always trace a claim to a source.
 - **Compounding.** Outputs can become inputs - a good answer can be filed back as a
