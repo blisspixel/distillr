@@ -578,7 +578,7 @@ def run(  # noqa: C901 — legacy, will refactor
                 except Exception as e:
                     console.print(f"    [red]Analysis failed: {e}[/red]")
                     console.print(
-                        "    [dim]Transcript saved — will retry analysis on next run[/dim]"
+                        "    [dim]Transcript saved - will retry analysis on next run[/dim]"
                     )
                     summary.add_result(
                         VideoResult(

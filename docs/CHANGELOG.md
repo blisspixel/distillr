@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Authored corpus artifacts (insights, syntheses, reports, audits, and other
+  distillr-generated prose) now have em-dashes normalized to a spaced hyphen at
+  the write boundary, enforcing the house no-em-dash style deterministically
+  regardless of model output. Fenced code blocks and source-capture receipts
+  (transcripts, page content, extracted paper text) are left intact so
+  provenance and examples are preserved. A handful of CLI help and status
+  strings that carried em-dashes were cleaned up too.
+
 ## 0.19.24 - 2026-07-03
 
 Corpus quality-trend release: the audit now shows whether the corpus is

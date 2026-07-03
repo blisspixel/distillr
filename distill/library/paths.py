@@ -434,6 +434,36 @@ def normalize_markdown_headings(content: str) -> str:
     return "\n".join(lines)
 
 
+# Artifact types that capture a source verbatim (receipts). Their punctuation is
+# part of the source, so dash normalization is skipped to preserve provenance
+# fidelity; it applies only to distillr's own authored prose.
+_SOURCE_CAPTURE_TYPES = frozenset(
+    {"content", "paper", "transcript", "episode", "tweet", "repo", "verify"}
+)
+
+_EM_DASH_RE = re.compile(r"\s*—\s*")
+
+
+def normalize_dashes(content: str) -> str:
+    """Replace em-dashes with ``' - '`` outside fenced code blocks.
+
+    distillr's house style forbids em-dashes in authored prose; models emit them
+    anyway. Enforcing the rule deterministically at the write boundary keeps
+    every authored artifact clean regardless of model behavior. Lines inside
+    fenced code blocks are left intact so example snippets are not rewritten.
+    """
+    lines = content.split("\n")
+    in_fence = False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        lines[i] = _EM_DASH_RE.sub(" - ", line)
+    return "\n".join(lines)
+
+
 def write_markdown_artifact(
     directory: Path,
     artifact_type: str,
@@ -443,6 +473,8 @@ def write_markdown_artifact(
     frontmatter: Mapping[str, Any] | None = None,
 ) -> Path:
     content = normalize_markdown_headings(content)
+    if artifact_type not in _SOURCE_CAPTURE_TYPES:
+        content = normalize_dashes(content)
     if frontmatter:
         content = apply_frontmatter(content, frontmatter)
     return write_text_artifact(directory, artifact_type, content, identity=identity)

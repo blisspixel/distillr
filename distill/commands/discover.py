@@ -162,7 +162,7 @@ def synthesize_cmd(
 
     if not context_text.strip():
         console.print(
-            "[red]Provide --context or --context-file — the synthesis needs instructions[/red]"
+            "[red]Provide --context or --context-file - the synthesis needs instructions[/red]"
         )
         raise typer.Exit(1)
 
@@ -189,7 +189,7 @@ def synthesize_cmd(
     summary = tracker.summary_dict()
     console.print(
         f"\n[dim]Tokens: {summary['total_input_tokens']:,} in / "
-        f"{summary['total_output_tokens']:,} out — "
+        f"{summary['total_output_tokens']:,} out - "
         f"Cost: {summary['estimated_total_cost']}[/dim]"
     )
 

@@ -93,7 +93,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         0.90,
         "--threshold",
         help="Advisory composite reference shown in the report (x the anchor's mean). "
-        "NOT a gate — the model judges decide the switch",
+        "NOT a gate - the model judges decide the switch",
     ),
     report: bool = typer.Option(
         False, "--report", help="Write the cost x quality table to .distill/eval/<workload>_<ts>.md"
@@ -104,7 +104,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     allow_oversized: bool = typer.Option(
         False,
         "--allow-oversized",
-        help="Run local models whose weights exceed GPU VRAM (default: skip them — they spill to CPU)",
+        help="Run local models whose weights exceed GPU VRAM (default: skip them - they spill to CPU)",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the pre-run cost confirmation"),
 ):
@@ -190,7 +190,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         oversized = [m for m in local_models if sizes.get(m, 0.0) > vram and m != anchor]
         for m in oversized:
             console.print(
-                f"[yellow]{m} (~{sizes[m]:.0f}GB) exceeds your {vram:.0f}GB VRAM — it would "
+                f"[yellow]{m} (~{sizes[m]:.0f}GB) exceeds your {vram:.0f}GB VRAM - it would "
                 f"spill to CPU.[/yellow]"
             )
         if oversized and not allow_oversized:
@@ -202,7 +202,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         # No usable GPU detected (CPU-only, AMD/Intel without a VRAM probe, etc.).
         # Don't block — local just runs on CPU (slow). Cloud models are unaffected.
         console.print(
-            "[dim]No GPU VRAM detected — local models will run on CPU (slow); "
+            "[dim]No GPU VRAM detected - local models will run on CPU (slow); "
             "cloud models are unaffected.[/dim]"
         )
 
@@ -227,7 +227,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     enforce_projected_workflow_budget(config, "eval", est)
     if not judge:
         console.print(
-            "[yellow]No neutral judge available[/yellow] — only the anchor's own family is "
+            "[yellow]No neutral judge available[/yellow] - only the anchor's own family is "
             "configured, and the incumbent can't impartially judge its own replacement. The "
             "faithfulness check gates migrations, so without it the eval will recommend staying "
             "on the anchor. Add a cross-family key (e.g. GEMINI_API_KEY) or pass "

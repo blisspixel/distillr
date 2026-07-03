@@ -203,7 +203,7 @@ def research_brief_cmd(
 
     if not context_text.strip():
         console.print(
-            "[red]Provide --context or --context-file — the briefing needs instructions[/red]"
+            "[red]Provide --context or --context-file - the briefing needs instructions[/red]"
         )
         raise typer.Exit(1)
 
