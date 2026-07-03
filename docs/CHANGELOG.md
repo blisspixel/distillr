@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Made cost-ledger workflow-budget warnings normalize the run command the same
+  way budget keys are normalized (strip and lowercase), so a command recorded
+  with surrounding whitespace no longer escapes its configured workflow-budget
+  overrun warning.
+
 ## 0.19.21 - 2026-07-01
 
 Corpus workflow cost-guard patch release. No new provider routes.

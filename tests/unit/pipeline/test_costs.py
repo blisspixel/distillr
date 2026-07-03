@@ -708,6 +708,22 @@ def test_cost_anomaly_warnings_cap_run_spikes_at_limit():
     assert warnings[0]["kind"] == "run-spike"
 
 
+def test_cost_anomaly_warnings_match_budget_despite_command_whitespace():
+    """A ledger command with surrounding whitespace still matches its stripped budget key.
+
+    Budget keys are normalized with strip().lower(); the ledger command must be
+    normalized the same way, or an over-budget run silently escapes its warning.
+    """
+    from distill.pipeline.costs import cost_anomaly_warnings
+
+    warnings = cost_anomaly_warnings(
+        [_anomaly_row(" discover ", 5.0)],
+        workflow_budgets_usd={"discover": 1.0},
+        limit=5,
+    )
+    assert any(w["kind"] == "workflow-budget" for w in warnings)
+
+
 def test_estimate_run_cost_zero_items_no_accordion():
     # Covers the false branches for if full_videos, if shorts, if accordion.
     text = estimate_run_cost(0, 0, accordion=False)

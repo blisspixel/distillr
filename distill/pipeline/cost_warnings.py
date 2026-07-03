@@ -254,7 +254,10 @@ def _workflow_budget_warnings(
 
     seen_commands: set[str] = set()
     for row in reversed(rows):
-        command = _row_command(row).lower()
+        # Normalize the ledger command the same way budget keys are normalized
+        # above (strip + lower); otherwise a stored command with surrounding
+        # whitespace never matches its budget key and its overrun is not warned.
+        command = _row_command(row).strip().lower()
         if command in seen_commands:
             continue
         seen_commands.add(command)
