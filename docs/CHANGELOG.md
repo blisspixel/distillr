@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.24 - 2026-07-03
+
+Corpus quality-trend release: the audit now shows whether the corpus is
+compounding over refreshes, not just its point-in-time state.
+
 ### Added
 
 - `distill audit` now records a per-topic corpus-quality snapshot and renders a
