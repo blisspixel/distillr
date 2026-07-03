@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.25 - 2026-07-03
+
+House-style polish: em-dashes are normalized out of authored corpus artifacts and
+a handful of CLI strings.
+
 ### Changed
 
 - Authored corpus artifacts (insights, syntheses, reports, audits, and other
