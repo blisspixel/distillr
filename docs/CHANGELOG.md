@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.22 - 2026-07-03
+
+Trust-surface hardening patch release. Branch coverage raised across the
+deterministic core; no new provider routes or CLI surface changes.
+
 ### Fixed
 
 - Made cost-ledger workflow-budget warnings normalize the run command the same
