@@ -289,7 +289,12 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
             )
             if extracted is None:
                 continue
-            if not is_public_web_url(extracted.final_url or extracted.url):
+            landed = extracted.final_url or extracted.url
+            # Confine redirect targets to the seed host, the same invariant
+            # _link_is_crawlable_for_seed enforces on followed links. A page.goto
+            # redirect can otherwise land off-host and be ingested, escaping the
+            # crawl scope and any MCP ingest allowlist that only checked the seed.
+            if not is_public_web_url(landed) or normalize_host(landed) != root_host:
                 continue
             pages.append(extracted)
 

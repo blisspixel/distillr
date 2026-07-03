@@ -385,6 +385,60 @@ class FakePage:
         return self.payload
 
 
+def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None):
+    """Wire a headless-browser stand-in plus extract/network patches for crawl_site.
+
+    ``is_public`` overrides the public-URL predicate (defaults to allowing only
+    ``https://example.com`` hosts); ``fake_extract`` replaces ``_extract_page``.
+    """
+
+    class FakeBrowserPage:
+        def set_default_timeout(self, timeout):
+            return None
+
+    class FakeContext:
+        def route(self, pattern, handler):
+            return None
+
+        def new_page(self):
+            return FakeBrowserPage()
+
+        def close(self):
+            return None
+
+    class FakeBrowser:
+        def new_context(self):
+            return FakeContext()
+
+        def close(self):
+            return None
+
+    class FakeChromium:
+        def launch(self, headless=True):
+            return FakeBrowser()
+
+    class FakePlaywright:
+        chromium = FakeChromium()
+
+    class FakePlaywrightContextManager:
+        def __enter__(self):
+            return FakePlaywright()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setitem(
+        sys.modules,
+        "playwright.sync_api",
+        SimpleNamespace(sync_playwright=lambda: FakePlaywrightContextManager()),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.net.is_public_web_url",
+        is_public or (lambda url: url.startswith("https://example.com")),
+    )
+    monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
+
+
 def test_extract_page_returns_none_on_navigation_error():
     page = FakePage(goto_error=RuntimeError("boom"))
 
@@ -457,7 +511,7 @@ def test_crawl_site_rejects_unsafe_seed_before_browser_launch(url, monkeypatch):
     assert crawl_site(SiteSeed(url=url, topic="web")) == []
 
 
-def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: C901 — legacy, will refactor
+def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
     pages_by_url = {
         "https://example.com/start": SitePage(
             url="https://example.com/start",
@@ -490,51 +544,7 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: 
         result.depth = depth
         return result
 
-    class FakeBrowserPage:
-        def set_default_timeout(self, timeout):
-            return None
-
-    class FakeContext:
-        def route(self, pattern, handler):
-            return None
-
-        def new_page(self):
-            return FakeBrowserPage()
-
-        def close(self):
-            return None
-
-    class FakeBrowser:
-        def new_context(self):
-            return FakeContext()
-
-        def close(self):
-            return None
-
-    class FakeChromium:
-        def launch(self, headless=True):
-            return FakeBrowser()
-
-    class FakePlaywright:
-        chromium = FakeChromium()
-
-    class FakePlaywrightContextManager:
-        def __enter__(self):
-            return FakePlaywright()
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setitem(
-        sys.modules,
-        "playwright.sync_api",
-        SimpleNamespace(sync_playwright=lambda: FakePlaywrightContextManager()),
-    )
-    monkeypatch.setattr(
-        "distill.ingestors.net.is_public_web_url",
-        lambda url: url.startswith("https://example.com"),
-    )
-    monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
+    _install_fake_playwright(monkeypatch, fake_extract)
 
     pages = crawl_site(
         SiteSeed(url="https://example.com/start", topic="web", max_depth=1, max_pages=5)
@@ -545,7 +555,7 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):  # noqa: 
     assert pages[1].depth == 1
 
 
-def test_crawl_site_respects_crawl_prefix(monkeypatch):  # noqa: C901
+def test_crawl_site_respects_crawl_prefix(monkeypatch):
     pages_by_url = {
         "https://example.com/docs/agents": SitePage(
             url="https://example.com/docs/agents",
@@ -582,51 +592,7 @@ def test_crawl_site_respects_crawl_prefix(monkeypatch):  # noqa: C901
         result.depth = depth
         return result
 
-    class FakeBrowserPage:
-        def set_default_timeout(self, timeout):
-            return None
-
-    class FakeContext:
-        def route(self, pattern, handler):
-            return None
-
-        def new_page(self):
-            return FakeBrowserPage()
-
-        def close(self):
-            return None
-
-    class FakeBrowser:
-        def new_context(self):
-            return FakeContext()
-
-        def close(self):
-            return None
-
-    class FakeChromium:
-        def launch(self, headless=True):
-            return FakeBrowser()
-
-    class FakePlaywright:
-        chromium = FakeChromium()
-
-    class FakePlaywrightContextManager:
-        def __enter__(self):
-            return FakePlaywright()
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setitem(
-        sys.modules,
-        "playwright.sync_api",
-        SimpleNamespace(sync_playwright=lambda: FakePlaywrightContextManager()),
-    )
-    monkeypatch.setattr(
-        "distill.ingestors.net.is_public_web_url",
-        lambda url: url.startswith("https://example.com"),
-    )
-    monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
+    _install_fake_playwright(monkeypatch, fake_extract)
 
     pages = crawl_site(
         SiteSeed(
@@ -642,3 +608,35 @@ def test_crawl_site_respects_crawl_prefix(monkeypatch):  # noqa: C901
         "https://example.com/docs/agents",
         "https://example.com/docs/agents/build",
     ]
+
+
+def test_crawl_site_drops_off_host_redirect(monkeypatch):
+    """A page.goto redirect that lands off the seed host is dropped, not ingested.
+
+    The crawler already confines followed links to the seed host
+    (_link_is_crawlable_for_seed); a redirect target must meet the same
+    invariant. Otherwise an allowlisted seed that 30x-redirects off-host would
+    escape the crawl scope and any MCP ingest allowlist that only checked the
+    seed URL. test_crawl_site_respects_depth_host_and_crawlability is the
+    same-host positive control (on-host pages are kept).
+    """
+    redirected = SitePage(
+        url="https://example.com/start",
+        title="Start",
+        site_name="example.com",
+        page_type="page",
+        text="body",
+        final_url="https://evil.example.net/landing",
+    )
+
+    def fake_extract(page, url, site_name, source_url, depth):
+        redirected.source_url = source_url
+        redirected.depth = depth
+        return redirected
+
+    # Treat every host as public so only the same-host confinement can drop it.
+    _install_fake_playwright(monkeypatch, fake_extract, is_public=lambda url: True)
+
+    pages = crawl_site(SiteSeed(url="https://example.com/start", topic="web", max_pages=5))
+
+    assert pages == []
