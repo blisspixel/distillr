@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.27 - 2026-07-03
+
+Local-inference reliability: longer call timeout and legible errors.
+
+### Fixed
+
+- Local-provider LLM calls now use a longer read-timeout floor (1800s, overridable
+  via `DISTILL_LOCAL_TIMEOUT`) instead of the cloud-tuned 300s default. A local
+  model doing full-PDF paper analysis runs several minutes per attempt and was
+  read-timing-out mid-generation, failing the step; cloud routes keep the 300s
+  default unchanged.
+- Ollama retry warnings no longer render as an empty message. httpx timeout
+  exceptions stringify to an empty string and a bare HTTP error hid the server's
+  response body, so a failing call was indistinguishable from a timeout in the
+  logs; errors now show the HTTP status and body, else the exception type.
+
 ## 0.19.26 - 2026-07-03
 
 Local-inference robustness patch.

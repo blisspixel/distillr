@@ -105,7 +105,7 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.26, 2026-07-03). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.27, 2026-07-03). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Remaining to 1.0). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
