@@ -7,6 +7,7 @@ Override with OLLAMA_BASE_URL environment variable.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -101,59 +102,17 @@ class OllamaProvider:
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:
-                # Size the context window to the actual need. A model's default
-                # context can be enormous (e.g. 262144); Ollama would then allocate
-                # a KV cache to match and spill VRAM to CPU — turning a 24GB GPU
-                # run into a slow, error-prone CPU one even for a tiny prompt. We
-                # request only prompt + output + headroom, capped at the model's max.
+                # Size the context to prompt + output + headroom so a model's huge
+                # default window does not allocate a KV cache that spills VRAM.
                 num_ctx = await self._adaptive_num_ctx(model, prompt, max_tokens)
-                payload: dict[str, Any] = {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": False,
-                    "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
-                }
-                # For JSON-structured prompts: use format="json" without thinking
-                # (thinking conflicts with JSON format constraint in most models)
-                # For analysis prompts: use thinking for deep reasoning
-                wants_json = _wants_json_output(prompt)
-                if wants_json:
-                    payload["format"] = "json"
-                    payload["think"] = False  # Explicitly disable thinking for JSON
-                elif _is_thinking_model(model):
-                    payload["think"] = True
-                if temperature is not None:
-                    payload["options"]["temperature"] = temperature
-
-                async with httpx.AsyncClient(
-                    timeout=httpx.Timeout(timeout, connect=10.0)
-                ) as client:
-                    response = await client.post(
-                        f"{self._base_url}/api/chat",
-                        json=payload,
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-
-                # /api/chat returns message.content (final answer) and
-                # message.thinking (reasoning trace)
-                message = data.get("message", {})
-                content = message.get("content", "")
-                thinking = message.get("thinking", "")
-
-                # Use the final answer; fall back to thinking if content is empty
-                text = content if content else thinking
-
-                # Token counts from top-level response fields
-                input_tokens = data.get("prompt_eval_count", 0) or 0
-                output_tokens = data.get("eval_count", 0) or 0
-
-                return LLM_Response(
-                    text=text,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    model=model,
+                payload = self._build_chat_payload(
+                    model,
+                    prompt,
+                    max_tokens=max_tokens,
+                    num_ctx=num_ctx,
+                    temperature=temperature,
                 )
+                return await self._stream_chat(model, payload, timeout)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 raise ConnectionError(
                     f"Cannot reach Ollama at {self._base_url}. "
@@ -178,6 +137,80 @@ class OllamaProvider:
 
         assert last_error is not None  # nosec B101
         raise last_error
+
+    @staticmethod
+    def _build_chat_payload(
+        model: str,
+        prompt: str,
+        *,
+        max_tokens: int,
+        num_ctx: int,
+        temperature: float | None,
+    ) -> dict[str, Any]:
+        """Assemble the /api/chat request body.
+
+        Streams (see :meth:`_stream_chat`) so the read timeout is an idle timeout.
+        JSON prompts force ``format=json`` without thinking (which conflicts with
+        the JSON constraint on most models); other prompts enable thinking on
+        thinking-capable models for deeper reasoning.
+        """
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+            "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
+        }
+        if _wants_json_output(prompt):
+            payload["format"] = "json"
+            payload["think"] = False
+        elif _is_thinking_model(model):
+            payload["think"] = True
+        if temperature is not None:
+            payload["options"]["temperature"] = temperature
+        return payload
+
+    async def _stream_chat(self, model: str, payload: dict[str, Any], timeout: int) -> LLM_Response:
+        """POST /api/chat and assemble the streamed NDJSON frames into a response.
+
+        ``timeout`` is the per-read (idle) timeout, not a total-time cap: a
+        long-but-progressing generation streams to completion, while a genuinely
+        stalled call fails after one idle window. The terminal (done) frame
+        carries cumulative token counts; ``content`` is the answer and
+        ``thinking`` the reasoning trace, used only when content is empty.
+        """
+        content_parts: list[str] = []
+        thinking_parts: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+        async with (
+            httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=10.0)) as client,
+            client.stream("POST", f"{self._base_url}/api/chat", json=payload) as response,
+        ):
+            if response.status_code >= 400:
+                # Load the body so the raised error carries Ollama's message
+                # (e.g. an out-of-memory explanation) rather than an empty stream.
+                await response.aread()
+                response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.strip():
+                    continue
+                frame = json.loads(line)
+                frame_message = frame.get("message", {})
+                if frame_message.get("content"):
+                    content_parts.append(frame_message["content"])
+                if frame_message.get("thinking"):
+                    thinking_parts.append(frame_message["thinking"])
+                if frame.get("done"):
+                    input_tokens = frame.get("prompt_eval_count", 0) or 0
+                    output_tokens = frame.get("eval_count", 0) or 0
+        content = "".join(content_parts)
+        thinking = "".join(thinking_parts)
+        return LLM_Response(
+            text=content if content else thinking,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model=model,
+        )
 
     _MIN_NUM_CTX: int = 4096
 

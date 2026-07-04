@@ -7,6 +7,8 @@ Feature: local-inference
 from __future__ import annotations
 
 import asyncio
+import json
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -70,6 +72,132 @@ def _mock_httpx_response(json_data: dict[str, Any], status_code: int = 200) -> h
 
 
 # ---------------------------------------------------------------------------
+# Streaming mock: OllamaProvider.call() uses client.stream() + aiter_lines()
+# ---------------------------------------------------------------------------
+
+_STREAM_REQUEST = httpx.Request("POST", "http://localhost:11434/api/chat")
+
+
+class _FakeStreamResponse:
+    """Stand-in for the httpx streaming response yielded by client.stream()."""
+
+    def __init__(
+        self,
+        frames: list[dict[str, Any]],
+        *,
+        status_code: int = 200,
+        stall_exc: Exception | None = None,
+    ) -> None:
+        self.status_code = status_code
+        self._frames = frames
+        self._stall_exc = stall_exc
+
+    async def aiter_lines(self) -> AsyncIterator[str]:
+        for frame in self._frames:
+            yield json.dumps(frame)
+        if self._stall_exc is not None:
+            # Model went silent mid-generation: the per-read idle timeout fires.
+            raise self._stall_exc
+
+    async def aread(self) -> bytes:
+        return b""
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}",
+                request=_STREAM_REQUEST,
+                response=httpx.Response(self.status_code, request=_STREAM_REQUEST),
+            )
+
+
+class _FakeStream:
+    """Async context manager returned by the fake client's stream()."""
+
+    def __init__(self, response: _FakeStreamResponse) -> None:
+        self._response = response
+
+    async def __aenter__(self) -> _FakeStreamResponse:
+        return self._response
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+class _FakeStreamClient:
+    """Stand-in for httpx.AsyncClient whose stream() emits NDJSON frames."""
+
+    def __init__(
+        self,
+        frames: list[dict[str, Any]],
+        *,
+        status_code: int = 200,
+        stall_exc: Exception | None = None,
+        captured: dict[str, Any] | None = None,
+        on_stream: Callable[[], None] | None = None,
+    ) -> None:
+        self._frames = frames
+        self._status_code = status_code
+        self._stall_exc = stall_exc
+        self._captured = captured
+        self._on_stream = on_stream
+
+    async def __aenter__(self) -> _FakeStreamClient:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    def stream(self, method: str, url: str, *, json: dict[str, Any] | None = None) -> _FakeStream:
+        if self._captured is not None and json is not None:
+            self._captured.update(json)
+        if self._on_stream is not None:
+            # Simulate a connect/setup failure or count attempts.
+            self._on_stream()
+        return _FakeStream(
+            _FakeStreamResponse(
+                self._frames, status_code=self._status_code, stall_exc=self._stall_exc
+            )
+        )
+
+    async def post(self, url: str, *, json: dict[str, Any] | None = None) -> httpx.Response:
+        # call() -> _adaptive_num_ctx -> get_context_window POSTs to /api/show
+        # through this same patched client; a benign empty 200 makes context
+        # sizing fall back to its default instead of erroring on a missing method.
+        return httpx.Response(200, json={}, request=_STREAM_REQUEST)
+
+    async def get(self, url: str) -> httpx.Response:
+        return httpx.Response(200, json={"models": []}, request=_STREAM_REQUEST)
+
+
+def _stream_client_factory(
+    frames: list[dict[str, Any]] | None = None,
+    *,
+    status_code: int = 200,
+    stall_exc: Exception | None = None,
+    captured: dict[str, Any] | None = None,
+    on_stream: Callable[[], None] | None = None,
+) -> Callable[..., _FakeStreamClient]:
+    """Build a drop-in for ``patch("httpx.AsyncClient", ...)`` returning a stream client.
+
+    ``on_stream`` (shared across every client the factory makes) lets a test raise
+    a transient error or count attempts across retries.
+    """
+    resolved = frames if frames is not None else []
+
+    def _factory(*_args: Any, **_kwargs: Any) -> _FakeStreamClient:
+        return _FakeStreamClient(
+            resolved,
+            status_code=status_code,
+            stall_exc=stall_exc,
+            captured=captured,
+            on_stream=on_stream,
+        )
+
+    return _factory
+
+
+# ---------------------------------------------------------------------------
 # Property test — P1: Response parsing preserves fields
 # ---------------------------------------------------------------------------
 
@@ -99,18 +227,7 @@ def test_response_parsing_preserves_fields(
         eval_count=output_tokens,
     )
 
-    mock_response = _mock_httpx_response(json_data)
-
-    async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
-        return mock_response
-
-    with patch("httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post = mock_post
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_cls.return_value = mock_client
-
+    with patch("httpx.AsyncClient", _stream_client_factory(frames=[json_data])):
         result = asyncio.run(provider.call(model, "test prompt"))
 
     assert result.text == text
@@ -143,22 +260,12 @@ def test_model_name_passthrough(model: str) -> None:
     """
     provider = OllamaProvider(base_url="http://localhost:11434")
     json_data = _make_generate_response()
-    mock_response = _mock_httpx_response(json_data)
-
     captured_payload: dict[str, Any] = {}
 
-    async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
-        if "json" in kwargs:
-            captured_payload.update(kwargs["json"])
-        return mock_response
-
-    with patch("httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post = mock_post
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_cls.return_value = mock_client
-
+    with patch(
+        "httpx.AsyncClient",
+        _stream_client_factory(frames=[json_data], captured=captured_payload),
+    ):
         asyncio.run(provider.call(model, "test prompt"))
 
     assert captured_payload["model"] == model
@@ -204,23 +311,17 @@ def test_retry_count(retries: int) -> None:
     provider = OllamaProvider(base_url="http://localhost:11434")
     call_count = 0
 
-    async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+    def _raise_timeout() -> None:
         nonlocal call_count
         call_count += 1
         raise httpx.TimeoutException("timeout")
 
     with (
-        patch("httpx.AsyncClient") as mock_client_cls,
+        patch("httpx.AsyncClient", _stream_client_factory(on_stream=_raise_timeout)),
         patch("distill.llm.providers.ollama.time.sleep"),
+        pytest.raises(httpx.TimeoutException),
     ):
-        mock_client = AsyncMock()
-        mock_client.post = mock_post
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_cls.return_value = mock_client
-
-        with pytest.raises(httpx.TimeoutException):
-            asyncio.run(provider.call("test-model", "test prompt", retries=retries))
+        asyncio.run(provider.call("test-model", "test prompt", retries=retries))
 
     assert call_count == retries + 1, f"Expected {retries + 1} attempts, got {call_count}"
 
@@ -239,18 +340,8 @@ class TestOllamaProviderSuccess:
         json_data = _make_generate_response(
             text="response text", prompt_eval_count=100, eval_count=50
         )
-        mock_response = _mock_httpx_response(json_data)
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
-            return mock_response
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
+        with patch("httpx.AsyncClient", _stream_client_factory(frames=[json_data])):
             result = asyncio.run(provider.call("llama3:8b", "hello"))
 
         assert isinstance(result, LLM_Response)
@@ -263,22 +354,13 @@ class TestOllamaProviderSuccess:
         """Temperature is passed in the options payload when specified."""
         provider = OllamaProvider(base_url="http://localhost:11434")
         json_data = _make_generate_response()
-        mock_response = _mock_httpx_response(json_data)
 
         captured_payload: dict[str, Any] = {}
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
-            if "json" in kwargs:
-                captured_payload.update(kwargs["json"])
-            return mock_response
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
+        with patch(
+            "httpx.AsyncClient",
+            _stream_client_factory(frames=[json_data], captured=captured_payload),
+        ):
             asyncio.run(provider.call("llama3:8b", "hello", temperature=0.7))
 
         assert captured_payload["options"]["temperature"] == 0.7
@@ -290,19 +372,10 @@ class TestOllamaProviderSuccess:
             "message": {"content": "text", "thinking": ""},
             "prompt_eval_count": None,
             "eval_count": None,
+            "done": True,
         }
-        mock_response = _mock_httpx_response(json_data)
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
-            return mock_response
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
+        with patch("httpx.AsyncClient", _stream_client_factory(frames=[json_data])):
             result = asyncio.run(provider.call("llama3:8b", "hello"))
 
         assert result.input_tokens == 0
@@ -316,35 +389,27 @@ class TestOllamaProviderConnectionError:
         """ConnectError raises ConnectionError with helpful message."""
         provider = OllamaProvider(base_url="http://localhost:11434")
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        def _raise_connect() -> None:
             raise httpx.ConnectError("Connection refused")
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
-            with pytest.raises(ConnectionError, match="Cannot reach Ollama"):
-                asyncio.run(provider.call("llama3:8b", "hello"))
+        with (
+            patch("httpx.AsyncClient", _stream_client_factory(on_stream=_raise_connect)),
+            pytest.raises(ConnectionError, match="Cannot reach Ollama"),
+        ):
+            asyncio.run(provider.call("llama3:8b", "hello"))
 
     def test_connect_timeout_raises_connection_error(self) -> None:
         """ConnectTimeout raises ConnectionError with helpful message."""
         provider = OllamaProvider(base_url="http://localhost:11434")
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        def _raise_connect_timeout() -> None:
             raise httpx.ConnectTimeout("Timed out")
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
-            with pytest.raises(ConnectionError, match="ollama serve"):
-                asyncio.run(provider.call("llama3:8b", "hello"))
+        with (
+            patch("httpx.AsyncClient", _stream_client_factory(on_stream=_raise_connect_timeout)),
+            pytest.raises(ConnectionError, match="ollama serve"),
+        ):
+            asyncio.run(provider.call("llama3:8b", "hello"))
 
 
 class TestOllamaProviderRetry:
@@ -354,27 +419,22 @@ class TestOllamaProviderRetry:
         """Provider retries on timeout and succeeds on second attempt."""
         provider = OllamaProvider(base_url="http://localhost:11434")
         json_data = _make_generate_response(text="ok", prompt_eval_count=5, eval_count=3)
-        mock_response = _mock_httpx_response(json_data)
 
         call_count = 0
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        def _fail_first() -> None:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise httpx.TimeoutException("timeout")
-            return mock_response
 
         with (
-            patch("httpx.AsyncClient") as mock_client_cls,
+            patch(
+                "httpx.AsyncClient",
+                _stream_client_factory(frames=[json_data], on_stream=_fail_first),
+            ),
             patch("distill.llm.providers.ollama.time.sleep") as mock_sleep,
         ):
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
             result = asyncio.run(provider.call("llama3:8b", "hello", retries=2))
 
         assert result.text == "ok"
@@ -384,21 +444,95 @@ class TestOllamaProviderRetry:
         """Provider raises after all retries are exhausted."""
         provider = OllamaProvider(base_url="http://localhost:11434")
 
-        async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        def _always_timeout() -> None:
             raise httpx.TimeoutException("permanent timeout")
 
         with (
-            patch("httpx.AsyncClient") as mock_client_cls,
+            patch("httpx.AsyncClient", _stream_client_factory(on_stream=_always_timeout)),
             patch("distill.llm.providers.ollama.time.sleep"),
+            pytest.raises(httpx.TimeoutException),
         ):
-            mock_client = AsyncMock()
-            mock_client.post = mock_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            asyncio.run(provider.call("llama3:8b", "hello", retries=2))
 
-            with pytest.raises(httpx.TimeoutException):
-                asyncio.run(provider.call("llama3:8b", "hello", retries=2))
+    def test_mid_stream_stall_surfaces_read_timeout(self) -> None:
+        """A stall mid-generation (no new tokens) is the per-read idle timeout
+        firing: it surfaces as a ReadTimeout once retries are exhausted, even
+        though earlier tokens streamed fine.
+        """
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        partial = {"message": {"content": "partial answer"}, "done": False}
+
+        with (
+            patch(
+                "httpx.AsyncClient",
+                _stream_client_factory(frames=[partial], stall_exc=httpx.ReadTimeout("idle")),
+            ),
+            patch("distill.llm.providers.ollama.time.sleep"),
+            pytest.raises(httpx.ReadTimeout),
+        ):
+            asyncio.run(provider.call("llama3:8b", "hello", retries=1))
+
+    def test_stream_http_error_reads_body_then_raises(self) -> None:
+        """A >=400 status on the stream loads the body and raises HTTPStatusError."""
+        provider = OllamaProvider(base_url="http://localhost:11434")
+
+        with (
+            patch("httpx.AsyncClient", _stream_client_factory(frames=[], status_code=500)),
+            patch("distill.llm.providers.ollama.time.sleep"),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            asyncio.run(provider.call("llama3:8b", "hello", retries=1))
+
+
+class TestChatPayload:
+    """Payload assembly and content/thinking selection."""
+
+    def test_json_prompt_forces_json_without_thinking(self) -> None:
+        payload = OllamaProvider._build_chat_payload(
+            "qwen3.5:27b",
+            "return only valid json",
+            max_tokens=100,
+            num_ctx=4096,
+            temperature=None,
+        )
+        assert payload["stream"] is True
+        assert payload["format"] == "json"
+        assert payload["think"] is False
+
+    def test_thinking_model_enables_thinking_and_temperature(self) -> None:
+        payload = OllamaProvider._build_chat_payload(
+            "qwen3.5:27b",
+            "analyze this",
+            max_tokens=100,
+            num_ctx=4096,
+            temperature=0.5,
+        )
+        assert payload["think"] is True
+        assert payload["options"]["temperature"] == 0.5
+
+    def test_plain_model_omits_think_and_temperature(self) -> None:
+        payload = OllamaProvider._build_chat_payload(
+            "llama3:8b",
+            "analyze this",
+            max_tokens=100,
+            num_ctx=4096,
+            temperature=None,
+        )
+        assert "think" not in payload
+        assert "temperature" not in payload["options"]
+
+    def test_thinking_trace_used_when_content_empty(self) -> None:
+        """When the model streams only a reasoning trace, it becomes the answer."""
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        frame = {
+            "message": {"content": "", "thinking": "just reasoning"},
+            "done": True,
+            "prompt_eval_count": 1,
+            "eval_count": 2,
+        }
+        with patch("httpx.AsyncClient", _stream_client_factory(frames=[frame])):
+            result = asyncio.run(provider.call("qwen3.5:27b", "hi"))
+        assert result.text == "just reasoning"
 
 
 class TestOllamaGetContextWindow:

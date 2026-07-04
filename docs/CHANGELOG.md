@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.28 - 2026-07-04
+
+Local inference streams its response so the timeout is an idle timeout.
+
+### Changed
+
+- The Ollama provider now streams `/api/chat`, and the per-call timeout applies
+  per read (inter-token idle) rather than to the whole request. A slow local
+  analysis completes as long as it keeps producing tokens, while a genuinely
+  stalled call fails after one idle window instead of after the full budget times
+  the retry count. The idle-timeout floor is 600s (it was an 1800s total floor in
+  0.19.27), still overridable via `DISTILL_LOCAL_TIMEOUT`. Surfaced by a local
+  dogfood run whose synthesis step took ~90 minutes to fail under the old
+  total-timeout model.
+
 ## 0.19.27 - 2026-07-03
 
 Local-inference reliability: longer call timeout and legible errors.

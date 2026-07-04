@@ -44,18 +44,23 @@ DEFAULT_CONTEXT_WINDOW: int = 4096
 # Modern local models commonly expose 32k+; prefer multipass only when needed.
 LOCAL_FALLBACK_CONTEXT_WINDOW: int = 32_768
 
-# Floor for a single local-provider call (seconds). Local models are far slower
-# than cloud on large analysis prompts - a 27B model doing full-PDF paper
-# analysis can run tens of minutes - so the cloud-tuned call default read-times-
-# out mid-generation and fails the step. Callers get at least this ceiling.
-LOCAL_CALL_TIMEOUT_FLOOR: int = 1800
+# Idle (stall) timeout floor for a single local-provider call, in seconds. The
+# Ollama provider streams its response and applies this as a per-read timeout, so
+# it fires only when generation stalls (no new tokens for this long) rather than
+# capping a legitimately slow-but-progressing analysis. It is well above the
+# cloud-tuned default because a busy local GPU can pause tens of seconds between
+# tokens, and prompt prefill on a large paper produces no tokens for a while.
+LOCAL_CALL_TIMEOUT_FLOOR: int = 600
 
 
 def local_call_timeout(default: int) -> int:
-    """Per-call timeout (seconds) for local providers.
+    """Idle/stall timeout (seconds) for a local-provider call.
 
     Returns the larger of ``default`` and :data:`LOCAL_CALL_TIMEOUT_FLOOR`, unless
     ``DISTILL_LOCAL_TIMEOUT`` is set to a positive integer, which overrides both.
+    Under streaming (the Ollama provider) this bounds inter-token idle time, not
+    total generation time, so a slow analysis completes as long as it keeps
+    producing tokens; a genuinely stalled call fails after one idle window.
     """
     raw = os.environ.get("DISTILL_LOCAL_TIMEOUT", "").strip()
     if raw.isdigit() and int(raw) > 0:

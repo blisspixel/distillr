@@ -154,7 +154,7 @@ def test_local_call_timeout_raises_short_cloud_default(
 ) -> None:
     """The cloud-tuned default is raised to the local floor for slow local models."""
     monkeypatch.delenv("DISTILL_LOCAL_TIMEOUT", raising=False)
-    assert local_call_timeout(300) == 1800
+    assert local_call_timeout(300) == 600
 
 
 def test_local_call_timeout_keeps_larger_default(
@@ -175,4 +175,4 @@ def test_local_call_timeout_env_override(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_local_call_timeout_ignores_invalid_env(monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
     """Blank, non-numeric, or non-positive overrides fall back to the floor."""
     monkeypatch.setenv("DISTILL_LOCAL_TIMEOUT", bad)
-    assert local_call_timeout(300) == 1800
+    assert local_call_timeout(300) == 600
