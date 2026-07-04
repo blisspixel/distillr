@@ -57,6 +57,21 @@ def _wants_json_output(prompt: str) -> bool:
     )
 
 
+def _describe_ollama_error(exc: Exception) -> str:
+    """Render an Ollama call error as a diagnosable string.
+
+    ``str(exc)`` is empty for httpx timeout exceptions (e.g. ``ReadTimeout``) and
+    hides the server's body for an ``HTTPStatusError``, so a bare ``%s`` in a log
+    line can read as an empty message. Always return something actionable: the
+    HTTP status and response body when present, else the message, else the type.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        body = exc.response.text.strip()
+        status = exc.response.status_code
+        return f"HTTP {status}: {body}" if body else f"HTTP {status}"
+    return str(exc).strip() or type(exc).__name__
+
+
 class OllamaProvider:
     """Ollama local inference provider."""
 
@@ -154,7 +169,7 @@ class OllamaProvider:
                         "Ollama error (attempt %d/%d): %s. Retrying in %ds...",
                         attempt + 1,
                         retries + 1,
-                        exc,
+                        _describe_ollama_error(exc),
                         wait,
                     )
                     time.sleep(wait)

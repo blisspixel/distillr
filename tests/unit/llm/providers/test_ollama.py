@@ -15,7 +15,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from distill.llm.providers.ollama import OllamaProvider
+from distill.llm.providers.ollama import OllamaProvider, _describe_ollama_error
 from distill.llm.router import LLM_Response
 
 # ---------------------------------------------------------------------------
@@ -591,3 +591,27 @@ class TestAdaptiveNumCtx:
         big = "x" * 200_000  # ~65k token estimate
         ctx = asyncio.run(provider._adaptive_num_ctx("qwen3.6:27b", big, 8192))
         assert 60_000 < ctx < 262_144  # sized to need, well under the default
+
+
+class TestDescribeOllamaError:
+    """_describe_ollama_error renders a diagnosable message for any error shape."""
+
+    def test_empty_timeout_message_falls_back_to_type_name(self) -> None:
+        # httpx.ReadTimeout stringifies to '' - the log line must still name it,
+        # not read as an empty "Ollama error (attempt 1/3): .".
+        assert _describe_ollama_error(httpx.ReadTimeout("")) == "ReadTimeout"
+
+    def test_http_status_error_includes_status_and_body(self) -> None:
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        response = httpx.Response(500, text="model requires more system memory", request=request)
+        exc = httpx.HTTPStatusError("500", request=request, response=response)
+        assert _describe_ollama_error(exc) == "HTTP 500: model requires more system memory"
+
+    def test_http_status_error_without_body_shows_status_only(self) -> None:
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        response = httpx.Response(503, request=request)
+        exc = httpx.HTTPStatusError("503", request=request, response=response)
+        assert _describe_ollama_error(exc) == "HTTP 503"
+
+    def test_ordinary_exception_uses_its_message(self) -> None:
+        assert _describe_ollama_error(ValueError("boom")) == "boom"
