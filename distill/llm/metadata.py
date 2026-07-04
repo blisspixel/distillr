@@ -6,12 +6,14 @@ Provides ProviderMetadata for the pipeline to make chunking decisions.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any
 
 __all__ = [
     "LOCAL_PROVIDERS",
     "ProviderMetadata",
+    "local_call_timeout",
     "resolve_metadata",
     "resolve_metadata_for_router",
     "resolve_metadata_sync",
@@ -41,6 +43,24 @@ DEFAULT_CONTEXT_WINDOW: int = 4096
 # Conservative local fallback when Ollama/LM Studio is configured but unreachable.
 # Modern local models commonly expose 32k+; prefer multipass only when needed.
 LOCAL_FALLBACK_CONTEXT_WINDOW: int = 32_768
+
+# Floor for a single local-provider call (seconds). Local models are far slower
+# than cloud on large analysis prompts - a 27B model doing full-PDF paper
+# analysis can run tens of minutes - so the cloud-tuned call default read-times-
+# out mid-generation and fails the step. Callers get at least this ceiling.
+LOCAL_CALL_TIMEOUT_FLOOR: int = 1800
+
+
+def local_call_timeout(default: int) -> int:
+    """Per-call timeout (seconds) for local providers.
+
+    Returns the larger of ``default`` and :data:`LOCAL_CALL_TIMEOUT_FLOOR`, unless
+    ``DISTILL_LOCAL_TIMEOUT`` is set to a positive integer, which overrides both.
+    """
+    raw = os.environ.get("DISTILL_LOCAL_TIMEOUT", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return max(default, LOCAL_CALL_TIMEOUT_FLOOR)
 
 
 @dataclass(frozen=True)

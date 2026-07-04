@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -15,6 +16,7 @@ from distill.llm.metadata import (
     DEFAULT_CONTEXT_WINDOW,
     LOCAL_FALLBACK_CONTEXT_WINDOW,
     LOCAL_PROVIDERS,
+    local_call_timeout,
     resolve_metadata,
     resolve_metadata_sync,
 )
@@ -140,3 +142,37 @@ def test_resolve_metadata_sync_local_unreachable() -> None:
 
     metadata = resolve_metadata_sync("ollama", "llama3:8b", provider=FailingProvider())
     assert metadata.context_window == LOCAL_FALLBACK_CONTEXT_WINDOW
+
+
+# ---------------------------------------------------------------------------
+# Local-provider call timeout
+# ---------------------------------------------------------------------------
+
+
+def test_local_call_timeout_raises_short_cloud_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cloud-tuned default is raised to the local floor for slow local models."""
+    monkeypatch.delenv("DISTILL_LOCAL_TIMEOUT", raising=False)
+    assert local_call_timeout(300) == 1800
+
+
+def test_local_call_timeout_keeps_larger_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied default above the floor is preserved, not lowered."""
+    monkeypatch.delenv("DISTILL_LOCAL_TIMEOUT", raising=False)
+    assert local_call_timeout(3600) == 3600
+
+
+def test_local_call_timeout_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A valid positive DISTILL_LOCAL_TIMEOUT wins over the floor."""
+    monkeypatch.setenv("DISTILL_LOCAL_TIMEOUT", "2400")
+    assert local_call_timeout(300) == 2400
+
+
+@pytest.mark.parametrize("bad", ["", "  ", "0", "-5", "not-a-number", "12.5"])
+def test_local_call_timeout_ignores_invalid_env(monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
+    """Blank, non-numeric, or non-positive overrides fall back to the floor."""
+    monkeypatch.setenv("DISTILL_LOCAL_TIMEOUT", bad)
+    assert local_call_timeout(300) == 1800

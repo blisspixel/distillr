@@ -14,7 +14,7 @@ from pydantic_settings import BaseSettings
 
 from distill.llm.async_compat import run_coroutine_sync
 from distill.llm.cost_policy import CostMode, normalize_cost_mode, route_block_reason
-from distill.llm.metadata import LOCAL_PROVIDERS
+from distill.llm.metadata import LOCAL_PROVIDERS, local_call_timeout
 from distill.llm.model_policy import (
     RETIRED_MODELS,
     RETIREMENT_DATE,
@@ -363,6 +363,8 @@ def call(
 
     def _attempt(p_name: str, m_id: str) -> LLM_Response:
         provider = _get_provider(p_name, config)
+        # Local models need a longer read timeout than the cloud-tuned default.
+        effective_timeout = local_call_timeout(timeout) if p_name in LOCAL_PROVIDERS else timeout
         reasoning_effort: str | None = None
         if p_name == "xai" and m_id.startswith("grok-4.3"):
             reasoning_effort = resolve_xai_reasoning_effort(config, workload_tag)
@@ -372,7 +374,7 @@ def call(
             m_id,
             prompt,
             max_tokens=max_tokens,
-            timeout=timeout,
+            timeout=effective_timeout,
             retries=retries,
             temperature=temperature,
             call_type=call_type,
