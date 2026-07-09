@@ -8,21 +8,23 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, patch
+from typing import Any, cast
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from distill.llm import router as router_module
 from distill.llm.router import (
     WORKLOAD_TAGS,
     ConfigurationError,
     LLM_Response,
     RouterConfig,
-    _provider_cache,
     call,
+    get_provider,
 )
 from distill.llm.telemetry import top_n_by_tokens
 
@@ -55,6 +57,25 @@ def _mock_provider(
         model=model,
     )
     return mock
+
+
+def _clear_provider_cache() -> None:
+    cache = cast(dict[str, Any], vars(router_module)["_provider_cache"])
+    assert isinstance(cache, dict)
+    cache.clear()
+
+
+def _provider_cache_size() -> int:
+    cache = cast(dict[str, Any], vars(router_module)["_provider_cache"])
+    assert isinstance(cache, dict)
+    return len(cache)
+
+
+@pytest.fixture(autouse=True)
+def isolate_provider_cache() -> Iterator[None]:
+    _clear_provider_cache()
+    yield
+    _clear_provider_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +345,7 @@ def test_router_config_defaults_ops_dir_to_library(monkeypatch: Any, tmp_path: P
     library = tmp_path / "library"
     cwd.mkdir()
     monkeypatch.chdir(cwd)
+    monkeypatch.delenv("DISTILL_OPS_DIR", raising=False)
     monkeypatch.setenv("DISTILL_OUTPUT_DIR", str(library))
 
     config = RouterConfig(provider="agent")
@@ -331,6 +353,209 @@ def test_router_config_defaults_ops_dir_to_library(monkeypatch: Any, tmp_path: P
     assert config.ops_dir == str(library / ".distill")
     assert Path(config.ops_dir).is_absolute()
     assert Path(config.ops_dir) != cwd
+
+
+def test_router_config_defaults_ops_dir_to_repo_library(monkeypatch: Any, tmp_path: Path) -> None:
+    """Without an output override, ops_dir defaults to the repo library path."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("DISTILL_OPS_DIR", raising=False)
+    monkeypatch.delenv("DISTILL_OUTPUT_DIR", raising=False)
+
+    config = RouterConfig(provider="agent")
+
+    expected = Path(router_module.__file__).resolve().parent.parent.parent / "library" / ".distill"
+    assert Path(config.ops_dir) == expected
+
+
+def test_router_config_relative_output_dir_becomes_absolute(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Relative DISTILL_OUTPUT_DIR values resolve under the current directory."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("DISTILL_OPS_DIR", raising=False)
+    monkeypatch.setenv("DISTILL_OUTPUT_DIR", "library")
+
+    config = RouterConfig(provider="agent")
+
+    assert config.ops_dir == str(tmp_path / "library" / ".distill")
+
+
+def test_retired_model_resolution_warns_and_replaces(caplog: Any) -> None:
+    """Retired model ids are replaced before provider dispatch."""
+    config = _make_config(fast_model="grok-3")
+
+    with caplog.at_level(logging.WARNING, logger="distill.llm.router"):
+        provider_name, model_id = config.resolve("analysis")
+
+    assert provider_name == "xai"
+    assert model_id == "grok-4.3"
+    assert "grok-3" in caplog.text
+    assert "grok-4.3" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("provider_name", "patch_target", "expected_arg"),
+    [
+        ("xai", "distill.llm.providers.grok.GrokProvider", "xai-key"),
+        ("gemini", "distill.llm.providers.gemini.GeminiProvider", "gemini-key"),
+        ("anthropic", "distill.llm.providers.anthropic.AnthropicProvider", "anthropic-key"),
+    ],
+)
+def test_get_provider_constructs_keyed_providers(
+    provider_name: str, patch_target: str, expected_arg: str, tmp_path: Path
+) -> None:
+    """Provider factory passes configured API keys to cloud provider classes."""
+    provider_instance = object()
+    config = RouterConfig(
+        provider=provider_name,
+        xai_api_key="xai-key",
+        gemini_api_key="gemini-key",
+        anthropic_api_key="anthropic-key",
+        ops_dir=str(tmp_path / "ops"),
+    )
+
+    with patch(patch_target, return_value=provider_instance) as provider_cls:
+        provider = get_provider(provider_name, config)
+
+    assert provider is provider_instance
+    provider_cls.assert_called_once_with(expected_arg)
+
+
+@pytest.mark.parametrize(
+    ("provider_name", "patch_target", "key_field"),
+    [
+        ("xai", "distill.llm.providers.grok.GrokProvider", "xai_api_key"),
+        ("gemini", "distill.llm.providers.gemini.GeminiProvider", "gemini_api_key"),
+        (
+            "anthropic",
+            "distill.llm.providers.anthropic.AnthropicProvider",
+            "anthropic_api_key",
+        ),
+    ],
+)
+def test_get_provider_uses_distinct_cloud_cache_entries_by_api_key(
+    provider_name: str, patch_target: str, key_field: str, tmp_path: Path
+) -> None:
+    """Cloud provider cache entries do not cross credential boundaries."""
+    first_provider = object()
+    second_provider = object()
+    common_config: dict[str, str] = {
+        "provider": provider_name,
+        "xai_api_key": "unused-xai-key",
+        "gemini_api_key": "unused-gemini-key",
+        "anthropic_api_key": "unused-anthropic-key",
+        "ops_dir": str(tmp_path / "ops"),
+    }
+    first_config = RouterConfig(**{**common_config, key_field: "first-key"})  # type: ignore[arg-type]
+    second_config = RouterConfig(**{**common_config, key_field: "second-key"})  # type: ignore[arg-type]
+
+    with patch(
+        patch_target,
+        side_effect=[first_provider, second_provider],
+    ) as cls:
+        first = get_provider(provider_name, first_config)
+        second = get_provider(provider_name, second_config)
+
+    assert first is first_provider
+    assert second is second_provider
+    assert first is not second
+    assert cls.call_count == 2
+    assert [call_info.args[0] for call_info in cls.call_args_list] == [
+        "first-key",
+        "second-key",
+    ]
+
+
+def test_get_provider_constructs_agent_with_ops_dir(tmp_path: Path) -> None:
+    """Agent provider construction is keyed by the configured ops directory."""
+    provider_instance = object()
+    ops_dir = tmp_path / "ops"
+    config = RouterConfig(provider="agent", ops_dir=str(ops_dir))
+
+    with patch("distill.llm.providers.agent.AgentProvider", return_value=provider_instance) as cls:
+        provider = get_provider("agent", config)
+
+    assert provider is provider_instance
+    cls.assert_called_once_with(str(ops_dir))
+
+
+def test_get_provider_reuses_cached_agent_for_same_ops_dir(tmp_path: Path) -> None:
+    """Provider factory cache keys agent instances by provider and ops directory."""
+    provider_instance = object()
+    ops_dir = tmp_path / "ops"
+    config = RouterConfig(provider="agent", ops_dir=str(ops_dir))
+
+    with patch("distill.llm.providers.agent.AgentProvider", return_value=provider_instance) as cls:
+        first = get_provider("agent", config)
+        second = get_provider("agent", config)
+
+    assert first is provider_instance
+    assert second is provider_instance
+    cls.assert_called_once_with(str(ops_dir))
+
+
+def test_get_provider_uses_distinct_agent_cache_entries_by_ops_dir(tmp_path: Path) -> None:
+    """Agent provider cache entries do not cross ops directory boundaries."""
+    first_provider = object()
+    second_provider = object()
+    first_config = RouterConfig(provider="agent", ops_dir=str(tmp_path / "ops-a"))
+    second_config = RouterConfig(provider="agent", ops_dir=str(tmp_path / "ops-b"))
+
+    with patch(
+        "distill.llm.providers.agent.AgentProvider",
+        side_effect=[first_provider, second_provider],
+    ) as cls:
+        first = get_provider("agent", first_config)
+        second = get_provider("agent", second_config)
+
+    assert first is first_provider
+    assert second is second_provider
+    assert first is not second
+    assert cls.call_count == 2
+    assert [call_info.args[0] for call_info in cls.call_args_list] == [
+        str(tmp_path / "ops-a"),
+        str(tmp_path / "ops-b"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("provider_name", "patch_target"),
+    [
+        ("ollama", "distill.llm.providers.ollama.OllamaProvider"),
+        ("lmstudio", "distill.llm.providers.lmstudio.LMStudioProvider"),
+    ],
+)
+def test_get_provider_constructs_local_providers(
+    provider_name: str, patch_target: str, tmp_path: Path
+) -> None:
+    """Local provider construction does not require API key arguments."""
+    provider_instance = object()
+    config = RouterConfig(provider=provider_name, ops_dir=str(tmp_path / "ops"))
+
+    with patch(patch_target, return_value=provider_instance) as provider_cls:
+        provider = get_provider(provider_name, config)
+
+    assert provider is provider_instance
+    provider_cls.assert_called_once_with()
+
+
+def test_get_provider_openai_branch_is_explicitly_unimplemented(tmp_path: Path) -> None:
+    """The factory keeps the reserved OpenAI provider fail-closed."""
+    config = RouterConfig(provider="openai", openai_api_key="test-key", ops_dir=str(tmp_path))
+
+    with pytest.raises(ConfigurationError, match="not implemented"):
+        get_provider("openai", config)
+
+
+def test_get_provider_unknown_branch_lists_valid_providers(tmp_path: Path) -> None:
+    """The provider factory reports valid providers for unknown names."""
+    config = RouterConfig(provider="xai", xai_api_key="test-key", ops_dir=str(tmp_path))
+
+    with pytest.raises(ConfigurationError) as exc_info:
+        get_provider("unknown", config)
+
+    assert "Valid providers" in str(exc_info.value)
+    assert "xai" in str(exc_info.value)
 
 
 def test_telemetry_emitted_on_success() -> None:
@@ -347,6 +572,35 @@ def test_telemetry_emitted_on_success() -> None:
         assert len(records) == 1
         assert records[0].outcome == "success"
         assert records[0].workload_tag == "analysis"
+
+
+def test_local_telemetry_records_tokens_per_second() -> None:
+    """Successful local calls record local provider throughput."""
+    with tempfile.TemporaryDirectory() as tmp:
+        ops_dir = str(Path(tmp) / "ops")
+        config = RouterConfig(provider="ollama", ops_dir=ops_dir)
+        provider_call_result = object()
+        mock_prov = Mock()
+        mock_prov.call.return_value = provider_call_result
+        response = LLM_Response(
+            text="ok",
+            input_tokens=10,
+            output_tokens=25,
+            model="qwen3.5:27b",
+        )
+
+        with (
+            patch("distill.llm.router._get_provider", return_value=mock_prov),
+            patch("distill.llm.router.run_coroutine_sync", return_value=response) as runner,
+            patch("distill.llm.router.time.monotonic", side_effect=[100.0, 102.0]),
+        ):
+            call(config, "analysis", "test prompt")
+
+        runner.assert_called_once_with(provider_call_result)
+        records = top_n_by_tokens(ops_dir, n=1)
+        assert len(records) == 1
+        assert records[0].provider_type == "local"
+        assert records[0].tokens_per_second == 12.5
 
 
 def test_telemetry_emitted_on_error() -> None:
@@ -392,7 +646,6 @@ def test_call_type_and_run_id_passed_to_telemetry() -> None:
 
 
 def test_provider_cache_cleared_between_tests() -> None:
-    """Verify _provider_cache is accessible for test isolation."""
-    # Just verify the cache dict exists and is clearable
-    _provider_cache.clear()
-    assert len(_provider_cache) == 0
+    """Verify the provider cache is accessible for test isolation."""
+    _clear_provider_cache()
+    assert _provider_cache_size() == 0

@@ -20,6 +20,7 @@ import json
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from distill.config import DistillConfig
 from distill.library.paths import strip_frontmatter
@@ -80,6 +81,26 @@ def _cited_sources(summary: str, allowed_stems: list[str]) -> tuple[list[str], s
     return cited, refusal
 
 
+def _load_cached_summary(cache_file: Path, allowed_stems: list[str]) -> QuerySummary | None:
+    data = json.loads(cache_file.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("summary cache row is not an object")
+    row = cast(dict[str, object], data)
+    summary_value = row.get("summary")
+    if not isinstance(summary_value, str):
+        raise ValueError("summary cache row is missing a string summary")
+    cited, refusal = _cited_sources(summary_value, allowed_stems)
+    if refusal:
+        return None
+    model_value = row.get("model", "")
+    return QuerySummary(
+        summary=summary_value,
+        sources=cited,
+        cached=True,
+        model=model_value if isinstance(model_value, str) else "",
+    )
+
+
 def summarize_query(
     config: DistillConfig,
     topic: str,
@@ -104,17 +125,10 @@ def summarize_query(
     cache_file = _cache_path(config, key)
     if cache_file.exists():
         try:
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
-            summary = str(data["summary"])
-            cited, refusal = _cited_sources(summary, allowed_stems)
-            if not refusal:
-                return QuerySummary(
-                    summary=summary,
-                    sources=cited,
-                    cached=True,
-                    model=str(data.get("model", "")),
-                )
-        except (OSError, json.JSONDecodeError, KeyError):
+            cached_summary = _load_cached_summary(cache_file, allowed_stems)
+            if cached_summary is not None:
+                return cached_summary
+        except (OSError, json.JSONDecodeError, ValueError):
             pass
         with suppress(OSError):
             cache_file.unlink()

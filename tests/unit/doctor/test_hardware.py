@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,8 +11,12 @@ import pytest
 from distill.doctor.hardware import (
     _detect_nvidia,
     _get_apple_chip_name,
+    _get_linux_ram,
+    _get_macos_ram,
     _get_system_ram,
+    _get_windows_ram,
     _is_container,
+    _run_tool,
     detect_hardware,
 )
 
@@ -73,6 +78,32 @@ class TestDetectNvidia:
             result = _detect_nvidia()
         assert result is None
 
+    def test_nvidia_malformed_csv_returns_none(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "NVIDIA Test GPU\n"
+
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
+            result = _detect_nvidia()
+
+        assert result is None
+
+    def test_nvidia_bad_memory_reports_zero_vram(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "NVIDIA Test GPU, not-a-number\n"
+
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
+            result = _detect_nvidia()
+
+        assert result == ("nvidia", "NVIDIA Test GPU", 0.0)
+
 
 class TestAppleChipName:
     """Tests for Apple Silicon chip name detection."""
@@ -92,6 +123,19 @@ class TestAppleChipName:
     def test_apple_chip_fallback(self) -> None:
         with patch("distill.doctor.hardware.shutil.which", return_value=None):
             name = _get_apple_chip_name()
+        assert name == "Apple Silicon"
+
+    def test_apple_chip_empty_output_falls_back(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "\n"
+
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
+            name = _get_apple_chip_name()
+
         assert name == "Apple Silicon"
 
 
@@ -135,6 +179,83 @@ class TestSystemRam:
             ram = _get_system_ram()
         assert ram == 0.0
 
+    def test_macos_ram_invalid_value_returns_zero(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "not-an-int\n"
+
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
+            assert _get_macos_ram() == 0.0
+
+    def test_macos_ram_empty_output_returns_zero(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "\n"
+
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("subprocess.run", return_value=mock_result),
+        ):
+            assert _get_macos_ram() == 0.0
+
+    def test_linux_ram_without_memtotal_returns_zero(self) -> None:
+        with patch("pathlib.Path.read_text", return_value="MemFree: 8192000 kB\n"):
+            assert _get_linux_ram() == 0.0
+
+    def test_linux_ram_short_memtotal_returns_zero(self) -> None:
+        with patch("pathlib.Path.read_text", return_value="MemTotal:\n"):
+            assert _get_linux_ram() == 0.0
+
+    def test_linux_ram_invalid_memtotal_returns_zero(self) -> None:
+        with patch("pathlib.Path.read_text", return_value="MemTotal: nope kB\n"):
+            assert _get_linux_ram() == 0.0
+
+    def test_windows_ram_success_uses_global_memory_status(self, monkeypatch) -> None:
+        import ctypes
+
+        def global_memory_status_ex(pointer) -> int:
+            pointer._obj.ullTotalPhys = 16 * 1024**3
+            return 1
+
+        monkeypatch.setattr(
+            ctypes,
+            "windll",
+            SimpleNamespace(kernel32=SimpleNamespace(GlobalMemoryStatusEx=global_memory_status_ex)),
+            raising=False,
+        )
+
+        assert _get_windows_ram() == 16.0
+
+    def test_windows_ram_failed_status_returns_zero(self, monkeypatch) -> None:
+        import ctypes
+
+        monkeypatch.setattr(
+            ctypes,
+            "windll",
+            SimpleNamespace(kernel32=SimpleNamespace(GlobalMemoryStatusEx=lambda _ptr: 0)),
+            raising=False,
+        )
+
+        assert _get_windows_ram() == 0.0
+
+    def test_windows_ram_os_error_returns_zero(self, monkeypatch) -> None:
+        import ctypes
+
+        def global_memory_status_ex(_pointer) -> int:
+            raise OSError("denied")
+
+        monkeypatch.setattr(
+            ctypes,
+            "windll",
+            SimpleNamespace(kernel32=SimpleNamespace(GlobalMemoryStatusEx=global_memory_status_ex)),
+            raising=False,
+        )
+
+        assert _get_windows_ram() == 0.0
+
 
 class TestContainerDetection:
     """Tests for container environment detection."""
@@ -156,6 +277,47 @@ class TestContainerDetection:
             patch("pathlib.Path.read_text", side_effect=OSError),
         ):
             assert _is_container() is False
+
+    @pytest.mark.parametrize("marker", ["containerd", "kubepods"])
+    def test_cgroup_container_markers(self, marker: str) -> None:
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            patch("pathlib.Path.read_text", return_value=f"/runtime/{marker}/abc123\n"),
+        ):
+            assert _is_container() is True
+
+    def test_cgroup_without_container_markers(self) -> None:
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            patch("pathlib.Path.read_text", return_value="/user.slice/session.scope\n"),
+        ):
+            assert _is_container() is False
+
+
+class TestRunTool:
+    """Tests for external diagnostic tool invocation."""
+
+    def test_run_tool_resolves_executable_and_sets_timeout(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["resolved-tool", "--version"],
+            returncode=0,
+            stdout="ok",
+            stderr="",
+        )
+
+        with (
+            patch("distill.doctor.hardware.shutil.which", return_value="resolved-tool"),
+            patch("subprocess.run", return_value=completed) as run,
+        ):
+            result = _run_tool("tool", "--version")
+
+        assert result is completed
+        run.assert_called_once_with(
+            ["resolved-tool", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
 
 
 class TestDetectHardware:
@@ -205,3 +367,20 @@ class TestDetectHardware:
         assert profile.gpu_type == "none"
         assert profile.gpu_name == ""
         assert profile.vram_gb == 0.0
+
+    def test_apple_silicon_system(self) -> None:
+        with (
+            patch("distill.doctor.hardware._detect_nvidia", return_value=None),
+            patch("distill.doctor.hardware._get_system_ram", return_value=24.0),
+            patch("distill.doctor.hardware._get_apple_chip_name", return_value="Apple M4"),
+            patch("distill.doctor.hardware._is_container", return_value=False),
+            patch("platform.system", return_value="Darwin"),
+            patch("platform.machine", return_value="arm64"),
+        ):
+            profile = detect_hardware()
+
+        assert profile.gpu_type == "apple_silicon"
+        assert profile.gpu_name == "Apple M4"
+        assert profile.vram_gb == 24.0
+        assert profile.system_ram_gb == 24.0
+        assert profile.is_container is False

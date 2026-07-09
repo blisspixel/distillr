@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from distill.llm.providers.gemini import GeminiProvider
 from distill.llm.router import LLM_Response
 
 # ---------------------------------------------------------------------------
@@ -35,17 +36,15 @@ def _make_mock_response(
     return SimpleNamespace(text=text, usage_metadata=usage)
 
 
-def _build_provider() -> tuple[object, MagicMock]:
+def _build_provider() -> tuple[GeminiProvider, MagicMock]:
     """Create a GeminiProvider with a mocked google.genai client."""
     mock_genai = MagicMock()
     mock_client = MagicMock()
     mock_genai.Client.return_value = mock_client
 
     with patch.dict("sys.modules", {"google": MagicMock(), "google.genai": mock_genai}):
-        from distill.llm.providers.gemini import GeminiProvider
-
         provider = GeminiProvider.__new__(GeminiProvider)
-        provider._client = mock_client  # type: ignore[attr-defined]
+        object.__setattr__(provider, "_client", mock_client)
 
     return provider, mock_client
 
@@ -53,6 +52,21 @@ def _build_provider() -> tuple[object, MagicMock]:
 # ---------------------------------------------------------------------------
 # Unit tests
 # ---------------------------------------------------------------------------
+
+
+def test_init_builds_google_genai_client() -> None:
+    """Provider construction passes the API key to the lazy google-genai client."""
+    mock_genai = MagicMock()
+    mock_google = MagicMock()
+    mock_google.genai = mock_genai
+
+    with patch.dict("sys.modules", {"google": mock_google, "google.genai": mock_genai}):
+        from distill.llm.providers.gemini import GeminiProvider
+
+        provider = GeminiProvider("test-key")
+
+    mock_genai.Client.assert_called_once_with(api_key="test-key")
+    assert provider._client is mock_genai.Client.return_value  # pyright: ignore[reportPrivateUsage]
 
 
 class TestGeminiProviderSuccess:
@@ -67,9 +81,7 @@ class TestGeminiProviderSuccess:
             candidates_token_count=50,
         )
 
-        result = asyncio.run(
-            provider.call("gemini-3.1-pro", "hello")  # type: ignore[union-attr]
-        )
+        result = asyncio.run(provider.call("gemini-3.1-pro", "hello"))
 
         assert isinstance(result, LLM_Response)
         assert result.text == "hello from gemini"
@@ -84,9 +96,7 @@ class TestGeminiProviderSuccess:
             text="no usage", has_usage=False
         )
 
-        result = asyncio.run(
-            provider.call("gemini-3.1-flash", "hello")  # type: ignore[union-attr]
-        )
+        result = asyncio.run(provider.call("gemini-3.1-flash", "hello"))
 
         assert result.text == "no usage"
         assert result.input_tokens == 0
@@ -100,12 +110,40 @@ class TestGeminiProviderSuccess:
             text="partial", usage_metadata=usage
         )
 
-        result = asyncio.run(
-            provider.call("gemini-3.1-flash", "hello")  # type: ignore[union-attr]
-        )
+        result = asyncio.run(provider.call("gemini-3.1-flash", "hello"))
 
         assert result.input_tokens == 0
         assert result.output_tokens == 0
+
+    def test_temperature_is_forwarded_when_supplied(self) -> None:
+        """Temperature is included only when the caller explicitly supplies it."""
+        provider, mock_client = _build_provider()
+        mock_client.models.generate_content.return_value = _make_mock_response()
+
+        asyncio.run(
+            provider.call(
+                "gemini-3.1-flash",
+                "hello",
+                max_tokens=123,
+                temperature=0.4,
+            )
+        )
+
+        assert mock_client.models.generate_content.call_args.kwargs["config"] == {
+            "max_output_tokens": 123,
+            "temperature": 0.4,
+        }
+
+    def test_temperature_is_omitted_when_not_supplied(self) -> None:
+        """Default calls do not forward a null temperature value to Gemini."""
+        provider, mock_client = _build_provider()
+        mock_client.models.generate_content.return_value = _make_mock_response()
+
+        asyncio.run(provider.call("gemini-3.1-flash", "hello", max_tokens=456))
+
+        assert mock_client.models.generate_content.call_args.kwargs["config"] == {
+            "max_output_tokens": 456
+        }
 
 
 class TestGeminiProviderRetry:
@@ -120,9 +158,7 @@ class TestGeminiProviderRetry:
         ]
 
         with patch("distill.llm.providers.gemini.time.sleep") as mock_sleep:
-            result = asyncio.run(
-                provider.call("gemini-3.1-pro", "hello", retries=2)  # type: ignore[union-attr]
-            )
+            result = asyncio.run(provider.call("gemini-3.1-pro", "hello", retries=2))
 
         assert result.text == "ok"
         mock_sleep.assert_called_once_with(5)  # 2^0 * 5 = 5
@@ -136,8 +172,24 @@ class TestGeminiProviderRetry:
             patch("distill.llm.providers.gemini.time.sleep"),
             pytest.raises(RuntimeError, match="permanent"),
         ):
-            asyncio.run(
-                provider.call("gemini-3.1-pro", "hello", retries=2)  # type: ignore[union-attr]
-            )
+            asyncio.run(provider.call("gemini-3.1-pro", "hello", retries=2))
 
         assert mock_client.models.generate_content.call_count == 3
+
+    def test_permanent_error_does_not_retry(self) -> None:
+        """Permanent Gemini API errors raise immediately without sleeping or retrying."""
+
+        class PermanentGeminiError(Exception):
+            code = 401
+
+        provider, mock_client = _build_provider()
+        mock_client.models.generate_content.side_effect = PermanentGeminiError("auth")
+
+        with (
+            patch("distill.llm.providers.gemini.time.sleep") as mock_sleep,
+            pytest.raises(PermanentGeminiError, match="auth"),
+        ):
+            asyncio.run(provider.call("gemini-3.1-pro", "hello", retries=2))
+
+        mock_sleep.assert_not_called()
+        assert mock_client.models.generate_content.call_count == 1

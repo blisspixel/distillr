@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Hardened persisted discover preview replay: cached preview snapshots now parse
+  top-level metadata and nested paper, video, and site records before replay,
+  malformed snapshots raise `PreviewCacheError`, and malformed previews are
+  omitted from preview listings instead of surfacing raw object-construction
+  errors.
+- Raised local hardware-doctor boundary coverage to 100% with hermetic tests for
+  malformed `nvidia-smi` output, Apple/Linux/Windows RAM fallbacks, container
+  markers, diagnostic tool invocation, and Apple Silicon detection.
+- Raised local model-recommendation boundary coverage to 100% with hermetic tests
+  for custom recommendation config fallbacks, missing tier entries, and
+  throughput thresholds across NVIDIA and Apple Silicon tiers.
+- Added direct eval model-provider inference coverage for every provider prefix,
+  case normalization, adapter routes, fallback local models, and local-provider
+  classification.
+- Raised eval judge parser coverage to 100% with mocked tests for malformed
+  judge JSON, unknown pairwise winner labels, tie scoring, usage-ledger recording
+  on failed parses, and secret-isolated router configuration.
+- Raised Gemini provider boundary coverage with mocked tests for lazy SDK client
+  construction, temperature config inclusion and omission, and permanent
+  authentication-error no-retry behavior.
+- Hardened AgentProvider task replay: workload tags are sanitized before any
+  task filename or glob use, replayed result paths must resolve inside the
+  pending task directory, symlinked task directories fail closed, and regression
+  tests cover tampered task JSON plus traversal-style `call_type` values.
+- Hardened router provider caching: cloud provider cache entries now separate
+  instances by non-secret credential fingerprints while agent provider cache
+  entries remain scoped by `ops_dir`, preventing a later router configuration
+  from reusing an instance created under a different API key or task root.
+
 ## 0.19.28 - 2026-07-04
 
 Local inference streams its response so the timeout is an idle timeout.

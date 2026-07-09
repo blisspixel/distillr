@@ -509,6 +509,7 @@ def _probe_adapter(
 
     for blocker in env_blockers_present:
         blocked_reasons.append(f"{blocker} is set")
+    blocked_reasons.extend(config_result.blocked_reasons)
     for evidence in config_result.metered_evidence:
         blocked_reasons.append(f"{evidence} references a metered route")
     for evidence in auth_command_result.metered_evidence:
@@ -638,6 +639,7 @@ class _ConfigScanResult:
     files_found: list[str]
     metered_evidence: list[str]
     session_evidence: list[str]
+    blocked_reasons: list[str]
 
 
 @dataclass(frozen=True)
@@ -687,6 +689,7 @@ def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _Confi
     files_found: list[str] = []
     metered_evidence: list[str] = []
     session_evidence: list[str] = []
+    blocked_reasons: list[str] = []
     for probe in probes:
         path = home_dir.joinpath(*probe.relative_path)
         if not path.exists():
@@ -695,6 +698,10 @@ def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _Confi
         try:
             keys = _config_marker_keys(path)
         except (OSError, UnicodeDecodeError):
+            blocked_reasons.append(f"{probe.display_path} could not be read")
+            continue
+        except (json.JSONDecodeError, tomllib.TOMLDecodeError):
+            blocked_reasons.append(f"{probe.display_path} could not be parsed")
             continue
         metered_evidence.extend(
             f"{probe.display_path}: {marker}"
@@ -710,6 +717,7 @@ def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _Confi
         files_found=files_found,
         metered_evidence=sorted(set(metered_evidence)),
         session_evidence=sorted(set(session_evidence)),
+        blocked_reasons=sorted(set(blocked_reasons)),
     )
 
 
@@ -719,7 +727,7 @@ def _json_marker_keys(text: str) -> set[str]:
 
 
 def _config_marker_keys(path: Path) -> set[str]:
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8-sig")
     suffix = path.suffix.lower()
     if suffix == ".toml":
         parsed = tomllib.loads(text)

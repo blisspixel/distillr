@@ -21,6 +21,7 @@ from distill.llm.model_policy import (
     is_xai_media_generation_model,
     xai_media_generation_refusal,
 )
+from distill.llm.provider_cache import provider_cache_key
 from distill.llm.reasoning import configured_anthropic_effort, resolve_xai_reasoning_effort
 
 logger = logging.getLogger(__name__)
@@ -273,7 +274,13 @@ _provider_cache: dict[str, Any] = {}
 
 def _get_provider(provider_name: str, config: RouterConfig) -> Any:
     """Map *provider_name* to a Provider instance, caching per name."""
-    cache_key = f"{provider_name}:{config.ops_dir}" if provider_name == "agent" else provider_name
+    cache_key = provider_cache_key(
+        provider_name,
+        ops_dir=config.ops_dir,
+        xai_api_key=config.xai_api_key,
+        gemini_api_key=config.gemini_api_key,
+        anthropic_api_key=config.anthropic_api_key,
+    )
     if cache_key in _provider_cache:
         return _provider_cache[cache_key]
 

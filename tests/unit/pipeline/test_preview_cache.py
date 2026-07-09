@@ -1,5 +1,7 @@
 """Tests for distill.pipeline.preview_cache (commit-by-id discover replay)."""
 
+import json
+
 import pytest
 
 from distill.ingestors.papers.arxiv import PaperRecord
@@ -176,6 +178,147 @@ def test_load_corrupt_snapshot_raises(tmp_path):
         load_preview(cache, "deadbeef00")
 
 
+def test_load_wrong_shape_snapshot_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    cache.mkdir(parents=True)
+    (cache / "deadbeef00.json").write_text("[]", encoding="utf-8")
+    with pytest.raises(PreviewCacheError, match="unexpected shape"):
+        load_preview(cache, "deadbeef00")
+
+
+def test_load_snapshot_with_non_object_item_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    (cache / f"{snapshot.id}.json").write_text(
+        f'{{"id":"{snapshot.id}","items":["not an object"]}}',
+        encoding="utf-8",
+    )
+    with pytest.raises(PreviewCacheError, match="items must contain objects"):
+        load_preview(cache, snapshot.id)
+
+
+def test_load_snapshot_with_id_mismatch_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    (cache / f"{snapshot.id}.json").write_text(
+        '{"id":"000000","items":[]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(PreviewCacheError, match="id must match"):
+        load_preview(cache, snapshot.id)
+
+
+def test_load_snapshot_with_non_string_metadata_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    payload = json.loads((cache / f"{snapshot.id}.json").read_text(encoding="utf-8"))
+    payload["goal"] = 123
+    (cache / f"{snapshot.id}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PreviewCacheError, match="goal must be a string"):
+        load_preview(cache, snapshot.id)
+
+
+def test_load_snapshot_with_non_numeric_score_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    payload = json.loads((cache / f"{snapshot.id}.json").read_text(encoding="utf-8"))
+    payload["items"][0]["final_score"] = "0.91"
+    (cache / f"{snapshot.id}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PreviewCacheError, match="final_score must be a number"):
+        load_preview(cache, snapshot.id)
+
+
+def test_load_snapshot_with_bad_paper_record_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    payload = json.loads((cache / f"{snapshot.id}.json").read_text(encoding="utf-8"))
+    payload["items"][0]["paper"]["authors"] = ["Alice", 42]
+    (cache / f"{snapshot.id}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PreviewCacheError, match="authors must be a list of strings"):
+        load_preview(cache, snapshot.id)
+
+
+def test_load_snapshot_with_bad_video_record_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_video_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    payload = json.loads((cache / f"{snapshot.id}.json").read_text(encoding="utf-8"))
+    payload["items"][0]["video"]["duration"] = "1800"
+    (cache / f"{snapshot.id}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PreviewCacheError, match="duration must be an integer"):
+        load_preview(cache, snapshot.id)
+
+
+def test_load_snapshot_with_bad_site_seed_record_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_site_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    payload = json.loads((cache / f"{snapshot.id}.json").read_text(encoding="utf-8"))
+    payload["items"][0]["site_seed"]["crawl_prefix"] = 123
+    (cache / f"{snapshot.id}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PreviewCacheError, match="crawl_prefix must be a string"):
+        load_preview(cache, snapshot.id)
+
+
 def test_list_previews_returns_metadata(tmp_path):
     cache = preview_cache_dir(tmp_path)
     save_preview(
@@ -196,3 +339,48 @@ def test_list_previews_returns_metadata(tmp_path):
 
 def test_list_previews_empty_when_no_cache(tmp_path):
     assert list_previews(preview_cache_dir(tmp_path)) == []
+
+
+def test_list_previews_skips_wrong_shape_json(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    cache.mkdir(parents=True)
+    (cache / "deadbeef00.json").write_text("[]", encoding="utf-8")
+    assert list_previews(cache) == []
+
+
+def test_list_previews_skips_bad_metadata_json(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    cache.mkdir(parents=True)
+    (cache / "deadbeef00.json").write_text(
+        '{"id":123,"goal":"first goal","items":[]}',
+        encoding="utf-8",
+    )
+    assert list_previews(cache) == []
+
+
+def test_list_previews_skips_id_mismatch(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    cache.mkdir(parents=True)
+    (cache / "deadbeef00.json").write_text(
+        '{"id":"000000","goal":"first goal","items":[]}',
+        encoding="utf-8",
+    )
+    assert list_previews(cache) == []
+
+
+def test_list_previews_skips_bad_nested_item_json(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_site_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    payload = json.loads((cache / f"{snapshot.id}.json").read_text(encoding="utf-8"))
+    payload["items"][0]["site_seed"]["crawl_prefix"] = 123
+    (cache / f"{snapshot.id}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    assert list_previews(cache) == []

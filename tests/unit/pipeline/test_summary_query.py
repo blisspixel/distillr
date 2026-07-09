@@ -143,6 +143,32 @@ class TestSummarizeQuery:
         assert result is not None and not result.cached
         assert len(calls) == 2
 
+    def test_wrong_shape_cache_regenerates(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.write_text("[]", encoding="utf-8")
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert len(calls) == 2
+
+    def test_non_string_summary_cache_regenerates(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.write_text('{"summary": 123, "model": "grok-4.3"}', encoding="utf-8")
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert len(calls) == 2
+
 
 _FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0, "calls": 0}
 

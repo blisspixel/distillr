@@ -11,11 +11,24 @@ from distill.eval.judge import (
     judge_pairwise,
     judge_shares_family,
 )
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker
 
 
 def _resp(text: str):
     return SimpleNamespace(text=text, input_tokens=200, output_tokens=30, model="grok-4.3")
+
+
+def _router_config() -> RouterConfig:
+    return RouterConfig.model_validate(
+        {
+            "provider": "xai",
+            "xai_api_key": "",
+            "gemini_api_key": "",
+            "anthropic_api_key": "",
+            "openai_api_key": "",
+        }
+    )
 
 
 def test_pairwise_candidate_always_wins_both_orderings(monkeypatch):
@@ -53,6 +66,44 @@ def test_pairwise_returns_none_when_unparseable(monkeypatch):
     assert judge_pairwise("s", "c", "a", judge_model="grok-4.3") is None
 
 
+def test_pairwise_returns_none_when_json_object_is_malformed(monkeypatch):
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp("{not json}"))
+    tracker = CostTracker()
+    assert (
+        judge_pairwise(
+            "s",
+            "c",
+            "a",
+            judge_model="grok-4.3",
+            tracker=tracker,
+            router_config=_router_config(),
+        )
+        is None
+    )
+    assert len(tracker.entries) == 2
+
+
+def test_pairwise_returns_none_for_unknown_winner_label(monkeypatch):
+    monkeypatch.setattr(
+        judge_mod,
+        "llm_call",
+        lambda *a, **k: _resp('{"winner": "C", "rationale": "invalid label"}'),
+    )
+    tracker = CostTracker()
+    assert (
+        judge_pairwise(
+            "s",
+            "c",
+            "a",
+            judge_model="grok-4.3",
+            tracker=tracker,
+            router_config=_router_config(),
+        )
+        is None
+    )
+    assert len(tracker.entries) == 2
+
+
 def test_pairwise_returns_none_when_only_one_ordering_parses(monkeypatch):
     # A single parseable ordering is position-biased; without both there is no
     # debiased verdict, so the result is None (deterministic-only) rather than a
@@ -65,6 +116,23 @@ def test_pairwise_returns_none_when_only_one_ordering_parses(monkeypatch):
     )
     monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp(next(seq)))
     assert judge_pairwise("s", "c", "a", judge_model="grok-4.3") is None
+
+
+def test_pairwise_tie_verdicts_score_as_half(monkeypatch):
+    seq = iter(
+        [
+            '{"winner": "tie", "rationale": "same grounding"}',
+            '{"winner": "TIE", "rationale": ""}',
+        ]
+    )
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp(next(seq)))
+    res = judge_pairwise(
+        "src", "cand", "anchor", judge_model="grok-4.3", router_config=_router_config()
+    )
+    assert res is not None
+    assert res.win_rate == 0.5
+    assert res.comparisons == 2
+    assert res.rationale == "same grounding"
 
 
 def test_judge_routes_to_its_own_provider(monkeypatch):
@@ -157,6 +225,18 @@ def test_faithfulness_parses_unfaithful_with_unsupported_claims(monkeypatch):
 def test_faithfulness_returns_none_on_unparseable(monkeypatch):
     monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp("no json at all"))
     assert judge_faithfulness("s", "o", judge_model="grok-4.3") is None
+
+
+def test_faithfulness_returns_none_when_json_object_is_malformed(monkeypatch):
+    monkeypatch.setattr(judge_mod, "llm_call", lambda *a, **k: _resp("{not json}"))
+    tracker = CostTracker()
+    assert (
+        judge_faithfulness(
+            "s", "o", judge_model="grok-4.3", tracker=tracker, router_config=_router_config()
+        )
+        is None
+    )
+    assert len(tracker.entries) == 1
 
 
 def test_faithfulness_returns_none_on_unknown_label(monkeypatch):

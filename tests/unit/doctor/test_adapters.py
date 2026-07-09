@@ -207,6 +207,52 @@ def test_adapter_doctor_reports_session_config_but_keeps_route_blocked(monkeypat
     assert not grok.no_metered_eligible
 
 
+def test_adapter_doctor_reads_bom_prefixed_toml_config(monkeypatch, tmp_path):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    config_dir = tmp_path / ".grok"
+    config_dir.mkdir()
+    (config_dir / "config.toml").write_text(
+        '\ufeff[auth]\ncached_token = "redacted-token"\n',
+        encoding="utf-8",
+    )
+
+    report = adapters.adapter_doctor_report(
+        environ={},
+        home_dir=tmp_path,
+        runner=_runner_with_required_flags,
+    )
+
+    grok = next(probe for probe in report.adapters if probe.name == "grok")
+    assert grok.auth_mode == "session-config"
+    assert "~/.grok/config.toml: cached_token" in grok.auth_evidence
+    assert "redacted-token" not in " ".join(grok.auth_evidence + grok.blocked_reasons)
+    assert "~/.grok/config.toml could not be parsed" not in grok.blocked_reasons
+
+
+def test_adapter_doctor_reports_malformed_config_without_leaking_values(monkeypatch, tmp_path):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir()
+    (config_dir / "config.toml").write_text(
+        '[model_provider.openai\napi_key = "secret-value"\n',
+        encoding="utf-8",
+    )
+
+    report = adapters.adapter_doctor_report(
+        environ={},
+        home_dir=tmp_path,
+        runner=_runner_with_required_flags,
+    )
+
+    codex = next(probe for probe in report.adapters if probe.name == "codex")
+    output_text = " ".join(codex.auth_evidence + codex.blocked_reasons)
+    assert codex.config_files_found == ["~/.codex/config.toml"]
+    assert "~/.codex/config.toml could not be parsed" in codex.blocked_reasons
+    assert "auth mode is unknown" in codex.blocked_reasons
+    assert "secret-value" not in output_text
+    assert not codex.no_metered_eligible
+
+
 def test_antigravity_uses_current_agy_cli_and_config_path(monkeypatch, tmp_path):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
     config_dir = tmp_path / ".gemini" / "antigravity-cli"
