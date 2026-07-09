@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Bounded the runtime MCP dependency to the stable `>=1.27.2,<2` line and
+  refreshed the lock to v1.28.1, so a fresh installation cannot silently
+  resolve the breaking v2 SDK before the post-final compatibility spike
+  validates and explicitly graduates it.
+
 ### Fixed
 
 - Hardened persisted discover preview replay: cached preview snapshots now parse

@@ -95,6 +95,10 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 0b. MCP 2026-07-28 compatibility spike
 
+- [x] **Pre-final SDK containment.** Bound production installs to
+  `mcp>=1.27.2,<2` so the breaking SDK v2 line cannot enter fresh installs
+  before the final-spec compatibility spike explicitly graduates it. The lock,
+  wheel metadata, and package-metadata regression test carry the same boundary.
 - [ ] **MCP 2026-07-28 compatibility spike.** After the final spec publishes on
   July 28, 2026 and the Python SDK support path is clear, validate Distill's MCP
   surface before the 1.0 contract freeze. This is a near-term compatibility

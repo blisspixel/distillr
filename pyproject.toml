@@ -38,7 +38,9 @@ dependencies = [
     "pyyaml>=6.0.0",
     "python-docx>=1.0.0",
     "playwright>=1.52.0",
-    "mcp>=1.0.0",
+    # MCP SDK v2 is a breaking line. Keep production installs on stable v1
+    # until the roadmap compatibility spike explicitly graduates v2.
+    "mcp>=1.27.2,<2",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "jinja2>=3.1.0",
