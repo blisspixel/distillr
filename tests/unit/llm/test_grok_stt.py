@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from distill.llm.grok_stt import STT_ENDPOINT, transcribe_with_grok
+from distill.llm.grok_stt import (
+    STT_ENDPOINT,
+    _keyterm_list,
+    keyterms_from_hint,
+    transcribe_with_grok,
+)
 
 
 def _audio(tmp_path: Path) -> Path:
@@ -19,6 +24,28 @@ def _audio(tmp_path: Path) -> Path:
 
 def test_endpoint_constant_is_xai() -> None:
     assert STT_ENDPOINT == "https://api.x.ai/v1/stt"
+
+
+def test_keyterm_preview_forwards_limits_and_joins_terms() -> None:
+    hint = "Alpha, Longer, Beta, Gamma"
+    assert keyterms_from_hint(hint, max_terms=2, max_term_chars=5) == "Alpha, Beta"
+
+
+def test_keyterm_filter_rejects_empty_long_url_sentence_and_duplicate_terms() -> None:
+    hint = (
+        ","
+        + "x" * 51
+        + ",httpserver,ftp://example.com,"
+        + "one two three four five six seven eight,"
+        + "MCP,mcp,Valid,one two three four five six seven"
+    )
+
+    assert _keyterm_list(hint) == ["MCP", "Valid", "one two three four five six seven"]
+
+
+def test_keyterm_filter_stops_at_limit() -> None:
+    assert _keyterm_list("") == []
+    assert _keyterm_list("Alpha,Beta,Gamma", max_terms=2) == ["Alpha", "Beta"]
 
 
 def test_requires_api_key(tmp_path: Path) -> None:
@@ -64,17 +91,20 @@ def test_happy_path_returns_text(tmp_path: Path) -> None:
         captured["headers"] = kwargs.get("headers")
         captured["data"] = kwargs.get("data")
         captured["files"] = kwargs.get("files")
+        captured["timeout"] = kwargs.get("timeout")
+        captured["audio"] = kwargs["files"]["file"][1].read()
         return _fake_response(text="hello there")
 
     with patch("distill.llm.grok_stt.httpx.post", side_effect=_fake_post):
-        text = transcribe_with_grok(_audio(tmp_path), api_key="xai-k", language="en")
+        text = transcribe_with_grok(_audio(tmp_path), api_key="xai-k", language="en", timeout=12.5)
 
     assert text == "hello there"
     assert captured["url"] == STT_ENDPOINT
     assert captured["headers"]["Authorization"] == "Bearer xai-k"
+    assert captured["timeout"] == 12.5
+    assert captured["audio"] == b"audio bytes"
     fields = _data_dict(captured["data"])
-    assert fields["language"] == ["en"]
-    assert fields["format"] == ["true"]
+    assert fields == {"language": ["en"], "format": ["true"]}
 
 
 def test_omits_format_flag_when_no_language(tmp_path: Path) -> None:
@@ -89,8 +119,7 @@ def test_omits_format_flag_when_no_language(tmp_path: Path) -> None:
         transcribe_with_grok(_audio(tmp_path), api_key="xai-k", language="")
 
     fields = _data_dict(captured["data"])
-    assert "format" not in fields
-    assert "language" not in fields
+    assert fields == {}
 
 
 def test_vocab_hint_becomes_repeated_keyterm_fields(tmp_path: Path) -> None:
@@ -110,7 +139,7 @@ def test_vocab_hint_becomes_repeated_keyterm_fields(tmp_path: Path) -> None:
         )
 
     fields = _data_dict(captured["data"])
-    assert fields["keyterm"] == ["Claude Code", "Anthropic", "MCP"]
+    assert fields == {"keyterm": ["Claude Code", "Anthropic", "MCP"]}
 
 
 def test_keyterm_omitted_when_no_valid_terms(tmp_path: Path) -> None:
@@ -143,6 +172,17 @@ def test_error_response_surfaces_body(tmp_path: Path) -> None:
         pytest.raises(RuntimeError, match=r"language.*required"),
     ):
         transcribe_with_grok(_audio(tmp_path), api_key="xai-k", language="")
+
+
+def test_error_response_without_body_uses_explicit_placeholder(tmp_path: Path) -> None:
+    with (
+        patch(
+            "distill.llm.grok_stt.httpx.post",
+            return_value=_fake_response(status=503, body=""),
+        ),
+        pytest.raises(RuntimeError, match=r"503 Bad Request: \(empty body\)"),
+    ):
+        transcribe_with_grok(_audio(tmp_path), api_key="xai-k")
 
 
 def test_picks_content_type_from_extension(tmp_path: Path) -> None:
@@ -188,5 +228,27 @@ def test_response_missing_text_field_raises(tmp_path: Path) -> None:
     with (
         patch("distill.llm.grok_stt.httpx.post", side_effect=_fake_post),
         pytest.raises(RuntimeError, match="missing 'text'"),
+    ):
+        transcribe_with_grok(_audio(tmp_path), api_key="xai-k")
+
+
+def test_response_rejects_present_non_string_text(tmp_path: Path) -> None:
+    response = _fake_response()
+    response.json.return_value = {"text": 123}
+
+    with (
+        patch("distill.llm.grok_stt.httpx.post", return_value=response),
+        pytest.raises(RuntimeError, match="missing 'text' field"),
+    ):
+        transcribe_with_grok(_audio(tmp_path), api_key="xai-k")
+
+
+def test_response_rejects_non_object_payload(tmp_path: Path) -> None:
+    response = _fake_response()
+    response.json.return_value = ["unexpected"]
+
+    with (
+        patch("distill.llm.grok_stt.httpx.post", return_value=response),
+        pytest.raises(RuntimeError, match="Unexpected Grok STT payload shape: list"),
     ):
         transcribe_with_grok(_audio(tmp_path), api_key="xai-k")

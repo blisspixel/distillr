@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   direct tests for cost-mode and numeric policy failures, workflow-budget key
   and input forms, unreadable checkout-marker fallback, deprecated helper
   delegation, and sanitized site and paper path funnels.
+- Raised the Grok speech-to-text provider boundary to 100% branch coverage.
+  Mocked tests now pin keyterm filtering and limits, multipart media bytes,
+  authorization and timeout forwarding, format/language coupling, content-type
+  fallback, error-body diagnostics, and strict response-object/text parsing.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
