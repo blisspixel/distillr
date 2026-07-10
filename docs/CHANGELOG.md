@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   live note already matches the requested snapshot. This closes the partial
   state left if a prior restore wrote the note but failed before its rollup
   update, without creating a redundant backup or rewriting the note.
+- Raised the query-focused summary and cache boundary to 100% branch coverage.
+  Hermetic cases now prove that disappeared search artifacts fail closed before
+  model invocation, cached summaries with unknown-source citations are
+  regenerated, and supplied cost trackers record compression usage. Cache
+  revisions now hash the ordered, exact bounded receipt content supplied to the
+  model instead of a racy size and modification-time snapshot. Corrupt-cache
+  recovery uses an explicit suppression scope instead of an empty exception
+  body.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are

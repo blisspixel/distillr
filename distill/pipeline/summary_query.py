@@ -7,8 +7,9 @@ module is that primitive's engine: the existing lexical rank selects the
 slice, one compression call summarizes it *focused on the query*, and the
 result is cached by ``(topic, query, max_tokens, corpus_revision)`` so
 repeated sub-agent calls don't repay the compression cost. The revision is a
-hash of the matched files' identity + mtime + size -- the cache invalidates
-exactly when the underlying corpus slice changes, never on a clock.
+hash of the ordered matched files' relative paths and exact bounded bodies, so
+the cache invalidates when the text supplied as model context changes, never on a clock
+or a racy pre-read metadata snapshot.
 """
 
 # pyright: strict
@@ -52,15 +53,16 @@ class QuerySummary:
     refused_reason: str = ""
 
 
-def _corpus_revision(files: list[Path]) -> str:
-    """Identity of the matched slice: path + mtime + size, order-stable."""
+def _corpus_revision(sources: list[tuple[str, str]]) -> str:
+    """Hash the ordered path and bounded-body pairs supplied as model context."""
     h = hashlib.sha256()
-    for f in sorted(files):
-        try:
-            st = f.stat()
-            h.update(f"{f.name}|{st.st_mtime_ns}|{st.st_size}\n".encode())
-        except OSError:
-            h.update(f"{f.name}|gone\n".encode())
+    for source_path, content in sources:
+        path_bytes = source_path.encode()
+        content_bytes = content.encode()
+        h.update(len(path_bytes).to_bytes(8, "big"))
+        h.update(path_bytes)
+        h.update(len(content_bytes).to_bytes(8, "big"))
+        h.update(content_bytes)
     return h.hexdigest()[:16]
 
 
@@ -118,32 +120,33 @@ def summarize_query(
     if not results:
         return None
 
-    files = [config.library_dir / r.path for r in results]
-    allowed_stems = [Path(r.path).stem for r in results]
-    revision = _corpus_revision(files)
-    key = hashlib.sha256(f"{topic}|{query}|{max_tokens}|{revision}".encode()).hexdigest()[:20]
-    cache_file = _cache_path(config, key)
-    if cache_file.exists():
-        try:
-            cached_summary = _load_cached_summary(cache_file, allowed_stems)
-            if cached_summary is not None:
-                return cached_summary
-        except (OSError, json.JSONDecodeError, ValueError):
-            pass
-        with suppress(OSError):
-            cache_file.unlink()
+    files = [config.library_dir / result.path for result in results]
 
     blocks: list[str] = []
     stems: list[str] = []
-    for f in files:
+    revision_sources: list[tuple[str, str]] = []
+    for result, source_file in zip(results, files, strict=True):
         try:
-            body = strip_frontmatter(f.read_text(encoding="utf-8"))[:_MAX_SOURCE_CHARS]
+            source_text = source_file.read_text(encoding="utf-8")
         except OSError:
             continue
-        stems.append(f.stem)
-        blocks.append(f"[{f.stem}]\n{body}")
+        body = strip_frontmatter(source_text)[:_MAX_SOURCE_CHARS]
+        stems.append(source_file.stem)
+        blocks.append(f"[{source_file.stem}]\n{body}")
+        revision_sources.append((result.path, body))
     if not blocks:
         return None
+
+    revision = _corpus_revision(revision_sources)
+    key = hashlib.sha256(f"{topic}|{query}|{max_tokens}|{revision}".encode()).hexdigest()[:20]
+    cache_file = _cache_path(config, key)
+    if cache_file.exists():
+        with suppress(OSError, json.JSONDecodeError, ValueError):
+            cached_summary = _load_cached_summary(cache_file, stems)
+            if cached_summary is not None:
+                return cached_summary
+        with suppress(OSError):
+            cache_file.unlink()
 
     rc = RouterConfig()
     response = llm_call(

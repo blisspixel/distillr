@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import json
+import os
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from pydantic import SecretStr
 
 from distill.config import DistillConfig
 from distill.llm.router import LLM_Response
 from distill.pipeline import summary_query as sq_mod
+from distill.pipeline.costs import CostTracker
 from distill.pipeline.summary_query import QuerySummary
 
 
 @pytest.fixture
 def config(tmp_path):
-    return DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
+    return DistillConfig(xai_api_key=SecretStr("t"), distill_output_dir=tmp_path / "library")
 
 
 def _seed(config, name="checker", body=None):
@@ -44,6 +48,36 @@ def _patch_llm(
 
 
 class TestSummarizeQuery:
+    @pytest.mark.parametrize("cache_present", [False, True], ids=["no-cache", "matching-cache"])
+    def test_missing_search_artifact_returns_none_without_model_call(
+        self, config, monkeypatch, tmp_path, cache_present
+    ):
+        missing_path = "topics/t/papers/gone/gone_Insights.md"
+        cache_file = tmp_path / "missing-source-cache.json"
+        if cache_present:
+            cache_file.write_text(
+                json.dumps(
+                    {
+                        "summary": "Cached claim [gone_Insights].",
+                        "model": "stale-model",
+                    }
+                ),
+                encoding="utf-8",
+            )
+        monkeypatch.setattr(
+            sq_mod,
+            "search_corpus",
+            lambda *_args, **_kwargs: [SimpleNamespace(path=missing_path)],
+        )
+        monkeypatch.setattr(sq_mod, "_cache_path", lambda *_args, **_kwargs: cache_file)
+        monkeypatch.setattr(
+            sq_mod,
+            "llm_call",
+            lambda *_args, **_kwargs: pytest.fail("missing sources must not reach the model"),
+        )
+
+        assert sq_mod.summarize_query(config, "t", "vanished source") is None
+
     def test_summary_with_citations_and_cache_write(self, config, monkeypatch):
         _seed(config)
         calls: list = []
@@ -69,6 +103,29 @@ class TestSummarizeQuery:
         assert second.cached and second.summary == first.summary
         assert len(calls) == 1  # the whole point
 
+    def test_cache_with_unknown_citation_is_deleted_and_regenerated(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "summary": "Unsupported claim [fabricated_Insights].",
+                    "model": "stale-model",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert result.sources == ["checker_Insights"]
+        assert len(calls) == 2
+        assert "fabricated_Insights" not in cache_file.read_text(encoding="utf-8")
+
     def test_corpus_change_invalidates_cache(self, config, monkeypatch):
         path = _seed(config)
         calls: list = []
@@ -84,6 +141,67 @@ class TestSummarizeQuery:
         result = sq_mod.summarize_query(config, "t", "grounding verification")
 
         assert result is not None and not result.cached
+        assert len(calls) == 2
+
+    def test_content_change_invalidates_cache_when_size_and_mtime_match(self, config, monkeypatch):
+        path = _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        first = sq_mod.summarize_query(config, "t", "grounding verification")
+        original = path.read_text(encoding="utf-8")
+        original_stat = path.stat()
+        replacement = original.replace("0.878", "0.123")
+        assert len(replacement.encode()) == len(original.encode())
+        path.write_text(replacement, encoding="utf-8")
+        os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
+        second = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert first is not None and second is not None
+        assert not second.cached
+        assert len(calls) == 2
+
+    def test_frontmatter_only_change_keeps_cache_for_unchanged_model_context(
+        self, config, monkeypatch
+    ):
+        path = _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        first = sq_mod.summarize_query(config, "t", "grounding verification")
+        original = path.read_text(encoding="utf-8")
+        path.write_text(original.replace("---\n---", "---\ntitle: Updated\n---"), encoding="utf-8")
+
+        second = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert first is not None and second is not None
+        assert second.cached
+        assert len(calls) == 1
+
+    def test_source_rank_change_invalidates_cache(self, config, monkeypatch):
+        first_path = _seed(config, name="first", body="grounding verification alpha")
+        second_path = _seed(config, name="second", body="grounding verification beta")
+        ranked_paths = [first_path, second_path]
+        calls: list = []
+        _patch_llm(
+            monkeypatch,
+            calls,
+            text="Both sources discuss grounding [first_Insights].",
+        )
+
+        def ranked_results(*_args, **_kwargs):
+            return [
+                SimpleNamespace(path=path.relative_to(config.library_dir).as_posix())
+                for path in ranked_paths
+            ]
+
+        monkeypatch.setattr(sq_mod, "search_corpus", ranked_results)
+        first = sq_mod.summarize_query(config, "t", "grounding verification")
+        ranked_paths.reverse()
+
+        second = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert first is not None and second is not None
+        assert not second.cached
         assert len(calls) == 2
 
     def test_summary_refuses_unknown_source_citation_without_cache(self, config, monkeypatch):
@@ -127,6 +245,25 @@ class TestSummarizeQuery:
 
         assert len(calls) == 2
 
+    def test_summary_records_model_usage(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        tracker = CostTracker()
+
+        result = sq_mod.summarize_query(
+            config,
+            "t",
+            "grounding verification",
+            tracker=tracker,
+        )
+
+        assert result is not None
+        assert len(tracker.entries) == 1
+        assert tracker.entries[0].call_type == "find_summary"
+        assert tracker.entries[0].prompt_tokens == 10
+        assert tracker.entries[0].completion_tokens == 10
+
     def test_no_matches_returns_none(self, config):
         assert sq_mod.summarize_query(config, "empty", "anything") is None
 
@@ -142,6 +279,24 @@ class TestSummarizeQuery:
 
         assert result is not None and not result.cached
         assert len(calls) == 2
+
+    def test_corrupt_cache_is_removed_before_failed_regeneration(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.write_text("{not json", encoding="utf-8")
+
+        def fail_regeneration(*_args, **_kwargs):
+            raise RuntimeError("model unavailable")
+
+        monkeypatch.setattr(sq_mod, "llm_call", fail_regeneration)
+
+        with pytest.raises(RuntimeError, match="model unavailable"):
+            sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert not cache_file.exists()
 
     def test_wrong_shape_cache_regenerates(self, config, monkeypatch):
         _seed(config)
@@ -236,7 +391,7 @@ class TestMcpTools:
         from distill.mcp.tools.summaries import find_insights_summary
 
         monkeypatch.setenv("DISTILL_PROVIDER", "openai")
-        config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+        config = DistillConfig(xai_api_key=SecretStr(""), distill_output_dir=tmp_path / "library")
         monkeypatch.setattr(_server, "_config", lambda: config)
 
         result = json.loads(find_insights_summary("t", "q"))
