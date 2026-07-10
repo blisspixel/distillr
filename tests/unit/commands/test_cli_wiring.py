@@ -3390,7 +3390,7 @@ class TestSiteCommands:
             monkeypatch.setattr(
                 _site_ingest,
                 "ingest_page_attachments",
-                lambda page, page_dir, config: (
+                lambda page, page_dir, config, **_kwargs: (
                     [
                         __import__(
                             "distill.ingestors.sites.attachments", fromlist=["AttachmentRecord"]

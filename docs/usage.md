@@ -777,6 +777,7 @@ All CLI commands return stable exit codes for scripting and CI integration:
 | 3 | CONFIG_ERROR | Missing API key or invalid configuration |
 | 4 | NETWORK_ERROR | API timeout, DNS failure, HTTP error |
 | 5 | NOT_FOUND | Requested topic, channel, or resource doesn't exist |
+| 6 | BUDGET_EXCEEDED | A workflow or per-call cost cap refused further work |
 
 ## Setup (`distill init`)
 
@@ -821,9 +822,10 @@ records for post-run review even when console output remains warning-only.
 
 ## JSON Output
 
-Pass `--json` for machine-readable output. The read surface is covered -
-`library`, `videos`, `show`, `synthesis`, `findings`, `costs`, `doctor`,
-`health`, `alerts`, the dashboard view, and `concepts` export:
+Pass the global `--json` flag for commands that implement a structured output
+contract. Stable read envelopes include `library`, `videos`, `show`,
+`synthesis`, `findings`, `costs`, `doctor`, `health`, `alerts`, the dashboard
+view, and `concepts` export:
 
 ```bash
 distill --json library               # topic + channel inventory
@@ -837,10 +839,14 @@ distill --json doctor                # health check + readiness verdict
 When `--json` is active:
 - **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` - nothing else, so it always parses
 - **stderr** carries all human/progress/diagnostic output (the shared console is redirected there), so it never corrupts the JSON on stdout
-- `--json` is **read-only**: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation
+- the listed **read surfaces** stay read-only: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation
 - Rich formatting and color are suppressed on stdout; `NO_COLOR` is respected
 
-Exit codes still apply (e.g. 3 for config errors), so a caller can branch on both the envelope and the code.
+`--json` changes output shape, not command side effects. Preview and action-plan
+commands document their own JSON contracts, including `site-batch --preview`
+and `audit --next-actions`. Do not assume that an unlisted command emits an
+envelope merely because the global flag parses. Exit codes still apply, so a
+caller can branch on both a documented envelope and the code.
 
 ## Unattended / agent operation
 
@@ -864,16 +870,18 @@ Evaluation does not require API keys. Use `--preview` (or `--seed-only --preview
 # Zero-key preview of bundled site seeds (no analysis)
 distill site-batch configs/example_seeds.json --topic demo --seed-only --preview
 
-# Inspect the public example corpus (no keys needed)
+# Inspect the CLI and the public example corpus (no keys needed)
 distill --help
-distill library --json   # or open examples/ in your editor/Obsidian
-
-# Read the example corpus orientation (generated AGENTS.md / CLAUDE.md style)
-ls examples/library/topics/
-cat examples/library/topics/*/AGENTS.md | head -20
 ```
 
-The example seeds and corpus let you walk the preview, plan, and read surfaces with zero setup beyond the install. Full analysis paths still require keys or a local model server.
+From a source checkout, open
+`examples/library/topics/claim-verification/AGENTS.md` and
+`examples/library/topics/claim-verification/claim_verification_Paper_Synthesis.md`
+directly in your editor or Obsidian. These generated example receipts are
+files to inspect, not a registered live library. The example seeds and corpus
+let you walk the preview, plan, and artifact-reading surfaces with zero setup
+beyond the install. Full analysis paths still require keys or a local model
+server.
 
 ## Updating distill
 

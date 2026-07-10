@@ -25,6 +25,27 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+:focus-visible {
+  outline: 3px solid var(--accent2);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--panel);
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 /* ── Layout ──────────────────────────────────────────────── */
 
 .layout {
@@ -78,6 +99,7 @@ a:hover { text-decoration: underline; }
 
 .main {
   flex: 1;
+  min-width: 0;
   padding: 28px 36px;
   max-width: 1200px;
 }
@@ -108,6 +130,42 @@ h3 { font-size: 1.05rem; margin-bottom: 8px; }
   margin-bottom: 14px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line);
+}
+
+.empty-state {
+  max-width: 720px;
+}
+
+.empty-state .eyebrow {
+  color: var(--accent);
+  font-family: system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.empty-state > p {
+  line-height: 1.6;
+}
+
+.empty-state ol {
+  margin: 18px 0;
+  padding-left: 28px;
+}
+
+.empty-state li {
+  margin: 10px 0;
+}
+
+.empty-state code {
+  overflow-wrap: anywhere;
+}
+
+.empty-state-note {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 /* ── Metrics grid ────────────────────────────────────────── */
@@ -357,4 +415,59 @@ ul.clean li:last-child { border-bottom: none; }
 .attention-item.ok {
   border-left-color: var(--accent);
   background: var(--accent-light);
+}
+
+@media (max-width: 760px) {
+  .layout {
+    display: block;
+  }
+
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 18px 16px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sidebar .tagline {
+    margin-bottom: 14px;
+  }
+
+  .sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .sidebar nav a {
+    margin-bottom: 0;
+    text-align: center;
+  }
+
+  .main {
+    width: 100%;
+    max-width: none;
+    padding: 22px 16px;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid-2,
+  .grid-3,
+  .topic-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card {
+    min-width: 0;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+  }
 }

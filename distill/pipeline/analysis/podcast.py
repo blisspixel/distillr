@@ -82,7 +82,12 @@ def _episode_markdown(feed: PodcastFeed, ep: PodcastEpisode, transcript_source: 
 
 
 def _resolve_transcript(
-    ep: PodcastEpisode, config: DistillConfig, *, transcribe: bool, skipped: list[str]
+    ep: PodcastEpisode,
+    config: DistillConfig,
+    *,
+    transcribe: bool,
+    skipped: list[str],
+    tracker: CostTracker | None,
 ) -> tuple[str, str]:
     """Return ``(transcript_text, source_label)`` via the free-first ladder."""
     if ep.transcript_url:
@@ -102,7 +107,13 @@ def _resolve_transcript(
         audio = download_audio(ep.audio_url, Path(tmp))
         hint = f"{ep.title}. {ep.description[:300]}"
         try:
-            result = transcribe_media(audio, config, vocabulary_hint=hint)
+            result = transcribe_media(
+                audio,
+                config,
+                vocabulary_hint=hint,
+                tracker=tracker,
+                duration_hint_s=float(ep.duration_s),
+            )
         except TranscriptionError as exc:
             skipped.append(f"{ep.title}: transcription failed ({exc})")
             return "", "none"
@@ -148,7 +159,11 @@ def ingest_podcast(
         console.print(f"  [dim]{ep.title}[/dim]")
 
         transcript, transcript_source = _resolve_transcript(
-            ep, config, transcribe=transcribe, skipped=result.skipped_reasons
+            ep,
+            config,
+            transcribe=transcribe,
+            skipped=result.skipped_reasons,
+            tracker=tracker,
         )
         episode_md = _episode_markdown(feed, ep, transcript_source)
         frontmatter = base_frontmatter(

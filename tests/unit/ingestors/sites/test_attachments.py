@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.ingestors.sites.attachments import (
     _extract_youtube_video_id,
@@ -84,7 +86,7 @@ def test_ingest_page_attachments_extracts_pdf_and_youtube(monkeypatch, tmp_path)
     )
     monkeypatch.setattr(
         "distill.ingestors.sites.attachments._ingest_youtube_attachment",
-        lambda attachment, attachments_dir, config: (
+        lambda attachment, attachments_dir, config, **_kwargs: (
             type(attachment)(
                 **{
                     **attachment.to_dict(),
@@ -288,9 +290,8 @@ def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
         "distill.ingestors.sites.attachments.get_transcript",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("bad transcript")),
     )
-    failed_video, _ = _ingest_youtube_attachment(video_attachment, attachments_dir, config)
-    assert failed_video.status == "failed"
-    assert "bad transcript" in failed_video.note
+    with pytest.raises(RuntimeError, match="bad transcript"):
+        _ingest_youtube_attachment(video_attachment, attachments_dir, config)
 
     monkeypatch.setattr(
         "distill.ingestors.sites.attachments.get_transcript", lambda *_args, **_kwargs: False
@@ -454,17 +455,24 @@ def test_youtube_attachment_success(monkeypatch, tmp_path):
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
 
-    def fake_get_transcript(watch_url, video_id, transcript_path, config):
+    seen = {}
+
+    def fake_get_transcript(watch_url, video_id, transcript_path, config, *, tracker=None):
+        seen["tracker"] = tracker
         transcript_path.write_text("Transcript content.", encoding="utf-8")
         return True
 
     monkeypatch.setattr("distill.ingestors.sites.attachments.get_transcript", fake_get_transcript)
-    updated, context = _ingest_youtube_attachment(_youtube_attachment(), attachments_dir, config)
+    tracker = object()
+    updated, context = _ingest_youtube_attachment(
+        _youtube_attachment(), attachments_dir, config, tracker=tracker
+    )
 
     assert updated.status == "ingested"
     assert updated.content_chars == len("Transcript content.")
     assert "Transcript content." in context
     assert updated.text_path == "abc123xyz99-transcript.txt"
+    assert seen["tracker"] is tracker
 
 
 def test_extract_youtube_id_returns_empty_for_youtube_without_id():

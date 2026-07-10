@@ -7,6 +7,7 @@ import re
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from pathlib import Path
+from typing import Protocol
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
@@ -33,6 +34,12 @@ _ATTACHMENT_TEXT_LIMIT = 30_000
 # would otherwise be fully read into memory by ``response.content``.
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
 _PDF_MAX_REDIRECTS = 5
+
+
+class _TranscriptionCostTracker(Protocol):
+    def record_transcription(
+        self, provider: str, duration_s: float, *, model: str = ""
+    ) -> None: ...
 
 
 @dataclass
@@ -90,6 +97,8 @@ def ingest_page_attachments(
     page: SitePage,
     page_dir: Path,
     config: DistillConfig,
+    *,
+    tracker: _TranscriptionCostTracker | None = None,
 ) -> tuple[list[AttachmentRecord], str]:
     attachments = collect_page_attachments(page)
     if not attachments:
@@ -105,7 +114,7 @@ def ingest_page_attachments(
             updated_attachment, context = _ingest_pdf_attachment(attachment, attachments_dir)
         elif attachment.kind == "video" and attachment.provider == "youtube":
             updated_attachment, context = _ingest_youtube_attachment(
-                attachment, attachments_dir, config
+                attachment, attachments_dir, config, tracker=tracker
             )
         else:
             updated_attachment, context = attachment, ""
@@ -238,6 +247,8 @@ def _ingest_youtube_attachment(
     attachment: AttachmentRecord,
     attachments_dir: Path,
     config: DistillConfig,
+    *,
+    tracker: _TranscriptionCostTracker | None = None,
 ) -> tuple[AttachmentRecord, str]:
     video_id = _extract_youtube_video_id(attachment.url)
     if not video_id:
@@ -247,12 +258,13 @@ def _ingest_youtube_attachment(
 
     transcript_path = attachments_dir / f"{video_id}-transcript.txt"
     watch_url = f"https://www.youtube.com/watch?v={video_id}"
-    try:
-        success = get_transcript(watch_url, video_id, transcript_path, config)
-    except Exception as exc:
-        attachment.status = "failed"
-        attachment.note = str(exc)
-        return attachment, ""
+    success = get_transcript(
+        watch_url,
+        video_id,
+        transcript_path,
+        config,
+        tracker=tracker,
+    )
 
     if not success or not transcript_path.exists():
         attachment.status = "failed"

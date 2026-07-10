@@ -66,8 +66,8 @@ repos:
       # Full suite is too slow for every commit; runs on push instead, matching
       # the CI test gate. Enable with: pre-commit install --hook-type pre-push
       - id: pytest
-        name: pytest (full suite)
-        entry: uv run --frozen pytest -q
+        name: pytest (full suite with branch coverage)
+        entry: uv run --frozen pytest -q --cov=distill --cov-fail-under=95
         language: system
         pass_filenames: false
         always_run: true

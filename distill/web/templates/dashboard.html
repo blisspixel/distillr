@@ -4,10 +4,25 @@
 {% block title %}Distill Dashboard{% endblock %}
 
 {% block content %}
-<h1>Dashboard</h1>
-<p class="subtitle">v{{ version }}</p>
+<div id="dashboard-content" hx-get="/" hx-trigger="every 60s" hx-select="#dashboard-content" hx-swap="outerHTML">
+  <h1>Dashboard</h1>
+  <p class="subtitle">v{{ version }}</p>
 
-<div class="metrics" hx-get="/" hx-trigger="every 60s" hx-select=".metrics" hx-swap="outerHTML">
+{% set has_corpus = topics or total_videos or site_count or paper_count %}
+{% if not has_corpus %}
+<section class="card empty-state" aria-labelledby="empty-dashboard-title">
+  <p class="eyebrow">Start here</p>
+  <h2 id="empty-dashboard-title">Build your first corpus</h2>
+  <p>Initialize Distill, verify the local setup, then preview a source before you ingest it.</p>
+  <ol>
+    <li><code>distill init</code></li>
+    <li><code>distill doctor</code></li>
+    <li><code>distill papers "your research question" --topic my-topic --limit 5 --preview</code></li>
+  </ol>
+  <p class="empty-state-note">Preview shows the proposed work and estimated cost without writing corpus artifacts.</p>
+</section>
+{% else %}
+<div class="metrics">
   {% for label, value in [
     ("Topics", topics|length|string),
     ("Channels", total_channels|string),
@@ -68,7 +83,7 @@
     <ul class="clean">
       {% if topic_changes %}
         {% for topic_name, summary in topic_changes %}
-        <li><a href="/topics/{{ topic_name }}">{{ topic_name }}</a> &mdash; {{ summary }}</li>
+        <li><a href="/topics/{{ topic_name }}">{{ topic_name }}</a> &middot; {{ summary }}</li>
         {% endfor %}
       {% elif recent_artifacts %}
         {% for mtime, kind, label in recent_artifacts %}
@@ -92,7 +107,7 @@
     <h3 style="margin-top:16px;">Top Spend (30d)</h3>
     <ul class="clean">
       {% for topic_name, cost, runs in topic_spend_rollups %}
-      <li>{{ topic_name }} &mdash; ${{ "%.2f"|format(cost) }} / {{ runs }} runs</li>
+      <li>{{ topic_name }} &middot; ${{ "%.2f"|format(cost) }} / {{ runs }} runs</li>
       {% endfor %}
     </ul>
     {% endif %}
@@ -101,7 +116,7 @@
     <h3 style="margin-top:16px;">By Source (30d)</h3>
     <ul class="clean">
       {% for source, cost, runs in source_spend_rollups %}
-      <li>{{ source }} &mdash; ${{ "%.2f"|format(cost) }} / {{ runs }} runs</li>
+      <li>{{ source }} &middot; ${{ "%.2f"|format(cost) }} / {{ runs }} runs</li>
       {% endfor %}
     </ul>
     {% endif %}
@@ -152,5 +167,7 @@
     <div class="attention-item ok">No immediate issues detected</div>
     {% endif %}
   </div>
+</div>
+{% endif %}
 </div>
 {% endblock %}

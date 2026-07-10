@@ -41,6 +41,12 @@ def _headers() -> http.client.HTTPMessage:
         "http://localhost/",  # loopback name
         "https://10.0.0.5/",  # RFC1918
         "https://192.168.1.1/",  # RFC1918
+        "https://100.64.0.1/",  # shared address space
+        "https://192.0.2.1/",  # documentation range
+        "https://[2001:db8::1]/",  # IPv6 documentation range
+        "https://224.0.0.1/",  # IPv4 multicast
+        "https://239.255.255.250/",  # administratively scoped multicast
+        "https://[ff02::1]/",  # IPv6 multicast
         "file:///etc/passwd",  # non-http scheme
         "gopher://x/",  # non-http scheme
     ],
@@ -69,6 +75,11 @@ def test_resolve_public_ip() -> None:
     assert resolve_public_ip("https://127.0.0.1/") is None
     assert resolve_public_ip("https://10.0.0.1/") is None
     assert resolve_public_ip("https://169.254.169.254/") is None
+    assert resolve_public_ip("https://100.64.0.1/") is None
+    assert resolve_public_ip("https://192.0.2.1/") is None
+    assert resolve_public_ip("https://[2001:db8::1]/") is None
+    assert resolve_public_ip("https://224.0.0.1/") is None
+    assert resolve_public_ip("https://[ff02::1]/") is None
     assert resolve_public_ip("file:///etc/passwd") is None
     assert resolve_public_ip("http://localhost/") is None
 

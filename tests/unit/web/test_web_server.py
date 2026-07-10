@@ -103,6 +103,11 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
 
     assert dashboard_response.status_code == 200
     assert "Distill Dashboard" in dashboard_response.text
+    assert 'href="#main-content"' in dashboard_response.text
+    assert 'aria-label="Primary"' in dashboard_response.text
+    assert 'aria-current="page"' in dashboard_response.text
+    assert 'href="/static/style.css?v=' in dashboard_response.text
+    assert "Build your first corpus" not in dashboard_response.text
     assert '"allowEval": false' in dashboard_response.text
     assert '"allowScriptTags": false' in dashboard_response.text
     assert "ai-daily" in watchlist_response.text
@@ -124,6 +129,32 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
     assert "Biggest Prompts" in costs_html
     assert "report" in costs_html
     assert "2,500" in costs_html
+
+
+def test_empty_dashboard_offers_a_truthful_first_action(config):
+    client = TestClient(create_app(config))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Build your first corpus" in response.text
+    assert "distill init" in response.text
+    assert "distill doctor" in response.text
+    assert "No immediate issues detected" not in response.text
+    assert 'class="metrics"' not in response.text
+    assert 'id="dashboard-content"' in response.text
+    assert 'hx-trigger="every 60s"' in response.text
+
+
+def test_dashboard_styles_include_narrow_screen_and_focus_support(config):
+    client = TestClient(create_app(config))
+
+    response = client.get("/static/style.css")
+
+    assert response.status_code == 200
+    assert "@media (max-width: 760px)" in response.text
+    assert ".skip-link:focus" in response.text
+    assert ":focus-visible" in response.text
 
 
 def test_create_app_fallback_markdown_filter_and_run_server(monkeypatch, config):

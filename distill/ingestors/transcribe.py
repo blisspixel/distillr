@@ -19,12 +19,14 @@ local Whisper as well as a 4090 with no cloud keys.
 from __future__ import annotations
 
 import logging
+import math
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from distill.config import DistillConfig
 
@@ -75,6 +77,92 @@ def _default_progress(audio_seconds: float, total_audio_s: float, words: int) ->
 ProgressCallback = Callable[[float, float, int], None]
 
 
+class TranscriptionCostTracker(Protocol):
+    """Minimal ledger boundary needed by the transcription router."""
+
+    def record_transcription(
+        self, provider: str, duration_s: float, *, model: str = ""
+    ) -> None: ...
+
+
+def _complete_transcription(
+    result: TranscriptionResult,
+    *,
+    tracker: TranscriptionCostTracker | None,
+    duration_hint_s: float,
+) -> TranscriptionResult:
+    """Apply trusted duration context and record one completed provider call."""
+
+    result.duration_s = _positive_duration(result.duration_s) or _positive_duration(duration_hint_s)
+    if tracker is not None:
+        tracker.record_transcription(result.provider, result.duration_s, model=result.model)
+    return result
+
+
+def _positive_duration(value: float) -> float:
+    """Normalize finite positive duration values for cost accounting."""
+
+    duration = float(value)
+    return duration if math.isfinite(duration) and duration > 0 else 0.0
+
+
+def _probe_media_duration(media_path: Path) -> float:
+    """Return media duration from ffprobe, or zero when it is unavailable."""
+
+    try:
+        completed = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(media_path),
+            ],
+            capture_output=True,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 0.0
+    if completed.returncode != 0:
+        return 0.0
+    try:
+        return _positive_duration(float(completed.stdout.strip()))
+    except ValueError:
+        return 0.0
+
+
+def _require_ledger_duration(media_path: Path) -> float:
+    """Probe billable duration or refuse an unaccountable cloud call."""
+
+    duration_s = _probe_media_duration(media_path)
+    if duration_s <= 0:
+        raise TranscriptionError(
+            "Cloud transcription refused because media duration is unavailable; "
+            "install ffprobe or supply duration metadata so spend can be recorded."
+        )
+    return duration_s
+
+
+def _prepare_ledger_duration(
+    media_path: Path,
+    duration_hint_s: float,
+    *,
+    tracker: TranscriptionCostTracker | None,
+    api_key: str,
+) -> float:
+    """Require duration only when a tracked cloud route is configured."""
+
+    if tracker is None or not api_key:
+        return duration_hint_s
+    return _require_ledger_duration(media_path)
+
+
 def _attempt(
     name: str,
     fn: Callable[[], TranscriptionResult],
@@ -105,6 +193,8 @@ def transcribe_media(
     prefer: str = "auto",
     local_model: str = "large-v3",
     vocabulary_hint: str = "",
+    tracker: TranscriptionCostTracker | None = None,
+    duration_hint_s: float = 0.0,
     progress: ProgressCallback | None = _default_progress,
     progress_interval_s: float = 30.0,
 ) -> TranscriptionResult:
@@ -148,9 +238,15 @@ def transcribe_media(
             must_succeed=prefer == "local",
         )
         if result is not None:
-            return result
+            return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
 
     if prefer in {"auto", "auto-cloud", "grok"}:
+        duration_hint_s = _prepare_ledger_duration(
+            media_path,
+            duration_hint_s,
+            tracker=tracker,
+            api_key=config.xai_api_key.get_secret_value(),
+        )
         result = _attempt(
             "grok",
             lambda: _transcribe_grok(media_path, config, vocabulary_hint=vocabulary_hint),
@@ -158,9 +254,15 @@ def transcribe_media(
             must_succeed=prefer == "grok",
         )
         if result is not None:
-            return result
+            return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
 
     if prefer in {"auto", "auto-cloud", "openai"}:
+        duration_hint_s = _prepare_ledger_duration(
+            media_path,
+            duration_hint_s,
+            tracker=tracker,
+            api_key=config.openai_api_key.get_secret_value(),
+        )
         result = _attempt(
             "openai",
             lambda: _transcribe_openai(media_path, config, vocabulary_hint=vocabulary_hint),
@@ -168,7 +270,7 @@ def transcribe_media(
             must_succeed=True,
         )
         if result is not None:
-            return result
+            return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
 
     raise TranscriptionError("; ".join(errors) or f"unknown prefer={prefer!r}")
 
@@ -469,6 +571,13 @@ def _transcribe_openai(
     api_key = config.openai_api_key.get_secret_value()
     if not api_key:
         raise _ProviderUnavailable("OPENAI_API_KEY not configured")
+    from distill.llm.cost_policy import require_route_allowed
+
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="openai",
+        workload="speech-to-text",
+    )
     clipped_hint = _clip_for_whisper(vocabulary_hint) if vocabulary_hint else ""
     text = transcribe_with_openai(
         media_path,
@@ -509,6 +618,13 @@ def _transcribe_grok(
     api_key = config.xai_api_key.get_secret_value()
     if not api_key:
         raise _ProviderUnavailable("XAI_API_KEY not configured")
+    from distill.llm.cost_policy import require_route_allowed
+
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="xai",
+        workload="speech-to-text",
+    )
     clipped_hint = _clip_for_whisper(vocabulary_hint) if vocabulary_hint else ""
     text = transcribe_with_grok(
         media_path,

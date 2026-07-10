@@ -64,6 +64,9 @@ def create_app(config: DistillConfig) -> FastAPI:
     templates.env.filters["duration"] = duration_str
     templates.env.filters["format_timestamp"] = format_run_timestamp
     templates.env.filters["strip_frontmatter"] = strip_frontmatter
+    templates.env.globals["asset_version"] = str(
+        (WEB_DIR / "static" / "style.css").stat().st_mtime_ns
+    )
 
     app.state.templates = templates
 

@@ -300,26 +300,110 @@ class TestYoutubeCaptionsFallback:
 
 
 class TestWhisperLadderFallback:
+    @pytest.mark.parametrize(
+        ("raw_duration", "expected_duration"),
+        [(87, 87.0), ("unknown", 0.0), (-5, 0.0), (float("inf"), 0.0)],
+    )
+    def test_download_audio_returns_largest_file_and_safe_duration(
+        self, tmp_path, monkeypatch, raw_duration, expected_duration
+    ):
+        (tmp_path / "small.m4a").write_bytes(b"a")
+        large = tmp_path / "large.m4a"
+        large.write_bytes(b"larger")
+
+        class FakeYDL:
+            def __init__(self, _options):
+                self.options = _options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, _url, *, download):
+                assert download is True
+                return {
+                    "title": "Video Title",
+                    "uploader": "Uploader",
+                    "duration": raw_duration,
+                }
+
+        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+
+        audio, hint, duration_s = transcripts._download_audio(
+            "https://youtube.com/watch?v=abc", "abc", tmp_path
+        )
+
+        assert audio == large
+        assert hint == "Video Title - Uploader"
+        assert duration_s == expected_duration
+
+    def test_download_audio_handles_fetch_failure(self, tmp_path, monkeypatch):
+        class FailingYDL:
+            def __init__(self, _options):
+                self.options = _options
+
+            def __enter__(self):
+                raise RuntimeError("network unavailable")
+
+            def __exit__(self, *_args):
+                return False
+
+        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FailingYDL)
+
+        assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
+            None,
+            "",
+            0.0,
+        )
+
+    def test_download_audio_requires_a_nonempty_output_file(self, tmp_path, monkeypatch):
+        class FakeYDL:
+            def __init__(self, _options):
+                self.options = _options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, _url, *, download):
+                return {"duration": 10}
+
+        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+
+        assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
+            None,
+            "",
+            0.0,
+        )
+
     @patch("distill.ingestors.youtube.transcripts._download_audio")
     def test_ladder_writes_transcript_and_records_spend(self, mock_dl, tmp_path, monkeypatch):
         from types import SimpleNamespace
 
         audio = tmp_path / "abc.m4a"
         audio.write_bytes(b"fake audio")
-        mock_dl.return_value = (audio, "Video Title — Uploader")
+        mock_dl.return_value = (audio, "Video Title - Uploader", 42.0)
 
         fake_result = SimpleNamespace(
             text="ladder transcript", provider="faster-whisper", duration_s=42.0, model="large-v3"
         )
         import distill.ingestors.transcribe as transcribe_mod
-
-        monkeypatch.setattr(transcribe_mod, "transcribe_media", lambda *a, **k: fake_result)
-
         from distill.pipeline.costs import CostTracker
 
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
         output = tmp_path / "t.txt"
         tracker = CostTracker()
+        seen = {}
+
+        def fake_transcribe(*args, **kwargs):
+            seen.update(kwargs)
+            return fake_result
+
+        monkeypatch.setattr(transcribe_mod, "transcribe_media", fake_transcribe)
 
         ok = transcripts._try_whisper_ladder(
             "https://youtube.com/watch?v=abc", "abc", output, config, tracker=tracker
@@ -327,18 +411,42 @@ class TestWhisperLadderFallback:
 
         assert ok is True
         assert output.read_text(encoding="utf-8") == "ladder transcript"
-        assert len(tracker.transcriptions) == 1
-        assert tracker.transcriptions[0].provider == "faster-whisper"
+        assert seen["tracker"] is tracker
+        assert seen["duration_hint_s"] == 42.0
 
     @patch("distill.ingestors.youtube.transcripts._download_audio")
     def test_ladder_fails_cleanly_when_download_fails(self, mock_dl, tmp_path):
-        mock_dl.return_value = (None, "")
+        mock_dl.return_value = (None, "", 0.0)
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
 
         ok = transcripts._try_whisper_ladder(
             "https://youtube.com/watch?v=abc", "abc", tmp_path / "t.txt", config
         )
         assert ok is False
+
+    @patch("distill.ingestors.youtube.transcripts._download_audio")
+    def test_ladder_propagates_budget_stop(self, mock_dl, tmp_path, monkeypatch):
+        from distill.pipeline.costs import BudgetExceededError, CostTracker
+
+        audio = tmp_path / "abc.m4a"
+        audio.write_bytes(b"fake audio")
+        mock_dl.return_value = (audio, "Video Title", 42.0)
+
+        def refuse(*_args, **_kwargs):
+            raise BudgetExceededError(2.0, 1.0)
+
+        import distill.ingestors.transcribe as transcribe_mod
+
+        monkeypatch.setattr(transcribe_mod, "transcribe_media", refuse)
+
+        with pytest.raises(BudgetExceededError):
+            transcripts._try_whisper_ladder(
+                "https://youtube.com/watch?v=abc",
+                "abc",
+                tmp_path / "t.txt",
+                DistillConfig(distill_output_dir=tmp_path / "lib"),
+                tracker=CostTracker(),
+            )
 
 
 class TestScribeFallback:

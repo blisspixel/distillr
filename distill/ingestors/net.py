@@ -41,14 +41,9 @@ _PUBLIC_WEB_SCHEMES = frozenset({"http", "https"})
 
 
 def _is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+    """Return whether an address is globally routable on the public Internet."""
+
+    return ip.is_global and not ip.is_multicast
 
 
 def _resolve_host_to_addrs(host: str) -> list[str]:

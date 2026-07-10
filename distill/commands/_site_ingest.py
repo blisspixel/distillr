@@ -197,7 +197,12 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         page_dir.mkdir(parents=True, exist_ok=True)
         attachments = []
         if ingest_attachments:
-            attachments, attachment_context = ingest_page_attachments(page_obj, page_dir, config)
+            attachments, attachment_context = ingest_page_attachments(
+                page_obj,
+                page_dir,
+                config,
+                tracker=tracker,
+            )
             if attachment_context:
                 page_obj.attachment_context = attachment_context
         else:

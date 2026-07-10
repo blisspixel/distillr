@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Raised the blocking CI and pre-push branch-coverage floor from 93% to 95%,
+  backed by more than 3,900 hermetic tests across the supported Python and OS
+  matrix.
+- The local web dashboard now reflows into a single-column mobile layout,
+  exposes keyboard focus and skip navigation, and shows a setup-oriented empty
+  state instead of zero metrics and a false healthy-state message.
+- Clarified the CLI automation contract: only documented structured surfaces
+  promise a JSON envelope, JSON output does not change command side effects,
+  and budget refusal uses exit code 6.
 - Bounded the runtime MCP dependency to the stable `>=1.27.2,<2` line and
   refreshed the lock to v1.28.1, so a fresh installation cannot silently
   resolve the breaking v2 SDK before the post-final compatibility spike
@@ -26,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Cloud speech-to-text routes now honor `DISTILL_COST_MODE=no-metered` before
+  provider invocation. Completed transcription calls are recorded at the
+  provider boundary before callers interpret empty text. Tracked cloud routes
+  probe the downloaded media duration with `ffprobe` instead of trusting source
+  metadata, and refuse the call when spend cannot be accounted for. YouTube
+  site attachments now receive the same run cost tracker as the parent crawl,
+  and budget-stop exceptions propagate out of the transcription fallback.
+- Public-source URL validation now requires globally routable addresses,
+  rejecting shared address space and documentation ranges as well as private,
+  loopback, link-local, reserved, multicast, and unspecified destinations.
+- Dashboard stylesheet URLs now include an asset-version cache key so an
+  upgraded local install cannot retain a stale layout from a prior release.
 - `distill init` now creates and rewrites `.env` with owner-only permissions on
   POSIX systems and tightens an existing file before reading or updating it, so
   provider credentials are not left group- or world-readable by the setup flow.

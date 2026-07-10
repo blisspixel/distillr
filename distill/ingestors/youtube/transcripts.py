@@ -14,6 +14,7 @@ The resilience order (0.12.11, the 0.11 YouTube-resilience margin):
    installs that configured it.
 """
 
+import math
 import re
 import subprocess
 import sys
@@ -156,28 +157,30 @@ def _try_whisper_ladder(
     class for caption-less YouTube videos too.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        audio_path, hint = _download_audio(video_url, video_id, Path(tmpdir))
+        audio_path, hint, duration_s = _download_audio(video_url, video_id, Path(tmpdir))
         if audio_path is None:
             return False
-        try:
-            from distill.ingestors.transcribe import transcribe_media
+        from distill.ingestors.transcribe import TranscriptionError, transcribe_media
 
-            result = transcribe_media(audio_path, config, vocabulary_hint=hint)
-        except Exception as exc:
+        try:
+            result = transcribe_media(
+                audio_path,
+                config,
+                vocabulary_hint=hint,
+                tracker=tracker,
+                duration_hint_s=duration_s,
+            )
+        except TranscriptionError as exc:
             console.print(f"    [red]Transcription ladder failed: {exc}[/red]")
             return False
         if not result.text.strip():
             return False
         output_path.write_text(result.text, encoding="utf-8")
-        if tracker is not None:
-            tracker.record_transcription(
-                result.provider, result.duration_s or 0.0, model=result.model
-            )
         return True
 
 
-def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path | None, str]:
-    """Fetch bestaudio for the Whisper ladder. Returns ``(path, vocab_hint)``."""
+def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path | None, str, float]:
+    """Fetch bestaudio and return its path, vocabulary hint, and duration."""
     ydl_opts: dict[str, object] = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": str(tmpdir / f"{video_id}.%(ext)s"),
@@ -193,15 +196,18 @@ def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path |
             info = info_mapping(ydl.extract_info(video_url, download=True)) or {}
     except Exception as exc:
         console.print(f"    [red]Audio download failed: {exc}[/red]")
-        return None, ""
+        return None, "", 0.0
     files = [f for f in tmpdir.iterdir() if f.is_file() and f.stat().st_size > 0]
     if not files:
-        return None, ""
+        return None, "", 0.0
     audio = max(files, key=lambda f: f.stat().st_size)
     hint = " - ".join(
         part for part in (first_text(info, ("title",)), first_text(info, ("uploader",))) if part
     )
-    return audio, hint
+    duration = info.get("duration", 0.0)
+    duration_s = float(duration) if isinstance(duration, (int, float)) else 0.0
+    safe_duration_s = duration_s if math.isfinite(duration_s) and duration_s > 0 else 0.0
+    return audio, hint, safe_duration_s
 
 
 def _vtt_to_text(vtt_content: str) -> str:

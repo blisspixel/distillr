@@ -5,22 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Distill{% endblock %}</title>
   <meta name="htmx-config" content='{"allowEval": false, "allowScriptTags": false}'>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
   <script src="/static/htmx.min.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="layout">
     <aside class="sidebar">
       <div class="logo">Distill</div>
       <div class="tagline">Stay current. Learn fast. Build corpus.</div>
-      <nav>
-        <a href="/" class="{% if active_nav == 'dashboard' %}active{% endif %}">Dashboard</a>
-        <a href="/topics" class="{% if active_nav == 'topics' %}active{% endif %}">Topics</a>
-        <a href="/costs" class="{% if active_nav == 'costs' %}active{% endif %}">Costs</a>
-        <a href="/watchlist" class="{% if active_nav == 'watchlist' %}active{% endif %}">Watchlist</a>
+      <nav aria-label="Primary">
+        <a href="/" class="{% if active_nav == 'dashboard' %}active{% endif %}"{% if active_nav == 'dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+        <a href="/topics" class="{% if active_nav == 'topics' %}active{% endif %}"{% if active_nav == 'topics' %} aria-current="page"{% endif %}>Topics</a>
+        <a href="/costs" class="{% if active_nav == 'costs' %}active{% endif %}"{% if active_nav == 'costs' %} aria-current="page"{% endif %}>Costs</a>
+        <a href="/watchlist" class="{% if active_nav == 'watchlist' %}active{% endif %}"{% if active_nav == 'watchlist' %} aria-current="page"{% endif %}>Watchlist</a>
       </nav>
     </aside>
-    <main class="main">
+    <main class="main" id="main-content" tabindex="-1">
       {% block content %}{% endblock %}
     </main>
   </div>

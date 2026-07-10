@@ -326,18 +326,14 @@ def ingest_tweet(
                 preview = vocab_hint[:120] + ("..." if len(vocab_hint) > 120 else "")
                 console.print(f"        vocab hint ({len(vocab_hint)} chars): {preview}")
             console.print("        transcribing (local-first -> cloud fallback)...")
-            result = transcribe_media(media_path, config, vocabulary_hint=vocab_hint)
+            result = transcribe_media(
+                media_path,
+                config,
+                vocabulary_hint=vocab_hint,
+                tracker=tracker,
+                duration_hint_s=tweet.video_duration_ms / 1000.0,
+            )
             transcript_text = result.text
-            if tracker is not None:
-                # Record STT spend on the ledger. Local faster-whisper resolves
-                # to $0; cloud tiers (Grok STT, OpenAI Whisper) are priced by the
-                # audio duration. Prefer the provider-reported duration, falling
-                # back to the tweet's own video length.
-                tracker.record_transcription(
-                    result.provider,
-                    result.duration_s or (tweet.video_duration_ms / 1000.0),
-                    model=result.model,
-                )
             # Flush rich.Console before the long write+analyze block so
             # non-TTY supervisors watching stdout activity see we made it
             # past the transcription step.

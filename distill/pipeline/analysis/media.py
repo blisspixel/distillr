@@ -76,7 +76,7 @@ def ingest_media_file(
     result = MediaIngestResult(transcript_path=None, insights_path=None, title=title)
 
     try:
-        transcription = transcribe_media(path, config, vocabulary_hint=title)
+        transcription = transcribe_media(path, config, vocabulary_hint=title, tracker=tracker)
     except TranscriptionError as exc:
         result.skipped_reasons.append(f"transcription failed: {exc}")
         return result

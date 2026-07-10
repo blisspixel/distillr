@@ -14,6 +14,7 @@
 
 ```bash
 pip install distillr
+distill init
 distill papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
@@ -69,7 +70,7 @@ Eight source types, same pipeline shape (capture -> analyze -> verify -> synthes
 | GitHub repos | `distill ingest <repo-url>` | metadata + README + releases into a structured maturity/when-to-use insight |
 | Podcasts | `distill ingest <rss-url>` | RSS-first; publisher transcripts preferred over paid audio transcription |
 | Newsletters (Substack-class) | `distill ingest <feed-url>` | full post text from the feed itself; routed by substance, narration audio ignored |
-| Local files | `distill ingest <path>` | PDF/Markdown/text/HTML documents, plus audio/video through the Whisper ladder |
+| Local files | `distill ingest <path>` | PDF/Markdown/text/HTML documents, plus audio/video through the Whisper ladder; tracked cloud fallback uses `ffprobe` to account for duration |
 
 Plus an MCP server so AI assistants and agent systems can query the library directly, and `distill ask` to query it yourself - answers grounded only in your corpus, every claim cited, with `--save` promoting a verified answer back into the corpus so it compounds.
 
@@ -172,7 +173,7 @@ files, then ask the configured model to analyze that captured evidence.
 
 **Shell completions** (optional): `distill --install-completion` wires tab-completion for your shell (bash/zsh/fish/PowerShell), including live topic-name completion; `distill --show-completion` prints the script to inspect or source manually.
 
-**No telemetry.** Distill phones home for nothing - no analytics, no usage beacons. Your research, your keys, and your run history stay on your disk. The only outbound calls are the LLM/transcription APIs you configure and the public sources you ask it to fetch.
+**No outbound analytics.** Distill phones home for no product analytics or usage beacons. Your research, your keys, and your run history stay on your disk. Operational logs and prompt telemetry stay locally under `library/.distill/` so you can audit runs. The only outbound calls are the LLM or transcription APIs you configure, update checks you do not disable, and the public sources you ask it to fetch.
 
 Then try any of:
 
@@ -382,7 +383,7 @@ Full cost model, the route-class table, and per-stage costs: [`docs/cost.md`](do
 
 ## Reliability and trust boundaries
 
-**What's enforced** (every release clears the same CI gate): more than 3,500 tests at 93% **branch** coverage (ratcheting up-only toward the 1.0 >=95% gate), ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
+**What's enforced** (every release clears the same CI gate): more than 3,900 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
 
 **Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
 
@@ -408,7 +409,7 @@ Distillr is in active use and ships frequent patch releases; the feature spine -
 eight source types, goal-aware discovery, the write-time verify gate,
 cross-source synthesis, `ask`, `audit`, MCP, and the dashboard - is complete. The
 `0.x` version is deliberate and does **not** mean "unfinished" or "unreliable":
-every release clears the same CI gate (3,600+ tests at 93%+ **branch** coverage,
+every release clears the same CI gate (3,900+ tests at 95%+ **branch** coverage,
 ruff + Pyright + import-linter + bandit + pip-audit, a Linux/macOS/Windows x
 Python 3.12-3.14 matrix, and PEP 740 build provenance). What `0.x` means is that
 the **public contracts are not frozen yet**.
@@ -422,10 +423,10 @@ policy and a published performance baseline. Crossing it is a one-way door:
 distillr keeps evolving those shapes while the agent ecosystem (MCP conventions,
 OKF, context-engineering practice) is still moving, and freezing early would mean
 freezing the wrong shape. The remaining distance is three things, none of them a
-calendar item: the tail of the CI-enforced quality ratchet (branch coverage to
->=95%, Pyright-strict across the full surface, parse-don't-validate at every
-boundary), the contract freeze itself, and a presentation pass (README media,
-onboarding docs). Full definition:
+calendar item: the tail of the CI-enforced quality ratchet (Pyright-strict
+across the full surface and parse-don't-validate at every boundary), the
+contract freeze itself, and a presentation pass (README media, onboarding
+docs). The branch-coverage gate already reached 95%. Full definition:
 [`ROADMAP.md`](ROADMAP.md#100--stability-commitment--quality-bar).
 
 Practically: build on the `library/` plain files and the CLI today; if you
