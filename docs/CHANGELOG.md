@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   model instead of a racy size and modification-time snapshot. Corrupt-cache
   recovery uses an explicit suppression scope instead of an empty exception
   body.
+- Raised the report command helper boundary to 100% branch coverage with a
+  dedicated hermetic suite for missing provider credentials, empty and missing
+  report artifacts, markdown and DOCX export, report-only cost deltas, and
+  budget hard-stop logging with and without issue aggregation.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
