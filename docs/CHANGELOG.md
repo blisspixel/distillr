@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Mocked tests now pin keyterm filtering and limits, multipart media bytes,
   authorization and timeout forwarding, format/language coupling, content-type
   fallback, error-body diagnostics, and strict response-object/text parsing.
+- Raised the MCP concept retrieval and history boundary to 100% branch
+  coverage. Hermetic tests now pin malformed JSONL handling, path containment,
+  unreadable notes, snapshot-only histories, explicit timestamp selection, and
+  live-note-independent snapshot diffs. Concept note read failures now return a
+  stable generic MCP error instead of exposing operating-system exception text.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are

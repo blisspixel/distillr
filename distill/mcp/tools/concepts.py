@@ -161,8 +161,11 @@ def read_concept(path: str) -> str:
 
     try:
         raw = full_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return json.dumps({"status": "error", "error": f"Cannot read file: {exc}"}, indent=2)
+    except (OSError, UnicodeDecodeError):
+        return json.dumps(
+            {"status": "error", "error": "Cannot read concept or entity note."},
+            indent=2,
+        )
 
     return json.dumps({"path": path, "content": strip_frontmatter(raw)}, indent=2)
 

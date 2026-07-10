@@ -10,6 +10,7 @@ import pytest
 
 from distill.config import DistillConfig
 from distill.mcp.tools.concepts import (
+    _read_jsonl,
     concept_diff,
     concept_history,
     find_concepts,
@@ -85,6 +86,14 @@ def _seed_topic(config: DistillConfig, topic: str = "tkg") -> Path:
         "---\ntype: entity\n---\n\n# OpenAI\nbody\n", encoding="utf-8"
     )
     return topic_dir
+
+
+def test_read_jsonl_skips_missing_blank_invalid_and_non_object_rows(tmp_path: Path) -> None:
+    path = tmp_path / "concepts.jsonl"
+    assert _read_jsonl(path) == []
+
+    path.write_text('\nnot-json\n["not", "an", "object"]\n{"name": "valid"}\n', encoding="utf-8")
+    assert _read_jsonl(path) == [{"name": "valid"}]
 
 
 class TestFindConcepts:
@@ -193,6 +202,42 @@ class TestReadConcept:
             result = json.loads(read_concept("topics/ghost/concepts/x.md"))
         assert result["status"] == "error"
 
+    def test_resolver_result_outside_library_is_rejected(
+        self, mock_config: DistillConfig, tmp_path: Path
+    ) -> None:
+        outside = tmp_path / "outside.md"
+        outside.write_text("private", encoding="utf-8")
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.mcp.tools.concepts.resolve_within_library", return_value=outside),
+        ):
+            result = json.loads(read_concept("topics/tkg/concepts/outside.md"))
+        assert result == {"status": "error", "error": "Path is not a concept or entity note."}
+
+    @pytest.mark.parametrize(
+        "read_error",
+        [
+            OSError("read denied"),
+            UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+        ],
+    )
+    def test_unreadable_note_returns_bounded_error(
+        self,
+        mock_config: DistillConfig,
+        read_error: OSError | UnicodeDecodeError,
+    ) -> None:
+        _seed_topic(mock_config)
+        note = mock_config.topic_dir("tkg") / "concepts" / "rotational_embedding.md"
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch.object(Path, "read_text", side_effect=read_error) as read_text,
+        ):
+            result = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
+        assert result == {"status": "error", "error": "Cannot read concept or entity note."}
+        read_text.assert_called_once_with(encoding="utf-8")
+        assert read_text.call_args.args == ()
+        assert note.is_file()
+
     def test_library_under_concepts_ancestor_does_not_bypass_guard(self, tmp_path: Path) -> None:
         """library_dir under an absolute ancestor named 'concepts' must not
         grant read access to non-playbook library files.
@@ -294,7 +339,7 @@ class TestContestedRetrieval:
         assert not hasattr(mod, "list_contested")
 
 
-def _build_history(topic_dir: Path) -> None:
+def _build_history(topic_dir: Path, *, include_third: bool = False) -> None:
     """Two writes -> one history snapshot, via the real write path."""
     from distill.concepts.exports import write_exports
     from distill.concepts.notes import write_playbook
@@ -334,6 +379,19 @@ def _build_history(topic_dir: Path) -> None:
     )
     write_playbook(topic_dir, v2, now_iso="2026-05-29T08:10:31Z")
     write_exports(topic_dir, [v2])
+    if include_third:
+        v3 = _c(
+            [
+                ("A", Polarity.HELPFUL),
+                ("B", Polarity.HELPFUL),
+                ("C", Polarity.HELPFUL),
+                ("D", Polarity.HELPFUL),
+            ],
+            (4, 4),
+            "2026-05-30T09:20:42Z",
+        )
+        write_playbook(topic_dir, v3, now_iso="2026-05-30T09:20:42Z")
+        write_exports(topic_dir, [v3])
 
 
 class TestConceptHistory:
@@ -350,6 +408,34 @@ class TestConceptHistory:
         assert result["has_live_note"] is True
         assert result["history"][0]["timestamp"] == "2026-05-29T08:10:31Z"
         assert "+1 source" in result["history"][0]["change"]
+
+    def test_existing_topic_without_matching_note_errors(self, mock_config: DistillConfig) -> None:
+        _seed_topic(mock_config)
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_history("tkg", "missing"))
+        assert result == {
+            "status": "error",
+            "error": "No note for slug 'missing' in topic 'tkg'.",
+        }
+
+    def test_snapshot_only_history_has_no_forward_transition(
+        self, mock_config: DistillConfig
+    ) -> None:
+        topic_dir = mock_config.topic_dir("tkg")
+        _build_history(topic_dir, include_third=True)
+        (topic_dir / "concepts" / "rotational_embedding.md").unlink()
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_history("tkg", "rotational_embedding"))
+        assert result["has_live_note"] is False
+        assert result["snapshot_count"] == 2
+        assert result["history"][0] == {
+            "timestamp": "2026-05-30T09:20:42Z",
+            "replaced_by": None,
+            "change": None,
+        }
+        assert result["history"][1]["timestamp"] == "2026-05-29T08:10:31Z"
+        assert result["history"][1]["replaced_by"] == "2026-05-30T09:20:42Z"
+        assert "+1 source" in result["history"][1]["change"]
 
 
 class TestConceptDiff:
@@ -368,3 +454,76 @@ class TestConceptDiff:
                 concept_diff("tkg", "rotational_embedding", "1999-01-01", "2000-01-01")
             )
         assert result["status"] == "error"
+
+    def test_missing_topic_and_missing_note_errors(self, mock_config: DistillConfig) -> None:
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            missing_topic = json.loads(concept_diff("ghost", "missing"))
+        assert missing_topic == {"status": "error", "error": "Topic 'ghost' not found."}
+
+        _seed_topic(mock_config)
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            missing_note = json.loads(concept_diff("tkg", "missing"))
+        assert missing_note == {
+            "status": "error",
+            "error": "No note for slug 'missing' in topic 'tkg'.",
+        }
+
+    def test_snapshot_only_diff_requires_two_timestamps(self, mock_config: DistillConfig) -> None:
+        topic_dir = mock_config.topic_dir("tkg")
+        _build_history(topic_dir, include_third=True)
+        (topic_dir / "concepts" / "rotational_embedding.md").unlink()
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_diff("tkg", "rotational_embedding"))
+            between = json.loads(
+                concept_diff(
+                    "tkg",
+                    "rotational_embedding",
+                    "2026-05-29T08:10:31Z",
+                    "2026-05-30T09:20:42Z",
+                )
+            )
+        assert result == {"status": "error", "error": "No live note; pass two timestamps."}
+        assert between["old"] == "2026-05-29T08:10:31Z"
+        assert between["new"] == "2026-05-30T09:20:42Z"
+        assert between["sources_added"] == ["C"]
+
+    def test_live_note_without_snapshots_has_nothing_to_diff(
+        self, mock_config: DistillConfig
+    ) -> None:
+        _seed_topic(mock_config)
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_diff("tkg", "rotational_embedding"))
+        assert result == {
+            "topic": "tkg",
+            "slug": "rotational_embedding",
+            "message": "No history snapshots yet; nothing to diff.",
+        }
+
+    def test_one_unknown_timestamp_errors(self, mock_config: DistillConfig) -> None:
+        _build_history(mock_config.topic_dir("tkg"))
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_diff("tkg", "rotational_embedding", "unknown"))
+        assert result == {"status": "error", "error": "No snapshot matching 'unknown'."}
+
+    def test_two_snapshots_and_explicit_single_snapshot_diff(
+        self, mock_config: DistillConfig
+    ) -> None:
+        _build_history(mock_config.topic_dir("tkg"), include_third=True)
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            between = json.loads(
+                concept_diff(
+                    "tkg",
+                    "rotational_embedding",
+                    "2026-05-29T08:10:31Z",
+                    "2026-05-30T09:20:42Z",
+                )
+            )
+            to_current = json.loads(
+                concept_diff("tkg", "rotational_embedding", "2026-05-29T08:10:31Z")
+            )
+        assert between["old"] == "2026-05-29T08:10:31Z"
+        assert between["new"] == "2026-05-30T09:20:42Z"
+        assert between["sources_added"] == ["C"]
+        assert to_current["old"] == "2026-05-29T08:10:31Z"
+        assert to_current["new"] == "current"
+        assert to_current["sources_added"] == ["C", "D"]
