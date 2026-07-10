@@ -328,7 +328,7 @@ def concept_rollback_cmd(
     result = recovery.rollback(topic_dir, slug, timestamp, now_iso=utcnow_iso())
 
     console.print()
-    if not result.changed:
+    if result.rollup_path is None:
         console.print(
             f"  [green]Live note already matches the {result.restored_from} snapshot; "
             "nothing to do.[/green]"
@@ -343,8 +343,7 @@ def concept_rollback_cmd(
             f"  [dim]Backed up previous version to "
             f"{result.backup_path.relative_to(topic_dir)}[/dim]"
         )
-    if result.rollup_path is not None:
-        console.print(f"  [dim]Updated rollup {result.rollup_path.relative_to(topic_dir)}[/dim]")
+    console.print(f"  [dim]Updated rollup {result.rollup_path.relative_to(topic_dir)}[/dim]")
     console.print()
 
 

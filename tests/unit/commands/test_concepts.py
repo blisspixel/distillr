@@ -8,9 +8,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from pydantic import SecretStr
 from typer.testing import CliRunner
 
 from distill import cli
+from distill.commands import concepts as concepts_cmd
+from distill.concepts import recovery
 from distill.config import DistillConfig
 
 runner = CliRunner()
@@ -29,7 +32,7 @@ def _seed_topic(library_dir: Path, topic: str = "tkg") -> Path:
 
 @pytest.fixture
 def fixture_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DistillConfig:
-    cfg = DistillConfig(xai_api_key="test", distill_output_dir=tmp_path / "library")
+    cfg = DistillConfig(xai_api_key=SecretStr("test"), distill_output_dir=tmp_path / "library")
     monkeypatch.setattr("distill.commands.concepts.get_config", lambda: cfg)
     # `health` resolves get_config from its own module (commands/doctor.py) now.
     monkeypatch.setattr("distill.commands.doctor.get_config", lambda: cfg)
@@ -63,6 +66,33 @@ class TestConceptsCommand:
         result = runner.invoke(cli.app, ["concepts", "build", "ghost-topic"])
         assert result.exit_code == 1
         assert "does not exist" in result.output.lower()
+
+    def test_build_reports_when_no_new_insights(
+        self, fixture_config: DistillConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fixture_config.topic_dir("tkg").mkdir(parents=True)
+        summary = SimpleNamespace(
+            insights_scanned=3,
+            insights_extracted=0,
+            mentions_added=0,
+            concepts_written=0,
+            concepts_unchanged=2,
+            entities_written=0,
+        )
+
+        def run_concepts(topic, topic_dir, rc, threshold, refresh, tracker):
+            assert topic == "tkg"
+            assert topic_dir == fixture_config.topic_dir("tkg")
+            assert threshold == 3
+            assert refresh is False
+            return summary
+
+        monkeypatch.setattr("distill.concepts.run_concepts", run_concepts)
+
+        result = runner.invoke(cli.app, ["concepts", "build", "tkg"])
+
+        assert result.exit_code == 0, result.output
+        assert "No new insights to extract" in result.output
 
     def test_post_ingest_helper_runs_concepts(self, fixture_config: DistillConfig, monkeypatch):
         from distill.commands import _concept_ingest
@@ -266,7 +296,21 @@ def _build_history(topic_dir: Path) -> list[str]:
     return ["2026-05-29T08:10:31Z"]  # the one snapshot (holds v1)
 
 
+def _file_state(root: Path) -> dict[str, bytes]:
+    """Capture every persisted file so refusal and no-op tests detect writes."""
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
 class TestConceptsRecoveryCommands:
+    def test_recovery_rejects_missing_topic(self, fixture_config: DistillConfig) -> None:
+        result = runner.invoke(cli.app, ["concepts", "log", "ghost", "missing"])
+        assert result.exit_code == 1
+        assert "topic directory does not exist" in result.output.lower()
+
     def test_log_lists_snapshots(self, fixture_config: DistillConfig) -> None:
         _build_history(fixture_config.topic_dir("tkg"))
         result = runner.invoke(cli.app, ["concepts", "log", "tkg", "rotational_embedding"])
@@ -280,6 +324,72 @@ class TestConceptsRecoveryCommands:
         result = runner.invoke(cli.app, ["concepts", "log", "tkg", "ghost"])
         assert result.exit_code == 1
         assert "no concept or entity note" in result.output.lower()
+
+    def test_diff_missing_slug_errors(self, fixture_config: DistillConfig) -> None:
+        fixture_config.topic_dir("tkg").mkdir(parents=True)
+        result = runner.invoke(cli.app, ["concepts", "diff", "tkg", "ghost"])
+        assert result.exit_code == 1
+        assert "no concept or entity note" in result.output.lower()
+
+    def test_log_live_note_without_history(self, fixture_config: DistillConfig) -> None:
+        note = fixture_config.topic_dir("tkg") / "concepts" / "lone.md"
+        note.parent.mkdir(parents=True)
+        note.write_text("# Lone concept\n", encoding="utf-8")
+
+        result = runner.invoke(cli.app, ["concepts", "log", "tkg", "lone"])
+
+        assert result.exit_code == 0, result.output
+        assert "No history snapshots" in result.output
+
+    def test_log_snapshot_without_live_note(self, fixture_config: DistillConfig) -> None:
+        topic_dir = fixture_config.topic_dir("tkg")
+        _build_history(topic_dir)
+        (topic_dir / "concepts" / "rotational_embedding.md").unlink()
+
+        result = runner.invoke(cli.app, ["concepts", "log", "tkg", "rotational_embedding"])
+
+        assert result.exit_code == 0, result.output
+        assert "no live note" in result.output.lower()
+        assert "1 snapshot(s)" in result.output
+        assert "2026-05-29T08:10:31Z" in result.output
+
+    def test_render_diff_covers_structural_and_body_changes(self, capsys) -> None:
+        diff = recovery.NoteDiff(
+            old_label="old",
+            new_label="new",
+            sources_added=["added"],
+            sources_removed=["removed"],
+            sources_repolarized=[("changed", "helpful", "harmful")],
+            field_changes=[recovery.FieldChange("source_count", 1, 2)],
+            body_diff="--- old\n+++ new\n@@ -1 +1 @@\n-old\n+new\n context",
+        )
+
+        concepts_cmd._render_diff(diff)
+        output = capsys.readouterr().out
+        normalized = " ".join(output.split())
+
+        assert "+ source added" in output
+        assert "- source removed" in output
+        assert "~ source changed helpful -> harmful" in normalized
+        assert "source_count: 1 -> 2" in output
+        assert "@@ -1 +1 @@" in output
+        assert "-old" in output
+        assert "+new" in output
+
+    def test_render_empty_diff(self, capsys) -> None:
+        concepts_cmd._render_diff(recovery.NoteDiff(old_label="same", new_label="same"))
+        assert "No differences" in capsys.readouterr().out
+
+    def test_render_frontmatter_only_diff(self, capsys) -> None:
+        diff = recovery.NoteDiff(
+            old_label="old",
+            new_label="new",
+            sources_added=["added"],
+        )
+        concepts_cmd._render_diff(diff)
+        output = capsys.readouterr().out
+        assert "+ source added" in output
+        assert "Body changes" not in output
 
     def test_diff_snapshot_vs_current(self, fixture_config: DistillConfig) -> None:
         _build_history(fixture_config.topic_dir("tkg"))
@@ -297,6 +407,68 @@ class TestConceptsRecoveryCommands:
         assert result.exit_code == 1
         assert "no snapshot" in result.output.lower()
 
+    def test_diff_two_snapshots_without_live_note(self, fixture_config: DistillConfig) -> None:
+        topic_dir = fixture_config.topic_dir("tkg")
+        history = recovery.history_dir_for_slug(topic_dir, "standalone")
+        history.mkdir(parents=True)
+        (history / "2026-05-01T00-00-00Z.md").write_text("# Old\n", encoding="utf-8")
+        (history / "2026-05-02T00-00-00Z.md").write_text("# New\n", encoding="utf-8")
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "concepts",
+                "diff",
+                "tkg",
+                "standalone",
+                "2026-05-01T00:00:00Z",
+                "2026-05-02T00:00:00Z",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "2026-05-01T00:00:00Z" in result.output
+        assert "2026-05-02T00:00:00Z" in result.output
+        assert "-# Old" in result.output
+        assert "+# New" in result.output
+
+    def test_diff_requires_two_timestamps_without_live_note(
+        self, fixture_config: DistillConfig
+    ) -> None:
+        topic_dir = fixture_config.topic_dir("tkg")
+        history = recovery.history_dir_for_slug(topic_dir, "standalone")
+        history.mkdir(parents=True)
+        (history / "2026-05-01T00-00-00Z.md").write_text("# Old\n", encoding="utf-8")
+
+        result = runner.invoke(
+            cli.app,
+            ["concepts", "diff", "tkg", "standalone", "2026-05-01T00:00:00Z"],
+        )
+
+        assert result.exit_code == 1
+        assert "No live note to diff against" in result.output
+
+    def test_diff_live_note_without_history_is_a_no_op(self, fixture_config: DistillConfig) -> None:
+        note = fixture_config.topic_dir("tkg") / "concepts" / "lone.md"
+        note.parent.mkdir(parents=True)
+        note.write_text("# Lone concept\n", encoding="utf-8")
+
+        result = runner.invoke(cli.app, ["concepts", "diff", "tkg", "lone"])
+
+        assert result.exit_code == 0, result.output
+        assert "No history snapshots yet" in result.output
+
+    def test_rollback_missing_snapshot_errors(self, fixture_config: DistillConfig) -> None:
+        fixture_config.topic_dir("tkg").mkdir(parents=True)
+
+        result = runner.invoke(
+            cli.app,
+            ["concepts", "rollback", "tkg", "ghost", "2026-01-01", "--yes"],
+        )
+
+        assert result.exit_code == 1
+        assert "No snapshot" in result.output
+
     def test_rollback_restores_and_updates_rollup(self, fixture_config: DistillConfig) -> None:
         topic_dir = fixture_config.topic_dir("tkg")
         _build_history(topic_dir)
@@ -311,8 +483,11 @@ class TestConceptsRecoveryCommands:
                 "--yes",
             ],
         )
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.output
+        normalized_output = " ".join(result.output.replace("\\", "/").split())
         assert "Restored" in result.output
+        assert "Backed up previous version to .history/rotational_embedding/" in normalized_output
+        assert "Updated rollup concepts.jsonl" in result.output
         # Live note rolled back to v1: 2 sources.
         note = (topic_dir / "concepts" / "rotational_embedding.md").read_text(encoding="utf-8")
         assert "source_count: 2" in note
@@ -320,7 +495,10 @@ class TestConceptsRecoveryCommands:
         assert row["source_count"] == 2
 
     def test_rollback_aborts_without_confirmation(self, fixture_config: DistillConfig) -> None:
-        _build_history(fixture_config.topic_dir("tkg"))
+        topic_dir = fixture_config.topic_dir("tkg")
+        _build_history(topic_dir)
+        before = _file_state(topic_dir)
+
         result = runner.invoke(
             cli.app,
             ["concepts", "rollback", "tkg", "rotational_embedding", "2026-05-29T08:10:31Z"],
@@ -328,3 +506,47 @@ class TestConceptsRecoveryCommands:
         )
         assert result.exit_code == 1
         assert "aborted" in result.output.lower()
+        assert _file_state(topic_dir) == before
+
+    def test_rollback_already_matching_snapshot_is_a_no_op(
+        self, fixture_config: DistillConfig
+    ) -> None:
+        topic_dir = fixture_config.topic_dir("tkg")
+        timestamp = _build_history(topic_dir)[0]
+        setup = recovery.rollback(
+            topic_dir,
+            "rotational_embedding",
+            timestamp,
+            now_iso="2026-05-30T00:00:00Z",
+        )
+        assert setup.changed
+        before = _file_state(topic_dir)
+
+        result = runner.invoke(
+            cli.app,
+            ["concepts", "rollback", "tkg", "rotational_embedding", timestamp, "--yes"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "already matches" in result.output
+        assert _file_state(topic_dir) == before
+
+    def test_rollback_recreates_deleted_note_without_backup(
+        self, fixture_config: DistillConfig
+    ) -> None:
+        topic_dir = fixture_config.topic_dir("tkg")
+        timestamp = _build_history(topic_dir)[0]
+        note = topic_dir / "concepts" / "rotational_embedding.md"
+        note.unlink()
+
+        result = runner.invoke(
+            cli.app,
+            ["concepts", "rollback", "tkg", "rotational_embedding", timestamp, "--yes"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Restored" in result.output
+        assert "Backed up" not in result.output
+        assert "Updated rollup concepts.jsonl" in result.output
+        assert "source_count: 2" in note.read_text(encoding="utf-8")
+        assert len(recovery.list_snapshots(topic_dir, "rotational_embedding")) == 1

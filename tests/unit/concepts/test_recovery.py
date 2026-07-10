@@ -528,6 +528,30 @@ class TestRollback:
         assert result.changed is False
         assert result.backup_path is None
 
+    def test_repairs_stale_rollup_when_note_already_matches(self, history_topic: Path) -> None:
+        oldest = recovery.list_snapshots(history_topic, "rotational_embedding")[0]
+        live = recovery.note_path_for_slug(history_topic, "rotational_embedding")
+        assert live is not None
+        live.write_bytes(oldest.path.read_bytes())
+        snapshots_before = recovery.list_snapshots(history_topic, "rotational_embedding")
+
+        result = recovery.rollback(
+            history_topic,
+            "rotational_embedding",
+            oldest.iso,
+            now_iso="2026-05-29T12:00:00Z",
+        )
+
+        assert result.changed is True
+        assert result.backup_path is None
+        rollup_path = result.rollup_path
+        assert rollup_path is not None
+        assert rollup_path == history_topic / "concepts.jsonl"
+        assert recovery.list_snapshots(history_topic, "rotational_embedding") == snapshots_before
+        row = json.loads(rollup_path.read_text(encoding="utf-8").splitlines()[0])
+        assert row["source_count"] == 2
+        assert row["helpful_evidence"] == [2, 2]
+
     def test_unknown_snapshot_raises(self, history_topic: Path) -> None:
         with pytest.raises(FileNotFoundError):
             recovery.rollback(

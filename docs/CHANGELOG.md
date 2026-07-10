@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   branch coverage with a dedicated hermetic suite for fetch and search refusal,
   convergence, reranking fallback, per-item failure isolation, hard budget
   stops, optional synthesis outputs, and concept extraction.
+- Raised the `distill concepts` build, history, diff, and rollback command
+  boundary to 100% branch coverage with hermetic tests for missing and
+  snapshot-only state, structural diff rendering, timestamp selection,
+  confirmation refusal, already-matching rollback, deleted-note recovery, and
+  backup and rollup reporting.
+- Made concept rollback retries repair a stale or missing rollup row when the
+  live note already matches the requested snapshot. This closes the partial
+  state left if a prior restore wrote the note but failed before its rollup
+  update, without creating a redundant backup or rewriting the note.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are

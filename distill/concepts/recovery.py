@@ -481,7 +481,17 @@ class RollbackResult:
     note_path: Path
     backup_path: Path | None  # snapshot of the pre-rollback live content
     rollup_path: Path | None  # the jsonl whose row was rewritten
-    changed: bool  # False when the live note already matched the snapshot
+
+    @property
+    def changed(self) -> bool:
+        """Return whether rollback repaired any persisted state.
+
+        Every mutation rewrites the target rollup, including a rollup-only
+        repair after an interrupted prior restore. A missing rollup path thus
+        identifies the fully consistent no-op and prevents contradictory
+        constructor states.
+        """
+        return self.rollup_path is not None
 
 
 @deal.post(_rollup_row_is_structural)  # pyright: ignore[reportUnknownMemberType] -- deal stubs type the validator as Unknown
@@ -516,6 +526,33 @@ def _rollup_path_for_kind(topic_dir: Path, kind: str) -> Path:
     return entities_jsonl_path(topic_dir) if is_entity else concepts_jsonl_path(topic_dir)
 
 
+def _read_rollup_rows(path: Path) -> list[dict[str, Any]]:
+    """Read structurally valid object rows while tolerating damaged lines."""
+    if not path.exists():
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            rows.append(cast("dict[str, Any]", value))
+    return rows
+
+
+def _rollup_matches_fields(topic_dir: Path, fields: dict[str, Any]) -> bool:
+    """Return whether exactly one target row matches restored frontmatter."""
+    expected = _rollup_row_from_fields(fields)
+    path = _rollup_path_for_kind(topic_dir, expected["kind"])
+    matches = [row for row in _read_rollup_rows(path) if row.get("slug") == expected["slug"]]
+    return matches == [expected]
+
+
 def _update_rollup(topic_dir: Path, fields: dict[str, Any]) -> Path:
     """Replace (or append) the rollup row for the restored slug.
 
@@ -526,16 +563,7 @@ def _update_rollup(topic_dir: Path, fields: dict[str, Any]) -> Path:
     row = _rollup_row_from_fields(fields)
     path = _rollup_path_for_kind(topic_dir, row["kind"])
 
-    rows: list[dict[str, Any]] = []
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    rows = _read_rollup_rows(path)
 
     rows = [r for r in rows if r.get("slug") != row["slug"]]
     rows.append(row)
@@ -563,14 +591,14 @@ def rollback(
 ) -> RollbackResult:
     """Restore ``slug``'s note to the snapshot at ``timestamp``.
 
-    Reversible: the current live content is first snapshot into
-    ``.history`` under ``now_iso`` (so a rollback can itself be rolled
-    back), then the chosen snapshot becomes the live note and its rollup
-    row is rewritten from the snapshot's frontmatter.
+    When live content differs, it is first snapshot into ``.history`` under
+    ``now_iso`` so a rollback can itself be rolled back. The chosen snapshot
+    becomes the live note when needed, and its rollup row is reconciled from
+    the snapshot's frontmatter.
 
-    Raises ``FileNotFoundError`` if the snapshot doesn't exist. When the
-    live note already byte-matches the snapshot, no files change and
-    ``RollbackResult.changed`` is ``False``.
+    Raises ``FileNotFoundError`` if the snapshot doesn't exist. No files change
+    only when the live note and exactly one target rollup row already match the
+    snapshot; then ``RollbackResult.changed`` is ``False``.
     """
     if not _is_safe_slug(slug):
         raise ValueError(f"Unsafe concept slug: {slug!r}")
@@ -607,23 +635,24 @@ def rollback(
                 f"('{live_id}' vs restored '{restored_id}'); cannot safely roll "
                 f"back by slug alone -- resolve the collision manually."
             )
-    if current_content == restored_content:
+    note_changed = current_content != restored_content
+    if not note_changed and _rollup_matches_fields(topic_dir, restored_fields):
         return RollbackResult(
             slug=slug,
             restored_from=snapshot.iso,
             note_path=live_path,
             backup_path=None,
             rollup_path=None,
-            changed=False,
         )
 
     backup_path: Path | None = None
-    if current_content is not None:
+    if note_changed and current_content is not None:
         backup_path = history_dir_for_slug(topic_dir, slug) / f"{iso_to_safe_ts(now_iso)}.md"
         backup_path.parent.mkdir(parents=True, exist_ok=True)
         backup_path.write_text(current_content, encoding="utf-8")
 
-    _atomic_write(live_path, restored_content)
+    if note_changed:
+        _atomic_write(live_path, restored_content)
     rollup_path = _update_rollup(topic_dir, restored_fields)
 
     return RollbackResult(
@@ -632,5 +661,4 @@ def rollback(
         note_path=live_path,
         backup_path=backup_path,
         rollup_path=rollup_path,
-        changed=True,
     )
