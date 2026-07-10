@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.29 - 2026-07-10
+
 ### Changed
 
 - Raised the blocking CI and pre-push branch-coverage floor from 93% to 95%,
@@ -25,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Source installers now direct first-run users to `distill init`, the tested
   setup path that creates the environment, configures a provider, and installs
   browser support.
+- Release SBOM generation now pins `cyclonedx-bom` to 7.3.0 instead of
+  resolving an unbounded tool version during the trusted publish workflow.
 
 ### Removed
 

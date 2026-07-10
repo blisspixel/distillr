@@ -96,7 +96,7 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/v}"
           uv export --frozen --no-dev --no-emit-project --format requirements-txt -o sbom-requirements.txt
-          uvx --from cyclonedx-bom cyclonedx-py requirements sbom-requirements.txt \
+          uvx --from cyclonedx-bom==7.3.0 cyclonedx-py requirements sbom-requirements.txt \
             --pyproject pyproject.toml --of JSON -o "distillr-${tag}.cdx.json"
           rm -f sbom-requirements.txt
 
