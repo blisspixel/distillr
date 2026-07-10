@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import shutil
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any, Never, Protocol
 
 import typer
 
@@ -243,6 +243,30 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
     summary = run_summary_factory(command="learn")
     summary.set_metadata(topic=topic_name, workflow="learn", source_type="youtube")
 
+    def _raise_budget_stop(
+        exc: BudgetExceededError,
+        *,
+        stage: str,
+        context: str,
+        details: dict[str, str],
+    ) -> Never:
+        try:
+            cli_shared.record_exception_issue(
+                summary,
+                stage=stage,
+                exc=exc,
+                context=context,
+                details=details,
+            )
+            display_summary(
+                summary,
+                cost_tracker=tracker,
+                console=console,
+                log_dir=config.library_dir,
+            )
+        finally:
+            raise exc
+
     all_vids = [item.video for item in selected]
     full_est = sum(1 for v in all_vids if v.duration > SHORTS_THRESHOLD)
     short_est = sum(1 for v in all_vids if v.duration <= SHORTS_THRESHOLD)
@@ -288,8 +312,13 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
                     state=state,
                     eta=eta,
                 )
-            except BudgetExceededError:
-                raise  # the spend cap is a hard stop, never a per-item issue
+            except BudgetExceededError as exc:
+                _raise_budget_stop(
+                    exc,
+                    stage="video-analysis-budget",
+                    context=video.title,
+                    details={"topic": topic_name, "channel": channel_name},
+                )
             except Exception as exc:
                 # One crashed video must not kill the channel sweep: record it,
                 # move on; state.json leaves it unprocessed so a re-run retries
@@ -319,6 +348,13 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
                 details={"topic": topic_name, "channel": channel_name},
                 missing_message="No synthesis output written",
             )
+        except BudgetExceededError as exc:
+            _raise_budget_stop(
+                exc,
+                stage="channel-synthesis-budget",
+                context=f"{topic_name}/{channel_name}",
+                details={"topic": topic_name, "channel": channel_name},
+            )
         except Exception as e:
             console.print(f"[red]Synthesis failed: {e}[/red]")
             cli_shared.record_exception_issue(
@@ -346,6 +382,13 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
                 details={"topic": topic_name},
                 missing_message="No topic synthesis output written",
             )
+        except BudgetExceededError as exc:
+            _raise_budget_stop(
+                exc,
+                stage="topic-synthesis-budget",
+                context=topic_name,
+                details={"topic": topic_name},
+            )
         except Exception as e:
             console.print(f"[red]Topic synthesis failed: {e}[/red]")
             cli_shared.record_exception_issue(
@@ -365,6 +408,13 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
                     identity=topic_name,
                 )
             )
+    except BudgetExceededError as exc:
+        _raise_budget_stop(
+            exc,
+            stage="corpus-synthesis-budget",
+            context=topic_name,
+            details={"topic": topic_name},
+        )
     except Exception as e:
         cli_shared.record_exception_issue(
             summary,
@@ -380,6 +430,13 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
     if post_ingest_callback is not None:
         try:
             post_ingest_callback(topic_name, tracker)
+        except BudgetExceededError as exc:
+            _raise_budget_stop(
+                exc,
+                stage="post-ingest-callback-budget",
+                context=topic_name,
+                details={"topic": topic_name},
+            )
         except Exception as e:
             cli_shared.record_exception_issue(
                 summary,

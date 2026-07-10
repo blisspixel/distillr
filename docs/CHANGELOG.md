@@ -73,6 +73,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   unreadable notes, snapshot-only histories, explicit timestamp selection, and
   live-note-independent snapshot diffs. Concept note read failures now return a
   stable generic MCP error instead of exposing operating-system exception text.
+- Raised the learning-flow command boundary to 100% branch coverage. Tests now
+  pin chronological-mode isolation, normal expansion, channel registration,
+  resume state, per-video failure isolation, synthesis failures, callbacks, and
+  empty selections. Budget exhaustion now stops immediately in every
+  cost-bearing phase while persisting the partial run's spend before the error
+  returns to the CLI.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
