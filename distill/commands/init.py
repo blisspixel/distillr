@@ -13,6 +13,7 @@ manual next steps. Registered onto the app from ``distill.cli`` (mirroring
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal, NotRequired, TypedDict
 
@@ -60,11 +61,35 @@ GEMINI_API_KEY=
 # DISTILL_OUTPUT_DIR=./library
 """
 
+_ENV_FILE_MODE = 0o600
+_POSIX_PERMISSIONS = os.name == "posix"
+
 
 def env_file_path() -> Path:
     """The ``.env`` distill loads -- the one in the current working directory
     (Pydantic Settings reads ``.env`` relative to cwd)."""
     return Path.cwd() / ".env"
+
+
+def _restrict_env_file(path: Path) -> None:
+    """Limit an existing env file to its owner on POSIX systems."""
+    if _POSIX_PERMISSIONS:
+        path.chmod(_ENV_FILE_MODE)
+
+
+def _write_env_text(path: Path, content: str) -> None:
+    """Write env content with owner-only POSIX permissions from creation."""
+    if path.exists():
+        _restrict_env_file(path)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, _ENV_FILE_MODE)
+    try:
+        stream = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    with stream:
+        stream.write(content)
+    _restrict_env_file(path)
 
 
 def create_env_file(path: Path, *, force: bool = False) -> bool:
@@ -76,8 +101,9 @@ def create_env_file(path: Path, *, force: bool = False) -> bool:
     command must not have.
     """
     if path.exists() and not force:
+        _restrict_env_file(path)
         return False
-    path.write_text(_ENV_TEMPLATE, encoding="utf-8")
+    _write_env_text(path, _ENV_TEMPLATE)
     return True
 
 
@@ -90,6 +116,8 @@ def set_env_var(path: Path, key: str, value: str) -> None:
     """
     if not path.exists():
         create_env_file(path)
+    else:
+        _restrict_env_file(path)
     lines = path.read_text(encoding="utf-8").splitlines()
     prefix = f"{key}="
     replaced = False
@@ -100,7 +128,7 @@ def set_env_var(path: Path, key: str, value: str) -> None:
             break
     if not replaced:
         lines.append(f"{key}={value}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _write_env_text(path, "\n".join(lines) + "\n")
 
 
 def chromium_status() -> str:

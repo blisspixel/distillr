@@ -257,7 +257,7 @@ The gates above prove *coverage* and *types*. These prove the tests and the code
 
 **Polish.**
 
-- Repo presentation pass: README screenshots/gifs (terminal dashboard, sample report, web UI, library in Obsidian), GitHub repo description and topics, and contributor onboarding that gets a new contributor from clone to a verified first contribution path.
+- Repo presentation pass: README screenshots/gifs (terminal dashboard, sample report, web UI, library in Obsidian), GitHub repo description and topics, and contributor onboarding that gets a new contributor from clone to a verified first contribution path. The legacy duplicate setup script was retired on 2026-07-09, and both source installers now hand first-run configuration to the tested `distill init` flow.
 - All public APIs documented (concise docstrings on the public surface; longer where the rationale isn't obvious from naming).
 - `docs/CONTRIBUTING.md` covers the full quality posture above so contributors know the bar before they open a PR.
 

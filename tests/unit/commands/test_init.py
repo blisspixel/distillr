@@ -8,6 +8,12 @@ prompt with no TTY (the loop-ready invariant).
 from __future__ import annotations
 
 import json
+import os
+import stat
+import subprocess
+import sys
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -22,6 +28,72 @@ runner = CliRunner()
 
 
 class TestEnvFileHelpers:
+    def test_create_uses_owner_only_file_mode(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+        real_open = os.open
+        requested_modes = []
+
+        def open_with_mode(file, flags, mode=0o777):
+            requested_modes.append(mode)
+            return real_open(file, flags, mode)
+
+        monkeypatch.setattr(init_mod.os, "open", open_with_mode)
+        assert init_mod.create_env_file(path) is True
+        assert requested_modes == [0o600]
+
+    def test_existing_env_permissions_are_tightened_without_clobber(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+        path.write_text("XAI_API_KEY=keep\n", encoding="utf-8")
+        chmod_modes = []
+
+        def record_chmod(file_path, mode):
+            assert file_path == path
+            chmod_modes.append(mode)
+
+        monkeypatch.setattr(init_mod, "_POSIX_PERMISSIONS", True)
+        monkeypatch.setattr(Path, "chmod", record_chmod)
+
+        assert init_mod.create_env_file(path) is False
+        assert path.read_text(encoding="utf-8") == "XAI_API_KEY=keep\n"
+        assert chmod_modes == [0o600]
+
+    def test_write_closes_descriptor_when_stream_creation_fails(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+        real_close = os.close
+        closed_descriptors = []
+
+        def fail_fdopen(*args, **kwargs):
+            raise OSError("stream unavailable")
+
+        def record_close(descriptor):
+            closed_descriptors.append(descriptor)
+            real_close(descriptor)
+
+        monkeypatch.setattr(init_mod.os, "fdopen", fail_fdopen)
+        monkeypatch.setattr(init_mod.os, "close", record_close)
+
+        with pytest.raises(OSError, match="stream unavailable"):
+            init_mod.create_env_file(path)
+        assert len(closed_descriptors) == 1
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits")
+    def test_env_file_stays_owner_only_across_writes(self, tmp_path):
+        path = tmp_path / ".env"
+        old_umask = os.umask(0)
+        try:
+            assert init_mod.create_env_file(path) is True
+        finally:
+            os.umask(old_umask)
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+        path.chmod(0o644)
+        init_mod.set_env_var(path, "XAI_API_KEY", "secret")
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+        path.chmod(0o644)
+        assert init_mod.create_env_file(path) is False
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
     def test_create_when_missing(self, tmp_path):
         path = tmp_path / ".env"
         assert init_mod.create_env_file(path) is True
@@ -63,6 +135,41 @@ class TestEnvFileHelpers:
         init_mod.set_env_var(path, "XAI_API_KEY", "k")
         assert path.exists()
         assert "XAI_API_KEY=k" in path.read_text(encoding="utf-8")
+
+
+class TestBrowserSetup:
+    def test_install_uses_fixed_argv_and_strips_python_injection(self, monkeypatch):
+        observed = {}
+
+        def run(argv, *, env, check):
+            observed.update(argv=argv, env=env, check=check)
+            return SimpleNamespace(returncode=0)
+
+        monkeypatch.setenv("PYTHONPATH", "injected-path")
+        monkeypatch.setenv("PYTHONHOME", "injected-home")
+        monkeypatch.setenv("DISTILL_TEST_MARKER", "kept")
+        monkeypatch.setattr(subprocess, "run", run)
+
+        assert init_mod._install_chromium() is True
+        assert observed["argv"] == [
+            sys.executable,
+            "-m",
+            "playwright",
+            "install",
+            "chromium",
+        ]
+        assert observed["env"]["DISTILL_TEST_MARKER"] == "kept"
+        assert "PYTHONPATH" not in observed["env"]
+        assert "PYTHONHOME" not in observed["env"]
+        assert observed["check"] is False
+
+    def test_install_failure_returns_false(self, monkeypatch):
+        def fail_run(*args, **kwargs):
+            raise OSError("process unavailable")
+
+        monkeypatch.setattr(subprocess, "run", fail_run)
+
+        assert init_mod._install_chromium() is False
 
 
 # ─── Command behavior ─────────────────────────────────────────────────

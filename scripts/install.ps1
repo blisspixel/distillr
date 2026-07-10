@@ -65,10 +65,8 @@ Write-Host "==> Installation complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Open a NEW terminal (so PATH updates take effect)"
-Write-Host "  2. Run: $Cli doctor"
-Write-Host "  3. Set your API keys (XAI_API_KEY recommended, GEMINI for some features)"
-Write-Host "  4. Optional but recommended for full features:"
-Write-Host "       playwright install chromium"
+Write-Host "  2. Run: $Cli init"
+Write-Host "     This creates your environment, configures a provider, and installs browser support."
 Write-Host ""
 Write-Host "Quick test:"
 Write-Host "  $Cli --help"

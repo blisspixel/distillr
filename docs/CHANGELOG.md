@@ -13,9 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   refreshed the lock to v1.28.1, so a fresh installation cannot silently
   resolve the breaking v2 SDK before the post-final compatibility spike
   validates and explicitly graduates it.
+- Source installers now direct first-run users to `distill init`, the tested
+  setup path that creates the environment, configures a provider, and installs
+  browser support.
+
+### Removed
+
+- Removed the unreferenced `scripts/setup.py` legacy installer. Its duplicated
+  setup and live-provider logic had drifted from the supported Python and model
+  contracts; `distill init` and `distill doctor` remain the canonical setup and
+  diagnostic surfaces.
 
 ### Fixed
 
+- `distill init` now creates and rewrites `.env` with owner-only permissions on
+  POSIX systems and tightens an existing file before reading or updating it, so
+  provider credentials are not left group- or world-readable by the setup flow.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
