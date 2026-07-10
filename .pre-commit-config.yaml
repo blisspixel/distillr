@@ -56,9 +56,9 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: pyright-llm
-        name: pyright (distill/llm, blocking)
-        entry: uv run --frozen pyright distill/llm/
+      - id: pyright
+        name: pyright (full package, blocking)
+        entry: uv run --frozen pyright --warnings distill/
         language: system
         pass_filenames: false
         always_run: true

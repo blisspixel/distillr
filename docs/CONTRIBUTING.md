@@ -23,13 +23,16 @@ uv run distill doctor
 
 `uv sync` reads `.python-version` (3.12) and auto-downloads the interpreter if you don't have it. distillr requires **Python 3.12+**. Run any command in the project env with `uv run <cmd>` (e.g. `uv run distill ...`), or activate `.venv` directly. The install is editable, so source edits apply without reinstalling.
 
-You only need `XAI_API_KEY` and `GEMINI_API_KEY` for end-to-end runs. The test suite itself (default mode) doesn't hit real APIs - integration tests are gated behind `-m integration`.
+You only need `XAI_API_KEY` and `GEMINI_API_KEY` for live end-to-end runs. The
+default test suite does not hit real APIs: offline integration tests use local
+fixtures and mock LLMs, while the `integration` marker selects opt-in live
+network tests.
 
 ## Running tests
 
 ```bash
-uv run pytest -q                   # default - unit + contract tests, no network
-uv run pytest -m integration       # hits real YouTube, arXiv, etc. Needs keys and bandwidth.
+uv run pytest -q                   # unit + contract + offline integration; no network
+uv run pytest -m integration       # opt-in live YouTube and yt-dlp checks; needs network
 uv run pytest --cov=distill --cov-fail-under=95   # branch coverage gate
 ```
 
@@ -66,11 +69,11 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 |---|---|---|
 | **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes - `uv sync --frozen` everywhere |
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
-| **pytest + coverage** | Unit + contract tests, plus a ratcheted branch-coverage floor | Yes, blocking (integration tests gated behind `-m integration`) |
+| **pytest + coverage** | Unit, contract, and offline integration tests, plus a ratcheted branch-coverage floor | Yes, blocking; only live-network tests are gated behind `-m integration` |
 | **import-linter** | Dependency-direction (layer) contracts | Yes, blocking |
 | **bandit** | Python security scanner | Yes, blocking on MEDIUM+ |
 | **pip-audit** | Known-CVE scanner for dependencies | Yes, blocking |
-| **pyright** | Static type checker | Blocking on `distill/llm/`; advisory elsewhere (ratcheting toward strict-everywhere by 1.0) |
+| **pyright** | Static type checker | Full `distill/` package is blocking; strict mode is ratcheted per module toward 1.0 |
 | **pre-commit** | Local enforcement wrapper; hooks call `uv run --frozen` so local == CI | Runs locally; CI re-validates |
 
 uv config, ruff config, bandit config, pyright config, and the import-linter contracts all live in `pyproject.toml`; dependencies are pinned in `uv.lock`. Ruff's rule set is opinionated but not onerous; fix what it flags or, for a genuine exception, add a narrow `# noqa: <code>` with a comment explaining why.
@@ -208,8 +211,8 @@ uv run ruff format --check .
 # 3. Security
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium
 
-# 4. Type check - blocking on distill/llm/, advisory elsewhere
-uv run pyright distill/llm/
+# 4. Type check - full package, blocking
+uv run pyright --warnings distill/
 
 # 5. Dependency direction enforcement
 uv run lint-imports

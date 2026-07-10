@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Changed
+
+- Promoted the zero-warning full-package Pyright check from advisory to
+  blocking in CI and aligned the local pre-commit hook with the same
+  `pyright --warnings distill/` boundary. A metadata contract now prevents
+  either gate from silently narrowing scope, ignoring warnings, becoming
+  conditional, or moving to a manual-only local stage.
+
 ## 0.19.29 - 2026-07-10
 
 ### Changed

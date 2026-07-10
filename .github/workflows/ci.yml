@@ -137,11 +137,8 @@ jobs:
           enable-cache: true
       - name: Sync (frozen)
         run: uv sync --frozen
-      - name: "Pyright: distill/llm/ (blocking)"
-        run: uv run --frozen pyright distill/llm/
-      - name: "Pyright: full surface (advisory)"
-        continue-on-error: true
-        run: uv run --frozen pyright distill/
+      - name: "Pyright: full surface (blocking)"
+        run: uv run --frozen pyright --warnings distill/
 
   build:
     name: Build distribution
