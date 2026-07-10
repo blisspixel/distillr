@@ -197,7 +197,7 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
 **Stability.**
 
 - CLI flags, MCP tool/resource/prompt schemas, library directory layout, and frontmatter fields are versioned. Breaking changes require a major-version bump and a documented migration.
-  - Status 2026-07-10: deterministic candidate-v1 snapshots now cover the full CLI command and parameter tree plus MCP tools, input/output schemas, resources, resource templates, and prompts. The default suite rejects unreviewed runtime drift. The snapshots remain candidates until the post-2026-07-28 MCP checkpoint completes; artifact layout, frontmatter, stored state, and legacy migration are the remaining contract slices.
+  - Status 2026-07-10: deterministic candidate-v1 snapshots now cover the full CLI command and parameter tree; MCP tools, input/output schemas, resources, resource templates, and prompts; and modern artifact filenames, reader compatibility paths, base frontmatter, provenance fields, and representative serialized frontmatter behavior. The default suite rejects unreviewed drift in these covered surfaces. The snapshots remain candidates until the post-2026-07-28 MCP checkpoint completes; directory layout, stored state, artifact-specific frontmatter schemas and value semantics, caller-specific reader and writer extension integration, and full legacy migration are the remaining contract slices.
 - Documented backwards-compatibility policy for the `library/` directory (a 0.5 corpus opens cleanly in 1.0).
 - Performance baseline published - wall-clock and token spend for a reference 20-paper run, a reference 50-video catch-up, a reference site-batch. CI flags regressions beyond a documented budget.
 

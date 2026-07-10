@@ -1,0 +1,333 @@
+{
+  "artifact_types": {
+    "answer": {
+      "default_modern_pattern": "{identity}_Answer.md",
+      "extension": "md",
+      "legacy_filename": "answer.md",
+      "modern_pattern": "{identity}_Answer.md",
+      "reader_patterns": [
+        "{identity}_Answer.md",
+        "{identity}_answer.md",
+        "answer.md"
+      ],
+      "suffix": "Answer"
+    },
+    "audit": {
+      "default_modern_pattern": "{identity}_Audit.md",
+      "extension": "md",
+      "legacy_filename": "audit.md",
+      "modern_pattern": "{identity}_Audit.md",
+      "reader_patterns": [
+        "{identity}_Audit.md",
+        "{identity}_audit.md",
+        "audit.md"
+      ],
+      "suffix": "Audit"
+    },
+    "brief": {
+      "default_modern_pattern": "{identity}_Brief.md",
+      "extension": "md",
+      "legacy_filename": "brief.md",
+      "modern_pattern": "{identity}_Brief.md",
+      "reader_patterns": [
+        "{identity}_Brief.md",
+        "{identity}_brief.md",
+        "brief.md"
+      ],
+      "suffix": "Brief"
+    },
+    "content": {
+      "default_modern_pattern": "{identity}_Content.md",
+      "extension": "md",
+      "legacy_filename": "content.md",
+      "modern_pattern": "{identity}_Content.md",
+      "reader_patterns": [
+        "{identity}_Content.md",
+        "{identity}_content.md",
+        "content.md"
+      ],
+      "suffix": "Content"
+    },
+    "corpus_synthesis": {
+      "default_modern_pattern": "{identity}_Corpus_Synthesis.md",
+      "extension": "md",
+      "legacy_filename": "corpus_synthesis.md",
+      "modern_pattern": "{identity}_Corpus_Synthesis.md",
+      "reader_patterns": [
+        "{identity}_Corpus_Synthesis.md",
+        "{identity}_corpus_synthesis.md",
+        "corpus_synthesis.md"
+      ],
+      "suffix": "Corpus_Synthesis"
+    },
+    "episode": {
+      "default_modern_pattern": "{identity}_Episode.md",
+      "extension": "md",
+      "legacy_filename": "episode.md",
+      "modern_pattern": "{identity}_Episode.md",
+      "reader_patterns": [
+        "{identity}_Episode.md",
+        "{identity}_episode.md",
+        "episode.md"
+      ],
+      "suffix": "Episode"
+    },
+    "insights": {
+      "default_modern_pattern": "{identity}_Insights.md",
+      "extension": "md",
+      "legacy_filename": "insights.md",
+      "modern_pattern": "{identity}_Insights.md",
+      "reader_patterns": [
+        "{identity}_Insights.md",
+        "{identity}_insights.md",
+        "insights.md"
+      ],
+      "suffix": "Insights"
+    },
+    "latest_changes": {
+      "default_modern_pattern": "{identity}_Latest_Changes.md",
+      "extension": "md",
+      "legacy_filename": "latest_changes.md",
+      "modern_pattern": "{identity}_Latest_Changes.md",
+      "reader_patterns": [
+        "{identity}_Latest_Changes.md",
+        "{identity}_latest_changes.md",
+        "latest_changes.md"
+      ],
+      "suffix": "Latest_Changes"
+    },
+    "paper": {
+      "default_modern_pattern": "{identity}_Paper.md",
+      "extension": "md",
+      "legacy_filename": "paper.md",
+      "modern_pattern": "{identity}_Paper.md",
+      "reader_patterns": [
+        "{identity}_Paper.md",
+        "{identity}_paper.md",
+        "paper.md"
+      ],
+      "suffix": "Paper"
+    },
+    "paper_synthesis": {
+      "default_modern_pattern": "{identity}_Paper_Synthesis.md",
+      "extension": "md",
+      "legacy_filename": "paper_synthesis.md",
+      "modern_pattern": "{identity}_Paper_Synthesis.md",
+      "reader_patterns": [
+        "{identity}_Paper_Synthesis.md",
+        "{identity}_paper_synthesis.md",
+        "paper_synthesis.md"
+      ],
+      "suffix": "Paper_Synthesis"
+    },
+    "repo": {
+      "default_modern_pattern": "{identity}_Repo.md",
+      "extension": "md",
+      "legacy_filename": "repo.md",
+      "modern_pattern": "{identity}_Repo.md",
+      "reader_patterns": [
+        "{identity}_Repo.md",
+        "{identity}_repo.md",
+        "repo.md"
+      ],
+      "suffix": "Repo"
+    },
+    "report": {
+      "default_modern_pattern": "{identity}_Report.md",
+      "extension": "md",
+      "legacy_filename": "report.md",
+      "modern_pattern": "{identity}_Report.md",
+      "reader_patterns": [
+        "{identity}_Report.md",
+        "{identity}_report.md",
+        "report.md"
+      ],
+      "suffix": "Report"
+    },
+    "research": {
+      "default_modern_pattern": "{identity}_Research.md",
+      "extension": "md",
+      "legacy_filename": "research.md",
+      "modern_pattern": "{identity}_Research.md",
+      "reader_patterns": [
+        "{identity}_Research.md",
+        "{identity}_research.md",
+        "research.md"
+      ],
+      "suffix": "Research"
+    },
+    "site_synthesis": {
+      "default_modern_pattern": "{identity}_Site_Synthesis.md",
+      "extension": "md",
+      "legacy_filename": "synthesis.md",
+      "modern_pattern": "{identity}_Site_Synthesis.md",
+      "reader_patterns": [
+        "{identity}_Site_Synthesis.md",
+        "{identity}_site_synthesis.md",
+        "synthesis.md"
+      ],
+      "suffix": "Site_Synthesis"
+    },
+    "site_update": {
+      "default_modern_pattern": "{identity}_Site_Update.md",
+      "extension": "md",
+      "legacy_filename": "site_update.md",
+      "modern_pattern": "{identity}_Site_Update.md",
+      "reader_patterns": [
+        "{identity}_Site_Update.md",
+        "{identity}_site_update.md",
+        "site_update.md"
+      ],
+      "suffix": "Site_Update"
+    },
+    "synthesis": {
+      "default_modern_pattern": "{identity}_Synthesis.md",
+      "extension": "md",
+      "legacy_filename": "synthesis.md",
+      "modern_pattern": "{identity}_Synthesis.md",
+      "reader_patterns": [
+        "{identity}_Synthesis.md",
+        "{identity}_synthesis.md",
+        "synthesis.md"
+      ],
+      "suffix": "Synthesis"
+    },
+    "topic_diff": {
+      "default_modern_pattern": "{identity}_Topic_Diff.md",
+      "extension": "md",
+      "legacy_filename": "topic_diff.md",
+      "modern_pattern": "{identity}_Topic_Diff.md",
+      "reader_patterns": [
+        "{identity}_Topic_Diff.md",
+        "{identity}_topic_diff.md",
+        "topic_diff.md"
+      ],
+      "suffix": "Topic_Diff"
+    },
+    "topic_synthesis": {
+      "default_modern_pattern": "{identity}_Topic_Synthesis.md",
+      "extension": "md",
+      "legacy_filename": "topic_synthesis.md",
+      "modern_pattern": "{identity}_Topic_Synthesis.md",
+      "reader_patterns": [
+        "{identity}_Topic_Synthesis.md",
+        "{identity}_topic_synthesis.md",
+        "topic_synthesis.md"
+      ],
+      "suffix": "Topic_Synthesis"
+    },
+    "topic_trends": {
+      "default_modern_pattern": "{identity}_Topic_Trends.md",
+      "extension": "md",
+      "legacy_filename": "topic_trends.md",
+      "modern_pattern": "{identity}_Topic_Trends.md",
+      "reader_patterns": [
+        "{identity}_Topic_Trends.md",
+        "{identity}_topic_trends.md",
+        "topic_trends.md"
+      ],
+      "suffix": "Topic_Trends"
+    },
+    "transcript": {
+      "default_modern_pattern": "{identity}_Transcript.md",
+      "extension": "txt",
+      "legacy_filename": "transcript.txt",
+      "modern_pattern": "{identity}_Transcript.txt",
+      "reader_patterns": [
+        "{identity}_Transcript.txt",
+        "{identity}_transcript.txt",
+        "transcript.txt"
+      ],
+      "suffix": "Transcript"
+    },
+    "tweet": {
+      "default_modern_pattern": "{identity}_Tweet.md",
+      "extension": "md",
+      "legacy_filename": "tweet.md",
+      "modern_pattern": "{identity}_Tweet.md",
+      "reader_patterns": [
+        "{identity}_Tweet.md",
+        "{identity}_tweet.md",
+        "tweet.md"
+      ],
+      "suffix": "Tweet"
+    },
+    "verify": {
+      "default_modern_pattern": "{identity}_Verify.md",
+      "extension": "json",
+      "legacy_filename": "verify.json",
+      "modern_pattern": "{identity}_Verify.json",
+      "reader_patterns": [
+        "{identity}_Verify.json",
+        "{identity}_verify.json",
+        "verify.json"
+      ],
+      "suffix": "Verify"
+    },
+    "watch_alerts": {
+      "default_modern_pattern": "{identity}_Watch_Alerts.md",
+      "extension": "md",
+      "legacy_filename": "watch_alerts.md",
+      "modern_pattern": "{identity}_Watch_Alerts.md",
+      "reader_patterns": [
+        "{identity}_Watch_Alerts.md",
+        "{identity}_watch_alerts.md",
+        "watch_alerts.md"
+      ],
+      "suffix": "Watch_Alerts"
+    },
+    "watch_update": {
+      "default_modern_pattern": "{identity}_Watch_Update.md",
+      "extension": "md",
+      "legacy_filename": "watch_update.md",
+      "modern_pattern": "{identity}_Watch_Update.md",
+      "reader_patterns": [
+        "{identity}_Watch_Update.md",
+        "{identity}_watch_update.md",
+        "watch_update.md"
+      ],
+      "suffix": "Watch_Update"
+    }
+  },
+  "contract": "distill-artifacts.v1",
+  "frontmatter": {
+    "base_fields": [
+      "authors",
+      "date",
+      "generated_at",
+      "source",
+      "source_id",
+      "synthesis_scope",
+      "tags",
+      "title",
+      "topic",
+      "type",
+      "url"
+    ],
+    "field_types": {
+      "authors": "array",
+      "date": "string",
+      "generated_at": "string",
+      "model": "string",
+      "model_version": "string",
+      "prompt_id": "string",
+      "source": "string",
+      "source_id": "string",
+      "synthesis_scope": "string",
+      "tags": "array",
+      "temperature": "number",
+      "title": "string",
+      "topic": "string",
+      "type": "string",
+      "url": "string"
+    },
+    "provenance_fields": [
+      "model",
+      "model_version",
+      "prompt_id",
+      "temperature"
+    ],
+    "serialization_example": "---\nstring: \"contract value\"\nboolean_true: true\nboolean_false: false\ninteger: 1\nnumber: 1.5\narray: [\"alpha\", \"beta\"]\nobject: {\"alpha\": 1}\n---"
+  },
+  "status": "candidate"
+}

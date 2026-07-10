@@ -1,4 +1,4 @@
-"""Regression checks for versioned public CLI and MCP contracts."""
+"""Regression checks for versioned public contract snapshots."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_SCRIPT = ROOT / "scripts" / "public_contracts.py"
+ARTIFACT_SNAPSHOT = ROOT / "docs" / "contracts" / "artifacts-v1.json"
 
 
 def test_public_contract_snapshots_match_runtime() -> None:
@@ -26,6 +27,24 @@ def test_public_contract_snapshots_match_runtime() -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_artifact_contract_snapshot_is_tracked() -> None:
+    """Artifact names and standard frontmatter need their own reviewed contract."""
+    assert ARTIFACT_SNAPSHOT.is_file()
+    snapshot = json.loads(ARTIFACT_SNAPSHOT.read_text())
+    assert snapshot["frontmatter"]["field_types"]["generated_at"] == "string"
+    assert snapshot["frontmatter"]["field_types"]["tags"] == "array"
+    assert snapshot["frontmatter"]["field_types"]["temperature"] == "number"
+    assert snapshot["artifact_types"]["transcript"]["reader_patterns"] == [
+        "{identity}_Transcript.txt",
+        "{identity}_transcript.txt",
+        "transcript.txt",
+    ]
+    serialized = snapshot["frontmatter"]["serialization_example"]
+    assert "boolean_true: true" in serialized
+    assert 'array: ["alpha", "beta"]' in serialized
+    assert "empty_string" not in serialized
 
 
 def test_cli_snapshot_distinguishes_arguments_from_options() -> None:

@@ -28,6 +28,7 @@ __all__ = [
     "LEGACY_ARTIFACT_NAMES",
     "ProvenanceFields",
     "apply_frontmatter",
+    "artifact_candidate_paths",
     "artifact_exists",
     "artifact_filename",
     "artifact_identity",
@@ -342,6 +343,32 @@ def _lowercase_suffix_artifact_path(
     return directory / f"{stem}_{suffix.casefold()}.{extension.lstrip('.')}"
 
 
+def artifact_candidate_paths(
+    directory: Path,
+    artifact_type: str,
+    *,
+    identity: str | None = None,
+    extension: str = "md",
+) -> tuple[Path, ...]:
+    """Return reader candidates in compatibility precedence order.
+
+    The first path is the canonical writer path. The remaining paths preserve
+    compatibility with the early lowercase-suffix convention and legacy
+    fixed filenames.
+    """
+    modern = artifact_path(directory, artifact_type, identity=identity, extension=extension)
+    lowercase_suffix = _lowercase_suffix_artifact_path(
+        directory, artifact_type, identity=identity, extension=extension
+    )
+    legacy = legacy_artifact_path(directory, artifact_type)
+    candidates = (modern, lowercase_suffix, legacy)
+    return tuple(
+        candidate
+        for index, candidate in enumerate(candidates)
+        if str(candidate) not in {str(previous) for previous in candidates[:index]}
+    )
+
+
 def find_artifact(
     directory: Path,
     artifact_type: str,
@@ -355,18 +382,10 @@ def find_artifact(
     :func:`artifact_path`; readers should use this helper so older libraries
     continue to work.
     """
-    modern = artifact_path(directory, artifact_type, identity=identity, extension=extension)
-    if modern.exists():
-        return modern
-    lowercase_suffix = _lowercase_suffix_artifact_path(
+    candidates = artifact_candidate_paths(
         directory, artifact_type, identity=identity, extension=extension
     )
-    if lowercase_suffix != modern and lowercase_suffix.exists():
-        return lowercase_suffix
-    legacy = legacy_artifact_path(directory, artifact_type)
-    if legacy.exists():
-        return legacy
-    return modern
+    return next((candidate for candidate in candidates if candidate.exists()), candidates[0])
 
 
 def artifact_exists(

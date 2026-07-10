@@ -237,9 +237,120 @@ async def mcp_contract() -> dict[str, object]:
     }
 
 
+def _data_type(value: object) -> str:
+    """Return a language-neutral data type for persisted contract fields."""
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list | tuple):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def artifact_contract() -> dict[str, object]:
+    """Build the canonical artifact-name and standard-frontmatter inventory."""
+    from distill.library.paths import (
+        ARTIFACT_SUFFIXES,
+        LEGACY_ARTIFACT_NAMES,
+        ProvenanceFields,
+        artifact_candidate_paths,
+        artifact_filename,
+        base_frontmatter,
+        dump_frontmatter,
+        provenance_frontmatter,
+    )
+
+    artifact_types: dict[str, object] = {}
+    for artifact_type, suffix in sorted(ARTIFACT_SUFFIXES.items()):
+        legacy_filename = LEGACY_ARTIFACT_NAMES[artifact_type]
+        extension = Path(legacy_filename).suffix.lstrip(".") or "md"
+        filename = artifact_filename(
+            "contract identity",
+            artifact_type,
+            extension=extension,
+        )
+        candidates = artifact_candidate_paths(
+            Path("contract"),
+            artifact_type,
+            identity="contract identity",
+            extension=extension,
+        )
+        artifact_types[artifact_type] = {
+            "default_modern_pattern": artifact_filename("contract identity", artifact_type).replace(
+                "contract_identity", "{identity}", 1
+            ),
+            "extension": extension,
+            "legacy_filename": legacy_filename,
+            "modern_pattern": filename.replace("contract_identity", "{identity}", 1),
+            "reader_patterns": [
+                candidate.name.replace("contract_identity", "{identity}", 1)
+                for candidate in candidates
+            ],
+            "suffix": suffix,
+        }
+
+    provenance = ProvenanceFields(
+        model="provider/model",
+        model_version="model-version",
+        temperature=0.0,
+        prompt_id="prompt.v1",
+    )
+    standard_frontmatter = base_frontmatter(
+        artifact_type="insights",
+        title="Contract title",
+        topic="contract-topic",
+        source="contract-source",
+        source_id="contract-id",
+        url="https://example.com/source",
+        date="2026-07-10",
+        authors=["Example Author"],
+        tags=["distill/contract-topic"],
+        synthesis_scope="single-source",
+        provenance=provenance,
+    )
+    provenance_fields = provenance_frontmatter(provenance)
+    serialized_example = dump_frontmatter(
+        {
+            "string": "contract value",
+            "boolean_true": True,
+            "boolean_false": False,
+            "integer": 1,
+            "number": 1.5,
+            "array": ["alpha", "beta"],
+            "object": {"alpha": 1},
+            "empty_string": "",
+            "empty_array": [],
+            "empty_object": {},
+            "none": None,
+        }
+    )
+
+    return {
+        "contract": "distill-artifacts.v1",
+        "status": "candidate",
+        "artifact_types": artifact_types,
+        "frontmatter": {
+            "base_fields": sorted(set(standard_frontmatter) - set(provenance_fields)),
+            "field_types": {
+                name: _data_type(value) for name, value in sorted(standard_frontmatter.items())
+            },
+            "provenance_fields": sorted(provenance_fields),
+            "serialization_example": serialized_example,
+        },
+    }
+
+
 async def snapshots() -> dict[Path, dict[str, object]]:
     """Return every public contract snapshot keyed by its tracked path."""
     return {
+        CONTRACT_DIR / "artifacts-v1.json": artifact_contract(),
         CONTRACT_DIR / "cli-v1.json": cli_contract(),
         CONTRACT_DIR / "mcp-v1.json": await mcp_contract(),
     }

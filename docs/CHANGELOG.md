@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   The default suite now rejects runtime drift until the reviewed snapshots are
   intentionally regenerated, and the compatibility policy classifies breaking
   versus additive changes ahead of the 1.0 freeze.
+- Extended the candidate contract baseline to modern artifact filename
+  patterns, reader compatibility paths, standard base-frontmatter fields and
+  types, provenance fields, and representative serialized frontmatter
+  behavior using the canonical runtime maps and builders.
 - Made the complete `distill.llm` package strict-blocking through central
   Pyright configuration, so future provider modules inherit the same gate.
   The OpenAI Whisper and Grok speech-to-text response boundaries now normalize

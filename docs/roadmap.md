@@ -101,9 +101,13 @@ be moved to `CHANGELOG.md` on next release).
   wheel metadata, and package-metadata regression test carry the same boundary.
 - [~] **Candidate 1.0 public contract snapshots.** Deterministic snapshots now
   cover the full CLI command and parameter tree plus MCP tools, input/output
-  schemas, resources, resource templates, and prompts. The default suite
-  rejects unreviewed drift. These remain candidates until the post-2026-07-28
-  MCP checkpoint completes; artifact layout, frontmatter, stored state, and
+  schemas, resources, resource templates, and prompts, plus modern artifact
+  filename patterns, reader compatibility paths, base frontmatter, provenance
+  fields, and representative serialized frontmatter behavior. The default
+  suite rejects unreviewed drift in these covered surfaces. These remain
+  candidates until the post-2026-07-28 MCP checkpoint completes; directory
+  layout, stored state, artifact-specific frontmatter schemas and value
+  semantics, caller-specific reader and writer extension integration, and full
   legacy migration remain separate contract slices.
 - [ ] **MCP 2026-07-28 compatibility spike.** After the final spec publishes on
   July 28, 2026 and the Python SDK support path is clear, validate Distill's MCP

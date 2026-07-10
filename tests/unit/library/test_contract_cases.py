@@ -10,6 +10,7 @@ from hypothesis import strategies as st
 from distill.library.paths import (
     _is_single_path_component,
     apply_frontmatter,
+    artifact_candidate_paths,
     artifact_filename,
     atomic_write_text,
     dump_frontmatter,
@@ -111,6 +112,21 @@ def test_artifact_filename_defaults_to_markdown_and_strips_extension_dot() -> No
     """Artifact filenames default to markdown and normalize extension spelling."""
     assert artifact_filename("ai c1", "synthesis") == "ai_c1_Synthesis.md"
     assert artifact_filename("ai c1", "transcript", extension=".txt") == "ai_c1_Transcript.txt"
+
+
+def test_artifact_candidate_paths_expose_reader_compatibility_order(tmp_path: Path) -> None:
+    candidates = artifact_candidate_paths(
+        tmp_path,
+        "transcript",
+        identity="ai c1",
+        extension="txt",
+    )
+
+    assert [candidate.name for candidate in candidates] == [
+        "ai_c1_Transcript.txt",
+        "ai_c1_transcript.txt",
+        "transcript.txt",
+    ]
 
 
 def test_find_artifact_default_returns_modern_markdown_path(tmp_path: Path) -> None:

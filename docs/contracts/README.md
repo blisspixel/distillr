@@ -6,6 +6,9 @@ contract stable.
 
 Current snapshots:
 
+- `artifacts-v1.json` records modern artifact filename patterns, reader
+  compatibility paths, standard base-frontmatter fields, field types,
+  provenance fields, and representative persisted frontmatter serialization.
 - `cli-v1.json` records every command path plus its public options, positional
   arguments, requiredness, defaults, cardinality, and validation type.
 - `mcp-v1.json` records MCP tool input and output schemas, resource URIs,
@@ -14,9 +17,10 @@ Current snapshots:
 
 The snapshots are marked `candidate` because the MCP compatibility checkpoint
 scheduled after the 2026-07-28 protocol release must finish before the 1.0
-surface can be declared stable. Artifact paths, frontmatter fields, stored
-state, and legacy-library migration are also tracked by the 1.0 roadmap and
-will receive separate contract coverage.
+surface can be declared stable. Directory layout, stored state,
+artifact-specific frontmatter schemas and value semantics, caller-specific
+reader and writer extension integration, and full legacy-library migration are
+also tracked by the 1.0 roadmap and will receive separate contract coverage.
 
 ## Compatibility policy
 
@@ -37,6 +41,11 @@ Starting with 1.0:
   may ship in a minor release.
 - Adding an optional output field is additive when the existing schema permits
   additional fields and existing fields retain their meaning.
+- Changing an artifact's canonical filename pattern, suffix, extension,
+  frontmatter field type, requiredness, or established value meaning is
+  breaking. Removing an accepted legacy reader path is also breaking.
+- Adding an optional frontmatter field is additive when existing readers
+  tolerate unknown fields and all established fields retain their meaning.
 - Fixing behavior without changing the public shape may ship in a patch
   release.
 - Help text, descriptions, presentation formatting, private Python imports,
@@ -59,7 +68,7 @@ Check the runtime against the tracked snapshots:
 uv run python scripts/public_contracts.py --check
 ```
 
-After an intentional public change, regenerate both snapshots and review the
+After an intentional public change, regenerate all snapshots and review the
 diff:
 
 ```console
@@ -69,5 +78,5 @@ git diff -- docs/contracts/
 
 The default test suite runs check mode, so stale or unreviewed contract changes
 fail locally and in CI. Snapshot generation is deterministic and reads runtime
-registration metadata only. It does not contact providers, fetch sources, or
-read secret values.
+registration metadata and pure artifact builders. It does not contact
+providers, fetch sources, or read secret values.
