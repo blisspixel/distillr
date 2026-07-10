@@ -83,6 +83,7 @@ dev = [
     "msgpack>=1.2.1",
     "pre-commit>=3.5",
     "import-linter>=2.0",
+    "jsonschema>=4.26.0",
 ]
 
 # uv build backend. Flat layout (the package lives at the repo root, not under

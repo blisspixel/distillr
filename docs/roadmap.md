@@ -103,12 +103,14 @@ be moved to `CHANGELOG.md` on next release).
   cover the full CLI command and parameter tree plus MCP tools, input/output
   schemas, resources, resource templates, and prompts, plus modern artifact
   filename patterns, reader compatibility paths, base frontmatter, provenance
-  fields, and representative serialized frontmatter behavior. The default
-  suite rejects unreviewed drift in these covered surfaces. These remain
-  candidates until the post-2026-07-28 MCP checkpoint completes; directory
-  layout, stored state, artifact-specific frontmatter schemas and value
-  semantics, caller-specific reader and writer extension integration, and full
-  legacy migration remain separate contract slices.
+  fields, and representative serialized frontmatter behavior, plus Draft
+  2020-12 schemas and normalization examples for the core library index and
+  per-channel state. The default suite rejects unreviewed drift in these
+  covered surfaces. These remain candidates until the post-2026-07-28 MCP
+  checkpoint completes; directory layout, additional state documents and file
+  locations, artifact-specific frontmatter schemas and value semantics,
+  caller-specific reader and writer extension integration, and full legacy
+  migration remain separate contract slices.
 - [ ] **MCP 2026-07-28 compatibility spike.** After the final spec publishes on
   July 28, 2026 and the Python SDK support path is clear, validate Distill's MCP
   surface before the 1.0 contract freeze. This is a near-term compatibility

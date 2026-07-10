@@ -1,0 +1,493 @@
+{
+  "contract": "distill-state.v1",
+  "documents": {
+    "channel_state": {
+      "compatibility_cases": [
+        {
+          "input": {},
+          "name": "empty",
+          "normalized": {
+            "last_refresh": null,
+            "processed_videos": {}
+          }
+        },
+        {
+          "input": {
+            "last_refresh": "2026-07-10T00:00:00",
+            "processed_videos": {
+              "video-id": {
+                "processed_at": "2026-07-10T00:00:00",
+                "title": "Contract Video",
+                "upload_date": "20260710"
+              }
+            }
+          },
+          "name": "legacy_missing_analysis_mode",
+          "normalized": {
+            "last_refresh": "2026-07-10T00:00:00",
+            "processed_videos": {
+              "video-id": {
+                "analysis_mode": "full",
+                "processed_at": "2026-07-10T00:00:00",
+                "title": "Contract Video",
+                "upload_date": "20260710"
+              }
+            }
+          }
+        },
+        {
+          "input": {
+            "processed_videos": {
+              "missing-fields": {}
+            }
+          },
+          "name": "missing_scalar_fields",
+          "normalized": {
+            "last_refresh": null,
+            "processed_videos": {
+              "missing-fields": {
+                "analysis_mode": "full",
+                "processed_at": "",
+                "title": "",
+                "upload_date": ""
+              }
+            }
+          }
+        },
+        {
+          "input": {
+            "last_refresh": null,
+            "processed_videos": {
+              "explicit-video": {
+                "analysis_mode": "scan",
+                "processed_at": "2026-07-10T01:00:00",
+                "title": "Explicit Video",
+                "upload_date": "20260710"
+              }
+            }
+          },
+          "name": "explicit_fields",
+          "normalized": {
+            "last_refresh": null,
+            "processed_videos": {
+              "explicit-video": {
+                "analysis_mode": "scan",
+                "processed_at": "2026-07-10T01:00:00",
+                "title": "Explicit Video",
+                "upload_date": "20260710"
+              }
+            }
+          }
+        }
+      ],
+      "normalized_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "last_refresh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processed_videos": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "analysis_mode": {
+                  "type": "string"
+                },
+                "processed_at": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "upload_date": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "analysis_mode",
+                "processed_at",
+                "title",
+                "upload_date"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "last_refresh",
+          "processed_videos"
+        ],
+        "type": "object"
+      }
+    },
+    "library_index": {
+      "compatibility_cases": [
+        {
+          "input": {},
+          "name": "empty",
+          "normalized": {
+            "topic_watchlist": [],
+            "topics": {},
+            "watchlist": []
+          }
+        },
+        {
+          "input": {
+            "topic_watchlist": [
+              {
+                "name": "Legacy Topic Watch",
+                "query": "contract query"
+              }
+            ],
+            "topics": {
+              "contract-topic": {
+                "channels": [
+                  {
+                    "name": "Contract Channel",
+                    "url": "https://example.com/channel"
+                  }
+                ]
+              }
+            },
+            "watchlist": [
+              {
+                "name": "Legacy Watch",
+                "url": "https://example.com/watch"
+              }
+            ]
+          },
+          "name": "legacy_missing_optional_fields",
+          "normalized": {
+            "topic_watchlist": [
+              {
+                "added_at": "",
+                "cadence": "weekly",
+                "channel_cap": 3,
+                "days": 7,
+                "last_run_at": "",
+                "limit": 10,
+                "max_run_cost": 0.0,
+                "monthly_budget": 0.0,
+                "name": "Legacy Topic Watch",
+                "paused": false,
+                "query": "contract query",
+                "ranking_mode": "balanced",
+                "report": false,
+                "sort": "date",
+                "topic": "watch"
+              }
+            ],
+            "topics": {
+              "contract-topic": {
+                "channels": [
+                  {
+                    "name": "Contract Channel",
+                    "url": "https://example.com/channel"
+                  }
+                ]
+              }
+            },
+            "watchlist": [
+              {
+                "added_at": "",
+                "days": 14,
+                "instructions": "",
+                "name": "Legacy Watch",
+                "topic": "watch",
+                "url": "https://example.com/watch"
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "topic_watchlist": [
+              {}
+            ],
+            "topics": {
+              "missing-channels": {},
+              "missing-fields": {
+                "channels": [
+                  {}
+                ]
+              }
+            },
+            "watchlist": [
+              {}
+            ]
+          },
+          "name": "missing_scalar_fields",
+          "normalized": {
+            "topic_watchlist": [
+              {
+                "added_at": "",
+                "cadence": "weekly",
+                "channel_cap": 3,
+                "days": 7,
+                "last_run_at": "",
+                "limit": 10,
+                "max_run_cost": 0.0,
+                "monthly_budget": 0.0,
+                "name": "",
+                "paused": false,
+                "query": "",
+                "ranking_mode": "balanced",
+                "report": false,
+                "sort": "date",
+                "topic": "watch"
+              }
+            ],
+            "topics": {
+              "missing-channels": {
+                "channels": []
+              },
+              "missing-fields": {
+                "channels": [
+                  {
+                    "name": "",
+                    "url": ""
+                  }
+                ]
+              }
+            },
+            "watchlist": [
+              {
+                "added_at": "",
+                "days": 14,
+                "instructions": "",
+                "name": "",
+                "topic": "watch",
+                "url": ""
+              }
+            ]
+          }
+        },
+        {
+          "input": {
+            "topic_watchlist": [
+              {
+                "added_at": "2026-07-10T00:00:00",
+                "cadence": "daily",
+                "channel_cap": 5,
+                "days": 30,
+                "last_run_at": "2026-07-10T01:00:00",
+                "limit": 20,
+                "max_run_cost": 2,
+                "monthly_budget": 3.5,
+                "name": "Explicit Topic Watch",
+                "paused": true,
+                "query": "explicit query",
+                "ranking_mode": "quality",
+                "report": true,
+                "sort": "relevance",
+                "topic": "explicit-topic"
+              }
+            ],
+            "topics": {},
+            "watchlist": [
+              {
+                "added_at": "2026-07-10T00:00:00",
+                "days": 21,
+                "instructions": "Track releases",
+                "name": "Explicit Watch",
+                "topic": "explicit-topic",
+                "url": "https://example.com/explicit-watch"
+              }
+            ]
+          },
+          "name": "explicit_fields_and_numeric_types",
+          "normalized": {
+            "topic_watchlist": [
+              {
+                "added_at": "2026-07-10T00:00:00",
+                "cadence": "daily",
+                "channel_cap": 5,
+                "days": 30,
+                "last_run_at": "2026-07-10T01:00:00",
+                "limit": 20,
+                "max_run_cost": 2.0,
+                "monthly_budget": 3.5,
+                "name": "Explicit Topic Watch",
+                "paused": true,
+                "query": "explicit query",
+                "ranking_mode": "quality",
+                "report": true,
+                "sort": "relevance",
+                "topic": "explicit-topic"
+              }
+            ],
+            "topics": {},
+            "watchlist": [
+              {
+                "added_at": "2026-07-10T00:00:00",
+                "days": 21,
+                "instructions": "Track releases",
+                "name": "Explicit Watch",
+                "topic": "explicit-topic",
+                "url": "https://example.com/explicit-watch"
+              }
+            ]
+          }
+        }
+      ],
+      "normalized_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "topic_watchlist": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "added_at": {
+                  "type": "string"
+                },
+                "cadence": {
+                  "type": "string"
+                },
+                "channel_cap": {
+                  "type": "integer"
+                },
+                "days": {
+                  "type": "integer"
+                },
+                "last_run_at": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "integer"
+                },
+                "max_run_cost": {
+                  "type": "number"
+                },
+                "monthly_budget": {
+                  "type": "number"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "paused": {
+                  "type": "boolean"
+                },
+                "query": {
+                  "type": "string"
+                },
+                "ranking_mode": {
+                  "type": "string"
+                },
+                "report": {
+                  "type": "boolean"
+                },
+                "sort": {
+                  "type": "string"
+                },
+                "topic": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "added_at",
+                "cadence",
+                "channel_cap",
+                "days",
+                "last_run_at",
+                "limit",
+                "max_run_cost",
+                "monthly_budget",
+                "name",
+                "paused",
+                "query",
+                "ranking_mode",
+                "report",
+                "sort",
+                "topic"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "topics": {
+            "additionalProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "channels": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "url"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "channels"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "watchlist": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "added_at": {
+                  "type": "string"
+                },
+                "days": {
+                  "type": "integer"
+                },
+                "instructions": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "topic": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "added_at",
+                "days",
+                "instructions",
+                "name",
+                "topic",
+                "url"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "topic_watchlist",
+          "topics",
+          "watchlist"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "json_schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "status": "candidate"
+}

@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   patterns, reader compatibility paths, standard base-frontmatter fields and
   types, provenance fields, and representative serialized frontmatter
   behavior using the canonical runtime maps and builders.
+- Added candidate Draft 2020-12 contracts for the core library index and
+  per-channel state documents, including normalized empty and legacy examples
+  so field, type, and compatibility-default drift fails the default suite.
 - Made the complete `distill.llm` package strict-blocking through central
   Pyright configuration, so future provider modules inherit the same gate.
   The OpenAI Whisper and Grok speech-to-text response boundaries now normalize

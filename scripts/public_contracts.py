@@ -7,6 +7,8 @@ import asyncio
 import difflib
 import json
 import sys
+import types
+import typing
 from enum import Enum
 from pathlib import Path
 from typing import cast
@@ -347,12 +349,193 @@ def artifact_contract() -> dict[str, object]:
     }
 
 
+class _TypedDictMetadata(typing.Protocol):
+    __required_keys__: frozenset[str]
+
+
+def _persisted_schema(annotation: object) -> dict[str, object]:
+    """Translate the persisted TypedDict subset into Draft 2020-12 schema."""
+    if typing.is_typeddict(annotation):
+        hints = typing.get_type_hints(annotation)
+        required = cast("_TypedDictMetadata", annotation).__required_keys__
+        return {
+            "type": "object",
+            "properties": {name: _persisted_schema(value) for name, value in sorted(hints.items())},
+            "required": sorted(required),
+            "additionalProperties": False,
+        }
+
+    origin = typing.get_origin(annotation)
+    arguments = typing.get_args(annotation)
+    if origin is list:
+        return {"type": "array", "items": _persisted_schema(arguments[0])}
+    if origin is dict:
+        return {"type": "object", "additionalProperties": _persisted_schema(arguments[1])}
+    if origin in {types.UnionType, typing.Union}:
+        return {"anyOf": [_persisted_schema(value) for value in arguments]}
+
+    scalar_types = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        type(None): "null",
+    }
+    if annotation in scalar_types:
+        return {"type": scalar_types[annotation]}
+    if annotation is typing.Any:
+        return {}
+    raise TypeError(f"Unsupported persisted contract annotation: {annotation!r}")
+
+
+def state_contract() -> dict[str, object]:
+    """Build normalized library and channel-state persistence contracts."""
+    from distill.library.state import (
+        ChannelStateData,
+        LibraryData,
+        _parse_channel_state,
+        _parse_library,
+    )
+
+    legacy_library = {
+        "topics": {
+            "contract-topic": {
+                "channels": [{"url": "https://example.com/channel", "name": "Contract Channel"}]
+            }
+        },
+        "watchlist": [{"url": "https://example.com/watch", "name": "Legacy Watch"}],
+        "topic_watchlist": [{"name": "Legacy Topic Watch", "query": "contract query"}],
+    }
+    legacy_channel_state = {
+        "processed_videos": {
+            "video-id": {
+                "title": "Contract Video",
+                "upload_date": "20260710",
+                "processed_at": "2026-07-10T00:00:00",
+            }
+        },
+        "last_refresh": "2026-07-10T00:00:00",
+    }
+    explicit_library = {
+        "topics": {},
+        "watchlist": [
+            {
+                "url": "https://example.com/explicit-watch",
+                "name": "Explicit Watch",
+                "topic": "explicit-topic",
+                "added_at": "2026-07-10T00:00:00",
+                "instructions": "Track releases",
+                "days": 21,
+            }
+        ],
+        "topic_watchlist": [
+            {
+                "name": "Explicit Topic Watch",
+                "query": "explicit query",
+                "topic": "explicit-topic",
+                "cadence": "daily",
+                "days": 30,
+                "limit": 20,
+                "sort": "relevance",
+                "channel_cap": 5,
+                "ranking_mode": "quality",
+                "added_at": "2026-07-10T00:00:00",
+                "last_run_at": "2026-07-10T01:00:00",
+                "report": True,
+                "max_run_cost": 2,
+                "monthly_budget": 3.5,
+                "paused": True,
+            }
+        ],
+    }
+    explicit_channel_state = {
+        "processed_videos": {
+            "explicit-video": {
+                "title": "Explicit Video",
+                "upload_date": "20260710",
+                "processed_at": "2026-07-10T01:00:00",
+                "analysis_mode": "scan",
+            }
+        },
+        "last_refresh": None,
+    }
+
+    return {
+        "contract": "distill-state.v1",
+        "json_schema_dialect": JSON_SCHEMA_DIALECT,
+        "status": "candidate",
+        "documents": {
+            "channel_state": {
+                "normalized_schema": _persisted_schema(ChannelStateData),
+                "compatibility_cases": [
+                    {"name": "empty", "input": {}, "normalized": _parse_channel_state({})},
+                    {
+                        "name": "legacy_missing_analysis_mode",
+                        "input": legacy_channel_state,
+                        "normalized": _parse_channel_state(legacy_channel_state),
+                    },
+                    {
+                        "name": "missing_scalar_fields",
+                        "input": {"processed_videos": {"missing-fields": {}}},
+                        "normalized": _parse_channel_state(
+                            {"processed_videos": {"missing-fields": {}}}
+                        ),
+                    },
+                    {
+                        "name": "explicit_fields",
+                        "input": explicit_channel_state,
+                        "normalized": _parse_channel_state(explicit_channel_state),
+                    },
+                ],
+            },
+            "library_index": {
+                "normalized_schema": _persisted_schema(LibraryData),
+                "compatibility_cases": [
+                    {"name": "empty", "input": {}, "normalized": _parse_library({})},
+                    {
+                        "name": "legacy_missing_optional_fields",
+                        "input": legacy_library,
+                        "normalized": _parse_library(legacy_library),
+                    },
+                    {
+                        "name": "missing_scalar_fields",
+                        "input": {
+                            "topics": {
+                                "missing-channels": {},
+                                "missing-fields": {"channels": [{}]},
+                            },
+                            "watchlist": [{}],
+                            "topic_watchlist": [{}],
+                        },
+                        "normalized": _parse_library(
+                            {
+                                "topics": {
+                                    "missing-channels": {},
+                                    "missing-fields": {"channels": [{}]},
+                                },
+                                "watchlist": [{}],
+                                "topic_watchlist": [{}],
+                            }
+                        ),
+                    },
+                    {
+                        "name": "explicit_fields_and_numeric_types",
+                        "input": explicit_library,
+                        "normalized": _parse_library(explicit_library),
+                    },
+                ],
+            },
+        },
+    }
+
+
 async def snapshots() -> dict[Path, dict[str, object]]:
     """Return every public contract snapshot keyed by its tracked path."""
     return {
         CONTRACT_DIR / "artifacts-v1.json": artifact_contract(),
         CONTRACT_DIR / "cli-v1.json": cli_contract(),
         CONTRACT_DIR / "mcp-v1.json": await mcp_contract(),
+        CONTRACT_DIR / "state-v1.json": state_contract(),
     }
 
 
@@ -374,7 +557,13 @@ async def _write() -> int:
 
 async def _check() -> int:
     mismatches = 0
-    for path, value in (await snapshots()).items():
+    generated = await snapshots()
+    expected_paths = set(generated)
+    tracked_paths = set(CONTRACT_DIR.glob("*-v1.json"))
+    for path in sorted(tracked_paths - expected_paths):
+        _emit(f"unexpected contract snapshot: {path.relative_to(ROOT)}")
+        mismatches += 1
+    for path, value in generated.items():
         actual = _render(value)
         if not path.exists():
             _emit(f"missing {path.relative_to(ROOT)}; run with --write")

@@ -14,10 +14,14 @@ Current snapshots:
 - `mcp-v1.json` records MCP tool input and output schemas, resource URIs,
   resource-template URIs, and prompt arguments. Its JSON Schema dialect is
   Draft 2020-12.
+- `state-v1.json` records Draft 2020-12 schemas for normalized core
+  `library.json` and per-channel `state.json` documents plus representative
+  accepted empty, legacy, and explicit-field inputs and their normalized forms.
 
 The snapshots are marked `candidate` because the MCP compatibility checkpoint
 scheduled after the 2026-07-28 protocol release must finish before the 1.0
-surface can be declared stable. Directory layout, stored state,
+surface can be declared stable. Directory layout, additional stored-state
+documents and file locations,
 artifact-specific frontmatter schemas and value semantics, caller-specific
 reader and writer extension integration, and full legacy-library migration are
 also tracked by the 1.0 roadmap and will receive separate contract coverage.
@@ -46,6 +50,11 @@ Starting with 1.0:
   breaking. Removing an accepted legacy reader path is also breaking.
 - Adding an optional frontmatter field is additive when existing readers
   tolerate unknown fields and all established fields retain their meaning.
+- Removing or renaming a persisted state field, narrowing its accepted type,
+  changing an established normalization default, or adding a field that old
+  documents cannot omit is breaking.
+- Adding a persisted state field is additive only when older documents still
+  normalize successfully and the new field has a stable default.
 - Fixing behavior without changing the public shape may ship in a patch
   release.
 - Help text, descriptions, presentation formatting, private Python imports,
@@ -77,6 +86,9 @@ git diff -- docs/contracts/
 ```
 
 The default test suite runs check mode, so stale or unreviewed contract changes
-fail locally and in CI. Snapshot generation is deterministic and reads runtime
-registration metadata and pure artifact builders. It does not contact
-providers, fetch sources, or read secret values.
+fail locally and in CI. Check mode also rejects tracked `*-v1.json` files that
+are no longer generated, so removing a contract from the generator cannot
+silently disable enforcement. Snapshot generation is deterministic and reads
+runtime registration and TypedDict metadata plus pure artifact builders and
+state normalization parsers. It does not contact providers, fetch sources, or
+read secret values.
