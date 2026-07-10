@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from typing import Any
 
@@ -78,10 +79,22 @@ def _reject_non_finite(_token: str) -> float:
     raise ValueError("non-finite JSON constant not allowed")
 
 
+def _parse_finite_float(token: str) -> float:
+    """Parse a JSON float and reject exponent overflow to infinity."""
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError("non-finite JSON number not allowed")
+    return value
+
+
 def _try_parse(text: str) -> dict[str, Any] | list[Any] | None:
     """Try to parse text as JSON. Returns None on failure."""
     try:
-        result: Any = json.loads(text, parse_constant=_reject_non_finite)
+        result: Any = json.loads(
+            text,
+            parse_constant=_reject_non_finite,
+            parse_float=_parse_finite_float,
+        )
         if isinstance(result, dict):
             return result  # type: ignore[reportUnknownVariableType]
         if isinstance(result, list):

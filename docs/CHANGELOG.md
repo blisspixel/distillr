@@ -79,6 +79,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   empty selections. Budget exhaustion now stops immediately in every
   cost-bearing phase while persisting the partial run's spend before the error
   returns to the CLI.
+- Raised the untrusted model-output JSON extractor to 100% branch coverage.
+  Tests now pin scalar refusal, fenced and ambient payload priority, ambiguous
+  container behavior, nested delimiters, escaped closing delimiters, and
+  incomplete arrays. Exponent overflow such as `1e400` now fails closed instead
+  of entering score and ranking logic as infinity.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
