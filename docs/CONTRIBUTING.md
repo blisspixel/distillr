@@ -25,14 +25,14 @@ uv run distill doctor
 
 You only need `XAI_API_KEY` and `GEMINI_API_KEY` for live end-to-end runs. The
 default test suite does not hit real APIs: offline integration tests use local
-fixtures and mock LLMs, while the `integration` marker selects opt-in live
+fixtures and mock LLMs, while the `live_network` marker selects opt-in live
 network tests.
 
 ## Running tests
 
 ```bash
 uv run pytest -q                   # unit + contract + offline integration; no network
-uv run pytest -m integration       # opt-in live YouTube and yt-dlp checks; needs network
+uv run pytest -m live_network      # opt-in live YouTube and yt-dlp checks; needs network
 uv run pytest --cov=distill --cov-fail-under=95   # branch coverage gate
 ```
 
@@ -69,7 +69,7 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 |---|---|---|
 | **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes - `uv sync --frozen` everywhere |
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
-| **pytest + coverage** | Unit, contract, and offline integration tests, plus a ratcheted branch-coverage floor | Yes, blocking; only live-network tests are gated behind `-m integration` |
+| **pytest + coverage** | Unit, contract, and offline integration tests, plus a ratcheted branch-coverage floor | Yes, blocking; only remote-service tests are gated behind `-m live_network` |
 | **import-linter** | Dependency-direction (layer) contracts | Yes, blocking |
 | **bandit** | Python security scanner | Yes, blocking on MEDIUM+ |
 | **pip-audit** | Known-CVE scanner for dependencies | Yes, blocking |

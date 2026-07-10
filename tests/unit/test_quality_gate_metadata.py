@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import shlex
+import tomllib
 from pathlib import Path
 from typing import cast
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+LIVE_NETWORK_MODULES = (
+    Path("tests/integration/test_integration.py"),
+    Path("tests/unit/ingestors/youtube/test_ytdlp_contract.py"),
+)
 
 
 def _mapping(value: object) -> dict[str, object]:
@@ -64,3 +70,31 @@ def test_full_package_pyright_is_blocking_and_matches_local_hook() -> None:
     effective_stages = pyright_hook.get("stages", pre_commit.get("default_stages"))
     if effective_stages is not None:
         assert "pre-commit" in {str(stage) for stage in _sequence(effective_stages)}
+
+
+def test_default_test_selection_excludes_only_live_network_tests() -> None:
+    """Offline integration stays default while remote-service checks opt in."""
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pytest_config = pyproject["tool"]["pytest"]["ini_options"]
+    marker_names = {marker.partition(":")[0] for marker in pytest_config["markers"]}
+
+    assert "live_network" in marker_names
+    assert "integration" not in marker_names
+
+    options = shlex.split(pytest_config["addopts"])
+    assert options.count("-m") == 1
+    marker_index = options.index("-m")
+    assert options[marker_index + 1] == "not live_network"
+    assert "--strict-markers" in options
+
+    for relative_path in LIVE_NETWORK_MODULES:
+        content = (ROOT / relative_path).read_text(encoding="utf-8")
+        assert "pytestmark = pytest.mark.live_network" in content
+
+    legacy_marker = "pytest.mark." + "integration"
+    stale_markers = [
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "tests").rglob("*.py")
+        if legacy_marker in path.read_text(encoding="utf-8")
+    ]
+    assert stale_markers == []

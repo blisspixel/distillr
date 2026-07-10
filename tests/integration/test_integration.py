@@ -1,6 +1,6 @@
 """Integration tests that hit real YouTube.
 
-Run with: pytest -m integration tests/test_integration.py
+Run with: pytest -m live_network tests/integration/test_integration.py
 """
 
 import pytest
@@ -12,8 +12,9 @@ from distill.ingestors.youtube.discovery import (
     search_videos,
 )
 
+pytestmark = pytest.mark.live_network
 
-@pytest.mark.integration
+
 class TestDiscoverVideosReal:
     def test_discovers_from_real_channel(self):
         """discover_videos returns real VideoInfo objects from @YouTube."""
@@ -49,7 +50,6 @@ class TestDiscoverVideosReal:
         assert len(videos_30d) >= len(videos_1d)
 
 
-@pytest.mark.integration
 class TestResolveChannelNameReal:
     def test_at_url(self):
         name = resolve_channel_name("https://www.youtube.com/@YouTube")
@@ -60,7 +60,6 @@ class TestResolveChannelNameReal:
         assert name == "YouTube"
 
 
-@pytest.mark.integration
 class TestSearchVideosReal:
     def test_basic_search(self):
         videos = search_videos("python tutorial", days=30, limit=3)

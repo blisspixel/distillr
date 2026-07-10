@@ -375,7 +375,7 @@ tests/                             # Mirrored test layout
 │   ├── prompts/                   # Prompt tests
 │   ├── mcp/                       # MCP server tests
 │   └── llm/                       # LLM router tests
-└── integration/                   # Full-pipeline tests (gated behind -m integration)
+└── integration/                   # Offline pipelines default; marked live tests opt in
 
 library/                           # Per-user data (git-ignored)
 ├── library.json                   # Master index

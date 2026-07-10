@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `pyright --warnings distill/` boundary. A metadata contract now prevents
   either gate from silently narrowing scope, ignoring warnings, becoming
   conditional, or moving to a manual-only local stage.
+- Renamed the opt-in real-service pytest marker from the ambiguous
+  `integration` to `live_network`. Offline integration tests remain in the
+  default zero-spend suite, while the eight YouTube and yt-dlp contract tests
+  remain explicitly excluded unless requested.
 
 ## 0.19.29 - 2026-07-10
 

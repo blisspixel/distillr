@@ -1,13 +1,14 @@
 """Contract tests validating yt-dlp returns fields our code depends on.
 
-Run with: pytest -m integration tests/test_ytdlp_contract.py
+Run with: pytest -m live_network tests/unit/ingestors/youtube/test_ytdlp_contract.py
 """
 
 import pytest
 import yt_dlp
 
+pytestmark = pytest.mark.live_network
 
-@pytest.mark.integration
+
 class TestChannelListingContract:
     """Verify yt-dlp channel tab extraction returns expected fields."""
 
@@ -61,7 +62,6 @@ class TestChannelListingContract:
         )
 
 
-@pytest.mark.integration
 class TestSingleVideoContract:
     """Verify single video extraction returns expected fields."""
 

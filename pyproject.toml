@@ -97,11 +97,11 @@ module-root = ""
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["integration: tests that hit real YouTube (deselect with -m 'not integration')"]
+markers = ["live_network: tests that access public remote services (excluded by default)"]
 # --strict-markers: an unregistered @pytest.mark typo is an error, not a silent
 # no-op. xfail_strict: an xfail that unexpectedly passes fails the suite, so a
 # fixed bug can never hide behind a stale xfail.
-addopts = "-m 'not integration' --strict-markers"
+addopts = "-m 'not live_network' --strict-markers"
 xfail_strict = true
 
 [tool.coverage.run]
