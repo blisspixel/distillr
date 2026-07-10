@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Corrected local setup refusal guidance so Ollama users receive the pull-model
   command while LM Studio users are told to load a model in LM Studio instead
   of receiving an inapplicable Ollama command.
+- Raised the `distill paper` and `distill papers` command boundary to 100%
+  branch coverage with a dedicated hermetic suite for fetch and search refusal,
+  convergence, reranking fallback, per-item failure isolation, hard budget
+  stops, optional synthesis outputs, and concept extraction.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
