@@ -1,0 +1,1007 @@
+{
+  "contract": "distill-mcp.v1",
+  "json_schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "prompts": [
+    {
+      "arguments": [
+        {
+          "name": "channel",
+          "required": true
+        }
+      ],
+      "name": "daily_deals"
+    },
+    {
+      "arguments": [],
+      "name": "morning_briefing"
+    },
+    {
+      "arguments": [
+        {
+          "name": "topic",
+          "required": true
+        }
+      ],
+      "name": "topic_gap_review"
+    },
+    {
+      "arguments": [
+        {
+          "name": "query",
+          "required": true
+        }
+      ],
+      "name": "topic_research"
+    }
+  ],
+  "resource_templates": [
+    {
+      "mimeType": "text/plain",
+      "name": "get_video_insights",
+      "uriTemplate": "distill://topics/{topic}/channels/{channel}/insights/{index}"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_channel_synthesis",
+      "uriTemplate": "distill://topics/{topic}/channels/{channel}/synthesis"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topic_corpus",
+      "uriTemplate": "distill://topics/{topic}/corpus"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topic_diff",
+      "uriTemplate": "distill://topics/{topic}/diff"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topic_sources",
+      "uriTemplate": "distill://topics/{topic}/sources"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topic_synthesis",
+      "uriTemplate": "distill://topics/{topic}/synthesis"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topic_trends",
+      "uriTemplate": "distill://topics/{topic}/trends"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topic_videos",
+      "uriTemplate": "distill://topics/{topic}/videos"
+    }
+  ],
+  "resources": [
+    {
+      "mimeType": "text/plain",
+      "name": "get_costs",
+      "uri": "distill://costs"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_topics",
+      "uri": "distill://topics"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_watch_alerts",
+      "uri": "distill://watch-alerts"
+    },
+    {
+      "mimeType": "text/plain",
+      "name": "get_watchlist",
+      "uri": "distill://watchlist"
+    }
+  ],
+  "status": "candidate",
+  "tools": [
+    {
+      "inputSchema": {
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "question"
+        ],
+        "type": "object"
+      },
+      "name": "ask",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "name": "catch_up",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "ts_a": {
+            "default": "",
+            "type": "string"
+          },
+          "ts_b": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "name": "concept_diff",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "name": "concept_history",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "days": {
+            "default": 30,
+            "type": "integer"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "costs",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "goal": {
+            "type": "string"
+          },
+          "limit": {
+            "default": 5,
+            "type": "integer"
+          },
+          "papers_only": {
+            "default": false,
+            "type": "boolean"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "videos_only": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "name": "discover",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "doctor",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "contested_only": {
+            "default": false,
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer"
+          },
+          "query": {
+            "default": "",
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "find_concepts",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 10,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "find_insights",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "max_tokens": {
+            "default": 4000,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "find_insights_summary",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "generate_report",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "days": {
+            "default": 60,
+            "type": "integer"
+          },
+          "limit": {
+            "default": 5,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "learn_topic",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "list_topic_summary",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "list_topics",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "okf_export",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "okf_validate",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 5,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "papers",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "topic": {
+            "default": "ai",
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "process_video_url",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "read_concept",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "read_insight",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "research_gaps",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "resynthesize_topic",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "days": {
+            "default": 60,
+            "type": "integer"
+          },
+          "limit": {
+            "default": 5,
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "search_videos",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "preview": {
+            "default": false,
+            "type": "boolean"
+          },
+          "same_section_only": {
+            "default": false,
+            "type": "boolean"
+          },
+          "seed_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "seed_only": {
+            "default": false,
+            "type": "boolean"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "urls": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "site_batch",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "force": {
+            "default": false,
+            "type": "boolean"
+          },
+          "style": {
+            "default": "",
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "two_pass": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "synthesize",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "days": {
+            "default": 14,
+            "type": "integer"
+          },
+          "instructions": {
+            "default": "",
+            "type": "string"
+          },
+          "topic": {
+            "default": "watch",
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "watch_add",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "watch_remove",
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

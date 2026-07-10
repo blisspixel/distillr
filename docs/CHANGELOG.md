@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Added deterministic candidate-v1 snapshots for the full CLI command and
+  parameter tree plus MCP tools, schemas, resources, templates, and prompts.
+  The default suite now rejects runtime drift until the reviewed snapshots are
+  intentionally regenerated, and the compatibility policy classifies breaking
+  versus additive changes ahead of the 1.0 freeze.
 - Made the complete `distill.llm` package strict-blocking through central
   Pyright configuration, so future provider modules inherit the same gate.
   The OpenAI Whisper and Grok speech-to-text response boundaries now normalize

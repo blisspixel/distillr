@@ -1,0 +1,6865 @@
+{
+  "commands": [
+    {
+      "invoke_without_command": true,
+      "parameters": [
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "cost_mode",
+          "names": [
+            "--cost-mode"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "debug",
+          "names": [
+            "--debug"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "install_completion",
+          "names": [
+            "--install-completion"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "json_output",
+          "names": [
+            "--json"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "model",
+          "names": [
+            "--model",
+            "-m"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "quiet",
+          "names": [
+            "--quiet",
+            "-q"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "show_completion",
+          "names": [
+            "--show-completion"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "verbose",
+          "names": [
+            "--verbose",
+            "-v"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "version",
+          "names": [
+            "--version",
+            "-V"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill add"
+    },
+    {
+      "parameters": [],
+      "path": "distill alerts"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "question",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "save",
+          "names": [
+            "--save"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill ask"
+    },
+    {
+      "parameters": [
+        {
+          "default": "all",
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "json_output",
+          "names": [
+            "--json"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "next_actions",
+          "names": [
+            "--next-actions"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report_only",
+          "names": [
+            "--report-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill audit"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 60,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "hours",
+          "names": [
+            "--hours"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 5,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 2,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report",
+            "-r"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rerank",
+          "names": [
+            "--rerank"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-rerank"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "save",
+          "names": [
+            "--save"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--ephemeral"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "relevance",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill brief"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "channel",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days_override",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "dry_run",
+          "names": [
+            "--dry-run"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill catch-up"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "months",
+          "names": [
+            "--months",
+            "-m"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report",
+            "-r"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "ai",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill channel"
+    },
+    {
+      "parameters": [
+        {
+          "default": "",
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "all_topics",
+          "names": [
+            "--all"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill claude-md"
+    },
+    {
+      "parameters": [],
+      "path": "distill cleanup"
+    },
+    {
+      "no_args_is_help": true,
+      "parameters": [],
+      "path": "distill concepts"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "json_out",
+          "names": [
+            "--json"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "refresh",
+          "names": [
+            "--refresh"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "threshold",
+          "names": [
+            "--threshold",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill concepts build"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "slug",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": "",
+          "kind": "argument",
+          "name": "ts_a",
+          "nargs": 1,
+          "position": 2,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": "",
+          "kind": "argument",
+          "name": "ts_b",
+          "nargs": 1,
+          "position": 3,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill concepts diff"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "slug",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill concepts log"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "slug",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "timestamp",
+          "nargs": 1,
+          "position": 2,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill concepts rollback"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill corpus"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "last",
+          "names": [
+            "--last",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill costs"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "open_browser",
+          "names": [
+            "--open"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-open"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "web",
+          "names": [
+            "--web"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill dashboard"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 7,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "watch",
+          "names": [
+            "--watch"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "write",
+          "names": [
+            "--write"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-write"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill diff"
+    },
+    {
+      "parameters": [
+        {
+          "default": "",
+          "kind": "argument",
+          "name": "goal",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 365,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "from_gaps",
+          "names": [
+            "--from-gaps"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "from_preview",
+          "names": [
+            "--from-preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "goal_file",
+          "names": [
+            "--goal-file"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "ingest_attachments",
+          "names": [
+            "--ingest-attachments"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "lens",
+          "names": [
+            "--lens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "paper_limit",
+          "names": [
+            "--paper-limit"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "papers_only",
+          "names": [
+            "--papers-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "balanced",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "rigor",
+          "names": [
+            "--rigor"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "site_crawl_depth",
+          "names": [
+            "--site-crawl-depth"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 1,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "site_crawl_pages",
+          "names": [
+            "--site-crawl-pages"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "site_limit",
+          "names": [
+            "--site-limit"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "site_seeds",
+          "names": [
+            "--site-seeds"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "size",
+          "names": [
+            "--size"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": true,
+          "name": "trusted_site",
+          "names": [
+            "--trusted-site"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "verify",
+          "names": [
+            "--verify"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "video_limit",
+          "names": [
+            "--video-limit"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "videos_only",
+          "names": [
+            "--videos-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill discover"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "adapters",
+          "names": [
+            "--adapters"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "apply",
+          "names": [
+            "--apply"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "fix",
+          "names": [
+            "--fix"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "json_output",
+          "names": [
+            "--json"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "links",
+          "names": [
+            "--links"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "migrate_frontmatter",
+          "names": [
+            "--migrate-frontmatter"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "migrate_links",
+          "names": [
+            "--migrate-links"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "update",
+          "names": [
+            "--update"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill doctor"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "allow_oversized",
+          "names": [
+            "--allow-oversized"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "auto",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "anchor",
+          "names": [
+            "--anchor"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "auto",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "judge",
+          "names": [
+            "--judge"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "auto",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "models",
+          "names": [
+            "--models",
+            "-m"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "no_cache",
+          "names": [
+            "--no-cache"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.9,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "threshold",
+          "names": [
+            "--threshold"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": "all",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "workload",
+          "names": [
+            "--workload",
+            "-w"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill eval"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 90,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rerank",
+          "names": [
+            "--rerank"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-rerank"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "relevance",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill explore"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "bundle",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "bundle_format",
+          "names": [
+            "--format"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "report",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "what",
+          "names": [
+            "--what",
+            "-w"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill export"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill findings"
+    },
+    {
+      "parameters": [
+        {
+          "default": "all",
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill health"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 1,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "episodes",
+          "names": [
+            "--episodes"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "no_analyze",
+          "names": [
+            "--no-analyze"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "no_transcribe",
+          "names": [
+            "--no-transcribe"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rss",
+          "names": [
+            "--rss"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "inbox",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill ingest"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "force",
+          "names": [
+            "--force"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "install_browser",
+          "names": [
+            "--browser"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-browser"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "provider",
+          "names": [
+            "--provider"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill init"
+    },
+    {
+      "parameters": [],
+      "path": "distill intent"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill intent clear"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "audience",
+          "names": [
+            "--audience"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "budget",
+          "names": [
+            "--budget"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "goal",
+          "names": [
+            "--goal"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "lens",
+          "names": [
+            "--lens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "rigor",
+          "names": [
+            "--rigor"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill intent set"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill intent show"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "brief",
+          "names": [
+            "--brief"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "concepts_flag",
+          "names": [
+            "--concepts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "hours",
+          "names": [
+            "--hours"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "lens",
+          "names": [
+            "--lens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report",
+            "-r"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rerank",
+          "names": [
+            "--rerank"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-rerank"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "off",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "rigor",
+          "names": [
+            "--rigor"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "save",
+          "names": [
+            "--save"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--ephemeral"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "date",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "top_by_date",
+          "names": [
+            "--top-by-date"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "verify",
+          "names": [
+            "--verify"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill latest"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 60,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "hours",
+          "names": [
+            "--hours"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 5,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 2,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report",
+            "-r"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rerank",
+          "names": [
+            "--rerank"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-rerank"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "save",
+          "names": [
+            "--save"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--ephemeral"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "relevance",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill learn"
+    },
+    {
+      "parameters": [],
+      "path": "distill library"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill migrate"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "daily",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "cadence",
+          "names": [
+            "--cadence"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 1,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_run_cost",
+          "names": [
+            "--max-run-cost"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "monthly_budget",
+          "names": [
+            "--monthly-budget"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "name",
+          "names": [
+            "--name"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "now",
+          "names": [
+            "--now"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "balanced",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "ranking",
+          "names": [
+            "--ranking"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "date",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill monitor"
+    },
+    {
+      "parameters": [],
+      "path": "distill okf"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "path",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        }
+      ],
+      "path": "distill okf validate"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "path",
+          "names": [
+            "--path"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "vault",
+          "names": [
+            "--vault"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "output",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "what",
+          "names": [
+            "--what",
+            "-w"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill open"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "include_transcript",
+          "names": [
+            "--transcript",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill package-latest"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "target",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "papers",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill paper"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "concepts_flag",
+          "names": [
+            "--concepts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "expand",
+          "names": [
+            "--expand"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-expand"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "lens",
+          "names": [
+            "--lens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rerank",
+          "names": [
+            "--rerank"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-rerank"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "off",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "rigor",
+          "names": [
+            "--rigor"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "relevance",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "verify",
+          "names": [
+            "--verify"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill papers"
+    },
+    {
+      "parameters": [],
+      "path": "distill profile"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "profile",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "fetch_sources",
+          "names": [
+            "--fetch"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-fetch"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": null,
+            "max_open": false,
+            "min": 1,
+            "min_open": false,
+            "name": "integer range"
+          }
+        }
+      ],
+      "path": "distill profile preview"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "profile",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "fetch_sources",
+          "names": [
+            "--fetch"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-fetch"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": null,
+            "max_open": false,
+            "min": 1,
+            "min_open": false,
+            "name": "integer range"
+          }
+        },
+        {
+          "count": false,
+          "default": 1800,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "timeout_seconds",
+          "names": [
+            "--timeout"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": null,
+            "max_open": false,
+            "min": 1,
+            "min_open": false,
+            "name": "integer range"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill profile run"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "target",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 14,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "ingest_attachments",
+          "names": [
+            "--ingest-attachments"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "scrape_only",
+          "names": [
+            "--scrape-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "seed_only",
+          "names": [
+            "--seed-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--crawl"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "auto",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "source",
+          "names": [
+            "--source"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill ramp-up"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "deep",
+          "names": [
+            "--deep"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "dry_run",
+          "names": [
+            "--dry-run"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill reanalyze"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill remove"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "all_topics",
+          "names": [
+            "--all"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "focus",
+          "names": [
+            "--focus",
+            "-f"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "legacy",
+          "names": [
+            "--legacy"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "no_qa",
+          "names": [
+            "--no-qa"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "research_only",
+          "names": [
+            "--research-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sections_filter",
+          "names": [
+            "--sections",
+            "-s"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill report"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "context",
+          "names": [
+            "--context"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "context_file",
+          "names": [
+            "--context-file"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "name",
+          "names": [
+            "--name",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": true,
+          "name": "topics",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill research-brief"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "style",
+          "names": [
+            "--style"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "two_pass",
+          "names": [
+            "--two-pass"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill resynthesize"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "all_topics",
+          "names": [
+            "--all"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "dry_run",
+          "names": [
+            "--dry-run"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "months",
+          "names": [
+            "--months",
+            "-m"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "refresh",
+          "names": [
+            "--refresh",
+            "-r"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill run"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 60,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "hours",
+          "names": [
+            "--hours"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 5,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 2,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "rerank",
+          "names": [
+            "--rerank"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-rerank"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "relevance",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill search"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": "127.0.0.1",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "host",
+          "names": [
+            "--host"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "open_browser",
+          "names": [
+            "--open"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-open"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 8899,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "port",
+          "names": [
+            "--port",
+            "-p"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill serve"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": "1",
+          "kind": "argument",
+          "name": "index_or_channel",
+          "nargs": 1,
+          "position": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "insights",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "what",
+          "names": [
+            "--what",
+            "-w"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill show"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "crawl_prefix",
+          "names": [
+            "--crawl-prefix"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "ingest_attachments",
+          "names": [
+            "--ingest-attachments"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 1,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_depth",
+          "names": [
+            "--max-depth"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 8,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_pages",
+          "names": [
+            "--max-pages"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "name",
+          "names": [
+            "--name"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "same_section_only",
+          "names": [
+            "--same-section-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "scrape_only",
+          "names": [
+            "--scrape-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "seed_only",
+          "names": [
+            "--seed-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "web",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill site"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "path",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "concepts_flag",
+          "names": [
+            "--concepts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "ingest_attachments",
+          "names": [
+            "--ingest-attachments"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "same_section_only",
+          "names": [
+            "--same-section-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "scrape_only",
+          "names": [
+            "--scrape-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "seed_only",
+          "names": [
+            "--seed-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill site-batch"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "online",
+          "names": [
+            "--online"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill status"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill synthesis"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "context",
+          "names": [
+            "--context"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "context_file",
+          "names": [
+            "--context-file"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": 32768,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_tokens",
+          "names": [
+            "--max-tokens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "name",
+          "names": [
+            "--name",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": true,
+          "name": "topics",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill synthesize"
+    },
+    {
+      "parameters": [],
+      "path": "distill topic"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report_after",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill topic brief"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "goal",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "brief",
+          "names": [
+            "--brief"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 30,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "papers",
+          "names": [
+            "--papers"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report_after",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "videos",
+          "names": [
+            "--videos"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill topic create"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "bundle",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "bundle_format",
+          "names": [
+            "--format"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "report",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "what",
+          "names": [
+            "--what",
+            "-w"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic export"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "goal",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 30,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "papers",
+          "names": [
+            "--papers"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "videos",
+          "names": [
+            "--videos"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill topic preview"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "focus",
+          "names": [
+            "--focus",
+            "-f"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "legacy",
+          "names": [
+            "--legacy"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "no_qa",
+          "names": [
+            "--no-qa"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "research_only",
+          "names": [
+            "--research-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sections_filter",
+          "names": [
+            "--sections",
+            "-s"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill topic report"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "summary",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "what",
+          "names": [
+            "--what",
+            "-w"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic show"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "brief",
+          "names": [
+            "--brief"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "goal",
+          "names": [
+            "--goal"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "papers",
+          "names": [
+            "--papers"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report_after",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "shorts",
+          "names": [
+            "--shorts"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-shorts"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "test",
+          "names": [
+            "--test"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "videos",
+          "names": [
+            "--videos"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill topic update"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "daily",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "cadence",
+          "names": [
+            "--cadence"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--videos"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_run_cost",
+          "names": [
+            "--max-run-cost"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "monthly_budget",
+          "names": [
+            "--monthly-budget"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "name",
+          "names": [
+            "--name"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "now",
+          "names": [
+            "--now"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report_after",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill topic watch"
+    },
+    {
+      "invoke_without_command": true,
+      "parameters": [],
+      "path": "distill topic-watch"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "query",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "weekly",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "cadence",
+          "names": [
+            "--cadence"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 7,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 10,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_run_cost",
+          "names": [
+            "--max-run-cost"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": 0.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "monthly_budget",
+          "names": [
+            "--monthly-budget"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "name",
+          "names": [
+            "--name"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "per_channel_cap",
+          "names": [
+            "--channel-cap"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": "balanced",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "ranking",
+          "names": [
+            "--ranking"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "report",
+          "names": [
+            "--report"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "date",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "sort",
+          "names": [
+            "--sort"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch add"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_run_cost",
+          "names": [
+            "--max-run-cost"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "monthly_budget",
+          "names": [
+            "--monthly-budget"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "float"
+          }
+        }
+      ],
+      "path": "distill topic-watch budget"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "cadence",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch cadence"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "days",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill topic-watch days"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch pause"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "ranking",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch ranking"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch remove"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch resume"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "ignore_budget",
+          "names": [
+            "--ignore-budget"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "preview",
+          "names": [
+            "--preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill topic-watch run"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 8,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "write",
+          "names": [
+            "--write"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-write"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill trends"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "check",
+          "names": [
+            "--check"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill update"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "show",
+          "names": [
+            "--show"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "ai",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill video"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "topic",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "channel",
+          "names": [
+            "--channel",
+            "-c"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 20,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "limit",
+          "names": [
+            "--limit",
+            "-n"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill videos"
+    },
+    {
+      "invoke_without_command": true,
+      "parameters": [],
+      "path": "distill watch"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "url",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 14,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "days_opt",
+          "names": [
+            "--days",
+            "-d"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "instructions",
+          "names": [
+            "--instructions",
+            "-i"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "watch",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "topic",
+          "names": [
+            "--topic",
+            "-t"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill watch add"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "days",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "integer"
+          }
+        }
+      ],
+      "path": "distill watch days"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "instructions",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill watch instructions"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "name",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill watch remove"
+    }
+  ],
+  "contract": "distill-cli.v1",
+  "status": "candidate"
+}
