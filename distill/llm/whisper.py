@@ -23,6 +23,14 @@ __all__ = ["transcribe_with_openai"]
 _OPENAI_WHISPER_MAX_BYTES = 25 * 1024 * 1024  # 25 MB upload cap per OpenAI's docs
 
 
+def _transcription_text(result: object) -> str:
+    """Normalize current text responses and legacy object-style responses."""
+    if isinstance(result, str):
+        return result
+    response_text: object = getattr(result, "text", "")
+    return str(response_text or result)
+
+
 def transcribe_with_openai(
     media_path: Path,
     api_key: str,
@@ -53,14 +61,18 @@ def transcribe_with_openai(
         )
 
     client = OpenAI(api_key=api_key)
-    kwargs: dict[str, str] = {
-        "model": model,
-        "response_format": "text",
-    }
-    if vocabulary_hint:
-        kwargs["prompt"] = vocabulary_hint
     with media_path.open("rb") as fh:
-        result = client.audio.transcriptions.create(file=fh, **kwargs)  # type: ignore[arg-type]
-    if isinstance(result, str):
-        return result
-    return str(getattr(result, "text", "") or result)
+        if vocabulary_hint:
+            result = client.audio.transcriptions.create(
+                file=fh,
+                model=model,
+                response_format="text",
+                prompt=vocabulary_hint,
+            )
+        else:
+            result = client.audio.transcriptions.create(
+                file=fh,
+                model=model,
+                response_format="text",
+            )
+    return _transcription_text(result)

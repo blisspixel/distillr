@@ -98,3 +98,11 @@ def test_default_test_selection_excludes_only_live_network_tests() -> None:
         if legacy_marker in path.read_text(encoding="utf-8")
     ]
     assert stale_markers == []
+
+
+def test_llm_package_is_centrally_strict() -> None:
+    """Every current and future LLM module must inherit strict type checking."""
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    strict_paths = pyproject["tool"]["pyright"].get("strict", [])
+
+    assert "distill/llm" in strict_paths

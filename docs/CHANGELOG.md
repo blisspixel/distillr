@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Made the complete `distill.llm` package strict-blocking through central
+  Pyright configuration, so future provider modules inherit the same gate.
+  The OpenAI Whisper and Grok speech-to-text response boundaries now normalize
+  typed payloads without broad type suppressions.
 - Promoted the zero-warning full-package Pyright check from advisory to
   blocking in CI and aligned the local pre-commit hook with the same
   `pyright --warnings distill/` boundary. A metadata contract now prevents

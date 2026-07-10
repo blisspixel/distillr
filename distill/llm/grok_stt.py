@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -141,10 +141,11 @@ def transcribe_with_grok(
         # httpx's default raise_for_status() drops the body entirely.
         body_preview = resp.text[:500] if resp.text else "(empty body)"
         raise RuntimeError(f"Grok STT {resp.status_code} {resp.reason_phrase}: {body_preview}")
-    payload = resp.json()
+    payload: object = resp.json()
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unexpected Grok STT payload shape: {type(payload).__name__}")
-    text = payload.get("text")
+    payload_fields = cast(dict[str, object], payload)
+    text = payload_fields.get("text")
     if not isinstance(text, str):
         raise RuntimeError(f"Grok STT response missing 'text' field: {payload!r}")
     return text

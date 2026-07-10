@@ -233,9 +233,10 @@ exclude_dirs = ["tests", "archive", "library", "output", "tmp", ".venv", "venv"]
 [tool.pyright]
 # Pyright runs in "basic" mode for now - lenient enough to catch real bugs
 # without blocking on pre-existing typing gaps across the large CLI module.
-# Tighten to "standard" or "strict" on individual modules via pyright: strict
-# comments as the codebase is incrementally typed.
+# Tighten packages through central strict paths and isolated modules through
+# `pyright: strict` directives as the codebase is incrementally typed.
 include = ["distill", "tests"]
+strict = ["distill/llm"]
 exclude = [
     "**/__pycache__",
     "**/node_modules",
