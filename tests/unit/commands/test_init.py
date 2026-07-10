@@ -7,14 +7,17 @@ prompt with no TTY (the loop-ready invariant).
 
 from __future__ import annotations
 
+import builtins
 import json
 import os
 import stat
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from typer.testing import CliRunner
 
@@ -62,7 +65,11 @@ class TestEnvFileHelpers:
         real_close = os.close
         closed_descriptors = []
 
-        def fail_fdopen(*args, **kwargs):
+        def fail_fdopen(descriptor, mode, *, encoding, newline):
+            assert descriptor >= 0
+            assert mode == "w"
+            assert encoding == "utf-8"
+            assert newline == "\n"
             raise OSError("stream unavailable")
 
         def record_close(descriptor):
@@ -138,6 +145,44 @@ class TestEnvFileHelpers:
 
 
 class TestBrowserSetup:
+    @pytest.mark.parametrize(
+        ("executable_exists", "expected"),
+        [(True, "installed"), (False, "missing")],
+    )
+    def test_status_checks_browser_executable(
+        self, tmp_path, monkeypatch, executable_exists, expected
+    ):
+        executable = tmp_path / "chromium"
+        if executable_exists:
+            executable.write_text("browser", encoding="utf-8")
+        playwright = SimpleNamespace(chromium=SimpleNamespace(executable_path=str(executable)))
+        monkeypatch.setattr(
+            "playwright.sync_api.sync_playwright",
+            lambda: nullcontext(playwright),
+        )
+
+        assert init_mod.chromium_status() == expected
+
+    def test_status_is_unknown_when_playwright_cannot_import(self, monkeypatch):
+        real_import = builtins.__import__
+
+        def import_without_playwright(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "playwright.sync_api":
+                raise ImportError("playwright unavailable")
+            return real_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", import_without_playwright)
+
+        assert init_mod.chromium_status() == "unknown"
+
+    def test_status_is_missing_when_playwright_probe_fails(self, monkeypatch):
+        def fail_probe():
+            raise RuntimeError("browser registry unavailable")
+
+        monkeypatch.setattr("playwright.sync_api.sync_playwright", fail_probe)
+
+        assert init_mod.chromium_status() == "missing"
+
     def test_install_uses_fixed_argv_and_strips_python_injection(self, monkeypatch):
         observed = {}
 
@@ -164,12 +209,101 @@ class TestBrowserSetup:
         assert observed["check"] is False
 
     def test_install_failure_returns_false(self, monkeypatch):
-        def fail_run(*args, **kwargs):
+        def fail_run(argv, *, env, check):
+            assert argv[-2:] == ["install", "chromium"]
+            assert isinstance(env, dict)
+            assert check is False
             raise OSError("process unavailable")
 
         monkeypatch.setattr(subprocess, "run", fail_run)
 
         assert init_mod._install_chromium() is False
+
+
+class TestProviderBoundaries:
+    def test_xai_validation_delegates_to_canonical_doctor_check(self, monkeypatch):
+        config = object()
+        observed = {}
+
+        def validate(provider, received_config):
+            observed.update(provider=provider, config=received_config)
+            return "ok", "grok-4.3"
+
+        monkeypatch.setattr("distill.commands._helpers.get_config", lambda: config)
+        monkeypatch.setattr("distill.doctor.checks.doctor_validate_key", validate)
+
+        assert init_mod._validate_xai() == ("ok", "grok-4.3")
+        assert observed == {"provider": "xai", "config": config}
+
+    @pytest.mark.parametrize(
+        ("provider", "env_name", "base_url", "status_code", "expected_url", "expected"),
+        [
+            (
+                "ollama",
+                "OLLAMA_BASE_URL",
+                "http://ollama.test/",
+                200,
+                "http://ollama.test/api/tags",
+                "reachable",
+            ),
+            (
+                "ollama",
+                "OLLAMA_BASE_URL",
+                "http://ollama.test/",
+                503,
+                "http://ollama.test/api/tags",
+                "unreachable",
+            ),
+            (
+                "lmstudio",
+                "LMSTUDIO_BASE_URL",
+                "http://lmstudio.test/v1/",
+                200,
+                "http://lmstudio.test/v1/models",
+                "reachable",
+            ),
+            (
+                "lmstudio",
+                "LMSTUDIO_BASE_URL",
+                "http://lmstudio.test/v1/",
+                503,
+                "http://lmstudio.test/v1/models",
+                "unreachable",
+            ),
+        ],
+    )
+    def test_local_reachability_uses_provider_endpoint(
+        self,
+        monkeypatch,
+        provider,
+        env_name,
+        base_url,
+        status_code,
+        expected_url,
+        expected,
+    ):
+        observed = {}
+
+        def get(url, *, timeout):
+            observed.update(url=url, timeout=timeout)
+            return SimpleNamespace(status_code=status_code)
+
+        monkeypatch.setenv(env_name, base_url)
+        monkeypatch.setattr(httpx, "get", get)
+
+        assert init_mod._local_reachable(provider) == expected
+        assert observed == {"url": expected_url, "timeout": 2.0}
+
+    def test_local_reachability_handles_request_failure(self, monkeypatch):
+        def fail_get(url, *, timeout):
+            assert url == "http://localhost:11434/api/tags"
+            assert timeout == 2.0
+            raise httpx.ConnectError("local provider unavailable")
+
+        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+        monkeypatch.setattr(httpx, "get", fail_get)
+
+        assert init_mod._local_reachable("ollama") == "unreachable"
 
 
 # ─── Command behavior ─────────────────────────────────────────────────
@@ -229,3 +363,90 @@ def test_local_provider_path(in_tmp, monkeypatch):
     assert env["data"]["ready"] is True
     # DISTILL_PROVIDER was written to .env
     assert "DISTILL_PROVIDER=ollama" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_interactive_cloud_path_saves_entered_key(in_tmp, monkeypatch):
+    responses = iter(["cloud", "xai-entered"])
+    prompt_messages = []
+
+    def prompt(message, *, default, non_tty_default):
+        prompt_messages.append(message)
+        assert default in {"cloud", ""}
+        assert non_tty_default in {"cloud", ""}
+        return next(responses)
+
+    monkeypatch.setattr(init_mod, "tty_prompt", prompt)
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["init"])
+
+    assert result.exit_code == 0, result.output
+    assert len(prompt_messages) == 2
+    assert "Saved" in result.output
+    assert "XAI_API_KEY=xai-entered" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_local_non_json_path_sets_default_and_renders_status(in_tmp, monkeypatch):
+    def reachable(provider):
+        assert provider == "ollama"
+        return "reachable"
+
+    monkeypatch.setattr(init_mod, "_local_provider", lambda: "")
+    monkeypatch.setattr(init_mod, "_local_reachable", reachable)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["init", "--provider", "local", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert "Set" in result.output
+    assert "ollama: reachable" in result.output
+    assert "DISTILL_PROVIDER=ollama" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected_blocker"),
+    [
+        (
+            "ollama",
+            "Start Ollama and pull a model, e.g. `ollama pull qwen3.5:27b`, "
+            "then re-run `distill init`.",
+        ),
+        (
+            "lmstudio",
+            "Start LM Studio and load a model, then re-run `distill init`.",
+        ),
+    ],
+)
+def test_local_unreachable_path_reports_blocker(in_tmp, monkeypatch, provider, expected_blocker):
+    def unreachable(received_provider):
+        assert received_provider == provider
+        return "unreachable"
+
+    monkeypatch.setattr(init_mod, "_local_provider", lambda: provider)
+    monkeypatch.setattr(init_mod, "_local_reachable", unreachable)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["local_reachable"] is False
+    assert payload["data"]["blocking"] == [expected_blocker]
+
+
+@pytest.mark.parametrize(
+    ("install_succeeds", "expected_exit"),
+    [(True, 0), (False, 1)],
+)
+def test_yes_installs_missing_browser(in_tmp, monkeypatch, install_succeeds, expected_exit):
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "missing")
+    monkeypatch.setattr(init_mod, "_install_chromium", lambda: install_succeeds)
+
+    result = runner.invoke(app, ["init", "--yes"])
+
+    assert result.exit_code == expected_exit
+    assert "Installing Chromium" in result.output
+    expected_status = "installed" if install_succeeds else "missing"
+    assert f"Browser: {expected_status}" in result.output

@@ -334,10 +334,14 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         state["local"] = f"{prov}: {reach}"
         state["local_reachable"] = reach == "reachable"
         if reach != "reachable":
-            state["blocking"].append(
-                f"Start your local provider ({prov}) and pull a model, "
-                "e.g. `ollama pull qwen3.5:27b`."
-            )
+            if prov == "ollama":
+                blocker = (
+                    "Start Ollama and pull a model, e.g. `ollama pull qwen3.5:27b`, "
+                    "then re-run `distill init`."
+                )
+            else:
+                blocker = "Start LM Studio and load a model, then re-run `distill init`."
+            state["blocking"].append(blocker)
 
     # 4. Browser -- the #1 silent ingest failure if absent.
     browser = chromium_status()
