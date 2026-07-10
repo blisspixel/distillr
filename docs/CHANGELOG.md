@@ -60,6 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   dedicated hermetic suite for missing provider credentials, empty and missing
   report artifacts, markdown and DOCX export, report-only cost deltas, and
   budget hard-stop logging with and without issue aggregation.
+- Raised the critical configuration boundary to 100% branch coverage with
+  direct tests for cost-mode and numeric policy failures, workflow-budget key
+  and input forms, unreadable checkout-marker fallback, deprecated helper
+  delegation, and sanitized site and paper path funnels.
 - Hardened persisted discover preview replay: cached preview snapshots now parse
   top-level metadata and nested paper, video, and site records before replay,
   malformed snapshots raise `PreviewCacheError`, and malformed previews are
