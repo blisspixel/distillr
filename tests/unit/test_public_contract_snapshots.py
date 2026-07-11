@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import runpy
 import subprocess
 import sys
@@ -12,10 +13,13 @@ from pathlib import Path
 from typing import cast
 
 import jsonschema
+import pytest
+from pydantic_settings import DotEnvSettingsSource, EnvSettingsSource
 
 ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_SCRIPT = ROOT / "scripts" / "public_contracts.py"
 ARTIFACT_SNAPSHOT = ROOT / "docs" / "contracts" / "artifacts-v1.json"
+CONFIG_SNAPSHOT = ROOT / "docs" / "contracts" / "config-v1.json"
 STATE_SNAPSHOT = ROOT / "docs" / "contracts" / "state-v1.json"
 
 
@@ -88,6 +92,81 @@ def test_state_contract_snapshot_is_tracked() -> None:
     }
 
 
+def test_config_contract_snapshot_is_tracked_without_secret_values() -> None:
+    assert CONFIG_SNAPSHOT.is_file()
+    snapshot = json.loads(CONFIG_SNAPSHOT.read_text())
+    properties = snapshot["schema"]["properties"]
+    secret_fields = {
+        "anthropic_api_key",
+        "gemini_api_key",
+        "openai_api_key",
+        "xai_api_key",
+    }
+    assert {name for name, field in properties.items() if field.get("writeOnly")} == secret_fields
+    assert all(properties[name]["default"] == "" for name in secret_fields)
+    assert snapshot["environment"]["variables"]["distill_cost_mode"] == {
+        "canonical_name": "DISTILL_COST_MODE",
+        "validation_alias": None,
+    }
+    normalization_cases = {case["name"]: case for case in snapshot["normalization_cases"]}
+    normalized = normalization_cases["cost_policy_and_budget_mapping"]["normalized"]
+    assert normalized["distill_cost_mode"] == "no-metered"
+    assert normalized["distill_cost_workflow_budgets"] == "discover=2.5,report=5"
+    assert normalization_cases["workflow_budget_string"]["normalized"] == "discover=2.5,report=5"
+    assert snapshot["path_examples"]["video"].endswith("/videos/video-id")
+    assert snapshot["path_examples"]["topic_traversal_input"] == "topics/Escape"
+    assert snapshot["library_default_topology"] == {
+        "installed_relative_to_home": ".distill/library",
+        "relative_input_relative_to_root": "relative-library",
+        "source_checkout_relative_to_root": "library",
+    }
+    rejected = {case["field"] for case in snapshot["rejection_cases"]}
+    assert rejected == {
+        "distill_cost_mode",
+        "distill_cost_warning_daily_usd",
+        "distill_cost_warning_run_spike_min_usd",
+        "distill_cost_warning_spike_multiplier",
+        "distill_cost_workflow_budgets",
+    }
+
+
+def test_config_contract_generation_ignores_environment_values() -> None:
+    env = os.environ.copy()
+    env.update(
+        {
+            "DISTILL_COST_MODE": "paid-ok",
+            "DISTILL_DEFAULT_MONTHS": "environment-must-not-be-read",
+            "DISTILL_OUTPUT_DIR": "environment-must-not-enter-contract",
+            "XAI_API_KEY": "secret-must-not-enter-contract",
+        }
+    )
+    result = subprocess.run(
+        [sys.executable, str(SNAPSHOT_SCRIPT), "--check"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_config_contract_never_constructs_environment_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden_source(*args: object, **kwargs: object) -> dict[str, object]:
+        raise AssertionError("configuration contract attempted to read a settings source")
+
+    monkeypatch.setattr(EnvSettingsSource, "__call__", forbidden_source)
+    monkeypatch.setattr(DotEnvSettingsSource, "__call__", forbidden_source)
+    namespace = runpy.run_path(str(SNAPSHOT_SCRIPT))
+    build_contract = cast("Callable[[], dict[str, object]]", namespace["config_contract"])
+
+    assert build_contract()["contract"] == "distill-core-config.v1"
+
+
 def test_generated_and_tracked_contract_snapshot_sets_match() -> None:
     namespace = runpy.run_path(str(SNAPSHOT_SCRIPT))
     snapshot_fn = cast(
@@ -103,6 +182,7 @@ def test_generated_and_tracked_contract_snapshot_sets_match() -> None:
         == {
             "artifacts-v1.json",
             "cli-v1.json",
+            "config-v1.json",
             "mcp-v1.json",
             "state-v1.json",
         }

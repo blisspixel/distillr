@@ -11,6 +11,9 @@ Current snapshots:
   provenance fields, and representative persisted frontmatter serialization.
 - `cli-v1.json` records every command path plus its public options, positional
   arguments, requiredness, defaults, cardinality, and validation type.
+- `config-v1.json` records core `DistillConfig` fields, declared non-secret
+  defaults, environment-variable names and environment-loader policy,
+  cost-policy normalization, and configuration-owned library path examples.
 - `mcp-v1.json` records MCP tool input and output schemas, resource URIs,
   resource-template URIs, and prompt arguments. Its JSON Schema dialect is
   Draft 2020-12.
@@ -20,8 +23,9 @@ Current snapshots:
 
 The snapshots are marked `candidate` because the MCP compatibility checkpoint
 scheduled after the 2026-07-28 protocol release must finish before the 1.0
-surface can be declared stable. Directory layout, additional stored-state
-documents and file locations,
+surface can be declared stable. Router and provider configuration plus direct
+runtime environment controls, additional stored-state documents and file
+locations not owned by the configuration path helpers,
 artifact-specific frontmatter schemas and value semantics, caller-specific
 reader and writer extension integration, and full legacy-library migration are
 also tracked by the 1.0 roadmap and will receive separate contract coverage.
@@ -55,6 +59,11 @@ Starting with 1.0:
   documents cannot omit is breaking.
 - Adding a persisted state field is additive only when older documents still
   normalize successfully and the new field has a stable default.
+- Removing or renaming a snapshotted `DistillConfig` setting or environment
+  variable, narrowing its type or accepted normalized input, changing an
+  established default, or changing a stable configured path shape is breaking.
+- Adding an optional setting is additive when its default preserves existing
+  behavior and no established environment variable changes meaning.
 - Fixing behavior without changing the public shape may ship in a patch
   release.
 - Help text, descriptions, presentation formatting, private Python imports,
@@ -89,6 +98,7 @@ The default test suite runs check mode, so stale or unreviewed contract changes
 fail locally and in CI. Check mode also rejects tracked `*-v1.json` files that
 are no longer generated, so removing a contract from the generator cannot
 silently disable enforcement. Snapshot generation is deterministic and reads
-runtime registration and TypedDict metadata plus pure artifact builders and
-state normalization parsers. It does not contact providers, fetch sources, or
-read secret values.
+runtime registration, TypedDict and core settings metadata plus pure artifact,
+state-normalization, configuration-validation, default-path, and path-layout
+builders. It does not construct settings sources, contact providers, fetch
+sources, or read secret values.

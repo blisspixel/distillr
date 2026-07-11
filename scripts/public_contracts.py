@@ -529,18 +529,206 @@ def state_contract() -> dict[str, object]:
     }
 
 
+def config_contract() -> dict[str, object]:
+    """Build the core DistillConfig and configuration-owned path contract."""
+    from distill.config import DistillConfig, _default_library_dir
+
+    schema = cast("dict[str, object]", _schema_without_prose(DistillConfig.model_json_schema()))
+    properties = cast("dict[str, dict[str, object]]", schema["properties"])
+    properties["distill_output_dir"]["default"] = "<topology-dependent; see default cases>"
+
+    normalization_input = {
+        "distill_cost_mode": " NO-METERED ",
+        "distill_cost_warning_daily_usd": "12.5",
+        "distill_cost_warning_spike_multiplier": 3,
+        "distill_cost_warning_run_spike_min_usd": "0",
+        "distill_cost_workflow_budgets": {"report": 5, "discover": 2.5},
+    }
+    normalization_output = {
+        "distill_cost_mode": DistillConfig._normalize_distill_cost_mode(
+            normalization_input["distill_cost_mode"]
+        ),
+        "distill_cost_warning_daily_usd": DistillConfig._normalize_cost_warning_daily_usd(
+            normalization_input["distill_cost_warning_daily_usd"]
+        ),
+        "distill_cost_warning_run_spike_min_usd": (
+            DistillConfig._normalize_cost_warning_run_spike_min_usd(
+                normalization_input["distill_cost_warning_run_spike_min_usd"]
+            )
+        ),
+        "distill_cost_warning_spike_multiplier": (
+            DistillConfig._normalize_cost_warning_spike_multiplier(
+                normalization_input["distill_cost_warning_spike_multiplier"]
+            )
+        ),
+        "distill_cost_workflow_budgets": (
+            DistillConfig._normalize_distill_cost_workflow_budgets(
+                normalization_input["distill_cost_workflow_budgets"]
+            )
+        ),
+    }
+
+    def rejection(
+        field: str,
+        value: object,
+        validator: typing.Callable[[object], object],
+    ) -> dict[str, object]:
+        try:
+            validator(value)
+        except ValueError:
+            return {"field": field, "input": value, "rejected": True}
+        raise AssertionError(f"contract rejection case unexpectedly accepted: {field}")
+
+    rejection_cases = [
+        rejection("distill_cost_mode", "free", DistillConfig._normalize_distill_cost_mode),
+        rejection(
+            "distill_cost_warning_daily_usd",
+            0,
+            DistillConfig._normalize_cost_warning_daily_usd,
+        ),
+        rejection(
+            "distill_cost_warning_daily_usd",
+            True,
+            DistillConfig._normalize_cost_warning_daily_usd,
+        ),
+        rejection(
+            "distill_cost_warning_daily_usd",
+            "inf",
+            DistillConfig._normalize_cost_warning_daily_usd,
+        ),
+        rejection(
+            "distill_cost_warning_spike_multiplier",
+            1,
+            DistillConfig._normalize_cost_warning_spike_multiplier,
+        ),
+        rejection(
+            "distill_cost_warning_run_spike_min_usd",
+            -1,
+            DistillConfig._normalize_cost_warning_run_spike_min_usd,
+        ),
+        rejection(
+            "distill_cost_workflow_budgets",
+            "bad key=2",
+            DistillConfig._normalize_distill_cost_workflow_budgets,
+        ),
+        rejection(
+            "distill_cost_workflow_budgets",
+            "report=0",
+            DistillConfig._normalize_distill_cost_workflow_budgets,
+        ),
+    ]
+
+    contract_root = ROOT / "__contract_library__"
+    path_config = DistillConfig.model_construct(distill_output_dir=contract_root)
+
+    def relative(path: Path) -> str:
+        return path.relative_to(contract_root).as_posix()
+
+    path_examples = {
+        "topics": relative(path_config.topics_dir()),
+        "topic": relative(path_config.topic_dir("Contract Topic")),
+        "topic_traversal_input": relative(path_config.topic_dir("../Escape")),
+        "channel": relative(path_config.channel_dir("Contract Topic", "Contract Channel")),
+        "videos": relative(path_config.videos_dir("Contract Topic", "Contract Channel")),
+        "video": relative(path_config.video_dir("Contract Topic", "Contract Channel", "video-id")),
+        "video_slug": relative(
+            path_config.video_dir_slug(
+                "Contract Topic", "Contract Channel", "Contract Video", "video-id"
+            )
+        ),
+        "sites": relative(path_config.sites_dir("Contract Topic")),
+        "site": relative(path_config.site_dir("Contract Topic", "Example Site")),
+        "site_pages": relative(path_config.site_pages_dir("Contract Topic", "Example Site")),
+        "site_page": relative(
+            path_config.site_page_dir("Contract Topic", "Example Site", "Example Page", "page-id")
+        ),
+        "site_page_without_id": relative(
+            path_config.site_page_dir("Contract Topic", "Example Site", "Example Page")
+        ),
+        "papers": relative(path_config.papers_dir("Contract Topic")),
+        "paper": relative(path_config.paper_dir("Contract Topic", "Example Paper", "paper-id")),
+        "paper_without_id": relative(path_config.paper_dir("Contract Topic", "Example Paper")),
+    }
+    relative_config = DistillConfig.model_construct(distill_output_dir=Path("relative-library"))
+
+    settings_config = DistillConfig.model_config
+    env_prefix = str(settings_config.get("env_prefix") or "")
+    loader_keys = (
+        "case_sensitive",
+        "enable_decoding",
+        "env_file",
+        "env_file_encoding",
+        "env_ignore_empty",
+        "env_nested_delimiter",
+        "env_nested_max_split",
+        "env_parse_enums",
+        "env_parse_none_str",
+        "env_prefix",
+        "env_prefix_target",
+        "extra",
+        "nested_model_default_partial_update",
+        "secrets_dir",
+    )
+
+    return {
+        "contract": "distill-core-config.v1",
+        "status": "candidate",
+        "schema": schema,
+        "environment": {
+            "loader_policy": {key: _json_value(settings_config.get(key)) for key in loader_keys},
+            "variables": {
+                name: {
+                    "canonical_name": f"{env_prefix}{name}".upper(),
+                    "validation_alias": (
+                        None if field.validation_alias is None else str(field.validation_alias)
+                    ),
+                }
+                for name, field in sorted(DistillConfig.model_fields.items())
+            },
+        },
+        "library_default_topology": {
+            "installed_relative_to_home": _default_library_dir(ROOT / "site-packages" / "distill")
+            .relative_to(Path.home())
+            .as_posix(),
+            "relative_input_relative_to_root": relative_config.library_dir.relative_to(
+                ROOT
+            ).as_posix(),
+            "source_checkout_relative_to_root": _default_library_dir(ROOT / "distill")
+            .relative_to(ROOT)
+            .as_posix(),
+        },
+        "normalization_cases": [
+            {
+                "name": "cost_policy_and_budget_mapping",
+                "input": normalization_input,
+                "normalized": normalization_output,
+            },
+            {
+                "name": "workflow_budget_string",
+                "input": "report=5,discover=2.5",
+                "normalized": DistillConfig._normalize_distill_cost_workflow_budgets(
+                    "report=5,discover=2.5"
+                ),
+            },
+        ],
+        "path_examples": path_examples,
+        "rejection_cases": rejection_cases,
+    }
+
+
 async def snapshots() -> dict[Path, dict[str, object]]:
     """Return every public contract snapshot keyed by its tracked path."""
     return {
         CONTRACT_DIR / "artifacts-v1.json": artifact_contract(),
         CONTRACT_DIR / "cli-v1.json": cli_contract(),
+        CONTRACT_DIR / "config-v1.json": config_contract(),
         CONTRACT_DIR / "mcp-v1.json": await mcp_contract(),
         CONTRACT_DIR / "state-v1.json": state_contract(),
     }
 
 
 def _render(value: dict[str, object]) -> str:
-    return json.dumps(value, indent=2, sort_keys=True) + "\n"
+    return json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
 
 
 def _emit(message: str) -> None:

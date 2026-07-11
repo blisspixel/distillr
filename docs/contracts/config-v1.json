@@ -1,0 +1,331 @@
+{
+  "contract": "distill-core-config.v1",
+  "environment": {
+    "loader_policy": {
+      "case_sensitive": false,
+      "enable_decoding": true,
+      "env_file": ".env",
+      "env_file_encoding": "utf-8",
+      "env_ignore_empty": false,
+      "env_nested_delimiter": null,
+      "env_nested_max_split": null,
+      "env_parse_enums": null,
+      "env_parse_none_str": null,
+      "env_prefix": "",
+      "env_prefix_target": "variable",
+      "extra": "ignore",
+      "nested_model_default_partial_update": false,
+      "secrets_dir": null
+    },
+    "variables": {
+      "accordion_section_delay": {
+        "canonical_name": "ACCORDION_SECTION_DELAY",
+        "validation_alias": null
+      },
+      "accordion_section_model": {
+        "canonical_name": "ACCORDION_SECTION_MODEL",
+        "validation_alias": null
+      },
+      "anthropic_api_key": {
+        "canonical_name": "ANTHROPIC_API_KEY",
+        "validation_alias": null
+      },
+      "distill_cost_mode": {
+        "canonical_name": "DISTILL_COST_MODE",
+        "validation_alias": null
+      },
+      "distill_cost_warning_daily_usd": {
+        "canonical_name": "DISTILL_COST_WARNING_DAILY_USD",
+        "validation_alias": null
+      },
+      "distill_cost_warning_run_spike_min_usd": {
+        "canonical_name": "DISTILL_COST_WARNING_RUN_SPIKE_MIN_USD",
+        "validation_alias": null
+      },
+      "distill_cost_warning_spike_multiplier": {
+        "canonical_name": "DISTILL_COST_WARNING_SPIKE_MULTIPLIER",
+        "validation_alias": null
+      },
+      "distill_cost_workflow_budgets": {
+        "canonical_name": "DISTILL_COST_WORKFLOW_BUDGETS",
+        "validation_alias": null
+      },
+      "distill_default_months": {
+        "canonical_name": "DISTILL_DEFAULT_MONTHS",
+        "validation_alias": null
+      },
+      "distill_mcp_ingest_allowlist": {
+        "canonical_name": "DISTILL_MCP_INGEST_ALLOWLIST",
+        "validation_alias": null
+      },
+      "distill_mcp_max_spend_per_call": {
+        "canonical_name": "DISTILL_MCP_MAX_SPEND_PER_CALL",
+        "validation_alias": null
+      },
+      "distill_mcp_read_only": {
+        "canonical_name": "DISTILL_MCP_READ_ONLY",
+        "validation_alias": null
+      },
+      "distill_output_dir": {
+        "canonical_name": "DISTILL_OUTPUT_DIR",
+        "validation_alias": null
+      },
+      "distill_verify": {
+        "canonical_name": "DISTILL_VERIFY",
+        "validation_alias": null
+      },
+      "gemini_api_key": {
+        "canonical_name": "GEMINI_API_KEY",
+        "validation_alias": null
+      },
+      "openai_api_key": {
+        "canonical_name": "OPENAI_API_KEY",
+        "validation_alias": null
+      },
+      "scribe_path": {
+        "canonical_name": "SCRIBE_PATH",
+        "validation_alias": null
+      },
+      "xai_analysis_model": {
+        "canonical_name": "XAI_ANALYSIS_MODEL",
+        "validation_alias": null
+      },
+      "xai_api_key": {
+        "canonical_name": "XAI_API_KEY",
+        "validation_alias": null
+      },
+      "xai_fast_model": {
+        "canonical_name": "XAI_FAST_MODEL",
+        "validation_alias": null
+      },
+      "xai_premium_model": {
+        "canonical_name": "XAI_PREMIUM_MODEL",
+        "validation_alias": null
+      },
+      "xai_rerank_model": {
+        "canonical_name": "XAI_RERANK_MODEL",
+        "validation_alias": null
+      },
+      "xai_site_model": {
+        "canonical_name": "XAI_SITE_MODEL",
+        "validation_alias": null
+      },
+      "xai_synthesis_model": {
+        "canonical_name": "XAI_SYNTHESIS_MODEL",
+        "validation_alias": null
+      }
+    }
+  },
+  "library_default_topology": {
+    "installed_relative_to_home": ".distill/library",
+    "relative_input_relative_to_root": "relative-library",
+    "source_checkout_relative_to_root": "library"
+  },
+  "normalization_cases": [
+    {
+      "input": {
+        "distill_cost_mode": " NO-METERED ",
+        "distill_cost_warning_daily_usd": "12.5",
+        "distill_cost_warning_run_spike_min_usd": "0",
+        "distill_cost_warning_spike_multiplier": 3,
+        "distill_cost_workflow_budgets": {
+          "discover": 2.5,
+          "report": 5
+        }
+      },
+      "name": "cost_policy_and_budget_mapping",
+      "normalized": {
+        "distill_cost_mode": "no-metered",
+        "distill_cost_warning_daily_usd": 12.5,
+        "distill_cost_warning_run_spike_min_usd": 0.0,
+        "distill_cost_warning_spike_multiplier": 3.0,
+        "distill_cost_workflow_budgets": "discover=2.5,report=5"
+      }
+    },
+    {
+      "input": "report=5,discover=2.5",
+      "name": "workflow_budget_string",
+      "normalized": "discover=2.5,report=5"
+    }
+  ],
+  "path_examples": {
+    "channel": "topics/Contract Topic/channels/Contract Channel",
+    "paper": "topics/Contract Topic/papers/example-paper_paperid",
+    "paper_without_id": "topics/Contract Topic/papers/example-paper",
+    "papers": "topics/Contract Topic/papers",
+    "site": "topics/Contract Topic/sites/Example Site",
+    "site_page": "topics/Contract Topic/sites/Example Site/pages/example-page_pageid",
+    "site_page_without_id": "topics/Contract Topic/sites/Example Site/pages/example-page",
+    "site_pages": "topics/Contract Topic/sites/Example Site/pages",
+    "sites": "topics/Contract Topic/sites",
+    "topic": "topics/Contract Topic",
+    "topic_traversal_input": "topics/Escape",
+    "topics": "topics",
+    "video": "topics/Contract Topic/channels/Contract Channel/videos/video-id",
+    "video_slug": "topics/Contract Topic/channels/Contract Channel/videos/contract-video_videoid",
+    "videos": "topics/Contract Topic/channels/Contract Channel/videos"
+  },
+  "rejection_cases": [
+    {
+      "field": "distill_cost_mode",
+      "input": "free",
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_warning_daily_usd",
+      "input": 0,
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_warning_daily_usd",
+      "input": true,
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_warning_daily_usd",
+      "input": "inf",
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_warning_spike_multiplier",
+      "input": 1,
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_warning_run_spike_min_usd",
+      "input": -1,
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_workflow_budgets",
+      "input": "bad key=2",
+      "rejected": true
+    },
+    {
+      "field": "distill_cost_workflow_budgets",
+      "input": "report=0",
+      "rejected": true
+    }
+  ],
+  "schema": {
+    "$defs": {
+      "CostMode": {
+        "enum": [
+          "auto",
+          "no-metered",
+          "paid-ok"
+        ],
+        "type": "string"
+      }
+    },
+    "properties": {
+      "accordion_section_delay": {
+        "default": 3,
+        "type": "integer"
+      },
+      "accordion_section_model": {
+        "default": "grok-4.3",
+        "type": "string"
+      },
+      "anthropic_api_key": {
+        "default": "",
+        "format": "password",
+        "type": "string",
+        "writeOnly": true
+      },
+      "distill_cost_mode": {
+        "$ref": "#/$defs/CostMode",
+        "default": "auto"
+      },
+      "distill_cost_warning_daily_usd": {
+        "default": 10.0,
+        "type": "number"
+      },
+      "distill_cost_warning_run_spike_min_usd": {
+        "default": 1.0,
+        "type": "number"
+      },
+      "distill_cost_warning_spike_multiplier": {
+        "default": 2.5,
+        "type": "number"
+      },
+      "distill_cost_workflow_budgets": {
+        "default": "",
+        "type": "string"
+      },
+      "distill_default_months": {
+        "default": 1,
+        "type": "integer"
+      },
+      "distill_mcp_ingest_allowlist": {
+        "default": "",
+        "type": "string"
+      },
+      "distill_mcp_max_spend_per_call": {
+        "default": 0.0,
+        "type": "number"
+      },
+      "distill_mcp_read_only": {
+        "default": false,
+        "type": "boolean"
+      },
+      "distill_output_dir": {
+        "default": "<topology-dependent; see default cases>",
+        "format": "path",
+        "type": "string"
+      },
+      "distill_verify": {
+        "default": "warn",
+        "type": "string"
+      },
+      "gemini_api_key": {
+        "default": "",
+        "format": "password",
+        "type": "string",
+        "writeOnly": true
+      },
+      "openai_api_key": {
+        "default": "",
+        "format": "password",
+        "type": "string",
+        "writeOnly": true
+      },
+      "scribe_path": {
+        "default": "",
+        "type": "string"
+      },
+      "xai_analysis_model": {
+        "default": "",
+        "type": "string"
+      },
+      "xai_api_key": {
+        "default": "",
+        "format": "password",
+        "type": "string",
+        "writeOnly": true
+      },
+      "xai_fast_model": {
+        "default": "grok-4.3",
+        "type": "string"
+      },
+      "xai_premium_model": {
+        "default": "grok-4.3",
+        "type": "string"
+      },
+      "xai_rerank_model": {
+        "default": "",
+        "type": "string"
+      },
+      "xai_site_model": {
+        "default": "grok-4.3",
+        "type": "string"
+      },
+      "xai_synthesis_model": {
+        "default": "",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "status": "candidate"
+}

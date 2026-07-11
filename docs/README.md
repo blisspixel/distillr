@@ -22,8 +22,8 @@ Look-up information: precise, structured, neutral.
 - [Usage guide](usage.md) - the full command and flag reference.
 - [Outputs](outputs.md) - what every artifact (insights, syntheses, reports, sidecars) contains.
 - [MCP server](mcp.md) - tools, resources, and prompts exposed to agents.
-- [Public contracts](contracts/) - candidate-v1 artifact, CLI, MCP, and core
-  state snapshots plus the compatibility and review policy.
+- [Public contracts](contracts/) - candidate-v1 artifact, CLI, core
+  configuration, MCP, and core state snapshots plus the compatibility policy.
 - [Cost model](cost.md) - per-workload cost, examples, and guardrails.
 
 ## Explanation

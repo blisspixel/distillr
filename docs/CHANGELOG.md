@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added candidate Draft 2020-12 contracts for the core library index and
   per-channel state documents, including normalized empty and legacy examples
   so field, type, and compatibility-default drift fails the default suite.
+- Added a secret-safe candidate contract for core `DistillConfig` settings and
+  environment names, declared non-secret defaults and types, cost-policy
+  normalization, and configuration-owned library path shapes.
 - Made the complete `distill.llm` package strict-blocking through central
   Pyright configuration, so future provider modules inherit the same gate.
   The OpenAI Whisper and Grok speech-to-text response boundaries now normalize
