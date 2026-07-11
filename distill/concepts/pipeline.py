@@ -52,7 +52,7 @@ from distill.concepts.notes import (
 from distill.concepts.records import ConceptMention, utcnow_iso
 from distill.library.insights import InsightRef, discover_insights
 from distill.llm import RouterConfig
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +171,8 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
                 tracker=tracker,
                 now_iso=timestamp,
             )
+        except BudgetExceededError:
+            raise
         except Exception as exc:
             logger.warning("Extraction failed for %s: %s", ref.path, exc)
             continue

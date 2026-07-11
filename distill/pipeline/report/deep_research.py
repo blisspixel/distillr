@@ -14,8 +14,9 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.llm.cost_policy import require_route_allowed
 from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.report._interactions import await_interaction, interaction_text
 from distill.pipeline.report.file_search import create_research_store, delete_store
 from distill.prompts.registry import PROMPT_IDS
@@ -39,6 +40,11 @@ def run_deep_research(
     tracker: CostTracker | None = None,
 ) -> str | None:
     """Run Gemini Deep Research on the corpus using File Search grounding."""
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="report",
+    )
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 
     console.print("[cyan]Preparing research corpus...[/cyan]")
@@ -90,6 +96,8 @@ def run_deep_research(
         output_path = _write_report_artifact(result_text, topic, config, scope, channel_name)
         console.print(f"[green]Findings saved to {output_path}[/green]")
         return result_text
+    except BudgetExceededError:
+        raise
     except Exception as exc:
         console.print(f"[red]Deep research error: {exc}[/red]")
         return None

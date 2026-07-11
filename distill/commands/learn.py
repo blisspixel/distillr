@@ -36,6 +36,7 @@ from distill.commands._learning_flow import (
     validate_learning_options as _validate_learning_options,
 )
 from distill.llm.availability import model_available
+from distill.llm.cost_policy import require_route_allowed
 from distill.pipeline.costs import CostTracker, report_deep_research_estimate
 from distill.pipeline.report.brief import run_research_brief
 from distill.pipeline.summary import RunSummary, display_summary, log_preview_cost
@@ -209,6 +210,11 @@ def research_brief_cmd(
 
     config = get_config()
     _require_api_key(config.gemini_api_key, "GEMINI_API_KEY required for Deep Research")
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="research-brief",
+    )
 
     projected_cost = report_deep_research_estimate(include_section_writing=False)
     enforce_projected_workflow_budget(config, "research-brief", projected_cost)

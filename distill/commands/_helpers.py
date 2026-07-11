@@ -7,12 +7,11 @@ All public names that were importable from ``distill.cli_shared`` are
 re-exported here so that both old and new import paths work.
 """
 
-import json
+import logging
 import math
 import os
 import sys
 from collections.abc import Callable, Sequence
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -44,8 +43,19 @@ from distill.library.paths import (
 )
 from distill.config import DistillConfig
 from distill.commands._report_helpers import run_scope_report
+from distill.commands._formatting import (
+    duration_str,
+    format_date,
+    truncate_channel_list as _truncate_channel_list,
+)
+from distill.commands._video_files import (
+    video_verification_evidence as _video_verification_evidence,
+    write_video_metadata,
+)
 from distill.library import Library
 from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
 from distill.pipeline.costs import (
     BudgetExceededError,
     CostTracker,
@@ -92,6 +102,7 @@ __all__ = [
     "safe_console_text",
     "save_command_cost",
     "save_synthesis_command_cost",
+    "set_command_cost_metadata",
     "strip_frontmatter",
     "topic_from_query",
     "tty_confirm",
@@ -103,6 +114,8 @@ __all__ = [
 # YouTube Shorts are nominally <=60s but metadata often reports 75-95s.
 # Anything under 3 minutes is too thin for 2-pass deep analysis.
 SHORTS_THRESHOLD = 180
+
+logger = logging.getLogger(__name__)
 
 # The one shared human-output console, imported (not constructed) so every
 # module prints through the same object -- this is what lets --json redirect all
@@ -125,10 +138,58 @@ def get_config() -> DistillConfig:
     return DistillConfig()
 
 
+class _CommandCostTracker(CostTracker):
+    """Cost tracker that persists the call which crosses a CLI budget."""
+
+    def __init__(
+        self,
+        config: DistillConfig,
+        command: str,
+        budget: float | None,
+    ) -> None:
+        super().__init__(budget=budget)
+        self._config = config
+        self._command = command
+        self._terminal_metadata: dict[str, Any] = {}
+        self.budget_failure_logged = False
+
+    def update_terminal_metadata(self, metadata: dict[str, str]) -> None:
+        self._terminal_metadata.update({key: value for key, value in metadata.items() if value})
+
+    def _check_budget(self) -> None:
+        try:
+            super()._check_budget()
+        except BudgetExceededError:
+            if not self.budget_failure_logged:
+                try:
+                    save_run_log(
+                        self._config.library_dir,
+                        self._command,
+                        self,
+                        metadata={
+                            "workflow": self._command,
+                            "terminal": "budget_exceeded",
+                            **self._terminal_metadata,
+                        },
+                    )
+                except Exception:
+                    logger.debug("Failed to persist budget-exceeded cost row", exc_info=True)
+                else:
+                    self.budget_failure_logged = True
+            raise
+
+
 def budgeted_cost_tracker(config: DistillConfig, command: str) -> CostTracker:
     """Create a run tracker with the configured workflow cap, if any."""
     budget = _workflow_budget_usd(config, command)
-    return CostTracker(budget=budget if budget is not None else None)
+    normalized_command = " ".join(command.split()).strip().lower()
+    return _CommandCostTracker(config, normalized_command, budget)
+
+
+def set_command_cost_metadata(tracker: CostTracker, **metadata: str) -> None:
+    """Attach known command context to a possible terminal budget ledger row."""
+    if isinstance(tracker, _CommandCostTracker):
+        tracker.update_terminal_metadata(metadata)
 
 
 def _workflow_budget_usd(config: DistillConfig, command: str) -> float | None:
@@ -157,11 +218,20 @@ def save_command_cost(
     tracker: CostTracker,
     *,
     metadata: dict[str, Any] | None = None,
+    estimated_cost: float | None = None,
 ) -> None:
-    """Persist a command cost row when a direct workflow has recorded spend."""
-    if tracker.total_cost <= 0:
+    """Persist a command ledger row when a direct workflow recorded usage."""
+    if getattr(tracker, "budget_failure_logged", False):
         return
-    save_run_log(config.library_dir, command, tracker, metadata=metadata)
+    if not (tracker.entries or tracker.gemini_queries or tracker.transcriptions):
+        return
+    save_run_log(
+        config.library_dir,
+        command,
+        tracker,
+        estimated_cost=estimated_cost,
+        metadata=metadata,
+    )
 
 
 def save_synthesis_command_cost(
@@ -169,11 +239,19 @@ def save_synthesis_command_cost(
     topic: str,
     channel: str | None,
     tracker: CostTracker,
+    *,
+    estimated_cost: float | None = None,
 ) -> None:
     metadata = {"topic": topic}
     if channel:
         metadata["channel"] = channel
-    save_command_cost(config, "synthesis", tracker, metadata=metadata)
+    save_command_cost(
+        config,
+        "synthesis",
+        tracker,
+        metadata=metadata,
+        estimated_cost=estimated_cost,
+    )
 
 
 def _apply_verify_override(verify: str) -> None:
@@ -360,57 +438,6 @@ def tty_prompt(message: str, *, default: str, non_tty_default: str | None = None
     return typer.prompt(message, default=default)
 
 
-def format_date(date_str: str) -> str:
-    """Format YYYYMMDD or ISO date to readable format."""
-    if not date_str:
-        return "Unknown"
-    try:
-        if "T" in date_str:
-            dt = datetime.fromisoformat(date_str)
-            return dt.strftime("%b %d, %Y %I:%M %p")
-        if len(date_str) == 8:
-            dt = datetime.strptime(date_str, "%Y%m%d")
-            return dt.strftime("%b %d, %Y")
-    except (ValueError, TypeError):
-        return date_str
-    return date_str
-
-
-def _truncate_channel_list(names: list[str], max_width: int, extra_count: int = 0) -> str:
-    """Build a comma-separated channel list that fits within max_width."""
-    if not names:
-        return ""
-    result = names[0]
-    shown = 1
-    for name in names[1:]:
-        candidate = result + ", " + name
-        if len(candidate) > max_width:
-            break
-        result = candidate
-        shown += 1
-    remaining = len(names) - shown + extra_count
-    if remaining > 0:
-        result += f" +{remaining} more"
-    return result
-
-
-def duration_str(seconds: int | float | str | None) -> str:
-    """Format seconds to human readable duration."""
-    if seconds is None or not isinstance(seconds, (int, float)):
-        return "?"
-    seconds = int(seconds)
-    if seconds < 0:
-        return "?"
-    if seconds < 60:
-        return f"{seconds}s"
-    minutes = seconds // 60
-    if minutes < 60:
-        return f"{minutes}m"
-    hours = minutes // 60
-    remaining = minutes % 60
-    return f"{hours}h {remaining}m"
-
-
 def output_path(config: DistillConfig, filename: str) -> Path:
     """Return a path inside the output/ folder, creating it if needed."""
     out_dir = config.library_dir.parent / "output"
@@ -423,28 +450,6 @@ def topic_from_query(query: str) -> str:
     """Derive a stable topic slug from a learning query."""
     slug = slugify_title(query, max_len=40)
     return "research" if slug == "untitled" else slug
-
-
-def write_video_metadata(
-    vid_dir: Path,
-    video: "VideoInfo",
-    channel_name: str = "",
-    analysis_mode: str = "full",
-) -> None:
-    try:
-        resolved_channel = video.channel_name
-    except AttributeError:
-        resolved_channel = channel_name
-    meta: dict[str, object] = {
-        "video_id": video.video_id,
-        "title": video.title,
-        "upload_date": video.upload_date,
-        "duration": video.duration,
-        "url": video.url,
-        "channel": resolved_channel or channel_name or "",
-        "analysis_mode": analysis_mode,
-    }
-    (vid_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
 def require_api_key(value: str | object, message: str) -> None:
@@ -758,17 +763,28 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     intent=_intent,
                 )
         # Write-time verify hook: ground the insight's numeric claims against
-        # the transcript receipt *before* committing it; strict mode refuses.
+        # the fetched metadata and transcript before committing it. Metadata is
+        # evidence for facts the analysis prompt receives outside the transcript,
+        # such as a video's upload year; strict mode still refuses unsupported
+        # claims.
         from distill.library.paths import artifact_path as _artifact_path
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
 
+        verification_evidence = _video_verification_evidence(
+            video,
+            channel_name,
+            transcript,
+            analysis_mode=effective_mode,
+        )
         outcome = run_verify_hook(
             vid_dir,
             insights,
-            transcript,
+            verification_evidence,
             mode=resolve_verify_mode(config.distill_verify),
             insight_name=_artifact_path(vid_dir, "insights").name,
-            source_name=transcript_file.name,
+            source_name=(
+                f"metadata.json + {transcript_file.name} (upload date normalized for verification)"
+            ),
         )
         if outcome is not None and not outcome.report.ok:
             style = "red" if outcome.refused else "yellow"
@@ -841,7 +857,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
         )
         summary.add_output(insights_file)
         return True
-    except BudgetExceededError:
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
         raise
     except Exception as e:
         console.print(f"    [red]failed: {e}[/red]")

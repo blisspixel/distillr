@@ -12,11 +12,11 @@ from __future__ import annotations
 import json
 import math
 import shutil
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from distill.llm.cost import (
     DEFAULT_MODEL,
@@ -28,7 +28,12 @@ from distill.llm.cost import (
 from distill.llm.cost import (
     PRICING as LLM_PRICING,
 )
+from distill.llm.cost_policy import classify_provider, evaluate_route_cost_policy
+from distill.pipeline.cost_history import estimator_accuracy, projected_next_run_cost
 from distill.pipeline.cost_warnings import CostWarning, cost_anomaly_warnings
+
+if TYPE_CHECKING:
+    from distill.llm.router import RouterConfig
 
 ACCORDION_GROK_ESTIMATE: float = 0.05
 NO_METERED_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio", "agent"})
@@ -50,6 +55,7 @@ __all__ = [
     "estimate_discover_cost",
     "estimate_discover_items",
     "estimate_paper_workflow_cost",
+    "estimate_routed_video_workflow_cost",
     "estimate_run_cost",
     "estimate_site_batch_workflow_cost",
     "estimate_stage_cost",
@@ -77,6 +83,7 @@ _STAGE_TOKENS: dict[str, tuple[int, int]] = {
     "paper": (20_000, 3_000),  # full-PDF analysis
     "site_page": (12_000, 3_000),  # page analysis
     "synthesis": (20_000, 4_000),  # channel/topic synthesis
+    "claim_extraction": (4_000, 2_000),  # one structured pass over an insight
 }
 
 _ASK_PROMPT_OVERHEAD_CHARS: int = 1_200
@@ -95,21 +102,54 @@ def estimate_stage_cost(stage: str, *, model: str = "") -> float:
     return compute_cost(model or DEFAULT_MODEL, tin, tout)
 
 
-def estimate_synthesis_workflow_cost(calls: int = 1) -> float:
+def estimate_synthesis_workflow_cost(
+    calls: int = 1,
+    *,
+    router_config: RouterConfig | None = None,
+) -> float:
     """Projected USD cost for known synthesis calls before model execution."""
     if calls <= 0:
         return 0.0
-    return calls * estimate_stage_cost("synthesis")
+    rate = (
+        _routed_stage_cost("synthesis", "synthesis", router_config)
+        if router_config is not None
+        else estimate_stage_cost("synthesis")
+    )
+    return calls * rate
 
 
 def estimate_paper_workflow_cost(
     paper_count: int,
     *,
     synthesis_calls: int = 0,
+    router_config: RouterConfig | None = None,
+    analysis_mode: Literal["unknown", "single", "multipass"] = "unknown",
 ) -> float:
-    """Projected USD cost for paper analysis plus known synthesis calls."""
-    paper_cost = max(0, paper_count) * estimate_stage_cost("paper")
-    synthesis_cost = estimate_synthesis_workflow_cost(synthesis_calls)
+    """Projected USD cost for paper analysis plus known paper-tail calls.
+
+    Short papers use the ``site`` route, while chunked multipass papers use the
+    ``analysis`` route. Before PDF extraction the mode is unknown, so routed
+    estimates conservatively price the costlier eligible route. Paper-topic
+    synthesis and its optional corpus tail use ``site``.
+    """
+    if router_config is None:
+        paper_rate = estimate_stage_cost("paper")
+    else:
+        single_rate = _routed_stage_cost("paper", "site", router_config)
+        multipass_rate = _routed_stage_cost("paper", "analysis", router_config)
+        if analysis_mode == "single":
+            paper_rate = single_rate
+        elif analysis_mode == "multipass":
+            paper_rate = multipass_rate
+        else:
+            paper_rate = max(single_rate, multipass_rate)
+    paper_cost = max(0, paper_count) * paper_rate
+    synthesis_rate = (
+        _routed_stage_cost("synthesis", "site", router_config)
+        if router_config is not None
+        else estimate_stage_cost("synthesis")
+    )
+    synthesis_cost = max(0, synthesis_calls) * synthesis_rate
     return paper_cost + synthesis_cost
 
 
@@ -118,12 +158,23 @@ def estimate_ask_workflow_cost(
     *,
     question_chars: int = 0,
     model: str = "",
+    router_config: RouterConfig | None = None,
 ) -> float:
     """Projected USD cost for one corpus ask call after source retrieval."""
     if source_chars <= 0:
         return 0.0
     prompt_chars = max(0, source_chars) + max(0, question_chars) + _ASK_PROMPT_OVERHEAD_CHARS
     input_tokens = max(1, math.ceil(prompt_chars / _CHARS_PER_TOKEN_ESTIMATE))
+    if router_config is not None:
+        return _routed_model_cost(
+            "qa",
+            router_config,
+            lambda resolved_model: compute_cost(
+                resolved_model,
+                input_tokens,
+                _ASK_OUTPUT_TOKENS,
+            ),
+        )
     return compute_cost(model or DEFAULT_MODEL, input_tokens, _ASK_OUTPUT_TOKENS)
 
 
@@ -132,10 +183,21 @@ def estimate_site_batch_workflow_cost(
     *,
     synthesis_calls: int = 0,
     include_report: bool = False,
+    router_config: RouterConfig | None = None,
 ) -> float:
-    """Projected USD upper bound for a resolved site-batch run."""
-    page_cost = max(0, page_count) * estimate_stage_cost("site_page")
-    synthesis_cost = estimate_synthesis_workflow_cost(synthesis_calls)
+    """Projected USD upper bound for site pages and site-routed synthesis calls."""
+    page_rate = (
+        _routed_stage_cost("site_page", "site", router_config)
+        if router_config is not None
+        else estimate_stage_cost("site_page")
+    )
+    page_cost = max(0, page_count) * page_rate
+    synthesis_rate = (
+        _routed_stage_cost("synthesis", "site", router_config)
+        if router_config is not None
+        else estimate_stage_cost("synthesis")
+    )
+    synthesis_cost = max(0, synthesis_calls) * synthesis_rate
     report_cost = report_deep_research_estimate() if include_report else 0.0
     return page_cost + synthesis_cost + report_cost
 
@@ -158,6 +220,97 @@ def estimate_video_workflow_cost(
     gemini_cost = deep_research_query_cost() if include_report else 0.0
     accordion_grok = ACCORDION_GROK_ESTIMATE if include_report else 0.0
     return grok_cost + synthesis_cost + gemini_cost + accordion_grok
+
+
+def _routed_stage_cost(
+    stage: str,
+    workload: str,
+    router_config: RouterConfig,
+) -> float:
+    """Price one stage against its resolved primary and usable fallback routes."""
+    return _routed_model_cost(
+        workload,
+        router_config,
+        lambda model: estimate_stage_cost(stage, model=model),
+    )
+
+
+def _routed_model_cost(
+    workload: str,
+    router_config: RouterConfig,
+    cost_for_model: Callable[[str], float],
+) -> float:
+    """Price one call against its resolved primary and usable fallback routes."""
+    provider, model = router_config.resolve(workload)
+    primary_cost = 0.0 if classify_provider(provider) == "local" else cost_for_model(model)
+
+    fallback_provider = router_config.fallback_provider.strip()
+    fallback_model = router_config.fallback_model.strip()
+    if (
+        not fallback_provider
+        or not fallback_model
+        or fallback_provider == provider
+        or not evaluate_route_cost_policy(
+            cost_mode=router_config.cost_mode,
+            provider=fallback_provider,
+            workload=workload,
+        ).allowed
+    ):
+        return primary_cost
+
+    fallback_cost = (
+        0.0 if classify_provider(fallback_provider) == "local" else cost_for_model(fallback_model)
+    )
+    # Only one route completes. Use the costlier eligible route so a local
+    # primary with an opt-in metered fallback is never advertised as free.
+    return max(primary_cost, fallback_cost)
+
+
+def estimate_routed_video_workflow_cost(
+    full_videos: int = 0,
+    shorts: int = 0,
+    *,
+    scan_videos: int = 0,
+    include_report: bool = False,
+    synthesis_calls: int = 0,
+    claim_extraction_calls: int = 0,
+    router_config: RouterConfig | None = None,
+) -> float:
+    """Project a video workflow using the routes that will execute each stage.
+
+    Local Ollama and LM Studio stages have no incremental model charge. Cloud,
+    unknown, and eligible fallback routes retain registry-backed estimates.
+    Gemini Deep Research remains explicitly metered even when analysis is local.
+    """
+    if router_config is None:
+        from distill.llm.router import RouterConfig
+
+        router_config = RouterConfig()
+
+    analysis_cost = (
+        max(0, full_videos) * _routed_stage_cost("video_full", "analysis", router_config)
+        + max(0, shorts) * _routed_stage_cost("video_short", "analysis", router_config)
+        + max(0, scan_videos) * _routed_stage_cost("video_scan", "analysis", router_config)
+    )
+    synthesis_cost = max(0, synthesis_calls) * _routed_stage_cost(
+        "synthesis", "synthesis", router_config
+    )
+    claim_extraction_cost = max(0, claim_extraction_calls) * _routed_stage_cost(
+        "claim_extraction", "concepts", router_config
+    )
+    if not include_report:
+        return analysis_cost + synthesis_cost + claim_extraction_cost
+
+    deep_research_cost = deep_research_query_cost()
+    accordion_cost = _routed_stage_cost("synthesis", "accordion", router_config)
+    # Preserve the established cloud accordion estimate rather than replacing
+    # it with a potentially smaller token projection. Local accordion work is
+    # free by topology; metered work keeps the conservative historical amount.
+    if accordion_cost > 0:
+        accordion_cost = max(accordion_cost, ACCORDION_GROK_ESTIMATE)
+    return (
+        analysis_cost + synthesis_cost + claim_extraction_cost + deep_research_cost + accordion_cost
+    )
 
 
 @dataclass
@@ -507,74 +660,40 @@ def _route_class(entry: TokenUsage) -> str:
     return "metered"
 
 
-def _median(values: list[float]) -> float:
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+def estimate_run_cost(
+    full_videos: int,
+    shorts: int,
+    accordion: bool = False,
+    *,
+    router_config: RouterConfig | None = None,
+) -> str:
+    """Pre-run cost estimate for dry-run output.
 
-
-def estimator_accuracy(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Estimate-vs-actual accuracy across runs that recorded both numbers.
-
-    The estimator's stated goal is accuracy, not safe padding -- this is the
-    accountability surface that makes that claim checkable. Median (not mean)
-    so one anomalous run can't swamp the signal; signed error kept separate
-    from absolute error so systematic bias (always-high vs always-low) is
-    visible, since the calibration fix differs. Preview rows are excluded
-    (no real spend to compare). Returns ``None`` when no run carries both.
+    The default remains a stable cloud-baseline calculation for pure estimator
+    callers. CLI dry runs pass their active router configuration so local and
+    mixed-route output matches what the workflow can actually spend.
     """
-    signed_pct: list[float] = []
-    for row in entries:
-        if str(row.get("command", "")).endswith("_preview"):
-            continue
-        est = row.get("estimated_cost")
-        act = row.get("actual_cost")
-        if not isinstance(est, int | float) or not isinstance(act, int | float):
-            continue
-        if est <= 0 or act <= 0:
-            continue
-        signed_pct.append((est - act) / act * 100.0)
-    if not signed_pct:
-        return None
-    recent = signed_pct[-10:]
-    return {
-        "runs_compared": len(signed_pct),
-        "median_abs_pct_error": round(_median([abs(x) for x in signed_pct]), 1),
-        "median_signed_pct_error": round(_median(signed_pct), 1),  # + = overestimates
-        "recent10_median_abs_pct_error": round(_median([abs(x) for x in recent]), 1),
-    }
-
-
-def projected_next_run_cost(entries: list[dict[str, Any]]) -> float:
-    """Projected cost for next similar run: average actual_cost of last up to 5 non-preview runs.
-
-    Simple history-based projection to address the roadmap item for
-    "Projected next-run cost by workflow, not just historical spend".
-    Excludes previews (no real spend). Returns 0.0 if no qualifying runs.
-    """
-    costs: list[float] = []
-    for row in reversed(entries):
-        if str(row.get("command", "")).endswith("_preview"):
-            continue
-        c = row.get("actual_cost")
-        if isinstance(c, (int, float)) and c > 0:
-            costs.append(float(c))
-        if len(costs) >= 5:
-            break
-    if not costs:
-        return 0.0
-    return sum(costs) / len(costs)
-
-
-def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) -> str:
-    """Pre-run cost estimate for dry-run output (at the default model's pricing)."""
-    full_rate = estimate_stage_cost("video_full")
-    short_rate = estimate_stage_cost("video_short")
+    full_rate = (
+        _routed_stage_cost("video_full", "analysis", router_config)
+        if router_config is not None
+        else estimate_stage_cost("video_full")
+    )
+    short_rate = (
+        _routed_stage_cost("video_short", "analysis", router_config)
+        if router_config is not None
+        else estimate_stage_cost("video_short")
+    )
     grok_cost = full_videos * full_rate + shorts * short_rate
     gemini_cost = deep_research_query_cost() if accordion else 0.0
-    accordion_grok = ACCORDION_GROK_ESTIMATE if accordion else 0.0
-    total = grok_cost + gemini_cost + accordion_grok
+    accordion_generation = 0.0
+    if accordion:
+        if router_config is None:
+            accordion_generation = ACCORDION_GROK_ESTIMATE
+        else:
+            routed_accordion = _routed_stage_cost("synthesis", "accordion", router_config)
+            if routed_accordion > 0:
+                accordion_generation = max(routed_accordion, ACCORDION_GROK_ESTIMATE)
+    total = grok_cost + gemini_cost + accordion_generation
 
     parts: list[str] = []
     if full_videos:
@@ -586,7 +705,7 @@ def estimate_run_cost(full_videos: int, shorts: int, accordion: bool = False) ->
     if accordion:
         parts.append(
             f"Accordion: ~${report_deep_research_estimate():.2f} "
-            f"(Gemini ${gemini_cost:.2f} + Grok ${accordion_grok:.2f})"
+            f"(Gemini ${gemini_cost:.2f} + generation ${accordion_generation:.2f})"
         )
 
     return f"Estimated cost: ${total:.2f} ({'; '.join(parts)})"
@@ -769,12 +888,52 @@ def _video_duration_factor(seconds: float | None) -> float:
     return max(_VIDEO_FACTOR_FLOOR, min(_VIDEO_FACTOR_CEIL, seconds / _NOMINAL_VIDEO_SECONDS))
 
 
+def _routed_discover_calibration(
+    calibration: CostCalibration,
+    router_config: RouterConfig,
+) -> CostCalibration:
+    """Adapt discover rates to active routes without discarding useful history."""
+    route_rates = {
+        "paper": max(
+            _routed_stage_cost("paper", "site", router_config),
+            _routed_stage_cost("paper", "analysis", router_config),
+        ),
+        "video": _routed_stage_cost("video_full", "analysis", router_config),
+        "site": _routed_stage_cost("site_page", "site", router_config),
+    }
+    historical_rates = {
+        "paper": calibration.per_paper,
+        "video": calibration.per_video,
+        "site": calibration.per_site,
+    }
+    rates: dict[str, float] = {}
+    samples: dict[str, int] = {}
+    for kind, route_rate in route_rates.items():
+        sample_count = calibration.samples.get(kind, 0)
+        if route_rate <= 0:
+            rates[kind] = 0.0
+            samples[kind] = 0
+        elif sample_count > 0:
+            rates[kind] = historical_rates[kind]
+            samples[kind] = sample_count
+        else:
+            rates[kind] = route_rate
+            samples[kind] = 0
+    return CostCalibration(
+        per_paper=rates["paper"],
+        per_video=rates["video"],
+        per_site=rates["site"],
+        samples=samples,
+    )
+
+
 def estimate_discover_cost(
     papers: int = 0,
     videos: int = 0,
     sites: int = 0,
     *,
     calibration: CostCalibration | None = None,
+    router_config: RouterConfig | None = None,
 ) -> float:
     """Rough pre-run USD point estimate for a discover ingest set (counts only).
 
@@ -784,6 +943,8 @@ def estimate_discover_cost(
     estimate with an uncertainty range, use :func:`estimate_discover_items`.
     """
     cal = calibration or CostCalibration()
+    if router_config is not None:
+        cal = _routed_discover_calibration(cal, router_config)
     return (
         max(0, papers) * cal.per_paper
         + max(0, sites) * cal.per_site
@@ -797,6 +958,7 @@ def estimate_discover_items(
     video_durations: Sequence[float | None] = (),
     sites: int = 0,
     calibration: CostCalibration | None = None,
+    router_config: RouterConfig | None = None,
 ) -> CostEstimate:
     """Metadata-aware spend estimate with an uncertainty range.
 
@@ -808,6 +970,8 @@ def estimate_discover_items(
     are more common than underruns) and widens when no calibration is available.
     """
     cal = calibration or CostCalibration()
+    if router_config is not None:
+        cal = _routed_discover_calibration(cal, router_config)
     expected = max(0, papers) * cal.per_paper + max(0, sites) * cal.per_site
     expected += sum(cal.per_video * _video_duration_factor(d) for d in video_durations)
 

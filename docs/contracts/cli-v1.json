@@ -2118,6 +2118,23 @@
           "is_flag": true,
           "kind": "option",
           "multiple": false,
+          "name": "force",
+          "names": [
+            "--force"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
           "name": "no_analyze",
           "names": [
             "--no-analyze"
@@ -3372,6 +3389,23 @@
           "required": true,
           "type": {
             "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "force",
+          "names": [
+            "--force"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
           }
         },
         {
@@ -6628,6 +6662,23 @@
           "required": true,
           "type": {
             "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "force",
+          "names": [
+            "--force"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
           }
         },
         {

@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.31 - 2026-07-11
+
+### Changed
+
+- Ollama calls now inspect the running-model endpoint before inference. A
+  different resident model triggers bounded exponential backoff, names the
+  active and requested models, never substitutes or stops a model, and exits
+  with typed retry guidance when `DISTILL_LOCAL_TIMEOUT` is reached. JSON
+  callers receive a stable `provider_busy` result with `retryable: true` and
+  `terminal: false` for external rescheduling.
+- X receipts now preserve available card and X Article preview metadata and
+  quoted-post text with distinct provenance. Missing long-form note, article,
+  or quoted-post bodies are marked partial instead of being presented as a
+  complete capture.
+- Recurring-profile terminal tables keep long replay commands outside the
+  candidate grid so previews remain readable at normal terminal widths.
+- YouTube caption downloads suppress yt-dlp transfer progress while retaining
+  Distill's own concise source and phase progress.
+- Direct video, version-exact paper, and analyzed X replays now reuse complete
+  unchanged artifacts without model or ledger work. `--force` provides an
+  explicit reanalysis path; newer arXiv versions and edited X content still run.
+- README, usage, output, cost, adapter, and roadmap documentation now match the
+  shipped discovery scope, direct-ingest source paths, cost-log locations,
+  profile status, local contention behavior, and two-pass synthesis limits.
+
+### Fixed
+
+- Ask, paper, site, discovery, synthesis, topic-watch, video, reanalysis,
+  catch-up, and resynthesis projections now resolve each configured workload
+  route before displaying, enforcing, or logging an estimate. Ollama and LM
+  Studio stages record zero incremental model cost, while metered overrides,
+  eligible fallbacks, unknown paper-analysis modes, and Gemini Deep Research
+  retain conservative estimates.
+- Two-pass resynthesis preflight now counts pending claim extractions, respects
+  the per-run extraction cap and completed-source ledger, prices those calls on
+  the configured concepts route, and includes them in the displayed estimate.
+- Audit verification rollups now classify sidecars with zero checked numeric
+  and entailment claims as unverified instead of verified clean. Reports and
+  finding counts distinguish checked-clean, flagged, and no-coverage artifacts.
+- `no-metered` now fails closed before live cloud credential probes, cloud
+  router fallbacks, Gemini File Search cleanup, report and research-brief
+  clients, and cloud speech-to-text calls. Doctor reports policy-skipped key
+  checks explicitly instead of making an unledgered provider request.
+- Direct ingest, concept extraction, and top-level synthesis now persist every
+  non-empty usage tracker in success and failure paths, including zero-dollar
+  local calls, while receipt-only and other true no-op runs do not create empty
+  ledger rows.
+- Budget, cost-policy, and provider-busy failures now remain terminal across
+  video, paper, site, discover, watch, reanalysis, and synthesis loops. A model
+  call that crosses a command budget is written to the ledger exactly once
+  before the exception is re-raised. Multipass paper chunk-ranking calls now
+  share the same tracker and terminal semantics.
+- Read-only inventory surfaces now include filesystem-backed direct ingests
+  without promoting them to runnable channel subscriptions. `library`,
+  `videos`, `show`, dashboard, doctor, audit, and gap analysis count direct
+  topics and videos; X insights participate in mixed-source coverage.
+- Video claim verification now uses persisted source metadata together with
+  the transcript, so upload dates supplied to analysis are verifiable without
+  weakening unsupported-number refusal.
+- X analysis now resolves the `analysis` workload, so
+  `DISTILL_ANALYSIS_MODEL` applies to tweet extraction and vocabulary hints.
+  Replay completion requires matching receipt and insight hashes. Proven
+  unchanged pre-hash pairs migrate without a model call, while a failed or
+  verify-refused analysis leaves no committed pair that could falsely skip.
+  Raw-only replay separately requires its receipt plus an attached-video
+  transcript only when requested, avoiding repeated writes and transcription.
+- Windows adapter probes now invoke the exact executable resolved by
+  `shutil.which` with the shell disabled, allow bounded startup headroom, and
+  validate the current Claude Code plan-mode flags.
+
 ## 0.19.30 - 2026-07-10
 
 ### Changed

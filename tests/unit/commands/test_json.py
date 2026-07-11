@@ -14,6 +14,7 @@ from distill.commands._json import (
     handle_cli_error,
     map_exception_to_exit_code,
 )
+from distill.llm.errors import ProviderBusyTimeoutError
 from distill.pipeline.costs import BudgetExceededError
 
 # ── Property 12: JSON envelope serialization round-trip ──
@@ -148,6 +149,29 @@ class TestExitCodeMapping:
         parsed = json.loads(captured.out)
         assert parsed["status"] == "error"
         assert "boom" in parsed["error"]
+
+    def test_handle_cli_error_provider_busy_is_structured_and_retryable(self, capsys):
+        error = ProviderBusyTimeoutError(
+            provider="Ollama",
+            requested_model="qwen2.5:14b",
+            active_models=("qwen2.5-coder:32b",),
+            timeout_seconds=7200,
+        )
+
+        code = handle_cli_error(error, json_mode=True)
+
+        assert code == ExitCode.NETWORK_ERROR
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["status"] == "error"
+        assert parsed["data"] == {
+            "code": "provider_busy",
+            "retryable": True,
+            "terminal": False,
+            "provider": "Ollama",
+            "requested_model": "qwen2.5:14b",
+            "active_models": ["qwen2.5-coder:32b"],
+            "waited_seconds": 7200,
+        }
 
     def test_handle_cli_error_normal_mode(self, capsys):
         code = handle_cli_error(RuntimeError("boom"), json_mode=False)

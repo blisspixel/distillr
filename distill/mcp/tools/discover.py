@@ -16,6 +16,7 @@ from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
+from distill.llm.router import RouterConfig
 from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
 from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
 from distill.pipeline.ranking import RankedVideo
@@ -370,6 +371,7 @@ async def discover(  # noqa: C901 - legacy discovery workflow
         papers=len(paper_results),
         video_durations=[None] * len(video_results),
         calibration=load_cost_calibration(config.library_dir),
+        router_config=RouterConfig(),
     )
     payload: JsonObject = {
         "topic": topic_name,
@@ -386,5 +388,10 @@ async def discover(  # noqa: C901 - legacy discovery workflow
         "cost": cost_summary(tracker),
     }
 
-    save_run_log(config.library_dir, "discover", tracker)
+    save_run_log(
+        config.library_dir,
+        "discover",
+        tracker,
+        estimated_cost=estimate.expected,
+    )
     return json.dumps(payload, indent=2)

@@ -43,6 +43,13 @@ def test_rate_limit_429_is_described():
     assert "429" in msg
 
 
+def test_permanent_404_is_described_as_model_or_endpoint_error():
+    msg = describe_provider_error(_StatusError("not found", 404))
+
+    assert msg is not None
+    assert "model or endpoint not found" in msg
+
+
 def test_unknown_error_returns_none():
     assert describe_provider_error(ValueError("totally unrelated bug")) is None
 

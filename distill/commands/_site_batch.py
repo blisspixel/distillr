@@ -12,6 +12,9 @@ from distill.commands._helpers import record_exception_issue
 from distill.commands._site_ingest import site_ingest_status_phase
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.library.paths import find_artifact
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import (
     BudgetExceededError,
@@ -116,12 +119,16 @@ def estimate_site_batch_plan_cost(
     seeds: list[SiteSeed],
     *,
     include_report: bool = False,
+    router_config: RouterConfig | None = None,
 ) -> float:
     planned_pages = sum(max(0, seed.max_pages) for seed in seeds)
+    active_seeds = sum(1 for seed in seeds if seed.max_pages > 0)
+    synthesis_calls = active_seeds + 2 if planned_pages > 0 else 0
     return estimate_site_batch_workflow_cost(
         planned_pages,
-        synthesis_calls=2 if planned_pages > 0 else 0,
+        synthesis_calls=synthesis_calls,
         include_report=include_report,
+        router_config=router_config,
     )
 
 
@@ -180,7 +187,7 @@ def process_site_batch_seed(
             scrape_only=scrape_only,
             ingest_attachments=ingest_attachments,
         )
-    except BudgetExceededError:
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
         raise
     except Exception as exc:
         console.print(f"  [red]failed: {exc}[/red]")
@@ -223,6 +230,8 @@ def run_site_batch_syntheses(
                     identity=target_topic,
                 )
             )
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+        raise
     except Exception as exc:
         record_exception_issue(
             summary,

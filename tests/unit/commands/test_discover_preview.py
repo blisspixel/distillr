@@ -89,6 +89,7 @@ def test_from_preview_replays_exact_saved_set(mock_config, monkeypatch):
     assert len(captured["ranked_videos"]) == 1
     assert captured["ranked_papers"][0].paper.paper_id == "2601.1"
     assert captured["ranked_videos"][0].video.video_id == "v1"
+    assert captured["summary"].estimated_cost == 0.0
 
 
 def test_from_preview_unknown_id_errors(mock_config):
@@ -104,6 +105,8 @@ def test_from_preview_rejects_combination_with_preview(mock_config):
 
 
 def test_from_preview_refuses_projected_spend_before_ingest(mock_config, monkeypatch):
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
     mock_config.distill_cost_workflow_budgets = "discover=0.01"
     preview_id = _seed_preview(mock_config)
     called = {"ingest": False}
@@ -120,7 +123,7 @@ def test_from_preview_refuses_projected_spend_before_ingest(mock_config, monkeyp
             catch_exceptions=False,
         )
 
-    assert raised.value.projected == 0.02
+    assert raised.value.projected == pytest.approx(0.05333333333333333)
     assert called["ingest"] is False
 
 
@@ -231,6 +234,8 @@ def test_yes_bypasses_sizing_menu_on_fresh_topic(mock_config, monkeypatch):
 
 
 def test_discover_refuses_projected_ingest_spend_before_ingest(mock_config, monkeypatch):
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
     mock_config.distill_cost_workflow_budgets = "discover=0.0001"
     _patch_discover_pipeline(monkeypatch)
     called = {"ingest": False}

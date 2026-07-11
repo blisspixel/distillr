@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from typer.testing import CliRunner
@@ -51,6 +53,77 @@ def _seed_library(config: DistillConfig, topic: str = "ai", channel: str = "Test
 
 
 class TestVideoCommand:
+    @staticmethod
+    def _seed_completed_video(config: DistillConfig, info: VideoInfo) -> tuple[Path, Path]:
+        video_dir = config.video_dir_slug("ai", info.channel_name, info.title, info.video_id)
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (video_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "video_id": info.video_id,
+                    "title": info.title,
+                    "upload_date": info.upload_date,
+                    "duration": info.duration,
+                    "url": info.url,
+                    "channel": info.channel_name,
+                    "analysis_mode": "full",
+                }
+            ),
+            encoding="utf-8",
+        )
+        transcript = video_dir / "transcript.txt"
+        insights = video_dir / "insights.md"
+        transcript.write_text("Existing transcript", encoding="utf-8")
+        insights.write_text("---\nvideo_id: v1\n---\n\nExisting insight", encoding="utf-8")
+        return transcript, insights
+
+    def test_exact_completed_video_replay_is_a_write_free_noop(self, tmp_path, monkeypatch):
+        info = _video()
+        config = _config(tmp_path)
+        transcript, insights = self._seed_completed_video(config, info)
+        before = {
+            path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (transcript, insights)
+        }
+        process_video = MagicMock(return_value=True)
+        require_model = MagicMock()
+        enforce_budget = MagicMock()
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "get_video_info", lambda _url: info)
+        monkeypatch.setattr(process_mod, "_process_video", process_video)
+        monkeypatch.setattr(process_mod, "_require_model", require_model)
+        monkeypatch.setattr(process_mod, "enforce_projected_workflow_budget", enforce_budget)
+
+        result = runner.invoke(cli.app, ["video", info.url, "--topic", "ai"])
+
+        assert result.exit_code == 0, result.output
+        assert "Already complete for this video ID" in result.output
+        assert "--force" in result.output
+        process_video.assert_not_called()
+        require_model.assert_not_called()
+        enforce_budget.assert_not_called()
+        assert {
+            path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (transcript, insights)
+        } == before
+        assert not (config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+    def test_force_reanalyzes_an_exact_completed_video(self, tmp_path, monkeypatch):
+        info = _video()
+        config = _config(tmp_path)
+        self._seed_completed_video(config, info)
+        process_video = MagicMock(return_value=True)
+        require_model = MagicMock()
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "get_video_info", lambda _url: info)
+        monkeypatch.setattr(process_mod, "_process_video", process_video)
+        monkeypatch.setattr(process_mod, "_require_model", require_model)
+        monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
+
+        result = runner.invoke(cli.app, ["video", info.url, "--topic", "ai", "--force"])
+
+        assert result.exit_code == 0, result.output
+        process_video.assert_called_once()
+        require_model.assert_called_once()
+
     def test_video_info_failure_exits(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         monkeypatch.setattr(process_mod, "get_config", lambda: config)
@@ -75,6 +148,8 @@ class TestVideoCommand:
         assert result.exit_code == 1
 
     def test_refuses_projected_video_budget_before_processing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         info = _video()
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "video=0.0001"
@@ -199,6 +274,8 @@ class TestChannelCommand:
         assert "No videos found in date range" in result.output
 
     def test_refuses_projected_channel_budget_before_processing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "channel=0.0001"
         self._patch_common(monkeypatch, config, [_video()])
@@ -330,6 +407,8 @@ class TestRunCommand:
         synthesize_topic.assert_not_called()
 
     def test_refuses_projected_run_budget_before_processing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "run=0.0001"
         _seed_library(config)

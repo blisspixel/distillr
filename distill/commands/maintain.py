@@ -10,7 +10,6 @@ larger doctor/health and eval commands live in their own modules. Registered via
 from __future__ import annotations
 
 import json
-import math
 import os
 import webbrowser
 from datetime import datetime
@@ -26,6 +25,21 @@ from distill._version import get_version as _get_version
 from distill.banner import show_banner
 from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import require_model as _require_model
+from distill.commands._cost_data import (
+    biggest_prompt_rows as _biggest_prompt_rows,
+)
+from distill.commands._cost_data import (
+    compute_local_cloud_stats as _compute_local_cloud_stats,
+)
+from distill.commands._cost_data import (
+    dict_or_empty as _dict_or_empty,
+)
+from distill.commands._cost_data import (
+    safe_float as _safe_float,
+)
+from distill.commands._cost_data import (
+    safe_int as _safe_int,
+)
 from distill.commands._helpers import (
     _complete_topics,
     budgeted_cost_tracker,
@@ -48,6 +62,8 @@ from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
+from distill.llm.cost_policy import require_route_allowed
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import (
     CostWarning,
     cost_anomaly_warnings,
@@ -309,57 +325,6 @@ def costs(  # noqa: C901 -- legacy, will refactor
         console.print(breakdown_table)
 
 
-def _dict_or_empty(value: object) -> dict[str, Any]:
-    """Return a dict for runtime log fields, or empty for malformed rows."""
-    return cast("dict[str, Any]", value) if isinstance(value, dict) else {}
-
-
-def _safe_float(value: object, default: float = 0.0) -> float:
-    if not isinstance(value, str | int | float):
-        return default
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return default
-    return result if math.isfinite(result) else default
-
-
-def _safe_int(value: object, default: int = 0) -> int:
-    if not isinstance(value, str | int | float):
-        return default
-    try:
-        result = int(value)
-    except (OverflowError, TypeError, ValueError):
-        return default
-    return result
-
-
-def _biggest_prompt_rows(config: DistillConfig, limit: int = 10) -> list[dict[str, object]]:
-    """Return largest per-call prompt telemetry records for cost surfaces."""
-    from distill.llm.telemetry import top_n_by_tokens
-
-    ops_dir = str(config.library_dir / ".distill")
-    rows: list[dict[str, object]] = []
-    for record in top_n_by_tokens(ops_dir, n=limit):
-        rows.append(
-            {
-                "timestamp": record.timestamp,
-                "workload_tag": record.workload_tag,
-                "call_type": record.call_type,
-                "model": record.model,
-                "provider_name": record.provider_name,
-                "provider_type": record.provider_type,
-                "input_tokens": record.input_tokens,
-                "output_tokens": record.output_tokens,
-                "total_tokens": record.input_tokens + record.output_tokens,
-                "elapsed_seconds": record.elapsed_seconds,
-                "outcome": record.outcome,
-                "run_id": record.run_id,
-            }
-        )
-    return rows
-
-
 def _costs_biggest_prompts_section(
     config: DistillConfig,
     biggest_prompts: list[dict[str, object]] | None = None,
@@ -397,51 +362,6 @@ def _costs_biggest_prompts_section(
         )
 
     console.print(table)
-
-
-def _compute_local_cloud_stats(config: DistillConfig) -> dict[str, float | int]:
-    """Compute local/cloud inference stats from telemetry.jsonl for JSON output."""
-    ops_dir = str(config.library_dir / ".distill")
-    telemetry_path = Path(ops_dir) / "telemetry.jsonl"
-    if not telemetry_path.exists():
-        return {}
-
-    local_total_seconds = 0.0
-    local_total_tokens = 0
-    local_records_count = 0
-    total_tps_sum = 0.0
-
-    try:
-        import json as _json
-
-        for line in telemetry_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = _dict_or_empty(_json.loads(line))
-                if not data:
-                    continue
-                if data.get("provider_type") == "local":
-                    local_records_count += 1
-                    local_total_seconds += float(data.get("elapsed_seconds", 0))
-                    local_total_tokens += int(data.get("output_tokens", 0)) + int(
-                        data.get("input_tokens", 0)
-                    )
-                    tps = float(data.get("tokens_per_second", 0))
-                    if tps > 0:
-                        total_tps_sum += tps
-            except (ValueError, TypeError, _json.JSONDecodeError):
-                continue
-    except OSError:
-        return {}
-
-    avg_tps = round(total_tps_sum / local_records_count, 1) if local_records_count > 0 else 0
-    return {
-        "local_total_seconds": round(local_total_seconds, 1),
-        "local_total_tokens": local_total_tokens,
-        "avg_tokens_per_second": avg_tps,
-    }
 
 
 def _costs_local_cloud_section(config: DistillConfig) -> None:  # noqa: C901
@@ -512,6 +432,11 @@ def cleanup():
     Use this if a run was interrupted or cleanup failed.
     """
     config = get_config()
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="file-search-cleanup",
+    )
 
     if not config.gemini_api_key:
         console.print("[red]GEMINI_API_KEY required[/red]")
@@ -929,14 +854,17 @@ def corpus(
     """Build a mixed-source corpus synthesis for a topic."""
     config = get_config()
     projected_cost = 0.0
-    if has_corpus_synthesis_inputs(topic, config):
-        projected_cost = estimate_synthesis_workflow_cost()
+    has_inputs = has_corpus_synthesis_inputs(topic, config)
+    if has_inputs:
+        projected_cost = estimate_synthesis_workflow_cost(
+            router_config=RouterConfig(),
+        )
         enforce_projected_workflow_budget(config, "corpus", projected_cost)
     _require_model()
     tracker = budgeted_cost_tracker(config, "corpus")
     summary = RunSummary(command="corpus")
     summary.set_metadata(topic=topic, workflow="corpus", source_type="mixed")
-    summary.estimated_cost = projected_cost or None
+    summary.estimated_cost = projected_cost if has_inputs else None
 
     result = synthesize_corpus(topic, config, tracker=tracker)
     if not result:

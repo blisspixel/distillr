@@ -248,6 +248,26 @@ class TestDoctorTool:
         assert gem["status"] == "invalid"
         assert result["status"] == "warning"
 
+    def test_reports_policy_skipped_key_validation(self, mock_config):
+        def _fake(provider, config):
+            del config
+            if provider == "gemini":
+                return ("skipped", "Route blocked by no-metered cost policy")
+            return ("ok", "stub")
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.doctor.checks._doctor_validate_key", side_effect=_fake),
+        ):
+            from distill.mcp.tools.doctor import doctor
+
+            result = json.loads(doctor())
+
+        gem = next(c for c in result["checks"] if c["check"] == "gemini_api_key")
+        assert gem["status"] == "skipped"
+        assert "Route blocked" in gem["detail"]
+        assert result["status"] == "warning"
+
     def test_missing_api_key(self, tmp_path):
         config = DistillConfig(
             xai_api_key="",
@@ -1299,10 +1319,11 @@ class TestDiscoverTool:
             assert max_results == 2
             raise RuntimeError("paper search down")
 
-        def save_log(log_dir, command, tracker):
+        def save_log(log_dir, command, tracker, estimated_cost=None):
             assert log_dir == mock_config.library_dir
             assert command == "discover"
             assert isinstance(tracker, CostTracker)
+            assert estimated_cost == 0.0
 
         ctx = ProgressContext()
         monkeypatch.setattr(discover_tool, "_search_candidates", fail_video_search)
@@ -1339,10 +1360,11 @@ class TestDiscoverTool:
             assert limit == 2
             return [_ranked_mcp_video(video, score=7.895)]
 
-        def save_log(log_dir, command, tracker):
+        def save_log(log_dir, command, tracker, estimated_cost=None):
             assert log_dir == mock_config.library_dir
             assert command == "discover"
             assert isinstance(tracker, CostTracker)
+            assert estimated_cost == 0.0
 
         monkeypatch.setattr(discover_tool, "_search_candidates", search)
         monkeypatch.setattr(discover_tool, "_rank_candidates", rank)

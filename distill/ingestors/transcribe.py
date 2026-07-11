@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from distill.config import DistillConfig
+from distill.llm.cost_policy import CostPolicyError, require_route_allowed
 
 __all__ = [
     "TranscriptionError",
@@ -163,6 +164,37 @@ def _prepare_ledger_duration(
     return _require_ledger_duration(media_path)
 
 
+def _prepare_cloud_route(
+    media_path: Path,
+    duration_hint_s: float,
+    *,
+    config: DistillConfig,
+    route_name: str,
+    provider: str,
+    api_key: str,
+    errors: list[str],
+    tracker: TranscriptionCostTracker | None,
+) -> float:
+    """Enforce cost policy before cloud ledger work or provider invocation."""
+
+    if api_key:
+        try:
+            require_route_allowed(
+                cost_mode=config.distill_cost_mode,
+                provider=provider,
+                workload="speech-to-text",
+            )
+        except CostPolicyError as exc:
+            errors.append(f"{route_name}: {exc}")
+            raise TranscriptionError("; ".join(errors)) from exc
+    return _prepare_ledger_duration(
+        media_path,
+        duration_hint_s,
+        tracker=tracker,
+        api_key=api_key,
+    )
+
+
 def _attempt(
     name: str,
     fn: Callable[[], TranscriptionResult],
@@ -179,6 +211,9 @@ def _attempt(
     """
     try:
         return fn()
+    except CostPolicyError as exc:
+        errors.append(f"{name}: {exc}")
+        raise TranscriptionError("; ".join(errors)) from exc
     except Exception as exc:
         errors.append(f"{name}: {exc}")
         if must_succeed:
@@ -206,8 +241,9 @@ def transcribe_media(
       whose dependency or key isn't available).
     - ``"local"``: local only; raise if unavailable.
     - ``"grok"``: xAI Grok STT only.
-    - ``"openai"`` (alias ``"cloud"`` for back-compat): OpenAI Whisper-1
-      only.
+    - ``"cloud"``: cloud-only ladder, Grok STT then OpenAI Whisper-1,
+      skipping a provider when its key is unavailable.
+    - ``"openai"``: OpenAI Whisper-1 only.
 
     ``vocabulary_hint`` is a short free-text string of proper nouns,
     product names, and technical terms the source is likely to discuss.
@@ -241,11 +277,16 @@ def transcribe_media(
             return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
 
     if prefer in {"auto", "auto-cloud", "grok"}:
-        duration_hint_s = _prepare_ledger_duration(
+        xai_api_key = config.xai_api_key.get_secret_value()
+        duration_hint_s = _prepare_cloud_route(
             media_path,
             duration_hint_s,
+            config=config,
+            route_name="grok",
+            provider="xai",
+            api_key=xai_api_key,
+            errors=errors,
             tracker=tracker,
-            api_key=config.xai_api_key.get_secret_value(),
         )
         result = _attempt(
             "grok",
@@ -257,11 +298,16 @@ def transcribe_media(
             return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
 
     if prefer in {"auto", "auto-cloud", "openai"}:
-        duration_hint_s = _prepare_ledger_duration(
+        openai_api_key = config.openai_api_key.get_secret_value()
+        duration_hint_s = _prepare_cloud_route(
             media_path,
             duration_hint_s,
+            config=config,
+            route_name="openai",
+            provider="openai",
+            api_key=openai_api_key,
+            errors=errors,
             tracker=tracker,
-            api_key=config.openai_api_key.get_secret_value(),
         )
         result = _attempt(
             "openai",
@@ -571,8 +617,6 @@ def _transcribe_openai(
     api_key = config.openai_api_key.get_secret_value()
     if not api_key:
         raise _ProviderUnavailable("OPENAI_API_KEY not configured")
-    from distill.llm.cost_policy import require_route_allowed
-
     require_route_allowed(
         cost_mode=config.distill_cost_mode,
         provider="openai",
@@ -618,8 +662,6 @@ def _transcribe_grok(
     api_key = config.xai_api_key.get_secret_value()
     if not api_key:
         raise _ProviderUnavailable("XAI_API_KEY not configured")
-    from distill.llm.cost_policy import require_route_allowed
-
     require_route_allowed(
         cost_mode=config.distill_cost_mode,
         provider="xai",

@@ -77,6 +77,10 @@ def tweet_insight_prompt(
     tweet_url: str,
     tweet_text: str,
     note_text: str = "",
+    link_preview: str = "",
+    capture_status: str = "complete",
+    capture_warning: str = "",
+    quoted_post: str = "",
     transcript: str = "",
     media_summary: str = "",
 ) -> str:
@@ -104,6 +108,30 @@ LONG-FORM BODY (note_tweet):
 {note_text}
 """
 
+    link_preview_block = ""
+    if link_preview:
+        link_preview_block = f"""
+
+LINK PREVIEW (public syndication metadata only, not the full linked page):
+{link_preview}
+"""
+
+    capture_block = ""
+    if capture_status == "partial":
+        capture_block = f"""
+
+CAPTURE STATUS:
+Partial: {capture_warning or "The full source body was not captured."}
+"""
+
+    quoted_post_block = ""
+    if quoted_post:
+        quoted_post_block = f"""
+
+QUOTED POST (distinct source material embedded by the outer post):
+{quoted_post}
+"""
+
     media_block = ""
     if media_summary:
         media_block = f"""
@@ -120,10 +148,10 @@ SECURITY: {UNTRUSTED_CONTENT_RULES}
 
 POST: {tweet_url}
 AUTHOR: {author_name} ({author_handle})
-POSTED: {posted_at}
+POSTED: {posted_at}{capture_block}
 
 TWEET TEXT:
-{tweet_text}{note_block}{media_block}{transcript_block}
+{tweet_text}{quoted_post_block}{note_block}{link_preview_block}{media_block}{transcript_block}
 
 Generate a structured insight document with these sections:
 
@@ -138,6 +166,8 @@ made. For each, tag the source within the post:
 - [Tweet] — claim is in the tweet text itself
 - [Video] — claim is in the attached video transcript
 - [Note] — claim is in the long-form note_tweet body
+- [Link Preview] - claim is present only in public link-preview metadata
+- [Quoted Post] - claim is in the separately authored quoted-post text
 
 Include specific names, numbers, dates, versions. If a claim is a
 re-statement of someone else's work (e.g., "Anthropic just released X"),
@@ -167,9 +197,15 @@ opinion grounded in evidence), LOW (rehash, promotional, thin
 commentary). One sentence explaining why.
 
 CRITICAL RULES:
-- Extract only what is actually present in the tweet text, note, or
-  attached transcript. Do NOT invent quotes, fabricate vendor
-  positioning, or inject information not in the source.
+- Extract only what is actually present in the tweet text, note, attached
+  transcript, link preview, or quoted-post text. Do NOT invent quotes,
+  fabricate vendor positioning, or inject information not in the source.
+- Treat [Link Preview] as preview metadata only. Do not imply that the linked
+  page or full X Article body was captured or read.
+- Attribute [Quoted Post] claims to the quoted author. Quoting does not by
+  itself establish that the outer post's author endorses the quoted claim.
+- If CAPTURE STATUS is Partial, state the limitation and do not complete,
+  reconstruct, or infer missing note, article, or quoted-post text.
 - If the substance is in the attached video and the tweet text is just a
   hype headline, say so in Summary and let the Key Claims be
   predominantly [Video]-tagged.

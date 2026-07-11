@@ -33,6 +33,7 @@ from distill.commands._helpers import (
     budgeted_cost_tracker,
     enforce_projected_workflow_budget,
     get_config,
+    save_command_cost,
 )
 from distill.commands._helpers import (
     detect_ramp_source as _detect_ramp_source,
@@ -81,8 +82,12 @@ from distill.library import Library
 from distill.library.ingested import ingested_source_ids
 from distill.library.intent import make_intent, save_intent
 from distill.library.paths import find_artifact, site_name_from_url
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import (
+    BudgetExceededError,
     estimate_discover_items,
     estimate_synthesis_workflow_cost,
     load_cost_calibration,
@@ -169,29 +174,42 @@ def synthesize_cmd(
     config = get_config()
     _require_model()
 
-    enforce_projected_workflow_budget(
-        config,
-        "synthesize",
-        estimate_synthesis_workflow_cost(),
+    projected_cost = estimate_synthesis_workflow_cost(
+        router_config=RouterConfig(),
     )
+    enforce_projected_workflow_budget(config, "synthesize", projected_cost)
     tracker = budgeted_cost_tracker(config, "synthesize")
-    output_path = run_synthesis(
-        topics=expanded,
-        context=context_text,
-        name=name,
-        config=config,
-        max_tokens=max_tokens,
-        tracker=tracker,
-    )
-    if output_path is None:
-        raise typer.Exit(1)
+    try:
+        output_path = run_synthesis(
+            topics=expanded,
+            context=context_text,
+            name=name,
+            config=config,
+            max_tokens=max_tokens,
+            tracker=tracker,
+        )
+        if output_path is None:
+            raise typer.Exit(1)
 
-    summary = tracker.summary_dict()
-    console.print(
-        f"\n[dim]Tokens: {summary['total_input_tokens']:,} in / "
-        f"{summary['total_output_tokens']:,} out - "
-        f"Cost: {summary['estimated_total_cost']}[/dim]"
-    )
+        summary = tracker.summary_dict()
+        console.print(
+            f"\n[dim]Tokens: {summary['total_input_tokens']:,} in / "
+            f"{summary['total_output_tokens']:,} out - "
+            f"Cost: {summary['estimated_total_cost']}[/dim]"
+        )
+    finally:
+        save_command_cost(
+            config,
+            "synthesize",
+            tracker,
+            metadata={
+                "topic": ",".join(expanded),
+                "workflow": "synthesize",
+                "source_type": "mixed",
+                "name": name,
+            },
+            estimated_cost=projected_cost,
+        )
 
 
 def monitor(
@@ -418,13 +436,25 @@ def site_cmd(
         crawl_prefix=crawl_prefix,
         same_section_only=same_section_only,
     )
+    projected_cost: float | None = None
+    ledger_estimate: float | None = None
     if not scrape_only:
-        projected_cost = estimate_site_batch_plan_cost([seed], include_report=report)
+        router_config = RouterConfig()
+        ledger_estimate = estimate_site_batch_plan_cost(
+            [seed],
+            router_config=router_config,
+        )
+        projected_cost = estimate_site_batch_plan_cost(
+            [seed],
+            include_report=report,
+            router_config=router_config,
+        )
         enforce_projected_workflow_budget(config, "site", projected_cost)
         _require_model()
     tracker = budgeted_cost_tracker(config, "site")
     summary = RunSummary(command="site")
     summary.set_metadata(topic=topic, workflow="site", source_type="website")
+    summary.estimated_cost = ledger_estimate
     _process_site_seed(
         seed,
         config,
@@ -446,6 +476,8 @@ def site_cmd(
                 summary.add_output(
                     find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic)
                 )
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as exc:
             cli_shared.record_exception_issue(
                 summary,
@@ -512,13 +544,25 @@ def site_batch_cmd(
         else:
             print_site_batch_plan(topic=target_topic, seeds=planned_seeds)
         return
+    projected_cost: float | None = None
+    ledger_estimate: float | None = None
     if not scrape_only:
-        projected_cost = estimate_site_batch_plan_cost(planned_seeds, include_report=report)
+        router_config = RouterConfig()
+        ledger_estimate = estimate_site_batch_plan_cost(
+            planned_seeds,
+            router_config=router_config,
+        )
+        projected_cost = estimate_site_batch_plan_cost(
+            planned_seeds,
+            include_report=report,
+            router_config=router_config,
+        )
         enforce_projected_workflow_budget(config, "site-batch", projected_cost)
         _require_model()
     tracker = budgeted_cost_tracker(config, "site-batch")
     summary = RunSummary(command="site-batch")
     summary.set_metadata(topic=target_topic, workflow="site-batch", source_type="website")
+    summary.estimated_cost = ledger_estimate
 
     progress = BatchProgress("site", len(planned_seeds), tracker)
     for seed in planned_seeds:
@@ -544,16 +588,8 @@ def site_batch_cmd(
 
 
 def discover(  # noqa: C901 — legacy, will refactor
-    goal: str = typer.Argument(
-        "",
-        help='Research goal, e.g. "help an AI compose great music". Omit if using --goal-file.',
-    ),
-    goal_file: Path | None = typer.Option(
-        None,
-        "--goal-file",
-        help="Path to a markdown file whose contents become the goal. Enables reusable, "
-        "goal-driven topic refreshes. Overrides the positional argument if both are provided.",
-    ),
+    goal: str = _discover_options.GOAL_ARGUMENT,
+    goal_file: Path | None = _discover_options.GOAL_FILE_OPTION,
     topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
     paper_limit: int = typer.Option(10, "--paper-limit", help="Max papers to ingest (default: 10)"),
     video_limit: int = typer.Option(10, "--video-limit", help="Max videos to ingest (default: 10)"),
@@ -562,69 +598,18 @@ def discover(  # noqa: C901 — legacy, will refactor
     site_limit: int = _discover_options.SITE_LIMIT_OPTION,
     site_crawl_depth: int = _discover_options.SITE_CRAWL_DEPTH_OPTION,
     site_crawl_pages: int = _discover_options.SITE_CRAWL_PAGES_OPTION,
-    papers_only: bool = typer.Option(
-        False,
-        "--papers-only",
-        help="Skip videos entirely (equivalent to --video-limit 0). Use when the topic "
-        "has thin or unrigorous YouTube coverage and you only want academic sources.",
-    ),
-    videos_only: bool = typer.Option(
-        False,
-        "--videos-only",
-        help="Skip papers entirely (equivalent to --paper-limit 0). Use when the topic "
-        "is better covered by talks/lectures than by formal papers.",
-    ),
-    days: int = typer.Option(
-        365, "--days", "-d", help="YouTube recency window in days (default: 365)"
-    ),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    ingest_attachments: bool = typer.Option(
-        False,
-        "--ingest-attachments",
-        help="For selected site seeds, pull PDF text and supported embedded video transcripts into the page corpus",
-    ),
-    from_gaps: bool = typer.Option(
-        False,
-        "--from-gaps",
-        help="Derive the goal from an existing topic's coverage gaps (requires --topic). "
-        "Turns research_gaps into auto-generated discover queries.",
-    ),
-    rigor: str = typer.Option(
-        "balanced",
-        "--rigor",
-        help="Quality bar for the reranked shortlist: strict | balanced | loose. "
-        "Drops candidates whose rerank score is below the level's threshold.",
-    ),
-    lens: str = typer.Option(
-        "",
-        "--lens",
-        help="Analysis lens for per-source insights: research | practitioner | competitive | "
-        "academic | general. Default: inferred from the goal. Persisted as the topic's intent so "
-        "later ingests inherit it.",
-    ),
-    verify: str = typer.Option(
-        "",
-        "--verify",
-        help="Claim-grounding mode for this run: warn | strict | off "
-        "(default: the DISTILL_VERIFY setting, else warn).",
-    ),
-    preview: bool = typer.Option(
-        False, "--preview", help="Show the goal-ranked plan without ingesting"
-    ),
-    from_preview: str = typer.Option(
-        "",
-        "--from-preview",
-        help="Replay and ingest the exact set saved by an earlier --preview run, by its id. "
-        "Skips query-generation and the rerank, so you commit to precisely what you saw.",
-    ),
-    size: bool = typer.Option(
-        False,
-        "--size",
-        help="Force the size-then-approve menu (excellent / good / everything, each with its "
-        "spend) even on a topic that already has artifacts. On a fresh topic this is the default.",
-    ),
+    papers_only: bool = _discover_options.PAPERS_ONLY_OPTION,
+    videos_only: bool = _discover_options.VIDEOS_ONLY_OPTION,
+    days: int = _discover_options.DAYS_OPTION,
+    shorts: bool = _discover_options.SHORTS_OPTION,
+    ingest_attachments: bool = _discover_options.INGEST_ATTACHMENTS_OPTION,
+    from_gaps: bool = _discover_options.FROM_GAPS_OPTION,
+    rigor: str = _discover_options.RIGOR_OPTION,
+    lens: str = _discover_options.LENS_OPTION,
+    verify: str = _discover_options.VERIFY_OPTION,
+    preview: bool = _discover_options.PREVIEW_OPTION,
+    from_preview: str = _discover_options.FROM_PREVIEW_OPTION,
+    size: bool = _discover_options.SIZE_OPTION,
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt"),
 ):
     """Goal-aware cross-source discovery: papers + videos, reranked against a goal.
@@ -715,9 +700,15 @@ def discover(  # noqa: C901 — legacy, will refactor
             save_intent(
                 config.topic_dir(replay_topic), make_intent(snapshot.goal, lens=lens, rigor=rigor)
             )
-        snapshot_estimate = snapshot.estimate.get("expected")
-        if isinstance(snapshot_estimate, int | float) and not isinstance(snapshot_estimate, bool):
-            enforce_projected_workflow_budget(config, "discover", float(snapshot_estimate))
+        replay_estimate = estimate_discover_items(
+            papers=len(replay_papers),
+            video_durations=[getattr(item.video, "duration", None) for item in replay_videos],
+            sites=len(replay_sites),
+            calibration=load_cost_calibration(config.library_dir),
+            router_config=RouterConfig(),
+        )
+        replay_summary.estimated_cost = replay_estimate.expected
+        enforce_projected_workflow_budget(config, "discover", replay_estimate.expected)
         _discover_ingest_set(
             topic_name=replay_topic,
             config=config,
@@ -936,6 +927,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         video_durations=[getattr(r.video, "duration", None) for r in ranked_videos],
         sites=len(ranked_sites),
         calibration=calibration,
+        router_config=RouterConfig(),
     )
     console.print(
         f"  [dim]Top {cliff} sit above the score cliff (the clearly-excellent set). "

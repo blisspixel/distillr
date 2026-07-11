@@ -79,6 +79,7 @@ def ask_cmd(
         config.library_dir,
         "ask",
         tracker,
+        estimated_cost=result.estimated_cost,
         metadata={"topic": topic, "workflow": "ask", "source_type": "answer"},
     )
 

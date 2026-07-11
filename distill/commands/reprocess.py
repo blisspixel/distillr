@@ -33,27 +33,68 @@ from distill.commands._helpers import (
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
-from distill.library import Library
+from distill.config import DistillConfig
+from distill.library import ChannelInfo, Library
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
     tags_for,
     write_markdown_artifact,
 )
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.video import analyze_short, analyze_video
-from distill.pipeline.costs import estimate_run_cost, estimate_video_workflow_cost
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    estimate_routed_video_workflow_cost,
+    estimate_run_cost,
+)
 from distill.pipeline.summary import (
     RunSummary,
     VideoResult,
     display_estimate,
     display_summary,
 )
-from distill.pipeline.synthesis.corpus import synthesize_corpus
+from distill.pipeline.synthesis.corpus import has_two_pass_synthesis_inputs, synthesize_corpus
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
 __all__ = ["reanalyze", "register", "resynthesize"]
 
 type _ReanalysisVideo = tuple[str, Path, dict[str, Any], bool]
+
+
+def _resolve_resynthesis_scope(
+    config: DistillConfig,
+    topic: str,
+    channel: str | None,
+    *,
+    two_pass: bool,
+) -> tuple[str, list[ChannelInfo]]:
+    """Resolve channels while allowing evidence-backed two-pass-only topics."""
+    lib = Library(config)
+    resolved_topic, resolved_channel = _resolve_required_topic_for_channel(lib, topic, channel)
+    channels = lib.get_channels(resolved_topic)
+
+    if resolved_channel:
+        channels = [ch for ch in channels if ch.name == resolved_channel]
+        if not channels:
+            console.print(
+                f"[red]Channel '{resolved_channel}' not found in topic '{resolved_topic}'[/red]"
+            )
+            raise typer.Exit(1)
+    elif not channels:
+        if not two_pass:
+            console.print(f"[red]No channels found for topic '{resolved_topic}'[/red]")
+            raise typer.Exit(1)
+        if not has_two_pass_synthesis_inputs(resolved_topic, config):
+            console.print(
+                "[red]No insight artifacts or extracted claims found for topic "
+                f"'{resolved_topic}'[/red]"
+            )
+            raise typer.Exit(1)
+
+    return resolved_topic, channels
 
 
 def _read_metadata(path: Path) -> dict[str, Any]:
@@ -86,7 +127,7 @@ def _metadata_int(metadata: dict[str, Any], key: str, default: int = 0) -> int:
     return default
 
 
-def resynthesize(
+def resynthesize(  # noqa: C901 - orchestration branches mirror independent synthesis scopes
     topic: str = typer.Argument(help="Topic or channel name", autocompletion=_complete_topics),
     channel: str | None = typer.Option(None, "--channel", "-c", help="Limit to one channel"),
     style: str = typer.Option(
@@ -105,7 +146,8 @@ def resynthesize(
     Rebuilds channel synthesis and topic synthesis from existing insight artifacts
     already on disk. Fast and cheap -- useful after manual edits or to refresh
     synthesis with updated prompts. ``--style`` selects an emphasis register for
-    the topic synthesis.
+    the topic synthesis. With ``--two-pass``, topics do not need YouTube channels:
+    every per-source insight under the topic participates recursively.
 
     ``--two-pass`` adds a claim-based corpus synthesis: it extracts atomic claims
     from every insight into a per-topic ``claims.jsonl`` (one cheap LLM call per
@@ -128,27 +170,28 @@ def resynthesize(
         raise typer.Exit(2)
 
     config = get_config()
-    _require_model()
-    lib = Library(config)
-    topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
+    topic, channels = _resolve_resynthesis_scope(config, topic, channel, two_pass=two_pass)
 
-    channels = lib.get_channels(topic)
-    if not channels:
-        console.print(f"[red]No channels found for topic '{topic}'[/red]")
-        raise typer.Exit(1)
-    if channel:
-        channels = [ch for ch in channels if ch.name == channel]
-        if not channels:
-            console.print(f"[red]Channel '{channel}' not found in topic '{topic}'[/red]")
-            raise typer.Exit(1)
+    _require_model()
 
     # synthesis_calls = 1 per channel + 1 for topic
-    num_calls = len(channels) + 1
-    projected_cost = estimate_video_workflow_cost(
-        synthesis_calls=num_calls + (1 if two_pass else 0)
+    num_calls = len(channels) + 1 if channels else 0
+    if two_pass:
+        from distill.claims.pipeline import pending_claim_extraction_count
+
+        claim_extraction_calls = pending_claim_extraction_count(config.topic_dir(topic))
+    else:
+        claim_extraction_calls = 0
+    projected_cost = estimate_routed_video_workflow_cost(
+        synthesis_calls=num_calls + (1 if two_pass else 0),
+        claim_extraction_calls=claim_extraction_calls,
     )
     enforce_projected_workflow_budget(config, "resynthesize", projected_cost)
-    display_estimate(synthesis_calls=num_calls + (1 if two_pass else 0), console=console)
+    display_estimate(
+        synthesis_calls=num_calls + (1 if two_pass else 0),
+        claim_extraction_calls=claim_extraction_calls,
+        console=console,
+    )
 
     tracker = budgeted_cost_tracker(config, "resynthesize")
     summary = RunSummary(command="resynthesize")
@@ -172,6 +215,8 @@ def resynthesize(
                 missing_message="No synthesis output written",
             )
             console.print("  [dim]done[/dim]" if ok else "  [yellow]no synthesis output[/yellow]")
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as e:
             console.print(f"  [red]Failed: {e}[/red]")
             cli_shared.record_exception_issue(
@@ -182,28 +227,33 @@ def resynthesize(
                 details={"topic": topic, "channel": ch.name},
             )
 
-    console.print(f"  Synthesizing topic [bold]{topic}[/bold]...")
-    try:
-        synthesize_topic(topic, config, tracker=tracker, style=style)
-        topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
-        ok = cli_shared.record_output_or_issue(
-            summary,
-            topic_synth,
-            stage="topic-synthesis",
-            context=topic,
-            details={"topic": topic},
-            missing_message="No topic synthesis output written",
-        )
-        console.print("  [dim]done[/dim]" if ok else "  [yellow]no topic synthesis output[/yellow]")
-    except Exception as e:
-        console.print(f"  [red]Topic synthesis failed: {e}[/red]")
-        cli_shared.record_exception_issue(
-            summary,
-            stage="topic-synthesis",
-            exc=e,
-            context=topic,
-            details={"topic": topic},
-        )
+    if channels:
+        console.print(f"  Synthesizing topic [bold]{topic}[/bold]...")
+        try:
+            synthesize_topic(topic, config, tracker=tracker, style=style)
+            topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
+            ok = cli_shared.record_output_or_issue(
+                summary,
+                topic_synth,
+                stage="topic-synthesis",
+                context=topic,
+                details={"topic": topic},
+                missing_message="No topic synthesis output written",
+            )
+            console.print(
+                "  [dim]done[/dim]" if ok else "  [yellow]no topic synthesis output[/yellow]"
+            )
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
+        except Exception as e:
+            console.print(f"  [red]Topic synthesis failed: {e}[/red]")
+            cli_shared.record_exception_issue(
+                summary,
+                stage="topic-synthesis",
+                exc=e,
+                context=topic,
+                details={"topic": topic},
+            )
 
     if two_pass:
         console.print(f"  Two-pass corpus synthesis for [bold]{topic}[/bold] (claims)...")
@@ -223,6 +273,8 @@ def resynthesize(
             console.print(
                 "  [dim]done[/dim]" if ok else "  [yellow]no corpus synthesis output[/yellow]"
             )
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as e:
             console.print(f"  [red]Two-pass corpus synthesis failed: {e}[/red]")
             cli_shared.record_exception_issue(
@@ -316,11 +368,11 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
         console.print()
         console.print(
             f"  [{full_count} full + {short_count} Shorts]  ·  "
-            f"[dim]{estimate_run_cost(full_count, short_count)}[/dim]"
+            f"[dim]{estimate_run_cost(full_count, short_count, router_config=RouterConfig())}[/dim]"
         )
         return
 
-    projected_cost = estimate_video_workflow_cost(
+    projected_cost = estimate_routed_video_workflow_cost(
         full_videos=full_count,
         shorts=short_count,
         synthesis_calls=len(channels) + 1,
@@ -395,6 +447,8 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
                     is_short=is_short,
                 )
             )
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as e:
             console.print(f"    [red]Failed: {e}[/red]")
             summary.add_result(
@@ -425,6 +479,8 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
                 details={"topic": topic, "channel": ch.name},
                 missing_message="No synthesis output written",
             )
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as e:
             console.print(f"  [red]Synthesis failed: {e}[/red]")
             cli_shared.record_exception_issue(
@@ -447,6 +503,8 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             details={"topic": topic},
             missing_message="No topic synthesis output written",
         )
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+        raise
     except Exception as e:
         console.print(f"  [red]Topic synthesis failed: {e}[/red]")
         cli_shared.record_exception_issue(

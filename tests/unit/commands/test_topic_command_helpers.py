@@ -246,6 +246,8 @@ def test_topic_brief_refuses_projected_budget_before_generation(
     mock_config: DistillConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
     mock_config.topic_dir("t").mkdir(parents=True, exist_ok=True)
     mock_config.distill_cost_workflow_budgets = "topic-brief=0.0001"
     generate_brief = MagicMock()

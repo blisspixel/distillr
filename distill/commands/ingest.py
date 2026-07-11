@@ -16,7 +16,11 @@ from urllib.parse import urlparse
 import typer
 
 from distill._console import console
-from distill.commands._helpers import budgeted_cost_tracker, get_config
+from distill.commands._helpers import (
+    budgeted_cost_tracker,
+    get_config,
+    set_command_cost_metadata,
+)
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
@@ -28,7 +32,7 @@ from distill.pipeline.analysis.newsletter import feed_is_newsletter, ingest_news
 from distill.pipeline.analysis.podcast import ingest_podcast
 from distill.pipeline.analysis.repo import ingest_repo
 from distill.pipeline.analysis.tweet import ingest_tweet
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import CostTracker, save_run_log
 
 __all__ = ["ingest_cmd", "register"]
 
@@ -52,6 +56,11 @@ def ingest_cmd(
         "--no-analyze",
         help="Skip insight extraction (just capture raw + transcript).",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Reanalyze an unchanged completed X post instead of reusing its artifacts.",
+    ),
     rss: bool = typer.Option(
         False,
         "--rss",
@@ -72,45 +81,95 @@ def ingest_cmd(
     """
     config = get_config()
     tracker = budgeted_cost_tracker(config, "ingest")
+    source_type = "unknown"
 
-    # Local file path takes precedence: if the target exists on disk, ingest it
-    # through the media pipeline (audio/video -> transcript -> insight) or the
-    # local-document pipeline, rather than treating it as a URL.
-    local_path = Path(url).expanduser()
-    if local_path.is_file():
-        if is_media_file(local_path):
-            _ingest_media(local_path, topic, config, tracker, analyze=not no_analyze)
-        else:
-            _ingest_local(local_path, topic, config, tracker, analyze=not no_analyze)
-        return
+    try:
+        # Local file path takes precedence: if the target exists on disk, ingest it
+        # through the media pipeline (audio/video -> transcript -> insight) or the
+        # local-document pipeline, rather than treating it as a URL.
+        local_path = Path(url).expanduser()
+        if local_path.is_file():
+            if is_media_file(local_path):
+                source_type = "media"
+                set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
+                _ingest_media(local_path, topic, config, tracker, analyze=not no_analyze)
+            else:
+                source_type = "local"
+                set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
+                _ingest_local(local_path, topic, config, tracker, analyze=not no_analyze)
+            return
 
-    host = _host(url)
-    if host in {"x.com", "twitter.com", "mobile.twitter.com"}:
-        _ingest_tweet_url(
-            url, topic, config, tracker, transcribe=not no_transcribe, analyze=not no_analyze
+        host = _host(url)
+        if host in {"x.com", "twitter.com", "mobile.twitter.com"}:
+            source_type = "x"
+            set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
+            if force:
+                _ingest_tweet_url(
+                    url,
+                    topic,
+                    config,
+                    tracker,
+                    transcribe=not no_transcribe,
+                    analyze=not no_analyze,
+                    force=True,
+                )
+            else:
+                _ingest_tweet_url(
+                    url,
+                    topic,
+                    config,
+                    tracker,
+                    transcribe=not no_transcribe,
+                    analyze=not no_analyze,
+                )
+            return
+        if host == "github.com":
+            source_type = "github"
+            set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
+            _ingest_github(url, topic, config, tracker, analyze=not no_analyze)
+            return
+        if rss or looks_like_feed_url(url):
+            source_type = "feed"
+            set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
+            _ingest_feed(
+                url,
+                topic,
+                config,
+                tracker,
+                episodes=episodes,
+                transcribe=not no_transcribe,
+                analyze=not no_analyze,
+            )
+            return
+
+        console.print(
+            f"[yellow]No dedicated adapter for host {host!r} yet.[/yellow] "
+            "Use `distill site` for arbitrary websites, `distill latest`/`distill video` "
+            "for YouTube, `distill paper` for arXiv, or pass --rss for a podcast feed."
         )
-        return
-    if host == "github.com":
-        _ingest_github(url, topic, config, tracker, analyze=not no_analyze)
-        return
-    if rss or looks_like_feed_url(url):
-        _ingest_feed(
-            url,
-            topic,
-            config,
-            tracker,
-            episodes=episodes,
-            transcribe=not no_transcribe,
-            analyze=not no_analyze,
-        )
-        return
+        raise typer.Exit(2)
+    finally:
+        _save_ingest_cost(config, tracker, topic=topic, source_type=source_type)
 
-    console.print(
-        f"[yellow]No dedicated adapter for host {host!r} yet.[/yellow] "
-        "Use `distill site` for arbitrary websites, `distill latest`/`distill video` "
-        "for YouTube, `distill paper` for arXiv, or pass --rss for a podcast feed."
+
+def _save_ingest_cost(
+    config: DistillConfig,
+    tracker: CostTracker,
+    *,
+    topic: str,
+    source_type: str,
+) -> None:
+    """Persist every recorded ingest usage row, including zero-dollar local work."""
+    if getattr(tracker, "budget_failure_logged", False):
+        return
+    if not (tracker.entries or tracker.gemini_queries or tracker.transcriptions):
+        return
+    save_run_log(
+        config.library_dir,
+        "ingest",
+        tracker,
+        metadata={"topic": topic, "workflow": "ingest", "source_type": source_type},
     )
-    raise typer.Exit(2)
 
 
 def _spend_line(tracker: CostTracker) -> None:
@@ -147,6 +206,7 @@ def _ingest_tweet_url(
     *,
     transcribe: bool,
     analyze: bool,
+    force: bool = False,
 ) -> None:
     if not parse_tweet_url(url):
         console.print(
@@ -155,7 +215,13 @@ def _ingest_tweet_url(
         )
         raise typer.Exit(2)
     result = ingest_tweet(
-        url, topic=topic, config=config, transcribe=transcribe, analyze=analyze, tracker=tracker
+        url,
+        topic=topic,
+        config=config,
+        transcribe=transcribe,
+        analyze=analyze,
+        tracker=tracker,
+        force=force,
     )
     console.print("")
     console.print(

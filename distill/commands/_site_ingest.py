@@ -26,8 +26,10 @@ from distill.library.paths import (
     write_markdown_artifact,
     write_text_artifact,
 )
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
 from distill.pipeline.analysis.site import analyze_site_page, synthesize_site
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.dashboard_data import build_site_section_state as _build_site_section_state
 from distill.pipeline.dashboard_data import load_site_manifest
 from distill.pipeline.dashboard_records import (
@@ -309,6 +311,8 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             )
             summary.add_output(insights_path)
             analyzed_pages += 1
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as exc:
             console.print(f"  [red]Insight extraction failed: {exc}[/red]")
             cli_shared.record_exception_issue(
@@ -347,6 +351,8 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                     identity=f"{seed.topic}_{site_name}",
                 )
             )
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+        raise
     except Exception as exc:
         cli_shared.record_exception_issue(
             summary,

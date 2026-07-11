@@ -335,6 +335,23 @@ def test_cloud_ready_path(in_tmp, monkeypatch):
     assert "distill papers" in result.output
 
 
+def test_cloud_policy_skip_reports_actionable_blocker(in_tmp, monkeypatch):
+    monkeypatch.setattr(
+        init_mod,
+        "_validate_xai",
+        lambda: ("skipped", "Route blocked by no-metered cost policy"),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["xai_key"] == "skipped"
+    assert "DISTILL_COST_MODE=no-metered" in payload["data"]["blocking"][0]
+    assert "valid XAI_API_KEY" not in payload["data"]["blocking"][0]
+
+
 def test_json_verdict(in_tmp, monkeypatch):
     monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")

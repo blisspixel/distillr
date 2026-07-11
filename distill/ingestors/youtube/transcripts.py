@@ -119,6 +119,7 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
             "skip_download": True,
             "outtmpl": output_template,
             "quiet": True,
+            "noprogress": True,
             "no_warnings": True,
             "retries": 2,
             "socket_timeout": 30,

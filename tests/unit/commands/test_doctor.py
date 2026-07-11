@@ -389,6 +389,7 @@ class TestDoctorHumanOutput:
             {
                 "xai": ("unknown", "timeout"),
                 "gemini": ("invalid", "400 API_KEY_INVALID"),
+                "anthropic": ("skipped", "Route blocked by no-metered cost policy"),
                 "openai": ("ok", "stub"),
             },
         )
@@ -405,6 +406,7 @@ class TestDoctorHumanOutput:
         assert result.exit_code == 0
         assert "could not verify" in result.output
         assert "GEMINI_API_KEY" in result.output
+        assert "live validation skipped by no-metered policy" in result.output
         assert "retired-model warning" in result.output
         assert "playwright" in result.output
 
@@ -477,6 +479,36 @@ class TestDoctorHumanOutput:
 
 
 class TestDoctorJsonExtras:
+    def test_json_counts_direct_filesystem_corpus(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        video_dir = config.video_dir("direct-topic", "Direct Channel", "video-1")
+        video_dir.mkdir(parents=True)
+        (video_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "video_id": "video-1",
+                    "title": "Direct video",
+                    "analysis_mode": "full",
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(
+            doctor_mod,
+            "_doctor_validate_key",
+            lambda provider, cfg: ("not_set", ""),
+        )
+        monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda: ("unavailable", ()))
+        monkeypatch.setattr(doctor_mod, "_check_lmstudio_status", lambda: "unavailable")
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+
+        assert result.exit_code == 0
+        checks = json.loads(result.output)["data"]["checks"]
+        assert checks["topics"] == "1"
+        assert checks["channels"] == "1"
+
     def test_json_reports_cost_mode_warning_without_secret_values(self, tmp_path, monkeypatch):
         config = _config(
             tmp_path,

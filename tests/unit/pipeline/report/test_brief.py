@@ -1,8 +1,12 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
 
 from distill.config import DistillConfig
+from distill.llm.cost_policy import CostPolicyError
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report.brief import (
     _bundle_insights,
@@ -112,6 +116,24 @@ def test_upload_files_handles_success_and_failed_operations(monkeypatch):
     assert uploaded == 1
     assert uploads
     assert polled == ["op-good", "op-good"]
+
+
+def test_run_research_brief_no_metered_refuses_before_client_or_gather(tmp_path, monkeypatch):
+    config = DistillConfig(
+        gemini_api_key="test-key",
+        distill_cost_mode="no-metered",
+        distill_output_dir=tmp_path / "lib",
+    )
+    client = MagicMock(side_effect=AssertionError("client constructed"))
+    gather = MagicMock(side_effect=AssertionError("files gathered"))
+    monkeypatch.setattr("distill.pipeline.report.brief.genai.Client", client)
+    monkeypatch.setattr("distill.pipeline.report.brief.gather_topic_files", gather)
+
+    with pytest.raises(CostPolicyError, match="Route blocked by no-metered cost policy"):
+        run_research_brief(["ai"], "ctx", "demo", config)
+
+    client.assert_not_called()
+    gather.assert_not_called()
 
 
 def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeypatch):

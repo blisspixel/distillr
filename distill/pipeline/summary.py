@@ -14,9 +14,10 @@ from typing import Any
 
 from rich.console import Console
 
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import (
     CostTracker,
-    estimate_video_workflow_cost,
+    estimate_routed_video_workflow_cost,
     report_deep_research_estimate,
 )
 
@@ -289,16 +290,20 @@ def display_estimate(
     console: Console | None = None,
     include_report: bool = False,
     synthesis_calls: int = 0,
+    claim_extraction_calls: int = 0,
     scan_videos: int = 0,
+    router_config: RouterConfig | None = None,
 ) -> None:
     con = console or Console()
 
-    total = estimate_video_workflow_cost(
+    total = estimate_routed_video_workflow_cost(
         full_videos,
         shorts,
         scan_videos=scan_videos,
         include_report=include_report,
         synthesis_calls=synthesis_calls,
+        claim_extraction_calls=claim_extraction_calls,
+        router_config=router_config,
     )
 
     parts: list[str] = []
@@ -310,6 +315,11 @@ def display_estimate(
         parts.append(f"{shorts} Short{'s' if shorts != 1 else ''}")
     if synthesis_calls:
         parts.append(f"{synthesis_calls} synthesis call{'s' if synthesis_calls != 1 else ''}")
+    if claim_extraction_calls:
+        parts.append(
+            f"{claim_extraction_calls} claim extraction "
+            f"call{'s' if claim_extraction_calls != 1 else ''}"
+        )
     desc_str = " + ".join(parts) if parts else "0 videos"
 
     con.print()
@@ -337,7 +347,7 @@ def display_summary(  # noqa: C901 - legacy, will refactor
     if is_empty and not preview:
         return
 
-    if cost_tracker and log_dir:
+    if cost_tracker and log_dir and not getattr(cost_tracker, "budget_failure_logged", False):
         try:
             from distill.pipeline.costs import save_run_log
 
@@ -545,7 +555,7 @@ def log_preview_cost(
     preview cycles are visible in ``distill costs`` separately from ingest runs.
     No-op if the tracker has no entries or ``log_dir`` is None.
     """
-    if tracker is None or log_dir is None:
+    if tracker is None or log_dir is None or getattr(tracker, "budget_failure_logged", False):
         return
     has_spend = bool(getattr(tracker, "entries", [])) or getattr(tracker, "gemini_queries", 0)
     if not has_spend:

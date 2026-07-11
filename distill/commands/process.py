@@ -11,6 +11,7 @@ modules and are imported back here.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import cast
 
 import typer
@@ -51,6 +52,7 @@ from distill.commands._helpers import (
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
+from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import (
     discover_videos,
     get_video_info,
@@ -65,12 +67,19 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.library.state import ChannelState
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.video import (
     analyze_short,
     analyze_video,
     generate_channel_context,
 )
-from distill.pipeline.costs import estimate_run_cost, estimate_video_workflow_cost
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    estimate_routed_video_workflow_cost,
+    estimate_run_cost,
+)
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
@@ -86,6 +95,62 @@ _preflight = run_preflight
 _resolve_intent = resolve_intent
 
 
+def _nonempty(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
+def _completed_video_artifacts(
+    config: DistillConfig,
+    topic: str,
+    video_id: str,
+) -> tuple[Path, Path, Path] | None:
+    """Return the completed receipt pair for an exact YouTube identity."""
+    channels_dir = config.topic_dir(topic) / "channels"
+    if not channels_dir.exists():
+        return None
+    for metadata_path in sorted(channels_dir.glob("*/videos/*/metadata.json")):
+        try:
+            raw_metadata: object = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(raw_metadata, dict):
+            continue
+        metadata = cast("dict[str, object]", raw_metadata)
+        if metadata.get("video_id") != video_id:
+            continue
+        video_dir = metadata_path.parent
+        transcript = find_artifact(video_dir, "transcript", extension="txt")
+        insights = find_artifact(video_dir, "insights")
+        if _nonempty(transcript) and _nonempty(insights):
+            return video_dir, transcript, insights
+    return None
+
+
+def _print_reused_video(
+    info: object,
+    channel_name: str,
+    transcript_file: Path,
+    insights_file: Path,
+    *,
+    show: bool,
+) -> None:
+    title = str(getattr(info, "title", "Video"))
+    upload_date = str(getattr(info, "upload_date", ""))
+    console.print(
+        "[dim]Already complete for this video ID. Reusing existing artifacts; "
+        "pass --force to reanalyze.[/dim]"
+    )
+    if show:
+        content = _strip_frontmatter(insights_file.read_text(encoding="utf-8"))
+        _print_markdown_safely(console, content)
+    console.print()
+    console.print(f"  transcript      {_file_link(transcript_file)}")
+    console.print(f"  insights        {_file_link(insights_file)}")
+    if not show:
+        console.print("  [dim]Use --show to print the analysis inline[/dim]")
+    console.print(f"  [dim]{title} | {_format_date(upload_date)} | {channel_name}[/dim]")
+
+
 def video(
     url: str = typer.Argument(help="YouTube video URL"),
     topic: str = typer.Option("ai", "--topic", "-t", help="Topic to file under"),
@@ -94,14 +159,19 @@ def video(
         "--show",
         help="Print the analysis inline instead of just linking transcript and insights files.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Reanalyze even when this exact video already has complete artifacts.",
+    ),
 ):
     """Transcribe and analyze a single YouTube video.
 
     By default this writes transcript + analysis artifacts and keeps console output concise.
-    Use --show to print the analysis inline.
+    Replays converge: an exact completed video ID is reused without a model call.
+    Use --force to reanalyze it, or --show to print the existing analysis inline.
     """
     config = get_config()
-    _require_model()
 
     tracker = budgeted_cost_tracker(config, "video")
     summary = RunSummary(command="video")
@@ -123,7 +193,21 @@ def video(
     console.print(f"[bold]{info.title}[/bold]")
     console.print(f"[dim]{_format_date(info.upload_date)} | {_duration_str(info.duration)}[/dim]\n")
 
-    projected_cost = estimate_video_workflow_cost(
+    completed = _completed_video_artifacts(config, topic, info.video_id)
+    if completed is not None and not force:
+        _video_dir, transcript_file, insights_file = completed
+        _print_reused_video(
+            info,
+            channel_name,
+            transcript_file,
+            insights_file,
+            show=show,
+        )
+        return
+
+    _require_model()
+
+    projected_cost = estimate_routed_video_workflow_cost(
         full_videos=0 if info.duration <= SHORTS_THRESHOLD else 1,
         shorts=1 if info.duration <= SHORTS_THRESHOLD else 0,
     )
@@ -243,17 +327,25 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
     new_vids = [v for v in videos if not state.is_processed(v.video_id)]
     full_est = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
     short_est = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
-    projected_cost = estimate_video_workflow_cost(
+    router_config = RouterConfig()
+    ledger_estimate = estimate_routed_video_workflow_cost(
+        full_videos=full_est,
+        shorts=short_est,
+        synthesis_calls=1,
+        router_config=router_config,
+    )
+    projected_cost = estimate_routed_video_workflow_cost(
         full_videos=full_est,
         shorts=short_est,
         include_report=report,
         synthesis_calls=1,
+        router_config=router_config,
     )
     enforce_projected_workflow_budget(config, "channel", projected_cost)
 
     tracker = budgeted_cost_tracker(config, "channel")
     summary = RunSummary(command="channel")
-    summary.estimated_cost = projected_cost
+    summary.estimated_cost = ledger_estimate
     if new_vids:
         display_estimate(
             full_est,
@@ -261,6 +353,7 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
             console=console,
             include_report=report,
             synthesis_calls=1,
+            router_config=router_config,
         )
 
     _ensure_channel_context(topic, name, videos, config, tracker)
@@ -292,6 +385,8 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
             summary.add_issue(
                 "channel-synthesis", "No synthesis output written", context=f"{topic}/{name}"
             )
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+        raise
     except Exception as e:
         console.print(f"[red]Synthesis failed: {e}[/red]")
         summary.add_exception(
@@ -407,7 +502,9 @@ def run(  # noqa: C901 — legacy, will refactor
                 full = sum(1 for v in new_videos if v.duration > SHORTS_THRESHOLD)
                 short = sum(1 for v in new_videos if v.duration <= SHORTS_THRESHOLD)
                 if new_videos:
-                    console.print(f"\n  {estimate_run_cost(full, short)}")
+                    console.print(
+                        f"\n  {estimate_run_cost(full, short, router_config=RouterConfig())}"
+                    )
                 total_new += len(new_videos)
                 continue
 
@@ -415,7 +512,7 @@ def run(  # noqa: C901 — legacy, will refactor
             new_to_process = [v for v in videos if not state.is_processed(v.video_id)]
             full_count = sum(1 for v in new_to_process if v.duration > SHORTS_THRESHOLD)
             short_count = sum(1 for v in new_to_process if v.duration <= SHORTS_THRESHOLD)
-            projected_channel_cost = estimate_video_workflow_cost(
+            projected_channel_cost = estimate_routed_video_workflow_cost(
                 full_videos=full_count,
                 shorts=short_count,
                 synthesis_calls=1,
@@ -575,6 +672,8 @@ def run(  # noqa: C901 — legacy, will refactor
                     total_analyzed += 1
                     if run_eta:
                         run_eta.tick(vid_start)
+                except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+                    raise
                 except Exception as e:
                     console.print(f"    [red]Analysis failed: {e}[/red]")
                     console.print(
@@ -608,6 +707,8 @@ def run(  # noqa: C901 — legacy, will refactor
                     details={"topic": t, "channel": ch.name},
                     missing_message="No synthesis output written",
                 )
+            except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+                raise
             except Exception as e:
                 console.print(f"  [red]Channel synthesis failed: {e}[/red]")
                 cli_shared.record_exception_issue(
@@ -622,7 +723,7 @@ def run(  # noqa: C901 — legacy, will refactor
             continue
 
         # Topic synthesis
-        projected_topic_cost = estimate_video_workflow_cost(synthesis_calls=1)
+        projected_topic_cost = estimate_routed_video_workflow_cost(synthesis_calls=1)
         projected_total = (summary.estimated_cost or 0.0) + projected_topic_cost
         enforce_projected_workflow_budget(config, "run", projected_total)
         summary.estimated_cost = projected_total
@@ -637,6 +738,8 @@ def run(  # noqa: C901 — legacy, will refactor
                 details={"topic": t},
                 missing_message="No topic synthesis output written",
             )
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+            raise
         except Exception as e:
             console.print(f"  [red]Topic synthesis failed: {e}[/red]")
             cli_shared.record_exception_issue(

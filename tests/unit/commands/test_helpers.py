@@ -25,6 +25,7 @@ from distill.commands._helpers import (
     _detect_ramp_source,
     budgeted_cost_tracker,
     enforce_projected_workflow_budget,
+    save_command_cost,
 )
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
@@ -34,6 +35,8 @@ from distill.commands._topic_watch import (
     topic_watch_name,
     topic_watch_ranking_strategy,
 )
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
 
 
 class TestBudgetedCostTracker:
@@ -74,6 +77,71 @@ class TestBudgetedCostTracker:
 
         enforce_projected_workflow_budget(config, "eval", 0.12)
         enforce_projected_workflow_budget(config, "discover", 999.0)
+
+    def test_save_command_cost_skips_empty_and_persists_local_usage(self, tmp_path):
+        from distill.config import DistillConfig
+        from distill.pipeline.costs import CostTracker, TokenUsage
+
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+
+        save_command_cost(config, "empty", CostTracker())
+        assert not log_path.exists()
+
+        tracker = CostTracker()
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=10,
+                completion_tokens=5,
+                model="qwen3.5:27b",
+                provider_name="ollama",
+                provider_type="local",
+            )
+        )
+        save_command_cost(config, "local", tracker, estimated_cost=0.0)
+
+        row = json.loads(log_path.read_text(encoding="utf-8"))
+        assert row["command"] == "local"
+        assert row["actual_cost"] == 0
+        assert row["estimated_cost"] == 0
+        assert row["usage_ledger"]["no_metered_llm_calls"] == 1
+
+    def test_crossing_call_is_logged_once_before_budget_stop(self, tmp_path):
+        from distill.config import DistillConfig
+        from distill.pipeline.costs import BudgetExceededError, TokenUsage
+        from distill.pipeline.summary import RunSummary, display_summary
+
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "library",
+            distill_cost_workflow_budgets="video=0.000001",
+        )
+        tracker = budgeted_cost_tracker(config, "video")
+
+        with pytest.raises(BudgetExceededError):
+            tracker.record(
+                TokenUsage(
+                    prompt_tokens=1_000,
+                    completion_tokens=1_000,
+                    model="grok-4.3",
+                    provider_name="xai",
+                    provider_type="metered-api",
+                )
+            )
+
+        summary = RunSummary(command="video")
+        summary.add_issue("budget", "stopped after the crossing call")
+        save_command_cost(config, "video", tracker)
+        display_summary(summary, cost_tracker=tracker, log_dir=config.library_dir)
+
+        log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+        rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "video"
+        assert rows[0]["actual_cost"] > 0
+        assert rows[0]["metadata"] == {
+            "workflow": "video",
+            "terminal": "budget_exceeded",
+        }
 
 
 class TestEnsureUtf8Stdio:
@@ -642,6 +710,92 @@ class TestProcessVideo:
         assert insights.exists()
         assert 'type: "insights"' in insights.read_text(encoding="utf-8")
 
+    def test_video_verification_evidence_includes_fetched_metadata(self):
+        from distill.commands._helpers import _video_verification_evidence
+
+        evidence = _video_verification_evidence(
+            self._make_video(),
+            "TestCh",
+            "Transcript receipt.",
+            analysis_mode="full",
+        )
+
+        assert '"title": "Test Video Title"' in evidence
+        assert '"channel": "TestCh"' in evidence
+        assert '"upload_date": "20250101"' in evidence
+        assert '"upload_date_display": "Jan 01, 2025"' in evidence
+        assert '"duration": 600' in evidence
+        assert '"url": "https://youtube.com/watch?v=test123"' in evidence
+        assert evidence.endswith("Video transcript:\nTranscript receipt.")
+
+    def test_verify_accepts_year_from_fetched_upload_metadata(self, config, monkeypatch):
+        from distill.cli_shared import process_video
+        from distill.library.paths import find_artifact
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        config.distill_verify = "strict"
+        video = self._make_video()
+        vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "transcript.txt").write_text(
+            "The speaker discusses release planning without stating a year.",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            "distill.commands._helpers.analyze_video",
+            lambda *args, **kwargs: "# Insights\n\nThe video was uploaded in 2025.",
+        )
+        monkeypatch.setattr("distill.pipeline.verify._entailment_checker", lambda: None)
+
+        result = process_video(
+            "ai", "TestCh", video, config, CostTracker(), RunSummary(command="test")
+        )
+
+        assert result is True
+        assert find_artifact(vid_dir, "insights").exists()
+        sidecar = next(vid_dir.glob("*_Verify.json"))
+        report = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert report["checked"] == 1
+        assert report["supported"] == 1
+        assert report["unsupported"] == []
+        assert report["source"] == (
+            "metadata.json + transcript.txt (upload date normalized for verification)"
+        )
+
+    def test_verify_still_refuses_year_absent_from_metadata_and_transcript(
+        self, config, monkeypatch
+    ):
+        from distill.cli_shared import process_video
+        from distill.library.paths import find_artifact
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        config.distill_verify = "strict"
+        video = self._make_video()
+        vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "transcript.txt").write_text(
+            "The speaker discusses release planning without stating a year.",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            "distill.commands._helpers.analyze_video",
+            lambda *args, **kwargs: "# Insights\n\nThe video predicts a release in 2037.",
+        )
+        monkeypatch.setattr("distill.pipeline.verify._entailment_checker", lambda: None)
+
+        result = process_video(
+            "ai", "TestCh", video, config, CostTracker(), RunSummary(command="test")
+        )
+
+        assert result is False
+        assert not find_artifact(vid_dir, "insights").exists()
+        sidecar = next(vid_dir.glob("*_Verify.json"))
+        report = json.loads(sidecar.read_text(encoding="utf-8"))
+        assert report["supported"] == 0
+        assert [claim["token"] for claim in report["unsupported"]] == ["2037"]
+
     def test_short_video_uses_short_analysis(self, config, monkeypatch):
         from distill.cli_shared import process_video
         from distill.pipeline.costs import CostTracker
@@ -725,6 +879,44 @@ class TestProcessVideo:
         summary = RunSummary(command="test")
 
         with pytest.raises(BudgetExceededError):
+            process_video("ai", "TestCh", video, config, CostTracker(), summary)
+        assert summary.results == []
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            pytest.param(
+                CostPolicyError("route blocked"),
+                id="cost-policy",
+            ),
+            pytest.param(
+                ProviderBusyTimeoutError(
+                    provider="ollama",
+                    requested_model="qwen3.5:27b",
+                    active_models=("other:latest",),
+                    timeout_seconds=1,
+                ),
+                id="provider-busy",
+            ),
+        ],
+    )
+    def test_operational_errors_are_hard_stops(self, config, monkeypatch, error):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        video = self._make_video()
+        vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "transcript.txt").write_text("Content here", encoding="utf-8")
+
+        def raise_operational(*_args, **_kwargs):
+            raise error
+
+        monkeypatch.setattr("distill.commands._helpers.analyze_video", raise_operational)
+        summary = RunSummary(command="test")
+
+        with pytest.raises(type(error)):
             process_video("ai", "TestCh", video, config, CostTracker(), summary)
         assert summary.results == []
 

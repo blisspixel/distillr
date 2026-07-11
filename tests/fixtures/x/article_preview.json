@@ -1,0 +1,37 @@
+{
+  "user": {
+    "screen_name": "agentpatterns",
+    "name": "Agent Patterns",
+    "verified": true
+  },
+  "text": "https://t.co/article-only",
+  "lang": "en",
+  "favorite_count": 41,
+  "conversation_count": 7,
+  "created_at": "2026-07-11T10:20:00.000Z",
+  "article": {
+    "id": "A-2045000000000000002",
+    "title": "Designing durable agent queues",
+    "preview_text": "A practical look at leases, retries, and verifier stop conditions."
+  },
+  "card": {
+    "binding_values": {
+      "title": {
+        "type": "STRING",
+        "string_value": "Fallback card title"
+      },
+      "description": {
+        "type": "STRING",
+        "string_value": "Fallback card description"
+      },
+      "domain": {
+        "type": "STRING",
+        "string_value": "x.com"
+      },
+      "card_url": {
+        "type": "STRING",
+        "string_value": "https://x.com/i/article/2045000000000000002"
+      }
+    }
+  }
+}

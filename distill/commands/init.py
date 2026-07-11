@@ -187,6 +187,7 @@ _KEY_LABEL = {
     "invalid": "[red]rejected by xAI (revoked/expired key?)[/red]",
     "missing": "[yellow]not set[/yellow]",
     "unknown": "[yellow]could not verify (offline?)[/yellow]",
+    "skipped": "[yellow]live validation skipped by no-metered policy[/yellow]",
 }
 
 
@@ -313,7 +314,12 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
             console.print("  Validating key against xAI ...")
         status, _detail = _validate_xai()
         state["xai_key"] = status
-        if status != "ok":
+        if status == "skipped":
+            state["blocking"].append(
+                "Cloud key validation is blocked by DISTILL_COST_MODE=no-metered. "
+                "Choose a local provider, or explicitly use paid-ok before validating a cloud key."
+            )
+        elif status != "ok":
             state["blocking"].append(
                 "Set a valid XAI_API_KEY in .env (get one at https://console.x.ai/), "
                 "then re-run `distill init` or `distill doctor`."

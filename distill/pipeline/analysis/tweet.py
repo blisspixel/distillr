@@ -10,9 +10,13 @@ Insights.md) under ``library/topics/<topic>/x/<handle>/posts/<slug>/``.
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+from urllib.parse import urlsplit
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -21,17 +25,22 @@ from distill.ingestors.x.media import download_video
 from distill.ingestors.x.syndication import TweetRecord, fetch_tweet
 from distill.library.paths import (
     ProvenanceFields,
+    apply_frontmatter,
     artifact_path,
+    atomic_write_text,
     base_frontmatter,
+    extract_frontmatter,
+    find_artifact,
     sanitize_path_component,
     slugify_title,
+    strip_frontmatter,
     tags_for,
     write_markdown_artifact,
     write_text_artifact,
 )
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.x import tweet_insight_prompt, vocabulary_expansion_prompt
 
@@ -49,6 +58,7 @@ class IngestedTweet:
     transcript_text: str = ""
     insights_text: str = ""
     skipped_reasons: list[str] = field(default_factory=list[str])
+    reused: bool = False
 
 
 def _x_post_dir(config: DistillConfig, topic: str, tweet: TweetRecord) -> Path:
@@ -66,19 +76,342 @@ def _tweet_identity(tweet: TweetRecord) -> str:
     return f"{handle}_{tweet.tweet_id}"
 
 
+def _stable_media_url(value: str) -> str:
+    """Discard volatile query parameters while retaining media identity."""
+    if not value:
+        return ""
+    parsed = urlsplit(value)
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path}"
+
+
+def _tweet_source_content_hash(tweet: TweetRecord) -> str:
+    """Hash semantic source fields while excluding mutable engagement counts."""
+    payload = {
+        "tweet_id": tweet.tweet_id,
+        "author_name": tweet.author_name,
+        "author_handle": tweet.author_handle,
+        "created_at": tweet.created_at,
+        "text": tweet.text,
+        "note_text": tweet.note_text,
+        "language": tweet.language,
+        "photo_urls": [_stable_media_url(url) for url in tweet.photo_urls],
+        "video_url": _stable_media_url(tweet.video_url),
+        "video_duration_ms": tweet.video_duration_ms,
+        "link_preview_type": tweet.link_preview_type,
+        "link_preview_title": tweet.link_preview_title,
+        "link_preview_description": tweet.link_preview_description,
+        "link_preview_domain": tweet.link_preview_domain,
+        "link_preview_url": tweet.link_preview_url,
+        "quoted_tweet_status": tweet.quoted_tweet_status,
+        "quoted_tweet_id": tweet.quoted_tweet_id,
+        "quoted_tweet_url": tweet.quoted_tweet_url,
+        "quoted_tweet_author_name": tweet.quoted_tweet_author_name,
+        "quoted_tweet_author_handle": tweet.quoted_tweet_author_handle,
+        "quoted_tweet_text": tweet.quoted_tweet_text,
+        "capture_status": tweet.capture_status,
+        "capture_warning": tweet.capture_warning,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _existing_tweet_receipt(
+    config: DistillConfig,
+    topic: str,
+    tweet_id: str,
+) -> Path | None:
+    """Find a prior receipt by stable post ID, even if the handle changed."""
+    x_dir = config.topic_dir(topic) / "x"
+    if not x_dir.exists():
+        return None
+    candidates = [*sorted(x_dir.rglob("*_Tweet.md")), *sorted(x_dir.rglob("Tweet.md"))]
+    for path in candidates:
+        try:
+            frontmatter = extract_frontmatter(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if frontmatter.get("source_id") == tweet_id:
+            return path
+    return None
+
+
+def _identity_from_tweet_path(path: Path, fallback: str) -> str:
+    suffix = "_Tweet.md"
+    return path.name[: -len(suffix)] if path.name.endswith(suffix) else fallback
+
+
+def _nonempty(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
+def _completed_tweet_replay(
+    tweet: TweetRecord,
+    post_dir: Path,
+    identity: str,
+    existing_receipt: Path | None,
+    source_content_hash: str,
+    *,
+    transcribe: bool,
+    analyze: bool,
+    force: bool,
+) -> IngestedTweet | None:
+    """Return a completed unchanged replay without touching its artifacts."""
+    if force or existing_receipt is None:
+        return None
+    try:
+        previous_hash = extract_frontmatter(existing_receipt.read_text(encoding="utf-8")).get(
+            "content_hash"
+        )
+    except OSError:
+        return None
+    existing_transcript = find_artifact(
+        post_dir,
+        "transcript",
+        identity=identity,
+        extension="txt",
+    )
+    transcript_complete = not tweet.has_video or not transcribe or _nonempty(existing_transcript)
+    if previous_hash != source_content_hash or not transcript_complete:
+        return None
+    existing_insights: Path | None = None
+    insights_text = ""
+    if analyze:
+        existing_insights = find_artifact(post_dir, "insights", identity=identity)
+        try:
+            insights_text = existing_insights.read_text(encoding="utf-8")
+            insight_hash = extract_frontmatter(insights_text).get("content_hash")
+        except OSError:
+            return None
+        if insight_hash != source_content_hash or not _nonempty(existing_insights):
+            return None
+    transcript_text = (
+        existing_transcript.read_text(encoding="utf-8") if _nonempty(existing_transcript) else ""
+    )
+    media_path = post_dir / "media.mp4"
+    return IngestedTweet(
+        tweet=tweet,
+        post_dir=post_dir,
+        tweet_path=existing_receipt,
+        transcript_path=existing_transcript if _nonempty(existing_transcript) else None,
+        insights_path=existing_insights,
+        media_path=media_path if _nonempty(media_path) else None,
+        transcript_text=transcript_text,
+        insights_text=insights_text,
+        skipped_reasons=[
+            "unchanged completed requested artifacts; reusing them (pass --force to refresh)"
+        ],
+        reused=True,
+    )
+
+
+def _normalized_legacy_receipt_body(content: str) -> str:
+    """Remove engagement counters that can change without a source edit."""
+    body = strip_frontmatter(content)
+    return "\n".join(
+        line.rstrip()
+        for line in body.splitlines()
+        if not (line.startswith("Likes:") and "Replies:" in line)
+    ).strip()
+
+
+def _legacy_pair_order_is_safe(receipt_path: Path, insights_path: Path) -> bool:
+    """Reject raw-capture refreshes whose old insight predates the receipt."""
+    try:
+        receipt_text = receipt_path.read_text(encoding="utf-8")
+        insights_text = insights_path.read_text(encoding="utf-8")
+        receipt_generated = extract_frontmatter(receipt_text).get("generated_at", "")
+        insights_generated = extract_frontmatter(insights_text).get("generated_at", "")
+        if receipt_generated and insights_generated and receipt_generated != insights_generated:
+            return insights_generated > receipt_generated
+        return insights_path.stat().st_mtime_ns >= receipt_path.stat().st_mtime_ns
+    except OSError:
+        return False
+
+
+def _migrate_legacy_completed_tweet(
+    tweet: TweetRecord,
+    post_dir: Path,
+    identity: str,
+    existing_receipt: Path | None,
+    source_content_hash: str,
+    *,
+    transcribe: bool,
+    analyze: bool,
+    force: bool,
+) -> IngestedTweet | None:
+    """Stamp proven unchanged pre-hash requested artifacts without model work."""
+    if force or existing_receipt is None:
+        return None
+    try:
+        receipt_text = existing_receipt.read_text(encoding="utf-8")
+        receipt_hash = extract_frontmatter(receipt_text).get("content_hash")
+    except OSError:
+        return None
+    if receipt_hash:
+        return None
+    existing_transcript = find_artifact(
+        post_dir,
+        "transcript",
+        identity=identity,
+        extension="txt",
+    )
+    transcript_complete = not tweet.has_video or not transcribe or _nonempty(existing_transcript)
+    if not transcript_complete:
+        return None
+    existing_insights: Path | None = None
+    insights_text = ""
+    if analyze:
+        existing_insights = find_artifact(post_dir, "insights", identity=identity)
+        if not _nonempty(existing_insights) or not _legacy_pair_order_is_safe(
+            existing_receipt, existing_insights
+        ):
+            return None
+        insights_text = existing_insights.read_text(encoding="utf-8")
+    transcript_text = (
+        existing_transcript.read_text(encoding="utf-8") if _nonempty(existing_transcript) else ""
+    )
+    current_body = _tweet_markdown(tweet, transcript_text)
+    if _normalized_legacy_receipt_body(receipt_text) != _normalized_legacy_receipt_body(
+        current_body
+    ):
+        return None
+
+    if existing_insights is not None:
+        atomic_write_text(
+            existing_insights,
+            apply_frontmatter(insights_text, {"content_hash": source_content_hash}),
+        )
+    atomic_write_text(
+        existing_receipt,
+        apply_frontmatter(receipt_text, {"content_hash": source_content_hash}),
+    )
+    media_path = post_dir / "media.mp4"
+    return IngestedTweet(
+        tweet=tweet,
+        post_dir=post_dir,
+        tweet_path=existing_receipt,
+        transcript_path=existing_transcript if _nonempty(existing_transcript) else None,
+        insights_path=existing_insights,
+        media_path=media_path if _nonempty(media_path) else None,
+        transcript_text=transcript_text,
+        insights_text=(
+            existing_insights.read_text(encoding="utf-8") if existing_insights is not None else ""
+        ),
+        skipped_reasons=[
+            "unchanged legacy requested artifacts; recorded a content hash and reused them "
+            "(pass --force to refresh)"
+        ],
+        reused=True,
+    )
+
+
+def _existing_tweet_replay(
+    tweet: TweetRecord,
+    post_dir: Path,
+    identity: str,
+    existing_receipt: Path | None,
+    source_content_hash: str,
+    *,
+    transcribe: bool,
+    analyze: bool,
+    force: bool,
+) -> IngestedTweet | None:
+    replay = _completed_tweet_replay(
+        tweet,
+        post_dir,
+        identity,
+        existing_receipt,
+        source_content_hash,
+        transcribe=transcribe,
+        analyze=analyze,
+        force=force,
+    )
+    if replay is not None:
+        return replay
+    return _migrate_legacy_completed_tweet(
+        tweet,
+        post_dir,
+        identity,
+        existing_receipt,
+        source_content_hash,
+        transcribe=transcribe,
+        analyze=analyze,
+        force=force,
+    )
+
+
+def _link_preview_context(tweet: TweetRecord) -> str:
+    if not tweet.has_link_preview:
+        return ""
+    lines: list[str] = []
+    if tweet.link_preview_type == "x_article":
+        lines.append("- Type: X Article preview")
+    elif tweet.link_preview_type == "card":
+        lines.append("- Type: Card preview")
+    if tweet.link_preview_title:
+        lines.append(f"- Title: {tweet.link_preview_title}")
+    if tweet.link_preview_description:
+        lines.append(f"- Description: {tweet.link_preview_description}")
+    if tweet.link_preview_domain:
+        lines.append(f"- Domain: {tweet.link_preview_domain}")
+    if tweet.link_preview_url:
+        lines.append(f"- URL: {tweet.link_preview_url}")
+    return "\n".join(lines)
+
+
+def _quoted_post_context(tweet: TweetRecord) -> str:
+    if not tweet.has_quoted_post:
+        return ""
+    lines: list[str] = []
+    quoted_handle = (
+        f"@{tweet.quoted_tweet_author_handle}" if tweet.quoted_tweet_author_handle else ""
+    )
+    if tweet.quoted_tweet_author_name and quoted_handle:
+        lines.append(f"- Author: {tweet.quoted_tweet_author_name} ({quoted_handle})")
+    elif tweet.quoted_tweet_author_name or quoted_handle:
+        lines.append(f"- Author: {tweet.quoted_tweet_author_name or quoted_handle}")
+    if tweet.quoted_tweet_id:
+        lines.append(f"- Post ID: {tweet.quoted_tweet_id}")
+    if tweet.quoted_tweet_url:
+        lines.append(f"- Source: {tweet.quoted_tweet_url}")
+    lines += [
+        "",
+        "Text:",
+        tweet.quoted_tweet_text or "(not available in the public syndication payload)",
+    ]
+    return "\n".join(lines)
+
+
 def _tweet_markdown(tweet: TweetRecord, transcript_text: str) -> str:
     lines = [
         f"# {tweet.author_name} ({tweet.display_handle}) - {tweet.published_iso or tweet.created_at}",
         "",
         f"Source: {tweet.url}",
         f"Likes: {tweet.like_count}  •  Replies: {tweet.reply_count}",
-        "",
-        "## Tweet",
-        "",
-        tweet.text or "(no text)",
     ]
+    if tweet.capture_status == "partial":
+        lines += [
+            "",
+            "## Capture status",
+            "",
+            f"Partial: {tweet.capture_warning or 'The full source body was not captured.'}",
+        ]
+    lines += ["", "## Tweet", "", tweet.text or "(no text)"]
+    quoted_post = _quoted_post_context(tweet)
+    if quoted_post:
+        lines += ["", "## Quoted Post", "", quoted_post]
     if tweet.note_text and tweet.note_text.strip() != tweet.text.strip():
         lines += ["", "## Long-form body (note_tweet)", "", tweet.note_text]
+    link_preview = _link_preview_context(tweet)
+    if link_preview:
+        lines += [
+            "",
+            "## Link Preview",
+            "",
+            "Metadata from public syndication; this is not the full linked page.",
+            "",
+            link_preview,
+        ]
     if tweet.photo_urls:
         lines += ["", "## Attached photos"]
         lines += [f"- {url}" for url in tweet.photo_urls]
@@ -140,7 +473,12 @@ def _expanded_vocabulary_hint(
         video_duration_s=duration_s,
     )
     try:
-        response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="x_vocab_expand")
+        response = llm_call(
+            rc,
+            workload_tag="analysis",
+            prompt=prompt,
+            call_type="x_vocab_expand",
+        )
     except Exception as exc:
         console.print(
             f"        [yellow]vocab expansion failed (continuing without): {exc}[/yellow]"
@@ -205,10 +543,14 @@ def analyze_tweet(
         tweet_url=tweet.url,
         tweet_text=tweet.text,
         note_text=tweet.note_text,
+        link_preview=_link_preview_context(tweet),
+        capture_status=tweet.capture_status,
+        capture_warning=tweet.capture_warning,
+        quoted_post=_quoted_post_context(tweet),
         transcript=transcript_text,
         media_summary=_media_summary(tweet),
     )
-    response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="x_tweet")
+    response = llm_call(rc, workload_tag="analysis", prompt=prompt, call_type="x_tweet")
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="x_tweet"))
     body = response.text
@@ -229,6 +571,13 @@ def analyze_tweet(
             "video_duration_ms": tweet.video_duration_ms,
             "like_count": tweet.like_count,
             "reply_count": tweet.reply_count,
+            "capture_status": tweet.capture_status,
+            "capture_warning": tweet.capture_warning,
+            "has_link_preview": tweet.has_link_preview,
+            "quoted_post_status": tweet.quoted_tweet_status,
+            "has_quoted_post": tweet.has_quoted_post,
+            "quoted_post_id": tweet.quoted_tweet_id,
+            "quoted_post_url": tweet.quoted_tweet_url,
         },
         provenance=ProvenanceFields(
             model=response.model,
@@ -278,6 +627,40 @@ def _verified_insights_write(
     return write_markdown_artifact(post_dir, "insights", insights_text, identity=identity)
 
 
+def _commit_completed_tweet_receipt(
+    tweet_path: Path,
+    insights_path: Path | None,
+    transcript_path: Path | None,
+    post_dir: Path,
+    identity: str,
+    tweet_md: str,
+    tweet_frontmatter: dict[str, Any],
+    source_content_hash: str,
+    *,
+    tweet: TweetRecord,
+    transcribe: bool,
+    analyze: bool,
+) -> Path:
+    """Commit the receipt hash after every requested artifact has landed."""
+    if analyze and insights_path is None:
+        return tweet_path
+    if (
+        not analyze
+        and tweet.has_video
+        and transcribe
+        and (transcript_path is None or not _nonempty(transcript_path))
+    ):
+        return tweet_path
+    completed_frontmatter = {**tweet_frontmatter, "content_hash": source_content_hash}
+    return write_markdown_artifact(
+        post_dir,
+        "tweet",
+        tweet_md,
+        identity=identity,
+        frontmatter=completed_frontmatter,
+    )
+
+
 def ingest_tweet(
     url_or_id: str,
     topic: str,
@@ -286,6 +669,7 @@ def ingest_tweet(
     transcribe: bool = True,
     tracker: CostTracker | None = None,
     analyze: bool = True,
+    force: bool = False,
 ) -> IngestedTweet:
     """End-to-end ingest of a single tweet.
 
@@ -297,9 +681,32 @@ def ingest_tweet(
     """
     console.print(f"  [cyan]X[/cyan]  fetching tweet [bold]{url_or_id}[/bold]")
     tweet = fetch_tweet(url_or_id)
-    post_dir = _x_post_dir(config, topic, tweet)
+    source_content_hash = _tweet_source_content_hash(tweet)
+    existing_receipt = _existing_tweet_receipt(config, topic, tweet.tweet_id)
+    post_dir = existing_receipt.parent if existing_receipt else _x_post_dir(config, topic, tweet)
+    identity = (
+        _identity_from_tweet_path(
+            existing_receipt,
+            _tweet_identity(tweet),
+        )
+        if existing_receipt
+        else _tweet_identity(tweet)
+    )
+
+    replay = _existing_tweet_replay(
+        tweet,
+        post_dir,
+        identity,
+        existing_receipt,
+        source_content_hash,
+        transcribe=transcribe,
+        analyze=analyze,
+        force=force,
+    )
+    if replay is not None:
+        return replay
+
     post_dir.mkdir(parents=True, exist_ok=True)
-    identity = _tweet_identity(tweet)
 
     transcript_text = ""
     transcript_path: Path | None = None
@@ -351,6 +758,8 @@ def ingest_tweet(
                 identity=identity,
                 extension="txt",
             )
+        except BudgetExceededError:
+            raise
         except TranscriptionError as exc:
             console.print(f"        [yellow]transcription skipped: {exc}[/yellow]")
             skipped.append(f"transcription: {exc}")
@@ -381,6 +790,14 @@ def ingest_tweet(
             "video_duration_ms": tweet.video_duration_ms,
             "video_url": tweet.video_url,
             "photo_count": len(tweet.photo_urls),
+            "capture_status": tweet.capture_status,
+            "capture_warning": tweet.capture_warning,
+            "has_link_preview": tweet.has_link_preview,
+            "quoted_post_status": tweet.quoted_tweet_status,
+            "has_quoted_post": tweet.has_quoted_post,
+            "quoted_post_id": tweet.quoted_tweet_id,
+            "quoted_post_url": tweet.quoted_tweet_url,
+            "content_hash": "",
         },
     )
     tweet_path = write_markdown_artifact(
@@ -402,10 +819,13 @@ def ingest_tweet(
             tracker=tracker,
         )
         # Re-apply with the topic filled in (analyze_tweet leaves topic blank).
-        from distill.library.paths import apply_frontmatter
-
         insights_text = apply_frontmatter(
-            insights_text, {"topic": topic, "tags": tags_for(topic, "x")}
+            insights_text,
+            {
+                "topic": topic,
+                "tags": tags_for(topic, "x"),
+                "content_hash": source_content_hash,
+            },
         )
         insights_path = _verified_insights_write(
             post_dir,
@@ -416,6 +836,23 @@ def ingest_tweet(
             source_name=tweet_path.name,
             skipped=skipped,
         )
+
+    # The receipt hash is the completion marker for the requested artifact set.
+    # Analysis requires a matching insight hash; raw-only video capture requires
+    # a transcript only when transcription was requested.
+    tweet_path = _commit_completed_tweet_receipt(
+        tweet_path,
+        insights_path,
+        transcript_path,
+        post_dir,
+        identity,
+        tweet_md,
+        tweet_frontmatter,
+        source_content_hash,
+        tweet=tweet,
+        transcribe=transcribe,
+        analyze=analyze,
+    )
 
     return IngestedTweet(
         tweet=tweet,

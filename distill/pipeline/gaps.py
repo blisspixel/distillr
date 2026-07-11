@@ -48,6 +48,7 @@ class TopicInventory(TypedDict):
     sites: int
     pages: int
     papers: int
+    x_posts: int
     active_source_types: list[str]
     artifacts: dict[str, bool]
     latest_video_date: str | None
@@ -60,6 +61,7 @@ class TopicGapSummary(TypedDict):
     sites: int
     pages: int
     papers: int
+    x_posts: int
     active_source_types: list[str]
     latest_video_date: str | None
     recency_status: str
@@ -153,15 +155,15 @@ def topic_source_inventory(  # noqa: C901 - legacy shape
 ) -> TopicInventory:
     """Count a topic's sources and which synthesis artifacts exist."""
     lib = Library(config)
-    channels = lib.get_channels(topic)
+    channel_names = lib.get_corpus_channel_names(topic)
     video_count = 0
     sites_with_synthesis = 0
     page_count = 0
     papers_with_insights = 0
     dates: list[datetime] = []
 
-    for ch in channels:
-        for video in video_list(config, topic, ch.name):
+    for channel_name in channel_names:
+        for video in video_list(config, topic, channel_name):
             video_count += 1
             upload_dt = _parse_upload_date(video.get("upload_date"))
             if upload_dt is not None:
@@ -192,6 +194,13 @@ def topic_source_inventory(  # noqa: C901 - legacy shape
                 papers_with_insights += 1
 
     topic_dir = config.topic_dir(topic)
+    x_posts_with_insights = 0
+    x_dir = topic_dir / "x"
+    if x_dir.exists():
+        for post_dir in sorted(x_dir.glob("*/posts/*")):
+            if post_dir.is_dir() and artifact_exists(post_dir, "insights"):
+                x_posts_with_insights += 1
+
     artifacts = {
         "topic_synthesis": artifact_exists(topic_dir, "topic_synthesis", identity=topic),
         "paper_synthesis": artifact_exists(topic_dir, "paper_synthesis", identity=topic),
@@ -206,6 +215,7 @@ def topic_source_inventory(  # noqa: C901 - legacy shape
             "youtube": video_count > 0,
             "website": page_count > 0 or sites_with_synthesis > 0,
             "paper": papers_with_insights > 0,
+            "x": x_posts_with_insights > 0,
         }.items()
         if present
     ]
@@ -213,11 +223,12 @@ def topic_source_inventory(  # noqa: C901 - legacy shape
     latest = max(dates) if dates else None
     return {
         "topic": topic,
-        "channels": len(channels),
+        "channels": len(channel_names),
         "videos": video_count,
         "sites": sites_with_synthesis,
         "pages": page_count,
         "papers": papers_with_insights,
+        "x_posts": x_posts_with_insights,
         "active_source_types": active_source_types,
         "artifacts": artifacts,
         "latest_video_date": latest.strftime("%Y-%m-%d") if latest else None,
@@ -228,27 +239,27 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> TopicGapSummary:  # 
     """Compute coverage gaps + recommended next actions for a topic."""
     inventory = topic_source_inventory(config, topic)
     lib = Library(config)
-    channels = lib.get_channels(topic)
+    channel_names = lib.get_corpus_channel_names(topic)
     missing_insights: list[str] = []
     missing_transcripts: list[str] = []
     thin_insights: list[str] = []
     dates: list[datetime] = []
 
-    for ch in channels:
-        for video in video_list(config, topic, ch.name):
+    for channel_name in channel_names:
+        for video in video_list(config, topic, channel_name):
             upload_dt = _parse_upload_date(video.get("upload_date"))
             if upload_dt is not None:
                 dates.append(upload_dt)
             if not video.get("has_insights", False):
-                missing_insights.append(f"{ch.name}: {_video_title(video)}")
+                missing_insights.append(f"{channel_name}: {_video_title(video)}")
             if not video.get("has_transcript", False):
-                missing_transcripts.append(f"{ch.name}: {_video_title(video)}")
+                missing_transcripts.append(f"{channel_name}: {_video_title(video)}")
             insights_path = find_artifact(Path(video.get("_dir", "")), "insights")
             if (
                 insights_path.exists()
                 and len(strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()) < 800
             ):
-                thin_insights.append(f"{ch.name}: {_video_title(video)}")
+                thin_insights.append(f"{channel_name}: {_video_title(video)}")
 
     missing_artifacts = [name for name, present in inventory["artifacts"].items() if not present]
     latest = max(dates) if dates else None
@@ -261,7 +272,7 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> TopicGapSummary:  # 
     next_actions: list[str] = []
 
     if inventory["channels"] < 3:
-        gaps.append(f"Only {inventory['channels']} channel(s) are tracked for this topic.")
+        gaps.append(f"Only {inventory['channels']} channel(s) are available for this topic.")
         next_actions.append(
             f"Run learn_topic or latest again for '{topic}' with broader queries to widen coverage."
         )
@@ -297,7 +308,7 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> TopicGapSummary:  # 
         next_actions.append("Re-run transcription for incomplete videos before deeper synthesis.")
     if thin_insights:
         gaps.append(f"{len(thin_insights)} insight file(s) look unusually thin.")
-    if "topic_synthesis" in missing_artifacts:
+    if "topic_synthesis" in missing_artifacts and "corpus_synthesis" in missing_artifacts:
         gaps.append("Topic synthesis has not been generated yet.")
         next_actions.append(f"Run resynthesize_topic or a topic synthesis workflow for '{topic}'.")
     if "corpus_synthesis" in missing_artifacts and len(inventory["active_source_types"]) > 1:
@@ -335,6 +346,7 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> TopicGapSummary:  # 
         "sites": inventory["sites"],
         "pages": inventory["pages"],
         "papers": inventory["papers"],
+        "x_posts": inventory["x_posts"],
         "active_source_types": inventory["active_source_types"],
         "latest_video_date": latest.strftime("%Y-%m-%d") if latest else None,
         "recency_status": stale_status,

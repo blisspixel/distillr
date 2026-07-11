@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import typer
@@ -23,7 +24,7 @@ from distill.pipeline.analysis.newsletter import NewsletterIngestResult
 from distill.pipeline.analysis.podcast import PodcastIngestResult
 from distill.pipeline.analysis.repo import RepoIngestResult
 from distill.pipeline.analysis.tweet import IngestedTweet
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 
 
 def test_host_strips_www() -> None:
@@ -78,6 +79,11 @@ def _artifact(config: DistillConfig, relative: str, text: str = "x") -> Path:
     return path
 
 
+def _cost_rows(config: DistillConfig) -> list[dict[str, Any]]:
+    log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+    return [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+
+
 def test_ingest_cmd_routes_x_url_through_x_adapter(tmp_path: Path) -> None:
     from distill.cli import app
 
@@ -110,6 +116,218 @@ def test_ingest_cmd_routes_x_url_through_x_adapter(tmp_path: Path) -> None:
     assert captured["kwargs"]["analyze"] is True
 
 
+def test_ingest_cmd_persists_metered_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from distill.cli import app
+
+    config = _config(tmp_path)
+
+    def _fake_ingest(url: str, *, tracker: CostTracker, **kwargs: Any) -> IngestedTweet:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=1_000,
+                completion_tokens=500,
+                model="grok-4.3",
+                call_type="tweet_analysis",
+                provider_name="xai",
+                provider_type="cloud",
+            )
+        )
+        return _ingested(tmp_path)
+
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+    monkeypatch.setattr(_ingest, "ingest_tweet", _fake_ingest)
+
+    result = CliRunner().invoke(
+        app, ["ingest", "https://x.com/alice/status/12345", "--topic", "agents"]
+    )
+
+    assert result.exit_code == 0, result.output
+    [row] = _cost_rows(config)
+    assert row["command"] == "ingest"
+    assert row["actual_cost"] == pytest.approx(0.0025)
+    assert row["usage_ledger"]["metered_llm_calls"] == 1
+    assert row["metadata"] == {
+        "topic": "agents",
+        "workflow": "ingest",
+        "source_type": "x",
+    }
+
+
+def test_exact_completed_x_replay_has_no_second_model_write_or_ledger_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from distill.cli import app
+
+    config = _config(tmp_path)
+    tweet = _tweet()
+    analysis_calls = 0
+
+    def _fake_analysis(*args: Any, tracker: CostTracker, **kwargs: Any) -> str:
+        nonlocal analysis_calls
+        analysis_calls += 1
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=100,
+                completion_tokens=50,
+                model="qwen3:8b",
+                call_type="x_tweet",
+                provider_name="ollama",
+                provider_type="local",
+            )
+        )
+        return "## Key Claims\n\nThe post says hi."
+
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+    monkeypatch.setattr("distill.pipeline.analysis.tweet.fetch_tweet", lambda target: tweet)
+    monkeypatch.setattr("distill.pipeline.analysis.tweet.analyze_tweet", _fake_analysis)
+    args = ["ingest", tweet.url, "--topic", "agents", "--no-transcribe"]
+
+    first = CliRunner().invoke(app, args)
+
+    assert first.exit_code == 0, first.output
+    tweet_path = next((config.topic_dir("agents") / "x").rglob("*_Tweet.md"))
+    insights_path = next((config.topic_dir("agents") / "x").rglob("*_Insights.md"))
+    cost_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    before = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (tweet_path, insights_path, cost_log)
+    }
+
+    second = CliRunner().invoke(app, args)
+
+    assert second.exit_code == 0, second.output
+    assert "unchanged completed requested artifacts" in second.output
+    assert "--force" in second.output
+    assert analysis_calls == 1
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (tweet_path, insights_path, cost_log)
+    } == before
+
+
+def test_raw_only_x_replay_is_write_and_ledger_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from distill.cli import app
+
+    config = _config(tmp_path)
+    tweet = _tweet()
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+    monkeypatch.setattr("distill.pipeline.analysis.tweet.fetch_tweet", lambda target: tweet)
+    args = [
+        "ingest",
+        tweet.url,
+        "--topic",
+        "raw-agents",
+        "--no-transcribe",
+        "--no-analyze",
+    ]
+
+    first = CliRunner().invoke(app, args)
+
+    assert first.exit_code == 0, first.output
+    receipt = next((config.topic_dir("raw-agents") / "x").rglob("*_Tweet.md"))
+    before = (receipt.read_bytes(), receipt.stat().st_mtime_ns)
+    with monkeypatch.context() as replay_patch:
+        model_call = MagicMock(side_effect=AssertionError("raw replay called a model"))
+        replay_patch.setattr("distill.pipeline.analysis.tweet.llm_call", model_call)
+        second = CliRunner().invoke(app, args)
+
+    assert second.exit_code == 0, second.output
+    assert "unchanged completed requested artifacts" in second.output
+    model_call.assert_not_called()
+    assert (receipt.read_bytes(), receipt.stat().st_mtime_ns) == before
+    assert not (config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+
+def test_ingest_cmd_persists_zero_dollar_local_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from distill.cli import app
+
+    config = _config(tmp_path)
+    media = tmp_path / "talk.mp3"
+    media.write_bytes(b"audio")
+
+    def _fake_media(
+        local_path: Path,
+        topic: str,
+        config: DistillConfig,
+        tracker: CostTracker,
+        *,
+        analyze: bool,
+    ) -> None:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=800,
+                completion_tokens=200,
+                model="qwen3:8b",
+                call_type="media_analysis",
+                provider_name="ollama",
+                provider_type="local",
+            )
+        )
+        tracker.record_transcription("faster-whisper", 90.0, model="large-v3")
+
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+    monkeypatch.setattr(_ingest, "_ingest_media", _fake_media)
+
+    result = CliRunner().invoke(app, ["ingest", str(media), "--topic", "agents"])
+
+    assert result.exit_code == 0, result.output
+    [row] = _cost_rows(config)
+    assert row["actual_cost"] == 0
+    assert row["usage_ledger"]["no_metered_llm_calls"] == 1
+    assert row["usage_ledger"]["no_metered_transcription_calls"] == 1
+    assert row["by_route_class"]["local"]["calls"] == 1
+    assert row["metadata"]["source_type"] == "media"
+
+
+def test_ingest_cmd_persists_budget_crossing_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from distill.cli import app
+
+    config = DistillConfig(
+        xai_api_key="x",
+        distill_output_dir=tmp_path / "lib",
+        distill_cost_workflow_budgets="ingest=0.001",
+    )
+
+    def _budget_stop(
+        url: str,
+        topic: str,
+        config: DistillConfig,
+        tracker: CostTracker,
+        *,
+        transcribe: bool,
+        analyze: bool,
+    ) -> None:
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=1_000_000,
+                model="grok-4.3",
+                call_type="tweet_analysis",
+                provider_name="xai",
+                provider_type="cloud",
+            )
+        )
+
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+    monkeypatch.setattr(_ingest, "_ingest_tweet_url", _budget_stop)
+
+    result = CliRunner().invoke(app, ["ingest", "https://x.com/alice/status/12345"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, BudgetExceededError)
+    [row] = _cost_rows(config)
+    assert row["actual_cost"] == pytest.approx(1.25)
+    assert row["usage_ledger"]["metered_llm_calls"] == 1
+    assert row["metadata"]["source_type"] == "x"
+
+
 def test_ingest_cmd_invalid_tweet_url_exits_with_code_2(tmp_path: Path) -> None:
     from distill.cli import app
 
@@ -140,6 +358,7 @@ def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
 
     assert result.exit_code == 2
     assert "no dedicated adapter" in result.stdout.lower()
+    assert not (tmp_path / "lib" / ".distill" / "cost_log.jsonl").exists()
 
 
 def test_ingest_cmd_no_transcribe_flag_passes_through(tmp_path: Path) -> None:

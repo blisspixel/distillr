@@ -46,6 +46,26 @@ class TestLibraryInit:
         lib = Library(config)
         assert lib.get_topics() == []
 
+    def test_corpus_inventory_discovers_filesystem_without_registering(self, config):
+        direct_videos = config.videos_dir("direct-topic", "Direct Channel")
+        direct_videos.mkdir(parents=True)
+        hidden_topic = config.topics_dir() / ".internal"
+        hidden_topic.mkdir(parents=True)
+        lib = Library(config)
+
+        assert lib.get_corpus_topics() == ["direct-topic"]
+        assert lib.get_corpus_channel_names("direct-topic") == ["Direct Channel"]
+        assert lib.get_topics() == []
+        assert lib.get_channels("direct-topic") == []
+
+    def test_corpus_inventory_preserves_registered_order_and_adds_disk_entries(self, config):
+        lib = Library(config)
+        lib.add_channel("ai", "https://youtube.com/@Registered", "Registered")
+        config.videos_dir("ai", "Direct").mkdir(parents=True)
+
+        assert lib.get_corpus_topics() == ["ai"]
+        assert lib.get_corpus_channel_names("ai") == ["Registered", "Direct"]
+
 
 class TestAddChannel:
     def test_add_channel_new_topic(self, config):

@@ -120,6 +120,40 @@ def test_dashboard_snapshot_uses_shared_rollups_and_health(config):
     assert snapshot["topic_trends"]["ai"] == "trend: rising"
 
 
+def test_dashboard_snapshot_includes_filesystem_only_corpus(config):
+    topic = "direct-topic"
+    channel = "Direct Channel"
+    video_dir = config.video_dir(topic, channel, "video-1")
+    video_dir.mkdir(parents=True)
+    (video_dir / "metadata.json").write_text(
+        json.dumps({"title": "Direct Video", "analysis_mode": "full"}),
+        encoding="utf-8",
+    )
+    (video_dir / "insights.md").write_text("# Insights", encoding="utf-8")
+
+    paper_dir = config.paper_dir(topic, "Direct Paper", "2401.00001")
+    paper_dir.mkdir(parents=True)
+    (paper_dir / "paper.md").write_text("# Paper", encoding="utf-8")
+
+    page_dir = config.site_page_dir(topic, "example.com", "Direct Page", "page-1")
+    page_dir.mkdir(parents=True)
+    (page_dir / "content.md").write_text("# Page", encoding="utf-8")
+
+    lib = Library(config)
+    assert lib.get_topics() == []
+
+    snapshot = dashboard_snapshot(config)
+
+    assert snapshot["topics"] == [topic]
+    assert snapshot["total_channels"] == 1
+    assert snapshot["total_videos"] == 1
+    assert snapshot["full_videos"] == 1
+    assert snapshot["paper_count"] == 1
+    assert snapshot["site_count"] == 1
+    assert snapshot["page_count"] == 1
+    assert lib.get_topics() == []
+
+
 def test_dashboard_snapshot_uses_configured_cost_warning_policy(tmp_path):
     config = DistillConfig(
         distill_output_dir=tmp_path / "library",
@@ -442,6 +476,12 @@ def test_topic_watch_estimation_helpers(config):
     assert round(estimated_topic_watch_sweep(watches), 4) == round(
         10 * video + report + 5 * video, 4
     )
+
+    from distill.llm.router import RouterConfig
+
+    local = RouterConfig(provider="ollama", fast_model="qwen2.5:14b")
+    assert estimate_topic_watch_cost(watches[0], router_config=local) == report
+    assert estimated_topic_watch_sweep(watches, router_config=local) == report
 
 
 def test_corpus_counting_and_recent_artifacts(config):

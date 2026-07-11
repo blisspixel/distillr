@@ -691,6 +691,7 @@ def build_sizing_options(
     video_limit: int,
     site_limit: int,
     calibration: CostCalibration | None = None,
+    router_config: RouterConfig | None = None,
 ) -> list[SizingOption]:
     """Derive nested "excellent / good / everything" ingest sizes from a reranked set.
 
@@ -732,6 +733,7 @@ def build_sizing_options(
             video_durations=[getattr(v.video, "duration", None) for v in videos],
             sites=len(sites),
             calibration=calibration,
+            router_config=router_config,
         )
         options.append(
             SizingOption(

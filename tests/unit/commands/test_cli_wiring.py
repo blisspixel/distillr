@@ -2017,8 +2017,14 @@ class TestWatchCommands:
         written = list(papers_dir.glob("*/*_Paper.md"))
         assert written
 
-    def test_paper_projected_budget_refuses_before_model_or_fetch(self, mock_config, monkeypatch):
-        projected = estimate_paper_workflow_cost(1, synthesis_calls=2)
+    def test_paper_projected_budget_refuses_after_metadata_before_model(
+        self, mock_config, monkeypatch
+    ):
+        from distill.ingestors.papers.arxiv import PaperRecord
+
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        projected = estimate_paper_workflow_cost(1, synthesis_calls=1)
         mock_config.distill_cost_workflow_budgets = f"paper={projected / 2:.8f}"
         calls: list[str] = []
 
@@ -2026,13 +2032,22 @@ class TestWatchCommands:
         monkeypatch.setattr(
             _papers,
             "fetch_arxiv_paper",
-            lambda *a, **k: calls.append("fetch"),
+            lambda *a, **k: (
+                calls.append("fetch")
+                or PaperRecord(
+                    paper_id="2602.12670v1",
+                    title="Agent Memory Systems",
+                    abstract="A paper about memory systems.",
+                    authors=["Alice"],
+                    abs_url="https://arxiv.org/abs/2602.12670v1",
+                )
+            ),
         )
 
         result = runner.invoke(cli.app, ["paper", "2602.12670", "--topic", "papers"])
 
         assert isinstance(result.exception, ProjectedBudgetExceededError)
-        assert calls == []
+        assert calls == ["fetch"]
 
     def test_papers_command_searches_and_writes_synthesis(self, mock_config, monkeypatch):
         from distill.ingestors.papers.arxiv import PaperRecord
@@ -2101,7 +2116,9 @@ class TestWatchCommands:
     def test_papers_projected_budget_refuses_before_analysis(self, mock_config, monkeypatch):
         from distill.ingestors.papers.arxiv import PaperRecord
 
-        projected = estimate_paper_workflow_cost(1, synthesis_calls=2)
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        projected = estimate_paper_workflow_cost(1, synthesis_calls=1)
         mock_config.distill_cost_workflow_budgets = f"papers={projected / 2:.8f}"
         calls: list[str] = []
 
@@ -2193,9 +2210,11 @@ class TestWatchCommands:
     def test_site_batch_projected_budget_refuses_before_processing(
         self, mock_config, monkeypatch, tmp_path
     ):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         seeds = tmp_path / "seeds.txt"
         seeds.write_text("https://good.example.com\n", encoding="utf-8")
-        projected = estimate_site_batch_workflow_cost(1, synthesis_calls=2)
+        projected = estimate_site_batch_workflow_cost(1, synthesis_calls=3)
         mock_config.distill_cost_workflow_budgets = f"site-batch={projected / 2:.8f}"
         calls: list[str] = []
 
@@ -2919,6 +2938,8 @@ class TestWatchCommands:
     def test_corpus_projected_budget_refuses_before_model_or_synthesis(
         self, mock_config, monkeypatch
     ):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         channel_dir = mock_config.channel_dir("mixed", "CreatorOne")
         channel_dir.mkdir(parents=True, exist_ok=True)
         (channel_dir / "synthesis.md").write_text("# Channel", encoding="utf-8")
@@ -3514,7 +3535,9 @@ class TestSiteCommands:
     def test_site_projected_budget_refuses_before_model_or_processing(
         self, mock_config, monkeypatch
     ):
-        projected = estimate_site_batch_workflow_cost(1, synthesis_calls=2)
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        projected = estimate_site_batch_workflow_cost(1, synthesis_calls=3)
         mock_config.distill_cost_workflow_budgets = f"site={projected / 2:.8f}"
         calls: list[str] = []
 

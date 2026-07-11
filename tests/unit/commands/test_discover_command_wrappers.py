@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -13,7 +14,7 @@ from distill import _cli_impl, cli
 from distill.commands import discover as _discover
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
-from distill.pipeline.costs import ProjectedBudgetExceededError
+from distill.pipeline.costs import ProjectedBudgetExceededError, TokenUsage
 from distill.pipeline.discovery import RankedDiscoverItem
 
 runner = CliRunner()
@@ -314,12 +315,60 @@ def test_synthesize_exits_when_synthesis_returns_no_output(
     assert result.exit_code == 1
     assert calls["topics"] == ["alpha", "beta", "gamma"]
     assert calls["context"] == "Summarize."
+    assert not (mock_config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+
+def test_synthesize_persists_recorded_usage_when_pipeline_fails(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def run_synthesis(**kwargs: Any) -> None:
+        kwargs["tracker"].record(
+            TokenUsage(
+                prompt_tokens=30,
+                completion_tokens=15,
+                model="grok-4.3",
+                call_type="synthesis",
+                provider_name="xai",
+                provider_type="cloud",
+            )
+        )
+        raise RuntimeError("synthesis failed")
+
+    monkeypatch.setattr(_discover, "_require_model", lambda: None)
+    monkeypatch.setattr(_discover, "run_synthesis", run_synthesis)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "synthesize",
+            "--topic",
+            "alpha",
+            "--name",
+            "brief",
+            "--context",
+            "Summarize.",
+        ],
+    )
+
+    assert result.exit_code == 1
+    rows = [
+        json.loads(line)
+        for line in (mock_config.library_dir / ".distill" / "cost_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert rows[-1]["command"] == "synthesize"
+    assert rows[-1]["grok_calls"] == 1
+    assert rows[-1]["metadata"]["topic"] == "alpha"
 
 
 def test_synthesize_refuses_projected_budget_before_synthesis(
     mock_config: DistillConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
     mock_config.distill_cost_workflow_budgets = "synthesize=0.0001"
     run_synthesis = MagicMock()
 
@@ -356,6 +405,16 @@ def test_synthesize_combines_inline_and_file_context(
 
     def run_synthesis(**kwargs: Any) -> Path:
         calls.update(kwargs)
+        kwargs["tracker"].record(
+            TokenUsage(
+                prompt_tokens=30,
+                completion_tokens=15,
+                model="grok-4.3",
+                call_type="synthesis",
+                provider_name="xai",
+                provider_type="cloud",
+            )
+        )
         return output_path
 
     monkeypatch.setattr(_discover, "_require_model", lambda: None)
@@ -379,3 +438,11 @@ def test_synthesize_combines_inline_and_file_context(
     assert result.exit_code == 0, result.output
     assert calls["context"] == "Inline instructions.\n\nFile instructions."
     assert "Tokens:" in result.output
+    rows = [
+        json.loads(line)
+        for line in (mock_config.library_dir / ".distill" / "cost_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert rows[-1]["command"] == "synthesize"
+    assert rows[-1]["grok_calls"] == 1

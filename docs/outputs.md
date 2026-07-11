@@ -9,7 +9,7 @@ New Markdown artifacts use globally descriptive filenames and YAML frontmatter s
 ```
 library/
 ├── library.json                   # Master index
-├── cost_log.jsonl                 # Per-run cost history
+├── .distill/cost_log.jsonl        # Per-run cost history
 └── topics/<topic>/
     ├── <topic>_Topic_Synthesis.md # Cross-source synthesis for the topic
     ├── <topic>_Corpus_Synthesis.md# Mixed-source view (when multiple source types exist)
@@ -23,7 +23,12 @@ library/
     ├── change_history.jsonl       # Timestamped change counts
     ├── channels/<channel>/        # Per-channel artifacts
     ├── sites/<hostname>/          # Per-site artifacts
-    └── papers/<paper-slug>/       # Per-paper artifacts
+    ├── papers/<paper-slug>/       # Per-paper artifacts
+    ├── x/<handle>/posts/<post>/   # Per-X-post artifacts
+    ├── repos/<repo-slug>/         # Per-GitHub-repo artifacts
+    ├── podcasts/<show>/           # Podcast episode artifacts
+    ├── newsletters/<publication>/ # Feed-post artifacts
+    └── local/<document>/          # Local document and media artifacts
 ```
 
 ## Per video (full-length, >3 min) - 2-pass analysis
@@ -67,7 +72,7 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 ## Per topic
 
 - **`<topic>_Topic_Synthesis.md`** - Cross-source knowledge base
-- **`<topic>_Corpus_Synthesis.md`** - Mixed-source view when videos, sites, and papers contribute to the same topic (this is what `distill discover` produces by default once its shortlist finishes ingesting)
+- **`<topic>_Corpus_Synthesis.md`** - Mixed-source view built from channel, site, and paper synthesis inputs (this is what `distill discover` produces by default once its shortlist finishes ingesting)
 - **`<topic>_Brief.md`** - Lightweight "what matters now" brief
 
 ## Per website page
@@ -91,7 +96,18 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 - **`<paper-slug>_Paper.md`**: Full paper document (abstract + extracted PDF text, up to 200 pages) with DOI frontmatter when available
 - **`<paper-slug>_Insights.md`**: Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
 
-Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal (and short-circuited when `--preview` is set). The shortlist itself is not persisted as a file today; use `--preview` and copy the table, or re-run with `--yes` to commit directly to ingestion.
+Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal. `--preview` saves the exact shortlist under `library/.preview_cache/<id>.json`; replay it with `distill discover --from-preview <id> --topic <topic>` to ingest precisely what was reviewed without repeating query generation or reranking.
+
+## Per X post
+
+- **`<handle>_<post-id>_Tweet.md`** - Public post text, long-form body when available, source URL, and attachment metadata
+- **`<handle>_<post-id>_Transcript.txt`** - Optional transcript for attached video
+- **`<handle>_<post-id>_Insights.md`** - Structured analysis with the same verification sidecar contract as other source types
+
+X posts are direct-ingest sources, not `distill discover` search candidates.
+The one-pass corpus aggregator does not consume X insights. Use
+`distill resynthesize <topic> --two-pass` when X must contribute to the
+cross-source synthesis.
 
 Citation exports are local and read from existing paper artifacts:
 
@@ -145,7 +161,7 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 
 ## Verification sidecars and audit reports (0.10)
 
-- **`<stem>_Verify.json`** - written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from "never checked".
+- **`<stem>_Verify.json`** - written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from unverified. A readable sidecar with zero numeric and entailment claims checked records no coverage and is not a passing result.
 - **`library/topics/<topic>/<topic>_Audit.md`** - written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), synthesis-freshness rollup (a synthesis older than the sources it synthesizes, and shadowed legacy syntheses lingering beside their modern replacements - the same warning also rides the dashboard health list and the topic's generated CLAUDE.md/AGENTS.md), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
 
 ## Answers (`distill ask`, 0.12)

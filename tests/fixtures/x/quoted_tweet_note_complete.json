@@ -1,0 +1,29 @@
+{
+  "user": {
+    "screen_name": "outerauthor",
+    "name": "Outer Author",
+    "verified": false
+  },
+  "text": "Quoted long-form context for agent harnesses.",
+  "lang": "en",
+  "favorite_count": 14,
+  "conversation_count": 3,
+  "created_at": "2026-07-11T14:35:00.000Z",
+  "quoted_tweet": {
+    "id_str": "2032727335074722218",
+    "text": "Short quoted-post preview.",
+    "note_tweet": {
+      "note_tweet_results": {
+        "result": {
+          "text": "Full quoted long-form body describing durable queues, bounded retries, idempotent actions, explicit acceptance checks, and persisted handoff state for agent development harnesses."
+        }
+      }
+    },
+    "user": {
+      "id_str": "43",
+      "name": "Quoted Author",
+      "screen_name": "quotedauthor",
+      "verified": false
+    }
+  }
+}

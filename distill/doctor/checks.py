@@ -15,8 +15,16 @@ from __future__ import annotations
 from typing import Literal
 
 from distill.config import DistillConfig
+from distill.llm.cost_policy import route_block_reason
 
-type DoctorKeyStatus = Literal["ok", "invalid", "unknown", "missing", "not_set"]
+type DoctorKeyStatus = Literal[
+    "ok",
+    "invalid",
+    "unknown",
+    "missing",
+    "not_set",
+    "skipped",
+]
 
 
 def check_retired_models(config: DistillConfig) -> list[str]:
@@ -81,6 +89,8 @@ def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKe
       transient error (offline, timeout, rate limit, provider 5xx); ``detail``
       carries the error. This is NOT a key failure and must not be reported as
       "rejected" -- doing so was a false alarm on every flaky-network run.
+    - ``"skipped"`` -- the key is present, but the active cost policy refuses
+      a live provider request. ``detail`` carries the policy refusal.
     - ``"missing"`` -- a required key (xai) is unset
     - ``"not_set"`` -- an optional key (gemini/anthropic/openai) is unset
 
@@ -106,9 +116,27 @@ def _key_error_status(exc: Exception) -> DoctorKeyStatus:
     return "invalid" if _doctor_key_auth_rejected(exc) else "unknown"
 
 
+def _cost_policy_skip(
+    provider: str,
+    config: DistillConfig,
+) -> tuple[DoctorKeyStatus, str] | None:
+    """Return an explicit skip result when a live key probe is not allowed."""
+
+    blocked = route_block_reason(
+        cost_mode=config.distill_cost_mode,
+        provider=provider,
+        workload="doctor-key-validation",
+    )
+    if not blocked:
+        return None
+    return ("skipped", blocked)
+
+
 def _validate_xai_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
     if not config.xai_api_key:
         return ("missing", "")
+    if skipped := _cost_policy_skip("xai", config):
+        return skipped
     try:
         from openai import OpenAI
 
@@ -129,6 +157,8 @@ def _validate_xai_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
 def _validate_gemini_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
     if not config.gemini_api_key:
         return ("not_set", "")
+    if skipped := _cost_policy_skip("gemini", config):
+        return skipped
     try:
         from google import genai
 
@@ -142,6 +172,8 @@ def _validate_gemini_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
 def _validate_anthropic_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
     if not config.anthropic_api_key:
         return ("not_set", "")
+    if skipped := _cost_policy_skip("anthropic", config):
+        return skipped
     try:
         import httpx
 
@@ -169,6 +201,8 @@ def _validate_anthropic_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str
 def _validate_openai_key(config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
     if not config.openai_api_key:
         return ("not_set", "")
+    if skipped := _cost_policy_skip("openai", config):
+        return skipped
     try:
         from openai import OpenAI
 

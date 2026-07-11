@@ -154,6 +154,69 @@ def test_transcribe_media_auto_uses_local_when_available(tmp_path: Path) -> None
     assert result.text == "local OK"
 
 
+def test_transcribe_media_no_metered_preserves_local_route(tmp_path: Path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    grok = MagicMock()
+    openai = MagicMock()
+
+    with (
+        patch(
+            "distill.ingestors.transcribe._transcribe_local",
+            _make_local_returns("local only"),
+        ),
+        patch("distill.ingestors.transcribe._transcribe_grok", grok),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai),
+    ):
+        result = transcribe_media(media, _config(cost_mode="no-metered"))
+
+    assert result.provider == "faster-whisper"
+    assert result.text == "local only"
+    grok.assert_not_called()
+    openai.assert_not_called()
+
+
+@pytest.mark.parametrize("prefer", ["auto", "cloud", "grok", "openai"])
+def test_transcribe_media_no_metered_blocks_cloud_before_fallback(
+    tmp_path: Path,
+    prefer: str,
+) -> None:
+    from distill.ingestors.transcribe import _LocalUnavailable
+
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    tracker = MagicMock()
+    grok = MagicMock(
+        return_value=TranscriptionResult(text="grok", provider="xai-grok-stt", model="grok-stt")
+    )
+    openai = MagicMock(
+        return_value=TranscriptionResult(text="openai", provider="openai", model="whisper-1")
+    )
+    probe = MagicMock(return_value=60.0)
+
+    with (
+        patch(
+            "distill.ingestors.transcribe._transcribe_local",
+            _make_local_raises(_LocalUnavailable("not installed")),
+        ),
+        patch("distill.ingestors.transcribe._probe_media_duration", probe),
+        patch("distill.ingestors.transcribe._transcribe_grok", grok),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai),
+        pytest.raises(TranscriptionError, match="Route blocked by no-metered cost policy"),
+    ):
+        transcribe_media(
+            media,
+            _config(cost_mode="no-metered"),
+            prefer=prefer,
+            tracker=tracker,
+        )
+
+    probe.assert_not_called()
+    grok.assert_not_called()
+    openai.assert_not_called()
+    tracker.record_transcription.assert_not_called()
+
+
 def test_transcribe_media_records_completed_empty_result_with_duration_hint(
     tmp_path: Path,
 ) -> None:
@@ -194,6 +257,33 @@ def test_transcribe_media_does_not_fall_through_after_ledger_refusal(tmp_path: P
         transcribe_media(media, _config(), tracker=tracker)
 
     grok.assert_not_called()
+
+
+def test_transcribe_media_does_not_fall_through_after_cost_policy_refusal(
+    tmp_path: Path,
+) -> None:
+    from distill.ingestors.transcribe import _LocalUnavailable
+    from distill.llm.cost_policy import CostPolicyError
+
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    openai = MagicMock()
+
+    with (
+        patch(
+            "distill.ingestors.transcribe._transcribe_local",
+            _make_local_raises(_LocalUnavailable("not installed")),
+        ),
+        patch(
+            "distill.ingestors.transcribe._transcribe_grok",
+            side_effect=CostPolicyError("policy refused"),
+        ),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai),
+        pytest.raises(TranscriptionError, match="policy refused"),
+    ):
+        transcribe_media(media, _config())
+
+    openai.assert_not_called()
 
 
 def test_transcribe_media_refuses_cloud_call_without_billable_duration(tmp_path: Path) -> None:
@@ -294,7 +384,7 @@ def test_transcribe_media_auto_falls_back_to_cloud(tmp_path: Path) -> None:
         ),
         patch("distill.ingestors.transcribe._transcribe_openai", _cloud),
     ):
-        result = transcribe_media(media, _config())
+        result = transcribe_media(media, _config(xai_key=""))
 
     assert result.provider == "openai"
     assert result.text == "cloud OK"
@@ -331,11 +421,37 @@ def test_transcribe_media_cloud_only_skips_local(tmp_path: Path) -> None:
         patch("distill.ingestors.transcribe._transcribe_local", local_mock),
         patch("distill.ingestors.transcribe._transcribe_openai", cloud_mock),
     ):
-        result = transcribe_media(media, _config(), prefer="cloud")
+        result = transcribe_media(media, _config(xai_key=""), prefer="cloud")
 
     assert cloud_mock.call_count == 1
     assert local_mock.call_count == 0
     assert result.provider == "openai"
+
+
+def test_transcribe_media_cloud_uses_grok_before_openai(tmp_path: Path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    grok_mock = MagicMock(
+        return_value=TranscriptionResult(text="grok first", provider="xai", model="grok-stt")
+    )
+    openai_mock = MagicMock(
+        return_value=TranscriptionResult(text="openai", provider="openai", model="whisper-1")
+    )
+
+    with (
+        patch("distill.ingestors.transcribe._transcribe_grok", grok_mock),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai_mock),
+    ):
+        result = transcribe_media(
+            media,
+            _config(),
+            prefer="cloud",
+            duration_hint_s=1.0,
+        )
+
+    grok_mock.assert_called_once()
+    openai_mock.assert_not_called()
+    assert result.provider == "xai"
 
 
 def test_transcribe_media_both_providers_fail_raises_combined_error(tmp_path: Path) -> None:
@@ -353,7 +469,7 @@ def test_transcribe_media_both_providers_fail_raises_combined_error(tmp_path: Pa
         patch("distill.ingestors.transcribe._transcribe_openai", _cloud_fail),
         pytest.raises(TranscriptionError) as ei,
     ):
-        transcribe_media(media, _config())
+        transcribe_media(media, _config(xai_key=""))
 
     # Both error messages preserved
     assert "cuda OOM" in str(ei.value)

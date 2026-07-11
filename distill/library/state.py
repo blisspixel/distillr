@@ -302,6 +302,58 @@ class Library:
     def get_topics(self) -> list[str]:
         return list(self._data["topics"].keys())
 
+    def get_corpus_topics(self) -> list[str]:
+        """Return registered topics plus topic directories found on disk.
+
+        Direct ingestion writes a corpus without registering a recurring
+        channel URL in ``library.json``. Read-only inventory surfaces need to
+        see those artifacts, while execution paths must continue to use
+        :meth:`get_topics` and :meth:`get_channels` as the subscription truth.
+        """
+        topics = self.get_topics()
+        seen = {topic.casefold() for topic in topics}
+        topics_dir = self.config.topics_dir()
+        try:
+            children = sorted(topics_dir.iterdir(), key=lambda path: path.name.casefold())
+        except OSError:
+            return topics
+        for child in children:
+            try:
+                is_topic = child.is_dir()
+            except OSError:
+                continue
+            if not is_topic or child.name.startswith(".") or child.name.casefold() in seen:
+                continue
+            topics.append(child.name)
+            seen.add(child.name.casefold())
+        return topics
+
+    def get_corpus_channel_names(self, topic: str) -> list[str]:
+        """Return registered and filesystem-backed channel names for reading.
+
+        The returned names do not carry URLs and are intentionally separate
+        from :meth:`get_channels`, so a direct-ingest directory cannot become a
+        runnable channel subscription by being discovered here.
+        """
+        topic = sanitize_topic(topic)
+        names = [channel.name for channel in self.get_channels(topic)]
+        seen = {name.casefold() for name in names}
+        channels_dir = self.config.topic_dir(topic) / "channels"
+        try:
+            children = sorted(channels_dir.iterdir(), key=lambda path: path.name.casefold())
+        except OSError:
+            return names
+        for child in children:
+            try:
+                is_channel = child.is_dir()
+            except OSError:
+                continue
+            if not is_channel or child.name.startswith(".") or child.name.casefold() in seen:
+                continue
+            names.append(child.name)
+            seen.add(child.name.casefold())
+        return names
+
     def get_channels(self, topic: str) -> list[ChannelInfo]:
         topic = sanitize_topic(topic)
         if topic not in self._data["topics"]:

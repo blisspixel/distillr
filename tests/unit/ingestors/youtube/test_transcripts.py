@@ -276,6 +276,7 @@ class TestYoutubeCaptionsFallback:
         result = _try_youtube_captions("https://youtube.com/watch?v=abc", "abc")
 
         assert result == "Hello"
+        assert mock_ydl.call_args.args[0]["noprogress"] is True
         assert calls["n"] == 2
 
     @patch("distill.ingestors.youtube.transcripts.tempfile.TemporaryDirectory")

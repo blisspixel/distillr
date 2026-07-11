@@ -9,6 +9,7 @@ from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
 from distill.pipeline.synthesis.corpus import (
     has_corpus_synthesis_inputs,
+    has_two_pass_synthesis_inputs,
     synthesize_corpus,
     synthesize_corpus_from_claims,
 )
@@ -70,6 +71,24 @@ def test_has_corpus_synthesis_inputs_matches_single_pass_boundaries(tmp_path):
     (channel_dir / "synthesis.md").write_text("# Channel", encoding="utf-8")
 
     assert has_corpus_synthesis_inputs(topic, config)
+
+
+def test_has_two_pass_synthesis_inputs_discovers_nested_source_insights(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+
+    assert not has_two_pass_synthesis_inputs(topic, config)
+
+    insight = (
+        config.topic_dir(topic) / "repos" / "owner" / "project" / "nested" / "project_Insights.md"
+    )
+    insight.parent.mkdir(parents=True, exist_ok=True)
+    insight.write_text(
+        "---\nsource_id: owner/project\n---\n\nRepository insight.\n",
+        encoding="utf-8",
+    )
+
+    assert has_two_pass_synthesis_inputs(topic, config)
 
 
 def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesis(tmp_path):

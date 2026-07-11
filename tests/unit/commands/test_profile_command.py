@@ -15,6 +15,8 @@ from distill.pipeline.profile_preview import (
     ProfilePreviewCandidate,
     ProfilePreviewResult,
     ProfilePreviewWarning,
+    command_shell_label,
+    command_text,
 )
 from distill.pipeline.profile_run import (
     CommandExecution,
@@ -391,12 +393,84 @@ class TestProfilePreviewHuman:
             lambda *args, **kwargs: (config, profile_path, _preview_result()),
         )
 
-        result = runner.invoke(cli.app, ["profile", "preview", str(profile_path)])
+        result = runner.invoke(
+            cli.app,
+            ["profile", "preview", str(profile_path)],
+            terminal_width=200,
+        )
 
         assert result.exit_code == 0
         assert "Profile Preview" in result.output
+        assert (
+            command_text(
+                ["distill", "latest", "long running agent loops", "--topic", "agent-loops"]
+            )
+            in result.output
+        )
+        assert f"Commands ({command_shell_label()})" in result.output
         assert "Agent loops query" in result.output
         assert "feed unreachable" in result.output
+
+    def test_renders_untrusted_titles_commands_and_warnings_as_literal_text(
+        self, tmp_path, monkeypatch
+    ):
+        config = _config(tmp_path)
+        profile_path = _write_profile(tmp_path)
+        preview = ProfilePreviewResult(
+            schema_version="profile-preview.v1",
+            profile="[bold]profile[/bold]",
+            topic="agent-loops",
+            cost_mode="no-metered",
+            ordering="published_desc",
+            fresh_item_limit=1,
+            candidates=[
+                ProfilePreviewCandidate(
+                    kind="query",
+                    title="[red]literal title[/red]",
+                    url="",
+                    source="queries",
+                    source_label="[blue]literal source[/blue]",
+                    command=[
+                        "distill",
+                        "latest",
+                        "[brackets] & $budget; `tick",
+                        "--topic",
+                        "agent-loops",
+                    ],
+                )
+            ],
+            warnings=[
+                ProfilePreviewWarning(
+                    source="[yellow]literal warning source[/yellow]",
+                    message="[green]literal warning[/green]",
+                )
+            ],
+        )
+        monkeypatch.setattr(_profile, "get_config", lambda: config)
+        monkeypatch.setattr(
+            _profile,
+            "_load_profile_preview",
+            lambda *args, **kwargs: (config, profile_path, preview),
+        )
+
+        result = runner.invoke(
+            cli.app,
+            ["profile", "preview", str(profile_path)],
+            terminal_width=200,
+        )
+
+        assert result.exit_code == 0
+        assert "[bold]profile[/bold]" in result.output
+        assert "[red]literal title[/red]" in result.output
+        assert "[blue]" in result.output
+        assert "[/blue]" in result.output
+        assert "literal" in result.output
+        assert "source" in result.output
+        assert "[brackets]" in result.output
+        assert "$budget;" in result.output
+        assert "`tick" in result.output
+        assert "[yellow]literal warning source[/yellow]" in result.output
+        assert "[green]literal warning[/green]" in result.output
 
     def test_validation_error_human(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -476,6 +550,13 @@ class TestProfileRunHuman:
 
         assert result.exit_code == 0
         assert "Profile Run" in result.output
+        assert f"Commands ({command_shell_label()})" in result.output
+        assert (
+            command_text(
+                ["distill", "latest", "long running agent loops", "--topic", "agent-loops"]
+            )
+            in result.output
+        )
         assert "Preview only" in result.output
         assert "Re-run with --yes" in result.output
 

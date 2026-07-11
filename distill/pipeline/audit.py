@@ -420,6 +420,19 @@ def _sidecar_flags(data: dict[str, Any], artifact_path: str) -> list[VerifyFlag]
     return flags
 
 
+def _checked_claim_count(data: dict[str, Any]) -> int:
+    """Return positive claim coverage across the numeric and entailment tiers."""
+
+    def positive_int(value: object) -> int:
+        return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 0
+
+    total = positive_int(data.get("checked"))
+    entailment = _json_object(data.get("entailment"))
+    if entailment is not None:
+        total += positive_int(entailment.get("checked"))
+    return total
+
+
 def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
     """Every synthesis artifact a topic can carry, with its verify-sidecar
     identity: ``(artifact_path, sidecar_dir-relative artifact label, identity)``.
@@ -456,7 +469,13 @@ def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
 def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[VerifyFlag]] | None:
     """Read one ``_Verify.json`` sidecar. Returns ``(is_clean, flags)`` or
     ``None`` when the file is absent/unreadable/not an object -- the caller
-    counts ``None`` as never-checked (parse-don't-crash over local state)."""
+    counts ``None`` as unverified (parse-don't-crash over local state).
+
+    A parseable sidecar is clean only when at least one numeric or entailment
+    claim was actually checked. Zero-check sidecars provide no verification
+    coverage and therefore return ``None`` rather than a false clean result.
+    Existing flags still take precedence over a malformed zero count.
+    """
     if not sidecar.exists():
         return None
     try:
@@ -467,6 +486,8 @@ def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[VerifyFlag]] | 
     if parsed is None:
         return None
     flags = _sidecar_flags(parsed, label)
+    if not flags and _checked_claim_count(parsed) == 0:
+        return None
     return (not flags, flags)
 
 
@@ -474,10 +495,10 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     """Roll up ``_Verify.json`` sidecars across a topic's insight directories.
 
     One sidecar per source directory (written beside the insight). Sidecars
-    that fail to parse count as never-checked rather than crashing the audit
-    (parse-don't-crash over corruptible local state). Synthesis artifacts are
-    swept too (their sidecars are keyed by the writer's identity), counted
-    separately from insights.
+    that fail to parse or record zero checked claims count as unverified rather
+    than crashing the audit or appearing verified clean (parse-don't-crash over
+    corruptible local state). Synthesis artifacts are swept too (their sidecars
+    are keyed by the writer's identity), counted separately from insights.
     """
     insights = discover_insights(topic_dir)
     checked = 0
@@ -640,19 +661,21 @@ def _verify_section(report: AuditReport) -> list[str]:
         "## Verification coverage",
         "",
         f"- Insights: {report.verify.insights_total} | verified clean: {report.verify.clean} | "
-        f"flagged: {len(report.verify.flagged)} | never checked: {report.verify.never_checked}",
+        f"flagged: {len(report.verify.flagged)} | unverified/no checked claims: "
+        f"{report.verify.unverified}",
     ]
     if report.verify.synthesis_total:
         lines.append(
             f"- Syntheses: {report.verify.synthesis_total} | verified clean: "
-            f"{report.verify.synthesis_clean} | never checked: "
-            f"{report.verify.synthesis_never_checked} (syntheses are verified against "
+            f"{report.verify.synthesis_clean} | unverified/no checked claims: "
+            f"{report.verify.synthesis_unverified} (syntheses are verified against "
             "their own inputs at write time; pre-0.13 syntheses re-check on regeneration)"
         )
-    if report.verify.never_checked:
+    if report.verify.unverified or report.verify.synthesis_unverified:
         lines.append(
-            "- Never-checked insights predate the verify hook (or used `--verify off`); "
-            "re-analysis will produce sidecars."
+            "- Unverified artifacts have no readable sidecar or no claims checked by either "
+            "verification tier. A sidecar with zero checked claims is coverage metadata, "
+            "not a passing result."
         )
     if report.verify.flagged:
         lines += [

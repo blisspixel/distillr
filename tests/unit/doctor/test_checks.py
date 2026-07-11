@@ -33,6 +33,61 @@ def test_doctor_validate_key_rejects_unknown_provider() -> None:
         checks.doctor_validate_key("unknown", DistillConfig())
 
 
+def test_no_metered_skips_live_key_validation_before_client_or_network_work(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+
+    class _ForbiddenClient:
+        def __init__(self, *args, **kwargs) -> None:
+            del args, kwargs
+            calls.append("client")
+            raise AssertionError("provider client must not be constructed")
+
+    def _forbidden_post(*args, **kwargs) -> None:
+        del args, kwargs
+        calls.append("post")
+        raise AssertionError("provider network must not be called")
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=_ForbiddenClient))
+    monkeypatch.setitem(
+        sys.modules,
+        "google",
+        types.SimpleNamespace(genai=types.SimpleNamespace(Client=_ForbiddenClient)),
+    )
+    monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(post=_forbidden_post))
+
+    config = DistillConfig(
+        xai_api_key="xai-key",
+        gemini_api_key="gemini-key",
+        anthropic_api_key="anthropic-key",
+        openai_api_key="openai-key",
+        distill_cost_mode="no-metered",
+    )
+
+    for provider in ("xai", "gemini", "anthropic", "openai"):
+        status, detail = checks.doctor_validate_key(provider, config)
+        assert status == "skipped"
+        assert "Route blocked by no-metered cost policy" in detail
+        assert provider in detail
+
+    assert calls == []
+
+
+def test_no_metered_preserves_missing_key_status_without_live_validation() -> None:
+    config = DistillConfig(
+        xai_api_key="",
+        gemini_api_key="",
+        anthropic_api_key="",
+        openai_api_key="",
+        distill_cost_mode="no-metered",
+    )
+
+    assert checks.doctor_validate_key("xai", config) == ("missing", "")
+    for provider in ("gemini", "anthropic", "openai"):
+        assert checks.doctor_validate_key(provider, config) == ("not_set", "")
+
+
 def test_doctor_validate_xai_key_success_uses_configured_analysis_model(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
 

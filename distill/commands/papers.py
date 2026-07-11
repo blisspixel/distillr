@@ -9,6 +9,10 @@ during the decomposition. Registered via register().
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from typing import cast
+
 import typer
 
 import distill.cli_shared as cli_shared
@@ -32,6 +36,7 @@ from distill.commands._learning import (
     expand_paper_queries,
 )
 from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
+from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import (
     fetch_arxiv_paper,
     search_arxiv_multi,
@@ -39,11 +44,14 @@ from distill.ingestors.papers.arxiv import (
 )
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.costs import BudgetExceededError, estimate_paper_workflow_cost
 from distill.pipeline.ranking import rerank_papers
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
-from distill.pipeline.synthesis.corpus import synthesize_corpus
+from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
 
 __all__ = ["paper", "papers", "register"]
 
@@ -53,15 +61,53 @@ _expand_paper_queries = expand_paper_queries
 _resolve_intent = resolve_intent
 
 
+def _nonempty(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
+def _paper_tail_calls(topic: str, config: DistillConfig) -> int:
+    """One paper synthesis plus a corpus call only when mixed inputs require it."""
+    return 1 + int(has_corpus_synthesis_inputs(topic, config))
+
+
+def _completed_paper_artifacts(
+    config: DistillConfig,
+    topic: str,
+    paper_id: str,
+) -> tuple[Path, Path, Path] | None:
+    """Return receipts for an exact arXiv version, never a versionless match."""
+    papers_dir = config.papers_dir(topic)
+    if not papers_dir.exists():
+        return None
+    for metadata_path in sorted(papers_dir.glob("*/metadata.json")):
+        try:
+            raw_metadata: object = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(raw_metadata, dict):
+            continue
+        metadata = cast("dict[str, object]", raw_metadata)
+        if metadata.get("paper_id") != paper_id:
+            continue
+        paper_dir = metadata_path.parent
+        paper_path = find_artifact(paper_dir, "paper")
+        insights_path = find_artifact(paper_dir, "insights")
+        if _nonempty(paper_path) and _nonempty(insights_path):
+            return paper_dir, paper_path, insights_path
+    return None
+
+
 def paper(
     target: str = typer.Argument(help="arXiv paper URL or paper ID"),
     topic: str = typer.Option("papers", "--topic", "-t", help="Topic to file under"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Reanalyze even when this exact arXiv version already has complete artifacts.",
+    ),
 ):
-    """Ingest and analyze a single arXiv paper."""
+    """Ingest and analyze one arXiv version, reusing an exact completed replay."""
     config = get_config()
-    projected_cost = estimate_paper_workflow_cost(1, synthesis_calls=2)
-    enforce_projected_workflow_budget(config, "paper", projected_cost)
-    _require_model()
     tracker = budgeted_cost_tracker(config, "paper")
     summary = RunSummary(command="paper")
     summary.set_metadata(topic=topic, workflow="paper", source_type="paper")
@@ -75,8 +121,32 @@ def paper(
     console.print(f"\n[bold]{paper_record.title}[/bold]")
     if paper_record.authors:
         console.print(f"[dim]{', '.join(paper_record.authors[:6])}[/dim]")
+
+    completed = _completed_paper_artifacts(config, topic, paper_record.paper_id)
+    if completed is not None and not force:
+        _paper_dir, paper_path, insights_path = completed
+        console.print(
+            "[dim]Already complete for this exact arXiv version. Reusing existing "
+            "artifacts; pass --force to reanalyze.[/dim]"
+        )
+        console.print(f"  paper           {paper_path.relative_to(config.library_dir)}")
+        console.print(f"  insights        {insights_path.relative_to(config.library_dir)}")
+        return
+
+    router_config = RouterConfig()
+    projected_cost = estimate_paper_workflow_cost(
+        1,
+        synthesis_calls=_paper_tail_calls(topic, config),
+        router_config=router_config,
+    )
+    enforce_projected_workflow_budget(config, "paper", projected_cost)
+    summary.estimated_cost = projected_cost
+    _require_model()
     insights, document = analyze_paper(
-        paper_record, config, tracker=tracker, intent=_resolve_intent(config, topic)
+        paper_record,
+        config,
+        tracker=tracker,
+        intent=_resolve_intent(config, topic),
     )
     paper_dir = _write_paper_artifacts(topic, paper_record, config, insights, document)
     summary.add_output(find_artifact(paper_dir, "paper"))
@@ -158,8 +228,13 @@ def papers(  # noqa: C901 — legacy, will refactor
 
     config = get_config()
     topic_name = topic or _topic_from_query(query)
+    router_config = RouterConfig()
     if not preview:
-        projected_limit_cost = estimate_paper_workflow_cost(max(0, limit), synthesis_calls=2)
+        projected_limit_cost = estimate_paper_workflow_cost(
+            max(0, limit),
+            synthesis_calls=_paper_tail_calls(topic_name, config),
+            router_config=router_config,
+        )
         enforce_projected_workflow_budget(config, "papers", projected_limit_cost)
     _require_model()
     tracker = budgeted_cost_tracker(config, "papers")
@@ -257,8 +332,13 @@ def papers(  # noqa: C901 — legacy, will refactor
         return
 
     records = [item.paper for item in ranked]
-    projected_cost = estimate_paper_workflow_cost(len(records), synthesis_calls=2)
+    projected_cost = estimate_paper_workflow_cost(
+        len(records),
+        synthesis_calls=_paper_tail_calls(topic_name, config),
+        router_config=router_config,
+    )
     enforce_projected_workflow_budget(config, "papers", projected_cost)
+    summary.estimated_cost = projected_cost
 
     _display_ranked_papers(ranked, title="Selected Papers")
     console.print()
@@ -270,10 +350,13 @@ def papers(  # noqa: C901 — legacy, will refactor
         console.print(progress.item_line("analyze", record.title))
         try:
             insights, document = analyze_paper(
-                record, config, tracker=tracker, intent=_resolve_intent(config, topic_name)
+                record,
+                config,
+                tracker=tracker,
+                intent=_resolve_intent(config, topic_name),
             )
             paper_dir = _write_paper_artifacts(topic_name, record, config, insights, document)
-        except BudgetExceededError:
+        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
             raise  # the spend cap is a hard stop, never a per-item issue
         except Exception as exc:
             console.print(f"  [red]failed: {exc}[/red]")

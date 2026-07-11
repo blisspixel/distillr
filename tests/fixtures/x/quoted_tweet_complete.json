@@ -1,0 +1,50 @@
+{
+  "user": {
+    "screen_name": "gallabytes",
+    "name": "Galla",
+    "verified": false
+  },
+  "text": "This quoted post is useful context for agent development harnesses.",
+  "lang": "en",
+  "favorite_count": 23,
+  "conversation_count": 4,
+  "created_at": "2026-07-11T12:30:00.000Z",
+  "quoted_tweet": {
+    "created_at": "2026-03-13T08:05:00.000Z",
+    "display_text_range": [
+      0,
+      268
+    ],
+    "edit_control": {
+      "edit_tweet_ids": [
+        "2032727335074722216"
+      ],
+      "editable_until_msecs": "0",
+      "is_edit_eligible": false,
+      "edits_remaining": "0"
+    },
+    "entities": {
+      "hashtags": [],
+      "symbols": [],
+      "urls": [],
+      "user_mentions": []
+    },
+    "favorite_count": 149,
+    "id_str": "2032727335074722216",
+    "isEdited": false,
+    "isStaleEdit": false,
+    "lang": "en",
+    "reply_count": 12,
+    "retweet_count": 18,
+    "text": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh",
+    "user": {
+      "id_str": "33836629",
+      "name": "François Chollet",
+      "screen_name": "fchollet",
+      "is_blue_verified": true,
+      "profile_image_shape": "Circle",
+      "verified": false,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/example_normal.jpg"
+    }
+  }
+}

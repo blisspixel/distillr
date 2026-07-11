@@ -6,16 +6,21 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.ingestors.x.syndication import TweetRecord
-from distill.library.paths import extract_frontmatter
+from distill.library.paths import apply_frontmatter, atomic_write_text, extract_frontmatter
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis.tweet import (
     IngestedTweet,
     _expanded_vocabulary_hint,
+    _link_preview_context,
     _media_summary,
+    _quoted_post_context,
     _source_text_hint,
     _tweet_markdown,
+    _tweet_source_content_hash,
     _vocabulary_hint,
     _x_post_dir,
     analyze_tweet,
@@ -74,6 +79,15 @@ def test_source_text_hint_skips_duplicate_note() -> None:
 def test_source_text_hint_handles_missing_fields() -> None:
     hint = _source_text_hint(_tweet(author_name="", author_handle="", text=""))
     assert hint == ""
+
+
+def test_source_content_hash_ignores_counts_but_detects_post_edits() -> None:
+    original = _tweet(like_count=10, reply_count=2)
+    new_counts = _tweet(like_count=999, reply_count=88)
+    edited = _tweet(text="Edited source text", like_count=999, reply_count=88)
+
+    assert _tweet_source_content_hash(original) == _tweet_source_content_hash(new_counts)
+    assert _tweet_source_content_hash(original) != _tweet_source_content_hash(edited)
 
 
 def test_expanded_vocabulary_hint_calls_llm() -> None:
@@ -186,6 +200,88 @@ def test_tweet_markdown_handles_note_body() -> None:
     assert "longer body" in md
 
 
+def test_tweet_markdown_renders_partial_capture_and_link_preview() -> None:
+    tweet = _tweet(
+        text="https://t.co/article-only",
+        link_preview_type="x_article",
+        link_preview_title="Designing durable agent queues",
+        link_preview_description="A practical look at leases and retries.",
+        link_preview_domain="x.com",
+        link_preview_url="https://x.com/i/article/12345",
+        capture_status="partial",
+        capture_warning="The full article body was not captured.",
+    )
+
+    context = _link_preview_context(tweet)
+    md = _tweet_markdown(tweet, "")
+
+    assert "## Capture status" in md
+    assert "Partial: The full article body was not captured." in md
+    assert "## Link Preview" in md
+    assert "not the full linked page" in md
+    assert context in md
+    assert "- Type: X Article preview" in context
+    assert "- Title: Designing durable agent queues" in context
+
+
+def test_tweet_markdown_renders_card_preview_without_partial_warning() -> None:
+    md = _tweet_markdown(
+        _tweet(
+            link_preview_type="card",
+            link_preview_title="A card title",
+            link_preview_url="https://example.org/card",
+        ),
+        "",
+    )
+
+    assert "- Type: Card preview" in md
+    assert "- URL: https://example.org/card" in md
+    assert "## Capture status" not in md
+
+
+def test_tweet_markdown_partial_capture_has_safe_fallback_warning() -> None:
+    md = _tweet_markdown(_tweet(capture_status="partial", capture_warning=""), "")
+    assert "Partial: The full source body was not captured." in md
+
+
+def test_tweet_markdown_renders_complete_quoted_post_as_separate_receipt() -> None:
+    tweet = _tweet(
+        quoted_tweet_status="available",
+        quoted_tweet_id="2032727335074722216",
+        quoted_tweet_url="https://x.com/fchollet/status/2032727335074722216",
+        quoted_tweet_author_name="François Chollet",
+        quoted_tweet_author_handle="fchollet",
+        quoted_tweet_text="A quoted post about reliable agent harnesses.",
+    )
+
+    context = _quoted_post_context(tweet)
+    md = _tweet_markdown(tweet, "")
+
+    assert "## Quoted Post" in md
+    assert context in md
+    assert "- Author: François Chollet (@fchollet)" in context
+    assert "A quoted post about reliable agent harnesses." in context
+    assert "not available" not in context
+    assert "## Capture status" not in md
+
+
+def test_tweet_markdown_makes_missing_quoted_text_explicit() -> None:
+    tweet = _tweet(
+        quoted_tweet_status="partial",
+        quoted_tweet_id="91",
+        quoted_tweet_url="https://x.com/i/status/91",
+        capture_status="partial",
+        capture_warning="The quoted-post text was not captured.",
+    )
+
+    context = _quoted_post_context(tweet)
+    md = _tweet_markdown(tweet, "")
+
+    assert "## Quoted Post" in md
+    assert "(not available in the public syndication payload)" in context
+    assert context in md
+
+
 def test_tweet_markdown_lists_photos() -> None:
     md = _tweet_markdown(_tweet(photo_urls=["https://x/a.jpg", "https://x/b.jpg"]), "")
     assert "## Attached photos" in md
@@ -240,6 +336,88 @@ def test_analyze_tweet_records_cost(tmp_path: Path) -> None:
     assert tracker.entries[0].call_type == "x_tweet"
 
 
+def test_x_analysis_uses_analysis_workload_model_environment(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    monkeypatch.setenv("DISTILL_ANALYSIS_MODEL", "qwen2.5:14b")
+    monkeypatch.setenv("DISTILL_MODEL", "")
+    monkeypatch.setenv("DISTILL_SITE_MODEL", "")
+    resolved: list[tuple[str, str, str]] = []
+
+    def fake_llm(rc: Any, workload_tag: str, prompt: str, **kwargs: Any) -> LLM_Response:
+        provider, model = rc.resolve(workload_tag)
+        resolved.append((workload_tag, provider, model))
+        return LLM_Response(text="analysis", input_tokens=10, output_tokens=5, model=model)
+
+    with patch("distill.pipeline.analysis.tweet.llm_call", fake_llm):
+        analyze_tweet(_tweet(), config=config)
+        _expanded_vocabulary_hint(_tweet(video_url="https://x/video.mp4"))
+
+    assert resolved == [
+        ("analysis", "ollama", "qwen2.5:14b"),
+        ("analysis", "ollama", "qwen2.5:14b"),
+    ]
+
+
+def test_analyze_tweet_passes_rendered_preview_and_capture_warning_to_prompt(
+    tmp_path: Path,
+) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    captured: dict[str, str] = {}
+    tweet = _tweet(
+        text="https://t.co/article-only",
+        link_preview_type="x_article",
+        link_preview_title="Designing durable agent queues",
+        link_preview_description="A practical look at leases and retries.",
+        capture_status="partial",
+        capture_warning="The full article body was not captured.",
+    )
+
+    def fake_llm(config: Any, workload_tag: str, prompt: str, **kwargs: Any) -> LLM_Response:
+        captured["prompt"] = prompt
+        return LLM_Response(text="analysis", input_tokens=10, output_tokens=5, model="local")
+
+    with patch("distill.pipeline.analysis.tweet.llm_call", fake_llm):
+        analyze_tweet(tweet, config=config)
+
+    receipt = _tweet_markdown(tweet, "")
+    preview_context = _link_preview_context(tweet)
+    assert preview_context in receipt
+    assert preview_context in captured["prompt"]
+    assert tweet.capture_warning in receipt
+    assert tweet.capture_warning in captured["prompt"]
+    assert "[Link Preview]" in captured["prompt"]
+
+
+def test_analyze_tweet_passes_exact_quoted_post_receipt_to_prompt(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    captured: dict[str, str] = {}
+    tweet = _tweet(
+        quoted_tweet_status="available",
+        quoted_tweet_id="2032727335074722216",
+        quoted_tweet_url="https://x.com/fchollet/status/2032727335074722216",
+        quoted_tweet_author_name="François Chollet",
+        quoted_tweet_author_handle="fchollet",
+        quoted_tweet_text="A quoted post about reliable agent harnesses.",
+    )
+
+    def fake_llm(config: Any, workload_tag: str, prompt: str, **kwargs: Any) -> LLM_Response:
+        captured["prompt"] = prompt
+        return LLM_Response(text="analysis", input_tokens=10, output_tokens=5, model="local")
+
+    with patch("distill.pipeline.analysis.tweet.llm_call", fake_llm):
+        analyze_tweet(tweet, config=config)
+
+    receipt = _tweet_markdown(tweet, "")
+    quoted_context = _quoted_post_context(tweet)
+    assert quoted_context in receipt
+    assert quoted_context in captured["prompt"]
+    assert "[Quoted Post]" in captured["prompt"]
+
+
 # ---------------------------------------------------------------------------
 # ingest_tweet (mocking fetch + transcribe + LLM)
 # ---------------------------------------------------------------------------
@@ -273,6 +451,341 @@ def test_ingest_tweet_skip_analyze(tmp_path: Path) -> None:
             "https://x.com/alice/status/12345", topic="t", config=config, analyze=False
         )
     assert result.insights_path is None
+
+
+def test_raw_only_video_replay_reuses_transcript_and_force_retranscribes(
+    tmp_path: Path,
+) -> None:
+    from distill.ingestors.transcribe import TranscriptionResult
+
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    tweet = _tweet(video_url="https://video.twimg.com/test.mp4", video_duration_ms=1000)
+
+    def fake_download(url: str, dest: Path, **kwargs: Any) -> Path:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"video")
+        return dest
+
+    transcription = TranscriptionResult(
+        text="raw-only transcript",
+        provider="faster-whisper",
+        model="large-v3",
+    )
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch("distill.pipeline.analysis.tweet.download_video", side_effect=fake_download),
+        patch("distill.pipeline.analysis.tweet._vocabulary_hint", return_value="Alice"),
+        patch("distill.pipeline.analysis.tweet.transcribe_media", return_value=transcription),
+    ):
+        first = ingest_tweet(tweet.url, topic="t", config=config, analyze=False)
+
+    assert first.transcript_path is not None
+    before = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (first.tweet_path, first.transcript_path)
+    }
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch("distill.pipeline.analysis.tweet.download_video") as download,
+        patch("distill.pipeline.analysis.tweet._vocabulary_hint") as vocabulary,
+        patch("distill.pipeline.analysis.tweet.transcribe_media") as transcribe_media,
+    ):
+        replay = ingest_tweet(tweet.url, topic="t", config=config, analyze=False)
+
+    assert replay.reused is True
+    assert replay.insights_path is None
+    assert replay.transcript_path == first.transcript_path
+    download.assert_not_called()
+    vocabulary.assert_not_called()
+    transcribe_media.assert_not_called()
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (first.tweet_path, first.transcript_path)
+    } == before
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch("distill.pipeline.analysis.tweet.download_video") as forced_download,
+        patch("distill.pipeline.analysis.tweet._vocabulary_hint", return_value="Alice"),
+        patch(
+            "distill.pipeline.analysis.tweet.transcribe_media",
+            return_value=transcription,
+        ) as forced_transcribe,
+    ):
+        forced = ingest_tweet(
+            tweet.url,
+            topic="t",
+            config=config,
+            analyze=False,
+            force=True,
+        )
+
+    assert forced.reused is False
+    forced_download.assert_not_called()
+    forced_transcribe.assert_called_once()
+
+
+def test_raw_only_replay_detects_edited_post_content(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    original = _tweet(text="original raw text")
+    edited = _tweet(text="edited raw text")
+    with patch(
+        "distill.pipeline.analysis.tweet.fetch_tweet",
+        side_effect=[original, edited],
+    ):
+        ingest_tweet(original.url, topic="t", config=config, analyze=False)
+        refreshed = ingest_tweet(edited.url, topic="t", config=config, analyze=False)
+
+    assert refreshed.reused is False
+    assert "edited raw text" in refreshed.tweet_path.read_text(encoding="utf-8")
+    assert extract_frontmatter(refreshed.tweet_path.read_text(encoding="utf-8"))[
+        "content_hash"
+    ] == _tweet_source_content_hash(edited)
+
+
+def test_ingest_tweet_reanalyzes_when_same_post_id_has_edited_content(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    original = _tweet(text="Original source text")
+    edited = _tweet(text="Edited source text")
+    llm_calls = 0
+
+    def fake_llm(config: Any, workload_tag: str, prompt: str, **kwargs: Any) -> LLM_Response:
+        nonlocal llm_calls
+        llm_calls += 1
+        return LLM_Response(
+            text=f"analysis {llm_calls}",
+            input_tokens=10,
+            output_tokens=5,
+            model="local",
+        )
+
+    with (
+        patch(
+            "distill.pipeline.analysis.tweet.fetch_tweet",
+            side_effect=[original, edited],
+        ),
+        patch("distill.pipeline.analysis.tweet.llm_call", fake_llm),
+    ):
+        first = ingest_tweet(original.url, topic="t", config=config)
+        second = ingest_tweet(edited.url, topic="t", config=config)
+
+    assert llm_calls == 2
+    assert second.reused is False
+    assert second.tweet_path == first.tweet_path
+    assert "Edited source text" in second.tweet_path.read_text(encoding="utf-8")
+
+
+def test_ingest_tweet_force_reanalyzes_unchanged_content(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    tweet = _tweet()
+    llm_calls = 0
+
+    def fake_llm(config: Any, workload_tag: str, prompt: str, **kwargs: Any) -> LLM_Response:
+        nonlocal llm_calls
+        llm_calls += 1
+        return LLM_Response(text="analysis", input_tokens=10, output_tokens=5, model="local")
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch("distill.pipeline.analysis.tweet.llm_call", fake_llm),
+    ):
+        ingest_tweet(tweet.url, topic="t", config=config)
+        result = ingest_tweet(tweet.url, topic="t", config=config, force=True)
+
+    assert llm_calls == 2
+    assert result.reused is False
+
+
+def test_ingest_tweet_migrates_matching_legacy_pair_without_model_call(
+    tmp_path: Path,
+) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    original = _tweet(like_count=10, reply_count=2)
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=original),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm("legacy insight")),
+    ):
+        first = ingest_tweet(original.url, topic="t", config=config)
+
+    assert first.insights_path is not None
+    for path in (first.tweet_path, first.insights_path):
+        atomic_write_text(
+            path,
+            apply_frontmatter(path.read_text(encoding="utf-8"), {"content_hash": ""}),
+        )
+    changed_counts = _tweet(like_count=999, reply_count=88)
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=changed_counts),
+        patch("distill.pipeline.analysis.tweet.llm_call") as model_call,
+    ):
+        migrated = ingest_tweet(changed_counts.url, topic="t", config=config)
+
+    assert migrated.reused is True
+    assert "legacy requested artifacts" in migrated.skipped_reasons[0]
+    model_call.assert_not_called()
+    receipt_hash = extract_frontmatter(migrated.tweet_path.read_text(encoding="utf-8"))[
+        "content_hash"
+    ]
+    insight_hash = extract_frontmatter(migrated.insights_path.read_text(encoding="utf-8"))[
+        "content_hash"
+    ]
+    assert receipt_hash == insight_hash == _tweet_source_content_hash(changed_counts)
+
+
+def test_ingest_tweet_failed_analysis_clears_pair_commit_and_retries(
+    tmp_path: Path,
+) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    tweet = _tweet()
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm("old insight")),
+    ):
+        first = ingest_tweet(tweet.url, topic="t", config=config)
+
+    assert first.insights_path is not None
+    # Reproduce the interrupted migration shape from the live run: the receipt
+    # carries the new hash while its stale insight does not.
+    atomic_write_text(
+        first.insights_path,
+        apply_frontmatter(
+            first.insights_path.read_text(encoding="utf-8"),
+            {"content_hash": ""},
+        ),
+    )
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch(
+            "distill.pipeline.analysis.tweet.llm_call",
+            side_effect=RuntimeError("model unavailable"),
+        ) as failed_call,
+        pytest.raises(RuntimeError, match="model unavailable"),
+    ):
+        ingest_tweet(tweet.url, topic="t", config=config)
+
+    failed_call.assert_called_once()
+    assert "content_hash" not in extract_frontmatter(first.tweet_path.read_text(encoding="utf-8"))
+    assert "content_hash" not in extract_frontmatter(
+        first.insights_path.read_text(encoding="utf-8")
+    )
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=tweet),
+        patch(
+            "distill.pipeline.analysis.tweet.llm_call",
+            side_effect=_fake_llm("recovered"),
+        ) as retry,
+    ):
+        recovered = ingest_tweet(tweet.url, topic="t", config=config)
+
+    assert recovered.reused is False
+    retry.assert_called_once()
+    recovered_hash = _tweet_source_content_hash(tweet)
+    assert (
+        extract_frontmatter(recovered.tweet_path.read_text(encoding="utf-8"))["content_hash"]
+        == recovered_hash
+    )
+    assert recovered.insights_path is not None
+    assert (
+        extract_frontmatter(recovered.insights_path.read_text(encoding="utf-8"))["content_hash"]
+        == recovered_hash
+    )
+
+
+def test_ingest_tweet_persists_partial_capture_status_in_receipt(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    article_tweet = _tweet(
+        text="https://t.co/article-only",
+        link_preview_type="x_article",
+        link_preview_title="Designing durable agent queues",
+        link_preview_description="A practical look at leases and retries.",
+        capture_status="partial",
+        capture_warning="The full article body was not captured.",
+    )
+
+    with patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=article_tweet):
+        result = ingest_tweet(
+            "https://x.com/alice/status/12345",
+            topic="t",
+            config=config,
+            analyze=False,
+        )
+
+    receipt = result.tweet_path.read_text(encoding="utf-8")
+    frontmatter = extract_frontmatter(receipt)
+    assert frontmatter["capture_status"] == "partial"
+    assert frontmatter["has_link_preview"] == "true"
+    assert "## Link Preview" in receipt
+    assert article_tweet.capture_warning in receipt
+
+
+def test_ingest_tweet_strict_verify_grounds_link_preview_claims_against_receipt(
+    tmp_path: Path,
+) -> None:
+    config = DistillConfig(
+        xai_api_key="x",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="strict",
+    )
+    article_tweet = _tweet(
+        text="https://t.co/article-only",
+        link_preview_type="x_article",
+        link_preview_title="Testing 99 verifier loops",
+        capture_status="partial",
+        capture_warning="The full article body was not captured.",
+    )
+    insight = "## Key Claims\n\n- [Link Preview] The preview describes 99 verifier loops."
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=article_tweet),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm(insight)),
+    ):
+        result = ingest_tweet(
+            "https://x.com/alice/status/12345",
+            topic="t",
+            config=config,
+        )
+
+    assert result.insights_path is not None
+    assert not any("refused" in reason for reason in result.skipped_reasons)
+
+
+def test_ingest_tweet_persists_and_strictly_grounds_quoted_post(tmp_path: Path) -> None:
+    config = DistillConfig(
+        xai_api_key="x",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="strict",
+    )
+    quoted_tweet = _tweet(
+        quoted_tweet_status="available",
+        quoted_tweet_id="101",
+        quoted_tweet_url="https://x.com/source/status/101",
+        quoted_tweet_author_name="Source Author",
+        quoted_tweet_author_handle="source",
+        quoted_tweet_text="The harness completed 77 verifier loops.",
+    )
+    insight = "## Key Claims\n\n- [Quoted Post] The harness completed 77 verifier loops."
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=quoted_tweet),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm(insight)),
+    ):
+        result = ingest_tweet(
+            "https://x.com/alice/status/12345",
+            topic="t",
+            config=config,
+        )
+
+    assert result.insights_path is not None
+    receipt = result.tweet_path.read_text(encoding="utf-8")
+    frontmatter = extract_frontmatter(receipt)
+    assert frontmatter["quoted_post_status"] == "available"
+    assert frontmatter["has_quoted_post"] == "true"
+    assert frontmatter["quoted_post_id"] == "101"
+    assert "## Quoted Post" in receipt
+    assert not any("refused" in reason for reason in result.skipped_reasons)
 
 
 def test_ingest_tweet_video_pipeline_with_mocks(tmp_path: Path) -> None:
@@ -369,3 +882,45 @@ def test_ingest_tweet_transcription_failure_is_recorded_and_does_not_crash(tmp_p
     assert "no provider available" in result.skipped_reasons[0]
     # Insights still produced from tweet text alone
     assert result.insights_path is not None
+
+
+def test_ingest_tweet_budget_crossing_in_video_pipeline_stops_later_work(
+    tmp_path: Path,
+) -> None:
+    import pytest
+
+    from distill.pipeline.costs import BudgetExceededError, CostTracker
+
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    video_tweet = _tweet(video_url="https://video.twimg.com/test.mp4", video_duration_ms=1000)
+    tracker = CostTracker(budget=0.0)
+
+    def _fake_download(url: str, dest: Path, **kwargs: Any) -> Path:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"x")
+        return dest
+
+    def _cross_budget(*args: Any, **kwargs: Any) -> Any:
+        kwargs["tracker"].record_transcription("openai", 3600.0)
+        raise AssertionError("record_transcription should have raised")
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=video_tweet),
+        patch("distill.pipeline.analysis.tweet.download_video", side_effect=_fake_download),
+        patch("distill.pipeline.analysis.tweet._vocabulary_hint", return_value="Alice"),
+        patch(
+            "distill.pipeline.analysis.tweet.transcribe_media", side_effect=_cross_budget
+        ) as mock_transcribe,
+        patch("distill.pipeline.analysis.tweet.llm_call") as mock_analysis,
+        pytest.raises(BudgetExceededError),
+    ):
+        ingest_tweet(
+            "https://x.com/alice/status/12345",
+            topic="t",
+            config=config,
+            tracker=tracker,
+        )
+
+    assert mock_transcribe.call_count == 1
+    assert mock_analysis.call_count == 0
+    assert len(tracker.transcriptions) == 1

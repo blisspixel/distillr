@@ -36,13 +36,13 @@ from distill.claims.exports import (
 )
 from distill.claims.extract import extract_claims_from_insight
 from distill.claims.records import Claim, utcnow_iso
-from distill.library.insights import discover_insights
+from distill.library.insights import InsightRef, discover_insights
 from distill.llm import RouterConfig
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ClaimsSummary", "run_claims"]
+__all__ = ["ClaimsSummary", "pending_claim_extraction_count", "run_claims"]
 
 # Cap on insights extracted in a single run. Two-pass synthesis runs one paid LLM
 # call per pending insight, and it is reachable from the MCP ``synthesize`` tool
@@ -57,6 +57,32 @@ _DEFAULT_MAX_INSIGHTS_PER_RUN = 250
 def _max_insights_per_run() -> int:
     raw = os.environ.get("DISTILL_CLAIMS_MAX_INSIGHTS", "").strip()
     return int(raw) if raw.isdigit() else _DEFAULT_MAX_INSIGHTS_PER_RUN
+
+
+def _pending_claim_refs(
+    topic_dir: Path,
+    *,
+    refresh: bool = False,
+) -> tuple[list[InsightRef], list[InsightRef], int]:
+    """Return all refs, this run's bounded pending refs, and the uncapped count."""
+    refs = discover_insights(topic_dir)
+    seen = (
+        set[str]()
+        if refresh
+        else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
+    )
+    pending = [ref for ref in refs if ref.source_id not in seen]
+    uncapped_count = len(pending)
+    cap = _max_insights_per_run()
+    if cap:
+        pending = pending[:cap]
+    return refs, pending, uncapped_count
+
+
+def pending_claim_extraction_count(topic_dir: Path) -> int:
+    """Return the claim extraction calls the next two-pass run will make."""
+    _, pending, _ = _pending_claim_refs(topic_dir)
+    return len(pending)
 
 
 @dataclass
@@ -110,35 +136,24 @@ def run_claims(
     Returns a ``ClaimsSummary`` of what was scanned, extracted, and added.
     """
     summary = ClaimsSummary(topic=topic)
-    refs = discover_insights(topic_dir)
+    refs, pending, uncapped_count = _pending_claim_refs(topic_dir, refresh=refresh)
     summary.insights_scanned = len(refs)
     if not refs:
         logger.info("No _Insights.md found under %s", topic_dir)
         return summary
 
     timestamp = now_iso or utcnow_iso()
-    # Skip insights already extracted. Union the claim rows with the
-    # extracted-sources ledger so a source that produced zero claims (no row in
-    # claims.jsonl) is still recognized as done and not re-extracted every run.
-    seen = (
-        set[str]()
-        if refresh
-        else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
-    )
-    pending = [r for r in refs if r.source_id not in seen]
     # Bound per-run spend: process at most _max_insights_per_run() insights, the
     # rest fall to the next run (they stay pending via the extracted-sources
     # ledger, so nothing is lost -- only batched).
-    cap = _max_insights_per_run()
-    if cap and len(pending) > cap:
+    if len(pending) < uncapped_count:
         logger.warning(
             "Claim extraction capping at %d of %d pending insights for %s "
             "(set DISTILL_CLAIMS_MAX_INSIGHTS=0 to disable); the rest extract next run.",
-            cap,
             len(pending),
+            uncapped_count,
             topic,
         )
-        pending = pending[:cap]
     summary.insights_extracted = len(pending)
 
     new_claims: list[Claim] = []
@@ -154,6 +169,8 @@ def run_claims(
                 tracker=tracker,
                 now_iso=timestamp,
             )
+        except BudgetExceededError:
+            raise
         except Exception as exc:
             logger.warning("Claim extraction failed for %s: %s", ref.path, exc)
             continue

@@ -37,6 +37,7 @@ from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.browser_search import search_youtube_results
 from distill.ingestors.youtube.discovery import VideoInfo, enrich_videos
 from distill.library.paths import find_artifact
+from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import CostTracker, load_cost_calibration
@@ -160,6 +161,7 @@ def _discover_sizing_flow(
         video_limit=video_limit,
         site_limit=site_limit,
         calibration=load_cost_calibration(config.library_dir),
+        router_config=RouterConfig(),
     )
     if not options:
         console.print(

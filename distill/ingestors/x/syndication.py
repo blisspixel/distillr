@@ -67,6 +67,26 @@ class TweetRecord:
     video_duration_ms: int = 0
     # Optional long-form ("note tweet") body if present.
     note_text: str = ""
+    # Public syndication exposes preview metadata for X Articles and cards,
+    # but not necessarily the linked body.
+    link_preview_type: str = ""
+    link_preview_title: str = ""
+    link_preview_description: str = ""
+    link_preview_domain: str = ""
+    link_preview_url: str = ""
+    # A complete top-level ``quoted_tweet`` is a distinct source receipt, not
+    # just an opaque link. ``partial`` means only its reference was supplied.
+    quoted_tweet_status: str = "none"
+    quoted_tweet_id: str = ""
+    quoted_tweet_url: str = ""
+    quoted_tweet_author_name: str = ""
+    quoted_tweet_author_handle: str = ""
+    quoted_tweet_text: str = ""
+    # ``partial`` means syndication identified a note, X Article, or quoted
+    # post whose source text was not present. It never means that Distill
+    # fetched or inferred the missing content.
+    capture_status: str = "complete"
+    capture_warning: str = ""
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @property
@@ -80,6 +100,21 @@ class TweetRecord:
     @property
     def has_video(self) -> bool:
         return bool(self.video_url)
+
+    @property
+    def has_link_preview(self) -> bool:
+        return any(
+            (
+                self.link_preview_title,
+                self.link_preview_description,
+                self.link_preview_domain,
+                self.link_preview_url,
+            )
+        )
+
+    @property
+    def has_quoted_post(self) -> bool:
+        return self.quoted_tweet_status != "none"
 
     @property
     def published_iso(self) -> str:
@@ -155,6 +190,184 @@ def fetch_tweet(url_or_id: str, *, timeout: float = 20.0) -> TweetRecord:
     return _record_from_payload(tweet_id, data)
 
 
+def _binding_string(value: object) -> str:
+    """Return a string from either syndication card binding shape."""
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, dict):
+        return ""
+    direct = value.get("string_value")
+    if isinstance(direct, str):
+        return direct
+    nested = value.get("value")
+    if isinstance(nested, str):
+        return nested
+    if isinstance(nested, dict):
+        nested_string = nested.get("string_value")
+        if isinstance(nested_string, str):
+            return nested_string
+    return ""
+
+
+def _card_binding_items(bindings: object) -> list[tuple[object, object]]:
+    if isinstance(bindings, dict):
+        return list(bindings.items())
+    if isinstance(bindings, list):
+        return [
+            (binding.get("key"), binding.get("value"))
+            for binding in bindings
+            if isinstance(binding, dict)
+        ]
+    return []
+
+
+def _card_preview(data: dict[str, Any]) -> dict[str, str]:
+    card = data.get("card")
+    if not isinstance(card, dict):
+        return {}
+    bindings = card.get("binding_values")
+    values: dict[str, str] = {}
+    for key, value in _card_binding_items(bindings):
+        if not isinstance(key, str):
+            continue
+        text = _binding_string(value)
+        if text:
+            values[key.casefold()] = text
+    preview = {
+        "title": values.get("title", ""),
+        "description": values.get("description", ""),
+        "domain": values.get("domain", ""),
+        "url": values.get("card_url", ""),
+    }
+    return preview if any(preview.values()) else {}
+
+
+def _article_preview(data: dict[str, Any]) -> tuple[bool, dict[str, str]]:
+    article = data.get("article")
+    if not isinstance(article, dict) or not article:
+        return False, {}
+
+    candidates: list[dict[str, Any]] = []
+    article_results = article.get("article_results")
+    if isinstance(article_results, dict):
+        result = article_results.get("result")
+        if isinstance(result, dict):
+            candidates.append(result)
+    direct_result = article.get("result")
+    if isinstance(direct_result, dict):
+        candidates.append(direct_result)
+    candidates.append(article)
+
+    def first_string(*keys: str) -> str:
+        for candidate in candidates:
+            for key in keys:
+                value = candidate.get(key)
+                if isinstance(value, str) and value:
+                    return value
+        return ""
+
+    return True, {
+        "title": first_string("title"),
+        "description": first_string("preview_text", "description"),
+        "domain": first_string("domain"),
+        "url": first_string("article_url", "url"),
+    }
+
+
+def _note_tweet_text(data: dict[str, Any]) -> tuple[bool, str]:
+    """Return whether a note exists and its full body when syndication supplied it."""
+
+    note_tweet = data.get("note_tweet")
+    if not isinstance(note_tweet, dict) or not note_tweet:
+        return False, ""
+
+    direct_text = note_tweet.get("text")
+    if isinstance(direct_text, str) and direct_text:
+        return True, direct_text
+
+    note_results = note_tweet.get("note_tweet_results")
+    if not isinstance(note_results, dict):
+        return True, ""
+    result = note_results.get("result")
+    if not isinstance(result, dict):
+        return True, ""
+    text = result.get("text")
+    return True, text if isinstance(text, str) else ""
+
+
+def _quoted_tweet_fields(data: dict[str, Any]) -> dict[str, str]:
+    quoted = data.get("quoted_tweet")
+    top_level_id = data.get("quoted_tweet_id_str") or data.get("quoted_tweet_id")
+    if not isinstance(quoted, dict):
+        quote_id = str(quoted or top_level_id or "")
+        return (
+            {
+                "status": "partial",
+                "id": quote_id,
+                "url": f"https://x.com/i/status/{quote_id}",
+            }
+            if quote_id
+            else {"status": "none"}
+        )
+    if not quoted:
+        quote_id = str(top_level_id or "")
+        return (
+            {
+                "status": "partial",
+                "id": quote_id,
+                "url": f"https://x.com/i/status/{quote_id}",
+            }
+            if quote_id
+            else {"status": "none"}
+        )
+
+    user = quoted.get("user")
+    if not isinstance(user, dict):
+        user = {}
+    quote_id = str(
+        quoted.get("id_str") or quoted.get("rest_id") or quoted.get("id") or top_level_id or ""
+    )
+    author_handle = str(user.get("screen_name") or "")
+    explicit_url = quoted.get("url")
+    quote_url = str(explicit_url) if isinstance(explicit_url, str) else ""
+    if not quote_url and quote_id:
+        quote_url = (
+            f"https://x.com/{author_handle}/status/{quote_id}"
+            if author_handle
+            else f"https://x.com/i/status/{quote_id}"
+        )
+    text = quoted.get("text")
+    short_text = text if isinstance(text, str) else ""
+    has_note, note_text = _note_tweet_text(quoted)
+    quote_text = note_text or short_text
+    capture_warning = ""
+    if has_note and not note_text:
+        text_detail = (
+            "The 280-character quoted-post text below is the available receipt, not the "
+            "complete note."
+            if len(short_text) == 280
+            else "The quoted-post text below is the available receipt, not the complete note."
+        )
+        capture_warning = (
+            "Public syndication identified a long-form note in the quoted post but did not "
+            f"provide its full body. {text_detail}"
+        )
+    elif not quote_text:
+        capture_warning = (
+            "Public syndication identified a quoted post but did not provide its text. Only "
+            "the quoted-post reference metadata below was captured."
+        )
+    return {
+        "status": "partial" if capture_warning else "available",
+        "id": quote_id,
+        "url": quote_url,
+        "author_name": str(user.get("name") or ""),
+        "author_handle": author_handle,
+        "text": quote_text,
+        "capture_warning": capture_warning,
+    }
+
+
 def _record_from_payload(tweet_id: str, data: dict[str, Any]) -> TweetRecord:
     user = data.get("user") or {}
     handle = str(user.get("screen_name") or "")
@@ -193,12 +406,39 @@ def _record_from_payload(tweet_id: str, data: dict[str, Any]) -> TweetRecord:
 
     # note_tweet (long-form) sometimes carries the full text where the
     # primary `text` field is truncated.
-    note_text = ""
-    note_tweet = data.get("note_tweet")
-    if isinstance(note_tweet, dict):
-        note_results = note_tweet.get("note_tweet_results") or {}
-        result = note_results.get("result") or {}
-        note_text = str(result.get("text") or "")
+    has_note_tweet, note_text = _note_tweet_text(data)
+
+    card_preview = _card_preview(data)
+    has_article, article_preview = _article_preview(data)
+    quoted_tweet = _quoted_tweet_fields(data)
+    preview = {
+        key: article_preview.get(key) or card_preview.get(key) or ""
+        for key in ("title", "description", "domain", "url")
+    }
+
+    capture_limitations: list[str] = []
+    has_unavailable_note = has_note_tweet and not note_text
+    if has_unavailable_note:
+        text_detail = (
+            "The 280-character Tweet text below is the available receipt, not the complete note."
+            if len(str(data.get("text") or "")) == 280
+            else "The Tweet text below is the available receipt, not the complete note."
+        )
+        capture_limitations.append(
+            "Public syndication identified a long-form note but did not provide its full body. "
+            + text_detail
+        )
+    if has_article:
+        capture_limitations.append(
+            "Public syndication provided X Article preview metadata only; the full article body "
+            "was not captured."
+        )
+    if quoted_tweet["status"] == "partial":
+        capture_limitations.append(
+            quoted_tweet.get("capture_warning")
+            or "Public syndication identified a quoted post but did not provide its text. Only "
+            "the quoted-post reference metadata below was captured."
+        )
 
     return TweetRecord(
         tweet_id=tweet_id,
@@ -216,5 +456,18 @@ def _record_from_payload(tweet_id: str, data: dict[str, Any]) -> TweetRecord:
         video_poster=video_poster,
         video_duration_ms=video_duration_ms,
         note_text=note_text,
+        link_preview_type="x_article" if has_article else ("card" if card_preview else ""),
+        link_preview_title=preview["title"],
+        link_preview_description=preview["description"],
+        link_preview_domain=preview["domain"],
+        link_preview_url=preview["url"],
+        quoted_tweet_status=quoted_tweet["status"],
+        quoted_tweet_id=quoted_tweet.get("id", ""),
+        quoted_tweet_url=quoted_tweet.get("url", ""),
+        quoted_tweet_author_name=quoted_tweet.get("author_name", ""),
+        quoted_tweet_author_handle=quoted_tweet.get("author_handle", ""),
+        quoted_tweet_text=quoted_tweet.get("text", ""),
+        capture_status="partial" if capture_limitations else "complete",
+        capture_warning=" ".join(capture_limitations),
         raw=data,
     )

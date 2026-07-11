@@ -108,10 +108,13 @@ def test_claude_command_plan_records_read_only_argv_but_stays_blocked():
         "text",
         "--output-format",
         "json",
+        "--permission-mode",
+        "plan",
         "--tools",
         "",
         "--no-session-persistence",
     )
+    assert "--max-turns" not in plan.argv
     assert plan.stdin_path == "prompt.md"
     assert plan.schema_path == "schemas/result.json"
     assert plan.result_text_path == "result.txt"

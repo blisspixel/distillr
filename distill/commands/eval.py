@@ -270,7 +270,12 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         )
         console.print(f"\n[dim]Report written to {path}[/dim]")
 
-    save_run_log(config.library_dir, "eval", tracker)
+    save_run_log(
+        config.library_dir,
+        "eval",
+        tracker,
+        estimated_cost=est,
+    )
     console.print(f"[dim]Eval spend: {tracker.format_cost()}[/dim]")
 
 

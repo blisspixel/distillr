@@ -591,6 +591,8 @@ class TestCatchUp:
         assert estimates == [(4, 3)]
 
     def test_refuses_projected_catch_up_budget_before_processing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "catch-up=0.0001"
         _seed_watch(config)

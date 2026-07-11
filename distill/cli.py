@@ -170,15 +170,23 @@ def main() -> None:
     from distill.commands._json import (
         ExitCode,
         emit_json,
+        handle_cli_error,
         json_mode_active,
         map_exception_to_exit_code,
     )
+    from distill.llm.cost_policy import CostPolicyError
     from distill.llm.errors import describe_provider_error
     from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
 
     app.pretty_exceptions_enable = False
     try:
         app()
+    except CostPolicyError as exc:
+        if json_mode_active():
+            emit_json({"reason": "cost_policy_blocked"}, error=str(exc))
+        else:
+            console.print(f"\n[red]{exc}[/red]")
+        raise SystemExit(int(ExitCode.CONFIG_ERROR)) from exc
     except BudgetExceededError as exc:
         if json_mode_active():
             payload: dict[str, object] = {
@@ -197,6 +205,8 @@ def main() -> None:
         message = describe_provider_error(exc)
         if message is None:
             raise
+        if json_mode_active():
+            raise SystemExit(handle_cli_error(exc, json_mode=True)) from exc
         console.print(f"\n[red]{message}[/red]")
         # Map to the documented exit-code taxonomy (3=config/bad key,
         # 4=network/timeout, ...) so an agent or loop can branch on the cause

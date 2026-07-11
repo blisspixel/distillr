@@ -214,6 +214,57 @@ def test_inventory_counts_mixed_sources_and_skips_non_directories(tmp_path: Path
     assert inv["latest_video_date"] is not None
 
 
+def test_inventory_and_gaps_include_direct_channels_and_x_insights(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    for channel, video_id in (("Direct A", "v1"), ("Direct B", "v2")):
+        _write_video(
+            cfg,
+            "direct-topic",
+            channel,
+            video_id,
+            insights="substantive " * 100,
+            transcript="transcript",
+        )
+    _write_artifact(
+        cfg.paper_dir("direct-topic", "Paper", "2602.12670"),
+        "insights",
+        "# paper",
+    )
+    x_post = cfg.topic_dir("direct-topic") / "x" / "researcher" / "posts" / "post-1"
+    _write_artifact(x_post, "insights", "# X insight")
+    (x_post.parent / "receipt-only").mkdir(parents=True)
+
+    inventory = topic_source_inventory(cfg, "direct-topic")
+    summary = topic_gap_summary(cfg, "direct-topic")
+
+    assert Library(cfg).get_channels("direct-topic") == []
+    assert inventory["channels"] == 2
+    assert inventory["videos"] == 2
+    assert inventory["x_posts"] == 1
+    assert inventory["active_source_types"] == ["youtube", "paper", "x"]
+    assert summary["channels"] == 2
+    assert summary["videos"] == 2
+    assert summary["x_posts"] == 1
+    assert not any("single-source" in gap for gap in summary["gaps"])
+
+
+def test_corpus_synthesis_satisfies_topic_synthesis_coverage(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    topic_dir = cfg.topic_dir("mixed-topic")
+    _write_artifact(
+        topic_dir,
+        "corpus_synthesis",
+        "# Mixed-source synthesis",
+        identity="mixed-topic",
+    )
+
+    summary = topic_gap_summary(cfg, "mixed-topic")
+
+    assert "topic_synthesis" in summary["missing_artifacts"]
+    assert "Topic synthesis has not been generated yet." not in summary["gaps"]
+    assert not any("resynthesize_topic" in action for action in summary["next_actions"])
+
+
 def test_topic_gap_summary_reports_mixed_source_and_video_gaps(tmp_path: Path):
     cfg = _cfg(tmp_path)
     lib = Library(cfg)

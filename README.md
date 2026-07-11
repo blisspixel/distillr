@@ -8,7 +8,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-> Point distill at a research goal; it finds the papers, talks, repos, podcasts, and posts worth reading, analyzes each into structured insights with source receipts, verifies the claims against those receipts before writing, and synthesizes across them into a durable plain-Markdown corpus on your disk. You browse it in Obsidian, your agents read it as files or query it over MCP, you ask it questions and the cited answers can re-enter the corpus - and it refreshes on a cadence instead of going stale.
+> Point distill at a research goal; it finds papers, talks, and pages from operator-trusted sites worth reading, and it captures supplied repos, podcasts, feeds, posts, and local files. It analyzes each into structured insights with source receipts, verifies the claims against those receipts before writing, and synthesizes across them into a durable plain-Markdown corpus on your disk. You browse it in Obsidian, your agents read it as files or query it over MCP, you ask it questions and the cited answers can re-enter the corpus - and it refreshes on a cadence instead of going stale.
 
 *Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI command is `distill` (plus `distill-mcp`).*
 
@@ -18,7 +18,7 @@ distill init
 distill papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
-That one command searches arXiv, downloads 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this (illustrative run; see the labelled sample-output note below):
+That one command searches arXiv, selects and downloads up to 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this (illustrative run; see the labelled sample-output note below):
 
 ```
 Papers: temporal knowledge graph
@@ -46,7 +46,7 @@ Three kinds of tools orbit this space, and distill is deliberately none of them:
 
 - **Deep Research oracles** (ChatGPT, Gemini, Perplexity) are excellent at one-shot answers - and the work evaporates after each session. No corpus, no receipts you can re-check, nothing that compounds. Distill is the engine under that pattern: every run leaves transcripts, extracted paper text, per-source insights, and cross-source synthesis on disk, refreshable on a cadence.
 - **Grounded notebooks** (NotebookLM) keep a persistent corpus, but in a silo: you find and feed the sources by hand, and the corpus exports to Google Docs/Sheets only. Distill *finds* the sources against your goal, and the corpus is plain files you own.
-- **LLM-wiki maintainers** (the post-Karpathy wave of agent-curated Markdown vaults) assume you already have the content and tidy it. Distill is the acquisition half they leave out - goal-aware discovery across papers, videos, sites, and X, transcript-grade capture, and provenance on every claim - producing exactly the kind of vault those tools maintain.
+- **LLM-wiki maintainers** (the post-Karpathy wave of agent-curated Markdown vaults) assume you already have the content and tidy it. Distill is the acquisition half they leave out - goal-aware discovery across papers, videos, and operator-trusted sites, direct ingestion for X and other supplied sources, transcript-grade capture, and provenance on every claim - producing exactly the kind of vault those tools maintain.
 - **Academic literature tools** (Elicit, Semantic Scholar, scite, Consensus) are stronger for pure paper search, citation graphs, and systematic review. Distill treats papers as one source type inside a broader corpus that also holds talks, vendor docs, and posts.
 
 The short version: those are **report and search layers**; distill is the **corpus layer underneath repeated research** - capture, per-source insights, cross-source synthesis, refresh, receipts. And plain Markdown is the substrate, not the moat: anyone can write Markdown. The moat is the acquisition-and-maintenance loop that fills it and keeps it current.
@@ -342,7 +342,7 @@ Distillr is built for two parallel agent-integration paths:
 { "mcpServers": { "distill": { "command": "distill-mcp" } } }
 ```
 
-Distill exposes 27 tools, deliberately kept small and shrinking toward
+Distill exposes a compact tool set, deliberately kept small and shrinking toward
 workflow-shaped tools. The JIT read layer returns ranked
 `path`/`preview`/`score` tuples with `read_insight` drill-down, never full
 payloads by default; `ask` answers questions grounded only in the corpus, with

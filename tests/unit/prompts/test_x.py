@@ -63,6 +63,52 @@ def test_prompt_media_summary_appended() -> None:
     assert "video clip, 30s" in out
 
 
+def test_prompt_labels_link_preview_and_partial_capture() -> None:
+    warning = "The full article body was not captured."
+    preview = "- Type: X Article preview\n- Title: Durable agent queues"
+    out = _prompt(
+        tweet_text="https://t.co/article-only",
+        link_preview=preview,
+        capture_status="partial",
+        capture_warning=warning,
+    )
+
+    assert "LINK PREVIEW" in out
+    assert preview in out
+    assert "[Link Preview]" in out
+    assert "CAPTURE STATUS:" in out
+    assert f"Partial: {warning}" in out
+    assert "not the full linked page" in out
+    assert "do not complete" in out
+
+
+def test_prompt_complete_capture_without_preview_omits_optional_blocks() -> None:
+    out = _prompt(capture_status="complete")
+    assert "LINK PREVIEW (" not in out
+    assert "CAPTURE STATUS:" not in out
+
+
+def test_prompt_partial_capture_has_safe_fallback_warning() -> None:
+    out = _prompt(capture_status="partial", capture_warning="")
+    assert "Partial: The full source body was not captured." in out
+
+
+def test_prompt_labels_quoted_post_as_distinct_attributed_source() -> None:
+    quoted = (
+        "- Author: François Chollet (@fchollet)\n"
+        "- Post ID: 2032727335074722216\n\n"
+        "Text:\nQuoted source text"
+    )
+    out = _prompt(quoted_post=quoted)
+
+    assert "QUOTED POST (distinct source material" in out
+    assert quoted in out
+    assert "[Quoted Post]" in out
+    assert "Attribute [Quoted Post] claims to the quoted author" in out
+    assert "does not by\n  itself establish" in out
+    assert "quoted-post text" in out
+
+
 def test_prompt_emphasizes_no_invention_rule() -> None:
     out = _prompt()
     assert "CRITICAL RULES" in out

@@ -375,8 +375,9 @@ def test_paper_path_records_to_tracker():
             passes=PAPER_ANALYSIS_PASSES,
             tracker=tracker,
         )
+        assert mock_plan.call_args.kwargs["tracker"] is tracker
         # The record line (tracker if) was exercised for the pass that had chunks
-        assert len(tracker.entries) >= 0  # executed path
+        assert len(tracker.entries) == 1
 
 
 def test_merge_paper_uses_no_match_output_sections_fallback():

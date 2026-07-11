@@ -7,14 +7,16 @@ Override with OLLAMA_BASE_URL environment variable.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
+from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.retry import is_permanent_error
 from distill.llm.router import LLM_Response
 
@@ -31,11 +33,24 @@ _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
     "gemma4",
 )
 
+_CONTENTION_INITIAL_BACKOFF_SECONDS = 1.0
+_CONTENTION_MAX_BACKOFF_SECONDS = 10.0
+_RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
+
 
 def _is_thinking_model(model: str) -> bool:
     """Check if a model supports thinking mode."""
     model_lower = model.lower()
     return any(model_lower.startswith(prefix) for prefix in _THINKING_MODEL_PREFIXES)
+
+
+def _canonical_model_name(model: str) -> str:
+    """Normalize an Ollama model reference for running-model comparisons."""
+    normalized = model.strip().casefold()
+    final_component = normalized.rsplit("/", 1)[-1]
+    if ":" not in final_component and "@" not in final_component:
+        return f"{normalized}:latest"
+    return normalized
 
 
 def _wants_json_output(prompt: str) -> bool:
@@ -99,6 +114,8 @@ class OllamaProvider:
         The final answer (message.content) is returned as the response text.
         Retries on transient errors with exponential backoff (base 2s, factor 2).
         """
+        await self._wait_for_model_slot(model, timeout)
+
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:
@@ -137,6 +154,114 @@ class OllamaProvider:
 
         assert last_error is not None  # nosec B101
         raise last_error
+
+    async def _wait_for_model_slot(self, model: str, timeout: int) -> None:
+        """Wait until Ollama is free or already has the requested model loaded.
+
+        Ollama may unload a running model to satisfy a request for another one,
+        which can disrupt an unrelated local workload and make this call appear
+        to hang during model loading. Poll ``/api/ps`` with bounded backoff so
+        the configured model remains explicit. The call timeout is also the
+        maximum contention wait. Older or unavailable ``/api/ps`` endpoints
+        preserve the previous behavior and let the normal call proceed.
+        """
+        wait_limit = max(float(timeout), 0.0)
+        deadline = time.monotonic() + wait_limit
+        backoff = _CONTENTION_INITIAL_BACKOFF_SECONDS
+        first_wait = True
+        last_running: tuple[str, ...] | None = None
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if last_running is not None and remaining <= 0:
+                raise ProviderBusyTimeoutError(
+                    provider="Ollama",
+                    requested_model=model,
+                    active_models=last_running,
+                    timeout_seconds=wait_limit,
+                )
+
+            running = await self._running_model_names(max(remaining, 0.0))
+            if (
+                running is None
+                or not running
+                or any(
+                    _canonical_model_name(model) == _canonical_model_name(running_model)
+                    for running_model in running
+                )
+            ):
+                return
+
+            last_running = running
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderBusyTimeoutError(
+                    provider="Ollama",
+                    requested_model=model,
+                    active_models=running,
+                    timeout_seconds=wait_limit,
+                )
+
+            active = ", ".join(running)
+            sleep_for = min(backoff, remaining)
+            if first_wait:
+                logger.warning(
+                    "Ollama is running %s; waiting up to %gs for requested model '%s'. "
+                    "No model will be substituted.",
+                    active,
+                    wait_limit,
+                    model,
+                )
+                first_wait = False
+            logger.info(
+                "Ollama is still running %s; checking again in %.1fs (%.1fs remaining)",
+                active,
+                sleep_for,
+                remaining,
+            )
+            await asyncio.sleep(sleep_for)
+            backoff = min(backoff * 2, _CONTENTION_MAX_BACKOFF_SECONDS)
+
+    async def _running_model_names(self, probe_timeout: float) -> tuple[str, ...] | None:
+        """Return models reported by ``/api/ps``, or ``None`` when unavailable."""
+        request_timeout = max(
+            min(_RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS, probe_timeout),
+            0.001,
+        )
+        try:
+            async with httpx.AsyncClient(timeout=request_timeout) as client:
+                response = await client.get(f"{self._base_url}/api/ps")
+                response.raise_for_status()
+                data = cast(object, response.json())
+            if not isinstance(data, dict):
+                raise ValueError("Ollama /api/ps response is not an object")
+            data_dict = cast(dict[object, object], data)
+            if "models" not in data_dict:
+                raise ValueError("Ollama /api/ps response has no model list")
+            raw_models = data_dict["models"]
+            if not isinstance(raw_models, list):
+                raise ValueError("Ollama /api/ps response has no model list")
+
+            names: set[str] = set()
+            for raw_model in cast(list[object], raw_models):
+                if not isinstance(raw_model, dict):
+                    continue
+                model_data = cast(dict[object, object], raw_model)
+                name: object = None
+                if "name" in model_data:
+                    name = model_data["name"]
+                elif "model" in model_data:
+                    name = model_data["model"]
+                if isinstance(name, str) and name:
+                    names.add(name)
+            return tuple(sorted(names))
+        except (httpx.HTTPError, TypeError, ValueError) as exc:
+            logger.debug(
+                "Could not inspect Ollama running models through /api/ps: %s. "
+                "Continuing with the normal call path.",
+                _describe_ollama_error(exc),
+            )
+            return None
 
     @staticmethod
     def _build_chat_payload(

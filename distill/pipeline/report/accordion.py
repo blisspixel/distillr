@@ -26,13 +26,23 @@ from distill.library.paths import (
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.call import LLMCall
+from distill.llm.cost_policy import require_route_allowed
 from distill.llm.retry import retry_with_backoff
 from distill.llm.router import RouterConfig
 from distill.pipeline.citation_refs import (
     unresolved_numbered_citation_reason as _unresolved_numbered_citation_reason,
 )
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.pipeline.report._interactions import await_interaction, interaction_text
+from distill.pipeline.report.accordion_qa import (
+    extract_section_feedback as _extract_section_feedback,
+)
+from distill.pipeline.report.accordion_qa import (
+    normalize_qa_title as _normalize_qa_title,
+)
+from distill.pipeline.report.accordion_qa import (
+    parse_qa_failures as _parse_qa_failures,
+)
 from distill.pipeline.report.deep_research import _get_report_path
 from distill.pipeline.report.file_search import create_research_store, delete_store
 from distill.pipeline.summary import BatchProgress
@@ -74,6 +84,11 @@ def run_accordion_research(
     skip_qa: bool = False,
 ) -> str | None:
     """Run the full accordion pipeline: research -> sections -> assembly -> QA."""
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="report",
+    )
     phase_total = 1 if dossier_only else 3 if skip_qa else 4
     phase_progress = BatchProgress("report", phase_total, tracker)
 
@@ -250,6 +265,11 @@ def _run_dossier_phase(
     tracker: CostTracker | None = None,
 ) -> str | None:
     """Run Gemini Deep Research with File Search grounding to produce a structured fact dossier."""
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="report",
+    )
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 
     console.print("[cyan]Preparing research corpus...[/cyan]")
@@ -296,6 +316,8 @@ def _run_dossier_phase(
 
         return result_text
 
+    except BudgetExceededError:
+        raise
     except Exception as e:
         console.print(f"[red]Deep Research error: {e}[/red]")
         return None
@@ -307,7 +329,7 @@ def _run_dossier_phase(
 # ─── Phase 2: Section Writing ────────────────────────────────────────
 
 
-def _write_sections(
+def _write_sections(  # noqa: C901 - sequential section orchestration and failure gates
     topic: str,
     config: DistillConfig,
     dossier: str,
@@ -421,6 +443,7 @@ def _write_sections(
                 max_retries=3,
                 base_delay=2.0,
                 jitter_fraction=0.5,
+                is_permanent=lambda exc: isinstance(exc, BudgetExceededError),
                 on_retry=_on_retry,
             )
             latency_ms = int((time.monotonic() - start_time) * 1000)
@@ -443,6 +466,8 @@ def _write_sections(
                     attempt_count,
                     extra={"llm_call": success_call.to_dict()},
                 )
+        except BudgetExceededError:
+            raise
         except Exception as e:
             latency_ms = int((time.monotonic() - start_time) * 1000)
             # Log final failure LLMCall
@@ -532,6 +557,8 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
         qa_result = qa_response.text
         if tracker:
             tracker.record(TokenUsage.from_response(qa_response, call_type="qa_review"))
+    except BudgetExceededError:
+        raise
     except Exception:
         qa_result = ""
 
@@ -604,6 +631,8 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
                 tracker.record(
                     TokenUsage.from_response(fix_response, call_type=f"fix:{title[:25]}")
                 )
+        except BudgetExceededError:
+            raise
         except Exception:
             rewrite = ""
 
@@ -633,70 +662,6 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
             console.print(progress.status_line("failed"))
 
     return written_sections, rewrote
-
-
-def _normalize_qa_title(title: str) -> str:
-    """Normalize a section title for matching QA output to written sections.
-
-    QA models echo titles imperfectly -- leading list numbering, '&' vs 'and',
-    a trailing verdict, case differences. Matching on a normalized key keeps a
-    failed section from being silently skipped (never rewritten) on cosmetic
-    drift between the QA output and the canonical section title.
-    """
-    s = re.sub(r"^\s*\d+[.)]\s*", "", title.strip().lower())
-    s = s.replace("&", " and ")
-    s = re.sub(r"[^a-z0-9]+", " ", s)
-    return s.strip()
-
-
-def _parse_qa_failures(qa_result: str) -> list[str]:
-    """Extract section titles that scored FAIL from QA output."""
-    failed: list[str] = []
-    current_section: str | None = None
-
-    for line in qa_result.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("### "):
-            # Reset on every header so a stray 'FAIL' in prose after a PASS is
-            # not mis-attributed to the previous section.
-            header = stripped[4:].strip()
-            current_section = None if header == "OVERALL" else header
-            continue
-        if current_section is None:
-            continue
-        # Only the section's own score line decides the verdict, not a "FAIL"
-        # mention buried in prose. Strip a real leading list marker only (not
-        # the '**' of **Score** itself), then require the line to be the score.
-        marker = re.sub(r"^(?:[-*+]\s+|\d+[.)]\s+)", "", stripped)
-        if marker.startswith("**Score**"):
-            if "FAIL" in marker.upper():
-                failed.append(current_section)
-            current_section = None
-
-    return failed
-
-
-def _extract_section_feedback(qa_result: str) -> dict[str, str]:
-    """Extract per-section feedback text from QA output."""
-    feedback: dict[str, str] = {}
-    lines = qa_result.split("\n")
-    current_section: str | None = None
-    current_lines: list[str] = []
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("### "):
-            if current_section and current_lines:
-                feedback[current_section] = "\n".join(current_lines)
-            current_section = stripped[4:].strip()
-            current_lines = []
-        elif current_section:
-            current_lines.append(line)
-
-    if current_section and current_lines:
-        feedback[current_section] = "\n".join(current_lines)
-
-    return feedback
 
 
 def _assemble_report(

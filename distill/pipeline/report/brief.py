@@ -25,6 +25,7 @@ from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
+from distill.llm.cost_policy import require_route_allowed
 from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
@@ -186,6 +187,12 @@ def run_research_brief(
     if not config.gemini_api_key:
         console.print("[red]GEMINI_API_KEY not set in .env[/red]")
         return None
+
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="research-brief",
+    )
 
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 

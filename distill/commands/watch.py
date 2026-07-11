@@ -48,7 +48,9 @@ from distill.library import Library
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
-from distill.pipeline.costs import estimate_video_workflow_cost
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
+from distill.pipeline.costs import BudgetExceededError, estimate_routed_video_workflow_cost
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
@@ -258,6 +260,8 @@ def watch_add(
                     auto = generate_watch_instructions(name, titles, config)
                     if auto and auto.strip():
                         instructions = auto.strip()
+            except (CostPolicyError, ProviderBusyTimeoutError):
+                raise
             except Exception as exc:
                 console.print(f"  [yellow]auto-instructions skipped: {exc}[/yellow]")
 
@@ -455,7 +459,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
         # ── Process each video ────────────────────────────────
         scan_count = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
         short_count = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
-        projected_batch_cost = estimate_video_workflow_cost(
+        projected_batch_cost = estimate_routed_video_workflow_cost(
             scan_videos=scan_count,
             shorts=short_count,
             synthesis_calls=1,
@@ -507,6 +511,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
                     details={"topic": entry.topic, "channel": entry.name},
                     missing_message="No synthesis output written",
                 )
+            except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+                raise
             except Exception as e:
                 console.print(f"    [red]synthesis failed: {e}[/red]")
                 cli_shared.record_exception_issue(
@@ -542,6 +548,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
                     details={"topic": touched},
                     missing_message="No topic synthesis output written",
                 )
+            except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+                raise
             except Exception as e:
                 console.print(f"  [red]topic synthesis failed: {e}[/red]")
                 cli_shared.record_exception_issue(

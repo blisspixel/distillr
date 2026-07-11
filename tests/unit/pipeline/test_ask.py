@@ -223,8 +223,12 @@ def test_ask_command_wiring(config, monkeypatch):
     saved_run = {}
     monkeypatch.setattr(
         "distill.commands.ask.save_run_log",
-        lambda library_dir, command, tracker, metadata=None: saved_run.update(
-            {"command": command, "metadata": metadata}
+        lambda library_dir, command, tracker, estimated_cost=None, metadata=None: saved_run.update(
+            {
+                "command": command,
+                "estimated_cost": estimated_cost,
+                "metadata": metadata,
+            }
         ),
     )
     _llm(monkeypatch, GROUNDED)
@@ -236,6 +240,7 @@ def test_ask_command_wiring(config, monkeypatch):
     assert "Answer" in result.output
     assert saved_run == {
         "command": "ask",
+        "estimated_cost": 0.0,
         "metadata": {"topic": "t", "workflow": "ask", "source_type": "answer"},
     }
 

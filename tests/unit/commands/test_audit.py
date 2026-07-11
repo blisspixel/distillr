@@ -15,6 +15,7 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.freshness import SynthesisFreshness
 from distill.library.links import BrokenLink, LinkCheckResult
+from distill.library.paths import artifact_path
 from distill.pipeline.audit import (
     AuditReport,
     StalenessRollup,
@@ -46,6 +47,40 @@ def _seed_topic(config: DistillConfig, topic: str = "t") -> Path:
     lib.add_channel(topic, "https://www.youtube.com/@chan", "Chan")
     topic_dir = config.topic_dir(topic)
     topic_dir.mkdir(parents=True, exist_ok=True)
+    return topic_dir
+
+
+def _seed_direct_mixed_topic(config: DistillConfig, topic: str = "direct-topic") -> Path:
+    topic_dir = config.topic_dir(topic)
+    for index, channel in enumerate(("A", "B", "C", "D"), 1):
+        video_dir = config.video_dir(topic, f"Direct {channel}", f"v{index}")
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (video_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "video_id": f"v{index}",
+                    "title": f"Video {index}",
+                    "upload_date": "20260710",
+                    "duration": 600,
+                    "url": f"https://youtube.com/watch?v=v{index}",
+                }
+            ),
+            encoding="utf-8",
+        )
+        artifact_path(video_dir, "transcript", extension="txt").write_text(
+            "transcript",
+            encoding="utf-8",
+        )
+        artifact_path(video_dir, "insights").write_text(
+            "substantive " * 100,
+            encoding="utf-8",
+        )
+    paper_dir = config.paper_dir(topic, "Paper", "2601.00001")
+    paper_dir.mkdir(parents=True)
+    artifact_path(paper_dir, "insights").write_text("paper insight", encoding="utf-8")
+    x_dir = topic_dir / "x" / "author" / "posts" / "post-1"
+    x_dir.mkdir(parents=True)
+    artifact_path(x_dir, "insights").write_text("X insight", encoding="utf-8")
     return topic_dir
 
 
@@ -348,6 +383,24 @@ class TestAuditCommand:
         assert result.exit_code == 0
         assert (config.library_dir / "Library_Audit.md").exists()
         assert "Library:" in result.output
+
+    def test_audit_all_discovers_direct_mixed_topic(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        topic_dir = _seed_direct_mixed_topic(config)
+        monkeypatch.setattr(audit_mod, "get_config", lambda: config)
+
+        result = CliRunner().invoke(cli.app, ["audit", "all", "--report-only"])
+
+        assert result.exit_code == 0
+        assert "direct-topic" in result.output
+        report = artifact_path(topic_dir, "audit", identity="direct-topic").read_text(
+            encoding="utf-8"
+        )
+        assert "Only 4 processed video(s)" in report
+        assert "Only 0 processed video(s)" not in report
+        assert "effectively single-source" not in report
+        assert Library(config).get_topics() == []
+        assert Library(config).get_channels("direct-topic") == []
 
     def test_healthy_corpus_message(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

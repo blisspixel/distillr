@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -17,6 +18,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from distill.commands._json import ExitCode, map_exception_to_exit_code
+from distill.llm.errors import ProviderBusyTimeoutError, describe_provider_error
 from distill.llm.providers.ollama import OllamaProvider, _describe_ollama_error
 from distill.llm.router import LLM_Response
 
@@ -135,12 +138,18 @@ class _FakeStreamClient:
         stall_exc: Exception | None = None,
         captured: dict[str, Any] | None = None,
         on_stream: Callable[[], None] | None = None,
+        running_models: list[str] | None = None,
+        running_models_status_code: int = 200,
+        captured_urls: list[str] | None = None,
     ) -> None:
         self._frames = frames
         self._status_code = status_code
         self._stall_exc = stall_exc
         self._captured = captured
         self._on_stream = on_stream
+        self._running_models = running_models or []
+        self._running_models_status_code = running_models_status_code
+        self._captured_urls = captured_urls
 
     async def __aenter__(self) -> _FakeStreamClient:
         return self
@@ -167,7 +176,14 @@ class _FakeStreamClient:
         return httpx.Response(200, json={}, request=_STREAM_REQUEST)
 
     async def get(self, url: str) -> httpx.Response:
-        return httpx.Response(200, json={"models": []}, request=_STREAM_REQUEST)
+        if self._captured_urls is not None:
+            self._captured_urls.append(url)
+        models = [{"name": model} for model in self._running_models]
+        return httpx.Response(
+            self._running_models_status_code,
+            json={"models": models},
+            request=httpx.Request("GET", url),
+        )
 
 
 def _stream_client_factory(
@@ -177,6 +193,9 @@ def _stream_client_factory(
     stall_exc: Exception | None = None,
     captured: dict[str, Any] | None = None,
     on_stream: Callable[[], None] | None = None,
+    running_models: list[str] | None = None,
+    running_models_status_code: int = 200,
+    captured_urls: list[str] | None = None,
 ) -> Callable[..., _FakeStreamClient]:
     """Build a drop-in for ``patch("httpx.AsyncClient", ...)`` returning a stream client.
 
@@ -192,6 +211,9 @@ def _stream_client_factory(
             stall_exc=stall_exc,
             captured=captured,
             on_stream=on_stream,
+            running_models=running_models,
+            running_models_status_code=running_models_status_code,
+            captured_urls=captured_urls,
         )
 
     return _factory
@@ -482,6 +504,117 @@ class TestOllamaProviderRetry:
             pytest.raises(httpx.HTTPStatusError),
         ):
             asyncio.run(provider.call("llama3:8b", "hello", retries=1))
+
+
+class TestOllamaContention:
+    """A different running model causes a bounded wait, never substitution."""
+
+    def test_free_server_proceeds_without_waiting(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        captured_urls: list[str] = []
+        response = _make_generate_response(text="free")
+
+        with (
+            patch(
+                "httpx.AsyncClient",
+                _stream_client_factory(frames=[response], captured_urls=captured_urls),
+            ),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        ):
+            result = asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=30))
+
+        assert result.text == "free"
+        assert captured_urls == ["http://localhost:11434/api/ps"]
+        sleep.assert_not_awaited()
+
+    def test_requested_model_already_loaded_proceeds_without_waiting(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        response = _make_generate_response(text="same")
+
+        with (
+            patch(
+                "httpx.AsyncClient",
+                _stream_client_factory(
+                    frames=[response],
+                    running_models=["qwen3.5:latest"],
+                ),
+            ),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        ):
+            result = asyncio.run(provider.call("qwen3.5", "hello", timeout=30))
+
+        assert result.text == "same"
+        sleep.assert_not_awaited()
+
+    def test_different_model_waits_then_proceeds_when_free(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        availability = AsyncMock(side_effect=[("llama3:8b",), ()])
+        response = _make_generate_response(text="available")
+        caplog.set_level(logging.INFO, logger="distill.llm.providers.ollama")
+
+        with (
+            patch.object(provider, "_running_model_names", availability),
+            patch("httpx.AsyncClient", _stream_client_factory(frames=[response])),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        ):
+            result = asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=30))
+
+        assert result.text == "available"
+        assert availability.await_count == 2
+        sleep.assert_awaited_once_with(1.0)
+        assert "waiting up to 30s for requested model 'qwen3.5:27b'" in caplog.text
+        assert "No model will be substituted" in caplog.text
+
+    def test_different_model_timeout_is_actionable_and_classified(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        clock = [0.0]
+        sleeps: list[float] = []
+
+        async def advance_clock(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        with (
+            patch.object(
+                provider,
+                "_running_model_names",
+                AsyncMock(return_value=("llama3:8b",)),
+            ),
+            patch("distill.llm.providers.ollama.time.monotonic", side_effect=lambda: clock[0]),
+            patch("distill.llm.providers.ollama.asyncio.sleep", side_effect=advance_clock),
+            pytest.raises(ProviderBusyTimeoutError) as caught,
+        ):
+            asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=3))
+
+        error = caught.value
+        assert sleeps == [1.0, 2.0]
+        assert error.requested_model == "qwen3.5:27b"
+        assert error.active_models == ("llama3:8b",)
+        assert "ollama stop <model>" in str(error)
+        assert describe_provider_error(error) == str(error)
+        assert map_exception_to_exit_code(error) == ExitCode.NETWORK_ERROR
+
+    def test_unavailable_running_model_endpoint_preserves_call_path(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        response = _make_generate_response(text="fallback")
+
+        with (
+            patch(
+                "httpx.AsyncClient",
+                _stream_client_factory(
+                    frames=[response],
+                    running_models_status_code=404,
+                ),
+            ),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        ):
+            result = asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=30))
+
+        assert result.text == "fallback"
+        sleep.assert_not_awaited()
 
 
 class TestChatPayload:

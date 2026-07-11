@@ -13,7 +13,14 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 from distill.llm.async_compat import run_coroutine_sync
-from distill.llm.cost_policy import CostMode, normalize_cost_mode, route_block_reason
+from distill.llm.cost_policy import CostMode, normalize_cost_mode, require_route_allowed
+from distill.llm.fallback import (
+    fallback_failure_to_surface as _fallback_failure_to_surface,
+)
+from distill.llm.fallback import fallback_target as _fallback_target
+from distill.llm.fallback import (
+    require_fallback_route_allowed as _require_fallback_route_allowed,
+)
 from distill.llm.metadata import LOCAL_PROVIDERS, local_call_timeout
 from distill.llm.model_policy import (
     RETIRED_MODELS,
@@ -213,13 +220,11 @@ class RouterConfig(BaseSettings):
             if workload_tag
             else (self.provider, self.model or self.fast_model)
         )
-        blocked = route_block_reason(
+        require_route_allowed(
             cost_mode=self.cost_mode,
             provider=provider_name,
             workload=workload_tag,
         )
-        if blocked:
-            raise ConfigurationError(blocked)
 
         key_map: dict[str, tuple[str | None, str | None]] = {
             "xai": ("xai_api_key", "XAI_API_KEY"),
@@ -325,24 +330,6 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
 get_provider = _get_provider
 
 
-def _fallback_target(
-    config: RouterConfig, failed_provider: str, exc: Exception
-) -> tuple[str, str] | None:
-    """Return (provider, model) to fall back to on a credit/auth failure, else None.
-
-    Only fires when a distinct fallback provider AND model are configured.
-    """
-    from distill.llm.errors import is_credit_or_auth_error
-
-    if not config.fallback_provider or not config.fallback_model:
-        return None
-    if config.fallback_provider == failed_provider:
-        return None
-    if not is_credit_or_auth_error(exc):
-        return None
-    return config.fallback_provider, config.fallback_model
-
-
 def call(
     config: RouterConfig,
     workload_tag: str,
@@ -438,6 +425,7 @@ def call(
         if target is None:
             raise
         fb_provider, fb_model = target
+        _require_fallback_route_allowed(config, fb_provider, workload_tag)
         logger.warning(
             "Primary provider '%s' failed (%s); falling back to '%s' / '%s'.",
             provider_name,
@@ -448,11 +436,11 @@ def call(
         fb_start = time.monotonic()
         try:
             response = _attempt(fb_provider, fb_model)
-        except Exception:
+        except Exception as fallback_exc:
             _record(
                 fb_provider, fb_model, None, "error", "FallbackFailed", time.monotonic() - fb_start
             )
-            raise exc from None  # surface the original (credit/auth) error
+            raise _fallback_failure_to_surface(exc, fallback_exc) from None
         _record(fb_provider, fb_model, response, "success", "", time.monotonic() - fb_start)
         return response
 

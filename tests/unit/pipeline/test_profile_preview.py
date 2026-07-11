@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import shlex
+
 import pytest
 
 from distill.ingestors.podcasts.feed import PodcastEpisode, PodcastFeed
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library.profiles import ResearchProfile
+from distill.pipeline import profile_preview as _profile_preview
 from distill.pipeline.profile_preview import build_profile_preview, command_text
 
 
@@ -455,7 +458,7 @@ def test_profile_preview_orders_unknown_and_naive_dates_after_dated_items():
     ]
 
 
-def test_profile_preview_channel_url_seeds_and_command_text_quoting():
+def test_profile_preview_channel_url_seeds():
     profile = _profile(
         {
             "sources": {
@@ -473,10 +476,52 @@ def test_profile_preview_channel_url_seeds_and_command_text_quoting():
         "https://www.youtube.com/@ByUrl",
         "https://www.youtube.com/channel/UCseed",
     ]
-    assert (
-        command_text(["distill", "latest", "", 'quoted "value"', "plain"])
-        == 'distill latest "" "quoted \\"value\\"" plain'
+
+
+def test_command_text_powershell_quotes_shell_metacharacters_and_preserves_argv(monkeypatch):
+    argv = [
+        "distill",
+        "latest",
+        "",
+        'quoted "value"',
+        "$budget",
+        "`tick",
+        "https://example.test/feed?a=1&b=2",
+        "semi;colon",
+        "[brackets]",
+        "O'Brien",
+        "plain",
+    ]
+    original = list(argv)
+    monkeypatch.setattr(_profile_preview, "_is_windows", lambda: True)
+
+    rendered = command_text(argv)
+
+    assert rendered == (
+        "distill latest '' 'quoted \"value\"' '$budget' '`tick' "
+        "'https://example.test/feed?a=1&b=2' 'semi;colon' '[brackets]' "
+        "'O''Brien' plain"
     )
+    assert argv == original
+    assert command_text([r"C:\Program Files\distill.exe", "plain"]) == (
+        r"& 'C:\Program Files\distill.exe' plain"
+    )
+
+
+def test_command_text_posix_uses_shell_safe_join_and_preserves_argv(monkeypatch):
+    argv = [
+        "distill",
+        "latest",
+        'quoted "value" with $budget and `tick',
+        "https://example.test/feed?a=1&b=2",
+        "semi;colon",
+        "[brackets]",
+    ]
+    original = list(argv)
+    monkeypatch.setattr(_profile_preview, "_is_windows", lambda: False)
+
+    assert command_text(argv) == shlex.join(argv)
+    assert argv == original
 
 
 def test_profile_preview_default_text_fetcher_decodes_atom(monkeypatch):

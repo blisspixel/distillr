@@ -93,6 +93,42 @@ class TestConceptsCommand:
 
         assert result.exit_code == 0, result.output
         assert "No new insights to extract" in result.output
+        assert not (fixture_config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+    def test_build_persists_recorded_usage_when_concept_extraction_fails(
+        self, fixture_config: DistillConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from distill.pipeline.costs import TokenUsage
+
+        fixture_config.topic_dir("tkg").mkdir(parents=True)
+
+        def run_concepts(*_args, tracker, **_kwargs):
+            tracker.record(
+                TokenUsage(
+                    prompt_tokens=20,
+                    completion_tokens=10,
+                    model="grok-4.3",
+                    call_type="concepts_extract",
+                    provider_name="xai",
+                    provider_type="cloud",
+                )
+            )
+            raise RuntimeError("extraction failed")
+
+        monkeypatch.setattr("distill.concepts.run_concepts", run_concepts)
+
+        result = runner.invoke(cli.app, ["concepts", "build", "tkg"])
+
+        assert result.exit_code == 1
+        rows = [
+            json.loads(line)
+            for line in (fixture_config.library_dir / ".distill" / "cost_log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert rows[-1]["command"] == "concepts"
+        assert rows[-1]["grok_calls"] == 1
+        assert rows[-1]["metadata"]["topic"] == "tkg"
 
     def test_post_ingest_helper_runs_concepts(self, fixture_config: DistillConfig, monkeypatch):
         from distill.commands import _concept_ingest
@@ -169,6 +205,14 @@ class TestConceptsCommand:
         topic_dir = fixture_config.topic_dir("tkg")
         assert (topic_dir / "concepts" / "x.md").exists()
         assert (topic_dir / "concepts.jsonl").exists()
+        rows = [
+            json.loads(line)
+            for line in (fixture_config.library_dir / ".distill" / "cost_log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert rows[-1]["command"] == "concepts"
+        assert rows[-1]["grok_calls"] == 3
 
     def test_json_output(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)

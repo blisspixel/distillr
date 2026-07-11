@@ -189,9 +189,26 @@ def handle_cli_error(exc: BaseException, *, json_mode: bool = False) -> int:
     code = map_exception_to_exit_code(exc)
 
     if json_mode:
-        envelope = JsonEnvelope.fail(str(exc))
+        envelope = JsonEnvelope.fail(str(exc), _structured_error_data(exc))
         sys.stdout.write(envelope.to_json() + "\n")
     else:
         sys.stderr.write(f"Error: {exc}\n")
 
     return int(code)
+
+
+def _structured_error_data(exc: BaseException) -> object:
+    """Return stable orchestration metadata for typed retryable failures."""
+    from distill.llm.errors import ProviderBusyTimeoutError
+
+    if isinstance(exc, ProviderBusyTimeoutError):
+        return {
+            "code": "provider_busy",
+            "retryable": True,
+            "terminal": False,
+            "provider": exc.provider,
+            "requested_model": exc.requested_model,
+            "active_models": list(exc.active_models),
+            "waited_seconds": exc.timeout_seconds,
+        }
+    return None

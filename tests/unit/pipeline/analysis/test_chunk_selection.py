@@ -5,6 +5,10 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import LLM_Response, RouterConfig
 from distill.pipeline.analysis.chunk_selection import (
     PassSelectionSpec,
@@ -14,6 +18,7 @@ from distill.pipeline.analysis.chunk_selection import (
     select_chunks_for_category,
 )
 from distill.pipeline.analysis.chunking import Chunk
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 
 def _chunk(
@@ -87,6 +92,7 @@ class TestModelSelection:
                 heading_context="## Results",
             ),
         ]
+        tracker = CostTracker()
         selected, mode = select_chunks_for_category(
             chunks,
             "Methods and Evidence",
@@ -94,10 +100,74 @@ class TestModelSelection:
             RouterConfig(xai_api_key="t"),
             focus="methods and evaluation",
             heading_patterns=("neuroimaging", "atlas"),
+            tracker=tracker,
         )
         assert mode == "model"
         assert [sc.chunk.index for sc in selected] == [1, 0]
         mock_call.assert_called_once()
+        assert len(tracker.entries) == 1
+        usage = tracker.entries[0]
+        assert usage.call_type == "chunk_rank"
+        assert usage.prompt_tokens == 10
+        assert usage.completion_tokens == 5
+
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
+    @patch("distill.pipeline.analysis.chunk_selection.call")
+    def test_budget_crossing_call_is_recorded_then_raised(
+        self, mock_call, _model_available
+    ) -> None:
+        mock_call.return_value = LLM_Response(
+            text='{"indices": [0]}',
+            input_tokens=10,
+            output_tokens=5,
+            model="grok-4.3",
+            provider_name="xai",
+            provider_type="metered-api",
+        )
+        tracker = CostTracker(budget=0.0)
+
+        with pytest.raises(BudgetExceededError):
+            select_chunks_for_category(
+                [_chunk("body", heading_context="## Appendix")],
+                "Summary",
+                10_000,
+                RouterConfig(xai_api_key="t"),
+                heading_patterns=("missing",),
+                tracker=tracker,
+            )
+
+        assert len(tracker.entries) == 1
+        assert tracker.entries[0].call_type == "chunk_rank"
+        assert tracker.total_cost > 0
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            CostPolicyError("blocked"),
+            ProviderBusyTimeoutError(
+                provider="ollama",
+                requested_model="qwen2.5:14b",
+                active_models=("qwen2.5-coder:32b",),
+                timeout_seconds=1,
+            ),
+        ],
+    )
+    @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
+    def test_policy_and_busy_errors_do_not_degrade_to_fallback(
+        self, _model_available, error: Exception
+    ) -> None:
+        with (
+            patch("distill.pipeline.analysis.chunk_selection.call", side_effect=error),
+            pytest.raises(type(error)),
+        ):
+            select_chunks_for_category(
+                [_chunk("body", heading_context="## Appendix")],
+                "Summary",
+                10_000,
+                RouterConfig(xai_api_key="t"),
+                heading_patterns=("missing",),
+                tracker=CostTracker(),
+            )
 
 
 class TestHonestDegradation:
@@ -207,6 +277,7 @@ class TestBatchModelSelection:
                 "Limitations and future work.", index=1, total=2, heading_context="## Discussion"
             ),
         ]
+        tracker = CostTracker()
         plan = build_chunk_selection_plan(
             chunks,
             (
@@ -221,25 +292,31 @@ class TestBatchModelSelection:
             ),
             10_000,
             RouterConfig(xai_api_key="t"),
+            tracker=tracker,
         )
         assert plan.modes["summary"] == "model_batch"
         assert plan.modes["limits"] == "model_batch"
         assert plan.by_section["summary"][0].chunk.index == 0
         assert plan.by_section["limits"][0].chunk.index == 1
+        assert len(tracker.entries) == 1
+        assert tracker.entries[0].call_type == "chunk_rank_batch"
 
     @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
     @patch("distill.pipeline.analysis.chunk_selection.call", side_effect=RuntimeError("down"))
     def test_model_failure_falls_back_to_positional(self, _mock_call, _model_available) -> None:
         chunks = [_chunk(f"body {index}", index=index, total=2) for index in range(2)]
+        tracker = CostTracker()
         selected, mode = select_chunks_for_category(
             chunks,
             "Core Contribution",
             10_000,
             RouterConfig(xai_api_key="t"),
             heading_patterns=("missing",),
+            tracker=tracker,
         )
         assert mode == "positional_order"
         assert selected
+        assert tracker.entries == []
 
     @patch("distill.pipeline.analysis.chunk_selection.model_available", return_value=True)
     @patch("distill.pipeline.analysis.chunk_selection.call")

@@ -1,0 +1,32 @@
+{
+  "user": {
+    "screen_name": "harnessnotes",
+    "name": "Harness Notes",
+    "verified": false
+  },
+  "text": "Queue harness notes https://t.co/queue-card",
+  "lang": "en",
+  "favorite_count": 9,
+  "conversation_count": 1,
+  "created_at": "2026-07-11T11:25:00.000Z",
+  "card": {
+    "binding_values": {
+      "title": {
+        "type": "STRING",
+        "string_value": "Testing long-running agent loops"
+      },
+      "description": {
+        "type": "STRING",
+        "string_value": "Failure injection and queue recovery for agent harnesses."
+      },
+      "domain": {
+        "type": "STRING",
+        "string_value": "example.org"
+      },
+      "card_url": {
+        "type": "STRING",
+        "string_value": "https://example.org/agent-loop-qa"
+      }
+    }
+  }
+}

@@ -8,9 +8,10 @@ from unittest.mock import patch
 
 import pytest
 
-from distill.claims.exports import read_claims
-from distill.claims.pipeline import ClaimsSummary, run_claims
+from distill.claims.exports import read_claims, record_extracted_sources
+from distill.claims.pipeline import ClaimsSummary, pending_claim_extraction_count, run_claims
 from distill.llm import RouterConfig
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 
 class _StubResponse:
@@ -104,6 +105,36 @@ def test_run_claims_refresh_reextracts(tmp_path: Path, rc: RouterConfig) -> None
         assert mock_llm.call_count == 2
 
 
+def test_pending_claim_extraction_count_respects_ledger_and_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
+    _make_insight(tmp_path, source_type="papers", slug="pb", source_id="p2")
+    _make_insight(tmp_path, source_type="papers", slug="pc", source_id="p3")
+    record_extracted_sources(tmp_path, ["p1"])
+
+    monkeypatch.setenv("DISTILL_CLAIMS_MAX_INSIGHTS", "1")
+    assert pending_claim_extraction_count(tmp_path) == 1
+
+    monkeypatch.setenv("DISTILL_CLAIMS_MAX_INSIGHTS", "0")
+    assert pending_claim_extraction_count(tmp_path) == 2
+
+
+def test_run_claims_caps_pending_insights(
+    tmp_path: Path, rc: RouterConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
+    _make_insight(tmp_path, source_type="papers", slug="pb", source_id="p2")
+    monkeypatch.setenv("DISTILL_CLAIMS_MAX_INSIGHTS", "1")
+
+    with patch("distill.claims.extract.llm_call", side_effect=_responses([])) as mock_llm:
+        summary = run_claims(tmp_path, tmp_path, rc=rc, now_iso="2026-05-30T00:00:00Z")
+
+    assert summary.insights_scanned == 2
+    assert summary.insights_extracted == 1
+    assert mock_llm.call_count == 1
+
+
 def test_run_claims_no_insights(tmp_path: Path, rc: RouterConfig) -> None:
     summary = run_claims(tmp_path, tmp_path, rc=rc)
     assert summary.insights_scanned == 0
@@ -127,3 +158,30 @@ def test_run_claims_tolerates_extraction_failure(tmp_path: Path, rc: RouterConfi
     # One source failed, one succeeded -> one claim, no crash.
     assert summary.claims_added == 1
     assert summary.total_claims == 1
+
+
+def test_run_claims_budget_crossing_stops_before_later_insights(
+    tmp_path: Path, rc: RouterConfig
+) -> None:
+    _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
+    _make_insight(tmp_path, source_type="papers", slug="pb", source_id="p2")
+    tracker = CostTracker(budget=0.0)
+
+    with (
+        patch(
+            "distill.claims.extract.llm_call",
+            return_value=_StubResponse("[]", model="grok-4.3"),
+        ) as mock_llm,
+        pytest.raises(BudgetExceededError),
+    ):
+        run_claims(
+            "topic",
+            tmp_path,
+            rc=rc,
+            tracker=tracker,
+            now_iso="2026-05-30T00:00:00Z",
+        )
+
+    assert mock_llm.call_count == 1
+    assert len(tracker.entries) == 1
+    assert not (tmp_path / ".claims" / "extracted_sources.json").exists()

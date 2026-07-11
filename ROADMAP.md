@@ -81,9 +81,9 @@ Distillr should not chase that crowd - the vault-maintenance fight is lost to 35
 
 The longer horizon - what 1.0, 2.0, and 3.0 each *promise*, the maybe-later parking lot, and the design-doc ledger - lives in [`docs/design/version-architecture.md`](docs/design/version-architecture.md); this section remains the operational spine to 1.0.
 
-The goal of 1.0 is a stable, MCP-first research tool that an external agent can drive without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar - each one unblocks the next. Six themes run through every version:
+The goal of 1.0 is a stable, agent-drivable research tool that an external agent can use without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar - each one unblocks the next. Six themes run through every version:
 
-- **MCP-first.** Every workflow has a clean tool surface for agents, not just a CLI for humans. CLI commands are thin wrappers over the same library calls the MCP server uses.
+- **Agent-first, with parallel surfaces.** Workflows expose stable library calls through the CLI, plain files, and MCP where hosted or structured access helps. The CLI and MCP remain thin wrappers over the same implementation, while the corpus itself stays the lowest-overhead agent interface.
 - **Effective-context-aware.** Cloud models in 2026 have 1M+ context windows - a 100K paper fits whole. Chunking is not a universal concern; it is a local-model concern. The system should be adaptive: send content whole when the provider's window allows it, chunk intelligently when it does not (local models with 8K-32K windows). The 2025-2026 context-engineering literature (lost-in-the-middle, ACE-style playbooks, just-in-time retrieval) informs the design, but the implementation targets where it actually matters.
 - **Local-first all the way down.** "Local Markdown corpus" is meaningless if every analysis call goes to a paid cloud API. When ingestion is basically free, you use it more - more sources, more frequent refreshes, richer corpus. Local doesn't mean lower quality; it means the economics don't punish thoroughness. If a workload can't meet the quality bar locally, it stays on cloud. Local execution should work on any Ollama/LM Studio compatible hardware that passes doctor checks and workload eval. The hardware trend bends toward more capable desktop and laptop local inference over time, so the default bias shifts toward local *whenever a workload clears the quality bar* - with `distill eval` (cost x quality over frozen fixtures) as the arbiter of "good enough" rather than vibes - and cloud stays the floor for what local can't yet match (long-context synthesis, web-grounded Deep Research). The router exists precisely so this ratio can move per-workload over time without touching pipeline code.
 - **Loop-ready.** The 2026 shift from prompt-running to loop engineering (design the loop once; the work happens unattended and verified) is distillr's natural habitat - but distillr is the *loopable primitive and persistent state layer*, never the loop runner (no scheduler-orchestrator surface; the cron / agent-harness / stewardship layer above owns the loop). The contract every command must meet: safe to run unattended - non-interactive flags (`--yes`, `--report-only`), convergent re-runs (a converged corpus is a clean exit-0 no-op, shipped for `discover`/`papers` in 0.9.27), clean failure exits instead of tracebacks, resumability, and report artifacts rather than console-only output. The review question for any new flag or behavior: *can a recurring loop run this without a human?* The stricter admission test is: recurring work, automated verifier, bounded budget, usable tools, and persisted state. The minimum viable loop is trigger, reusable knowledge, state file, and gate. The metric that matters is cost per accepted change, not attempts or tokens. The verify hook (0.10) is the load-bearing piece - a loop without a verify gate scales slop, not work - which is why it precedes every autonomous-loop behavior on this spine. The deeper question underneath - *where distill is itself a deterministic workflow vs where it lets the model drive* - is settled in [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md): agentic at the leaves (discovery, analysis, synthesis), Python-owned at the decisions (invariant #6), and completion checked against receipts plus faithfulness verdicts instead of a self-declared "done" flag (invariant #8). That charter, grounded in Anthropic's workflow-vs-agent framing, is the guardrail the more-agentic roadmap items (adaptive lenses, goal-driven discovery, the deep-synthesis loop) operate within. Its remediation arm - [`docs/design/model-judgment-vs-brittle-fallbacks.md`](docs/design/model-judgment-vs-brittle-fallbacks.md) - catalogs where deterministic keyword/regex heuristics still impersonate a semantic judgment (notably the discovery reranker's no-model gate and a rumor-keyword skeptical trip-wire) and stages the fix: route judgment to whatever model the user has (cloud *or* local - never assumed), and when there is none, degrade to a labeled recency order rather than fake quality with keyword scoring.
@@ -106,7 +106,7 @@ The goal of 1.0 is a stable, MCP-first research tool that an external agent can 
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.30, 2026-07-10). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.31, 2026-07-11). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Remaining to 1.0). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -137,7 +137,7 @@ A harden pass is slotted in whenever the surface a recent feature added warrants
 
 ### Shipped milestone detail -> the changelog
 
-The per-milestone detail for everything shipped (0.1-0.17) used to live here. It has moved to its system of record - per-release notes in [`docs/CHANGELOG.md`](docs/CHANGELOG.md), and design rationale in the design docs ([agentic-balance](docs/design/agentic-balance.md), [model-judgment-vs-brittle-fallbacks](docs/design/model-judgment-vs-brittle-fallbacks.md), [entailment-tier](docs/design/entailment-tier.md), [ask-loop](docs/design/ask-loop.md), [okf-loop-readiness](docs/design/okf-loop-readiness.md), [logic-decomposition](docs/design/logic-decomposition.md)). The roadmap below keeps only forward work. Minor follow-on slices inside shipped milestones (podcast diarization / Parakeet fast path, the repo issues-and-discussions subset, further MCP tool consolidation) are tracked in the [full backlog](docs/roadmap.md).
+The per-milestone detail for everything shipped (0.1-0.19) used to live here. It has moved to its system of record - per-release notes in [`docs/CHANGELOG.md`](docs/CHANGELOG.md), and design rationale in the design docs ([agentic-balance](docs/design/agentic-balance.md), [model-judgment-vs-brittle-fallbacks](docs/design/model-judgment-vs-brittle-fallbacks.md), [entailment-tier](docs/design/entailment-tier.md), [ask-loop](docs/design/ask-loop.md), [okf-loop-readiness](docs/design/okf-loop-readiness.md), [logic-decomposition](docs/design/logic-decomposition.md)). The roadmap below keeps only forward work. Minor follow-on slices inside shipped milestones (podcast diarization / Parakeet fast path, the repo issues-and-discussions subset, further MCP tool consolidation) are tracked in the [full backlog](docs/roadmap.md).
 
 #### Validation (2026-06-20)
 
@@ -148,9 +148,17 @@ Before collapsing these, every "shipped" claim was re-checked against the code, 
 
 Nothing in the shipped record failed to validate. The forward milestones below are what is genuinely left.
 
+#### Agentic harness dogfood validation (2026-07-11)
+
+A zero-paid-spend mixed-source run across papers, technical videos, and X
+validated the loop-ready boundary and exposed replay, contention, cost-policy,
+verification-coverage, source-fidelity, and filesystem-inventory defects. The
+findings, evidence, fixes, and prioritized product implications are recorded in
+[`docs/research/agentic-development-harnesses-validation.md`](docs/research/agentic-development-harnesses-validation.md).
+
 ### 0.18 and 0.19 shipped -> the changelog
 
-0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.21. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.31. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
 What remains from the 0.19 theme is genuinely forward and sits after 1.0 - it gates on vendor policy and on the read-only adapter prototypes, not on near-term effort:
 
@@ -295,7 +303,7 @@ Not committed. Notes on directions worth thinking about once 1.0 stability is in
 
 ## Target package layout (1.0)
 
-The shape distillr is being refactored toward. 0.3 stands up the top-level subpackages and the conventions; later milestones populate them. `import-linter` and the module-size cap from 0.3 enforce this layout in CI - it is not aspirational.
+The package shape established by the 0.3 decomposition and refined by later milestones. `import-linter` and the module-size cap enforce its dependency direction in CI. The current implementation and [`docs/architecture.md`](docs/architecture.md) are authoritative where filenames have evolved.
 
 ```text
 distill/
@@ -441,7 +449,7 @@ tests/
     └── mock_llm.py
 ```
 
-Once 0.3 lands, the canonical version of this layout - with rationale per subpackage - moves into [`docs/architecture.md`](docs/architecture.md). This roadmap section is the snapshot that 0.3 builds toward.
+The canonical current layout and rationale live in [`docs/architecture.md`](docs/architecture.md). This roadmap section remains a compact architectural overview rather than a release checklist.
 
 ## Engineering standards: adopted, adapted, declined
 
@@ -509,7 +517,7 @@ A roadmap is also an opinion about what *not* to build. These are deliberate exc
 - **No additional cloud LLM providers by default.** Each provider is calibration debt - prompts that work well on one model regress on another. Anthropic now ships as an explicit opt-in API route, and users can wire future OpenAI / Mistral / etc. routes through the same router, but distillr won't ship default model policies for them until the eval gate proves the workload. Local providers are the exception because they carry the local-first promise. (Transcription providers are not subject to this exclusion: speech-to-text carries no analysis-prompt calibration debt, so the Whisper transcription ladder ships a cloud tier - xAI Grok STT, reusing the already-required `XAI_API_KEY` - beneath the local-first default.) The exclusion is against *uncalibrated defaults*, not against provider reach: post-1.0, the eval-gated adapter contract (see [Looking beyond 1.0](#looking-beyond-10)) is the path by which a backend - local or cloud (Bedrock, Foundry, Anthropic, OpenAI, Google, xAI) - graduates to calibrated-and-recommended by passing `distill eval`, rather than being shipped blind.
 - **No plugin / extension system before 1.0.** Premature abstraction. The right plugin boundaries become obvious only after the internal architecture from 0.3-0.5 has carried real workloads. Revisit post-1.0.
 - **No real-time collaboration or sync service.** Markdown + git is the answer. distillr won't compete with Obsidian Sync, Logseq Sync, or Syncthing.
-- **No "install skills into your agent" model.** obsidian-wiki (Ar9av) takes the approach of symlinking skill files into Claude Code / Cursor / etc. Distillr's architecture is separation of concerns: distillr is the dedicated research-corpus layer, agents query it via MCP. A thin skill wrapper would be useless for long-running batch ingestion and persistent corpus maintenance - exactly what interactive agents are terrible at.
+- **No skill fleet or symlink-managed agent runtime.** Distill ships one canonical skill that teaches agents to use the CLI and corpus. It does not install a fleet of agent-side skills or turn an interactive coding agent into the batch-ingestion runtime. Distill remains the dedicated research-corpus layer; agents use its files, CLI, or MCP surface.
 - **No anti-bot / paywall / login-walled scraping.** Playwright handles legitimate access; defeating hostile defenses is whack-a-mole that pulls focus from the analysis pipeline and creates legal/ethical surface area.
 - **No "cheap mode" that compromises fidelity.** The product premise is "as good as we can possibly make it" regardless of whether inference runs locally or in the cloud. Local models exist to make the corpus *always current* at zero marginal cost, not to produce worse outputs faster. Cost reduction happens through local inference, compaction, and JIT context - never through cheaper prompts that produce worse outputs. A local insight must be good enough that synthesis and expert queries can trust it without qualification.
 

@@ -25,6 +25,7 @@ from distill.prompts.synthesis import corpus_synthesis_prompt
 
 __all__ = [
     "has_corpus_synthesis_inputs",
+    "has_two_pass_synthesis_inputs",
     "synthesize_corpus",
     "synthesize_corpus_from_claims",
 ]
@@ -211,6 +212,21 @@ def has_corpus_synthesis_inputs(topic: str, config: DistillConfig) -> bool:
     has_paper = find_artifact(topic_dir, "paper_synthesis", identity=topic).exists()
     source_count = channel_count + site_count + int(has_paper)
     return source_count > 0 and not (source_count == 1 and has_paper)
+
+
+def has_two_pass_synthesis_inputs(topic: str, config: DistillConfig) -> bool:
+    """Return true when claim-based synthesis has evidence to process.
+
+    Per-source insights are discovered recursively so this covers every ingest
+    layout, including X posts, papers, repositories, feeds, and local files.
+    Existing claims also count: they remain valid synthesis inputs when the
+    extraction pass has already completed.
+    """
+    from distill.claims.exports import read_claims
+    from distill.library.insights import discover_insights
+
+    topic_dir = config.topic_dir(topic)
+    return bool(discover_insights(topic_dir) or read_claims(topic_dir))
 
 
 def synthesize_corpus(

@@ -93,6 +93,96 @@ class TestResynthesize:
         assert result.exit_code == 1
         assert "No channels found" in result.output
 
+    def test_two_pass_resynthesizes_channelless_recursive_insights(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        insight = (
+            config.topic_dir("agent-loops")
+            / "x"
+            / "researcher"
+            / "posts"
+            / "123"
+            / "researcher_123_Insights.md"
+        )
+        insight.parent.mkdir(parents=True, exist_ok=True)
+        insight.write_text(
+            "---\nsource_id: x-123\ntitle: Queue design\n---\n\nUse durable work queues.\n",
+            encoding="utf-8",
+        )
+        self._patch_common(monkeypatch, config)
+        channel_synthesis = MagicMock()
+        topic_synthesis = MagicMock()
+        corpus_calls: list[tuple[str, bool]] = []
+        monkeypatch.setattr(reprocess_mod, "synthesize_channel", channel_synthesis)
+        monkeypatch.setattr(reprocess_mod, "synthesize_topic", topic_synthesis)
+
+        def fake_corpus(topic, cfg, tracker=None, style="", two_pass=False):
+            del cfg, tracker, style
+            corpus_calls.append((topic, two_pass))
+            output = config.topic_dir(topic) / "corpus_synthesis.md"
+            output.write_text("# Corpus", encoding="utf-8")
+
+        monkeypatch.setattr(reprocess_mod, "synthesize_corpus", fake_corpus)
+
+        result = runner.invoke(cli.app, ["resynthesize", "agent-loops", "--two-pass"])
+
+        assert result.exit_code == 0
+        assert corpus_calls == [("agent-loops", True)]
+        channel_synthesis.assert_not_called()
+        topic_synthesis.assert_not_called()
+        assert "Two-pass corpus synthesis" in result.output
+        assert "done" in result.output
+
+    def test_two_pass_estimate_counts_pending_claim_extractions(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        for source_id in ("x-123", "x-456"):
+            insight = config.topic_dir("agent-loops") / "x" / source_id / f"{source_id}_Insights.md"
+            insight.parent.mkdir(parents=True, exist_ok=True)
+            insight.write_text(
+                f"---\nsource_id: {source_id}\ntitle: Queue design\n---\n\nUse durable queues.\n",
+                encoding="utf-8",
+            )
+        self._patch_common(monkeypatch, config)
+        projected: list[dict[str, int]] = []
+        displayed: list[dict[str, int]] = []
+
+        def fake_estimate(**kwargs):
+            projected.append(kwargs)
+            return 0.0
+
+        monkeypatch.setattr(reprocess_mod, "estimate_routed_video_workflow_cost", fake_estimate)
+        monkeypatch.setattr(
+            reprocess_mod,
+            "display_estimate",
+            lambda **kwargs: displayed.append(kwargs),
+        )
+
+        def fake_corpus(topic, cfg, tracker=None, style="", two_pass=False):
+            del cfg, tracker, style, two_pass
+            output = config.topic_dir(topic) / "corpus_synthesis.md"
+            output.write_text("# Corpus", encoding="utf-8")
+
+        monkeypatch.setattr(reprocess_mod, "synthesize_corpus", fake_corpus)
+
+        result = runner.invoke(cli.app, ["resynthesize", "agent-loops", "--two-pass"])
+
+        assert result.exit_code == 0
+        assert projected == [{"synthesis_calls": 1, "claim_extraction_calls": 2}]
+        assert displayed[0]["synthesis_calls"] == 1
+        assert displayed[0]["claim_extraction_calls"] == 2
+
+    def test_two_pass_refuses_empty_channelless_corpus(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.topic_dir("empty").mkdir(parents=True, exist_ok=True)
+        self._patch_common(monkeypatch, config)
+        corpus_synthesis = MagicMock()
+        monkeypatch.setattr(reprocess_mod, "synthesize_corpus", corpus_synthesis)
+
+        result = runner.invoke(cli.app, ["resynthesize", "empty", "--two-pass"])
+
+        assert result.exit_code == 1
+        assert "No insight artifacts or extracted claims found" in result.output
+        corpus_synthesis.assert_not_called()
+
     def test_channel_not_found_exits(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_library(config)
@@ -104,6 +194,8 @@ class TestResynthesize:
         assert "not found" in result.output
 
     def test_refuses_projected_resynthesize_budget_before_synthesis(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "resynthesize=0.0001"
         _seed_library(config)
@@ -142,6 +234,35 @@ class TestResynthesize:
         assert result.exit_code == 0
         assert calls == ["ch:TestCh", "topic:ai:exec"]
         assert "done" in result.output
+
+    def test_local_resynthesize_records_zero_route_estimate(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.setenv("DISTILL_FAST_MODEL", "qwen2.5:14b")
+        config = _config(tmp_path)
+        _seed_library(config)
+        self._patch_common(monkeypatch, config)
+        summaries = []
+        monkeypatch.setattr(
+            reprocess_mod,
+            "synthesize_channel",
+            lambda *args, **kwargs: _write_synthesis(config, "ai", "TestCh"),
+        )
+        monkeypatch.setattr(
+            reprocess_mod,
+            "synthesize_topic",
+            lambda *args, **kwargs: _write_topic_synthesis(config, "ai"),
+        )
+        monkeypatch.setattr(
+            reprocess_mod,
+            "display_summary",
+            lambda summary, **kwargs: summaries.append(summary),
+        )
+
+        result = runner.invoke(cli.app, ["resynthesize", "ai"])
+
+        assert result.exit_code == 0
+        assert len(summaries) == 1
+        assert summaries[0].estimated_cost == 0.0
 
     def test_channel_synthesis_failure(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -310,6 +431,8 @@ class TestReanalyze:
         assert "No videos with transcripts found" in result.output
 
     def test_refuses_projected_reanalyze_budget_before_analysis(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "reanalyze=0.0001"
         _seed_library(config)

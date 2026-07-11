@@ -3,11 +3,13 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from rich.console import Console
 
 from distill.library.paths import artifact_path, strip_frontmatter
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import LLM_Response
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.report.accordion import (
     _assemble_report,
     _clean_section_output,
@@ -453,6 +455,33 @@ class TestWriteSections:
 
         assert result == []
 
+    @patch("distill.pipeline.report.accordion.time.sleep")
+    @patch("distill.pipeline.report.accordion.llm_call")
+    def test_budget_crossing_is_not_retried_or_continued(self, mock_call, mock_sleep, config):
+        mock_call.return_value = LLM_Response(
+            text="Paid section content.",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
+        )
+        tracker = CostTracker(budget=0.0)
+
+        with pytest.raises(BudgetExceededError):
+            _write_sections(
+                topic="ai",
+                config=config,
+                dossier="test dossier",
+                scope="topic",
+                channel_name=None,
+                tagged_materials={},
+                tracker=tracker,
+                active_sections=[REPORT_SECTIONS[0], REPORT_SECTIONS[1]],
+            )
+
+        assert mock_call.call_count == 1
+        assert len(tracker.entries) == 1
+        mock_sleep.assert_not_called()
+
 
 class TestQaHelpers:
     def test_parse_qa_failures_ignores_stray_fail_in_prose(self):
@@ -502,6 +531,12 @@ Needs less repetition
 
         assert "Needs more evidence" in feedback["Executive Briefing"]
         assert "Needs less repetition" in feedback["Strategic Synthesis"]
+
+    def test_qa_helpers_ignore_preamble_prose_and_empty_final_section(self):
+        qa = "Preamble\n### First\nProse without a score\n### Empty"
+
+        assert _parse_qa_failures(qa) == []
+        assert _extract_section_feedback(qa) == {"First": "Prose without a score"}
 
     def test_clean_section_output_strips_trailing_word_counts_only(self):
         content = "Body text [cite: 1, 2] (Word count: 1,234)"
@@ -714,6 +749,73 @@ class TestQaPhase:
         assert updated == written_sections
 
     @patch("distill.pipeline.report.accordion.llm_call")
+    def test_run_qa_phase_budget_crossing_is_terminal(self, mock_call, config):
+        written_sections = [
+            {
+                "id": "executive_briefing",
+                "title": "Executive Briefing",
+                "content": "old content",
+                "word_count": 2,
+            },
+        ]
+        mock_call.return_value = LLM_Response(
+            text="### Executive Briefing\n**Score**: PASS",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
+        )
+        tracker = CostTracker(budget=0.0)
+
+        with pytest.raises(BudgetExceededError):
+            _run_qa_phase("ai", config, "dossier", "report", written_sections, tracker=tracker)
+
+        assert mock_call.call_count == 1
+        assert len(tracker.entries) == 1
+
+    @patch("distill.pipeline.report.accordion.llm_call")
+    def test_run_qa_rewrite_budget_crossing_stops_later_rewrites(self, mock_call, config):
+        written_sections = [
+            {
+                "id": "executive_briefing",
+                "title": "Executive Briefing",
+                "content": "old executive content",
+                "word_count": 3,
+            },
+            {
+                "id": "strategic_synthesis",
+                "title": "Strategic Synthesis",
+                "content": "old synthesis content",
+                "word_count": 3,
+            },
+        ]
+        mock_call.side_effect = [
+            LLM_Response(
+                text=(
+                    "### Executive Briefing\n**Score**: FAIL\nFix this.\n"
+                    "### Strategic Synthesis\n**Score**: FAIL\nFix this too."
+                ),
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
+                provider_name="ollama",
+                provider_type="local",
+            ),
+            LLM_Response(
+                text="paid rewrite",
+                input_tokens=10,
+                output_tokens=20,
+                model="grok-4.3",
+            ),
+        ]
+        tracker = CostTracker(budget=0.0)
+
+        with pytest.raises(BudgetExceededError):
+            _run_qa_phase("ai", config, "dossier", "report", written_sections, tracker=tracker)
+
+        assert mock_call.call_count == 2
+        assert len(tracker.entries) == 2
+
+    @patch("distill.pipeline.report.accordion.llm_call")
     def test_run_qa_phase_with_no_failures(self, mock_call, config):
         written_sections = [
             {
@@ -784,8 +886,26 @@ class TestQaPhase:
 
 
 class TestDossierPhase:
+    def test_no_metered_refuses_before_client_or_store(self, config, monkeypatch):
+        config.distill_cost_mode = "no-metered"
+        client = MagicMock(side_effect=AssertionError("client constructed"))
+        create_store = MagicMock(side_effect=AssertionError("store created"))
+        monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", client)
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.create_research_store",
+            create_store,
+        )
+
+        with pytest.raises(CostPolicyError, match="Route blocked by no-metered cost policy"):
+            _run_dossier_phase("ai", config, "topic", None, None, False)
+
+        client.assert_not_called()
+        create_store.assert_not_called()
+
+    @pytest.mark.parametrize("cost_mode", ["auto", "paid-ok"])
     @patch("distill.pipeline.report.accordion.time.sleep", lambda seconds: None)
-    def test_run_dossier_phase_returns_none_when_no_files(self, config, monkeypatch):
+    def test_run_dossier_phase_returns_none_when_no_files(self, config, monkeypatch, cost_mode):
+        config.distill_cost_mode = cost_mode
         monkeypatch.setattr(
             "distill.pipeline.report.accordion.create_research_store",
             lambda *args, **kwargs: ("store-1", 0),
@@ -942,8 +1062,51 @@ class TestDossierPhase:
         assert result == "dossier body"
         tracker.record_gemini_query.assert_called_once_with("deep-research-preview-04-2026")
 
+    def test_run_dossier_budget_crossing_stops_before_polling(self, config, monkeypatch):
+        class FakeInteractions:
+            def create(self, **kwargs):
+                return SimpleNamespace(id="job-1")
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                self.interactions = FakeInteractions()
+
+        deleted = []
+        monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", FakeClient)
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.create_research_store",
+            lambda *args, **kwargs: ("store-1", 2),
+        )
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.delete_store",
+            lambda client, name: deleted.append(name),
+        )
+        poll = MagicMock(side_effect=AssertionError("polling continued after budget crossing"))
+        monkeypatch.setattr("distill.pipeline.report.accordion.await_interaction", poll)
+        tracker = CostTracker(budget=0.0)
+
+        with pytest.raises(BudgetExceededError):
+            _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
+
+        assert tracker.gemini_queries == 1
+        poll.assert_not_called()
+        assert deleted == ["store-1"]
+
 
 class TestAccordionRun:
+    def test_no_metered_refuses_before_dossier_phase(self, config, monkeypatch):
+        config.distill_cost_mode = "no-metered"
+        dossier_phase = MagicMock(side_effect=AssertionError("dossier started"))
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion._run_dossier_phase",
+            dossier_phase,
+        )
+
+        with pytest.raises(CostPolicyError, match="Route blocked by no-metered cost policy"):
+            run_accordion_research("ai", config)
+
+        dossier_phase.assert_not_called()
+
     def test_run_accordion_research_returns_none_when_dossier_fails(self, config, monkeypatch):
         monkeypatch.setattr(
             "distill.pipeline.report.accordion._run_dossier_phase", lambda *args, **kwargs: None

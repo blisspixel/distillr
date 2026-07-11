@@ -202,6 +202,7 @@ def multi_pass_analysis(
         selection_specs,
         available_window,
         config,
+        tracker=tracker,
     )
 
     for analysis_pass in passes:
@@ -277,6 +278,7 @@ def _legacy_category_passes(
             available_window,
             config,
             focus=CATEGORY_DESCRIPTIONS.get(category, category),
+            tracker=tracker,
         )
         if not scored_chunks:
             logger.info(

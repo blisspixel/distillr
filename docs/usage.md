@@ -14,6 +14,7 @@ Full command reference. For the short version, see the README.
 - [YouTube: Topic watch (recurring)](#youtube-topic-watch-recurring)
 - [Recurring research profiles](#recurring-research-profiles)
 - [Websites](#websites)
+- [Direct ingest: X, repos, feeds, and local files](#direct-ingest-x-repos-feeds-and-local-files)
 - [arXiv papers](#arxiv-papers)
 - [Reports](#reports)
 - [Research briefings and deep synthesis](#research-briefings-and-deep-synthesis)
@@ -25,7 +26,7 @@ Full command reference. For the short version, see the README.
 
 ## Goal-aware discovery (cross-source)
 
-When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has Grok generate candidate search queries for papers and videos, lets you optionally add curated website seed files or trusted website sections, and then does a single unified LLM rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
+When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has the configured model generate candidate search queries for papers and videos, lets you optionally add curated website seed files or trusted website sections, and then does a single unified model rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
 
 On a **fresh topic** (no artifacts yet), discover leads with a *size-then-approve* menu instead of auto-ingesting: it shows the ranked candidates and 2-3 sized options - *Excellent / Including good / Everything worthwhile* - each with its source breakdown and its own spend estimate, and ingests the option you pick. `--yes` skips the menu (rigor-filtered auto-ingest); `--size` forces the menu on a topic that already has artifacts.
 
@@ -59,7 +60,7 @@ Flags:
 - `--shorts / --no-shorts` - include Shorts under 3 min (default off - deeper content favored)
 - `--ingest-attachments` - for selected site seeds, pull PDF text and supported embedded-video transcripts into the page corpus
 - `--rigor strict|balanced|loose` - quality bar on the rerank score; drops candidates below the level's goal-fit threshold (0.7 / 0.5 / 0.3) before the per-source limits. Default `balanced`.
-- `--lens research|practitioner|competitive|academic|general` - the analytical lens each per-source insight is written through. Default: inferred from the goal (e.g. a goal mentioning "research" / "prior art" picks `research`; "vendor" / "enterprise" picks `competitive`). The lens is persisted as the topic's intent (`topics/<topic>/intent.json`), so later `papers` / `latest` / `discover` runs into the same topic inherit it. `competitive` reproduces the pre-0.9.24 enterprise pre-sales sections.
+- `--lens research|practitioner|competitive|academic|general` - the analytical lens each per-source insight is written through. Default: neutral `general`. The goal is still carried into every analysis prompt, but Distill does not infer a lens from keywords. The lens is persisted as the topic's intent (`topics/<topic>/intent.json`), so later `papers` / `latest` / `discover` runs into the same topic inherit it. `competitive` reproduces the pre-0.9.24 enterprise pre-sales sections.
 - `--preview` - show the ranked plan without ingesting. Prints a metadata-aware spend estimate as a range (e.g. `~$0.42 (est; $0.29-$0.63)`) and **saves the exact shortlist under an id**; preview-only spend lands in `cost_log.jsonl` as `discover_preview`.
 - `--from-preview <id>` - ingest the exact set a previous `--preview` saved, by its id. Skips query-generation and the rerank entirely, so you commit to precisely what you saw. (Mutually exclusive with `--preview` / `--from-gaps`.)
 - `--from-gaps` - derive the goal from an existing topic's coverage gaps instead of a written goal (requires `--topic`).
@@ -159,6 +160,11 @@ Analyze a specific video or test a single channel:
 distill video https://www.youtube.com/watch?v=abc123
 distill channel https://www.youtube.com/@SomeCreator --limit 2
 ```
+
+Repeating `distill video` for an exact video ID with a nonempty transcript and
+insight is a converged no-op. It reuses the existing artifacts without model
+or ledger work. Pass `--force` when you intentionally want to rerun analysis,
+or use `distill reanalyze` for a registered channel or topic.
 
 ## YouTube: Channel watch and catch-up
 
@@ -319,6 +325,15 @@ service availability decision, and blocked reasons. They are intentionally not
 account evidence and must not contain GitHub identities, emails, tokens, or
 subscription account identifiers.
 
+Ollama contention is handled before inference. If another model is resident,
+Distill waits with bounded backoff, logs the active and requested models, and
+never silently substitutes. `DISTILL_LOCAL_TIMEOUT` is the total ceiling for
+the contention wait. Once inference starts, it is a per-read idle timeout, not
+a wall-clock runtime limit, so a generation that keeps streaming can run
+longer. A contention timeout exits as a network-class failure with retry
+guidance, which lets an external loop reschedule the command without scraping
+an apparent hang.
+
 ## Websites
 
 ```bash
@@ -365,6 +380,45 @@ JSON.
 
 See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON URL objects and collections can set `mode` to `exact-page` or `shallow-crawl`, or use `crawl: false` / `crawl: true` as a boolean alias. Unsupported mode names fail during seed-file loading instead of falling back to a wider crawl. They can also set `crawl_prefix` to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 
+## Direct ingest: X, repos, feeds, and local files
+
+`distill discover` searches arXiv and YouTube and reranks operator-supplied site
+candidates. It does not search X, GitHub, podcast directories, newsletters, or
+your filesystem. Add those sources by exact URL or path:
+
+```bash
+distill ingest https://x.com/example/status/1234567890 --topic agent-harnesses
+distill ingest https://github.com/example/project --topic agent-harnesses
+distill ingest https://example.com/feed.xml --rss --episodes 3 --topic agent-harnesses
+distill ingest private/research-notes.md --topic agent-harnesses
+
+# Capture an X post without attached-video transcription or model analysis
+distill ingest https://x.com/example/status/1234567890 --topic agent-harnesses \
+  --no-transcribe --no-analyze
+```
+
+X uses the public syndication endpoint and never bypasses login or anti-bot
+walls. Artifacts land under
+`topics/<topic>/x/<handle>/posts/<post>/`. `--no-transcribe` skips attached
+video transcription; `--no-analyze` keeps the receipt without writing an
+insight. In `no-metered` mode, local transcription remains allowed and cloud
+speech-to-text fallbacks refuse before a provider call.
+
+Default analyzed X replays require the same semantic content hash on both the
+receipt and insight, then reuse complete artifacts without model or ledger
+work. Engagement-count changes alone do not trigger analysis. Edits to post
+text, long-form text, previews, quoted posts, or attached-media identity do.
+Proven unchanged pre-hash pairs receive a one-time hash migration without a
+model call. Failed analysis never commits the receipt-side completion marker.
+Raw-only capture commits its receipt hash after any requested attached-video
+transcript lands, so repeating `--no-analyze` is also write, ledger, model, and
+speech-to-text free. Pass `--force` to refresh unchanged content intentionally.
+
+The current one-pass corpus aggregator combines channel, site, and paper
+synthesis inputs. When directly ingested X, repo, feed, or local-file insights
+must influence the cross-source result, use `distill resynthesize <topic>
+--two-pass`, which reads all `_Insights.md` files recursively.
+
 ## arXiv papers
 
 ```bash
@@ -390,11 +444,15 @@ distill export my-research --what citations --format bibtex
 distill export my-research --what citations --format ris
 ```
 
+Direct paper replay is version-exact. A completed arXiv `v1` is reused without
+model or ledger work, while a fetched `v2` is treated as new source content.
+Pass `--force` to reanalyze the same version intentionally.
+
 Flags on `distill papers`:
 
 - `--limit / -n` - how many papers to analyze after reranking (default 10)
 - `--sort relevance|date` - arXiv candidate order before rerank (default `relevance`)
-- `--expand / --no-expand` - expand the single user query into up to six arXiv search variants via Grok (default on). Candidates are deduped by `paper_id` across variants. arXiv calls are spaced 3.5s to respect rate limits.
+- `--expand / --no-expand` - expand the single user query into up to six arXiv search variants via the configured model (default on). Candidates are deduped by `paper_id` across variants. arXiv calls are spaced 3.5s to respect rate limits.
 - `--rerank / --no-rerank` - LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
 - `--rigor strict|balanced|loose|off` - quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` - under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
 - `--preview` - show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
@@ -493,7 +551,7 @@ Flags:
 
 Every run also appends one row per `(model, fixture)` to `library/.distill/eval/results.jsonl` (scores, win-rate, cost) so you can track quality and cost **drift over time** as models change.
 
-The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A non-anchor recommendation means the model judges found the candidate faithful and at par with the anchor. A recommendation for the anchor means no cheaper model was certified at par, a cheaper model was unfaithful, or the judge signal was missing. (Quick local-only check: `distill doctor --eval --model <name>`.)
+The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A non-anchor recommendation means the model judges found the candidate faithful and at par with the anchor. A recommendation for the anchor means no cheaper model was certified at par, a cheaper model was unfaithful, or the judge signal was missing. `distill doctor --json` checks local service and model availability; use `distill eval --workload <name> --models <models>` for the quality decision.
 
 ## Research briefings and deep synthesis
 
@@ -745,9 +803,10 @@ DISTILL_VERIFY=off distill latest "..."             # skip the check for this ru
 ```
 
 Strict mode keeps the receipt and the sidecar, records the refusal in the run
-summary, and leaves videos unprocessed so a re-run retries them. The
-deterministic tier checks numbers only; named-entity/prose claims await the
-local entailment-checker tier ([roadmap](../ROADMAP.md)).
+summary, and leaves videos unprocessed so a re-run retries them. The base tier
+checks numeric claims. Installing `distillr[entailment]` adds the local
+HHEM-2.1-Open tier for substantive prose claims without a cloud call; strict
+mode refuses prose flags when that optional tier is available.
 
 ### yt-dlp staleness preflight
 

@@ -13,10 +13,11 @@ from distill.ingestors.sites.scraper import SitePage, site_section_key
 from distill.library import Library, TopicWatchEntry
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
+from distill.llm.router import RouterConfig
 from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
 from distill.pipeline.costs import (
     cost_anomaly_warnings,
-    estimate_stage_cost,
+    estimate_routed_video_workflow_cost,
     report_deep_research_estimate,
 )
 from distill.pipeline.dashboard_records import (
@@ -208,17 +209,32 @@ def parse_run_datetime(value: str) -> datetime | None:
 # ── Topic watch cost helpers ────────────────────────────────────────
 
 
-def estimated_topic_watch_sweep(topic_watchlist: Sequence[TopicWatchEntry]) -> float:
+def estimated_topic_watch_sweep(
+    topic_watchlist: Sequence[TopicWatchEntry],
+    *,
+    router_config: RouterConfig | None = None,
+) -> float:
+    rc = router_config or RouterConfig()
     total = 0.0
     for entry in topic_watchlist:
-        total += entry.limit * estimate_stage_cost("video_full")
+        total += estimate_routed_video_workflow_cost(
+            full_videos=entry.limit,
+            router_config=rc,
+        )
         if entry.report:
             total += report_deep_research_estimate()
     return total
 
 
-def estimate_topic_watch_cost(entry: TopicWatchEntry) -> float:
-    total = entry.limit * estimate_stage_cost("video_full")
+def estimate_topic_watch_cost(
+    entry: TopicWatchEntry,
+    *,
+    router_config: RouterConfig | None = None,
+) -> float:
+    total = estimate_routed_video_workflow_cost(
+        full_videos=entry.limit,
+        router_config=router_config,
+    )
     if entry.report:
         total += report_deep_research_estimate()
     return total
@@ -510,8 +526,8 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                 if len(warnings) >= limit:
                     return warnings
 
-        for channel in lib.get_channels(topic):
-            videos_dir = config.channel_dir(topic, channel.name) / "videos"
+        for channel_name in lib.get_corpus_channel_names(topic):
+            videos_dir = config.channel_dir(topic, channel_name) / "videos"
             if not videos_dir.exists():
                 continue
             for video_dir in videos_dir.iterdir():
@@ -531,7 +547,7 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                         insight_len = 0
                     if insight_len and insight_len < 250:
                         warnings.append(
-                            f"{topic} / {channel.name}: {title} insights look thin "
+                            f"{topic} / {channel_name}: {title} insights look thin "
                             f"({insight_len} chars)"
                         )
                         if len(warnings) >= limit:
@@ -857,17 +873,17 @@ def stale_synthesis_warnings(
 def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     """Collect all dashboard data into a plain dict."""
     lib = Library(config)
-    topics = lib.get_topics()
+    topics = lib.get_corpus_topics()
     watchlist = lib.get_watchlist()
     topic_watchlist = lib.get_topic_watchlist()
 
-    total_channels = sum(len(lib.get_channels(t)) for t in topics)
+    total_channels = sum(len(lib.get_corpus_channel_names(t)) for t in topics)
     total_videos = 0
     full_videos = 0
     scan_videos = 0
     for topic in topics:
-        for ch in lib.get_channels(topic):
-            vdir = config.channel_dir(topic, ch.name) / "videos"
+        for channel_name in lib.get_corpus_channel_names(topic):
+            vdir = config.channel_dir(topic, channel_name) / "videos"
             if not vdir.exists():
                 continue
             for d in vdir.iterdir():

@@ -161,7 +161,7 @@ def audit_cmd(
 
     config = get_config()
     lib = Library(config)
-    topics = lib.get_topics() if topic == "all" else [topic]
+    topics = lib.get_corpus_topics() if topic == "all" else [topic]
     now_iso = _now_iso()
     if not topics:
         if wants_json:
@@ -215,7 +215,8 @@ def _write_topic_audit_report(
     console.print(
         f"[bold]{report.topic}[/bold]: {report.issue_count} finding(s) -- "
         f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
-        f"{v.never_checked} unchecked | {len(s.stale)} stale prompt(s), "
+        f"{v.unverified} unverified, {v.synthesis_unverified} synthesis unverified | "
+        f"{len(s.stale)} stale prompt(s), "
         f"{len(report.freshness.stale)} stale synthesis/es, "
         f"{len(report.exact_video_duplicates)} exact video duplicate group(s), "
         f"{len(report.thin_transcripts)} thin transcript(s), "

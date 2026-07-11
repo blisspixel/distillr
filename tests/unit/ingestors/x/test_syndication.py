@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -66,6 +67,15 @@ def test_syndication_token_format() -> None:
 # ---------------------------------------------------------------------------
 # _record_from_payload
 # ---------------------------------------------------------------------------
+
+
+_FIXTURE_DIR = Path(__file__).parents[3] / "fixtures" / "x"
+
+
+def _fixture(name: str) -> dict[str, Any]:
+    payload = json.loads((_FIXTURE_DIR / name).read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return payload
 
 
 def _payload(
@@ -187,6 +197,222 @@ def test_record_from_payload_note_tweet_extraction() -> None:
     }
     rec = _record_from_payload("1", _payload(note_tweet=note))
     assert rec.note_text.startswith("Long-form body")
+
+
+def test_record_from_payload_accepts_direct_note_text() -> None:
+    rec = _record_from_payload("1", _payload(note_tweet={"text": "Direct long-form body."}))
+
+    assert rec.note_text == "Direct long-form body."
+    assert rec.capture_status == "complete"
+
+
+def test_record_from_live_shape_marks_id_only_280_char_note_partial() -> None:
+    payload = _fixture("note_tweet_id_only.json")
+    assert len(payload["text"]) == 280
+
+    rec = _record_from_payload("2045000000000000001", payload)
+
+    assert rec.note_text == ""
+    assert rec.capture_status == "partial"
+    assert "did not provide its full body" in rec.capture_warning
+    assert "280-character Tweet text" in rec.capture_warning
+    assert rec.has_link_preview is False
+
+
+def test_record_from_live_shape_extracts_article_and_card_fallback_metadata() -> None:
+    rec = _record_from_payload(
+        "2045000000000000002",
+        _fixture("article_preview.json"),
+    )
+
+    assert rec.text == "https://t.co/article-only"
+    assert rec.link_preview_type == "x_article"
+    assert rec.link_preview_title == "Designing durable agent queues"
+    assert rec.link_preview_description.startswith("A practical look")
+    assert rec.link_preview_domain == "x.com"
+    assert rec.link_preview_url == "https://x.com/i/article/2045000000000000002"
+    assert rec.capture_status == "partial"
+    assert "preview metadata only" in rec.capture_warning
+    assert rec.has_link_preview is True
+
+
+def test_record_from_live_shape_extracts_card_binding_values() -> None:
+    rec = _record_from_payload(
+        "2045000000000000003",
+        _fixture("card_preview.json"),
+    )
+
+    assert rec.link_preview_type == "card"
+    assert rec.link_preview_title == "Testing long-running agent loops"
+    assert rec.link_preview_description.startswith("Failure injection")
+    assert rec.link_preview_domain == "example.org"
+    assert rec.link_preview_url == "https://example.org/agent-loop-qa"
+    assert rec.capture_status == "complete"
+    assert rec.capture_warning == ""
+
+
+def test_record_from_live_shape_preserves_complete_quoted_tweet() -> None:
+    rec = _record_from_payload(
+        "2045000000000000004",
+        _fixture("quoted_tweet_complete.json"),
+    )
+
+    assert rec.quoted_tweet_status == "available"
+    assert rec.quoted_tweet_id == "2032727335074722216"
+    assert rec.quoted_tweet_author_name == "François Chollet"
+    assert rec.quoted_tweet_author_handle == "fchollet"
+    assert rec.quoted_tweet_url == "https://x.com/fchollet/status/2032727335074722216"
+    assert len(rec.quoted_tweet_text) == 268
+    assert rec.has_quoted_post is True
+    assert rec.capture_status == "complete"
+    assert "quoted post" not in rec.capture_warning
+
+
+def test_record_from_live_shape_uses_complete_nested_quoted_note_body() -> None:
+    payload = _fixture("quoted_tweet_note_complete.json")
+
+    rec = _record_from_payload("2045000000000000006", payload)
+
+    assert rec.quoted_tweet_status == "available"
+    assert rec.quoted_tweet_id == "2032727335074722218"
+    assert rec.quoted_tweet_text.startswith("Full quoted long-form body")
+    assert rec.quoted_tweet_text != payload["quoted_tweet"]["text"]
+    assert rec.capture_status == "complete"
+    assert rec.capture_warning == ""
+
+
+def test_record_from_live_shape_marks_id_only_nested_quoted_note_partial() -> None:
+    payload = _fixture("quoted_tweet_note_id_only.json")
+    assert len(payload["quoted_tweet"]["text"]) == 280
+
+    rec = _record_from_payload("2045000000000000007", payload)
+
+    assert rec.quoted_tweet_status == "partial"
+    assert rec.quoted_tweet_id == "2032727335074722217"
+    assert rec.quoted_tweet_text == payload["quoted_tweet"]["text"]
+    assert rec.capture_status == "partial"
+    assert "long-form note in the quoted post" in rec.capture_warning
+    assert "280-character quoted-post text" in rec.capture_warning
+    assert "Only the quoted-post reference metadata" not in rec.capture_warning
+
+
+def test_record_from_live_shape_marks_quoted_tweet_reference_partial() -> None:
+    rec = _record_from_payload(
+        "2045000000000000005",
+        _fixture("quoted_tweet_reference_only.json"),
+    )
+
+    assert rec.quoted_tweet_status == "partial"
+    assert rec.quoted_tweet_id == "2032727335074722216"
+    assert rec.quoted_tweet_text == ""
+    assert rec.capture_status == "partial"
+    assert "did not provide its text" in rec.capture_warning
+    assert rec.has_quoted_post is True
+
+
+def test_record_from_payload_accepts_top_level_quote_reference_and_explicit_url() -> None:
+    reference_payload = _payload()
+    reference_payload["quoted_tweet_id_str"] = "91"
+    reference = _record_from_payload("9", reference_payload)
+    assert reference.quoted_tweet_status == "partial"
+    assert reference.quoted_tweet_id == "91"
+    assert reference.quoted_tweet_url == "https://x.com/i/status/91"
+
+    explicit_payload = _payload()
+    explicit_payload["quoted_tweet"] = {
+        "id_str": "92",
+        "url": "https://twitter.com/source/status/92",
+        "text": "quoted body",
+    }
+    explicit = _record_from_payload("10", explicit_payload)
+    assert explicit.quoted_tweet_status == "available"
+    assert explicit.quoted_tweet_url == "https://twitter.com/source/status/92"
+
+
+def test_record_from_payload_accepts_list_card_bindings_and_nested_article_result() -> None:
+    payload = _payload(text="https://t.co/nested")
+    payload["article"] = {
+        "article_results": {
+            "result": {
+                "title": "Nested article title",
+                "preview_text": "Nested article preview",
+            }
+        }
+    }
+    payload["card"] = {
+        "binding_values": [
+            {"key": "domain", "value": {"string_value": "nested.example"}},
+            {"key": "card_url", "value": "https://nested.example/article"},
+            {"key": 4, "value": {"string_value": "ignored"}},
+            "ignored",
+        ]
+    }
+
+    rec = _record_from_payload("4", payload)
+
+    assert rec.link_preview_title == "Nested article title"
+    assert rec.link_preview_description == "Nested article preview"
+    assert rec.link_preview_domain == "nested.example"
+    assert rec.link_preview_url == "https://nested.example/article"
+
+
+def test_record_from_payload_accepts_direct_article_result_and_ignores_bad_card_values() -> None:
+    payload = _payload()
+    payload["article"] = {"result": {"title": "Direct result title"}}
+    payload["card"] = {
+        "binding_values": {
+            "description": 7,
+            9: {"string_value": "ignored"},
+        }
+    }
+
+    rec = _record_from_payload("5", payload)
+
+    assert rec.link_preview_title == "Direct result title"
+    assert rec.link_preview_description == ""
+    assert rec.capture_status == "partial"
+
+
+def test_record_from_payload_accepts_alternate_card_value_wrappers() -> None:
+    payload = _payload()
+    payload["card"] = {
+        "binding_values": {
+            "title": {"value": "Nested string title"},
+            "description": {"value": {"string_value": "Nested dictionary description"}},
+            "domain": {"value": {}},
+        }
+    }
+
+    rec = _record_from_payload("6", payload)
+
+    assert rec.link_preview_title == "Nested string title"
+    assert rec.link_preview_description == "Nested dictionary description"
+    assert rec.link_preview_domain == ""
+
+
+def test_record_from_payload_ignores_malformed_card_and_article_results() -> None:
+    payload = _payload()
+    payload["card"] = {"binding_values": 7}
+    payload["article"] = {
+        "article_results": {"result": "not a result"},
+        "title": "Direct fallback title",
+    }
+
+    rec = _record_from_payload("7", payload)
+
+    assert rec.link_preview_title == "Direct fallback title"
+    assert rec.link_preview_type == "x_article"
+
+
+def test_record_from_payload_id_only_short_note_uses_generic_partial_warning() -> None:
+    rec = _record_from_payload(
+        "8",
+        _payload(text="short receipt", note_tweet={"id": "NT-8"}),
+    )
+
+    assert rec.capture_status == "partial"
+    assert "Tweet text below is the available receipt" in rec.capture_warning
+    assert "280-character" not in rec.capture_warning
 
 
 def test_record_from_payload_empty_or_missing_user() -> None:

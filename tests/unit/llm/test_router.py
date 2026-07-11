@@ -18,6 +18,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from distill.llm import router as router_module
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import (
     WORKLOAD_TAGS,
     ConfigurationError,
@@ -215,7 +216,7 @@ def test_no_metered_blocks_api_billed_route_before_key_validation() -> None:
     """Cost policy fails closed before a cloud route can spend or ask for keys."""
     config = RouterConfig(provider="xai", xai_api_key="test-key", cost_mode="no-metered")
 
-    with pytest.raises(ConfigurationError) as exc_info:
+    with pytest.raises(CostPolicyError) as exc_info:
         call(config, "analysis", "test prompt")
     message = str(exc_info.value)
     assert "Blocked provider: xai" in message
@@ -240,7 +241,7 @@ def test_no_metered_blocks_unproven_agent_route() -> None:
     """Deferred agent routes need adapter proof before no-metered routing."""
     config = RouterConfig(provider="agent", cost_mode="no-metered")
 
-    with pytest.raises(ConfigurationError) as exc_info:
+    with pytest.raises(CostPolicyError) as exc_info:
         call(config, "analysis", "test prompt")
     message = str(exc_info.value)
     assert "Blocked provider: agent" in message
@@ -252,7 +253,7 @@ def test_no_metered_reports_plan_quota_proof_for_reserved_cli_route() -> None:
     """Reserved CLI route names explain the proof needed before provider validation."""
     config = RouterConfig(provider="codex", cost_mode="no-metered")
 
-    with pytest.raises(ConfigurationError) as exc_info:
+    with pytest.raises(CostPolicyError) as exc_info:
         call(config, "analysis", "test prompt")
     message = str(exc_info.value)
     assert "Blocked provider: codex" in message

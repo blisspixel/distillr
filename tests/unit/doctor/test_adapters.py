@@ -37,7 +37,11 @@ def test_adapter_doctor_records_required_flags_and_env_blockers(monkeypatch):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
     def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
-        text = "codex 0.140.0" if command == ("codex", "--version") else "--json --sandbox"
+        text = (
+            "codex 0.140.0"
+            if _command_key(command) == ("codex", "--version")
+            else "--json --sandbox"
+        )
         return 0, text, ""
 
     report = adapters.adapter_doctor_report(
@@ -286,7 +290,7 @@ def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monk
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
     def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
-        if command == ("claude", "auth", "status", "--json"):
+        if _command_key(command) == ("claude", "auth", "status", "--json"):
             return (
                 0,
                 '{"auth":{"method":"oauth","state":"authenticated","account":"user@example.test"}}',
@@ -309,7 +313,7 @@ def test_adapter_doctor_reports_metered_auth_command(monkeypatch):
     monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
 
     def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
-        if command == ("claude", "auth", "status", "--json"):
+        if _command_key(command) == ("claude", "auth", "status", "--json"):
             return 0, '{"auth":{"method":"api_key"}}', ""
         return _runner_with_required_flags(command, _timeout)
 
@@ -336,12 +340,114 @@ def test_adapter_doctor_blocks_unknown_auth_for_installed_candidate(monkeypatch,
     assert "auth mode is unknown" in codex.blocked_reasons
 
 
+def test_adapter_doctor_windows_probes_use_exact_discovered_executables(monkeypatch):
+    resolved = {
+        binary: rf"C:\Program Files\adapter shims\{binary}.cmd"
+        for binary in ("agy", "claude", "codex", "gemini", "gh", "grok")
+    }
+    monkeypatch.setattr(adapters.shutil, "which", resolved.get)
+    monkeypatch.setattr(adapters, "_is_windows", lambda: True)
+    commands: list[tuple[str, ...]] = []
+
+    def runner(command: Sequence[str], timeout: int) -> tuple[int, str, str]:
+        commands.append(tuple(command))
+        return _runner_with_required_flags(command, timeout)
+
+    report = adapters.adapter_doctor_report(environ={}, runner=runner)
+
+    assert (resolved["codex"], "--version") in commands
+    assert (resolved["codex"], "exec", "--help") in commands
+    assert (resolved["claude"], "auth", "status", "--json") in commands
+    assert (resolved["claude"], "-p", "--help") in commands
+    assert (resolved["gemini"], "--help") in commands
+    assert next(probe for probe in report.adapters if probe.name == "codex").version == (
+        "codex 0.140.0"
+    )
+    codex_spec = next(spec for spec in adapters.adapter_specs() if spec.name == "codex")
+    assert codex_spec.probes[0].command == ("codex", "--version")
+
+
+def test_adapter_doctor_gives_slow_startup_probes_bounded_headroom(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    default_timeouts: list[int] = []
+    override_timeouts: list[int] = []
+
+    def default_runner(command: Sequence[str], timeout: int) -> tuple[int, str, str]:
+        default_timeouts.append(timeout)
+        return _runner_with_required_flags(command, timeout)
+
+    def override_runner(command: Sequence[str], timeout: int) -> tuple[int, str, str]:
+        override_timeouts.append(timeout)
+        return _runner_with_required_flags(command, timeout)
+
+    adapters.adapter_doctor_report(environ={}, runner=default_runner)
+    adapters.adapter_doctor_report(environ={}, runner=override_runner, timeout_seconds=2)
+
+    assert default_timeouts and set(default_timeouts) == {10}
+    assert override_timeouts and set(override_timeouts) == {2}
+
+
+def test_adapter_doctor_posix_probes_keep_planned_argv(monkeypatch):
+    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/opt/adapters/{binary}")
+    monkeypatch.setattr(adapters, "_is_windows", lambda: False)
+    commands: list[tuple[str, ...]] = []
+
+    def runner(command: Sequence[str], timeout: int) -> tuple[int, str, str]:
+        commands.append(tuple(command))
+        return _runner_with_required_flags(command, timeout)
+
+    adapters.adapter_doctor_report(environ={}, runner=runner)
+
+    assert ("codex", "--version") in commands
+    assert ("claude", "auth", "status", "--json") in commands
+    assert all(not command[0].startswith("/opt/adapters/") for command in commands)
+
+
+def test_adapter_command_runner_keeps_shell_disabled(monkeypatch):
+    executable = r"C:\Program Files\adapter shims\codex.cmd"
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def run(command: list[str], **kwargs: object):
+        calls.append((command, kwargs))
+        return adapters.subprocess.CompletedProcess(command, 0, "codex 0.140.0\n", "")
+
+    monkeypatch.setattr(adapters.subprocess, "run", run)
+
+    result = adapters._run_command((executable, "--version"), 7)
+
+    assert result == (0, "codex 0.140.0\n", "")
+    assert calls == [
+        (
+            [executable, "--version"],
+            {
+                "capture_output": True,
+                "text": True,
+                "timeout": 7,
+                "check": False,
+                "shell": False,
+            },
+        )
+    ]
+
+
+def _command_key(command: Sequence[str]) -> tuple[str, ...]:
+    executable = command[0].replace("\\", "/").rsplit("/", maxsplit=1)[-1]
+    for suffix in (".bat", ".cmd", ".com", ".exe"):
+        if executable.lower().endswith(suffix):
+            executable = executable[: -len(suffix)]
+            break
+    return (executable, *command[1:])
+
+
 def _runner_with_required_flags(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
     output_by_command = {
         ("codex", "--version"): "codex 0.140.0",
         ("codex", "exec", "--help"): "--json --sandbox --output-schema --output-last-message",
-        ("claude", "--version"): "claude 2.1.173",
-        ("claude", "-p", "--help"): "--output-format --max-turns --no-session-persistence",
+        ("claude", "--version"): "claude 2.1.206",
+        ("claude", "-p", "--help"): (
+            "--input-format --output-format --json-schema --permission-mode "
+            "--tools --no-session-persistence"
+        ),
         ("claude", "auth", "status", "--json"): "{}",
         ("grok", "--version"): "grok 0.2.50",
         ("grok", "--help"): "--output-format",
@@ -353,4 +459,4 @@ def _runner_with_required_flags(command: Sequence[str], _timeout: int) -> tuple[
         ("gh", "--version"): "gh 2.0.0",
         ("gh", "copilot", "--help"): "",
     }
-    return 0, output_by_command.get(tuple(command), ""), ""
+    return 0, output_by_command.get(_command_key(command), ""), ""

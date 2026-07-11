@@ -18,6 +18,7 @@ from distill.commands import maintain as _maintain
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import slugify_title
+from distill.llm.cost_policy import CostPolicyError
 
 runner = CliRunner()
 
@@ -304,6 +305,25 @@ def test_migrate_existing_topic_without_renames_and_rename_errors(tmp_path, monk
     assert failed.exit_code == 0
     assert "Failed to rename abc123xyz" in failed.output
     assert "1 errors" in failed.output
+
+
+def test_cleanup_no_metered_blocks_before_gemini_client_construction(tmp_path, monkeypatch):
+    config = _config(tmp_path, distill_cost_mode="no-metered")
+    _patch_config(monkeypatch, config)
+    clients: list[str] = []
+
+    def forbidden_client(*, api_key: str) -> None:
+        clients.append(api_key)
+        raise AssertionError("Gemini client must not be constructed")
+
+    fake_genai = SimpleNamespace(Client=forbidden_client)
+    monkeypatch.setitem(sys.modules, "google", SimpleNamespace(genai=fake_genai))
+    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+
+    with pytest.raises(CostPolicyError, match="Route blocked by no-metered cost policy"):
+        _maintain.cleanup()
+
+    assert clients == []
 
 
 def test_cleanup_reports_non_distill_and_deletes_distill_stores(tmp_path, monkeypatch):

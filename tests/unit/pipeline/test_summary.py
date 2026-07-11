@@ -137,6 +137,34 @@ def test_display_summary_writes_run_artifacts(tmp_path, monkeypatch):
     assert "Video Fail" in latest_text
 
 
+def test_display_summary_saves_zero_local_route_estimate(tmp_path):
+    import json
+
+    output_file = tmp_path / "synthesis.md"
+    output_file.write_text("# Synthesis", encoding="utf-8")
+    summary = RunSummary(command="resynthesize", estimated_cost=0.0)
+    summary.add_output(output_file)
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=100,
+            completion_tokens=50,
+            model="qwen2.5:14b",
+            call_type="synthesis",
+            provider_name="ollama",
+            provider_type="local",
+        )
+    )
+
+    display_summary(summary, cost_tracker=tracker, console=Console(), log_dir=tmp_path)
+
+    cost_log = tmp_path / ".distill" / "cost_log.jsonl"
+    row = json.loads(cost_log.read_text(encoding="utf-8").strip())
+    assert row["estimated_cost"] == 0.0
+    assert row["actual_cost"] == 0.0
+    assert row["usage_ledger"]["no_metered_llm_calls"] == 1
+
+
 def test_display_summary_noop_when_empty():
     console = Console(record=True, width=120)
 
@@ -355,6 +383,39 @@ class TestDisplayEstimate:
         display_estimate(synthesis_calls=3, console=console)
         rendered = console.export_text()
         assert "synthesis" in rendered.lower()
+
+    def test_claim_extraction_calls(self):
+        console = Console(record=True, width=120)
+        display_estimate(claim_extraction_calls=2, console=console)
+
+        assert "2 claim extraction calls" in console.export_text()
+
+    def test_local_route_displays_zero_incremental_cost(self):
+        from distill.llm.router import RouterConfig
+
+        console = Console(record=True, width=120)
+        display_estimate(
+            synthesis_calls=3,
+            console=console,
+            router_config=RouterConfig(provider="ollama", fast_model="qwen2.5:14b"),
+        )
+
+        assert "~$0.00 estimated" in console.export_text()
+
+    def test_local_analysis_keeps_metered_report_estimate(self):
+        from distill.llm.router import RouterConfig
+
+        console = Console(record=True, width=120)
+        display_estimate(
+            full_videos=1,
+            include_report=True,
+            console=console,
+            router_config=RouterConfig(provider="ollama", fast_model="qwen2.5:14b"),
+        )
+
+        rendered = console.export_text()
+        assert "~$0.00 estimated" not in rendered
+        assert "Deep Research" in rendered
 
 
 def test_file_size_megabytes(tmp_path):

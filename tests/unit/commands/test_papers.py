@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import SecretStr
@@ -116,6 +118,20 @@ def _invoke_papers(*extra: str):
     )
 
 
+def test_paper_tail_call_count_matches_papers_only_and_mixed_corpus(paper_config):
+    assert papers_cmd._paper_tail_calls("research", paper_config) == 1
+
+    topic_dir = paper_config.topic_dir("research")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "paper_synthesis.md").write_text("papers", encoding="utf-8")
+    assert papers_cmd._paper_tail_calls("research", paper_config) == 1
+
+    channel_dir = paper_config.channel_dir("research", "Lab")
+    channel_dir.mkdir(parents=True, exist_ok=True)
+    (channel_dir / "synthesis.md").write_text("channel", encoding="utf-8")
+    assert papers_cmd._paper_tail_calls("research", paper_config) == 2
+
+
 def test_paper_fetch_failure_refuses_before_analysis(paper_config, monkeypatch):
     analysis_calls: list[PaperRecord] = []
     monkeypatch.setattr(papers_cmd, "fetch_arxiv_paper", lambda target: None)
@@ -132,11 +148,105 @@ def test_paper_fetch_failure_refuses_before_analysis(paper_config, monkeypatch):
     assert "Could not fetch paper metadata" in result.output
 
 
+def test_exact_completed_paper_version_replay_is_a_write_free_noop(
+    paper_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = _paper()
+    paper_dir = paper_config.paper_dir("research", record.title, record.paper_id)
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "metadata.json").write_text(
+        json.dumps(record.metadata()),
+        encoding="utf-8",
+    )
+    paper_path = paper_dir / "paper.md"
+    insights_path = paper_dir / "insights.md"
+    paper_path.write_text("Existing paper receipt", encoding="utf-8")
+    insights_path.write_text(
+        f"---\npaper_id: {record.paper_id}\n---\n\nExisting insight",
+        encoding="utf-8",
+    )
+    before = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (paper_path, insights_path)
+    }
+    analyze = MagicMock()
+    require_model = MagicMock()
+    enforce_budget = MagicMock()
+    monkeypatch.setattr(papers_cmd, "fetch_arxiv_paper", lambda target: record)
+    monkeypatch.setattr(papers_cmd, "analyze_paper", analyze)
+    monkeypatch.setattr(papers_cmd, "_require_model", require_model)
+    monkeypatch.setattr(papers_cmd, "enforce_projected_workflow_budget", enforce_budget)
+
+    result = runner.invoke(cli.app, ["paper", record.paper_id, "--topic", "research"])
+
+    assert result.exit_code == 0, result.output
+    assert "Already complete for this exact arXiv version" in result.output
+    assert "--force" in result.output
+    analyze.assert_not_called()
+    require_model.assert_not_called()
+    enforce_budget.assert_not_called()
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (paper_path, insights_path)
+    } == before
+    assert not (paper_config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+    analyze.return_value = ("Refreshed insight", "Existing paper receipt")
+    monkeypatch.setattr(
+        papers_cmd,
+        "_write_paper_artifacts",
+        lambda topic, record, config, insights, document: paper_dir,
+    )
+    monkeypatch.setattr(papers_cmd, "display_summary", lambda *args, **kwargs: None)
+    forced = runner.invoke(
+        cli.app,
+        ["paper", record.paper_id, "--topic", "research", "--force"],
+    )
+
+    assert forced.exit_code == 0, forced.output
+    analyze.assert_called_once()
+    require_model.assert_called_once()
+    enforce_budget.assert_called_once()
+
+
+def test_new_arxiv_version_is_not_hidden_by_completed_older_version(
+    paper_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    older = _paper("2607.00001v1")
+    current = _paper("2607.00001v2")
+    old_dir = paper_config.paper_dir("research", older.title, older.paper_id)
+    old_dir.mkdir(parents=True, exist_ok=True)
+    (old_dir / "metadata.json").write_text(
+        json.dumps(older.metadata()),
+        encoding="utf-8",
+    )
+    (old_dir / "paper.md").write_text("v1 receipt", encoding="utf-8")
+    (old_dir / "insights.md").write_text("v1 insight", encoding="utf-8")
+    output_dir = tmp_path / "v2-artifacts"
+    output_dir.mkdir()
+    analyze = MagicMock(return_value=("v2 insight", "v2 receipt"))
+    monkeypatch.setattr(papers_cmd, "fetch_arxiv_paper", lambda target: current)
+    monkeypatch.setattr(papers_cmd, "analyze_paper", analyze)
+    monkeypatch.setattr(
+        papers_cmd,
+        "_write_paper_artifacts",
+        lambda topic, record, config, insights, document: output_dir,
+    )
+    monkeypatch.setattr(papers_cmd, "display_summary", lambda *args, **kwargs: None)
+
+    result = runner.invoke(cli.app, ["paper", current.paper_id, "--topic", "research"])
+
+    assert result.exit_code == 0, result.output
+    analyze.assert_called_once()
+
+
 def test_paper_without_authors_or_optional_syntheses_completes(paper_config, monkeypatch, tmp_path):
     record = _paper(authors=[])
     paper_dir = tmp_path / "paper-artifacts"
     paper_dir.mkdir()
     artifacts: list[tuple[str, str | None]] = []
+    summaries = []
     monkeypatch.setattr(papers_cmd, "fetch_arxiv_paper", lambda target: record)
     monkeypatch.setattr(
         papers_cmd,
@@ -154,6 +264,11 @@ def test_paper_without_authors_or_optional_syntheses_completes(paper_config, mon
         return path / f"{kind}.md"
 
     monkeypatch.setattr(papers_cmd, "find_artifact", find)
+    monkeypatch.setattr(
+        papers_cmd,
+        "display_summary",
+        lambda summary, **kwargs: summaries.append(summary),
+    )
 
     result = runner.invoke(cli.app, ["paper", record.paper_id, "--topic", "research"])
 
@@ -161,6 +276,8 @@ def test_paper_without_authors_or_optional_syntheses_completes(paper_config, mon
     assert record.title in result.output
     assert "Ada Researcher" not in result.output
     assert artifacts == [("paper", None), ("insights", None)]
+    assert len(summaries) == 1
+    assert summaries[0].estimated_cost == 0.0
 
 
 @pytest.mark.parametrize(

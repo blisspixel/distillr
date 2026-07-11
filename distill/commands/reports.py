@@ -20,6 +20,7 @@ from distill.commands._helpers import (
     budgeted_cost_tracker,
     enforce_projected_workflow_budget,
     get_config,
+    save_command_cost,
 )
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
@@ -34,7 +35,8 @@ from distill.library.citations import collect_paper_citations, render_citations
 from distill.library.export import markdown_to_docx
 from distill.library.okf import export_okf_bundle
 from distill.library.paths import find_artifact
-from distill.pipeline.costs import report_deep_research_estimate
+from distill.llm.cost_policy import require_route_allowed
+from distill.pipeline.costs import BudgetExceededError, report_deep_research_estimate
 from distill.pipeline.report.deep_research import run_deep_research
 from distill.pipeline.summary import RunSummary, display_summary
 
@@ -174,6 +176,12 @@ def report(  # noqa: C901 - legacy, will refactor
         console.print("[red]Specify a topic or use --all[/red]")
         raise typer.Exit(1)
 
+    require_route_allowed(
+        cost_mode=config.distill_cost_mode,
+        provider="gemini",
+        workload="report",
+    )
+
     scope = "all" if all_topics else ("channel" if channel else "topic")
     scope_label = (
         "entire library"
@@ -202,35 +210,46 @@ def report(  # noqa: C901 - legacy, will refactor
     if focus:
         console.print(f"[dim]Focus: {focus}[/dim]")
 
-    if legacy:
-        # Original single-shot deep research
-        result = run_deep_research(
-            topic=topic or "all",
-            config=config,
-            scope=scope,
-            channel_name=channel,
-            focus=focus,
-            test=test,
-            tracker=tracker,
-        )
-    else:
-        # Accordion method
-        from distill.pipeline.report.accordion import run_accordion_research
+    try:
+        if legacy:
+            # Original single-shot deep research
+            result = run_deep_research(
+                topic=topic or "all",
+                config=config,
+                scope=scope,
+                channel_name=channel,
+                focus=focus,
+                test=test,
+                tracker=tracker,
+            )
+        else:
+            # Accordion method
+            from distill.pipeline.report.accordion import run_accordion_research
 
-        filter_list = [s.strip() for s in sections_filter.split(",")] if sections_filter else None
+            filter_list = (
+                [s.strip() for s in sections_filter.split(",")] if sections_filter else None
+            )
 
-        result = run_accordion_research(
-            topic=topic or "all",
-            config=config,
-            scope=scope,
-            channel_name=channel,
-            focus=focus,
-            test=test,
-            dossier_only=research_only,
-            sections=filter_list,
-            tracker=tracker,
-            skip_qa=no_qa,
+            result = run_accordion_research(
+                topic=topic or "all",
+                config=config,
+                scope=scope,
+                channel_name=channel,
+                focus=focus,
+                test=test,
+                dossier_only=research_only,
+                sections=filter_list,
+                tracker=tracker,
+                skip_qa=no_qa,
+            )
+    except BudgetExceededError:
+        save_command_cost(
+            config,
+            "report",
+            tracker,
+            metadata={"topic": topic or "all", "workflow": "report", "scope": scope},
         )
+        raise
 
     if result:
         console.print("\n[bold green]Report complete![/bold green]")

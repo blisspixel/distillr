@@ -21,6 +21,7 @@ import typer
 
 from distill._console import console
 from distill._version import get_version as _get_version
+from distill.commands._doctor_data import corpus_library_stats as _corpus_library_stats
 from distill.commands._helpers import _complete_topics, get_config
 from distill.config import DistillConfig
 from distill.doctor.checks import (
@@ -30,7 +31,6 @@ from distill.doctor.checks import (
     doctor_validate_key,
 )
 from distill.library import Library
-from distill.library.state import ChannelState
 from distill.pipeline.dashboard_data import (
     collect_corpus_health_warnings as _collect_corpus_health_warnings,
 )
@@ -278,10 +278,10 @@ def doctor(  # noqa: C901 - legacy, will refactor
         gem_status, gem_detail = _doctor_validate_key("gemini", config)
         ant_status, ant_detail = _doctor_validate_key("anthropic", config)
         oai_status, oai_detail = _doctor_validate_key("openai", config)
-        checks["xai_api_key"] = xai_status  # ok | invalid | missing
-        checks["gemini_api_key"] = gem_status  # ok | invalid | not_set
-        checks["anthropic_api_key"] = ant_status  # ok | invalid | not_set
-        checks["openai_api_key"] = oai_status  # ok | invalid | not_set
+        checks["xai_api_key"] = xai_status  # ok | invalid | missing | skipped
+        checks["gemini_api_key"] = gem_status  # ok | invalid | not_set | skipped
+        checks["anthropic_api_key"] = ant_status  # ok | invalid | not_set | skipped
+        checks["openai_api_key"] = oai_status  # ok | invalid | not_set | skipped
         checks["cost_mode"] = config.distill_cost_mode
         if xai_status == "invalid":
             warnings_list.append(f"XAI_API_KEY rejected by provider: {xai_detail[:80]}")
@@ -302,8 +302,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
         # Library stats
         lib = Library(config)
-        topics = lib.get_topics()
-        total_ch = sum(len(lib.get_channels(t)) for t in topics)
+        topics, total_ch, _total_vids, _scan_vids = _corpus_library_stats(config, lib)
         checks["topics"] = str(len(topics))
         checks["channels"] = str(total_ch)
 
@@ -403,6 +402,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{xai_detail}[/dim]")
     elif xai_status == "missing":
         console.print("  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]")
+    elif xai_status == "skipped":
+        console.print(
+            "  [yellow]--[/yellow]  XAI_API_KEY       "
+            "[yellow]live validation skipped by no-metered policy[/yellow]"
+        )
     elif xai_status == "unknown":
         console.print(
             f"  [yellow]--[/yellow]  XAI_API_KEY       [yellow]could not verify: {xai_detail:.45}[/yellow]"
@@ -418,6 +422,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print(
             "  [yellow]--[/yellow]  GEMINI_API_KEY    [dim]not set (needed for reports)[/dim]"
         )
+    elif gem_status == "skipped":
+        console.print(
+            "  [yellow]--[/yellow]  GEMINI_API_KEY    "
+            "[yellow]live validation skipped by no-metered policy[/yellow]"
+        )
     elif gem_status == "unknown":
         console.print(
             f"  [yellow]--[/yellow]  GEMINI_API_KEY    [yellow]could not verify: {gem_detail:.45}[/yellow]"
@@ -431,6 +440,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print("  [green]OK[/green]  ANTHROPIC_API_KEY [dim]claude-sonnet-5[/dim]")
     elif ant_status == "not_set":
         console.print("  [dim]--  ANTHROPIC_API_KEY not set (optional)[/dim]")
+    elif ant_status == "skipped":
+        console.print(
+            "  [yellow]--[/yellow]  ANTHROPIC_API_KEY "
+            "[yellow]live validation skipped by no-metered policy[/yellow]"
+        )
     elif ant_status == "unknown":
         console.print(
             f"  [yellow]--[/yellow]  ANTHROPIC_API_KEY [yellow]could not verify: {ant_detail:.45}[/yellow]"
@@ -444,6 +458,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print("  [green]OK[/green]  OPENAI_API_KEY    [dim]optional[/dim]")
     elif oai_status == "not_set":
         console.print("  [dim]--  OPENAI_API_KEY    not set (optional)[/dim]")
+    elif oai_status == "skipped":
+        console.print(
+            "  [yellow]--[/yellow]  OPENAI_API_KEY    "
+            "[yellow]live validation skipped by no-metered policy[/yellow]"
+        )
     elif oai_status == "unknown":
         console.print(
             f"  [yellow]--[/yellow]  OPENAI_API_KEY    [yellow]could not verify: {oai_detail:.45}[/yellow]"
@@ -607,22 +626,9 @@ def doctor(  # noqa: C901 - legacy, will refactor
     console.print(f"  [dim]{'-' * 50}[/dim]")
 
     lib = Library(config)
-    topics = lib.get_topics()
-    total_ch = sum(len(lib.get_channels(t)) for t in topics)
+    topics, total_ch, total_vids, scan_vids = _corpus_library_stats(config, lib)
     watchlist = lib.get_watchlist()
     topic_watchlist = lib.get_topic_watchlist()
-
-    total_vids = 0
-    scan_vids = 0
-    for t in topics:
-        for ch in lib.get_channels(t):
-            state_file = config.channel_dir(t, ch.name) / "state.json"
-            state = ChannelState(state_file)
-            total_vids += state.get_processed_count()
-            # Count scan-mode videos
-            for vid_id in state.processed_video_ids():
-                if state.get_analysis_mode(vid_id) == "scan":
-                    scan_vids += 1
 
     console.print(f"  Topics:     [{_ACCENT}]{len(topics)}[/{_ACCENT}]")
     console.print(f"  Channels:   [{_ACCENT}]{total_ch}[/{_ACCENT}]")

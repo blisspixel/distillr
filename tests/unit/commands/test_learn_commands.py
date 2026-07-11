@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from distill import cli
 from distill.commands import learn as learn_mod
 from distill.config import DistillConfig
+from distill.llm.cost_policy import CostPolicyError
 from distill.pipeline.costs import CostTracker, ProjectedBudgetExceededError
 
 runner = CliRunner()
@@ -181,6 +182,23 @@ class TestResearchBrief:
 
         assert result.exit_code == 1
         assert isinstance(result.exception, ProjectedBudgetExceededError)
+        run_brief.assert_not_called()
+
+    def test_no_metered_refuses_before_research_brief_pipeline(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_mode = "no-metered"
+        self._patch_common(monkeypatch, config)
+        run_brief = MagicMock(return_value=tmp_path / "output" / "briefing-demo.md")
+        monkeypatch.setattr(learn_mod, "run_research_brief", run_brief)
+
+        result = runner.invoke(
+            cli.app,
+            ["research-brief", "--topic", "ai", "--name", "demo", "--context", "Brief me"],
+        )
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, CostPolicyError)
+        assert "Route blocked by no-metered cost policy" in str(result.exception)
         run_brief.assert_not_called()
 
     def test_success_writes_output(self, tmp_path, monkeypatch):

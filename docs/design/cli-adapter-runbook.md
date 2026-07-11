@@ -228,13 +228,17 @@ Preflight:
 Tool-less structured command:
 
 ```text
-claude -p "<prompt>" \
+claude -p \
+  --input-format text \
   --output-format json \
   --json-schema '<schema-json>' \
+  --permission-mode plan \
   --tools "" \
-  --max-turns 1 \
   --no-session-persistence
 ```
+
+Distill passes the staged prompt on stdin and enforces `max_seconds` at the
+scratch workload runner boundary.
 
 Read-only file-aware command, only for staged scratch sources:
 
@@ -244,8 +248,7 @@ claude -p "<prompt>" \
   --verbose \
   --tools "Read" \
   --add-dir <scratch-workspace> \
-  --permission-mode default \
-  --max-turns 3 \
+  --permission-mode plan \
   --no-session-persistence
 ```
 
@@ -257,15 +260,16 @@ Useful flags:
 - `--tools ""` to disable tools, or `--tools "Read"` for read-only staged
   sources.
 - `--disallowedTools` for deny rules.
-- `--permission-mode plan|default|acceptEdits|auto|dontAsk|bypassPermissions`.
-- `--max-turns <n>` for loop bounds.
+- `--permission-mode plan|manual|acceptEdits|auto|dontAsk|bypassPermissions`.
 - `--no-session-persistence`.
 - `--worktree [name]` for isolated code-editing sessions, not first-wave
   Distill profile analysis.
+- Claude Code 2.1.206 does not expose `--max-turns`; use the workload runner
+  timeout as the hard execution bound.
 
 Avoid in no-metered subscription routing:
 
-- `--bare` on the local 2.1.173 binary. Local help says bare mode uses
+- `--bare` on the local 2.1.206 binary. Local help says bare mode uses
   `ANTHROPIC_API_KEY` or `apiKeyHelper` auth and never reads OAuth/keychain, so
   it is not a subscription-quota route.
 - `--dangerously-skip-permissions`.

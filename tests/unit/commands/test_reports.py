@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
@@ -15,7 +17,8 @@ from distill.library import Library
 from distill.library.citations import CitationRecord
 from distill.library.okf import OkfExportResult, OkfIssue, OkfValidationResult
 from distill.library.paths import artifact_path
-from distill.pipeline.costs import ProjectedBudgetExceededError
+from distill.llm.cost_policy import CostPolicyError
+from distill.pipeline.costs import BudgetExceededError, CostTracker, ProjectedBudgetExceededError
 
 runner = CliRunner()
 
@@ -96,6 +99,84 @@ class TestReportCommand:
         assert result.exit_code == 1
         assert isinstance(result.exception, ProjectedBudgetExceededError)
         run_report.assert_not_called()
+
+    @pytest.mark.parametrize("extra_args", [(), ("--legacy",)])
+    def test_no_metered_refuses_before_report_pipeline_or_client(
+        self, tmp_path, monkeypatch, extra_args
+    ):
+        config = _config(tmp_path)
+        config.distill_cost_mode = "no-metered"
+        _seed_topic(config)
+        self._patch_common(monkeypatch, config)
+        accordion_report = MagicMock(return_value="# Should not run")
+        legacy_report = MagicMock(return_value="# Should not run")
+        accordion_client = MagicMock(side_effect=AssertionError("client constructed"))
+        legacy_client = MagicMock(side_effect=AssertionError("client constructed"))
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.run_accordion_research",
+            accordion_report,
+        )
+        monkeypatch.setattr(reports_mod, "run_deep_research", legacy_report)
+        monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", accordion_client)
+        monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", legacy_client)
+
+        result = runner.invoke(cli.app, ["report", "ai", *extra_args])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, CostPolicyError)
+        assert "Route blocked by no-metered cost policy" in str(result.exception)
+        accordion_report.assert_not_called()
+        legacy_report.assert_not_called()
+        accordion_client.assert_not_called()
+        legacy_client.assert_not_called()
+
+    @pytest.mark.parametrize("cost_mode", ["auto", "paid-ok"])
+    def test_metered_cost_modes_reach_report_pipeline(self, tmp_path, monkeypatch, cost_mode):
+        config = _config(tmp_path)
+        config.distill_cost_mode = cost_mode
+        _seed_topic(config)
+        self._patch_common(monkeypatch, config)
+        run_report = MagicMock(return_value=None)
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.run_accordion_research",
+            run_report,
+        )
+
+        result = runner.invoke(cli.app, ["report", "ai"])
+
+        assert result.exit_code == 1
+        run_report.assert_called_once()
+
+    def test_budget_failure_persists_submitted_report_cost(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_topic(config)
+        self._patch_common(monkeypatch, config)
+        tracker = CostTracker(budget=0.0)
+        monkeypatch.setattr(reports_mod, "budgeted_cost_tracker", lambda *args: tracker)
+
+        def cross_budget(**kwargs):
+            kwargs["tracker"].record_gemini_query("deep-research-preview-04-2026")
+            raise AssertionError("record_gemini_query should have raised")
+
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion.run_accordion_research",
+            cross_budget,
+        )
+
+        result = runner.invoke(cli.app, ["report", "ai"])
+
+        assert result.exit_code == 1
+        assert isinstance(result.exception, BudgetExceededError)
+        log_path = config.library_dir / ".distill" / "cost_log.jsonl"
+        rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "report"
+        assert rows[0]["gemini_queries"] == 1
+        assert rows[0]["metadata"] == {
+            "topic": "ai",
+            "workflow": "report",
+            "scope": "topic",
+        }
 
     def test_accordion_report_success(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

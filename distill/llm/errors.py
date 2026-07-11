@@ -16,9 +16,36 @@ from __future__ import annotations
 from distill.llm.retry import is_permanent_error
 
 __all__ = [
+    "ProviderBusyTimeoutError",
     "describe_provider_error",
     "is_credit_or_auth_error",
 ]
+
+
+class ProviderBusyTimeoutError(TimeoutError):
+    """Raised when a provider stays occupied past a bounded wait."""
+
+    def __init__(
+        self,
+        *,
+        provider: str,
+        requested_model: str,
+        active_models: tuple[str, ...],
+        timeout_seconds: float,
+    ) -> None:
+        self.provider = provider
+        self.requested_model = requested_model
+        self.active_models = active_models
+        self.timeout_seconds = timeout_seconds
+        active = ", ".join(active_models) or "another model"
+        super().__init__(
+            f"{provider} remained busy with {active} for {timeout_seconds:g}s while waiting "
+            f"for requested model '{requested_model}'. No model was substituted. Retry after "
+            "the current workload finishes, or use `ollama ps` and `ollama stop <model>` "
+            "before retrying. Set DISTILL_LOCAL_TIMEOUT to a larger number of seconds if this "
+            "bounded wait is too short."
+        )
+
 
 # Substrings that mark a billing/credit/quota problem in a provider message,
 # independent of HTTP status (xAI returns 403 for credit exhaustion, others 402
@@ -76,6 +103,9 @@ def describe_provider_error(exc: Exception) -> str | None:
     """
     status = _status_of(exc)
     message = str(exc).lower()
+
+    if isinstance(exc, ProviderBusyTimeoutError):
+        return str(exc)
 
     if status in (402, 403) or any(marker in message for marker in _CREDIT_MARKERS):
         return (

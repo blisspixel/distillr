@@ -22,6 +22,19 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, Gemini CLI, and Antigravity `agy` | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, structured support-statement details checked against current 2026-06-30 vendor docs, local config auth-marker scanning, strict `adapter-workload.v1` input packages, strict `adapter-result.v1` manifest checks with quota-stop metadata, a scratch-only runner primitive, a checked workload runner, a native result writer, adapter-specific native usage capture, a manifest-to-ledger helper, and blocked read-only command planners exist. No plan-quota support statement is current for no-metered routing yet because paid credits, overages, API-key modes, gateway routes, or unproved session auth remain possible. Routes still need included-plan auth proof, native schema enforcement where the CLI supports it, real installed-session validation, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
+When Ollama reports a different resident model, Distill waits with bounded
+asynchronous backoff instead of submitting a competing model load. It never
+silently substitutes the resident model. The wait uses the same local ceiling
+value as inference, configurable with `DISTILL_LOCAL_TIMEOUT`, but the semantics
+differ: contention uses a total wait bound, while streaming inference uses a
+per-read idle timeout and may run longer while tokens keep arriving. If the
+contention bound is reached, the command returns a network-class failure with
+the active model and retry guidance so an external loop can reschedule it. If
+the requested model is already resident, Distill submits normally and lets
+Ollama serialize work for that model. In `--json` mode the timeout payload uses
+`code: provider_busy`, `retryable: true`, and `terminal: false`, so a harness
+does not have to classify the error message.
+
 ## Cost modes
 
 `DISTILL_COST_MODE` accepts:
@@ -53,9 +66,20 @@ generated replay commands when the profile declares `cost_mode: no-metered`.
 ingest, analysis, verify, and cost-log paths, with resume state under
 `library/.distill/profiles/`.
 
+Cost mode applies to every provider edge, including live credential probes,
+cloud speech-to-text, Gemini Deep Research, and Gemini File Search maintenance.
+Under `no-metered`, those routes refuse before duration probing, client
+construction, file upload, or a provider call. `distill doctor` reports a cloud
+key as `skipped` when live validation is blocked by policy; it does not treat the
+key as valid. `distill cleanup` also refuses before constructing a Gemini client.
+Local transcription remains allowed.
+
 The usage ledger records zero-dollar usage too. Cost-log rows include provider
 and route-class breakdowns, no-metered LLM call counts, local transcription
 counts, and profile-run orchestration rows even when `actual_cost` is `0.0`.
+Direct `distill concepts build` and `distill synthesize` runs flush every
+non-empty tracker in a `finally` path, so successful and failed calls remain on
+the ledger while true no-op runs do not create empty rows.
 
 ## Cost warnings
 
@@ -86,7 +110,7 @@ Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
 workflow should draw attention above a known spend ceiling:
 
 ```bash
-DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"
+DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,ingest=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"
 ```
 
 Workflow budgets serve three roles. First, direct CLI workflows with credible
@@ -125,11 +149,28 @@ Use the user-facing command key for the cap. Common keys include `ask`,
 `run`, `site`, `site-batch`, `synthesize`, `synthesis`, `topic-brief`, and
 `video`.
 
+Estimate-bearing workflows resolve the active route for each model stage. Ask,
+paper, site, discovery, synthesis, topic-watch, and video-family work assigned
+to Ollama or LM Studio contributes `$0.00` incremental model cost to the
+displayed estimate, workflow-budget preflight, and saved run row. A metered
+per-workload override or an eligible metered fallback is still priced, so a
+mixed local and cloud workflow is not labeled free. Unknown paper sizes price
+the costlier eligible single-pass or multipass route until analysis determines
+which path runs. Gemini Deep Research also remains metered when the surrounding
+analysis is local.
+
 Workflow budgets do not replace `DISTILL_COST_MODE=no-metered`, topic-watch
 max-run/monthly budgets, or MCP per-call spend caps. Cost mode is the pre-call
 route policy. Topic-watch budgets are projected-run controls for recurring
 topic watches. MCP caps are per-tool-call controls for agent-facing write
 tools.
+
+Workflow caps are per command, not one cumulative campaign budget. For a hard
+ceiling across discovery, several direct ingests, synthesis, and evaluation,
+use `no-metered` for the campaign or allocate separate command caps whose sum
+fits the ceiling, then inspect `distill costs` between phases. Distill does not
+currently reserve or atomically enforce one shared dollar allowance across
+several independent CLI processes.
 
 ## Provider-side caches
 

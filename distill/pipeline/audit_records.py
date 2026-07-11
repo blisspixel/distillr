@@ -83,12 +83,24 @@ class VerifyRollup:
     synthesis_clean: int = 0
 
     @property
-    def never_checked(self) -> int:
+    def unverified(self) -> int:
+        """Insights with no successful claim checks, including zero-check sidecars."""
         return self.insights_total - self.checked
 
     @property
-    def synthesis_never_checked(self) -> int:
+    def synthesis_unverified(self) -> int:
+        """Syntheses with no successful claim checks, including zero-check sidecars."""
         return self.synthesis_total - self.synthesis_checked
+
+    @property
+    def never_checked(self) -> int:
+        """Compatibility alias for callers using the previous audit wording."""
+        return self.unverified
+
+    @property
+    def synthesis_never_checked(self) -> int:
+        """Compatibility alias for callers using the previous audit wording."""
+        return self.synthesis_unverified
 
 
 @dataclass(frozen=True)
@@ -134,6 +146,8 @@ class AuditReport:
             + len(self.thin_transcripts)
             + len(self.freshness.stale)
             + len(self.freshness.shadowed_legacy)
+            + self.verify.unverified
+            + self.verify.synthesis_unverified
         )
 
 

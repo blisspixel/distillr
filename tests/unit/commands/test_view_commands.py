@@ -58,6 +58,7 @@ def _seed_video(
     with_transcript: bool = True,
     with_insights: bool = True,
     insights_body: str | None = None,
+    mark_state: bool = True,
 ) -> None:
     vid_dir = config.video_dir(topic, channel, video_id)
     vid_dir.mkdir(parents=True, exist_ok=True)
@@ -77,8 +78,9 @@ def _seed_video(
         body = insights_body or "---\ntitle: test\n---\n\n## Summary\nInsight body"
         find_artifact(vid_dir, "insights").write_text(body, encoding="utf-8")
 
-    state = ChannelState(config.channel_dir(topic, channel) / "state.json")
-    state.mark_processed(video_id, title, _recent(days_ago))
+    if mark_state:
+        state = ChannelState(config.channel_dir(topic, channel) / "state.json")
+        state.mark_processed(video_id, title, _recent(days_ago))
 
 
 class TestLibraryCommand:
@@ -134,6 +136,59 @@ class TestLibraryCommand:
         assert "synthesis" in result.output
         assert "Topic files" in result.output
         assert "distill videos ai" in result.output
+
+    def test_library_human_lists_direct_ingest_without_run_hint(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_video(
+            config,
+            topic="direct-topic",
+            channel="Direct Channel",
+            mark_state=False,
+        )
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["library"])
+
+        assert result.exit_code == 0
+        assert "direct-topic" in result.output
+        assert "Direct Channel" in result.output
+        assert "direct" in result.output
+        assert "1" in result.output
+        assert "distill run direct-topic" not in result.output
+        assert Library(config).get_channels("direct-topic") == []
+
+    def test_library_json_counts_direct_ingest_without_channel_state(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_video(
+            config,
+            topic="direct-topic",
+            channel="Direct Channel",
+            video_id="direct-1",
+            mark_state=False,
+        )
+        artifact_path(
+            config.topic_dir("direct-topic"),
+            "corpus_synthesis",
+            identity="direct-topic",
+        ).write_text("# Corpus", encoding="utf-8")
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["--json", "library"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)["data"]
+        direct = payload["topics"][0]
+        assert direct["topic"] == "direct-topic"
+        assert direct["channels"] == [
+            {
+                "name": "Direct Channel",
+                "registered": False,
+                "videos": 1,
+                "last_refresh": None,
+                "artifacts": [],
+            }
+        ]
+        assert direct["topic_artifacts"] == ["corpus_synthesis"]
 
 
 class TestVideosCommand:
@@ -250,6 +305,45 @@ class TestVideosCommand:
         assert result.exit_code == 0
         assert "Test Video 0" in result.output
 
+    def test_videos_human_lists_direct_ingest(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_video(
+            config,
+            topic="direct-topic",
+            channel="Direct Channel",
+            title="Direct Video",
+            mark_state=False,
+        )
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["videos", "direct-topic"])
+
+        assert result.exit_code == 0
+        assert "Direct Channel" in result.output
+        assert "direct ingest" in result.output
+        assert "Direct Video" in result.output
+
+    def test_videos_json_lists_direct_ingest(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_video(
+            config,
+            topic="direct-topic",
+            channel="Direct Channel",
+            video_id="direct-1",
+            title="Direct Video",
+            mark_state=False,
+        )
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["--json", "videos", "direct-topic"])
+
+        assert result.exit_code == 0
+        channel = json.loads(result.stdout)["data"]["channels"][0]
+        assert channel["channel"] == "Direct Channel"
+        assert channel["registered"] is False
+        assert channel["total"] == 1
+        assert channel["videos"][0]["title"] == "Direct Video"
+
 
 class TestShowCommand:
     def _patch(self, monkeypatch, config):
@@ -267,6 +361,24 @@ class TestShowCommand:
         assert result.exit_code == 0
         assert "distill show TestCh 2 >>" in result.output
         assert "distill show TestCh 0" not in result.output
+
+    def test_show_reads_direct_ingest(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_video(
+            config,
+            topic="direct-topic",
+            channel="Direct Channel",
+            title="Direct Video",
+            insights_body="# Direct insight",
+            mark_state=False,
+        )
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["show", "direct-topic", "1"])
+
+        assert result.exit_code == 0
+        assert "Direct Video" in result.output
+        assert "Direct insight" in result.output
 
     def test_show_insights_with_navigation(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -570,6 +682,8 @@ class TestSynthesisAndFindings:
         assert rows[-1]["actual_cost"] > 0
 
     def test_synthesis_refuses_projected_budget_before_generation(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "synthesis=0.0001"
         _seed_library(config)
@@ -611,7 +725,11 @@ class TestSynthesisAndFindings:
         log_path = config.library_dir / ".distill" / "cost_log.jsonl"
         rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
         assert rows[-1]["command"] == "synthesis"
-        assert rows[-1]["metadata"] == {"topic": "ai"}
+        assert rows[-1]["metadata"] == {
+            "workflow": "synthesis",
+            "terminal": "budget_exceeded",
+            "topic": "ai",
+        }
         assert rows[-1]["actual_cost"] > 0
 
     def test_synthesis_no_processed_videos(self, tmp_path, monkeypatch):

@@ -220,6 +220,8 @@ def _claude_command(
             "text",
             "--output-format",
             "json",
+            "--permission-mode",
+            "plan",
             "--tools",
             "",
             "--no-session-persistence",

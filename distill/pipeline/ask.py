@@ -58,6 +58,7 @@ class AskResult:
     saved_insight_path: Path | None = None
     save_refused_reason: str = ""
     no_coverage: bool = False
+    estimated_cost: float | None = None
 
 
 def _stem(rel_path: str) -> str:
@@ -93,15 +94,21 @@ def _enforce_ask_projected_budget(
     *,
     source_chars: int,
     question_chars: int,
-) -> None:
+    router_config: RouterConfig,
+) -> float:
     from distill.pipeline.costs import ProjectedBudgetExceededError
 
+    projected = estimate_ask_workflow_cost(
+        source_chars,
+        question_chars=question_chars,
+        router_config=router_config,
+    )
     budget = _ask_workflow_budget_usd(config)
     if budget is None:
-        return
-    projected = estimate_ask_workflow_cost(source_chars, question_chars=question_chars)
+        return projected
     if projected > budget:
         raise ProjectedBudgetExceededError(projected, budget)
+    return projected
 
 
 def ask_corpus(
@@ -117,12 +124,13 @@ def ask_corpus(
     if not stems:
         return AskResult(question=question, answer_path=None, answer_text="", no_coverage=True)
 
-    _enforce_ask_projected_budget(
+    rc = RouterConfig()
+    projected_cost = _enforce_ask_projected_budget(
         config,
         source_chars=len(sources_block),
         question_chars=len(question),
+        router_config=rc,
     )
-    rc = RouterConfig()
     response = llm_call(
         rc,
         workload_tag="qa",
@@ -143,6 +151,7 @@ def ask_corpus(
             sources=cited,
             answer_refused_reason=refusal,
             save_refused_reason=refusal if save else "",
+            estimated_cost=projected_cost,
         )
     citation_refusal = citation_refusal_reason(
         answer_citations,
@@ -159,6 +168,7 @@ def ask_corpus(
             sources=cited,
             answer_refused_reason=citation_refusal,
             save_refused_reason=citation_refusal if save else "",
+            estimated_cost=projected_cost,
         )
 
     slug = slugify_title(question, source_id="ask")
@@ -197,7 +207,11 @@ def ask_corpus(
         ),
     )
     result = AskResult(
-        question=question, answer_path=answer_path, answer_text=answer, sources=cited or stems
+        question=question,
+        answer_path=answer_path,
+        answer_text=answer,
+        sources=cited or stems,
+        estimated_cost=projected_cost,
     )
 
     # Verify the answer's numbers against the retrieved bodies (the receipts).

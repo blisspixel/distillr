@@ -9,7 +9,12 @@ from contextlib import suppress
 
 from distill._console import console
 from distill.config import DistillConfig
-from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    CostTracker,
+    estimate_routed_video_workflow_cost,
+    save_run_log,
+)
 from distill.pipeline.summary import RunSummary
 
 
@@ -165,13 +170,14 @@ def _run_accordion_report_with_budget_log(
     except BudgetExceededError as exc:
         if summary is not None:
             summary.add_issue("report-budget", str(exc), context=topic)
-        _log_report_cost_delta(
-            config,
-            tracker,
-            start_entry_count=start_entry_count,
-            start_gemini_queries=start_gemini_queries,
-            metadata=metadata,
-        )
+        if not getattr(tracker, "budget_failure_logged", False):
+            _log_report_cost_delta(
+                config,
+                tracker,
+                start_entry_count=start_entry_count,
+                start_gemini_queries=start_gemini_queries,
+                metadata=metadata,
+            )
         raise
 
 
@@ -190,4 +196,10 @@ def _log_report_cost_delta(
     if not report_tracker.entries and not report_tracker.gemini_queries:
         return
     with suppress(Exception):
-        save_run_log(config.library_dir, "report", report_tracker, metadata=metadata)
+        save_run_log(
+            config.library_dir,
+            "report",
+            report_tracker,
+            estimated_cost=estimate_routed_video_workflow_cost(include_report=True),
+            metadata=metadata,
+        )

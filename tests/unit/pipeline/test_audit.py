@@ -92,6 +92,40 @@ class TestVerifyRollup:
         assert rollup.checked == 0
         assert rollup.never_checked == 1
 
+    def test_zero_checked_sidecar_is_unverified_not_clean(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        _seed_insight(
+            topic,
+            "papers/p1",
+            sidecar={"checked": 0, "supported": 0, "unsupported": []},
+        )
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.checked == 0
+        assert rollup.clean == 0
+        assert rollup.unverified == 1
+        assert rollup.never_checked == 1
+
+    def test_entailment_checks_can_cover_zero_numeric_claims(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        _seed_insight(
+            topic,
+            "papers/p1",
+            sidecar={
+                "checked": 0,
+                "supported": 0,
+                "unsupported": [],
+                "entailment": {"checked": 2, "supported": 2, "flagged": []},
+            },
+        )
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.checked == 1
+        assert rollup.clean == 1
+        assert rollup.unverified == 0
+
     def test_missing_topic_dir(self, tmp_path: Path):
         rollup = collect_verify_rollup(tmp_path / "nope")
         assert rollup.insights_total == 0
@@ -116,8 +150,12 @@ class TestVerifyRollup:
             ),
             encoding="utf-8",
         )
-        # A topic synthesis with no sidecar (never checked).
+        # A topic synthesis with a zero-check sidecar (unverified, not clean).
         (topic / "t_Topic_Synthesis.md").write_text("syn", encoding="utf-8")
+        (topic / "t_topic_synthesis_Verify.json").write_text(
+            json.dumps({"checked": 0, "supported": 0, "unsupported": []}),
+            encoding="utf-8",
+        )
 
         rollup = collect_verify_rollup(topic)
 
@@ -126,6 +164,7 @@ class TestVerifyRollup:
         assert rollup.synthesis_checked == 2
         assert rollup.synthesis_clean == 1
         assert rollup.synthesis_never_checked == 1
+        assert rollup.synthesis_unverified == 1
         # The corpus-synthesis flag is in the shared list, labelled by artifact.
         assert any(f["token"] == "9.9" for f in rollup.flagged)
 
@@ -291,6 +330,8 @@ class TestRenderAndWrite:
         out = render_audit_md(_report(), now_iso=NOW)
         assert "# Audit: t" in out
         assert "verified clean: 1" in out
+        assert "unverified/no checked claims: 1" in out
+        assert "zero checked claims is coverage metadata, not a passing result" in out
         assert "`99.9` (decimal)" in out
         assert "synthesis is 120 days old" in out
         assert "**X** (concept): 2 helpful / 1 harmful" in out
@@ -299,7 +340,8 @@ class TestRenderAndWrite:
         assert "distill discover --from-gaps --topic t --preview" in out
 
     def test_issue_count(self):
-        assert _report().issue_count == 4  # 1 warning + 1 contested + 1 gap + 1 flagged
+        # 1 warning + 1 contested + 1 gap + 1 flagged + 1 unverified.
+        assert _report().issue_count == 5
 
     def test_render_exact_duplicate_video_section(self):
         report = _report(
@@ -326,7 +368,7 @@ class TestRenderAndWrite:
 
         out = render_audit_md(report, now_iso=NOW)
 
-        assert report.issue_count == 5
+        assert report.issue_count == 6
         assert "Exact duplicate videos" in out
         assert "`youtube:same123` appears in 2 artifact directories" in out
         assert "`channels/A/videos/old` - Old (A)" in out
@@ -346,7 +388,7 @@ class TestRenderAndWrite:
 
         out = render_audit_md(report, now_iso=NOW)
 
-        assert report.issue_count == 5
+        assert report.issue_count == 6
         assert "Thin video transcripts" in out
         assert "`channels/A/videos/long` - Long Talk (A): 9 chars for 1h00m" in out
 
@@ -355,7 +397,7 @@ class TestRenderAndWrite:
         assert path.name == "t_Audit.md"
         text = path.read_text(encoding="utf-8")
         assert 'type: "audit"' in text
-        assert "findings: 4" in text
+        assert "findings: 5" in text
 
 
 class TestNextActionPlan:

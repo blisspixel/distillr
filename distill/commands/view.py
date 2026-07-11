@@ -24,6 +24,7 @@ from distill.commands._helpers import (
     enforce_projected_workflow_budget,
     get_config,
     save_synthesis_command_cost,
+    set_command_cost_metadata,
 )
 from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import file_link as _file_link
@@ -42,9 +43,39 @@ from distill.commands._topic_changes import (
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
+from distill.commands._view_data import (
+    bool_field as _bool_field,
+)
+from distill.commands._view_data import (
+    channel_video_count as _channel_video_count,
+)
+from distill.commands._view_data import (
+    int_field as _int_field,
+)
+from distill.commands._view_data import (
+    library_action_hints as _library_action_hints,
+)
+from distill.commands._view_data import (
+    library_payload as _library_payload,
+)
+from distill.commands._view_data import (
+    path_field as _path_field,
+)
+from distill.commands._view_data import (
+    read_json_object as _read_json_object,
+)
+from distill.commands._view_data import (
+    text_field as _text_field,
+)
+from distill.commands._view_data import (
+    topic_artifact_labels as _topic_artifact_labels,
+)
+from distill.commands._view_data import (
+    video_metadata as _video_metadata,
+)
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import resolve_channel_name
-from distill.library import ChannelInfo, Library
+from distill.library import Library
 from distill.library.paths import (
     artifact_exists,
     base_frontmatter,
@@ -53,8 +84,9 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.library.state import ChannelState
+from distill.llm.router import RouterConfig
 from distill.pipeline.costs import BudgetExceededError, estimate_synthesis_workflow_cost
-from distill.pipeline.dashboard_records import JsonObject, json_object
+from distill.pipeline.dashboard_records import JsonObject
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 
 __all__ = [
@@ -72,87 +104,12 @@ __all__ = [
 ]
 
 
-def _read_json_object(path: Path) -> JsonObject | None:
-    try:
-        return json_object(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def _text_field(record: JsonObject, key: str, default: str = "") -> str:
-    value = record.get(key)
-    return default if value is None else str(value)
-
-
-def _int_field(record: JsonObject, key: str, default: int = 0) -> int:
-    value = record.get(key)
-    if isinstance(value, (int, float, str)):
-        try:
-            return int(value)
-        except (OverflowError, ValueError):
-            return default
-    return default
-
-
-def _bool_field(record: JsonObject, key: str, default: bool = False) -> bool:
-    value = record.get(key)
-    return value if isinstance(value, bool) else default
-
-
-def _path_field(record: JsonObject, key: str) -> Path | None:
-    value = record.get(key)
-    return value if isinstance(value, Path) else None
-
-
-def _library_payload(config: DistillConfig, lib: Library, topics: list[str]) -> dict[str, object]:
-    """Structured library inventory for ``--json`` (topics -> channels + artifacts)."""
-    result: list[dict[str, object]] = []
-    for topic in topics:
-        channels: list[dict[str, object]] = []
-        for ch in lib.get_channels(topic):
-            channel_dir = config.channel_dir(topic, ch.name)
-            state = ChannelState(channel_dir / "state.json")
-            artifacts = [
-                name
-                for name, present in (
-                    (
-                        "synthesis",
-                        artifact_exists(channel_dir, "synthesis", identity=f"{topic}_{ch.name}"),
-                    ),
-                    (
-                        "report",
-                        artifact_exists(channel_dir, "report", identity=f"{topic}_{ch.name}"),
-                    ),
-                )
-                if present
-            ]
-            channels.append(
-                {
-                    "name": ch.name,
-                    "videos": state.get_processed_count(),
-                    "last_refresh": state.get_last_refresh() or None,
-                    "artifacts": artifacts,
-                }
-            )
-        topic_dir = config.topic_dir(topic)
-        topic_artifacts = [
-            name
-            for name, present in (
-                ("topic_synthesis", artifact_exists(topic_dir, "topic_synthesis", identity=topic)),
-                ("report", artifact_exists(topic_dir, "report", identity=topic)),
-            )
-            if present
-        ]
-        result.append({"topic": topic, "channels": channels, "topic_artifacts": topic_artifacts})
-    return {"topics": result, "count": len(result)}
-
-
 def library_cmd() -> None:
     """Show what's in your library."""
     config = get_config()
     lib = Library(config)
 
-    topics = lib.get_topics()
+    topics = lib.get_corpus_topics()
     if _json_mode_active():
         _emit_json(_library_payload(config, lib, topics))
         return
@@ -170,7 +127,8 @@ def library_cmd() -> None:
         return
 
     for topic in topics:
-        channels = lib.get_channels(topic)
+        channel_names = lib.get_corpus_channel_names(topic)
+        registered = {channel.name.casefold() for channel in lib.get_channels(topic)}
         table = Table(
             title=f"Topic: {topic}",
             show_header=True,
@@ -178,24 +136,26 @@ def library_cmd() -> None:
             title_style="bold cyan",
         )
         table.add_column("Channel", style="bold")
+        table.add_column("Source", style="dim")
         table.add_column("Videos", justify="right", style="green")
         table.add_column("Last Refresh", style="dim")
         table.add_column("Artifacts", style="dim")
 
-        for ch in channels:
-            state_file = config.channel_dir(topic, ch.name) / "state.json"
+        for channel_name in channel_names:
+            state_file = config.channel_dir(topic, channel_name) / "state.json"
             state = ChannelState(state_file)
 
             artifacts: list[str] = []
-            channel_dir = config.channel_dir(topic, ch.name)
-            if artifact_exists(channel_dir, "synthesis", identity=f"{topic}_{ch.name}"):
+            channel_dir = config.channel_dir(topic, channel_name)
+            if artifact_exists(channel_dir, "synthesis", identity=f"{topic}_{channel_name}"):
                 artifacts.append("synthesis")
-            if artifact_exists(channel_dir, "report", identity=f"{topic}_{ch.name}"):
+            if artifact_exists(channel_dir, "report", identity=f"{topic}_{channel_name}"):
                 artifacts.append("report")
 
             table.add_row(
-                ch.name,
-                str(state.get_processed_count()),
+                channel_name,
+                "registered" if channel_name.casefold() in registered else "direct",
+                str(_channel_video_count(config, topic, channel_name)),
                 _format_date(state.get_last_refresh() or ""),
                 ", ".join(artifacts) if artifacts else "-",
             )
@@ -203,43 +163,31 @@ def library_cmd() -> None:
         console.print(table)
 
         # Topic-level artifacts
-        topic_artifacts: list[str] = []
         topic_dir = config.topic_dir(topic)
-        if artifact_exists(topic_dir, "topic_synthesis", identity=topic):
-            topic_artifacts.append("topic synthesis")
-        if artifact_exists(topic_dir, "report", identity=topic):
-            topic_artifacts.append("report")
+        topic_artifacts = _topic_artifact_labels(topic_dir, topic)
         if topic_artifacts:
             console.print(f"  [dim]Topic files: {', '.join(topic_artifacts)}[/dim]")
 
         # Actionable hints per topic
-        console.print(
-            f"  [dim]distill videos {topic}  |  "
-            f"distill synthesis {topic}  |  "
-            f"distill run {topic} --refresh[/dim]"
-        )
+        console.print(f"  [dim]{_library_action_hints(topic, bool(registered))}[/dim]")
         console.print()
 
 
 def _videos_payload(
-    config: DistillConfig, channels: list[ChannelInfo], topic: str, limit: int
+    config: DistillConfig,
+    channel_names: list[str],
+    registered: set[str],
+    topic: str,
+    limit: int,
 ) -> dict[str, object]:
     """Structured per-channel video inventory for ``--json``."""
     out_channels: list[dict[str, object]] = []
-    for ch in channels:
-        videos_dir = config.videos_dir(topic, ch.name)
+    for channel_name in channel_names:
+        videos_dir = config.videos_dir(topic, channel_name)
         if not videos_dir.exists():
             continue
         vids: list[dict[str, object]] = []
-        for vid_dir in sorted(videos_dir.iterdir()):
-            if not vid_dir.is_dir():
-                continue
-            meta_file = vid_dir / "metadata.json"
-            if not meta_file.exists():
-                continue
-            meta = _read_json_object(meta_file)
-            if meta is None:
-                continue
+        for meta in _video_metadata(videos_dir):
             vids.append(
                 {
                     "video_id": meta.get("video_id"),
@@ -247,12 +195,19 @@ def _videos_payload(
                     "upload_date": meta.get("upload_date"),
                     "duration": meta.get("duration"),
                     "url": meta.get("url"),
-                    "has_transcript": artifact_exists(vid_dir, "transcript", extension="txt"),
-                    "has_insights": artifact_exists(vid_dir, "insights"),
+                    "has_transcript": _bool_field(meta, "_has_transcript"),
+                    "has_insights": _bool_field(meta, "_has_insights"),
                 }
             )
         vids.sort(key=lambda v: str(v.get("upload_date") or ""), reverse=True)
-        out_channels.append({"channel": ch.name, "total": len(vids), "videos": vids[:limit]})
+        out_channels.append(
+            {
+                "channel": channel_name,
+                "registered": channel_name.casefold() in registered,
+                "total": len(vids),
+                "videos": vids[:limit],
+            }
+        )
     return {"topic": topic, "channels": out_channels, "count": len(out_channels)}
 
 
@@ -268,11 +223,11 @@ def videos(  # noqa: C901 — legacy, will refactor
     lib = Library(config)
     topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
-    channels = lib.get_channels(topic)
+    channel_names = lib.get_corpus_channel_names(topic)
     if channel:
-        channels = [ch for ch in channels if ch.name == channel]
+        channel_names = [name for name in channel_names if name == channel]
 
-    if not channels:
+    if not channel_names:
         if _json_mode_active():
             _emit_json({"topic": topic, "channels": [], "count": 0})
             return
@@ -280,38 +235,24 @@ def videos(  # noqa: C901 — legacy, will refactor
         return
 
     if _json_mode_active():
-        _emit_json(_videos_payload(config, channels, topic, limit))
+        registered = {item.name.casefold() for item in lib.get_channels(topic)}
+        _emit_json(_videos_payload(config, channel_names, registered, topic, limit))
         return
 
-    for ch in channels:
-        videos_dir = config.videos_dir(topic, ch.name)
+    registered = {item.name.casefold() for item in lib.get_channels(topic)}
+    for channel_name in channel_names:
+        videos_dir = config.videos_dir(topic, channel_name)
         if not videos_dir.exists():
             continue
 
         # Collect all video metadata
-        vid_list: list[JsonObject] = []
-        for vid_dir in sorted(videos_dir.iterdir()):
-            if not vid_dir.is_dir():
-                continue
-            meta_file = vid_dir / "metadata.json"
-            if meta_file.exists():
-                meta = _read_json_object(meta_file)
-                if meta is None:
-                    continue
-                meta["_dir"] = vid_dir
-                meta["_has_transcript"] = artifact_exists(
-                    vid_dir,
-                    "transcript",
-                    extension="txt",
-                )
-                meta["_has_insights"] = artifact_exists(vid_dir, "insights")
-                vid_list.append(meta)
-
-        # Sort by upload date, newest first
-        vid_list.sort(key=lambda v: _text_field(v, "upload_date"), reverse=True)
+        vid_list = _video_metadata(videos_dir)
 
         table = Table(
-            title=f"{ch.name} - {len(vid_list)} videos",
+            title=(
+                f"{channel_name} - {len(vid_list)} videos"
+                + ("" if channel_name.casefold() in registered else " (direct ingest)")
+            ),
             show_header=True,
             box=box.ROUNDED,
             title_style="bold cyan",
@@ -349,7 +290,7 @@ def videos(  # noqa: C901 — legacy, will refactor
             )
 
         # Next steps
-        ch_flag = f" -c {ch.name}" if channel else ""
+        ch_flag = f" -c {channel_name}" if channel else ""
         console.print(
             f"  [dim]distill show {topic} 1{ch_flag}            View insights for video #1[/dim]"
         )
@@ -423,34 +364,22 @@ def show(  # noqa: C901 — legacy, will refactor
         channel = index_or_channel
 
     topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
-    channels = lib.get_channels(topic)
+    channel_names = lib.get_corpus_channel_names(topic)
     if channel:
-        channels = [ch for ch in channels if ch.name == channel]
-    if not channels:
+        channel_names = [name for name in channel_names if name == channel]
+    if not channel_names:
         console.print("[yellow]No channels found[/yellow]")
         return
 
-    ch = channels[0]
-    videos_dir = config.videos_dir(topic, ch.name)
+    channel_name = channel_names[0]
+    videos_dir = config.videos_dir(topic, channel_name)
 
     if not videos_dir.exists():
-        console.print(f"[yellow]No videos found for {ch.name}[/yellow]")
+        console.print(f"[yellow]No videos found for {channel_name}[/yellow]")
         return
 
     # Collect and sort videos
-    vid_list: list[JsonObject] = []
-    for vid_dir in sorted(videos_dir.iterdir()):
-        if not vid_dir.is_dir():
-            continue
-        meta_file = vid_dir / "metadata.json"
-        if meta_file.exists():
-            meta = _read_json_object(meta_file)
-            if meta is None:
-                continue
-            meta["_dir"] = vid_dir
-            vid_list.append(meta)
-
-    vid_list.sort(key=lambda v: _text_field(v, "upload_date"), reverse=True)
+    vid_list = _video_metadata(videos_dir)
 
     if index < 1 or index > len(vid_list):
         console.print(f"[red]Video #{index} not found. Range: 1-{len(vid_list)}[/red]")
@@ -470,7 +399,7 @@ def show(  # noqa: C901 — legacy, will refactor
     date = _format_date(_text_field(video, "upload_date"))
 
     total = len(vid_list)
-    ch_name = ch.name
+    ch_name = channel_name
     pos_label = f"[dim][{index}/{total}][/dim]"
 
     if what == "insights":
@@ -699,12 +628,12 @@ def synthesis(  # noqa: C901 — legacy, will refactor
             return
         else:
             console.print("[yellow]No synthesis found. Generating one now...[/yellow]")
-            enforce_projected_workflow_budget(
-                config,
-                "synthesis",
-                estimate_synthesis_workflow_cost(),
+            projected_cost = estimate_synthesis_workflow_cost(
+                router_config=RouterConfig(),
             )
+            enforce_projected_workflow_budget(config, "synthesis", projected_cost)
             tracker = budgeted_cost_tracker(config, "synthesis")
+            set_command_cost_metadata(tracker, topic=topic)
             try:
                 try:
                     if channel:
@@ -724,7 +653,13 @@ def synthesis(  # noqa: C901 — legacy, will refactor
                             identity=topic,
                         )
                 finally:
-                    save_synthesis_command_cost(config, topic, channel, tracker)
+                    save_synthesis_command_cost(
+                        config,
+                        topic,
+                        channel,
+                        tracker,
+                        estimated_cost=projected_cost,
+                    )
             except BudgetExceededError:
                 raise
             except Exception as e:

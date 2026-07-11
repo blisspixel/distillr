@@ -21,6 +21,7 @@ from distill.commands._helpers import (
     _complete_topics,
     budgeted_cost_tracker,
     get_config,
+    save_command_cost,
     tty_confirm,
 )
 from distill.commands._json import emit_json, json_mode_active
@@ -93,35 +94,45 @@ def concepts_build(
 
     rc = RouterConfig()
     tracker = budgeted_cost_tracker(config, "concepts")
-    summary = run_concepts(
-        topic=topic,
-        topic_dir=topic_dir,
-        rc=rc,
-        threshold=threshold,
-        refresh=refresh,
-        tracker=tracker,
-    )
+    try:
+        summary = run_concepts(
+            topic=topic,
+            topic_dir=topic_dir,
+            rc=rc,
+            threshold=threshold,
+            refresh=refresh,
+            tracker=tracker,
+        )
 
-    if json_out or json_mode_active():
-        payload = summary.to_dict()
-        payload["cost"] = tracker.format_cost()
-        emit_json(payload)
-        return
+        if json_out or json_mode_active():
+            payload = summary.to_dict()
+            payload["cost"] = tracker.format_cost()
+            emit_json(payload)
+            return
 
-    console.print()
-    console.print(f"[bold]Concept playbook -- {topic}[/bold]")
-    console.print(f"  Insights scanned:    {summary.insights_scanned}")
-    console.print(f"  Insights extracted:  {summary.insights_extracted}")
-    console.print(f"  Mentions added:      {summary.mentions_added}")
-    console.print(
-        f"  Concept notes:       {summary.concepts_written} written, {summary.concepts_unchanged} unchanged"
-    )
-    console.print(f"  Entity notes:        {summary.entities_written} written")
-    console.print(f"  Cost:                {tracker.format_cost()}")
-    console.print()
-    if summary.insights_extracted == 0 and summary.mentions_added == 0:
+        console.print()
+        console.print(f"[bold]Concept playbook -- {topic}[/bold]")
+        console.print(f"  Insights scanned:    {summary.insights_scanned}")
+        console.print(f"  Insights extracted:  {summary.insights_extracted}")
+        console.print(f"  Mentions added:      {summary.mentions_added}")
         console.print(
-            "  [dim]No new insights to extract. Use --refresh to re-extract over all sources.[/dim]"
+            f"  Concept notes:       {summary.concepts_written} written, "
+            f"{summary.concepts_unchanged} unchanged"
+        )
+        console.print(f"  Entity notes:        {summary.entities_written} written")
+        console.print(f"  Cost:                {tracker.format_cost()}")
+        console.print()
+        if summary.insights_extracted == 0 and summary.mentions_added == 0:
+            console.print(
+                "  [dim]No new insights to extract. Use --refresh to re-extract over all "
+                "sources.[/dim]"
+            )
+    finally:
+        save_command_cost(
+            config,
+            "concepts",
+            tracker,
+            metadata={"topic": topic, "workflow": "concepts", "source_type": "mixed"},
         )
 
 

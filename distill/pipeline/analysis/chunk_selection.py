@@ -20,14 +20,17 @@ from dataclasses import dataclass, field
 from typing import Literal, cast
 
 from distill.llm.availability import model_available
+from distill.llm.cost_policy import CostPolicyError
+from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.json_extract import extract_json
-from distill.llm.router import RouterConfig, call
+from distill.llm.router import LLM_Response, RouterConfig, call
 from distill.pipeline.analysis.chunking import Chunk, estimate_tokens
 from distill.pipeline.analysis.reranker import (
     ScoredChunk,
     keyword_fallback_available,
     rerank_for_category,
 )
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,8 @@ def build_chunk_selection_plan(
     passes: tuple[PassSelectionSpec, ...],
     context_window: int,
     config: RouterConfig,
+    *,
+    tracker: CostTracker | None = None,
 ) -> ChunkSelectionPlan:
     """Build chunk picks for every pass with minimal model spend.
 
@@ -112,7 +117,13 @@ def build_chunk_selection_plan(
             unresolved.append(spec)
 
     if unresolved and model_available("rerank"):
-        batched = _batch_select_with_model(chunks, unresolved, context_window, config)
+        batched = _batch_select_with_model(
+            chunks,
+            unresolved,
+            context_window,
+            config,
+            tracker=tracker,
+        )
         model_mode: ChunkSelectionMode = (
             "model" if len(unresolved) < _BATCH_MODEL_SECTION_THRESHOLD else "model_batch"
         )
@@ -150,6 +161,7 @@ def select_chunks_for_category(
     *,
     focus: str = "",
     heading_patterns: tuple[str, ...] = (),
+    tracker: CostTracker | None = None,
 ) -> tuple[list[ScoredChunk], ChunkSelectionMode]:
     """Select chunks for one pass. Prefer the shared plan builder when possible."""
     plan = build_chunk_selection_plan(
@@ -157,6 +169,7 @@ def select_chunks_for_category(
         (PassSelectionSpec(section=category, focus=focus, heading_patterns=heading_patterns),),
         context_window,
         config,
+        tracker=tracker,
     )
     selected = plan.by_section.get(category, [])
     mode = plan.modes.get(category, "positional_order")
@@ -209,6 +222,8 @@ def _batch_select_with_model(
     passes: Sequence[PassSelectionSpec],
     context_window: int,
     config: RouterConfig,
+    *,
+    tracker: CostTracker | None,
 ) -> dict[str, list[ScoredChunk]]:
     if len(passes) < _BATCH_MODEL_SECTION_THRESHOLD:
         result: dict[str, list[ScoredChunk]] = {}
@@ -219,23 +234,21 @@ def _batch_select_with_model(
                 context_window,
                 config,
                 focus=spec.focus,
+                tracker=tracker,
             )
             if selected:
                 result[spec.section] = selected
         return result
 
-    prompt = _build_batch_chunk_rank_prompt(chunks, passes)
-    try:
-        response = call(
-            config,
-            workload_tag="rerank",
-            prompt=prompt,
-            call_type="chunk_rank_batch",
-            max_tokens=768,
-            temperature=0.0,
-        )
-    except Exception as exc:
-        logger.debug("Batched chunk ranking failed: %s", exc)
+    response = _call_chunk_rank(
+        config,
+        _build_batch_chunk_rank_prompt(chunks, passes),
+        call_type="chunk_rank_batch",
+        max_tokens=768,
+        tracker=tracker,
+        failure_context="Batched chunk ranking",
+    )
+    if response is None:
         return {}
 
     parsed = extract_json(response.text)
@@ -271,19 +284,17 @@ def _select_with_model(
     config: RouterConfig,
     *,
     focus: str,
+    tracker: CostTracker | None,
 ) -> list[ScoredChunk]:
-    prompt = _build_chunk_rank_prompt(chunks, category, focus)
-    try:
-        response = call(
-            config,
-            workload_tag="rerank",
-            prompt=prompt,
-            call_type="chunk_rank",
-            max_tokens=512,
-            temperature=0.0,
-        )
-    except Exception as exc:
-        logger.debug("Model chunk ranking failed for '%s': %s", category, exc)
+    response = _call_chunk_rank(
+        config,
+        _build_chunk_rank_prompt(chunks, category, focus),
+        call_type="chunk_rank",
+        max_tokens=512,
+        tracker=tracker,
+        failure_context=f"Model chunk ranking for '{category}'",
+    )
+    if response is None:
         return []
 
     parsed = extract_json(response.text)
@@ -296,6 +307,35 @@ def _select_with_model(
 
     raw_indices = cast(list[object], raw_value)
     return _indices_to_scored_chunks(chunks, raw_indices, category, context_window)
+
+
+def _call_chunk_rank(
+    config: RouterConfig,
+    prompt: str,
+    *,
+    call_type: str,
+    max_tokens: int,
+    tracker: CostTracker | None,
+    failure_context: str,
+) -> LLM_Response | None:
+    """Call the reranker, recording completed spend before any budget stop."""
+    try:
+        response = call(
+            config,
+            workload_tag="rerank",
+            prompt=prompt,
+            call_type=call_type,
+            max_tokens=max_tokens,
+            temperature=0.0,
+        )
+        if tracker is not None:
+            tracker.record(TokenUsage.from_response(response, call_type=call_type))
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+        raise
+    except Exception as exc:
+        logger.debug("%s failed: %s", failure_context, exc)
+        return None
+    return response
 
 
 def _indices_to_scored_chunks(

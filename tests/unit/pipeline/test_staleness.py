@@ -118,4 +118,5 @@ class TestCollectStaleness:
         assert "## Prompt staleness" in md
         assert "stale: 1" in md
         assert "synthesis.paper.v1" in md
-        assert report.issue_count == 1  # the stale artifact counts as a finding
+        # The stale prompt and zero verification coverage are separate findings.
+        assert report.issue_count == 2

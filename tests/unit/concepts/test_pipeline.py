@@ -15,6 +15,7 @@ import pytest
 
 from distill.concepts.pipeline import discover_insights, run_concepts
 from distill.llm import RouterConfig
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 
 def _make_insight(
@@ -334,3 +335,28 @@ class TestRunConcepts:
         # 4 attempted, 1 failed -> 3 mentions logged
         assert summary.insights_extracted == 4  # tried all
         assert summary.mentions_added == 3
+
+    def test_budget_crossing_stops_before_later_insights(
+        self, tmp_path: Path, rc: RouterConfig
+    ) -> None:
+        topic_dir = self._seed_corpus(tmp_path)
+        tracker = CostTracker(budget=0.0)
+
+        with (
+            patch(
+                "distill.concepts.extract.llm_call",
+                return_value=_StubResponse("[]", model="grok-4.3"),
+            ) as mock_llm,
+            pytest.raises(BudgetExceededError),
+        ):
+            run_concepts(
+                "tkg",
+                topic_dir,
+                rc=rc,
+                tracker=tracker,
+                now_iso="2026-05-15T10:00:00Z",
+            )
+
+        assert mock_llm.call_count == 1
+        assert len(tracker.entries) == 1
+        assert not (topic_dir / ".concepts" / "extracted_sources.json").exists()

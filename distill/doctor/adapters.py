@@ -32,6 +32,8 @@ __all__ = [
 
 CommandRunner = Callable[[Sequence[str], int], tuple[int, str, str]]
 
+_DEFAULT_PROBE_TIMEOUT_SECONDS = 10
+
 _CLAUDE_METERED_ENV_BLOCKERS = (
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
@@ -282,7 +284,14 @@ def adapter_specs() -> tuple[AdapterSpec, ...]:
                 CommandProbe(
                     "print_help",
                     ("claude", "-p", "--help"),
-                    ("--output-format", "--max-turns", "--no-session-persistence"),
+                    (
+                        "--input-format",
+                        "--output-format",
+                        "--json-schema",
+                        "--permission-mode",
+                        "--tools",
+                        "--no-session-persistence",
+                    ),
                 ),
             ),
             auth_probes=(
@@ -449,7 +458,7 @@ def adapter_doctor_report(
     environ: Mapping[str, str] | None = None,
     runner: CommandRunner | None = None,
     home_dir: Path | None = None,
-    timeout_seconds: int = 5,
+    timeout_seconds: int = _DEFAULT_PROBE_TIMEOUT_SECONDS,
 ) -> AdapterDoctorReport:
     """Run read-only adapter checks and return a fail-closed report."""
 
@@ -479,7 +488,8 @@ def _probe_adapter(
     home_dir: Path,
     timeout_seconds: int,
 ) -> AdapterProbe:
-    installed = shutil.which(spec.binary) is not None
+    executable = shutil.which(spec.binary)
+    installed = executable is not None
     env_blockers_present = [name for name in spec.env_blockers if env.get(name)]
     config_result = _scan_config_probes(spec.config_probes, home_dir)
     blocked_reasons: list[str] = []
@@ -489,12 +499,13 @@ def _probe_adapter(
         blocked_reasons=[],
     )
 
-    if not installed:
+    if executable is None:
         blocked_reasons.append(f"{spec.binary} is not installed")
     else:
         auth_command_result = _run_auth_command_probes(
             spec.auth_probes,
             runner=runner,
+            executable=executable,
             timeout_seconds=timeout_seconds,
         )
         blocked_reasons.extend(auth_command_result.blocked_reasons)
@@ -516,10 +527,11 @@ def _probe_adapter(
         blocked_reasons.append(f"{evidence} references a metered route")
 
     command_result = _CommandProbeResult(version="", missing_flags=[], blocked_reasons=[])
-    if installed:
+    if executable is not None:
         command_result = _run_command_probes(
             spec.probes,
             runner=runner,
+            executable=executable,
             timeout_seconds=timeout_seconds,
         )
         blocked_reasons.extend(command_result.blocked_reasons)
@@ -570,6 +582,7 @@ def _run_command(command: Sequence[str], timeout_seconds: int) -> tuple[int, str
             text=True,
             timeout=timeout_seconds,
             check=False,
+            shell=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 124, "", str(exc)
@@ -614,13 +627,15 @@ def _run_command_probes(
     probes: Sequence[CommandProbe],
     *,
     runner: CommandRunner,
+    executable: str,
     timeout_seconds: int,
 ) -> _CommandProbeResult:
     version = ""
     missing_flags: list[str] = []
     blocked_reasons: list[str] = []
     for probe in probes:
-        exit_code, stdout, stderr = runner(probe.command, timeout_seconds)
+        command = _command_with_executable(probe.command, executable)
+        exit_code, stdout, stderr = runner(command, timeout_seconds)
         output = f"{stdout}\n{stderr}"
         if probe.label == "version" and exit_code == 0:
             version = _first_line(output)
@@ -653,13 +668,15 @@ def _run_auth_command_probes(
     probes: Sequence[AuthCommandProbe],
     *,
     runner: CommandRunner,
+    executable: str,
     timeout_seconds: int,
 ) -> _AuthCommandResult:
     metered_evidence: list[str] = []
     session_evidence: list[str] = []
     blocked_reasons: list[str] = []
     for probe in probes:
-        exit_code, stdout, stderr = runner(probe.command, timeout_seconds)
+        command = _command_with_executable(probe.command, executable)
+        exit_code, stdout, stderr = runner(command, timeout_seconds)
         if exit_code != 0:
             blocked_reasons.append(f"{probe.label} exited {exit_code}")
             continue
@@ -683,6 +700,18 @@ def _run_auth_command_probes(
         session_evidence=sorted(set(session_evidence)),
         blocked_reasons=blocked_reasons,
     )
+
+
+def _command_with_executable(command: tuple[str, ...], executable: str) -> tuple[str, ...]:
+    """Use the exact discovered executable for Windows probe processes."""
+
+    if not _is_windows():
+        return command
+    return (executable, *command[1:])
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
 
 
 def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _ConfigScanResult:

@@ -8,6 +8,7 @@ from typing import NoReturn
 
 import typer
 from rich.table import Table
+from rich.text import Text
 
 from distill._console import console
 from distill.commands._helpers import get_config
@@ -22,6 +23,7 @@ from distill.library.profiles import (
 from distill.pipeline.profile_preview import (
     ProfilePreviewResult,
     build_profile_preview,
+    command_shell_label,
     command_text,
 )
 from distill.pipeline.profile_run import ProfileRunResult, run_profile_preview
@@ -204,57 +206,75 @@ def _exit_with_error(message: str) -> NoReturn:
 
 
 def _render_profile_preview(result: ProfilePreviewResult, path: Path) -> None:
-    console.print(f"\n[bold]Profile Preview[/bold] [dim]{result.profile}[/dim]")
+    console.print(Text.assemble("\n", ("Profile Preview", "bold"), " ", (result.profile, "dim")))
     console.print(
-        f"[dim]Topic: {result.topic} | Cost mode: {result.cost_mode} | "
-        f"Fresh item limit: {result.fresh_item_limit}[/dim]"
+        Text(
+            f"Topic: {result.topic} | Cost mode: {result.cost_mode} | "
+            f"Fresh item limit: {result.fresh_item_limit}",
+            style="dim",
+        )
     )
-    console.print(f"[dim]Profile: {path}[/dim]\n")
+    console.print(Text(f"Profile: {path}\n", style="dim"))
 
     table = Table(show_header=True, header_style="bold")
+    table.add_column("#", justify="right", no_wrap=True)
     table.add_column("Type", no_wrap=True)
     table.add_column("Source", overflow="fold")
     table.add_column("Title", overflow="fold")
     table.add_column("Published", no_wrap=True)
-    table.add_column("Command", overflow="fold")
 
-    for candidate in result.candidates:
+    for index, candidate in enumerate(result.candidates, 1):
         table.add_row(
+            str(index),
             candidate.kind,
-            candidate.source_label,
-            candidate.title,
+            Text(candidate.source_label),
+            Text(candidate.title),
             candidate.published_at or "",
-            command_text(candidate.command),
         )
 
     console.print(table)
+    if result.candidates:
+        console.print(Text(f"\nCommands ({command_shell_label()})", style="bold"))
+        for index, candidate in enumerate(result.candidates, 1):
+            console.print(
+                Text.assemble("  ", (f"{index}.", "dim"), " ", command_text(candidate.command))
+            )
     console.print(f"\n[dim]Ordering: {result.ordering}[/dim]")
     if result.warnings:
         console.print("\n[yellow]Warnings[/yellow]")
         for warning in result.warnings:
-            console.print(f"  {warning.source}: {warning.message}")
+            console.print(Text(f"  {warning.source}: {warning.message}"))
 
 
 def _render_profile_run(result: ProfileRunResult, path: Path) -> None:
-    console.print(f"\n[bold]Profile Run[/bold] [dim]{result.profile}[/dim]")
+    console.print(Text.assemble("\n", ("Profile Run", "bold"), " ", (result.profile, "dim")))
     console.print(
-        f"[dim]Topic: {result.topic} | Cost mode: {result.cost_mode} | "
-        f"Health: {result.health_status}[/dim]"
+        Text(
+            f"Topic: {result.topic} | Cost mode: {result.cost_mode} | "
+            f"Health: {result.health_status}",
+            style="dim",
+        )
     )
-    console.print(f"[dim]Profile: {path}[/dim]")
-    console.print(f"[dim]State: {result.state_path}[/dim]\n")
+    console.print(Text(f"Profile: {path}", style="dim"))
+    console.print(Text(f"State: {result.state_path}\n", style="dim"))
 
     table = Table(show_header=True, header_style="bold")
+    table.add_column("#", justify="right", no_wrap=True)
     table.add_column("Status", no_wrap=True)
     table.add_column("Type", no_wrap=True)
     table.add_column("Title", overflow="fold")
-    table.add_column("Command", overflow="fold")
 
-    for item in result.commands:
+    for index, item in enumerate(result.commands, 1):
         status = item.status if not item.skip_reason else f"{item.status}: {item.skip_reason}"
-        table.add_row(status, item.kind, item.title, command_text(item.command))
+        table.add_row(str(index), Text(status), item.kind, Text(item.title))
 
     console.print(table)
+    if result.commands:
+        console.print(Text(f"\nCommands ({command_shell_label()})", style="bold"))
+        for index, item in enumerate(result.commands, 1):
+            console.print(
+                Text.assemble("  ", (f"{index}.", "dim"), " ", command_text(item.command))
+            )
     console.print(
         f"\n[dim]Selected: {result.selected_count} | Skipped: {result.skipped_count} | "
         f"Succeeded: {result.succeeded_count} | Failed: {result.failed_count}[/dim]"
@@ -272,7 +292,7 @@ def _render_profile_run(result: ProfileRunResult, path: Path) -> None:
     if result.warnings:
         console.print("\n[yellow]Warnings[/yellow]")
         for warning in result.warnings:
-            console.print(f"  {warning['source']}: {warning['message']}")
+            console.print(Text(f"  {warning['source']}: {warning['message']}"))
 
 
 def register(app: typer.Typer) -> None:

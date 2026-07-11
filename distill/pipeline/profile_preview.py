@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import email.utils
 import math
+import os
 import re
+import shlex
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
@@ -25,6 +27,7 @@ __all__ = [
     "ProfilePreviewResult",
     "ProfilePreviewWarning",
     "build_profile_preview",
+    "command_shell_label",
     "command_text",
 ]
 
@@ -119,9 +122,20 @@ TextFetcher = Callable[[str], str]
 
 
 def command_text(command: Iterable[str]) -> str:
-    """Render a command for display without changing the machine command list."""
+    """Render argv for PowerShell on Windows or a POSIX shell elsewhere."""
 
-    return " ".join(_quote_arg(part) for part in command)
+    argv = tuple(command)
+    if not argv:
+        return ""
+    if _is_windows():
+        return _powershell_command_text(argv)
+    return shlex.join(argv)
+
+
+def command_shell_label() -> str:
+    """Name the shell syntax used by :func:`command_text`."""
+
+    return "PowerShell" if _is_windows() else "POSIX shell"
 
 
 def build_profile_preview(
@@ -405,7 +419,7 @@ def _query_seed_candidate(
         source_label="saved query",
         identity=f"query:{query.casefold()}",
         command=_distill_command(cost_mode, "latest", query, "--topic", topic, "--preview"),
-        note="Saved query. Preview uses current web and YouTube discovery when run.",
+        note="Saved query. Preview uses current YouTube discovery when run.",
         order=order,
     )
 
@@ -601,10 +615,25 @@ def _stale_after_days(raw: str) -> int:
     return max(1, days)
 
 
-def _quote_arg(value: str) -> str:
-    if not value:
-        return '""'
-    if not any(char.isspace() or char in {'"', "'"} for char in value):
+_POWERSHELL_BARE_ARG = re.compile(r"[A-Za-z0-9_./:\\=+\-]+")
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _powershell_quote_arg(value: str) -> str:
+    """Quote one literal PowerShell argument, including shell metacharacters."""
+
+    if value and _POWERSHELL_BARE_ARG.fullmatch(value):
         return value
-    escaped = value.replace('"', '\\"')
-    return f'"{escaped}"'
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _powershell_command_text(argv: tuple[str, ...]) -> str:
+    """Render argv as a copyable PowerShell command line."""
+
+    executable = _powershell_quote_arg(argv[0])
+    if executable != argv[0]:
+        executable = f"& {executable}"
+    return " ".join((executable, *(_powershell_quote_arg(part) for part in argv[1:])))

@@ -10,6 +10,7 @@ from distill.pipeline.costs import (
     TokenUsage,
     estimate_ask_workflow_cost,
     estimate_paper_workflow_cost,
+    estimate_routed_video_workflow_cost,
     estimate_run_cost,
     estimate_site_batch_workflow_cost,
     estimate_stage_cost,
@@ -108,6 +109,18 @@ def test_estimate_run_cost_includes_accordion():
     assert f"Gemini ${deep_research_query_cost():.2f}" in text
 
 
+def test_estimate_run_cost_uses_active_local_route_when_provided():
+    from distill.llm.router import RouterConfig
+
+    text = estimate_run_cost(
+        2,
+        1,
+        router_config=RouterConfig(provider="ollama", fast_model="qwen2.5:14b"),
+    )
+
+    assert text.startswith("Estimated cost: $0.00")
+
+
 def test_video_workflow_estimate_matches_display_components():
     from distill.pipeline.costs import estimate_stage_cost
 
@@ -129,11 +142,273 @@ def test_video_workflow_estimate_matches_display_components():
     assert estimate == expected
 
 
+def test_routed_video_workflow_estimate_is_zero_for_local_stages():
+    from distill.llm.router import RouterConfig
+
+    estimate = estimate_routed_video_workflow_cost(
+        full_videos=2,
+        shorts=1,
+        scan_videos=3,
+        synthesis_calls=2,
+        router_config=RouterConfig(provider="ollama", fast_model="qwen2.5:14b"),
+    )
+
+    assert estimate == 0.0
+
+
+def test_routed_video_workflow_prices_mixed_local_and_cloud_routes():
+    from distill.llm.router import RouterConfig
+
+    estimate = estimate_routed_video_workflow_cost(
+        full_videos=2,
+        synthesis_calls=1,
+        router_config=RouterConfig(
+            provider="ollama",
+            fast_model="qwen2.5:14b",
+            synthesis_provider="anthropic",
+            synthesis_model="claude-sonnet-4",
+        ),
+    )
+
+    assert estimate == estimate_stage_cost("synthesis", model="claude-sonnet-4")
+
+
+def test_routed_claim_extraction_prices_the_concepts_route():
+    from distill.llm.router import RouterConfig
+
+    estimate = estimate_routed_video_workflow_cost(
+        claim_extraction_calls=2,
+        router_config=RouterConfig(
+            provider="ollama",
+            fast_model="qwen2.5:14b",
+            concepts_provider="anthropic",
+            concepts_model="claude-sonnet-4",
+        ),
+    )
+
+    assert estimate == 2 * estimate_stage_cost("claim_extraction", model="claude-sonnet-4")
+
+
+def test_routed_video_workflow_prices_eligible_metered_fallback():
+    from distill.llm.router import RouterConfig
+
+    estimate = estimate_routed_video_workflow_cost(
+        full_videos=1,
+        router_config=RouterConfig(
+            provider="ollama",
+            fast_model="qwen2.5:14b",
+            fallback_provider="xai",
+            fallback_model="grok-4.3",
+        ),
+    )
+
+    assert estimate == estimate_stage_cost("video_full", model="grok-4.3")
+
+
+def test_routed_video_workflow_ignores_blocked_metered_fallback():
+    from distill.llm.router import RouterConfig
+
+    estimate = estimate_routed_video_workflow_cost(
+        synthesis_calls=1,
+        router_config=RouterConfig(
+            provider="ollama",
+            fast_model="qwen2.5:14b",
+            cost_mode="no-metered",
+            fallback_provider="xai",
+            fallback_model="grok-4.3",
+        ),
+    )
+
+    assert estimate == 0.0
+
+
+def test_routed_video_workflow_includes_metered_report_generation():
+    from distill.llm.router import RouterConfig
+
+    router_config = RouterConfig(provider="xai", fast_model="grok-4.3")
+
+    estimate = estimate_routed_video_workflow_cost(
+        full_videos=1,
+        include_report=True,
+        router_config=router_config,
+    )
+
+    expected = (
+        estimate_stage_cost("video_full", model="grok-4.3")
+        + deep_research_query_cost()
+        + max(estimate_stage_cost("synthesis", model="grok-4.3"), ACCORDION_GROK_ESTIMATE)
+    )
+    assert estimate == expected
+
+
+def test_routed_video_workflow_builds_default_router(monkeypatch):
+    monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    monkeypatch.setenv("DISTILL_FAST_MODEL", "qwen2.5:14b")
+    monkeypatch.delenv("DISTILL_FALLBACK_PROVIDER", raising=False)
+    monkeypatch.delenv("DISTILL_FALLBACK_MODEL", raising=False)
+
+    assert estimate_routed_video_workflow_cost(full_videos=1) == 0.0
+
+
+def test_estimate_run_cost_includes_routed_metered_accordion_generation():
+    from distill.llm.router import RouterConfig
+
+    text = estimate_run_cost(
+        0,
+        0,
+        accordion=True,
+        router_config=RouterConfig(provider="xai", fast_model="grok-4.3"),
+    )
+
+    assert f"generation ${ACCORDION_GROK_ESTIMATE:.2f}" in text
+
+
+def test_routed_local_accordion_has_only_explicit_deep_research_cost():
+    from distill.llm.router import RouterConfig
+
+    router_config = RouterConfig(provider="ollama", fast_model="qwen2.5:14b")
+
+    estimate = estimate_routed_video_workflow_cost(
+        include_report=True,
+        router_config=router_config,
+    )
+    text = estimate_run_cost(0, 0, accordion=True, router_config=router_config)
+
+    assert estimate == deep_research_query_cost()
+    assert "generation $0.00" in text
+
+
 def test_synthesis_workflow_estimate_counts_known_calls():
     from distill.pipeline.costs import estimate_stage_cost
 
     assert estimate_synthesis_workflow_cost(0) == 0.0
     assert estimate_synthesis_workflow_cost(3) == 3 * estimate_stage_cost("synthesis")
+
+
+def test_routed_synthesis_paper_ask_and_site_estimates_are_zero_locally():
+    from distill.llm.router import RouterConfig
+
+    rc = RouterConfig(provider="ollama", fast_model="qwen2.5:14b")
+
+    assert estimate_synthesis_workflow_cost(2, router_config=rc) == 0.0
+    assert estimate_paper_workflow_cost(2, synthesis_calls=2, router_config=rc) == 0.0
+    assert estimate_ask_workflow_cost(2_000, router_config=rc) == 0.0
+    assert estimate_site_batch_workflow_cost(3, synthesis_calls=2, router_config=rc) == 0.0
+
+
+def test_routed_site_estimate_preserves_explicit_deep_research_cost():
+    from distill.llm.router import RouterConfig
+
+    estimate = estimate_site_batch_workflow_cost(
+        3,
+        synthesis_calls=2,
+        include_report=True,
+        router_config=RouterConfig(provider="ollama", fast_model="qwen2.5:14b"),
+    )
+
+    assert estimate == report_deep_research_estimate()
+
+
+def test_routed_nonvideo_estimates_keep_metered_workload_overrides():
+    from distill.llm.router import RouterConfig
+
+    rc = RouterConfig(
+        provider="ollama",
+        fast_model="qwen2.5:14b",
+        synthesis_provider="anthropic",
+        synthesis_model="claude-sonnet-4",
+        qa_provider="anthropic",
+        qa_model="claude-sonnet-4",
+        site_provider="anthropic",
+        site_model="claude-sonnet-4",
+    )
+
+    assert estimate_synthesis_workflow_cost(router_config=rc) > 0
+    assert estimate_ask_workflow_cost(2_000, router_config=rc) > 0
+    assert estimate_site_batch_workflow_cost(1, router_config=rc) > 0
+
+
+def test_paper_estimate_follows_site_route_over_global_provider():
+    from distill.llm.router import RouterConfig
+
+    metered_site = RouterConfig(
+        provider="ollama",
+        fast_model="qwen2.5:14b",
+        site_provider="anthropic",
+        site_model="claude-sonnet-4",
+    )
+    local_site = RouterConfig(
+        provider="xai",
+        fast_model="grok-4.3",
+        site_provider="ollama",
+        site_model="qwen2.5:14b",
+    )
+
+    assert estimate_paper_workflow_cost(1, synthesis_calls=1, router_config=metered_site) > 0
+    assert (
+        estimate_paper_workflow_cost(
+            1,
+            synthesis_calls=1,
+            router_config=local_site,
+            analysis_mode="single",
+        )
+        == 0.0
+    )
+    assert (
+        estimate_paper_workflow_cost(
+            1,
+            synthesis_calls=1,
+            router_config=local_site,
+            analysis_mode="multipass",
+        )
+        > 0
+    )
+    assert (
+        estimate_paper_workflow_cost(
+            1,
+            synthesis_calls=1,
+            router_config=local_site,
+        )
+        > 0
+    )
+
+
+def test_site_estimate_routes_page_and_synthesis_work_through_site_override():
+    from distill.llm.router import RouterConfig
+
+    local_site = RouterConfig(
+        provider="xai",
+        fast_model="grok-4.3",
+        site_provider="ollama",
+        site_model="qwen2.5:14b",
+        synthesis_provider="anthropic",
+        synthesis_model="claude-sonnet-4",
+    )
+    metered_site = RouterConfig(
+        provider="ollama",
+        fast_model="qwen2.5:14b",
+        site_provider="anthropic",
+        site_model="claude-sonnet-4",
+        synthesis_provider="ollama",
+        synthesis_model="qwen2.5:14b",
+    )
+
+    assert (
+        estimate_site_batch_workflow_cost(
+            2,
+            synthesis_calls=3,
+            router_config=local_site,
+        )
+        == 0.0
+    )
+    assert (
+        estimate_site_batch_workflow_cost(
+            2,
+            synthesis_calls=3,
+            router_config=metered_site,
+        )
+        > 0
+    )
 
 
 def test_paper_workflow_estimate_counts_papers_and_synthesis():
@@ -890,6 +1165,78 @@ def test_estimate_discover_cost():
     expected = 5 * _DISCOVER_PAPER_COST + 10 * _DISCOVER_VIDEO_COST + 3 * _DISCOVER_SITE_COST
     assert round(estimate_discover_cost(papers=5, videos=10, sites=3), 6) == round(expected, 6)
     assert estimate_discover_cost(papers=-1) == 0.0  # clamps negatives
+
+
+def test_discover_estimates_zero_active_local_routes_even_with_cloud_history():
+    from distill.llm.router import RouterConfig
+    from distill.pipeline.costs import CostCalibration, estimate_discover_items
+
+    calibration = CostCalibration(
+        per_paper=0.2,
+        per_video=0.3,
+        per_site=0.4,
+        samples={"paper": 5, "video": 5, "site": 5},
+    )
+    rc = RouterConfig(provider="ollama", fast_model="qwen2.5:14b")
+
+    estimate = estimate_discover_items(
+        papers=2,
+        video_durations=[900],
+        sites=1,
+        calibration=calibration,
+        router_config=rc,
+    )
+
+    assert estimate.expected == 0.0
+    assert estimate.low == 0.0
+    assert estimate.high == 0.0
+    assert not estimate.calibrated
+
+
+def test_discover_cost_keeps_historical_rates_for_metered_routes():
+    from distill.llm.router import RouterConfig
+    from distill.pipeline.costs import CostCalibration, estimate_discover_cost
+
+    calibration = CostCalibration(
+        per_paper=0.2,
+        per_video=0.3,
+        per_site=0.4,
+        samples={"paper": 4, "video": 5, "site": 6},
+    )
+
+    estimate = estimate_discover_cost(
+        papers=1,
+        videos=2,
+        sites=3,
+        calibration=calibration,
+        router_config=RouterConfig(provider="xai", fast_model="grok-4.3"),
+    )
+
+    assert estimate == 0.2 + 2 * 0.3 + 3 * 0.4
+
+
+def test_discover_estimate_prices_only_metered_source_override():
+    from distill.llm.router import RouterConfig
+    from distill.pipeline.costs import estimate_discover_items
+
+    rc = RouterConfig(
+        provider="ollama",
+        fast_model="qwen2.5:14b",
+        site_provider="anthropic",
+        site_model="claude-sonnet-4",
+    )
+
+    estimate = estimate_discover_items(
+        papers=1,
+        video_durations=[900],
+        sites=1,
+        router_config=rc,
+    )
+
+    assert estimate.expected == (
+        estimate_stage_cost("paper", model="claude-sonnet-4")
+        + estimate_stage_cost("site_page", model="claude-sonnet-4")
+    )
 
 
 def test_stage_cost_tracks_default_model_pricing():
