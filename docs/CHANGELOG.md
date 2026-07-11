@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.30 - 2026-07-10
+
 ### Changed
 
 - Added deterministic candidate-v1 snapshots for the full CLI command and
