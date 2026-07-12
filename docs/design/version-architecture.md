@@ -22,7 +22,9 @@ recurring research profiles, cost-mode routing, adapter doctors, and the route
 availability primitives. The remaining 0.x work is the 1.0 quality gate:
 contract freeze, Pyright strict completion, parse-don't-validate boundaries,
 verification-depth work on deterministic core packages, the branch-coverage
-ratchet to at least 95%, and the final presentation/onboarding pass.
+ratchet to at least 95%, a published performance baseline with explicit
+implementation-language admission gates, and the final presentation/onboarding
+pass.
 
 Harden passes stay interleaved until 1.0. They cover security, robustness,
 dependency, CI/CD supply chain, and parse-don't-crash sweeps without expanding
@@ -37,8 +39,12 @@ frozen; prompts stay versioned-but-revisable when evals or model changes
 justify it; branch coverage >=95%; Pyright-strict; parse-don't-validate
 boundaries; the structural golden-corpus eval gate plus model-judged live
 `distill eval`; verification depth on the deterministic core; the presentation
-pass (screenshots/recordings land here, by deliberate deferral). An external
-system -- Deepr, a stranger's agent stack, a lab's cron job -- can depend on
+pass (screenshots/recordings land here, by deliberate deferral); and a published
+performance baseline that separates deterministic Distill overhead from live
+provider and network time. Python remains the reference control layer, while
+optional native acceleration must clear the measured gate in
+[`performance-and-language-admission.md`](performance-and-language-admission.md).
+An external system -- Deepr, a stranger's agent stack, a lab's cron job -- can depend on
 distill without expecting churn.
 
 Full spec: [`../../ROADMAP.md`](../../ROADMAP.md), "1.0.0 -- Stability
@@ -122,6 +128,7 @@ speculatively. Current state:
 | `distill ask` + re-ingest gating | [`ask-loop.md`](ask-loop.md) | Live; shipped 0.12.0 |
 | OKF interop + loop-readable stewardship | [`okf-loop-readiness.md`](okf-loop-readiness.md) | Next build slice |
 | Recurring profiles + no-metered-cost routing | [`recurring-profiles-cost-routing.md`](recurring-profiles-cost-routing.md) | 0.19 slice |
+| Performance + implementation-language admission | [`performance-and-language-admission.md`](performance-and-language-admission.md) | 1.0 decision charter; baseline pending |
 | Provider-adapter breadth | -- | 2.0-era expansion after the 0.19 contract proves out |
 | Recipe format / corpus merge | -- | 3.0-era; do not write yet |
 

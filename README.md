@@ -410,8 +410,9 @@ eight source types, goal-aware discovery, the write-time verify gate,
 cross-source synthesis, `ask`, `audit`, MCP, and the dashboard - is complete. The
 `0.x` version is deliberate and does **not** mean "unfinished" or "unreliable":
 every release clears the same CI gate (3,900+ tests at 95%+ **branch** coverage,
-ruff + Pyright + import-linter + bandit + pip-audit, a Linux/macOS/Windows x
-Python 3.12-3.14 matrix, and PEP 740 build provenance). What `0.x` means is that
+ruff + Pyright + import-linter + bandit + pip-audit, Linux on Python 3.12-3.14,
+macOS and Windows smoke tests on Python 3.12, and PEP 740 build provenance).
+What `0.x` means is that
 the **public contracts are not frozen yet**.
 
 1.0 is a *stability commitment*, not a feature milestone - and that distinction
@@ -422,11 +423,12 @@ corpus opens cleanly in 1.0), backed by a documented backwards-compatibility
 policy and a published performance baseline. Crossing it is a one-way door:
 distillr keeps evolving those shapes while the agent ecosystem (MCP conventions,
 OKF, context-engineering practice) is still moving, and freezing early would mean
-freezing the wrong shape. The remaining distance is three things, none of them a
+freezing the wrong shape. The remaining distance is four things, none of them a
 calendar item: the tail of the CI-enforced quality ratchet (Pyright-strict
 across the full surface and parse-don't-validate at every boundary), the
-contract freeze itself, and a presentation pass (README media, onboarding
-docs). The branch-coverage gate already reached 95%. Full definition:
+contract freeze itself, the published performance baseline, and a presentation
+pass (README media, onboarding docs). The branch-coverage gate already reached
+95%. Full definition:
 [`ROADMAP.md`](ROADMAP.md#100--stability-commitment--quality-bar).
 
 Practically: build on the `library/` plain files and the CLI today; if you

@@ -175,11 +175,12 @@ See [cost.md](cost.md) for the full cost model.
 
 ### Transcript fallback chain
 
-Transcription uses a 3-tier strategy:
+YouTube transcription uses a local-first fallback chain:
 
 1. **YouTube captions** (free, instant) - yt-dlp downloads `.vtt` subtitles, cleaned to plain text. Works for most videos.
-2. **Scribe local transcription** (free, local) - If captions aren't available, Distill calls scribe as a subprocess for local Whisper-based transcription. Requires `SCRIBE_PATH` in `.env`.
-3. **Skip with error** - If both fail, the video is logged as failed in the post-run summary. The transcript file isn't created, so `--refresh` retries on the next run.
+2. **Whisper provider ladder** - Captionless videos download bounded best-audio and use faster-whisper locally first, then tracked xAI Grok STT and OpenAI Whisper cloud fallbacks when configured and permitted by cost policy. The video's title and uploader provide a bounded vocabulary hint.
+3. **Legacy Scribe fallback** - Installations with `SCRIBE_PATH` configured retain Scribe as a last-resort external fallback.
+4. **Skip with error** - If every eligible route fails, the video is logged as failed in the post-run summary. The transcript file is not created, so a later refresh can retry.
 
 Skipped videos surface in the "Failed" section of the run summary so they're visible rather than silently dropped.
 
@@ -210,7 +211,14 @@ State tracking is built in. `--refresh` is the expected workflow - run on a cade
 
 `distill resynthesize --two-pass` (and the MCP `synthesize` `two_pass` arg) splits corpus synthesis into two stages: a claim-extraction pass writes atomic claims from each per-source `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl`, then a synthesis pass clusters those claims, names contradictions, and writes `_Synthesis.md` with per-claim citations (`[C7]`).
 
-This keeps the [charter invariant](invariants.md) load-bearing rather than incidental: the per-source `_Insights.md` (and the raw `_Content` / `_Paper` / `_Transcript` beside them) are the source of truth; `claims.jsonl` is a derived, disposable index over them; and each `_Synthesis.md` is a *view compiled from that index*, re-extractable from the Markdown at any time. The consequence is that a synthesis cannot silently drift from its evidence - you never hand-edit `_Synthesis.md`; if it is wrong or stale you fix or re-extract the claims and regenerate, so the prose can't diverge from what the sources say (the "confident misinformation" failure mode a hand-maintained wiki is prone to). Append-only-then-regenerate is also concurrency-safe: appending claim rows and regenerating a view never hits the multi-writer conflict that editing one shared Markdown file in place would.
+This keeps the [charter invariant](invariants.md) load-bearing rather than incidental: the per-source `_Insights.md` (and the raw `_Content` / `_Paper` / `_Transcript` beside them) are the source of truth; `claims.jsonl` is a derived, disposable index over them; and each `_Synthesis.md` is a *view compiled from that index*, re-extractable from the Markdown at any time. The consequence is that a synthesis cannot silently drift from its evidence - you never hand-edit `_Synthesis.md`; if it is wrong or stale you fix or re-extract the claims and regenerate, so the prose can't diverge from what the sources say (the "confident misinformation" failure mode a hand-maintained wiki is prone to).
+
+Atomic replacement prevents torn files, but it does not prevent two writers from
+overwriting each other's complete updates. Claim appends and regenerated views
+do not yet carry a per-topic lock or compare-and-swap token. Commands are
+replay-safe, but external runners must serialize overlapping write scopes until
+Distill ships an equivalent guard. Queues, leases, and backpressure remain the
+external loop runner's responsibility.
 
 Single-pass synthesis stays the default until the 1.0 golden-eval gate validates two-pass quality. See [`../ROADMAP.md`](../ROADMAP.md) for the surrounding milestones (0.9.0 two-pass, the 0.9.2 audit contradictions map, 0.10 stale-detection).
 
@@ -254,7 +262,12 @@ The following items were present in the codebase prior to 0.7 and have been reso
 
 These are sometimes flagged in audits but are intentional:
 
-- **No database / SQLite index.** The "no database" principle is load-bearing. `find_insights` (0.5) handles search via ranked path+preview returns. Semantic dedup (0.10) will use embeddings as an implementation detail, not a user-facing store.
+- **No database of record.** Markdown and JSONL are load-bearing. A measured
+  search or dedup accelerator may use a disposable index under `.distill/`, but
+  it must be git-ignored, rebuildable, non-authoritative, and paired with a
+  direct-file fallback. This is the same boundary defined in
+  [`invariants.md`](invariants.md): derived index yes when justified; corpus
+  authority never.
 - **No `src/` layout.** The flat `distill/` package is standard for single-package projects and works fine with the current build tooling. Revisit only if namespace collisions emerge.
 - **No full PromptRegistry / A/B framework.** Prompt versioning via `prompt_id` in frontmatter (0.7) provides reproducibility. A registry class is premature until the prompt surface stabilizes post-0.8.
 - **Import-linter enforces dependency direction in CI.** "Risk of creeping imports" is not a gap - violations fail the build.

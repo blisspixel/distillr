@@ -60,8 +60,10 @@ def atomic_write_text(path: Path, content: str) -> None:
     Creates a uniquely-named temp file in the destination directory via
     ``mkstemp`` (O_EXCL, so a pre-placed symlink at a predictable ``.tmp`` name
     cannot redirect the write), fsyncs it, then ``os.replace``s it onto the final
-    name (atomic on the same filesystem -- no torn reads, no concurrent-writer
-    collision). The temp file is removed if anything fails before the rename.
+    name. Replacement is atomic on the same filesystem, so readers see either
+    complete version, never a torn file. Concurrent complete writes are still
+    last-writer-wins and must be serialized when lost updates matter. The temp
+    file is removed if anything fails before the rename.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")

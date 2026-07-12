@@ -220,9 +220,12 @@ half-written artifacts) and that the no-silent-error-swallowing rule holds under
 turbulence - verified, not assumed. The security/robustness round already added
 several of these guards (bounded reads, malformed-input degradation, the MCP
 no-silent-swallow fix); Phase 3 makes the boundary discipline systematic.
-Because the concurrency is asyncio IO, the discipline that matters is async
-safety (no blocking calls in async paths, correct cancellation), not shared-
-memory thread safety.
+Distill's primary concurrency model is I/O plus external workers, with
+subprocesses, thread-backed helpers, and synchronous phases also present. The
+current discipline is async safety, cancellation, bounded fan-out, and
+write-scope isolation. A future native or free-threaded path must add the
+shared-state and race tests required by that implementation; those rules are
+not assumed for code paths that do not use that model.
 
 **Phase 4 - CrossHair on the arithmetic core (stretch).** Symbolically verify
 the evidence-interval arithmetic and the merge-idempotence pure functions for

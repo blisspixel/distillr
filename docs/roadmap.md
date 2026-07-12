@@ -33,6 +33,8 @@ Current UX priorities:
 - Add no-metered-cost routing so local inference and explicitly configured
   subscription-plan CLIs can be used without surprise API billing
 - Continue the Obsidian-native living-wiki shape while keeping Distill's native corpus as the source of truth
+- Publish the 1.0 performance baseline and optimize measured whole workflows
+  before considering first-party native code
 
 ## Next Up
 
@@ -327,10 +329,68 @@ The build harness, not the corpus. The adopted/adapted/declined rationale lives 
 - [x] **Hypothesis deadline flakes under load** -- diagnosed and fixed 0.12.0: three full-suite runs each dropped a *different* property test that passed in isolation (llm migration/telemetry batch, ollama passthrough, paths/agent) with `DeadlineExceeded`; root cause was Hypothesis's 200ms wall-clock per-example deadline firing under coverage instrumentation on a loaded machine. Suite-wide `deadline=None` profile in `tests/conftest.py` (these suites test correctness, not latency). Residual watch item: if non-deadline order-dependent failures ever appear, suspect `load_dotenv` env leakage from CLI-invoking tests.
 - [x] **Container runtime follows the Python floor.** The Dockerfile now uses the same Python 3.12 floor declared in `pyproject.toml`, includes `LICENSE` in the build context for package metadata, and ships a `.dockerignore` that keeps local runtime state, caches, and agent scratch out of image builds. Focused tests guard the base-image floor and context hygiene.
 - [x] **Finish the `_logic.py` decomposition, with removal criteria**. `distill/commands/_logic.py` was the center of gravity - one ~9k-line module holding the full implementation of every CLI command, with `_cli_impl` as a compatibility alias. External code QA (2026-06-11) called it the largest maintainability risk visible from the code surface, and it was the original 0.7 code-health item. Twenty-two command modules and paper/site/concept/version/display/video/learning/discover support helpers are now out, the root callback and concepts app construction live in owned command modules, private compatibility exports live in `distill._cli_impl`, and `distill/commands/_logic.py` is deleted. No production command module imports the monolith, no command sub-apps remain inside, and the module-size allowlist is empty. Per-slice plan and history: [`docs/design/logic-decomposition.md`](design/logic-decomposition.md).
-- [x] **Branch coverage ratchet** (0.8.3 -> 1.0) - `[tool.coverage.run] branch = true`; the enforced full-suite floor is now 95%, and the 0.19.31 release gate measures 95.02% branch coverage across 4,128 passing tests. The ratchet reached the 1.0 target through focused boundary coverage across configuration, providers, commands, MCP, ingestion, library state, deterministic verification, and the contract-snapshot surface.
+- [x] **Branch coverage ratchet** (0.8.3 -> 1.0) - `[tool.coverage.run] branch = true`; the enforced full-suite floor is now 95%, and the 0.19.32 release gate measures 95.03% branch coverage across 4,128 passing tests. The ratchet reached the 1.0 target through focused boundary coverage across configuration, providers, commands, MCP, ingestion, library state, deterministic verification, and the contract-snapshot surface.
 - [~] **Full Pyright-strict ratchet** (1.0) - complete the per-package climb 0.8.3 begins (the full `distill/llm/` package is centrally strict-blocking, including future modules); no `# type: ignore` without an inline reason. Current strict surface now includes the full `distill.pipeline` package: the package export boundary, ranking, orchestration, discovery, audit, gaps, shared dashboard data, dashboard records, analysis, synthesis, recurring profile preview/run orchestration, run-summary reporting, and the full report package across accordion reports, Gemini Deep Research, Gemini File Search, single-call synthesis, lightweight briefing, and multi-topic research briefing. The full MCP package is now strict-clean across the server registration surface, FastMCP-injected optional progress contexts, package marker, prompt definitions, resources, `research_gaps`, `doctor`, JIT `find`, `costs`, `okf`, `topics`, `summaries`, `ask`, `reports`, `synthesize`, `papers`, `watch`, `site_batch`, `concepts`, and `discover` tools, with public config-loading, key-validation, path-resolution, library, tracker, cost-summary, markdown-resource, source-inventory, video-list, and markdown-stripping seams instead of private helper access. The command strict surface now includes the package marker, root callback, intent commands, `ask`, `audit`, `claude_md`, `okf`, `profile`, `process`, `ingest`, `eval`, `learn`, `maintain`, `init`, `concepts`, `dashboard`, `discover`, `doctor`, `reports`, `reprocess`, `papers`, `topic`, `watch`, `_concept_ingest`, `_discover_options`, `_paper_artifacts`, `_json`, `_discover_sites`, `_discover_flow`, `_discover_ingest`, `_learning`, `_learning_flow`, `_site_batch`, `_site_ingest`, `_helpers`, `_topic_changes`, `view`, `update`, and topic/channel plus topic-watch helper modules with typed public JSON, discover-flow, discover-ingest, adaptive-ingest, learning-flow selected-video, learning query expansion and candidate filtering, reprocess metadata, topic profile parsing, dashboard HTML rendering, watch latest-insight metadata, site-batch, site-ingest, trusted-site discovery, discover command orchestration, eval preflight, learning-preview, learning-ingest, init key-validation, doctor key-validation, local-provider probes, maintain cost-log parsing, status artifacts, migration tuples, dashboard rendering, command intent-loading, site-manifest loading, shared-helper metadata writing, preflight, dispatch, safe rendering, and ranking-strategy seams. The shared console stream reset now has regression coverage for dynamic stdout and stderr routing without stale pinned streams, `_helpers` now normalizes non-string yt-dlp channel metadata plus report DOCX failure diagnostics, the shared helper module, topic-change helper, and view command are strict-clean with typed metadata-writing, preflight, dispatch, safe-rendering, diff, trend, watch-alert, and history rows, the doctor command is strict-clean with public key-validation and local-provider probe seams plus a stable importlib metadata alias, the shared required-topic resolver is warning-clean, the adapter-runner timeout boundary normalizes text or bytes output before result construction, the maintain cost, status, migration, and dashboard boundaries are strict-clean, the YouTube yt-dlp boundary is warning-clean, the library export plus python-docx renderer surfaces are warning-clean, and the top-level Typer app module is strict-clean with a typed defensive command resolver. The package-surface Pyright run is now blocking at 0 warnings, with strict-mode promotion continuing per package.
 - [ ] **Parse, don't validate - strict domain types at every boundary** (1.0) - parse every external input (MCP tool arguments, frontmatter, adapter/local-file ingest, LLM structured outputs) once at the boundary into a rich domain type (`strict=True, extra='forbid'` Pydantic model, `NewType`, or frozen dataclass); core logic never sees raw primitives. The discovery helper now turns query-plan and rerank LLM JSON into typed object dictionaries before query strings, ids, or numeric scores are used; the broader rerank response parsers now turn LLM JSON rows into typed object dictionaries before ranking logic reads ids or scores; gap analysis now parses metadata plus inventory and summary payloads into typed structures before audit, MCP, or discovery consumes them; the audit health surface parses verify sidecars into typed flag rows and stale prompt records before rendering or action planning; shared dashboard data parses cost logs, latest-run payloads, topic-change history, dashboard snapshots, and site manifests into typed records before CLI or web rendering; shared command helpers preserve typed metadata-writing and duration-formatting contracts before artifact writes; topic diff, trend, watch-alert, and change-history command paths parse their detail rows and count records before artifact writes or command rendering; and File Search corpus assembly for reports and research briefings parses video, site, and paper metadata before titles or URLs enter uploaded documents.
-- [ ] **Verification depth on the deterministic core** (1.0, "formally contracted where it matters") - Design by Contract via `deal` on the merge/normalize/recovery invariants (idempotent + order-independent merge, round-tripping rollback, non-inverting intervals; `deal` also generates Hypothesis tests from the contracts); mutation testing (`mutmut`) of `concepts/` + `library/` + `pipeline` verify/dedup core on a cadence to prove test efficacy; a Hypothesis state machine over the playbook lifecycle (append -> merge -> notes -> snapshot -> rollback -> re-merge); and fault-injection at the external boundaries (malformed LLM JSON, truncated transcripts, network/yt-dlp failures) proving clean degradation and that no-silent-error-swallowing holds under turbulence. Scoped to the pure-Python core + boundaries, not blanket. distillr's concurrency is asyncio IO, so the discipline is async-safety, not free-threaded shared-memory rules.
+- [ ] **Verification depth on the deterministic core** (1.0, "formally contracted where it matters") - Design by Contract via `deal` on the merge/normalize/recovery invariants (idempotent + order-independent merge, round-tripping rollback, non-inverting intervals; `deal` also generates Hypothesis tests from the contracts); mutation testing (`mutmut`) of `concepts/` + `library/` + `pipeline` verify/dedup core on a cadence to prove test efficacy; a Hypothesis state machine over the playbook lifecycle (append -> merge -> notes -> snapshot -> rollback -> re-merge); and fault-injection at the external boundaries (malformed LLM JSON, truncated transcripts, network/yt-dlp failures) proving clean degradation and that no-silent-error-swallowing holds under turbulence. Scoped to the deterministic core and external boundaries, not blanket. Distill's primary concurrency model is I/O plus external workers, with subprocesses, thread-backed helpers, and synchronous phases also present. Async safety is the current focus; a future native or free-threaded path must add its own shared-state and race testing.
+
+### 9c. Measured performance and implementation boundaries
+
+The governing policy and current evidence live in
+[`design/performance-and-language-admission.md`](design/performance-and-language-admission.md).
+Distill is Python-first, not Python-only. Optimize accepted, verified artifacts
+per unit of time and cost, not language-level throughput in isolation.
+
+- [ ] **Phase telemetry and run correlation.** Populate a non-empty `run_id`
+  across command, phase, provider-call, and cost rows. Record wall time, CPU
+  time, peak memory, artifact and byte counts, and wait classification for
+  acquisition, provider, queue, subprocess, filesystem, deterministic CPU, and
+  writes.
+- [ ] **Deterministic scale generator and offline replay.** Generate fixed-seed
+  corpora at 100, 500, 1,000, and 10,000 insights with controlled sizes,
+  duplicate density, threshold-edge pairs, malformed frontmatter, broken links,
+  and path edge cases. Replay paper, video, site, synthesis, verification,
+  profile, and report workflows with frozen receipts and provider responses.
+- [ ] **Published 1.0 baseline.** Measure search, audit, links, discovery,
+  dashboard reads, export, near-duplicate detection, clean install, wheel size,
+  CLI cold start, a 20-paper run, a 50-video catch-up, and a site-batch. Publish
+  hardware, provider, model, corpus digest, cache state, p50/p95, CPU, peak RSS,
+  token, cost, verification, failure, retry, resume, and no-op metadata.
+- [ ] **Honest regression policy.** Keep live provider, network, and hardware
+  journeys as scheduled or release evidence. Allow deterministic offline
+  benchmarks to block only after at least five comparable runs characterize
+  runner variance, and only for a reproduced regression that exceeds both a
+  relative and meaningful absolute budget. Correctness and resource ceilings
+  remain blocking immediately.
+- [ ] **One-pass corpus manifest.** Reuse a read-only inventory of paths,
+  identities, sizes, mtimes, hashes, links, and optional lexical data within a
+  command. Any persisted accelerator lives under `.distill/`, is git-ignored,
+  rebuildable, non-authoritative, and paired with a direct-file fallback.
+- [ ] **Algorithm before translation.** Replace all-pairs near-duplicate
+  candidate generation with an indexed exact candidate pass while preserving
+  Jaccard verification, deterministic grouping, ordering, and errors. Reduce
+  repeated scans, file reads, connection setup, and subprocess startup before
+  opening a native spike.
+- [ ] **Bounded concurrency where safe.** Parallelize only after URL pinning,
+  cancellation, provider limits, local-model contention, cost accounting,
+  write scopes, and external serialization are explicit and tested. Record
+  queue time and contention rather than hiding them behind aggregate wall time.
+- [ ] **Conditional Rust spike.** Start only if a representative profile still
+  shows a narrow deterministic seam consuming at least 10 percent of workflow
+  time and 250 ms p95, or violating an explicit memory, safety, or reliability
+  budget. Require algorithmic work first, at least a 3x component target plus a
+  material whole-workflow or memory improvement, differential/property/fuzz
+  tests, a compiler-free reference path or optional accelerator package,
+  cross-platform artifacts, dependency audit, SBOM coverage, and rollback.
+
+No first-party Go service belongs inside the current product: job scheduling,
+leases, backpressure, and cross-machine execution remain external-runner work.
+A separately released Go runner may consume frozen Distill contracts if that
+operational product becomes real. No Mojo code enters without an owned measured
+tensor or accelerator kernel; evaluating MAX as a provider route uses the
+existing doctor, ledger, cost-policy, and `distill eval` gates. Python 3.14t is
+an optional compatibility and benchmark lane, not a supported default, until
+whole-workflow evidence and stress testing justify it.
 
 ### 10. Living Wiki Corpus (Obsidian-native, LLM-maintained)
 

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.32 - 2026-07-11
+
+### Changed
+
+- Added a measured performance and implementation-language admission charter.
+  The 1.0 roadmap now requires phase-correlated telemetry, deterministic scale
+  fixtures, offline workflow replay, published live reference journeys,
+  installation and quality-of-life measurements, and an honest regression
+  policy before native extraction.
+- Made the implementation policy explicit: Distill is Python-first, not
+  Python-only. Algorithm, scan reuse, data movement, caching, and bounded
+  concurrency precede any native spike. Rust is conditional on a measured
+  deterministic seam; Go remains a possible separately released external
+  runner; Mojo requires an owned accelerator kernel; Python 3.14t is a
+  benchmark lane rather than a default.
+- Clarified that Markdown and JSONL are the corpus authority while a measured,
+  disposable, rebuildable index under `.distill/` is allowed. Updated the
+  current transcription fallback chain, route-orchestration scope, and actual
+  Linux/macOS/Windows CI matrix.
+
+### Fixed
+
+- Corrected the concurrency contract for atomic file replacement. Atomic
+  replacement prevents torn reads but does not prevent last-writer-wins lost
+  updates; external runners must serialize overlapping write scopes until a
+  per-scope lock or compare-and-swap guard exists.
+- Removed stale claims that free-threading could provide no value and that key
+  dependencies lacked Python 3.14t artifacts. Adoption now depends on measured
+  whole-workflow value, compatibility, memory, latency, race safety, and release
+  complexity instead of a permanent language judgment.
+
 ## 0.19.31 - 2026-07-11
 
 ### Changed

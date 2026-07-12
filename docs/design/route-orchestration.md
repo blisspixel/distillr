@@ -10,6 +10,11 @@
 > (no deterministic proxy for a semantic call), and reuses the bounded
 > external-worker adapter contract from the cost-routing doc verbatim.
 
+Here, orchestration means a bounded strategy over model routes inside one
+Distill workload. It does not mean job scheduling, leases, queue ownership, or
+cross-machine execution. Those remain responsibilities of the external loop
+runner.
+
 ## The gap this closes
 
 The route layer answers "which single route should serve this workload." That is
