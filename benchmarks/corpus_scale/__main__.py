@@ -5,11 +5,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections.abc import Sequence
 
 from benchmarks.corpus_scale.generator import DEFAULT_SEED, generated_corpus
-from benchmarks.corpus_scale.runner import BenchmarkResult, run_corpus_scale
+from benchmarks.corpus_scale.runner import (
+    DEFAULT_TIMEOUT_SECONDS,
+    OPERATION_NAMES,
+    BenchmarkResult,
+    run_corpus_scale,
+)
 
 
 def _positive_int(value: str) -> int:
@@ -26,6 +32,13 @@ def _non_negative_int(value: str) -> int:
     return parsed
 
 
+def _positive_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive finite number")
+    return parsed
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -37,13 +50,29 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--iterations", type=_positive_int, default=5)
     parser.add_argument("--warmups", type=_non_negative_int, default=1)
+    parser.add_argument(
+        "--operation",
+        action="append",
+        choices=OPERATION_NAMES,
+        help="Run only this operation. Repeat to select more than one.",
+    )
+    parser.add_argument(
+        "--timeout-seconds",
+        type=_positive_float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Maximum wall time for each fresh worker sample.",
+    )
     return parser
 
 
 def _result_exit_code(result: BenchmarkResult) -> int:
-    correct = result["integrity"]["unchanged"] and all(
-        operation["status"] == "ok" and operation["integrity"]["unchanged"]
-        for operation in result["operations"]
+    correct = (
+        result["integrity"]["unchanged"]
+        and result["source_integrity"]["unchanged"]
+        and all(
+            operation["status"] == "ok" and operation["integrity"]["unchanged"]
+            for operation in result["operations"]
+        )
     )
     return 0 if correct else 1
 
@@ -55,6 +84,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             corpus,
             iterations=args.iterations,
             warmups=args.warmups,
+            operations=args.operation,
+            timeout_seconds=args.timeout_seconds,
         )
     sys.stdout.write(json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n")
     return _result_exit_code(result)

@@ -4,21 +4,64 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import random
+import secrets
 import tempfile
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from distill.config import DistillConfig
 from distill.library.paths import apply_frontmatter, artifact_path, slugify_title
 
 CORPUS_SCHEMA_VERSION = "corpus-scale-corpus.v1"
+WORKSPACE_MARKER_SCHEMA_VERSION = "corpus-scale-workspace.v1"
+WORKSPACE_MARKER_NAME = ".distill-benchmark.json"
 DEFAULT_SEED = 20260711
 DEFAULT_TOPIC = "benchmark-scale"
 _BODY_WORDS = 120
+
+
+def _marker_required_str(value: Mapping[str, object], key: str) -> str:
+    item = value.get(key)
+    if not isinstance(item, str) or not item:
+        raise ValueError(f"benchmark marker has invalid {key}")
+    return item
+
+
+def _marker_required_int(
+    value: Mapping[str, object],
+    key: str,
+    *,
+    non_negative: bool = True,
+) -> int:
+    item = value.get(key)
+    if not isinstance(item, int) or isinstance(item, bool):
+        raise ValueError(f"benchmark marker has invalid {key}")
+    if non_negative and item < 0:
+        raise ValueError(f"benchmark marker has invalid {key}")
+    return item
+
+
+def _marker_source_counts(value: Mapping[str, object]) -> dict[str, int]:
+    raw = value.get("source_counts")
+    if not isinstance(raw, Mapping):
+        raise ValueError("benchmark marker has invalid source_counts")
+    source_counts: dict[str, int] = {}
+    for key, count in cast("Mapping[object, object]", raw).items():
+        if (
+            not isinstance(key, str)
+            or not isinstance(count, int)
+            or isinstance(count, bool)
+            or count < 0
+        ):
+            raise ValueError("benchmark marker has invalid source_counts")
+        source_counts[key] = count
+    return source_counts
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +95,29 @@ class CorpusManifest:
             "digest_sha256": self.digest_sha256,
         }
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> CorpusManifest:
+        """Parse the private worker marker without trusting untyped JSON."""
+        schema_version = _marker_required_str(value, "schema_version")
+        if schema_version != CORPUS_SCHEMA_VERSION:
+            raise ValueError("benchmark marker has an unsupported corpus schema")
+        scale = _marker_required_int(value, "scale")
+        if scale < 1:
+            raise ValueError("benchmark marker has invalid scale")
+        return cls(
+            schema_version=schema_version,
+            seed=_marker_required_int(value, "seed", non_negative=False),
+            scale=scale,
+            topic=_marker_required_str(value, "topic"),
+            source_counts=_marker_source_counts(value),
+            duplicate_groups=_marker_required_int(value, "duplicate_groups"),
+            total_links=_marker_required_int(value, "total_links"),
+            broken_links=_marker_required_int(value, "broken_links"),
+            files=_marker_required_int(value, "files"),
+            bytes=_marker_required_int(value, "bytes"),
+            digest_sha256=_marker_required_str(value, "digest_sha256"),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class GeneratedCorpus:
@@ -62,6 +128,7 @@ class GeneratedCorpus:
     config: DistillConfig
     topic: str
     manifest: CorpusManifest
+    worker_token: str
 
     @property
     def topic_dir(self) -> Path:
@@ -287,12 +354,7 @@ def _build_corpus(workspace: Path, *, scale: int, seed: int) -> GeneratedCorpus:
     if scale < 1:
         raise ValueError("scale must be at least 1")
     library_root = workspace / "library"
-    config = DistillConfig(distill_output_dir=library_root)
-    _write_json(
-        workspace / ".distill-benchmark.json",
-        {"schema_version": CORPUS_SCHEMA_VERSION},
-        root=workspace,
-    )
+    config = DistillConfig.model_validate({"distill_output_dir": library_root})
     _write_json(
         library_root / "library.json",
         {"topics": {}, "topic_watchlist": [], "watchlist": []},
@@ -345,12 +407,65 @@ def _build_corpus(workspace: Path, *, scale: int, seed: int) -> GeneratedCorpus:
         bytes=byte_count,
         digest_sha256=corpus_tree_digest(library_root),
     )
+    worker_token = secrets.token_urlsafe(32)
+    _write_json(
+        workspace / WORKSPACE_MARKER_NAME,
+        {
+            "schema_version": WORKSPACE_MARKER_SCHEMA_VERSION,
+            "worker_token": worker_token,
+            "library_root": "library",
+            "corpus": manifest.to_dict(),
+        },
+        root=workspace,
+    )
     return GeneratedCorpus(
         workspace=workspace,
         library_root=library_root,
         config=config,
         topic=DEFAULT_TOPIC,
         manifest=manifest,
+        worker_token=worker_token,
+    )
+
+
+def load_worker_corpus(workspace: Path, worker_token: str) -> GeneratedCorpus:
+    """Load a generated corpus only when its private workspace marker matches."""
+    resolved_workspace = workspace.resolve()
+    marker_path = resolved_workspace / WORKSPACE_MARKER_NAME
+    try:
+        raw = json.loads(marker_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError("worker requires a valid disposable benchmark marker") from exc
+    if not isinstance(raw, Mapping):
+        raise ValueError("worker requires a valid disposable benchmark marker")
+    marker = cast("Mapping[str, object]", raw)
+    if marker.get("schema_version") != WORKSPACE_MARKER_SCHEMA_VERSION:
+        raise ValueError("worker requires a supported disposable benchmark marker")
+    stored_token = marker.get("worker_token")
+    if (
+        not isinstance(stored_token, str)
+        or not worker_token
+        or not hmac.compare_digest(stored_token, worker_token)
+    ):
+        raise ValueError("worker token does not match the disposable benchmark marker")
+    relative_library = marker.get("library_root")
+    if relative_library != "library":
+        raise ValueError("worker marker has an invalid library root")
+    library_root = (resolved_workspace / "library").resolve()
+    if not library_root.is_relative_to(resolved_workspace) or not library_root.is_dir():
+        raise ValueError("worker marker library is outside its disposable workspace")
+    manifest_value = marker.get("corpus")
+    if not isinstance(manifest_value, Mapping):
+        raise ValueError("worker marker has an invalid corpus manifest")
+    manifest = CorpusManifest.from_dict(cast("Mapping[str, object]", manifest_value))
+    config = DistillConfig.model_validate({"distill_output_dir": library_root})
+    return GeneratedCorpus(
+        workspace=resolved_workspace,
+        library_root=library_root,
+        config=config,
+        topic=manifest.topic,
+        manifest=manifest,
+        worker_token=worker_token,
     )
 
 

@@ -8,17 +8,21 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import typer
+from rich.console import Console
 from typer.testing import CliRunner
 
 from distill.cli import app
+from distill.commands import _performance_view as performance_view
 from distill.commands import maintain as _maintain
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import slugify_title
 from distill.llm.cost_policy import CostPolicyError
+from distill.pipeline.performance_history import PerformanceCoverage, PerformanceEvidence
 
 runner = CliRunner()
 
@@ -38,6 +42,96 @@ def _patch_config(monkeypatch: pytest.MonkeyPatch, config: DistillConfig) -> Non
     monkeypatch.setattr(_maintain, "get_config", lambda: config)
 
 
+def _performance_phase(
+    run_id: str,
+    phase: str,
+    *,
+    command: str,
+    outcome: str = "success",
+    artifact_count: int = 0,
+    byte_count: int = 0,
+    timestamp: str = "2026-07-12T12:00:00+00:00",
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "invocation_type": "cli",
+        "timestamp": timestamp,
+        "command": command,
+        "phase": phase,
+        "elapsed_seconds": 2.0,
+        "cpu_seconds": 1.0,
+        "wait_class": "mixed",
+        "outcome": outcome,
+        "peak_rss_bytes": 104_857_600,
+        "artifact_count": artifact_count,
+        "byte_count": byte_count,
+        "error_type": "",
+    }
+
+
+def _performance_provider(run_id: str, elapsed_seconds: float) -> dict[str, object]:
+    return {
+        "run_id": run_id,
+        "timestamp": "2026-07-12T12:00:00+00:00",
+        "model": "grok-4.3",
+        "workload_tag": "analysis",
+        "outcome": "success",
+        "elapsed_seconds": elapsed_seconds,
+    }
+
+
+def _performance_cost(run_id: str, command: str, actual_cost: float) -> dict[str, object]:
+    return {
+        "run_id": run_id,
+        "timestamp": "2026-07-12T12:00:00+00:00",
+        "command": command,
+        "actual_cost": actual_cost,
+    }
+
+
+def _performance_coverage(**overrides: object) -> PerformanceCoverage:
+    coverage: PerformanceCoverage = {
+        "correlated_runs_total": 0,
+        "excluded_observer_runs": 0,
+        "runs_shown": 0,
+        "phase_rows_total": 0,
+        "phase_rows_joined": 0,
+        "provider_rows_total": 0,
+        "provider_rows_joined": 0,
+        "cost_rows_total": 0,
+        "cost_rows_joined": 0,
+        "legacy_unjoinable_phase_rows": 0,
+        "legacy_unjoinable_provider_rows": 0,
+        "legacy_unjoinable_cost_rows": 0,
+        "unanchored_phase_rows": 0,
+        "unanchored_provider_rows": 0,
+        "unanchored_cost_rows": 0,
+        "malformed_phase_rows": 0,
+        "malformed_provider_rows": 0,
+        "malformed_cost_rows": 0,
+        "unreadable_logs": [],
+    }
+    return cast("PerformanceCoverage", {**coverage, **overrides})
+
+
+def _empty_performance(coverage: PerformanceCoverage) -> PerformanceEvidence:
+    return {
+        "schema_version": "performance-evidence.v1",
+        "runs": [],
+        "latest_nested_phases": [],
+        "coverage": coverage,
+        "semantics": {
+            "correlation": "exact_run_id_only_no_legacy_backfill",
+            "provider_time": "cumulative_call_time_not_critical_path",
+            "cpu": "process_cpu_time_includes_concurrent_work_and_excludes_child_processes",
+            "memory": "process_high_water_mark_not_phase_attribution",
+            "artifacts": "recorded_workflow_summary_only_unknown_without_workflow_phase",
+            "completeness": "invalid_named_rows_nullify_affected_run_rollups",
+        },
+    }
+
+
 def test_costs_json_malformed_log_returns_empty_entries(tmp_path, monkeypatch):
     config = _config(tmp_path)
     _patch_config(monkeypatch, config)
@@ -52,6 +146,351 @@ def test_costs_json_malformed_log_returns_empty_entries(tmp_path, monkeypatch):
     assert parsed["data"]["runs"] == []
     assert parsed["data"]["message"] == "No cost entries found."
     assert parsed["data"]["cost_warnings"] == []
+
+
+def test_costs_json_unreadable_cost_log_is_reported_not_fatal(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    unreadable = config.library_dir / ".distill" / "cost_log.jsonl"
+    unreadable.mkdir(parents=True)
+
+    result = runner.invoke(app, ["--json", "costs"])
+
+    assert result.exit_code == 0, result.output
+    parsed = json.loads(result.output)
+    assert parsed["data"]["runs"] == []
+    assert parsed["data"]["message"] == "No cost entries found."
+    assert parsed["data"]["performance"]["coverage"]["unreadable_logs"] == ["cost_log.jsonl"]
+
+
+def test_costs_json_includes_phase_only_performance_evidence(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    ops_dir = config.library_dir / ".distill"
+    ops_dir.mkdir(parents=True, exist_ok=True)
+    run_id = "phase-only-run"
+    (ops_dir / "phase_telemetry.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    _performance_phase(
+                        run_id,
+                        "audit.scan",
+                        command="audit",
+                        artifact_count=1,
+                        byte_count=64,
+                    )
+                ),
+                json.dumps(_performance_phase(run_id, "command", command="audit")),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ops_dir / "telemetry.jsonl").write_text(
+        json.dumps(_performance_provider(run_id, 0.25)) + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--json", "costs"])
+
+    assert result.exit_code == 0, result.output
+    parsed = json.loads(result.output)
+    performance = parsed["data"]["performance"]
+    assert parsed["data"]["runs"] == []
+    assert performance["schema_version"] == "performance-evidence.v1"
+    assert performance["runs"][0]["run_id"] == run_id
+    assert performance["runs"][0]["command_envelope"]["outcome"] == "success"
+    assert performance["runs"][0]["workflow"] is None
+    assert performance["runs"][0]["phases_complete"] is True
+    assert performance["runs"][0]["nested_phase_count"] == 1
+    assert performance["runs"][0]["provider_complete"] is True
+    assert performance["runs"][0]["provider_call_seconds_cumulative"] == 0.25
+    assert performance["runs"][0]["cost_complete"] is True
+    assert performance["runs"][0]["cost_row_count"] == 0
+    assert performance["runs"][0]["actual_cost_usd"] is None
+    assert performance["latest_nested_phases"][0]["phase"] == "audit.scan"
+    assert performance["coverage"]["provider_rows_joined"] == 1
+
+
+def test_costs_human_renders_correlated_performance_semantics_at_narrow_width(
+    tmp_path, monkeypatch
+):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    ops_dir = config.library_dir / ".distill"
+    ops_dir.mkdir(parents=True, exist_ok=True)
+    run_id = "12345678-correlated"
+    (ops_dir / "phase_telemetry.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    _performance_phase(
+                        run_id,
+                        "report.research",
+                        command="report",
+                        timestamp="2026-07-12T12:00:01+00:00",
+                    )
+                ),
+                json.dumps(
+                    _performance_phase(
+                        run_id,
+                        "workflow:report",
+                        command="report",
+                        outcome="partial",
+                        artifact_count=2,
+                        byte_count=2048,
+                        timestamp="2026-07-12T12:00:09+00:00",
+                    )
+                ),
+                json.dumps(
+                    _performance_phase(
+                        run_id,
+                        "command",
+                        command="report",
+                        timestamp="2026-07-12T12:00:10+00:00",
+                    )
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ops_dir / "telemetry.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(_performance_provider("", 99)),
+                json.dumps(_performance_provider(run_id, 4)),
+                json.dumps(_performance_provider(run_id, 3)),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ops_dir / "cost_log.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(_performance_cost("", "legacy", 1)),
+                json.dumps(_performance_cost(run_id, "report", 0.25)),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["costs"], terminal_width=80)
+
+    assert result.exit_code == 0, result.output
+    assert "Performance Evidence" in result.output
+    assert "report" in result.output
+    assert "100.0 MB" in result.output
+    assert "2 / 2.0 KB" in result.output
+    assert "workflow:report" in result.output
+    assert "partial" in result.output
+    assert "process CPU" in result.output
+    assert "2 calls / 7.0s cumulative" in result.output
+    assert "$0.25" in result.output
+    assert "Provider time is cumulative call time" in result.output
+    assert "not critical-path wall time" in result.output
+    assert "process high-water mark" in result.output
+    assert "concurrent MCP work" in result.output
+    assert "excludes child-process CPU" in result.output
+    assert "Legacy unjoinable rows" in result.output
+    assert "timestamp backfill is never attempted" in result.output
+    assert "Latest nested phases: report (12345678)" in result.output
+    assert "report.research" in result.output
+
+
+def test_costs_json_and_human_qualify_invalid_named_sibling_rows(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    ops_dir = config.library_dir / ".distill"
+    ops_dir.mkdir(parents=True, exist_ok=True)
+    run_id = "invalid-sibling-run"
+    (ops_dir / "phase_telemetry.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    _performance_phase(
+                        run_id,
+                        "workflow:report",
+                        command="report",
+                        artifact_count=1,
+                        byte_count=64,
+                    )
+                ),
+                json.dumps(
+                    {
+                        **_performance_phase(run_id, "report.invalid", command="report"),
+                        "elapsed_seconds": "bad",
+                    }
+                ),
+                json.dumps(_performance_phase(run_id, "command", command="report")),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ops_dir / "telemetry.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(_performance_provider(run_id, 0)),
+                json.dumps({**_performance_provider(run_id, 1), "model": ""}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ops_dir / "cost_log.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(_performance_cost(run_id, "report", 0)),
+                json.dumps(
+                    {
+                        **_performance_cost(run_id, "report", 1),
+                        "actual_cost": "bad",
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    json_result = runner.invoke(app, ["--json", "costs"])
+
+    assert json_result.exit_code == 0, json_result.output
+    performance = json.loads(json_result.output)["data"]["performance"]
+    run = performance["runs"][0]
+    assert run["workflow"]["artifact_count"] == 1
+    assert run["phases_complete"] is False
+    assert run["nested_phase_count"] is None
+    assert run["provider_complete"] is False
+    assert run["provider_call_count"] is None
+    assert run["provider_call_seconds_cumulative"] is None
+    assert run["cost_complete"] is False
+    assert run["cost_row_count"] is None
+    assert run["actual_cost_usd"] is None
+
+    human_result = runner.invoke(app, ["costs"], terminal_width=80)
+
+    assert human_result.exit_code == 0, human_result.output
+    human_text = " ".join(human_result.output.split())
+    assert "phase evidence incomplete" in human_text
+    assert "provider evidence incomplete" in human_text
+    assert "cost evidence incomplete" in human_text
+    assert "valid rows shown below are a subset" in human_text
+    assert "affected rollup incomplete" in human_text
+
+
+def test_performance_view_formats_unknown_workflow_and_all_coverage_cautions() -> None:
+    assert performance_view._seconds(61.25) == "1m 1.2s"
+    assert performance_view._seconds(0.05) == "0.050s"
+    assert performance_view._seconds(0) == "0.0s"
+    assert performance_view._bytes(None) == "-"
+    assert performance_view._bytes(5) == "5 B"
+    assert performance_view._bytes(2048) == "2.0 KB"
+    assert performance_view._bytes(2 * 1024**2) == "2.0 MB"
+    assert performance_view._bytes(2 * 1024**3) == "2.0 GB"
+    assert performance_view._cost(None) == "-"
+    assert performance_view._cost(0.005) == "$0.0050"
+    assert performance_view._cost(0.25) == "$0.25"
+    assert (
+        performance_view._workflow_line(None, phases_complete=True) == "workflow artifacts unknown"
+    )
+
+    coverage = _performance_coverage(
+        correlated_runs_total=1,
+        excluded_observer_runs=1,
+        runs_shown=1,
+        phase_rows_total=3,
+        phase_rows_joined=1,
+        provider_rows_total=3,
+        provider_rows_joined=1,
+        cost_rows_total=3,
+        cost_rows_joined=1,
+        legacy_unjoinable_phase_rows=1,
+        legacy_unjoinable_provider_rows=1,
+        legacy_unjoinable_cost_rows=1,
+        unanchored_phase_rows=1,
+        unanchored_provider_rows=1,
+        unanchored_cost_rows=1,
+        malformed_phase_rows=1,
+        malformed_provider_rows=1,
+        malformed_cost_rows=1,
+        unreadable_logs=["telemetry.jsonl"],
+    )
+    evidence: PerformanceEvidence = {
+        **_empty_performance(coverage),
+        "runs": [
+            {
+                "run_id": "12345678-run",
+                "command": "audit",
+                "command_envelope": {
+                    "invocation_type": "mcp",
+                    "timestamp": "",
+                    "outcome": "success",
+                    "wall_seconds": 0.05,
+                    "process_cpu_seconds": 61.25,
+                    "process_peak_rss_bytes": None,
+                },
+                "workflow": None,
+                "phases_complete": False,
+                "nested_phase_count": None,
+                "provider_complete": False,
+                "provider_call_count": None,
+                "provider_call_seconds_cumulative": None,
+                "cost_complete": False,
+                "cost_row_count": None,
+                "actual_cost_usd": None,
+            }
+        ],
+    }
+    output = Console(record=True, width=80)
+
+    performance_view.render_performance_evidence(evidence, output)
+    rendered = " ".join(output.export_text().split())
+
+    assert "workflow evidence incomplete" in rendered
+    assert "provider evidence incomplete" in rendered
+    assert "cost evidence incomplete" in rendered
+    assert "Excluded observer runs" in rendered
+    assert "Legacy unjoinable rows" in rendered
+    assert "Rows with IDs but no command anchor" in rendered
+    assert "malformed or schema-invalid" in rendered
+    assert "Unreadable telemetry logs" in rendered
+    assert "valid rows shown below are a subset" in rendered
+
+    evidence["runs"][0]["phases_complete"] = True
+    complete_output = Console(record=True, width=80)
+    performance_view._latest_phases(evidence, complete_output)
+
+    assert "has no nested phase rows yet" in complete_output.export_text()
+
+
+@pytest.mark.parametrize(
+    ("coverage", "message"),
+    [
+        (
+            _performance_coverage(correlated_runs_total=1),
+            "No recent non-observer command-phase rows selected.",
+        ),
+        (
+            _performance_coverage(correlated_runs_total=1, excluded_observer_runs=1),
+            "Only excluded `costs` observer command anchors are present.",
+        ),
+        (_performance_coverage(), "No correlated command-phase evidence yet."),
+    ],
+)
+def test_performance_view_empty_states(
+    coverage: PerformanceCoverage,
+    message: str,
+) -> None:
+    output = Console(record=True, width=80)
+
+    performance_view.render_performance_evidence(_empty_performance(coverage), output)
+
+    assert message in output.export_text()
 
 
 def test_costs_json_and_human_output_include_cost_warnings(tmp_path, monkeypatch):

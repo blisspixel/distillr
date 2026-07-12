@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 from typing import Any, cast
 
 from distill.config import DistillConfig
+from distill.pipeline.performance_history import PerformanceEvidence, load_performance_evidence
 
 
 def dict_or_empty(value: object) -> dict[str, Any]:
@@ -58,6 +60,20 @@ def biggest_prompt_rows(config: DistillConfig, limit: int = 10) -> list[dict[str
             }
         )
     return rows
+
+
+def performance_evidence(
+    config: DistillConfig,
+    *,
+    cost_log_path: Path | None = None,
+    limit: int = 10,
+) -> PerformanceEvidence:
+    """Return exact-ID command, provider, and cost correlation evidence."""
+    return load_performance_evidence(
+        config.library_dir / ".distill",
+        cost_log_path=cost_log_path,
+        limit=limit,
+    )
 
 
 def compute_local_cloud_stats(config: DistillConfig) -> dict[str, float | int]:

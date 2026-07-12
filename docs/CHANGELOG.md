@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.34 - 2026-07-12
+
+### Added
+
+- `distill costs` now includes correlated performance evidence alongside the
+  spend ledger. It anchors only on command phase rows, joins provider and cost
+  telemetry by exact non-empty `run_id`, separates the command envelope from an
+  optional workflow summary, and exposes additive versioned JSON with explicit
+  joined, legacy, unanchored, schema-invalid, unreadable, and excluded-observer
+  coverage. Provider duration is labeled cumulative call time, process CPU
+  names its concurrency and subprocess limits, and peak RSS is labeled as a
+  process high-water mark. Missing or invalid metrics stay unknown instead of
+  becoming false zero evidence. Per-run phase, provider, and cost completeness
+  prevents a valid subset from understating a run when another attributable
+  row is invalid or a log is unreadable.
+- Corpus-scale result v2 runs every recorded operation sample in a fresh child
+  process with a timeout, private disposable-workspace marker, operation
+  allowlist, strict JSON protocol, worker PID, stable result digest, and source
+  fingerprint. Source project version and installed distribution version are
+  separate fields with an explicit match flag. Timeout, crash, result drift,
+  corpus mutation, and source mutation invalidate the evidence and return a
+  nonzero CLI status.
+
+### Changed
+
+- Near-duplicate audit candidate generation now uses an ephemeral rare-first
+  prefix index while exact Jaccard remains authoritative. At 1,000 fixed-seed
+  insights this reduces 499,500 possible pairs to 150 candidates. The
+  scale-100 result digest remains unchanged, and exhaustive-oracle property
+  tests preserve clustering, ordering, threshold edges, and error behavior.
+- The benchmark now labels its filesystem state `warm-generated`, measures
+  process RSS without allocator carryover from another operation, and omits
+  p95 until at least 20 successful samples exist. The fixed scale-100
+  near-duplicate run recorded an 81.5 ms p50 and 95.3 ms p95 across 20 distinct
+  worker processes; these remain advisory development results, not the
+  published 1.0 baseline.
+
+### Quality
+
+- Added differential and candidate-completeness property tests, worker
+  protocol and failure-path tests, exact telemetry-correlation tests, and
+  narrow-terminal rendering coverage. The performance-history parser is fully
+  branch-covered, and the ordinary release gate remains at least 95 percent
+  branch coverage.
+
 ## 0.19.33 - 2026-07-11
 
 ### Added

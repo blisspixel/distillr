@@ -346,18 +346,27 @@ per unit of time and cost, not language-level throughput in isolation.
   provider-call rows, cost rows, and run artifacts share that join key.
   `RunSummary` execution and accordion report work emit initial coarse phase
   spans with wall time, CPU time, process peak memory, artifact and byte counts,
-  and wait classification. Broader stable phase coverage across complete
-  acquisition, provider, queue, subprocess, filesystem, deterministic CPU, and
-  write paths remains pending; aggregate command and workflow rows use `mixed`.
+  and wait classification. `distill costs` now reads that evidence, anchors only
+  on command rows, joins provider and cost logs by exact `run_id`, and reports
+  legacy, schema-invalid, unreadable, unanchored, and excluded-observer coverage
+  without timestamp backfill. Command-envelope metrics and optional workflow
+  artifact summaries remain separate, while provider time, process CPU, and
+  peak-RSS limits are labeled explicitly. Broader stable phase coverage across
+  complete acquisition, provider, queue, subprocess, filesystem, deterministic
+  CPU, and write paths remains pending; aggregate command and workflow rows use
+  `mixed`.
 - [~] **Deterministic scale generator and offline replay.** The initial
   repository-only `benchmarks/corpus_scale/` harness generates a disposable,
   fixed-seed mixed-source corpus and measures discovery, search, links,
   near-duplicates, and dashboard reads with versioned JSON samples plus
-  before/after corpus-integrity digests. Generate the canonical fixed-seed
-  corpora at 100, 500, 1,000, and 10,000 insights with controlled sizes,
-  duplicate density, threshold-edge pairs, malformed frontmatter, broken links,
-  and path edge cases. Replay paper, video, site, synthesis, verification,
-  profile, and report workflows with frozen receipts and provider responses.
+  before/after corpus-integrity digests. Version 2 runs every sample in a fresh
+  child process with a timeout, records the worker PID and source fingerprint,
+  labels the warmed filesystem state honestly, and withholds p95 below 20
+  successful samples. Generate the canonical fixed-seed corpora at 100, 500,
+  1,000, and 10,000 insights with controlled sizes, duplicate density,
+  threshold-edge pairs, malformed frontmatter, broken links, and path edge
+  cases. Replay paper, video, site, synthesis, verification, profile, and report
+  workflows with frozen receipts and provider responses.
 - [ ] **Published 1.0 baseline.** Measure search, audit, links, discovery,
   dashboard reads, export, near-duplicate detection, clean install, wheel size,
   CLI cold start, a 20-paper run, a 50-video catch-up, and a site-batch. Publish
@@ -373,11 +382,13 @@ per unit of time and cost, not language-level throughput in isolation.
   identities, sizes, mtimes, hashes, links, and optional lexical data within a
   command. Any persisted accelerator lives under `.distill/`, is git-ignored,
   rebuildable, non-authoritative, and paired with a direct-file fallback.
-- [ ] **Algorithm before translation.** Replace all-pairs near-duplicate
-  candidate generation with an indexed exact candidate pass while preserving
-  Jaccard verification, deterministic grouping, ordering, and errors. Reduce
-  repeated scans, file reads, connection setup, and subprocess startup before
-  opening a native spike.
+- [x] **Algorithm before translation, first seam.** Shipped 0.19.34: an
+  ephemeral rare-first prefix index replaced all-pairs near-duplicate candidate
+  generation while preserving exact Jaccard verification, deterministic
+  grouping, ordering, threshold edges, and errors. At 1,000 fixed-seed insights
+  it reduced 499,500 possible pairs to 150 candidates and kept the result
+  digest stable. Repeated scans, file reads, connection setup, and subprocess
+  startup remain Python optimization work before any native spike.
 - [ ] **Bounded concurrency where safe.** Parallelize only after URL pinning,
   cancellation, provider limits, local-model contention, cost accounting,
   write scopes, and external serialization are explicit and tested. Record

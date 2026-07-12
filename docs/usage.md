@@ -684,7 +684,8 @@ distill open --what report ai                       # open the report
 distill status                                      # quick library overview
 distill doctor                                      # check API keys + system health
 distill doctor --update                             # upgrade yt-dlp via pip
-distill costs                                       # cost history, estimator accuracy, biggest prompts
+distill costs                                       # cost history, estimator accuracy, biggest prompts,
+                                                    #   and exact-ID command/provider/phase performance evidence
 distill health ai                                   # fast console view: stale syntheses + thin artifacts
 distill audit ai                                    # full trust report -> ai_Audit.md + action menu
                                                     #   (verify coverage, prompt staleness, synthesis freshness,
@@ -704,6 +705,21 @@ distill audit all --report-only                     # every topic, no prompts (f
 distill migrate                                     # rename legacy ID-based video dirs
 distill cleanup                                     # delete orphaned Gemini File Search stores
 ```
+
+`distill costs` reads `.distill/phase_telemetry.jsonl`, `telemetry.jsonl`, and
+`cost_log.jsonl`. Like every CLI invocation, its own command envelope is
+appended after rendering, but observer rows are excluded from the recent
+workflow list and counted explicitly. Only a `phase: command` row establishes a
+run, and provider or cost rows join only through the same non-empty `run_id`.
+Older rows without an ID remain visible as legacy coverage counts and are never
+guessed from timestamps. In `--json` output, the additive `performance` object
+separates the command envelope from an optional workflow summary and includes
+recent runs, the latest nested phases, coverage, and machine-readable timing,
+process-CPU, artifact, and memory semantics. Invalid numeric fields stay
+unknown and are counted as schema-invalid rather than being shown as zero. If
+an invalid row can still be attributed to a run, that run's completeness flag
+is false and its affected aggregate remains `null`; explicit valid zeroes and a
+complete run with no provider calls remain zero.
 
 ### Running on a schedule (loop-ready)
 

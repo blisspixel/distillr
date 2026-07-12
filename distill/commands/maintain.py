@@ -35,6 +35,9 @@ from distill.commands._cost_data import (
     dict_or_empty as _dict_or_empty,
 )
 from distill.commands._cost_data import (
+    performance_evidence as _performance_evidence,
+)
+from distill.commands._cost_data import (
     safe_float as _safe_float,
 )
 from distill.commands._cost_data import (
@@ -47,6 +50,9 @@ from distill.commands._helpers import (
     get_config,
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
+from distill.commands._performance_view import (
+    render_performance_evidence as _render_performance_evidence,
+)
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
@@ -119,6 +125,11 @@ def costs(  # noqa: C901 -- legacy, will refactor
     log_file = ops_log if ops_log.exists() else legacy_log
     json_mode = ctx.obj.get("json", False) if ctx.obj else False
     biggest_prompts = _biggest_prompt_rows(config)
+    performance = _performance_evidence(
+        config,
+        cost_log_path=log_file,
+        limit=max(0, last),
+    )
 
     if not log_file.exists():
         if json_mode:
@@ -135,6 +146,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
                     "cost_warnings": [],
+                    "performance": performance,
                 }
             )
             import sys
@@ -142,16 +154,21 @@ def costs(  # noqa: C901 -- legacy, will refactor
             sys.stdout.write(envelope.to_json() + "\n")
         else:
             console.print("[dim]No cost history yet. Costs are logged after each run.[/dim]")
+            _render_performance_evidence(performance, console)
             _costs_local_cloud_section(config)
             _costs_biggest_prompts_section(config, biggest_prompts)
         return
 
+    try:
+        cost_log_text = log_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        cost_log_text = ""
     entries: list[dict[str, Any]] = []
-    for line in log_file.read_text(encoding="utf-8").strip().split("\n"):
+    for line in cost_log_text.strip().split("\n"):
         if line.strip():
             try:
                 loaded = _json.loads(line)
-            except _json.JSONDecodeError:
+            except (_json.JSONDecodeError, RecursionError):
                 continue
             if isinstance(loaded, dict):
                 entries.append(cast("dict[str, Any]", loaded))
@@ -171,6 +188,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
                     "cost_warnings": [],
+                    "performance": performance,
                 }
             )
             import sys
@@ -178,6 +196,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
             sys.stdout.write(envelope.to_json() + "\n")
         else:
             console.print("[dim]No cost entries found.[/dim]")
+            _render_performance_evidence(performance, console)
             _costs_local_cloud_section(config)
             _costs_biggest_prompts_section(config, biggest_prompts)
         return
@@ -209,6 +228,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                 "estimator_accuracy": accuracy,
                 "biggest_prompts": biggest_prompts,
                 "cost_warnings": cost_warnings,
+                "performance": performance,
             }
         )
         import sys
@@ -282,6 +302,8 @@ def costs(  # noqa: C901 -- legacy, will refactor
         console.print("\n[bold yellow]Cost warnings[/bold yellow]")
         for warning in cost_warnings:
             console.print(f"  [yellow]{warning['message']}[/yellow]")
+
+    _render_performance_evidence(performance, console)
 
     # Local vs Cloud split from telemetry
     _costs_local_cloud_section(config)

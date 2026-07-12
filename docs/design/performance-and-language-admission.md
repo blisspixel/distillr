@@ -53,9 +53,9 @@ Profiling showed that corpus walking, file reads, and frontmatter handling
 dominate present search and duplicate passes. A zero-cost native scoring kernel
 could save only single-digit milliseconds at the current corpus size.
 
-Near-duplicate detection is the first credible scaling seam because the current
-exact implementation compares every document pair. A synthetic diagnostic over
-200-shingle documents showed the shape clearly:
+Near-duplicate detection was the first credible scaling seam because the exact
+implementation compared every document pair. The pre-change diagnostic showed
+the shape clearly:
 
 | Insights | Pairwise comparison |
 |---:|---:|
@@ -64,9 +64,27 @@ exact implementation compares every document pair. A synthetic diagnostic over
 | 500 | 1.50 s |
 | 1,000 | 9.26 s |
 
-This is an algorithm problem before it is a Rust problem. Exact indexed
-candidate generation or prefix filtering should replace the all-pairs scan
-before a language extraction is considered.
+Version 0.19.34 addressed the algorithm before considering Rust. An ephemeral
+rare-first prefix index now proposes a conservative candidate superset, and
+exact Jaccard remains the final authority. Differential property tests compare
+the complete clustering result with the former exhaustive implementation,
+including arbitrary thresholds and floating-point edges.
+
+| Insights | Exhaustive pairs | Indexed candidates | Candidate reduction |
+|---:|---:|---:|---:|
+| 100 | 4,950 | 15 | 99.6970% |
+| 500 | 124,750 | 75 | 99.9399% |
+| 1,000 | 499,500 | 150 | 99.9700% |
+
+On the fixed corpus, the scale-100 result digest stayed
+`47ab80898c755c30742167edff78b93ffd5b850985c290faf85c3bd474abec9a`.
+Twenty fresh-process samples recorded an 81.5 ms p50 and 95.3 ms p95. Five
+scale-500 samples recorded a 434.4 ms p50 and deliberately omitted p95 because
+the evidence count was below 20. A same-machine scale-1,000 diagnostic fell
+from 9.31 seconds to 1.11 seconds. These are directional development results,
+not the published 1.0 baseline. They show that the first bottleneck was the
+algorithm, while the remaining time is dominated by corpus loading and
+shingling. No native extraction is justified yet.
 
 ## The 1.0 performance baseline
 
@@ -90,15 +108,23 @@ near-duplicate detection, export, and dashboard-data loading. Record:
 - Python, operating system, architecture, package version, corpus seed, and
   cache state
 
-The initial repository-only v1 harness lives in `benchmarks/corpus_scale/`.
+The repository-only v2 harness lives in `benchmarks/corpus_scale/`.
 It generates a fixed-seed corpus under a fresh temporary directory, measures
 insight discovery, search hits and misses, link checking, near-duplicate
 detection, and the shared dashboard snapshot, then verifies the corpus digest
-did not change. Results use the versioned `corpus-scale-result.v1` JSON shape
-and retain raw wall-time, CPU-time, and peak-RSS samples. There is deliberately
-no installed command and no user-selected library path. The canonical scale
-matrix, cold-process isolation, malformed and threshold-edge fixture expansion,
-scheduled history, and offline workflow replay remain follow-on work.
+did not change. Every recorded sample executes one allowlisted operation in a
+fresh child process with a timeout. Results use the versioned
+`corpus-scale-result.v2` JSON shape and retain raw wall-time, CPU-time,
+peak-RSS, result-digest, and worker-PID samples. The harness records a normalized
+source-tree fingerprint, fails closed on corpus or source mutation, labels the
+filesystem state `warm-generated`, and suppresses p95 below 20 successful
+samples. There is deliberately no installed command and no user-selected
+library path. Source `project_version` and installed distribution version are
+reported separately with an explicit match flag, so a deliberate `--no-sync`
+run cannot label current editable source with stale package metadata. The
+canonical scale matrix, cold-filesystem experiments, malformed and
+threshold-edge fixture expansion, scheduled history, and offline workflow
+replay remain follow-on work.
 
 ### 2. Offline workflow replay
 
@@ -139,7 +165,21 @@ cost rows, and run artifacts carry the same id. `RunSummary` execution and
 accordion report work provide the first coarse spans. The current
 `peak_rss_bytes` is the process high-water mark observed when a phase ends, not
 an isolated per-phase allocation peak. Stable coverage across the remaining
-workflow phases is still pending.
+workflow phases is still pending. `distill costs` now exposes the recent
+command anchors and joins their provider, phase, and cost rows by exact
+`run_id`. Its JSON coverage counts distinguish joined, legacy-without-ID,
+unanchored, schema-invalid, unreadable, and excluded observer rows. The command
+envelope owns invocation wall time, process CPU, process peak RSS, and terminal
+command outcome. A matching workflow summary, when present, separately owns
+recorded artifact and byte counts plus workflow outcome; absent workflow data
+stays unknown rather than becoming zero. Provider time is cumulative call
+time, not critical-path time. Process CPU includes overlapping in-process work
+and excludes child-process CPU. Legacy history is never backfilled from
+timestamps, and repeated `distill costs` observer runs do not crowd actual
+workflows out of the recent evidence list. Per-run phase, provider, and cost
+completeness flags prevent a valid subset from understating a run: if an
+attributable row is schema-invalid or its log is unreadable, affected counts
+and rollups stay unknown rather than presenting partial evidence as complete.
 
 The headline product metrics are:
 
@@ -176,8 +216,10 @@ Distill does not need an observability backend to understand its own phases.
 2. **Disposable derived indexes.** Markdown and JSONL remain authoritative. An
    index may live only under `.distill/`, must be git-ignored and rebuildable,
    and must have a direct-file fallback.
-3. **Indexed duplicate candidates.** Replace the quadratic candidate scan while
-   preserving exact Jaccard verification and deterministic grouping.
+3. **Indexed duplicate candidates (shipped 0.19.34).** The ephemeral rare-first
+   prefix index removes impossible pairs while exact Jaccard verification,
+   deterministic grouping, ordering, and legacy threshold behavior remain
+   unchanged.
 4. **Bounded concurrency.** Parallelize independent acquisition or model work
    only after URL pinning, cancellation, contention, cost, write-scope, and
    provider-limit behavior are explicit. Unbounded fan-out is never an
