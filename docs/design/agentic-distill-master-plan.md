@@ -39,10 +39,11 @@ discovering, analyzing, verifying, synthesizing, re-searching until it is good
 enough, then keeping it that way. The self-correcting half of this is the planned
 work above, not what ships today.
 
-## What's actually wrong today (grounded in the 2026-06-09 dogfood)
+## What the 2026-06-09 dogfood found
 
-A live run on the `agentic-harness` corpus exposed the structural gaps. These are
-evidence, not speculation:
+A live run on the `agentic-harness` corpus exposed the structural gaps below.
+The shipped-versus-planned status near the top of this document is the current
+truth; this table preserves the evidence that motivated the work.
 
 | # | Finding | Evidence |
 |---|---------|----------|
@@ -54,8 +55,8 @@ evidence, not speculation:
 | F6 | **Brittle failure.** A known 403 "out of credits" dumped a raw `openai` traceback; no fallback to an available local model; left a non-resumable partial state (5 papers, no synthesis, no videos). | The crash that interrupted this very run. |
 | F7 | **Weak relevance floor on discovery.** The `steward` topic is polluted with enterprise *data-stewardship* content from a bare keyword. | `steward` corpus = Atlan/Aiven/Neo4j "context layer." |
 
-The throughline: **distill assumes one lens, runs once, trusts itself, and breaks
-loudly.** Every pillar below removes one of those assumptions.
+At the time, the throughline was: **distill assumed one lens, ran once, trusted
+itself, and broke loudly.** Every pillar below removes one of those assumptions.
 
 ## The reframe: one desired-state object, flowing through agentic stages
 
@@ -194,7 +195,8 @@ commands that already own each step:
 - discovery loop → inside `discover` (it already re-ranks against the goal and can
   gap-fill),
 - verify + thesis rung → inside `synthesize` / `resynthesize`,
-- the assess/critique step → inside the planned `audit`.
+- the assess/critique step → as a future extension of the existing `audit`
+  surface.
 So "more agentic" shows up in the tools people already use, with no new command.
 **Why:** the core capture → analyze → synthesize flow self-corrects; the surface
 stays the same size. The 2026 "loop engineering" framing makes the boundary

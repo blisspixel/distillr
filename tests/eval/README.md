@@ -1,32 +1,26 @@
-# Eval Suite
+# Legacy structural eval support
 
-Quality gate for local model validation. Compares local model output against cloud baselines.
+This directory contains the deterministic structural scorer and frozen fixture
+used by its unit tests. It is not the public live-model evaluation command and
+does not generate model output.
 
-> For interactive **cost × quality model selection** (sweep several models over frozen
-> fixtures, advisory LLM-judge, recommendation), use the newer `distill eval` command and
-> the `distill/eval/` package — see [`docs/usage.md`](../../docs/usage.md#evaluate-models-cost--quality).
-> This suite remains the quick local-vs-cloud check used by `distill doctor --eval`.
+For cost and quality model selection over frozen product fixtures, use
+`distill eval` and the `distill/eval/` package. See
+[`docs/usage.md`](../../docs/usage.md#evaluate-models-cost--quality).
 
-## Generating baselines
-
-Run with cloud provider to generate reference outputs:
-
-```bash
-DISTILL_PROVIDER=xai python -m tests.eval.generate_baselines
-```
-
-## Running eval
-
-Compare a local model against baselines:
+Run the legacy scorer tests with:
 
 ```bash
-distill doctor --eval --model qwen3.5:27b
+uv run pytest -q tests/eval tests/unit/doctor/test_quality_gate.py
 ```
 
 ## Threshold
 
-A model passes if it achieves >= 80% of the cloud baseline quality score.
-Quality is measured by:
+A supplied output passes this legacy helper when its mean structural score is
+at least 80%. This threshold is test support, not the `distill eval` migration
+gate. The helper measures:
+
 - Structural completeness (all expected sections present)
 - Key concept coverage (named entities and techniques mentioned)
 - Depth (word count per section relative to baseline)
+- Markdown formatting

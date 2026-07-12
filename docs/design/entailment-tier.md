@@ -1,6 +1,6 @@
 # The entailment tier: prose claims and named entities, checked locally
 
-Status: design accepted 2026-06-12; implementation targets 0.13.0.
+Status: shipped in 0.13.0, with synthesis-path coverage completed in 0.13.1.
 Companion to the shipped deterministic tier (`distill/pipeline/verify.py`,
 0.10.1) -- this tier layers on top of it and never replaces it.
 
@@ -39,7 +39,7 @@ not shared by the checker, which is the point.
 
 ## Architecture
 
-New module `distill/pipeline/verify_entailment.py`, isolated from
+The implementation lives in `distill/pipeline/verify_entailment.py`, isolated from
 `verify.py` so the deterministic tier stays dependency-free and pure:
 
 1. **Claim extraction (deterministic).** Sentence/bullet units from the
@@ -54,9 +54,9 @@ New module `distill/pipeline/verify_entailment.py`, isolated from
    no-database invariant.
 3. **Scoring (the model).** `EntailmentChecker` protocol:
    `score(evidence: str, claim: str) -> float` in [0, 1]. Implementations:
-   `HHEMChecker` (transformers, lazy import), `OllamaChecker` (Granite via
-   the existing Ollama adapter), and the test double. A claim's score is the
-   max over its paired chunks; below threshold (default 0.5,
+   `HHEMChecker` (transformers, lazy import) plus protocol test doubles. Granite
+   Guardian through Ollama remains a candidate, not a shipped checker. A claim's
+   score is the max over its paired chunks; below threshold (default 0.5,
    `DISTILL_ENTAILMENT_THRESHOLD`) it is flagged.
 4. **Sidecar (additive).** `_Verify.json` schema_version 2 adds an
    `entailment` block: `{checked, supported, flagged: [{claim, score,
@@ -75,17 +75,16 @@ can speed it up). CI does not install the extra -- unit tests mock the
 `EntailmentChecker` protocol; the model-loading path is covered by marked
 opt-in integration tests and live validation.
 
-## Verify on synthesis emits (rides along)
+## Verify on synthesis emits (shipped)
 
-The second remaining 0.10 item. Cross-source synthesis is the artifact most
-prone to attribution swaps and is not yet checked. Both tiers run at
+Cross-source synthesis is especially prone to attribution swaps. Both tiers run at
 synthesis write time with the **per-source insights as the receipt** (the
 synthesis's inputs are its evidence). Same sidecar (distinct identity, e.g.
 `<topic>-paper-synthesis_Verify.json`, so the three topic-level syntheses
 don't collide), same modes; strict refuses the synthesis write and keeps the
 previous synthesis in place.
 
-Sequencing: 0.13.0 shipped it on the **paper synthesis** path, where the
+Version 0.13.0 shipped it on the **paper synthesis** path, where the
 receipt (the per-paper insights) is already in the function's hands. 0.13.1
 completed the set - channel (per-video insights), topic (channel syntheses),
 corpus single-pass (per-source sections), corpus two-pass (the rendered claim

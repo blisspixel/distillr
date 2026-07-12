@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.35 - 2026-07-12
+
+### Fixed
+
+- `distill ask --help` now describes saved answer citations without literal
+  double-bracket markup, preventing Rich from rendering the citation label as
+  empty brackets.
+
+### Security
+
+- Enabled GitHub private vulnerability reporting and linked the maintained
+  security policy directly to the working private report form.
+
+### Documentation
+
+- Audited every maintained documentation surface against the shipped CLI,
+  configuration, provider router, package tree, public contract snapshots, and
+  release evidence. Corrected stale eval flags and commands, output shapes,
+  transcription fallbacks, package ownership, strict-typing status, performance
+  completeness semantics, and shipped-versus-planned design records.
+- Clarified that local Ollama and LM Studio analyze freshly fetched receipts,
+  while plan-quota CLIs remain blocked external-worker candidates rather than
+  live providers. Updated recurring-profile examples and the corpus skill to
+  follow the same fail-closed cost policy.
+- Aligned contributor, pre-commit, benchmark, security, provenance, and release
+  guidance with the current gates. Repaired internal roadmap anchors, corrected
+  the historical 0.4.0 release date, replaced a moved Microsoft Learn URL, and
+  replaced obsolete legacy eval usage with the supported `distill eval`
+  workflow.
+
+### Quality
+
+- Added a CLI regression test for readable `distill ask --help`, checked every
+  tracked local Markdown target and GitHub-style anchor, validated public
+  contract snapshot, and ran focused command and legacy-eval tests. The full
+  local release-candidate gate passes 4,227 tests with one platform skip and
+  95.10 percent branch coverage.
+
 ## 0.19.34 - 2026-07-12
 
 ### Added
@@ -50,8 +88,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added differential and candidate-completeness property tests, worker
   protocol and failure-path tests, exact telemetry-correlation tests, and
   narrow-terminal rendering coverage. The performance-history parser is fully
-  branch-covered, and the ordinary release gate remains at least 95 percent
-  branch coverage.
+  branch-covered. The release gate passes 4,227 tests at 95.01 percent branch
+  coverage on Python 3.12, with Python 3.13 and 3.14, macOS and Windows smoke,
+  Ruff, Pyright, import contracts, Bandit, dependency audit, and build checks
+  green.
 
 ## 0.19.33 - 2026-07-11
 
@@ -81,9 +121,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Quality
 
-- The release gate passes 4,152 tests at 95.01% branch coverage, strict Pyright,
-  Ruff, import contracts, Bandit, dependency audit, and deterministic
-  scale-100 benchmark integrity checks.
+- The release gate passes 4,152 tests at 95.01% branch coverage, Pyright with
+  zero diagnostics, Ruff, import contracts, Bandit, dependency audit, and
+  deterministic scale-100 benchmark integrity checks.
 
 ## 0.19.32 - 2026-07-11
 
@@ -2037,7 +2077,7 @@ Two independent adversarial reviews of the synthesis-verify and console/`--json`
 ### Planned
 
 - **Agent-legible corpus pass (0.9 series)** - emit AGENTS.md alongside the per-topic CLAUDE.md, one canonical SKILL.md teaching agents the CLI, MCP surface consolidated to a few workflow-shaped paths-not-payloads tools, positioning refresh ("verifiable research corpus", not "memory layer"). See the reordered spine in [`ROADMAP.md`](../ROADMAP.md#milestones-at-a-glance) (2026-06-11 research sweep).
-- **1.0 verification depth** - Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100--stability-commitment--quality-bar).
+- **1.0 verification depth** - Design by Contract (`deal`) on the deterministic core, mutation testing, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at external boundaries; "parse, don't validate" strict domain types at every boundary. See the 1.0 quality bar in [`ROADMAP.md`](../ROADMAP.md#100---stability-commitment--quality-bar).
 - LLM-maintained concept and entity notes, intelligent merging on refresh, contradiction flagging. See ROADMAP section 10 (Tier 2).
 - Goal-file refresh hook for `distill watch`: re-run discover against a saved goal file on a schedule so goal-driven topics stay current the same way keyword topics do.
 - Discovery-loop hardening, remaining items: trusted-site discovery for official-doc workflows, page-level candidate identity in site previews, long-run visibility / failure surfacing. See ROADMAP section 12.
@@ -2904,7 +2944,7 @@ MCP-first surface + Grok 4.3 migration. The MCP server becomes the primary produ
 - All 4 prompts retain their argument signatures.
 - CLI output without `--json` is identical to 0.4.0 behavior.
 
-## 0.4.0 - 2026-07-14
+## 0.4.0 - 2026-05-04
 
 Package restructure: flat `distill/` → layered subpackage architecture.
 

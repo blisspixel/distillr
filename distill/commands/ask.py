@@ -40,7 +40,7 @@ def ask_cmd(
 ):
     """Answer a question from the corpus, grounded-only, with citation receipts.
 
-    Writes `answers/<slug>_Answer.md` with `[[wiki-links]]` to every cited
+    Writes `answers/<slug>_Answer.md` with wiki-link citations to every cited
     source and a `_Verify.json` sidecar grounding the answer's numbers against
     the retrieved excerpts. `--save` re-ingests a clean answer so synthesis
     and future answers build on it -- the compounding step, verify-gated.

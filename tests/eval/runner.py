@@ -1,10 +1,7 @@
-"""Eval suite runner — compares local model output against cloud baselines.
+"""Legacy structural scoring helper used by the offline eval tests.
 
-Usage:
-    python -m tests.eval.runner --model gemma4:26b --workload analysis
-
-Or via CLI:
-    distill doctor --eval --model gemma4:26b
+This module is not a command-line entry point. Use ``distill eval`` for the
+public live-model cost and quality workflow.
 """
 
 from __future__ import annotations

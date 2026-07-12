@@ -44,7 +44,7 @@ distill discover --goal-file private/agent365-goal.md --topic agent365 \
 
 # Goal file + trusted site expansion
 distill discover --goal-file private/agent365-goal.md --topic agent365 \
-  --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents \
+  --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents-sdk/ \
   --site-limit 10 --preview
 ```
 
@@ -378,7 +378,7 @@ spend cap remains a hard stop. Reused unchanged pages and empty crawls are
 surfaced as structural skip outcomes in progress lines and MCP `site_batch`
 JSON.
 
-See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON URL objects and collections can set `mode` to `exact-page` or `shallow-crawl`, or use `crawl: false` / `crawl: true` as a boolean alias. Unsupported mode names fail during seed-file loading instead of falling back to a wider crawl. They can also set `crawl_prefix` to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
+See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON URL objects and collections can set `mode` to `exact-page` or `shallow-crawl`, or use `crawl: false` / `crawl: true` as a boolean alias. Unsupported mode names fail during seed-file loading instead of falling back to a wider crawl. They can also set `crawl_prefix` to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents-sdk`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 
 ## Direct ingest: X, repos, feeds, and local files
 
@@ -534,17 +534,37 @@ distill eval --models grok-4.3,qwen3.5:27b
 distill eval --workload paper --models grok-4.3,qwen3.5:27b --report --yes
 ```
 
-It runs each model over frozen golden fixtures (3 per analysis workload: paper / video / site) at `temperature=0`, scores each output on deterministic diagnostic dimensions (structure, verbosity-resistant depth, concept coverage vs the golden, formatting), and then asks model judges for the route-graduation gates. A candidate must clear a source-anchored faithfulness floor, so an unfaithful fixture vetoes migration however the candidate scores. It must also be judged at par with the anchor through order-randomized pairwise comparisons in both A/B orderings, so position bias cancels. If there is no usable judge signal, migration fails closed to the anchor. The deterministic composite and `--threshold` are advisory report diagnostics, not the migration gate.
+It runs each model over frozen golden fixtures (3 each for paper, video, and
+site, plus 5 adversarial corpus-Q&A fixtures for `ask`) at `temperature=0`,
+scores each output on deterministic diagnostic dimensions (structure,
+verbosity-resistant depth, concept coverage vs the golden, formatting), and
+then asks model judges for the route-graduation gates. A candidate must clear a
+source-anchored faithfulness floor, so an unfaithful fixture vetoes migration
+however the candidate scores. It must also be judged at par with the anchor
+through order-randomized pairwise comparisons in both A/B orderings, so
+position bias cancels. If there is no usable judge signal, migration fails
+closed to the anchor. The deterministic composite and `--threshold` are
+advisory report diagnostics, not the migration gate.
 
 Flags:
 
-- `--workload paper|video|site|all` - which fixtures to run (default `all`)
-- `--models a,b,c` - comma-separated model ids; provider is inferred (grok → xAI, anything unrecognized → local Ollama)
-- `--anchor <model>` - the incumbent/reference everything is compared against (default `grok-4.3`; added to `--models` if absent)
-- `--judge <model>`: model judge used for source-anchored faithfulness and pairwise at-par comparisons (default `grok-4.3`). A neutral judge is preferred for unbiased migration evidence.
+- `--workload paper|video|site|ask|all` - which fixtures to run (default `all`)
+- `--models a,b,c` - comma-separated model ids. Known prefixes route to xAI
+  (`grok`), Gemini (`gemini` / `deep-research`), Anthropic (`claude`), the
+  reserved OpenAI route (`gpt` / `o1` / `o3`), or an adapter candidate
+  (`adapter:`); anything else is treated as a local Ollama model.
+- `--anchor <model>` - the incumbent/reference everything is compared against.
+  `auto` uses `grok-4.3` when an XAI key is configured, otherwise the first
+  listed model. The anchor is added to `--models` if absent.
+- `--judge <model>` - model judge used for source-anchored faithfulness and
+  pairwise at-par comparisons. `auto` selects a different-family model that is
+  not one of the candidates when one is available. With no neutral judge,
+  migration fails closed.
 - `--threshold 0.9`: advisory composite reference shown in the report; it does not authorize a migration
 - `--report` - write the table to `library/.distill/eval/<workload>_<ts>.md`
 - `--no-cache` - re-run every `(model, fixture)` instead of reusing `.distill/eval_cache/`
+- `--allow-oversized` - run local models whose weights exceed detected GPU or
+  unified-memory capacity instead of skipping them to avoid CPU spill.
 - `--yes` - skip the pre-run cost confirmation
 
 **Local is optional and cross-platform.** The eval (and all of distill) runs cloud-only on any OS - local models are an opt-in cost lever, not a requirement. When you do eval local models, the VRAM-fit guard reads NVIDIA VRAM (`nvidia-smi`) or Apple Silicon unified memory; on AMD/Intel/CPU-only or any machine where VRAM can't be probed it doesn't block - it just notes that local will run on CPU (slow). Cloud models are never affected by the local-hardware check.

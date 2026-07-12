@@ -1,8 +1,8 @@
 # pyright: strict
-"""Quality gate — eval suite runner for local model validation.
+"""Legacy offline structural evaluation helper.
 
-Compares local model output against cloud baselines to ensure quality
-equivalence. Uses the eval runner from tests/eval/runner.py for scoring.
+This module scores supplied text with the test fixture in ``tests/eval``. The
+public live-model cost and quality workflow is ``distill eval``.
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ async def run_eval_suite(
                 "status": "no_output",
                 "message": (
                     f"Baselines available ({len(baselines)} files) but no model output provided. "
-                    "Run with --eval to generate output from the configured model."
+                    "Use `distill eval` for live model evaluation."
                 ),
                 "baselines": list(baselines.keys()),
             },

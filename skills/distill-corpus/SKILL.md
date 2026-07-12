@@ -9,8 +9,9 @@ This skill is distributed as a folder (`distill-corpus/`) containing this
 `SKILL.md`. Drop the whole folder into `~/.claude/skills/` (or equivalent)
 so the agent can discover the resources.
 
-A distillr library is plain files under `library/` - no database, no schema.
-`grep`, `cat`, and `ls` are first-class query primitives.
+A distillr library is plain files under `library/`, with no required database.
+Its Markdown artifacts, JSON state, and manifests have explicit contracts, but
+remain readable with `rg`, `Get-Content`, `cat`, and `ls`.
 
 Core orientation and live examples live in the generated `AGENTS.md` /
 `CLAUDE.md` files inside the corpus (and per-topic). Read those first for the
@@ -69,8 +70,14 @@ export). Do not re-implement parsing, slugging, or dedup logic in the agent.
 
 ## Curating with the CLI
 
-Runs cost real money (LLM analysis); always preview before ingesting and
-respect the user's budget. Every run is cost-tracked (`distill costs`).
+Model-backed runs consume compute and may cost money. Always preview before
+ingesting, respect the user's cost mode and budget, and inspect recorded usage
+with `distill costs`.
+
+Local Ollama or LM Studio changes the model that analyzes fetched receipts. It
+does not make discovery answer from model memory or stop Distill from fetching
+current public sources. Candidate plan-quota CLIs are not live Distill
+providers until their adapter and evaluation gates ship.
 
 - `distill discover "<research goal>" --topic <t> --preview` - goal-ranked
   shortlist across papers + videos (+ curated site seeds) with a cost

@@ -36,16 +36,15 @@ library/
 
 ## Per video (full-length, >3 min) - 2-pass analysis
 
-- **`<video-slug>_Transcript.txt`** - Full transcript (YouTube captions → scribe fallback)
+- **`<video-slug>_Transcript.txt`** - Full transcript from YouTube captions,
+  the local-first Whisper ladder, or a configured legacy Scribe fallback
 - **`metadata.json`** - Video ID, title, upload date, duration, URL
-- **`<video-slug>_Insights.md`** - Deep structured insight document:
-  - Summary - core argument and why it matters
-  - Key Announcements - products, policies, personnel, with status tags
-  - Technical Insights - architecture, benchmarks, specific numbers
-  - Business Value Signals - ROI, adoption patterns, competitive dynamics
-  - Vendor Watch - competitive positioning (only vendors actually discussed)
-  - Creator's Take - full analytical argument, frameworks, predictions
-  - Customer Conversation Starters - grounded in actual video content
+- **`<video-slug>_Insights.md`** - Deep structured insight document shaped by
+  the topic's analysis lens. The neutral `general` lens covers the summary,
+  key points, details and evidence, the creator's argument, and notable
+  specifics. `research`, `practitioner`, and `academic` select their own
+  calibrated section sets. Business Value Signals, Vendor Watch, and Customer
+  Conversation Starters appear only under the `competitive` lens.
 
 ## Per Short (≤3 min) - 1-pass extraction
 

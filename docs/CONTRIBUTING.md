@@ -38,7 +38,8 @@ uv run pytest --cov=distill --cov-fail-under=95   # branch coverage gate
 
 ## Quality gates
 
-CI enforces the following on every push. Before opening a PR, at least run:
+CI enforces the following on every push to `main` and every pull request targeting
+`main`. Before opening a PR, at least run:
 
 ```bash
 uv run pytest -q                                              # unit + contract tests pass
@@ -53,12 +54,15 @@ Coverage is **branch** coverage (every conditional must exercise both arms). The
 
 ### Pre-commit hooks
 
-The fastest way to stay green: install the hooks once. The lint/type/security hooks run through `uv run --frozen`, so they use the exact locked tool versions CI runs - a clean `pre-commit run --all-files` means a clean CI run.
+The fastest way to stay green: install the hooks once. The lint, type, security,
+and import-contract hooks run through `uv run --frozen`, so they use the exact
+locked tool versions CI runs. `pre-commit run --all-files` checks those
+commit-stage gates; the coverage suite remains a separate pre-push hook.
 
 ```bash
 uv run pre-commit install --install-hooks       # ruff / bandit / import-linter / pyright on every commit
 uv run pre-commit install --hook-type pre-push  # full test suite on every push
-uv run pre-commit run --all-files               # one-time baseline pass
+uv run pre-commit run --all-files               # one-time commit-stage baseline
 ```
 
 If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the changes and commit again.
@@ -92,8 +96,12 @@ uv config, ruff config, bandit config, pyright config, and the import-linter con
 Run the current disposable corpus-scale harness with:
 
 ```bash
-uv run --frozen python -m benchmarks.corpus_scale --scale 100 --iterations 5
+uv run --no-sync python -m benchmarks.corpus_scale --scale 100 --iterations 5
 ```
+
+Run `uv sync --frozen` first. The repository-only harness reports the source
+project version separately from installed distribution metadata, including an
+explicit match flag.
 
 ## Project shape - what's in scope
 
@@ -101,11 +109,11 @@ Distill is a **source-to-intelligence platform**. Roughly: it discovers content 
 
 In scope for contributions:
 
-- New source types (podcasts, RSS, conference talks) that fit the same capture → analyze → synthesize → report shape
-- Obsidian-native output features (wiki-linking, frontmatter, concept/entity extraction - see ROADMAP section 10)
+- New source types that fit the same capture → analyze → synthesize → report shape, plus focused improvements to the eight existing source paths
+- Obsidian-native output features such as wiki-linking, frontmatter, and concept/entity extraction; see the [roadmap](../ROADMAP.md)
 - Prompt quality improvements (especially where existing outputs feel thin or generic)
 - Cost/telemetry improvements
-- MCP server additions (new tools, resources, prompts)
+- MCP workflow improvements that preserve path-first responses and consolidate rather than duplicate tools
 - Test coverage, especially for paths that currently rely on live API behavior
 
 Probably out of scope (please open an issue to discuss before building):
@@ -113,7 +121,7 @@ Probably out of scope (please open an issue to discuss before building):
 - A built-in graph-view UI (Obsidian/Logseq/Dendron already do this well)
 - A hosted cloud version
 - A proprietary database or non-markdown storage format
-- Features that couple distill tightly to a single vendor beyond the current xAI/Google mix
+- Features that bypass the provider router or ship an uncalibrated default tied to one vendor
 
 ## Context engineering
 
@@ -232,7 +240,9 @@ git diff --cached --stat
 git status
 ```
 
-Or just run `uv run pre-commit run --all-files` (with the pre-push hook installed) to cover 1-5 in one command.
+`uv run pre-commit run --all-files` covers items 2-5. Run item 1 separately, or
+invoke the installed test hook explicitly with
+`uv run pre-commit run --hook-stage pre-push --all-files`.
 
 Common mistakes that have burned us:
 

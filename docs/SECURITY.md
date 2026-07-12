@@ -4,7 +4,10 @@
 
 If you discover a security vulnerability in distill - particularly anything involving API key handling, file-path escapes, command injection, credential leakage via logs or cost artifacts, or the MCP server - please **do not open a public GitHub issue**.
 
-Instead, reach out privately via the GitHub security advisory flow for this repo, or open an issue titled "Security - please contact me privately" with no details, and a maintainer will reach out.
+Instead, use the repo's [private GitHub security advisory
+flow](https://github.com/blisspixel/distillr/security/advisories/new). If that
+is unavailable, open an issue titled "Security - please contact me privately"
+with no details, and a maintainer will reach out.
 
 ## Scope
 
@@ -24,7 +27,9 @@ Supply-chain posture:
 - Runtime and development dependencies are pinned through the committed `uv.lock`; CI installs the locked environment with `uv sync --frozen`.
 - `bandit`, `pip-audit`, import-linter, ruff, Pyright, build, and the coverage gate run in CI.
 - GitHub Actions are pinned to full commit SHAs, including the PyPI publish action. Action and dependency bumps are reviewed manually.
-- PyPI publishing uses OIDC trusted publishing with no stored package token, and release artifacts include PEP 740 attestations.
+- PyPI publishing uses OIDC trusted publishing with no stored package token.
+  PyPI distributions carry PEP 740 provenance attestations, and each GitHub
+  release includes a CycloneDX SBOM.
 
 Out of scope:
 

@@ -2,7 +2,7 @@
 
 Status: planned (1.0 quality bar). This is the implementation plan for the
 "Verification depth (where it matters, not everywhere)" item in
-[`ROADMAP.md`](../../ROADMAP.md#100--stability-commitment--quality-bar).
+[`ROADMAP.md`](../../ROADMAP.md#100---stability-commitment--quality-bar).
 
 ## What's next, and why this and not something else
 

@@ -5,8 +5,8 @@ one-shot synthesis into an agentic loop that produces PhD-grade analysis on its
 own - no human hand-running the deep pass.
 
 Related: [`invariants.md`](../invariants.md), [`architecture.md`](../architecture.md),
-[`../../ROADMAP.md`](../../ROADMAP.md) (0.10 verify hook, `distill ask`,
-self-maintaining audit, shared LLM cache).
+[`../../ROADMAP.md`](../../ROADMAP.md) (verify hook, `distill ask`, the shipped
+deterministic audit surface, and the planned critic loop and shared LLM cache).
 
 ## The ask
 
@@ -144,8 +144,9 @@ the roadmap into one loop:
 - **`distill ask` output→input loop** (0.10) → the thesis/answer is filed back as
   a receipted artifact, gated on the verify hook (exactly the existing safety
   argument).
-- **self-maintaining `audit`** (next) → the critic/assess step is an audit scoped
-  to one synthesis.
+- **deterministic `audit` trust reports** (shipped) provide the assessment
+  surface; the synthesis-scoped semantic critic and reconciliation remain
+  planned.
 - **shared LLM cache** (beyond-1.0) → makes the loop affordable.
 
 Framing for the roadmap: this is the milestone that turns distill from a
@@ -164,7 +165,8 @@ loop, when built, lives in the commands that already own each step:
 - **verify + re-synthesize** inside `synthesize` / `resynthesize` (e.g. a
   `--verify`/`--deepen` flag and an iteration/budget bound), rather than a separate
   `distill deepen`,
-- the **assess/critique** step inside the planned `audit`.
+- the **assess/critique** step as a future extension of the existing `audit`
+  surface.
 - **Artifacts**: the thesis rung is already a section in the corpus synthesis; a
   separate `<topic>_Thesis.md` and a run ledger are optional, only if the loop is
   actually built.

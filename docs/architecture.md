@@ -10,8 +10,8 @@ How Distill works under the hood. Read this if you're contributing, debugging, o
  │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ grok-4.3             │    │ Per-channel    │   │ distill report                  │
  │   goal → queries │──────▶│ YouTube search   │ ──▶ │ YouTube cap.   │ ──▶ │  2-pass full video   │─┐  │ synthesis      │   │  Gemini DR + Grok 4-phase       │
  │   goal rerank    │       │ arXiv search     │     │ Playwright     │     │  1-pass Short        │ │  │ Per-topic      │   │                                 │
- │   cross-source   │       │ Website seeds    │     │ pypdf (papers) │     │ grok-4.3 (1M ctx)    │ │─▶│ synthesis      │─▶ │ distill research-brief          │
- │   shortlist      │       │ Single URL/paper │     │ Scribe (fall.) │     │  per-page / per-paper│ │  │ Mixed-source   │   │  Gemini Deep Research (grounded)│
+ │   cross-source   │       │ Website seeds    │     │ pypdf (papers) │     │ configured route     │ │─▶│ synthesis      │─▶ │ distill research-brief          │
+ │   shortlist      │       │ Single URL/paper │     │ Whisper ladder │     │  per-page / per-paper│ │  │ Mixed-source   │   │  Gemini Deep Research (grounded)│
  └──────────────────┘       └──────────────────┘     └────────────────┘     └──────────────────────┘─┘  │ corpus synth.  │   │                                 │
          │                          │                       │                          │                 └────────────────┘   │ distill synthesize              │
          │                          ▼                       ▼                          ▼                                      │  grok-4.3 single-call corpus    │
@@ -24,7 +24,12 @@ How Distill works under the hood. Read this if you're contributing, debugging, o
                                                                                                                                      output/*.docx
 ```
 
-Everything between the source inputs and the final outputs is plain markdown in a local `library/` directory. No database, no cloud storage, no proprietary format.
+Corpus content stays in plain Markdown or text under a local `library/`
+directory, with JSON and JSONL used for metadata, append-only derived rows, and
+operational evidence. No database or cloud store is the system of record. The
+diagram names the normal cloud defaults; `DISTILL_PROVIDER=ollama` or
+`DISTILL_PROVIDER=lmstudio` changes the model that analyzes the same freshly
+captured public receipts.
 
 ## Discovery phase
 
@@ -32,9 +37,15 @@ Everything between the source inputs and the final outputs is plain markdown in 
 
 The discover command does four things:
 
-1. **Query generation.** Grok reads the goal and emits two sets of search queries - one for arXiv, one for YouTube - that complement each other (different angles of the goal, not just rephrasings).
+1. **Query generation.** The configured model route reads the goal and emits
+   two sets of search queries, one for arXiv and one for YouTube, that complement
+   each other rather than merely rephrasing the goal.
 2. **Candidate fan-out.** Runs all arXiv queries via `search_arxiv_multi` (3.5s spaced, deduped by `paper_id`) and all YouTube queries via the existing browser/yt-dlp path. Typically returns 20-40 deduped candidates per source.
-3. **Unified goal-aware rerank.** One Grok call sees *all* candidates (papers and videos mixed) and the full goal text. Scores each on `goal_fit` / `depth_score` / `complementarity_score` / `final_score`. Papers and videos rank in the same pool - a substantive paper outranks a shallow video on the same topic and vice versa. The prompt explicitly asks for *complementarity*, so the shortlist covers different angles rather than five items making the same point.
+3. **Unified goal-aware rerank.** One call through the configured rerank route
+   sees *all* candidates and the full goal text. It scores each on `goal_fit` /
+   `depth_score` / `complementarity_score` / `final_score`. Papers and videos
+   rank in the same pool, and the prompt asks for complementarity so the
+   shortlist covers different angles rather than repeating one point.
 4. **Execution.** Confirms (interactive prompt or `--yes`), then routes papers through the existing paper pipeline (`fetch_arxiv_paper` → `analyze_paper` → `_write_paper_artifacts`) and videos through the existing learning-video pipeline (`_process_learning_selection`). Runs the same syntheses on finish.
 
 The same goal-aware rerank pattern also lives inside `distill papers` at a smaller scale (single source, query-grounded rather than goal-grounded): query expansion + `RankedPaper` rerank replaced the old "literal query, newest-first, blind top-N" behavior.
@@ -242,10 +253,16 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 
 **Confidence labels and source tagging keep provenance in-band.** `[Confirmed]` / `[Reported]` / `[Estimated]` / `[Speculated]` / `[Analysis]` aren't decorative - they're how downstream prompts (synthesis, report, briefing) avoid laundering uncertainty across handoffs. This is the "Provenance" criterion from Vishnyakova's production-grade context-engineering rubric.
 
-**Where distillr is still naive about context.** Two known gaps that the roadmap ([`../ROADMAP.md`](../ROADMAP.md)) explicitly addresses:
+**Current context controls and remaining gaps.** Two earlier gaps now have
+working first implementations:
 
-1. *MCP tool returns* hand the consuming agent full markdown files - Anthropic's published example shows ~98% token savings from switching to filtered/path-based returns instead. Fix (0.5): paths-not-payloads with a drill-down second tool call.
-2. *4-phase report pipeline* carries full prior-section context forward to enforce no-repeat. Fix (0.6): high-recall-then-precision compaction; opaque continuation items where the API supports them.
+1. MCP query tools default to paths, bounded previews, and explicit drill-down
+   reads. Full bodies remain available only when the caller asks for a specific
+   artifact or resource. Further action-tool consolidation remains roadmap work.
+2. The 4-phase report pipeline uses high-recall compaction and an optional
+   precision pass between phases. Prompt telemetry makes its token cost visible.
+   Provider-native opaque continuation items and further measured compaction
+   remain roadmap work.
 
 ## Known technical debt (resolved in 0.7)
 
@@ -274,121 +291,46 @@ These are sometimes flagged in audits but are intentional:
 
 A note on paper analysis: the previous roadmap flagged "100K-char PDF in a single prompt" as a fidelity risk. In 2026, cloud models (Grok 4.3 at 1M tokens, Gemini 3.1 Pro at 1M tokens) handle this comfortably - a 100K-char paper is roughly 25K tokens, well within the effective attention range of these models. The lost-in-the-middle concern applies primarily to local models with 8K-32K context windows. The fix (0.6) is adaptive: the router knows each provider's context window and only chunks when the content exceeds it. Cloud users get single-pass analysis with no overhead; local-model users get section-aware chunking with per-category rerank.
 
-## Package layout (0.4.0)
+## Current package layout
 
 ```
-distill/                           # Python package - layered subpackage architecture
-├── cli.py                         # ≤150-line Typer wiring module (entry point)
-├── _cli_impl.py                   # Business logic (migrated from the original cli.py)
-├── _bootstrap.py                  # UTF-8 stdio side-effect import
-├── _logging.py                    # Structured logging (configure_logging, --debug)
-├── config.py                      # Settings (Pydantic) - SecretStr API keys, model pins
-│
-├── commands/                      # One Typer command group per file
-│   ├── _helpers.py                # Cross-command UI helpers (from cli_shared.py)
-│   ├── costs.py                   # distill costs
-│   ├── dashboard.py               # distill dashboard, distill status
-│   ├── discover.py                # distill discover, learn, explore, search, monitor, ramp-up
-│   ├── doctor.py                  # distill doctor, health, cleanup, migrate
-│   ├── latest.py                  # distill latest, run, catch-up, reanalyze, channel, video
-│   ├── library.py                 # distill add, remove, library, videos, show, open, etc.
-│   ├── papers.py                  # distill paper, papers, corpus
-│   ├── report.py                  # distill report, brief, export
-│   ├── research_brief.py          # distill research-brief
-│   ├── serve.py                   # distill serve
-│   ├── site.py                    # distill site, site-batch
-│   ├── synthesize.py              # distill synthesize, resynthesize
-│   ├── topic.py                   # distill topic create/preview/update/brief/report/show/export/watch
-│   ├── topic_watch.py             # distill topic-watch *
-│   └── watch.py                   # distill watch *
-│
-├── ingestors/                     # Capture layer - one source per subpackage
-│   ├── youtube/
-│   │   ├── discovery.py           # VideoInfo, discover_videos, search_videos
-│   │   ├── transcripts.py         # get_transcript, _vtt_to_text
-│   │   └── browser_search.py      # search_youtube_results (Playwright)
-│   ├── sites/
-│   │   ├── scraper.py             # SitePage, SiteSeed, crawl_site
-│   │   └── attachments.py         # PDF/video attachment ingestion
-│   ├── papers/
-│   │   └── arxiv.py               # PaperRecord, search_arxiv_papers, PDF extraction
-│   └── net.py                     # URL safety helpers (safe_urlopen)
-│
-├── pipeline/                      # Orchestration layer
-│   ├── analysis/
-│   │   ├── video.py               # 2-pass full video + 1-pass Shorts
-│   │   ├── site.py                # Per-page insights + site synthesis
-│   │   └── paper.py               # Per-paper insights + paper synthesis
-│   ├── synthesis/
-│   │   ├── topic.py               # Per-channel / per-topic synthesis
-│   │   └── corpus.py              # Cross-source corpus synthesis
-│   ├── report/
-│   │   ├── deep_research.py       # Gemini Deep Research
-│   │   ├── accordion.py           # 4-phase report orchestrator
-│   │   ├── brief.py               # Multi-topic Deep Research briefing
-│   │   ├── briefing.py            # Lightweight single-topic brief
-│   │   ├── synthesize.py          # Multi-topic Grok single-call synthesis
-│   │   ├── _file_search_metadata.py # File Search metadata parser
-│   │   ├── _file_search_upload.py # File Search upload/indexing helper
-│   │   └── file_search.py         # Gemini File Search store management
-│   ├── costs.py                   # Token/cost tracking (CostTracker)
-│   ├── dashboard_data.py          # Shared dashboard data functions
-│   ├── dashboard_records.py       # Typed dashboard row and snapshot records
-│   ├── discovery.py               # Goal-aware cross-source discovery
-│   ├── ranking.py                 # Video + paper reranking
-│   └── summary.py                 # Post-run summary display
-│
-├── prompts/                       # All prompt templates centralized
-│   ├── analysis.py                # pass1, pass2, shorts, scan, channel context
-│   ├── synthesis.py               # channel, topic, corpus, site, paper synthesis
-│   ├── report.py                  # deep research, accordion, brief prompts
-│   ├── discover.py                # query expansion, rerank, discover prompts
-│   └── shared.py                  # anti-hallucination, provenance rules
-│
-├── library/                       # Filesystem corpus layer (foundational)
-│   ├── paths.py                   # Artifact path resolution + frontmatter
-│   ├── state.py                   # Library + ChannelState management
-│   └── export.py                  # Markdown → DOCX
-│
-├── llm/                           # LLM router (foundational, no changes in 0.4)
-│   ├── router.py                  # Workload-to-provider dispatch
-│   ├── cost.py                    # Unified cost registry
-│   ├── telemetry.py               # Per-prompt telemetry
-│   └── providers/                 # xAI, Gemini, Ollama, LM Studio, Agent
-│
-├── mcp/                           # MCP server
-│   ├── server.py                  # Transport, registration, lifecycle
-│   ├── resources.py               # All resource handlers
-│   ├── prompts.py                 # MCP-protocol prompt definitions
-│   └── tools/                     # One file per tool group
-│       ├── discover.py            # learn_topic, search_videos
-│       ├── topics.py              # process_video_url
-│       ├── watch.py               # catch_up, watch_add, watch_remove
-│       ├── reports.py             # generate_report, resynthesize_topic
-│       └── gaps.py                # research_gaps
-│
-└── web/                           # Local dashboard (FastAPI + Jinja2 + HTMX)
-    ├── server.py
-    ├── routes/
-    ├── templates/
-    └── static/
-
-tests/                             # Mirrored test layout
-├── conftest.py
-├── test_config.py
-├── unit/
-│   ├── commands/                  # CLI command tests
-│   ├── ingestors/youtube/         # YouTube ingestor tests
-│   ├── ingestors/sites/           # Site ingestor tests
-│   ├── ingestors/papers/          # Paper ingestor tests
-│   ├── pipeline/analysis/         # Analysis pipeline tests
-│   ├── pipeline/synthesis/        # Synthesis pipeline tests
-│   ├── pipeline/report/           # Report pipeline tests
-│   ├── library/                   # Library layer tests
-│   ├── prompts/                   # Prompt tests
-│   ├── mcp/                       # MCP server tests
-│   └── llm/                       # LLM router tests
-└── integration/                   # Offline pipelines default; marked live tests opt in
+distill/                           # Python package
+├── cli.py                         # Typer registration and entry point
+├── _app.py                        # Top-level Typer app and command resolver
+├── _cli_impl.py                   # Private compatibility exports only
+├── cli_shared.py                  # Shared CLI state and helpers
+├── config.py                      # Core settings and library paths
+├── commands/                      # User-facing CLI ownership
+│   ├── root.py                    # Global callback and help surface
+│   ├── discover.py, learn.py      # Discovery and topic-learning workflows
+│   ├── process.py, ingest.py      # YouTube and direct-source processing
+│   ├── papers.py, reports.py      # Papers, briefs, reports, and exports
+│   ├── reprocess.py, view.py      # Regeneration and read surfaces
+│   ├── maintain.py, doctor.py     # Costs, status, health, and diagnostics
+│   ├── eval.py, profile.py        # Model eval and recurring profiles
+│   ├── audit.py, topic.py         # Trust reports and topic-first workflows
+│   ├── watch.py, topic_watch.py   # Channel and topic watches
+│   └── _*.py                      # Narrow shared parsers and renderers
+├── ingestors/                     # Source capture adapters
+│   ├── youtube/, sites/, papers/
+│   └── transcribe.py              # Local-first speech-to-text ladder
+├── pipeline/                      # Domain orchestration below CLI and MCP
+│   ├── analysis/, synthesis/, report/
+│   ├── costs.py                   # Cost tracker and usage ledger
+│   ├── performance_history.py     # Exact-ID performance correlation
+│   ├── discovery.py, ranking.py   # Candidate planning and model reranking
+│   ├── profile_preview.py         # Recurring source-plan resolution
+│   ├── profile_run.py             # Approved replay and resume state
+│   └── audit.py, verify.py        # Deterministic trust and grounding layers
+├── library/                       # Corpus paths, state, profiles, and exports
+├── claims/, concepts/             # Derived knowledge layers
+├── prompts/                       # Versioned prompt builders and lenses
+├── llm/                           # Provider router, policy, and telemetry
+│   └── providers/                 # xAI, Gemini, Anthropic, local, deferred agent
+├── doctor/                        # Local and candidate-adapter readiness
+├── eval/                          # Frozen fixtures, judges, and route admission
+├── mcp/                           # FastMCP tools, resources, and prompts
+└── web/                           # Loopback dashboard server and templates
 
 library/                           # Per-user data (git-ignored)
 ├── library.json                   # Master index
@@ -402,4 +344,9 @@ library/                           # Per-user data (git-ignored)
 
 ### Dependency direction
 
-Foundational layers (`library/`, `llm/`, `prompts/`) have zero imports from other `distill.*` subpackages. `ingestors/` imports only from foundational layers. `pipeline/` imports from ingestors and foundational layers. `commands/` and `mcp/` sit on top. Enforced by `import-linter` in CI.
+The blocking `import-linter` contracts match the actual dependency boundaries:
+`library/` and `prompts/` cannot import from commands, ingestors, pipeline, MCP,
+or web; ingestors cannot import from commands, pipeline, or MCP; pipeline cannot
+import from commands or MCP; and the concepts/claims knowledge layers cannot
+import from commands, MCP, web, or ingestors. Commands and MCP remain the main
+top-level adapters over those lower layers.

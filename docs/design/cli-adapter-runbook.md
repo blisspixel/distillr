@@ -3,11 +3,13 @@
 Status: accepted guidance for 0.19 adapter doctor and cross-route eval.
 Researched June 18, 2026 against official docs and local CLI help.
 
-This runbook defines how Distill should invoke local runtimes and plan-quota
-coding CLIs without hidden API spend or uncontrolled writes. It covers Ollama,
-LM Studio, Codex CLI, Claude Code, and Grok Build. Credit-metered CLIs such as
-GitHub Copilot CLI can reuse the same scratch-manifest contract, but they are
-not no-metered defaults.
+This runbook defines how Distill should invoke local runtimes and candidate
+plan-quota coding CLIs without hidden API spend or uncontrolled writes. It
+covers Ollama, LM Studio, Codex CLI, Claude Code, Grok Build, Gemini CLI,
+Antigravity, and the separately credit-metered Copilot candidate. The local
+routes are live providers. The CLI candidates remain blocked external workers,
+not live Distill providers, until their support, auth, native usage, manifest,
+and eval gates all pass.
 
 ## Operating rule
 

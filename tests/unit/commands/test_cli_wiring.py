@@ -202,6 +202,14 @@ class TestTopLevelExperience:
             assert result.exit_code == 0, result.output
             assert expected in ANSI_RE.sub("", result.output)
 
+    def test_ask_help_renders_wiki_link_description(self):
+        result = runner.invoke(cli.app, ["ask", "--help"])
+
+        assert result.exit_code == 0, result.output
+        rendered = ANSI_RE.sub("", result.output)
+        assert "wiki-link citations" in rendered
+        assert "with [] to every cited" not in rendered
+
     def test_no_args_empty_library_shows_launcher(self, mock_config, monkeypatch):
         monkeypatch.setattr(_root, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)

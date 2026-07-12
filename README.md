@@ -182,7 +182,7 @@ Then try any of:
 distill discover "help an AI become a great music composer" --topic music --preview
 distill discover --goal-file private/my-goal.md --topic research --yes
 distill discover --goal-file private/agent365-goal.md --topic agent365 --site-seeds private/agent365_sites.json --site-limit 10 --preview
-distill discover --goal-file private/agent365-goal.md --topic agent365 --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents --site-limit 10 --preview
+distill discover --goal-file private/agent365-goal.md --topic agent365 --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents-sdk/ --site-limit 10 --preview
 
 # Get smart on a YouTube topic, fast
 distill latest "Microsoft Fabric best practices" --limit 10 --report
@@ -383,7 +383,7 @@ Full cost model, the route-class table, and per-stage costs: [`docs/cost.md`](do
 
 ## Reliability and trust boundaries
 
-**What's enforced** (every release clears the same CI gate): more than 4,100 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
+**What's enforced** (every release clears the same CI gate): more than 4,200 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
 
 **Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
 
@@ -409,7 +409,7 @@ Distillr is in active use and ships frequent patch releases; the feature spine -
 eight source types, goal-aware discovery, the write-time verify gate,
 cross-source synthesis, `ask`, `audit`, MCP, and the dashboard - is complete. The
 `0.x` version is deliberate and does **not** mean "unfinished" or "unreliable":
-every release clears the same CI gate (4,100+ tests at 95%+ **branch** coverage,
+every release clears the same CI gate (4,200+ tests at 95%+ **branch** coverage,
 ruff + Pyright + import-linter + bandit + pip-audit, Linux on Python 3.12-3.14,
 macOS and Windows smoke tests on Python 3.12, and PEP 740 build provenance).
 What `0.x` means is that
@@ -429,7 +429,7 @@ across the full surface and parse-don't-validate at every boundary), the
 contract freeze itself, the published performance baseline, and a presentation
 pass (README media, onboarding docs). The branch-coverage gate already reached
 95%. Full definition:
-[`ROADMAP.md`](ROADMAP.md#100--stability-commitment--quality-bar).
+[`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar).
 
 Performance work follows an evidence gate, not a language quota. Distill stays
 Python-first while repeated scans and algorithms can still deliver the larger

@@ -1,17 +1,26 @@
 # Example corpus
 
-`profiles/` contains recurring research profile examples for the next profile
-workflow slice. They are schema-valid, preview-first plans for common ongoing
-research jobs:
+`profiles/` contains schema-valid examples for the shipped recurring research
+profile workflow. They are preview-first plans for common ongoing research
+jobs:
 
 - `ai-developer-news.yaml`
 - `live-agentic-dev.yaml`
 - `vendor-docs-watch.yaml`
 
 Each profile points at a goal file under `profiles/goals/` and uses
-`cost_mode: no-metered`, so future profile preview/run work has concrete public
-fixtures for feeds, YouTube channels, domains, repositories, queries, freshness,
-outputs, and limits.
+`cost_mode: no-metered`. The examples exercise feeds, YouTube channels,
+domains, repositories, queries, freshness, outputs, and limits. Preview one
+without fetching current feed or channel metadata:
+
+```bash
+distill profile preview examples/profiles/ai-developer-news.yaml --no-fetch
+```
+
+`distill profile run <profile>` prints the command plan without executing it.
+Add `--yes` only after reviewing that plan. Local no-metered analysis still
+discovers and fetches current public sources; the cost mode changes model
+routing, not source freshness.
 
 `library/topics/claim-verification/` is **real distill output**, unedited: the
 corpus distill built about its own next milestone (the 0.10 write-time
@@ -49,5 +58,5 @@ disk next to the analysis, which is exactly where they belong.
 
 This corpus is also a working input: its findings (adapted small-NLI checkers
 approach GPT-4o on grounding; claim decomposition is non-optional; numerical
-claims are the hard class) are cited in the verify-hook design in
-[`ROADMAP.md`](../ROADMAP.md#0100--verified-corpus-run-time-verify--self-maintaining-audit).
+claims are the hard class) are cited in the
+[`entailment-tier` design](../docs/design/entailment-tier.md).

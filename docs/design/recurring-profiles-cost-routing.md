@@ -3,6 +3,13 @@
 Status: accepted direction for 0.19, after OKF/loop-readiness and batch-run
 visibility settle.
 
+Implementation status: profile schema, preview, approval-gated replay, resume
+state, cost modes, local route evidence, adapter doctor, scratch contracts, and
+pure graduation and route-pool decisions are shipped. Codex, Claude, Grok,
+Gemini CLI, Antigravity, and Copilot are still candidate external workers, not
+live Distill providers. No plan-quota route is currently eligible for
+`no-metered`; the admission requirements below remain binding.
+
 This document turns the recurring "track AI developer news / live agentic dev"
 workflow into a product slice, and defines the cost policy that keeps it useful
 without surprise API spend.
@@ -207,7 +214,7 @@ may be diagnostic hints, but they must not become the quality gate.
 
 ## Cost modes
 
-`DISTILL_COST_MODE` and `--cost-mode` should accept:
+`DISTILL_COST_MODE` and `--cost-mode` accept:
 
 - `auto`: default behavior. Use the best configured provider route that clears
   policy, budget, and eval checks.

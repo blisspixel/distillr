@@ -19,6 +19,7 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
 | Opt-in Anthropic API route | Yes | Metered API spend | Claude Sonnet 5 is wired for explicit opt-in use, but it is not a calibrated default. |
 | Reserved OpenAI analysis route | No | Metered API spend when implemented | OpenAI is not a live analysis provider yet. OpenAI Whisper transcription is separate. |
+| Deferred `agent` task-file route | Limited | Billing is ambiguous | This writes a structured task file for an external assistant and later reads an operator-supplied result. It is not a plan-quota CLI adapter, does not execute the assistant, and remains blocked in `no-metered`. |
 | Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, Gemini CLI, and Antigravity `agy` | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, structured support-statement details checked against current 2026-06-30 vendor docs, local config auth-marker scanning, strict `adapter-workload.v1` input packages, strict `adapter-result.v1` manifest checks with quota-stop metadata, a scratch-only runner primitive, a checked workload runner, a native result writer, adapter-specific native usage capture, a manifest-to-ledger helper, and blocked read-only command planners exist. No plan-quota support statement is current for no-metered routing yet because paid credits, overages, API-key modes, gateway routes, or unproved session auth remain possible. Routes still need included-plan auth proof, native schema enforcement where the CLI supports it, real installed-session validation, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
@@ -268,8 +269,11 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
 Use `distill costs` to see actual cost history with per-run token breakdowns
 and the correlated command, provider, and phase performance evidence available
 for newer runs. Exact `run_id` joins are forward-only; legacy rows without an ID
-are counted but never guessed from timestamps. Model-using runs log estimated
-vs actual costs to
+are counted but never guessed from timestamps. A schema-invalid row that still
+names a run makes that run's affected phase, provider, or cost rollup incomplete
+and therefore `null`; an unreadable provider or cost log does the same for each
+selected run. Missing logs remain complete empty evidence, and an explicit valid
+zero remains zero. Model-using runs log estimated vs actual costs to
 `library/.distill/cost_log.jsonl` for calibration; true no-spend no-ops do not
 create empty cost rows.
 
@@ -310,7 +314,8 @@ XAI_SYNTHESIS_MODEL=
 ACCORDION_SECTION_MODEL=
 
 # Multi-provider support
-# Implemented providers: xai, gemini, anthropic, agent, ollama, lmstudio.
+# Routable provider names: xai, gemini, anthropic, agent, ollama, lmstudio.
+# agent is a deferred task-file handoff, not a live plan-quota CLI adapter.
 # openai is a reserved analysis route and is not implemented in this release.
 ANTHROPIC_API_KEY=
 DISTILL_PROVIDER=xai                    # xai | gemini | anthropic | agent | ollama | lmstudio

@@ -64,7 +64,7 @@ distill doctor
 If you have retired models configured, you'll see:
 
 ```
-⚠  xai_fast_model uses retired model 'grok-4-1-fast-reasoning'
+WARNING: xai_fast_model uses retired model 'grok-4-1-fast-reasoning'
    (retiring May 15, 2026); replace with 'grok-4.3'
 ```
 

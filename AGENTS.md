@@ -28,10 +28,12 @@ These instructions apply to the whole repository.
   it does not turn Distill into an offline answer from model memory. Discovery
   and ingest still fetch current public sources such as arXiv, YouTube, feeds,
   sites, repos, and local files.
-- Implemented analysis routes today are the calibrated cloud routes and local
-  Ollama or LM Studio routes. Plan-quota CLIs are candidate external workers,
-  not live Distill providers until an adapter doctor, support statement, usage
-  ledger, scratch manifest, and eval gate exist.
+- Implemented analysis routes today are xAI and Gemini cloud routes, the
+  explicit opt-in Anthropic API route, and local Ollama or LM Studio routes.
+  Anthropic is metered and is not a calibrated default; OpenAI remains a
+  reserved route. Plan-quota CLIs are candidate external workers, not live
+  Distill providers until an adapter doctor, support statement, usage ledger,
+  scratch manifest, and eval gate exist.
 - GitHub Copilot CLI is a possible future external worker, but treat it as
   credit-metered unless a support statement proves no incremental cost. Do not
   put it in the no-metered default route ladder.

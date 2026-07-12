@@ -22,11 +22,11 @@ Integration test against real APIs? Be honest about what you did and didn't test
 
 ## Checklist
 
-- [ ] I've run `pytest -q` locally and all tests pass
-- [ ] I've run `ruff check .` and `ruff format --check .` (or relied on pre-commit)
+- [ ] I've run `uv run pytest -q --cov=distill --cov-fail-under=95`
+- [ ] I've run `uv run ruff check .` and `uv run ruff format --check .`
 - [ ] I've run `bandit -r distill/ --severity-level medium` if the change touches security-sensitive code (subprocess, URL handling, secrets, MCP surface)
 - [ ] If I added a new user-facing command or flag, `README.md` reflects it
-- [ ] If I changed prompt templates or model routing, `docs/CHANGELOG.md` notes the behavior change
+- [ ] If I changed user-visible behavior, prompts, or model routing, the maintained docs and `docs/CHANGELOG.md` reflect it
 - [ ] If I added a new dependency, it's justified in the PR description
 
 ## Notes for the reviewer

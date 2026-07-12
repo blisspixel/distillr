@@ -17,11 +17,12 @@ runner.
 
 ## The gap this closes
 
-The route layer answers "which single route should serve this workload." That is
-already better than round robin: a route is used only after adapter doctor proves
-a session/plan credential (not an API key), `distill eval` shows its output
-clears the workload bar, and the usage ledger plus `quota_stop` metadata keep a
-rate-limited or exhausted route out of the live pool.
+The route layer answers "which single route should serve this workload." For
+live local and cloud routes, selection is already better than round robin. A
+candidate plan-quota route remains outside the pool until adapter doctor proves
+a session/plan credential rather than an API key, eval evidence clears the
+workload bar, and native usage plus `quota_stop` metadata can keep an exhausted
+route out of the live pool. No such plan-quota route has graduated yet.
 
 But picking one route throws away the real advantage of holding several plan
 quotas and a local model server at once: using them *together*. A user who has
@@ -203,8 +204,10 @@ straight from the existing charter and adapter contract.
 
 ## The eval contract
 
-`distill eval` already compares routes per workload on cost per accepted change.
-The extension is that a **strategy** is an eval subject too:
+The eval machinery already compares supported model candidates per workload
+with model-judged acceptance gates and cost evidence. Plan-quota adapters are
+not live CLI eval routes yet. The proposed extension makes a **strategy** an
+eval subject too:
 
 - A fixture run produces, per `(workload, strategy)`: attempts, accepted
   outputs, rejected/quarantined outputs, verifier failures, elapsed time, usage
