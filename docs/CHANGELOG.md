@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   fingerprint. Source project version and installed distribution version are
   separate fields with an explicit match flag. Timeout, crash, result drift,
   corpus mutation, and source mutation invalidate the evidence and return a
-  nonzero CLI status.
+  nonzero CLI status. Parent pytest and coverage instrumentation is stripped
+  from workers so measurements and subprocess coverage files cannot interfere.
 
 ### Changed
 

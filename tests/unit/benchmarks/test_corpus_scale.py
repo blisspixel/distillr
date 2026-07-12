@@ -178,10 +178,29 @@ def test_recorded_samples_use_distinct_fresh_worker_processes() -> None:
             operations=["discover_insights"],
         )
 
-    samples = result["operations"][0]["samples"]
+    operation = result["operations"][0]
+    assert operation["status"] == "ok", operation.get("error")
+    samples = operation["samples"]
     assert len(samples) == 2
     assert len({sample["worker_pid"] for sample in samples}) == 2
     assert len({sample["result_digest"] for sample in samples}) == 1
+
+
+def test_worker_environment_strips_parent_test_instrumentation(monkeypatch) -> None:
+    monkeypatch.setenv("COV_CORE_SOURCE", "distill")
+    monkeypatch.setenv("COV_CORE_CONFIG", "pyproject.toml")
+    monkeypatch.setenv("COVERAGE_PROCESS_START", "pyproject.toml")
+    monkeypatch.setenv("COVERAGE_FILE", ".coverage")
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_worker")
+    monkeypatch.setenv("DISTILL_BENCHMARK_KEEP", "yes")
+
+    environment = runner_module._worker_environment()
+
+    assert not any(key.startswith(("COV_CORE_", "COVERAGE_")) for key in environment)
+    assert "PYTEST_CURRENT_TEST" not in environment
+    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert environment["PYTHONHASHSEED"] == "0"
+    assert environment["DISTILL_BENCHMARK_KEEP"] == "yes"
 
 
 def test_p95_is_suppressed_until_twenty_successful_samples() -> None:

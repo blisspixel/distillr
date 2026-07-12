@@ -453,6 +453,17 @@ def _parse_worker_sample(stdout: str, operation_name: str) -> BenchmarkSample:
     return _sample_from_mapping(cast("Mapping[str, object]", sample_value))
 
 
+def _worker_environment() -> dict[str, str]:
+    """Return a deterministic worker environment without parent instrumentation."""
+    environment = os.environ.copy()
+    for key in tuple(environment):
+        if key.startswith(("COV_CORE_", "COVERAGE_")) or key == "PYTEST_CURRENT_TEST":
+            environment.pop(key)
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    environment["PYTHONHASHSEED"] = "0"
+    return environment
+
+
 def _run_worker_sample(
     corpus: GeneratedCorpus,
     operation_name: str,
@@ -471,14 +482,11 @@ def _run_worker_sample(
         "--operation",
         operation_name,
     ]
-    environment = os.environ.copy()
-    environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    environment["PYTHONHASHSEED"] = "0"
     try:
         completed = subprocess.run(
             command,
             cwd=source_root,
-            env=environment,
+            env=_worker_environment(),
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -639,6 +647,7 @@ def run_corpus_scale(
             "iterations": iterations,
             "warmups": warmups,
             "process_state": "fresh-child-per-sample",
+            "parent_instrumentation": "stripped-from-worker",
             "filesystem_cache_state": "warm-generated",
             "integrity_reads_before_each_operation": True,
             "sample_timeout_seconds": timeout_seconds,

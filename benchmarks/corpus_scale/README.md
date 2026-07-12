@@ -28,15 +28,18 @@ when its random token matches the disposable marker written by the parent.
 Results are printed as one `corpus-scale-result.v2` JSON object.
 
 Every recorded sample runs one operation in a fresh child process. This keeps
-Python allocator state and process RSS from leaking between operations. Each
-operation retains raw wall-time, process-CPU, sampled peak-RSS, result digest,
-and worker PID measurements. The summary always reports nearest-rank p50 and
-suppresses p95 until at least 20 successful samples exist. The generated corpus
-and integrity reads warm the operating-system page cache, so results explicitly
-report `warm-generated` and must not be described as cold-filesystem evidence.
-The result also hashes normalized source files, including working-tree changes,
-so development runs with the same package version remain distinguishable. It
-records the source `project_version` separately from the
+Python allocator state and process RSS from leaking between operations. Parent
+pytest and coverage instrumentation is removed from the worker environment so
+it neither contaminates measurements nor competes for coverage data files.
+Each operation retains raw wall-time, process-CPU, sampled peak-RSS, result
+digest, and worker PID measurements. The summary always reports nearest-rank
+p50 and suppresses p95 until at least 20 successful samples exist. The
+generated corpus and integrity reads warm the operating-system page cache, so
+results explicitly report `warm-generated` and must not be described as
+cold-filesystem evidence. The result also hashes normalized source files,
+including working-tree changes, so development runs with the same package
+version remain distinguishable. It records the source `project_version`
+separately from the
 `installed_distill_version` and reports whether they match, so `--no-sync`
 cannot silently label changed source with stale distribution metadata.
 

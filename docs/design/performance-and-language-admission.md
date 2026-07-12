@@ -117,7 +117,8 @@ fresh child process with a timeout. Results use the versioned
 `corpus-scale-result.v2` JSON shape and retain raw wall-time, CPU-time,
 peak-RSS, result-digest, and worker-PID samples. The harness records a normalized
 source-tree fingerprint, fails closed on corpus or source mutation, labels the
-filesystem state `warm-generated`, and suppresses p95 below 20 successful
+filesystem state `warm-generated`, strips parent pytest and coverage
+instrumentation from each worker, and suppresses p95 below 20 successful
 samples. There is deliberately no installed command and no user-selected
 library path. Source `project_version` and installed distribution version are
 reported separately with an explicit match flag, so a deliberate `--no-sync`
