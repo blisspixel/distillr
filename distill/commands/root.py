@@ -76,6 +76,12 @@ def default_callback(
         ops_dir = get_config().library_dir / ".distill"
     except Exception:
         ops_dir = None
+    from distill.llm.run_context import update_current_run
+
+    update_current_run(
+        command=ctx.invoked_subcommand or "dashboard",
+        ops_dir=ops_dir,
+    )
     configure_logging(debug=effective_debug, ops_dir=ops_dir)
 
     if ctx.invoked_subcommand is None:

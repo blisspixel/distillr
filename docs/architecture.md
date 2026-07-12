@@ -392,8 +392,11 @@ tests/                             # Mirrored test layout
 
 library/                           # Per-user data (git-ignored)
 ├── library.json                   # Master index
-├── .distill/                      # Ops data (telemetry, cost logs, distill.log)
-├── cost_log.jsonl                 # Run cost history
+├── .distill/                      # Local operational records
+│   ├── cost_log.jsonl             # Model-using run cost history
+│   ├── telemetry.jsonl            # Per-provider-call token and timing rows
+│   ├── phase_telemetry.jsonl      # Content-free correlated phase timing
+│   └── distill.log                # Rotating diagnostic log
 └── topics/<topic>/…               # Per-topic artifacts
 ```
 

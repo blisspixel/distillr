@@ -265,7 +265,10 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis because it's single-call Grok with no Deep Research involvement.
 - Budget ~$15-20 per topic per quarter as a safe upper bound for a channel-heavy workflow on grok-4.3.
 
-Use `distill costs` to see actual cost history with per-run token breakdowns. Every run logs estimated vs actual costs to `library/cost_log.jsonl` for calibration.
+Use `distill costs` to see actual cost history with per-run token breakdowns.
+Model-using runs log estimated vs actual costs to
+`library/.distill/cost_log.jsonl` for calibration; true no-spend no-ops do not
+create empty cost rows.
 
 ## Topic-watch guardrails
 

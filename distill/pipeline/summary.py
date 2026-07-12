@@ -15,6 +15,7 @@ from typing import Any
 from rich.console import Console
 
 from distill.llm.router import RouterConfig
+from distill.llm.run_context import current_run_id, record_completed_phase
 from distill.pipeline.costs import (
     CostTracker,
     estimate_routed_video_workflow_cost,
@@ -90,6 +91,8 @@ class RunSummary:
     # logged beside actual_cost so `distill costs` can hold the estimator
     # accountable (accuracy is the promise, this is the receipt).
     estimated_cost: float | None = None
+    run_id: str = field(default_factory=current_run_id)
+    start_cpu: float = field(default_factory=time.process_time)
 
     def add_result(self, result: VideoResult) -> None:
         self.results.append(result)
@@ -174,6 +177,10 @@ class RunSummary:
     @property
     def elapsed(self) -> float:
         return time.time() - self.start_time
+
+    @property
+    def cpu_elapsed(self) -> float:
+        return time.process_time() - self.start_cpu
 
 
 @dataclass
@@ -332,6 +339,14 @@ def display_estimate(
     con.print()
 
 
+def _output_bytes(paths: list[Path]) -> int:
+    total = 0
+    for path in paths:
+        with suppress(OSError):
+            total += path.stat().st_size
+    return total
+
+
 def display_summary(  # noqa: C901 - legacy, will refactor
     summary: RunSummary,
     cost_tracker: CostTracker | None = None,
@@ -346,6 +361,19 @@ def display_summary(  # noqa: C901 - legacy, will refactor
     # for query expansion + rerank and need their cost logged separately.
     if is_empty and not preview:
         return
+
+    error_issues = [issue for issue in summary.issues if issue.severity == "error"]
+    error_type = next((issue.exception_type for issue in error_issues if issue.exception_type), "")
+    record_completed_phase(
+        phase=f"workflow:{summary.command or 'unknown'}",
+        elapsed_seconds=summary.elapsed,
+        cpu_seconds=summary.cpu_elapsed,
+        outcome="partial" if summary.failed or error_issues else "success",
+        wait_class="mixed",
+        artifact_count=len(summary.output_files),
+        byte_count=_output_bytes(summary.output_files),
+        error_type=error_type,
+    )
 
     if cost_tracker and log_dir and not getattr(cost_tracker, "budget_failure_logged", False):
         try:
@@ -465,6 +493,7 @@ def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C9
     timestamp = datetime.now(UTC).isoformat()
     payload = {
         "timestamp": timestamp,
+        "run_id": summary.run_id or current_run_id(),
         "command": summary.command,
         "elapsed_seconds": round(summary.elapsed, 1),
         "results": {

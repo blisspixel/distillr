@@ -29,6 +29,7 @@ from distill.llm.cost import (
     PRICING as LLM_PRICING,
 )
 from distill.llm.cost_policy import classify_provider, evaluate_route_cost_policy
+from distill.llm.run_context import current_run_elapsed_seconds, current_run_id
 from distill.pipeline.cost_history import estimator_accuracy, projected_next_run_cost
 from distill.pipeline.cost_warnings import CostWarning, cost_anomaly_warnings
 
@@ -400,6 +401,7 @@ class CostTracker:
     gemini_query_models: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]"
     transcriptions: list[TranscriptionUsage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage confirms TranscriptionUsage"
     budget: float | None = None
+    run_id: str = field(default_factory=current_run_id)
 
     def _check_budget(self):
         if self.budget is not None and self.total_cost > self.budget:
@@ -570,8 +572,10 @@ def save_run_log(
     log_file = new_log
 
     recorded_command = f"{command}_preview" if preview else command
+    effective_elapsed = elapsed_seconds or current_run_elapsed_seconds()
     entry = {
         "timestamp": datetime.now().isoformat(),
+        "run_id": tracker.run_id or current_run_id(),
         "command": recorded_command,
         "full_videos": full_videos,
         "shorts": shorts,
@@ -581,7 +585,7 @@ def save_run_log(
         "total_output_tokens": tracker.total_output_tokens,
         "actual_cost": round(tracker.total_cost, 6),
         "estimated_cost": round(estimated_cost, 6) if estimated_cost is not None else None,
-        "elapsed_seconds": round(elapsed_seconds, 1),
+        "elapsed_seconds": round(effective_elapsed, 1),
         "metadata": metadata or {},
     }
 

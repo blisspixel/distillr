@@ -12,17 +12,21 @@ from __future__ import annotations
 import functools
 import inspect
 import json
-from collections.abc import Awaitable, Callable, Mapping
+import string
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import suppress
 from importlib import import_module
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import ParamSpec, TypeVar, cast
+from typing import Any, ParamSpec, TypeVar, cast
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ContentBlock
 
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.llm.run_context import mark_current_run_outcome, run_scope, update_current_run
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.gaps import (
     TopicInventory,
@@ -54,8 +58,34 @@ __all__ = [
 
 P = ParamSpec("P")
 R = TypeVar("R", str, Awaitable[str])
+_SAFE_TOOL_NAME_CHARS = frozenset(string.ascii_letters + string.digits + "_.-")
 
-mcp = FastMCP(
+
+def _telemetry_tool_name(name: str) -> str:
+    """Keep unvalidated protocol input out of local operational records."""
+    if 1 <= len(name) <= 128 and all(char in _SAFE_TOOL_NAME_CHARS for char in name):
+        return name
+    return "unknown-tool"
+
+
+class DistillFastMCP(FastMCP):
+    """FastMCP server that correlates every tool call with local telemetry."""
+
+    async def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        with run_scope(
+            invocation_type="mcp",
+            command=_telemetry_tool_name(name),
+        ):
+            with suppress(Exception):
+                update_current_run(ops_dir=_config().library_dir / ".distill")
+            return await super().call_tool(name, arguments)
+
+
+mcp = DistillFastMCP(
     "Distill",
     instructions=(
         "Source-to-intelligence platform for local Markdown corpora. "
@@ -167,10 +197,12 @@ def write_tool(
                     kwargs=cast("Mapping[str, object]", kwargs),
                 )
                 if refusal is not None:
+                    mark_current_run_outcome("refused")
                     return refusal
                 try:
                     return await async_fn(*args, **kwargs)
                 except BudgetExceededError as exc:
+                    mark_current_run_outcome("budget_exceeded")
                     return _budget_response(action, exc)
 
             return cast("Callable[P, R]", async_wrapper)
@@ -185,10 +217,12 @@ def write_tool(
                 kwargs=cast("Mapping[str, object]", kwargs),
             )
             if refusal is not None:
+                mark_current_run_outcome("refused")
                 return refusal
             try:
                 return sync_fn(*args, **kwargs)
             except BudgetExceededError as exc:
+                mark_current_run_outcome("budget_exceeded")
                 return _budget_response(action, exc)
 
         return cast("Callable[P, R]", wrapper)
@@ -214,6 +248,7 @@ def refuse_if_host_not_allowed(url: str) -> str | None:
     if host and any(host == entry or host.endswith("." + entry) for entry in allowlist):
         return None
 
+    mark_current_run_outcome("refused")
     return json.dumps(
         {
             "status": "domain_not_allowed",

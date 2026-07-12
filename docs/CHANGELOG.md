@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.33 - 2026-07-11
+
+### Added
+
+- Added content-free phase telemetry under
+  `library/.distill/phase_telemetry.jsonl`. CLI commands and MCP tool calls now
+  establish a non-empty `run_id` that also appears in provider telemetry, cost
+  rows, and run artifacts. Rows record wall and CPU time, process peak RSS,
+  outcome, wait class, artifact count, byte count, and exception type without
+  recording prompts, source content, URLs, or raw arguments.
+- Added a repository-only, fixed-seed corpus-scale harness for insight
+  discovery, search hits and misses, link checking, near-duplicate detection,
+  and dashboard reads. The harness uses a disposable temporary library, makes
+  no network or provider calls, retains raw versioned samples, and verifies the
+  corpus digest before and after every operation.
+
+### Changed
+
+- Cost trackers and run summaries retain their correlation ID even when their
+  final artifacts are saved after a scope exits. Missing cost-row durations now
+  use elapsed command time when a correlated run is active.
+- Added initial coarse phase spans for run summaries and accordion report
+  research, section writing, assembly, and QA. The performance roadmap now
+  distinguishes this shipped foundation from broader workflow phase coverage,
+  cold-process benchmarks, offline replay, and the published 1.0 baseline.
+
+### Quality
+
+- The release gate passes 4,152 tests at 95.01% branch coverage, strict Pyright,
+  Ruff, import contracts, Bandit, dependency audit, and deterministic
+  scale-100 benchmark integrity checks.
+
 ## 0.19.32 - 2026-07-11
 
 ### Changed

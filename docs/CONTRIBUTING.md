@@ -81,12 +81,19 @@ uv config, ruff config, bandit config, pyright config, and the import-linter con
 ## Repository layout
 
 - `distill/` - the Python package (all production code)
+- `benchmarks/` - repository-only advisory harnesses; not included in installed artifacts
 - `tests/` - automated tests (unit + contract + integration)
 - `docs/` - long-form documentation; `docs/briefing-contexts/TEMPLATE.md` is the starting point for briefing prompts
 - `configs/` - sample config files for site batches (`example_seeds.json`) and other inputs
 - `scripts/install.sh`, `scripts/install.ps1` - source installers that hand off first-run configuration to `distill init`
 - `private/` - drop any personal or client-specific files here (briefing contexts, custom seed files, scratch notes). The directory's contents are git-ignored except for `private/README.md`, which documents the convention
 - `library/`, `output/`, `tmp/` - git-ignored runtime directories; populated when you run distill locally
+
+Run the current disposable corpus-scale harness with:
+
+```bash
+uv run --frozen python -m benchmarks.corpus_scale --scale 100 --iterations 5
+```
 
 ## Project shape - what's in scope
 

@@ -27,6 +27,7 @@ from distill.llm.router import (
     call,
     get_provider,
 )
+from distill.llm.run_context import run_scope
 from distill.llm.telemetry import top_n_by_tokens
 
 # ---------------------------------------------------------------------------
@@ -644,6 +645,28 @@ def test_call_type_and_run_id_passed_to_telemetry() -> None:
         assert len(records) == 1
         assert records[0].call_type == "pass1"
         assert records[0].run_id == "abc123"
+
+
+def test_active_run_id_is_added_to_telemetry_when_not_explicit() -> None:
+    """Provider telemetry inherits the top-level correlation ID."""
+    with tempfile.TemporaryDirectory() as tmp:
+        ops_dir = str(Path(tmp) / "ops")
+        config = _make_config(ops_dir=ops_dir)
+        mock_prov = _mock_provider()
+
+        with (
+            run_scope(
+                invocation_type="cli",
+                command="papers",
+                ops_dir=ops_dir,
+            ) as context,
+            patch("distill.llm.router._get_provider", return_value=mock_prov),
+        ):
+            call(config, "analysis", "test prompt")
+
+        records = top_n_by_tokens(ops_dir, n=10)
+        assert len(records) == 1
+        assert records[0].run_id == context.run_id
 
 
 def test_provider_cache_cleared_between_tests() -> None:

@@ -29,6 +29,7 @@ from distill.llm.call import LLMCall
 from distill.llm.cost_policy import require_route_allowed
 from distill.llm.retry import retry_with_backoff
 from distill.llm.router import RouterConfig
+from distill.llm.run_context import phase_scope
 from distill.pipeline.citation_refs import (
     unresolved_numbered_citation_reason as _unresolved_numbered_citation_reason,
 )
@@ -97,7 +98,8 @@ def run_accordion_research(
 
     phase_start = phase_progress.start_item()
     console.print(phase_progress.item_line("research", "Gemini Deep Research"))
-    dossier = _run_dossier_phase(topic, config, scope, channel_name, focus, test, tracker)
+    with phase_scope("report.research", wait_class="provider"):
+        dossier = _run_dossier_phase(topic, config, scope, channel_name, focus, test, tracker)
     if not dossier:
         phase_progress.finish_item(phase_start, success=False)
         console.print(phase_progress.status_line("failed"))
@@ -150,19 +152,20 @@ def run_accordion_research(
 
     phase_start = phase_progress.start_item()
     console.print(phase_progress.item_line("sections", "Section writing"))
-    tagged_materials = _gather_tagged_materials(topic, config, scope, channel_name)
+    with phase_scope("report.sections", wait_class="provider"):
+        tagged_materials = _gather_tagged_materials(topic, config, scope, channel_name)
 
-    written_sections = _write_sections(
-        topic=topic,
-        config=config,
-        dossier=dossier,
-        scope=scope,
-        channel_name=channel_name,
-        tagged_materials=tagged_materials,
-        filter_sections=sections,
-        tracker=tracker,
-        active_sections=active_sections,
-    )
+        written_sections = _write_sections(
+            topic=topic,
+            config=config,
+            dossier=dossier,
+            scope=scope,
+            channel_name=channel_name,
+            tagged_materials=tagged_materials,
+            filter_sections=sections,
+            tracker=tracker,
+            active_sections=active_sections,
+        )
 
     if not written_sections:
         phase_progress.finish_item(phase_start, success=False)
@@ -177,13 +180,14 @@ def run_accordion_research(
 
     phase_start = phase_progress.start_item()
     console.print(phase_progress.item_line("assembly", "Report assembly"))
-    report = _assemble_report(
-        topic=topic,
-        config=config,
-        scope=scope,
-        channel_name=channel_name,
-        sections=written_sections,
-    )
+    with phase_scope("report.assembly", wait_class="deterministic_cpu"):
+        report = _assemble_report(
+            topic=topic,
+            config=config,
+            scope=scope,
+            channel_name=channel_name,
+            sections=written_sections,
+        )
     phase_progress.finish_item(phase_start, success=True)
     console.print(phase_progress.status_line("done"))
 
@@ -193,14 +197,15 @@ def run_accordion_research(
 
         phase_start = phase_progress.start_item()
         console.print(phase_progress.item_line("qa", "QA review"))
-        written_sections, rewrote = _run_qa_phase(
-            topic=topic,
-            config=config,
-            dossier=dossier,
-            report=report,
-            written_sections=written_sections,
-            tracker=tracker,
-        )
+        with phase_scope("report.qa", wait_class="provider"):
+            written_sections, rewrote = _run_qa_phase(
+                topic=topic,
+                config=config,
+                dossier=dossier,
+                report=report,
+                written_sections=written_sections,
+                tracker=tracker,
+            )
         phase_progress.finish_item(phase_start, success=True)
         console.print(phase_progress.status_line("done"))
 

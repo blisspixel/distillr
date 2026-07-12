@@ -9,7 +9,10 @@ New Markdown artifacts use globally descriptive filenames and YAML frontmatter s
 ```
 library/
 ├── library.json                   # Master index
-├── .distill/cost_log.jsonl        # Per-run cost history
+├── .distill/                      # Local operational records
+│   ├── cost_log.jsonl             # Model-using run cost history
+│   ├── telemetry.jsonl            # Per-provider-call token and timing rows
+│   └── phase_telemetry.jsonl      # Content-free correlated phase timing
 └── topics/<topic>/
     ├── <topic>_Topic_Synthesis.md # Cross-source synthesis for the topic
     ├── <topic>_Corpus_Synthesis.md# Mixed-source view (when multiple source types exist)

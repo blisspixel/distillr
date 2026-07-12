@@ -1,5 +1,8 @@
+import json
+
 from rich.console import Console
 
+from distill.llm.run_context import run_scope
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.pipeline.summary import (
     BatchProgress,
@@ -23,6 +26,25 @@ def test_run_summary_counts_successful_full_and_shorts(tmp_path):
     assert summary.failed == 1
     assert summary.full_count == 1
     assert summary.shorts_count == 1
+
+
+def test_run_artifacts_retain_correlation_id_after_scope(tmp_path):
+    output_file = tmp_path / "result.md"
+    output_file.write_text("result", encoding="utf-8")
+
+    with run_scope(
+        invocation_type="cli",
+        command="learn",
+        ops_dir=tmp_path / ".distill",
+    ) as context:
+        summary = RunSummary(command="learn")
+        summary.add_output(output_file)
+
+    display_summary(summary, console=Console(record=True), log_dir=tmp_path)
+
+    payload = json.loads((tmp_path / "latest_run.json").read_text(encoding="utf-8"))
+    assert summary.run_id == context.run_id
+    assert payload["run_id"] == context.run_id
 
 
 def test_add_output_only_keeps_existing_paths(tmp_path):

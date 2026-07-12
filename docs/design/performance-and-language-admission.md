@@ -90,6 +90,16 @@ near-duplicate detection, export, and dashboard-data loading. Record:
 - Python, operating system, architecture, package version, corpus seed, and
   cache state
 
+The initial repository-only v1 harness lives in `benchmarks/corpus_scale/`.
+It generates a fixed-seed corpus under a fresh temporary directory, measures
+insight discovery, search hits and misses, link checking, near-duplicate
+detection, and the shared dashboard snapshot, then verifies the corpus digest
+did not change. Results use the versioned `corpus-scale-result.v1` JSON shape
+and retain raw wall-time, CPU-time, and peak-RSS samples. There is deliberately
+no installed command and no user-selected library path. The canonical scale
+matrix, cold-process isolation, malformed and threshold-edge fixture expansion,
+scheduled history, and offline workflow replay remain follow-on work.
+
 ### 2. Offline workflow replay
 
 Use frozen receipts and deterministic provider responses to replay paper,
@@ -121,7 +131,15 @@ advantages, not incidental build details.
 A non-empty `run_id` must join command, phase, provider-call, and cost rows.
 Phase telemetry records wall time, CPU time, peak memory, artifact counts, byte
 counts, and a wait classification: acquisition, provider, queue, subprocess,
-filesystem, deterministic CPU, or write.
+filesystem, deterministic CPU, write, or mixed for an aggregate phase.
+
+Implemented v1 uses a context-local run id established by CLI and MCP entry
+points and appends phases to `.distill/phase_telemetry.jsonl`. Provider calls,
+cost rows, and run artifacts carry the same id. `RunSummary` execution and
+accordion report work provide the first coarse spans. The current
+`peak_rss_bytes` is the process high-water mark observed when a phase ends, not
+an isolated per-phase allocation peak. Stable coverage across the remaining
+workflow phases is still pending.
 
 The headline product metrics are:
 

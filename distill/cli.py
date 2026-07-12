@@ -176,39 +176,43 @@ def main() -> None:
     )
     from distill.llm.cost_policy import CostPolicyError
     from distill.llm.errors import describe_provider_error
+    from distill.llm.run_context import mark_current_run_outcome, run_scope
     from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
 
     app.pretty_exceptions_enable = False
-    try:
-        app()
-    except CostPolicyError as exc:
-        if json_mode_active():
-            emit_json({"reason": "cost_policy_blocked"}, error=str(exc))
-        else:
-            console.print(f"\n[red]{exc}[/red]")
-        raise SystemExit(int(ExitCode.CONFIG_ERROR)) from exc
-    except BudgetExceededError as exc:
-        if json_mode_active():
-            payload: dict[str, object] = {
-                "reason": "budget_exceeded",
-                "spent_usd": round(exc.spent, 6),
-                "budget_usd": round(exc.budget, 6),
-            }
-            if isinstance(exc, ProjectedBudgetExceededError):
-                payload["projected"] = True
-                payload["projected_usd"] = round(exc.projected, 6)
-            emit_json(payload, error=str(exc))
-        else:
-            console.print(f"\n[red]Budget exceeded: {exc}[/red]")
-        raise SystemExit(int(ExitCode.BUDGET_EXCEEDED)) from exc
-    except Exception as exc:
-        message = describe_provider_error(exc)
-        if message is None:
-            raise
-        if json_mode_active():
-            raise SystemExit(handle_cli_error(exc, json_mode=True)) from exc
-        console.print(f"\n[red]{message}[/red]")
-        # Map to the documented exit-code taxonomy (3=config/bad key,
-        # 4=network/timeout, ...) so an agent or loop can branch on the cause
-        # instead of seeing an undifferentiated 1.
-        raise SystemExit(int(map_exception_to_exit_code(exc))) from exc
+    with run_scope(invocation_type="cli", command="cli"):
+        try:
+            app()
+        except CostPolicyError as exc:
+            mark_current_run_outcome("refused")
+            if json_mode_active():
+                emit_json({"reason": "cost_policy_blocked"}, error=str(exc))
+            else:
+                console.print(f"\n[red]{exc}[/red]")
+            raise SystemExit(int(ExitCode.CONFIG_ERROR)) from exc
+        except BudgetExceededError as exc:
+            mark_current_run_outcome("budget_exceeded")
+            if json_mode_active():
+                payload: dict[str, object] = {
+                    "reason": "budget_exceeded",
+                    "spent_usd": round(exc.spent, 6),
+                    "budget_usd": round(exc.budget, 6),
+                }
+                if isinstance(exc, ProjectedBudgetExceededError):
+                    payload["projected"] = True
+                    payload["projected_usd"] = round(exc.projected, 6)
+                emit_json(payload, error=str(exc))
+            else:
+                console.print(f"\n[red]Budget exceeded: {exc}[/red]")
+            raise SystemExit(int(ExitCode.BUDGET_EXCEEDED)) from exc
+        except Exception as exc:
+            message = describe_provider_error(exc)
+            if message is None:
+                raise
+            if json_mode_active():
+                raise SystemExit(handle_cli_error(exc, json_mode=True)) from exc
+            console.print(f"\n[red]{message}[/red]")
+            # Map to the documented exit-code taxonomy (3=config/bad key,
+            # 4=network/timeout, ...) so an agent or loop can branch on the cause
+            # instead of seeing an undifferentiated 1.
+            raise SystemExit(int(map_exception_to_exit_code(exc))) from exc

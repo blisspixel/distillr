@@ -30,6 +30,7 @@ from distill.llm.model_policy import (
 )
 from distill.llm.provider_cache import provider_cache_key
 from distill.llm.reasoning import configured_anthropic_effort, resolve_xai_reasoning_effort
+from distill.llm.run_context import current_run_id
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +346,7 @@ def call(
 ) -> LLM_Response:
     """Dispatch an LLM call through the configured provider, with optional local fallback."""
     config.validate_config(workload_tag)
+    effective_run_id = run_id or current_run_id()
 
     if workload_tag not in WORKLOAD_TAGS:
         logger.warning(
@@ -403,7 +405,7 @@ def call(
             outcome=outcome,
             error_type=error_type,
             call_type=call_type,
-            run_id=run_id,
+            run_id=effective_run_id,
             provider_type=provider_type,
             provider_name=p_name,
             tokens_per_second=round(tps, 2),

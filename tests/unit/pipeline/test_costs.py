@@ -4,6 +4,7 @@ import json
 
 from distill.llm.cost import deep_research_query_cost
 from distill.llm.router import LLM_Response
+from distill.llm.run_context import run_scope
 from distill.pipeline.costs import (
     ACCORDION_GROK_ESTIMATE,
     CostTracker,
@@ -99,6 +100,24 @@ def test_save_run_log_writes_breakdown(tmp_path):
     )
     assert entry["command"] == "learn"
     assert entry["by_call_type"]["pass1"]["calls"] == 2
+
+
+def test_cost_tracker_retains_run_id_after_scope_exits(tmp_path):
+    ops_dir = tmp_path / ".distill"
+
+    with run_scope(
+        invocation_type="cli",
+        command="learn",
+        ops_dir=ops_dir,
+    ) as context:
+        tracker = CostTracker()
+
+    save_run_log(tmp_path, "learn", tracker)
+    entry = json.loads(
+        (tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8").strip()
+    )
+    assert tracker.run_id == context.run_id
+    assert entry["run_id"] == context.run_id
 
 
 def test_estimate_run_cost_includes_accordion():

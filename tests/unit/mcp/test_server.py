@@ -1,5 +1,6 @@
 """Tests for distill MCP server."""
 
+import asyncio
 import json
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -30,15 +31,18 @@ from distill.mcp.resources import (
     get_watchlist,
 )
 from distill.mcp.server import (
+    DistillFastMCP,
     _config,
     _lib,
     _read_markdown_resource,
     _strip_frontmatter,
+    _telemetry_tool_name,
     _topic_gap_summary,
     _topic_source_inventory,
     _video_list,
     load_config,
     main,
+    refuse_if_host_not_allowed,
 )
 from distill.mcp.tools.discover import learn_topic, search_videos
 from distill.mcp.tools.gaps import research_gaps
@@ -1272,3 +1276,53 @@ class TestEntryPoint:
             main()
 
         mock_run.assert_called_once_with(transport="stdio")
+
+
+def test_every_mcp_tool_call_gets_a_distinct_correlated_run(mock_config):
+    server = DistillFastMCP("telemetry-test")
+
+    @server.tool()
+    def ping() -> str:
+        return "pong"
+
+    async def invoke_twice() -> None:
+        await server.call_tool("ping", {})
+        await server.call_tool("ping", {})
+
+    with patch("distill.mcp.server._config", return_value=mock_config):
+        asyncio.run(invoke_twice())
+
+    path = mock_config.library_dir / ".distill" / "phase_telemetry.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [row["command"] for row in rows] == ["ping", "ping"]
+    assert all(row["invocation_type"] == "mcp" for row in rows)
+    assert rows[0]["run_id"] != rows[1]["run_id"]
+
+
+def test_mcp_telemetry_tool_name_rejects_unvalidated_content():
+    assert _telemetry_tool_name("find_insights") == "find_insights"
+    assert _telemetry_tool_name("https://example.test/private") == "unknown-tool"
+    assert _telemetry_tool_name("") == "unknown-tool"
+
+
+def test_mcp_host_allowlist_refusal_marks_correlated_run(tmp_path):
+    config = DistillConfig(
+        distill_output_dir=tmp_path / "library",
+        distill_mcp_ingest_allowlist="allowed.test",
+    )
+    server = DistillFastMCP("allowlist-telemetry-test")
+
+    @server.tool()
+    def gated_ingest(url: str) -> str:
+        return refuse_if_host_not_allowed(url) or "allowed"
+
+    async def invoke() -> None:
+        await server.call_tool("gated_ingest", {"url": "https://blocked.test/private"})
+
+    with patch("distill.mcp.server._config", return_value=config):
+        asyncio.run(invoke())
+
+    path = config.library_dir / ".distill" / "phase_telemetry.jsonl"
+    row = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    assert row["command"] == "gated_ingest"
+    assert row["outcome"] == "refused"
