@@ -123,6 +123,7 @@ def ingest_repo(
                 releases_block=record.releases_block(),
             ),
             call_type="repo_analysis",
+            usage_tracker=tracker,
         )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type="repo_analysis"))

@@ -1,0 +1,118 @@
+"""Contracts for total structural text parsers."""
+
+from __future__ import annotations
+
+import sys
+from datetime import timedelta
+from pathlib import Path
+
+import pytest
+
+from distill.parsing import (
+    parse_ascii_uint,
+    parse_bounded_json_int,
+    parse_iso_day_hour_duration,
+    read_bounded_json_object,
+    read_bounded_jsonl_objects,
+    strict_json_loads,
+)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("0", 0),
+        ("0012", 12),
+        ("42", 42),
+        ("", None),
+        (" 1", None),
+        ("-1", None),
+        ("1.0", None),
+        ("\u00b2", None),
+        ("\u0661\u0662", None),
+        ("\uff11\uff12", None),
+    ],
+)
+def test_parse_ascii_uint(raw: str, expected: int | None) -> None:
+    assert parse_ascii_uint(raw) == expected
+
+
+def test_parse_ascii_uint_rejects_conversion_limit_input() -> None:
+    assert parse_ascii_uint("9" * 5000) is None
+
+
+def test_parse_ascii_uint_keeps_its_own_cap_when_interpreter_cap_is_disabled() -> None:
+    if not hasattr(sys, "set_int_max_str_digits"):
+        pytest.skip("interpreter does not expose the integer conversion limit")
+    previous = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(0)
+        assert parse_ascii_uint("9" * 1_000_000) is None
+    finally:
+        sys.set_int_max_str_digits(previous)
+
+
+def test_bounded_json_integer_supports_sign_and_rejects_oversized_values() -> None:
+    assert parse_bounded_json_int("42") == 42
+    assert parse_bounded_json_int("-42") == -42
+    with pytest.raises(ValueError, match="digit bound"):
+        parse_bounded_json_int("9" * 101)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("P0D", timedelta(0)),
+        ("P7D", timedelta(days=7)),
+        ("PT12H", timedelta(hours=12)),
+        ("P1DT25H", timedelta(days=2, hours=1)),
+        ("", None),
+        ("P", None),
+        ("P1DT", None),
+        ("P\u0661D", None),
+        ("P" + "9" * 100 + "D", None),
+        ("P" + "9" * 5000 + "D", None),
+    ],
+)
+def test_parse_iso_day_hour_duration(raw: str, expected: timedelta | None) -> None:
+    assert parse_iso_day_hour_duration(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity", "1e999", "9" * 101])
+def test_strict_json_rejects_nonfinite_and_oversized_numbers(raw: str) -> None:
+    with pytest.raises(ValueError):
+        strict_json_loads(f'{{"number":{raw}}}')
+
+
+def test_bounded_json_object_returns_empty_for_unsafe_inputs(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    path.write_text('{"ok":true}', encoding="utf-8")
+    assert read_bounded_json_object(path, max_bytes=64) == {"ok": True}
+    assert read_bounded_json_object(path, max_bytes=0) == {}
+
+    path.write_text("[]", encoding="utf-8")
+    assert read_bounded_json_object(path, max_bytes=64) == {}
+    path.write_text('{"payload":"too long"}', encoding="utf-8")
+    assert read_bounded_json_object(path, max_bytes=4) == {}
+    assert read_bounded_json_object(tmp_path / "missing.json", max_bytes=64) == {}
+
+
+def test_bounded_jsonl_keeps_only_complete_strict_object_rows(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_bytes(b'{"discarded":0}\n{"kept":1}\nNaN\n[]\n{"kept":2}\n')
+
+    assert read_bounded_jsonl_objects(path, max_bytes=35, max_rows=10) == [
+        {"kept": 1},
+        {"kept": 2},
+    ]
+    assert read_bounded_jsonl_objects(path, max_bytes=35, max_rows=1) == [{"kept": 2}]
+    assert read_bounded_jsonl_objects(path, max_bytes=0, max_rows=10) == []
+    assert read_bounded_jsonl_objects(path, max_bytes=35, max_rows=0) == []
+    assert read_bounded_jsonl_objects(tmp_path / "missing.jsonl", max_bytes=35, max_rows=10) == []
+
+
+def test_bounded_jsonl_drops_truncated_tail_without_a_newline(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_bytes(b'{"prefix":"larger-than-window"}')
+
+    assert read_bounded_jsonl_objects(path, max_bytes=5, max_rows=10) == []

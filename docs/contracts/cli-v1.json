@@ -2097,6 +2097,22 @@
         },
         {
           "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "episode_id",
+          "names": [
+            "--episode-id"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
           "default": 1,
           "is_flag": false,
           "kind": "option",
@@ -3747,7 +3763,7 @@
           "required": false,
           "type": {
             "clamp": false,
-            "max": null,
+            "max": 86400,
             "max_open": false,
             "min": 1,
             "min_open": false,

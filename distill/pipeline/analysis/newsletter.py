@@ -147,6 +147,7 @@ def ingest_newsletter(
                 post.title, post.link or feed.link, feed.title, "newsletter", body
             ),
             call_type="newsletter_analysis",
+            usage_tracker=tracker,
         )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type="newsletter_analysis"))

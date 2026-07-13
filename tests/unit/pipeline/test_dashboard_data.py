@@ -233,6 +233,12 @@ def test_dashboard_data_parser_helpers_handle_structural_fallbacks(tmp_path):
     malformed.write_text("{bad json", encoding="utf-8")
     assert read_json_dict(malformed) == {}
     assert read_json_dict(tmp_path / "missing.json") == {}
+    malformed.write_text('{"count": ' + "9" * 5_000 + "}", encoding="utf-8")
+    assert read_json_dict(malformed) == {}
+    malformed.write_text('{"cost": NaN}', encoding="utf-8")
+    assert read_json_dict(malformed) == {}
+    malformed.write_text('{"cost": 1e999}', encoding="utf-8")
+    assert read_json_dict(malformed) == {}
 
     log_file = tmp_path / "cost_log.jsonl"
     log_file.write_text('{"actual_cost": 1}\n', encoding="utf-8")
@@ -276,16 +282,35 @@ def test_dashboard_data_private_numeric_helpers_and_cost_log_read_errors(tmp_pat
 
     log_file = tmp_path / "cost_log.jsonl"
     log_file.write_text('{"actual_cost": 1}\n', encoding="utf-8")
-    original_read_text = Path.read_text
+    original_open = Path.open
 
-    def read_text(path: Path, *args, **kwargs):
+    def open_path(path: Path, *args, **kwargs):
         if path == log_file:
             raise OSError("locked")
-        return original_read_text(path, *args, **kwargs)
+        return original_open(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(Path, "open", open_path)
 
     assert load_recent_cost_runs(log_file) == []
+
+
+def test_dashboard_cost_reader_skips_unsafe_numeric_rows(tmp_path):
+    log_file = tmp_path / "cost_log.jsonl"
+    log_file.write_text(
+        "\n".join(
+            [
+                '{"actual_cost": ' + "9" * 5_000 + "}",
+                '{"actual_cost": NaN}',
+                '{"actual_cost": Infinity}',
+                '{"actual_cost": 1e999}',
+                '{"actual_cost": false}',
+                '{"actual_cost": 2.5, "command": "site"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_recent_cost_runs(log_file) == [{"actual_cost": 2.5, "command": "site"}]
 
 
 def test_topic_watch_budget_messages_and_stale_detection(config):
@@ -557,6 +582,8 @@ def test_topic_change_history_and_labels(config):
                 '{"generated_at":"2026-04-10T08:00:00","summary":"fresh","counts":{"videos":2,"pages":1,"papers":0,"outputs":1}}',
                 '{"generated_at":"2026-04-09T08:00:00","summary":"older","counts":{"videos":1,"pages":1,"papers":0,"outputs":0}}',
                 "bad-json",
+                '{"generated_at":"2026-04-11T08:00:00","counts":{"videos":NaN}}',
+                '{"generated_at":"2026-04-12T08:00:00","counts":{"videos":' + "9" * 5_000 + "}}",
             ]
         ),
         encoding="utf-8",
@@ -603,14 +630,14 @@ def test_topic_change_history_returns_empty_on_read_error(config, monkeypatch):
     history_path = config.topic_dir("ai") / "change_history.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_text('{"generated_at":"2026-04-10T08:00:00"}', encoding="utf-8")
-    original_read_text = Path.read_text
+    original_open = Path.open
 
-    def read_text(path: Path, *args, **kwargs):
+    def open_path(path: Path, *args, **kwargs):
         if path == history_path:
             raise OSError("locked")
-        return original_read_text(path, *args, **kwargs)
+        return original_open(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(Path, "open", open_path)
 
     assert load_topic_change_history(config, "ai") == []
 

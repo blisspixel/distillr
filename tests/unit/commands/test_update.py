@@ -100,7 +100,7 @@ class TestCheckForUpdate:
 
         class C:
             def print(self, msg):
-                pass
+                return None
 
         upd.check_for_update(C(), None)
         assert called["net"] is False  # opt-out short-circuits before any network
@@ -445,6 +445,21 @@ class TestUpdateCache:
         cache_file.write_text("not-json", encoding="utf-8")
         assert upd._read_cache(cache_file) == {}
 
+    def test_write_cache_replaces_symlink_without_overwriting_target(self, tmp_path):
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me", encoding="utf-8")
+        cache_file = tmp_path / "cache.json"
+        try:
+            cache_file.symlink_to(target)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        upd._write_cache(cache_file, {upd.PACKAGE: {"latest": "1.2.3"}})
+
+        assert target.read_text(encoding="utf-8") == "preserve me"
+        assert not cache_file.is_symlink()
+        assert json.loads(cache_file.read_text(encoding="utf-8"))[upd.PACKAGE]["latest"] == "1.2.3"
+
     def test_is_fresh_rejects_bad_timestamp(self):
         now = datetime(2026, 6, 21, 12, 0, 0)
         assert upd._is_fresh({"checked_at": "not-a-date"}, now) is False
@@ -478,7 +493,7 @@ class TestCheckForUpdateEdgeCases:
 
         class C:
             def print(self, msg):
-                pass
+                return None
 
         upd.check_for_update(C(), None)
 

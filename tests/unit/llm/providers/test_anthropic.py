@@ -15,6 +15,7 @@ from distill.llm.providers.anthropic import (
     AnthropicProvider,
 )
 from distill.llm.router import LLM_Response
+from distill.llm.usage import usage_attempts_from_exception
 
 
 class _FakeResponse:
@@ -145,7 +146,9 @@ def test_reasoning_effort_uses_output_config_only(monkeypatch: pytest.MonkeyPatc
     assert "thinking" not in payload
 
 
-def test_missing_usage_and_model_fall_back_safely(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_usage_and_model_fall_back_conservatively(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _install_client(monkeypatch)
     _FakeAsyncClient.responses.append(
         _FakeResponse(
@@ -158,12 +161,13 @@ def test_missing_usage_and_model_fall_back_safely(monkeypatch: pytest.MonkeyPatc
     )
     provider = AnthropicProvider("test-key")
 
-    result = asyncio.run(provider.call("claude-sonnet-5", "hello"))
+    result = asyncio.run(provider.call("claude-sonnet-5", "hello", max_tokens=64))
 
     assert result.text == "partial"
-    assert result.input_tokens == 0
-    assert result.output_tokens == 0
+    assert result.input_tokens == 1029
+    assert result.output_tokens == 64
     assert result.model == "claude-sonnet-5"
+    assert result.usage_source == "conservative"
 
 
 def test_retry_on_transient_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -179,8 +183,32 @@ def test_retry_on_transient_error(monkeypatch: pytest.MonkeyPatch) -> None:
         result = asyncio.run(provider.call("claude-sonnet-5", "hello", retries=2))
 
     assert result.text == "ok"
+    assert [row.outcome for row in result.usage_attempts] == ["error", "success"]
+    assert result.usage_attempts[0].usage_source == "conservative"
+    assert result.usage_attempts[0].output_tokens == 8192
+    assert result.usage_attempts[1].usage_source == "reported"
     assert sleep_calls == [5]
     assert len(_FakeAsyncClient.posts) == 2
+
+
+def test_exhausted_retries_attach_every_conservative_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_client(monkeypatch)
+    _FakeAsyncClient.responses.extend([RuntimeError("transient")] * 3)
+    provider = AnthropicProvider("test-key")
+
+    def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("distill.llm.providers.anthropic.time.sleep", no_sleep)
+    with pytest.raises(RuntimeError, match="transient") as raised:
+        asyncio.run(provider.call("claude-sonnet-5", "hello", retries=2, max_tokens=64))
+
+    attempts = usage_attempts_from_exception(raised.value)
+    assert len(attempts) == 3
+    assert all(row.outcome == "error" for row in attempts)
+    assert all(row.output_tokens == 64 for row in attempts)
 
 
 def test_permanent_http_error_does_not_retry(monkeypatch: pytest.MonkeyPatch) -> None:

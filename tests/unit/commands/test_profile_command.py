@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
 from distill import cli
 from distill.commands import profile as _profile
 from distill.config import DistillConfig
+from distill.library.okf import OkfExportResult, OkfIssue, OkfValidationResult
 from distill.library.profiles import ProfileValidationError
 from distill.pipeline.profile_preview import (
     ProfilePreviewCandidate,
@@ -205,7 +208,7 @@ def test_profile_run_with_okf_export_writes_bundle(tmp_path, monkeypatch):
     def _fake_run(preview, **kwargs):
         from distill.pipeline.profile_run import ProfileRunResult
 
-        return ProfileRunResult(
+        run_result = ProfileRunResult(
             schema_version="profile-run.v1",
             profile=preview.profile,
             topic=preview.topic,
@@ -219,6 +222,8 @@ def test_profile_run_with_okf_export_writes_bundle(tmp_path, monkeypatch):
             fresh_item_limit=preview.fresh_item_limit,
             ordering=preview.ordering,
         )
+        finalizer = kwargs.get("result_finalizer")
+        return finalizer(run_result) if finalizer is not None else run_result
 
     monkeypatch.setattr(_profile, "run_profile_preview", _fake_run)
 
@@ -234,7 +239,7 @@ def test_profile_run_with_okf_export_writes_bundle(tmp_path, monkeypatch):
     assert (tmp_path / "output" / "okf-agent-loops" / "index.md").exists()
 
 
-def test_global_cost_mode_option_sets_process_policy(tmp_path, monkeypatch):
+def test_global_no_metered_cannot_be_weakened_by_paid_profile(tmp_path, monkeypatch):
     old_cost_mode = os.environ.get("DISTILL_COST_MODE")
     monkeypatch.delenv("DISTILL_COST_MODE", raising=False)
     config = DistillConfig(
@@ -251,7 +256,7 @@ def test_global_cost_mode_option_sets_process_policy(tmp_path, monkeypatch):
                 "name: agent-loops",
                 "topic: agent-loops",
                 "goal_file: goals/agent-loops.md",
-                "cost_mode: auto",
+                "cost_mode: paid-ok",
                 "queries:",
                 "  - long running agent loops",
             ]
@@ -275,6 +280,13 @@ def test_global_cost_mode_option_sets_process_policy(tmp_path, monkeypatch):
 
         assert result.exit_code == 0
         assert os.environ["DISTILL_COST_MODE"] == "no-metered"
+        data = json.loads(result.stdout)["data"]
+        assert data["cost_mode"] == "no-metered"
+        assert data["max_metered_usd"] == 0.0
+        assert data["candidates"]
+        for candidate in data["candidates"]:
+            assert candidate["command"][1:3] == ["--cost-mode", "no-metered"]
+            assert "paid-ok" not in candidate["command"]
     finally:
         if old_cost_mode is None:
             os.environ.pop("DISTILL_COST_MODE", None)
@@ -307,7 +319,7 @@ def _write_profile(tmp_path, *, okf_export: bool = False) -> Path:
     return profile_path
 
 
-def _preview_result() -> ProfilePreviewResult:
+def _preview_result(*, okf_export_required: bool = False) -> ProfilePreviewResult:
     return ProfilePreviewResult(
         schema_version="profile-preview.v1",
         profile="agent-loops",
@@ -315,6 +327,7 @@ def _preview_result() -> ProfilePreviewResult:
         cost_mode="no-metered",
         ordering="published_desc",
         fresh_item_limit=5,
+        okf_export_required=okf_export_required,
         candidates=[
             ProfilePreviewCandidate(
                 kind="query",
@@ -380,6 +393,11 @@ def _run_result(
         okf_bundle_dir="/tmp/okf-agent-loops" if okf else "",
         okf_bundle_valid=okf,
     )
+
+
+def _apply_fake_finalizer(result: ProfileRunResult, kwargs: dict[str, object]) -> ProfileRunResult:
+    finalizer = kwargs.get("result_finalizer")
+    return finalizer(result) if callable(finalizer) else result
 
 
 class TestProfilePreviewHuman:
@@ -577,10 +595,48 @@ class TestProfileRunHuman:
 
         result = runner.invoke(cli.app, ["profile", "run", str(profile_path), "--yes"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "OKF bundle" in result.output
         assert "profile commands failed" in result.output
         assert "skipped stale item" in result.output
+
+    @pytest.mark.parametrize("terminal_status", ["budget_unverified", "budget_exceeded"])
+    def test_approved_unhealthy_json_run_emits_result_and_exits_nonzero(
+        self, tmp_path, monkeypatch, terminal_status
+    ):
+        config = _config(tmp_path)
+        profile_path = _write_profile(tmp_path)
+        base = _run_result(approved=True)
+        unhealthy = (
+            replace(base, max_metered_usd=1.0, metered_spend_verified=False)
+            if terminal_status == "budget_unverified"
+            else replace(base, max_metered_usd=1.0, metered_spend_usd=2.0)
+        )
+        monkeypatch.setattr(_profile, "get_config", lambda: config)
+        monkeypatch.setattr(
+            _profile,
+            "_load_profile_preview",
+            lambda *args, **kwargs: (config, profile_path, _preview_result()),
+        )
+        monkeypatch.setattr(_profile, "run_profile_preview", lambda preview, **kwargs: unhealthy)
+
+        result = runner.invoke(
+            cli.app,
+            ["--json", "profile", "run", str(profile_path), "--yes"],
+        )
+
+        assert result.exit_code == 1
+        envelope = json.loads(result.stdout)
+        assert envelope["data"]["health"]["status"] == terminal_status
+
+    def test_timeout_above_executor_limit_is_rejected_by_cli(self) -> None:
+        result = runner.invoke(
+            cli.app,
+            ["profile", "run", "unused", "--timeout", "86401"],
+        )
+
+        assert result.exit_code == 2
+        assert "86400" in result.output
 
 
 class TestProfileOkfExport:
@@ -591,16 +647,20 @@ class TestProfileOkfExport:
         monkeypatch.setattr(
             _profile,
             "_load_profile_preview",
-            lambda *args, **kwargs: (config, profile_path, _preview_result()),
+            lambda *args, **kwargs: (
+                config,
+                profile_path,
+                _preview_result(okf_export_required=True),
+            ),
         )
         monkeypatch.setattr(
             _profile,
             "run_profile_preview",
-            lambda preview, **kwargs: _run_result(approved=True),
+            lambda preview, **kwargs: _apply_fake_finalizer(_run_result(approved=True), kwargs),
         )
 
         def boom(*args, **kwargs):
-            raise FileNotFoundError("topic corpus missing")
+            raise OSError("output filesystem unavailable")
 
         monkeypatch.setattr(_profile, "export_okf_bundle", boom)
 
@@ -608,7 +668,7 @@ class TestProfileOkfExport:
             cli.app, ["profile", "run", str(profile_path), "--yes", "--no-fetch"]
         )
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "OKF export skipped" in result.output
 
     def test_okf_export_failure_json(self, tmp_path, monkeypatch):
@@ -618,12 +678,16 @@ class TestProfileOkfExport:
         monkeypatch.setattr(
             _profile,
             "_load_profile_preview",
-            lambda *args, **kwargs: (config, profile_path, _preview_result()),
+            lambda *args, **kwargs: (
+                config,
+                profile_path,
+                _preview_result(okf_export_required=True),
+            ),
         )
         monkeypatch.setattr(
             _profile,
             "run_profile_preview",
-            lambda preview, **kwargs: _run_result(approved=True),
+            lambda preview, **kwargs: _apply_fake_finalizer(_run_result(approved=True), kwargs),
         )
         monkeypatch.setattr(
             _profile,
@@ -636,10 +700,52 @@ class TestProfileOkfExport:
             ["--json", "profile", "run", str(profile_path), "--yes", "--no-fetch"],
         )
 
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         data = json.loads(result.stdout)["data"]
         assert data["okf_bundle_valid"] is False
         assert any(w["source"] == "okf_export" for w in data["warnings"])
+
+    def test_invalid_okf_validation_emits_result_and_exits_nonzero(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        profile_path = _write_profile(tmp_path, okf_export=True)
+        monkeypatch.setattr(_profile, "get_config", lambda: config)
+        monkeypatch.setattr(
+            _profile,
+            "_load_profile_preview",
+            lambda *args, **kwargs: (
+                config,
+                profile_path,
+                _preview_result(okf_export_required=True),
+            ),
+        )
+        monkeypatch.setattr(
+            _profile,
+            "run_profile_preview",
+            lambda preview, **kwargs: _apply_fake_finalizer(_run_result(approved=True), kwargs),
+        )
+        invalid = OkfExportResult(
+            output_dir=tmp_path / "output" / "okf-agent-loops",
+            source_root=config.topic_dir("agent-loops"),
+            topic="agent-loops",
+            files_written=3,
+            validation=OkfValidationResult(
+                root=tmp_path / "output" / "okf-agent-loops",
+                files_checked=1,
+                errors=(OkfIssue("error", "index.md", "invalid bundle"),),
+                warnings=(),
+            ),
+        )
+        monkeypatch.setattr(_profile, "export_okf_bundle", lambda *args, **kwargs: invalid)
+
+        result = runner.invoke(
+            cli.app,
+            ["--json", "profile", "run", str(profile_path), "--yes", "--no-fetch"],
+        )
+
+        assert result.exit_code == 1
+        data = json.loads(result.stdout)["data"]
+        assert data["okf_bundle_valid"] is False
+        assert "validation failed" in data["warnings"][-1]["message"]
 
 
 class TestProfileRegister:

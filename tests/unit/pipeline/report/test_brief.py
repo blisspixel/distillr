@@ -136,6 +136,20 @@ def test_run_research_brief_no_metered_refuses_before_client_or_gather(tmp_path,
     gather.assert_not_called()
 
 
+def test_run_research_brief_requires_tracker_before_client_or_gather(tmp_path, monkeypatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    client = MagicMock(side_effect=AssertionError("client constructed without a ledger"))
+    gather = MagicMock(side_effect=AssertionError("corpus gathered without a ledger"))
+    monkeypatch.setattr("distill.pipeline.report.brief.genai.Client", client)
+    monkeypatch.setattr("distill.pipeline.report.brief.gather_topic_files", gather)
+
+    with pytest.raises(ValueError, match="CostTracker is required"):
+        run_research_brief(["ai"], "ctx", "demo", config)
+
+    client.assert_not_called()
+    gather.assert_not_called()
+
+
 def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
     deleted = []
@@ -173,7 +187,7 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
         "distill.pipeline.report.brief.genai.Client",
         lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", steps=[])]),
     )
-    assert run_research_brief(["ai"], "ctx", "demo", config) is None
+    assert run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker()) is None
 
     monkeypatch.setattr(
         "distill.pipeline.report.brief.gather_topic_files",
@@ -185,19 +199,19 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
             [SimpleNamespace(status="completed", steps=[])], store_name=""
         ),
     )
-    assert run_research_brief(["ai"], "ctx", "demo", config) is None
+    assert run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker()) is None
 
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
         lambda **_kwargs: FakeClient([SimpleNamespace(status="failed", steps=[])]),
     )
-    assert run_research_brief(["ai"], "ctx", "demo", config) is None
+    assert run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker()) is None
 
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
         lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", steps=[])]),
     )
-    assert run_research_brief(["ai"], "ctx", "demo", config) is None
+    assert run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker()) is None
 
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",

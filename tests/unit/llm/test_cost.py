@@ -21,6 +21,7 @@ from distill.llm.cost import (
     compute_cost,
     deep_research_query_cost,
     get_pricing,
+    transcription_cost,
 )
 
 # ---------------------------------------------------------------------------
@@ -159,9 +160,16 @@ def test_deep_research_query_cost_model_aware() -> None:
 
 
 def test_transcription_cost() -> None:
-    from distill.llm.cost import transcription_cost
-
     assert transcription_cost("xai-grok-stt", 3600.0) == 0.10
     assert round(transcription_cost("whisper-1", 1800.0), 4) == 0.18
     assert transcription_cost("local", 3600.0) == 0.0
     assert transcription_cost("unknown-provider", 3600.0) == 0.0
+
+
+@pytest.mark.parametrize(
+    "duration",
+    [True, -1.0, float("nan"), float("inf"), 10**400],
+)
+def test_transcription_cost_rejects_invalid_duration(duration: object) -> None:
+    with pytest.raises(ValueError, match="transcription duration"):
+        transcription_cost("whisper-1", duration)

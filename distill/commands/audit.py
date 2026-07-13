@@ -24,6 +24,7 @@ from distill.commands._json import emit_json, json_mode_active, set_json_active
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.links import BrokenLink, LinkCheckResult
+from distill.parsing import parse_ascii_uint
 from distill.pipeline.audit import (
     AuditReport,
     ContestedFinding,
@@ -382,8 +383,11 @@ def _action_menu(
         console.print(f"  {i}. {label}")
     console.print("  q. Done")
     choice = tty_prompt("Choose", default="q").strip().lower()
+    choice_number = parse_ascii_uint(choice)
     selected = (
-        options[int(choice) - 1][0] if choice.isdigit() and 0 < int(choice) <= len(options) else "q"
+        options[choice_number - 1][0]
+        if choice_number is not None and 0 < choice_number <= len(options)
+        else "q"
     )
     handler = _ACTIONS.get(selected)
     if handler is not None:

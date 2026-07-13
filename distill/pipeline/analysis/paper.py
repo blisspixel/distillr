@@ -129,7 +129,13 @@ def _single_pass_analysis(
     tracker: CostTracker | None,
 ) -> tuple[str, str]:
     prompt = paper_insight_prompt(paper.title, paper.paper_id, document, goal=goal, lens=lens)
-    response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="paper")
+    response = llm_call(
+        rc,
+        workload_tag="site",
+        prompt=prompt,
+        call_type="paper",
+        usage_tracker=tracker,
+    )
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="paper"))
     return response.text.strip() + "\n", response.model
@@ -249,6 +255,7 @@ def synthesize_papers(
         workload_tag="site",
         prompt=paper_topic_synthesis_prompt(topic, paper_summaries),
         call_type="paper_synthesis",
+        usage_tracker=tracker,
     )
     synthesis = response.text
     if tracker:

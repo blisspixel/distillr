@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import runpy
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,20 @@ from distill.commands._json import ExitCode, set_json_active
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.run_context import update_current_run
-from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
+from distill.pipeline.costs import (
+    PROFILE_RECEIPT_ENV,
+    BudgetExceededError,
+    ProjectedBudgetExceededError,
+)
+
+
+def test_python_module_entrypoint_calls_cli_main(monkeypatch):
+    calls: list[bool] = []
+    monkeypatch.setattr(cli, "main", lambda: calls.append(True))
+
+    runpy.run_module("distill", run_name="__main__")
+
+    assert calls == [True]
 
 
 class _FailingApp:
@@ -25,12 +39,13 @@ class _FailingApp:
 
 
 class _InstrumentedApp:
-    def __init__(self, ops_dir: Path) -> None:
+    def __init__(self, ops_dir: Path, command: str = "doctor") -> None:
         self.ops_dir = ops_dir
+        self.command = command
         self.pretty_exceptions_enable = True
 
     def __call__(self) -> None:
-        update_current_run(command="doctor", ops_dir=self.ops_dir)
+        update_current_run(command=self.command, ops_dir=self.ops_dir)
 
 
 def test_main_records_one_content_free_command_phase(monkeypatch, tmp_path):
@@ -50,6 +65,26 @@ def test_main_records_one_content_free_command_phase(monkeypatch, tmp_path):
     assert rows[0]["invocation_type"] == "cli"
     assert rows[0]["outcome"] == "success"
     assert rows[0]["run_id"]
+
+
+def test_main_writes_zero_usage_receipt_for_successful_profile_latest_child(monkeypatch, tmp_path):
+    receipt_id = "c" * 64
+    fake_app = _InstrumentedApp(tmp_path / ".distill", command="latest")
+    monkeypatch.setattr(cli, "app", fake_app)
+    monkeypatch.setenv(PROFILE_RECEIPT_ENV, receipt_id)
+
+    cli.main()
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / ".distill" / "cost_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert len(rows) == 1
+    assert rows[0]["command"] == "latest"
+    assert rows[0]["profile_receipt_id"] == receipt_id
+    assert rows[0]["profile_receipt_cost_usd"] == 0
 
 
 def test_main_prints_clean_provider_error_and_documented_exit(monkeypatch):

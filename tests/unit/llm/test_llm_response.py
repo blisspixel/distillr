@@ -38,3 +38,4 @@ def test_round_trip(text: str, input_tokens: int, output_tokens: int, model: str
     assert response.input_tokens == input_tokens
     assert response.output_tokens == output_tokens
     assert response.model == model
+    assert response.usage_source == "reported"

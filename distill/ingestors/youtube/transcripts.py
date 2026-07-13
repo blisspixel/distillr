@@ -14,12 +14,13 @@ The resilience order (0.12.11, the 0.11 YouTube-resilience margin):
    installs that configured it.
 """
 
-import math
+import contextlib
 import re
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Generator
 from pathlib import Path
 from typing import Protocol
 
@@ -27,12 +28,42 @@ import yt_dlp
 
 from distill._console import console
 from distill.config import DistillConfig
-from distill.ingestors.youtube._yt_dlp_boundary import first_text, info_mapping, ydl_params
-from distill.ingestors.youtube.discovery import is_youtube_url
+from distill.ingestors.youtube._yt_dlp_boundary import (
+    first_text,
+    info_mapping,
+    int_field,
+    ydl_params,
+)
+from distill.library.locking import exclusive_file_lock, open_lock_file
+from distill.library.paths import atomic_write_text
+from distill.youtube_urls import (
+    normalize_video_id,
+    normalize_youtube_video_url,
+    youtube_video_id_from_url,
+)
 
 __all__ = [
     "get_transcript",
 ]
+
+_SCRIBE_LOCK_TIMEOUT_SECONDS = 610.0
+
+
+@contextlib.contextmanager
+def _scribe_output_lock(scribe_path: Path) -> Generator[None]:
+    """Serialize access to Scribe's shared output directory across processes."""
+
+    lock_path = scribe_path / ".distill-scribe.lock"
+    with (
+        open_lock_file(lock_path) as lock_file,
+        exclusive_file_lock(
+            lock_file,
+            timeout_seconds=_SCRIBE_LOCK_TIMEOUT_SECONDS,
+            timeout_message="timed out waiting for the Scribe output lock",
+        ),
+    ):
+        yield
+
 
 # Backoff schedule for transient caption-fetch failures. Two retries keeps a
 # 20-video sweep from stalling minutes on a dead video while still riding out
@@ -43,11 +74,49 @@ _sleep = time.sleep
 # Audio-download ceiling for the Whisper fallback: ~3h of 128kbps m4a. A
 # longer video almost certainly has captions; this caps disk and ladder time.
 _MAX_AUDIO_BYTES = 200_000_000
+_MAX_CAPTION_BYTES = 20_000_000
+
+
+class _DownloadSizeExceeded(RuntimeError):
+    """A yt-dlp transfer crossed its deterministic byte ceiling."""
+
+
+def _enforce_download_size(status: object, *, byte_limit: int, label: str) -> None:
+    row = info_mapping(status)
+    if row is None:
+        return
+    observed = 0
+    for field_name in ("downloaded_bytes", "total_bytes", "total_bytes_estimate"):
+        if row.get(field_name) is None:
+            continue
+        value = int_field(row, field_name, -1)
+        if value < 0:
+            raise _DownloadSizeExceeded(f"{label} download reported an invalid byte count")
+        observed = max(observed, value)
+    if observed > byte_limit:
+        raise _DownloadSizeExceeded(f"{label} download exceeds the {byte_limit:,}-byte cap")
+
+
+def _caption_download_progress(status: object) -> None:
+    _enforce_download_size(status, byte_limit=_MAX_CAPTION_BYTES, label="caption")
+
+
+def _audio_download_progress(status: object) -> None:
+    _enforce_download_size(status, byte_limit=_MAX_AUDIO_BYTES, label="audio")
 
 
 class _TranscriptionCostTracker(Protocol):
-    def record_transcription(
+    def authorize_transcription(
         self, provider: str, duration_s: float, *, model: str = ""
+    ) -> None: ...
+
+    def record_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+        outcome: str = "completed",
     ) -> None: ...
 
 
@@ -63,24 +132,24 @@ def get_transcript(
     ``tracker`` (a ``CostTracker``, optional) records cloud STT spend when the
     Whisper fallback routes to a paid tier; local transcription records $0.
     """
-    # yt-dlp does its own networking; pin to YouTube hosts so an attacker URL
-    # can't drive an SSRF through the caption/audio download.
-    if not is_youtube_url(video_url):
+    canonical_url = normalize_youtube_video_url(video_url)
+    canonical_id = youtube_video_id_from_url(video_url)
+    if not canonical_url or normalize_video_id(video_id) != canonical_id:
         console.print(f"    [red]Refusing non-YouTube URL: {video_url}[/red]")
         return False
 
-    transcript = _try_youtube_captions(video_url, video_id)
+    transcript = _try_youtube_captions(canonical_url, canonical_id)
     if transcript:
-        output_path.write_text(transcript, encoding="utf-8")
+        atomic_write_text(output_path, transcript)
         return True
 
     console.print("    [yellow]No captions; transcribing audio (local-first ladder)...[/yellow]")
-    if _try_whisper_ladder(video_url, video_id, output_path, config, tracker=tracker):
+    if _try_whisper_ladder(canonical_url, canonical_id, output_path, config, tracker=tracker):
         return True
 
     if config.scribe_path:
         console.print("    [yellow]Whisper ladder unavailable, falling back to scribe...[/yellow]")
-        return _try_scribe(video_url, output_path, config)
+        return _try_scribe(canonical_url, output_path, config)
     return False
 
 
@@ -123,6 +192,7 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
             "no_warnings": True,
             "retries": 2,
             "socket_timeout": 30,
+            "progress_hooks": [_caption_download_progress],
         }
 
         try:
@@ -140,7 +210,22 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
         if not sub_file:
             return ""
 
-        return _vtt_to_text(sub_file.read_text(encoding="utf-8"))
+        content = _read_bounded_utf8(sub_file, byte_limit=_MAX_CAPTION_BYTES)
+        return _vtt_to_text(content) if content is not None else None
+
+
+def _read_bounded_utf8(path: Path, *, byte_limit: int) -> str | None:
+    try:
+        with path.open("rb") as stream:
+            content = stream.read(byte_limit + 1)
+    except OSError:
+        return None
+    if len(content) > byte_limit:
+        return None
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _try_whisper_ladder(
@@ -176,7 +261,7 @@ def _try_whisper_ladder(
             return False
         if not result.text.strip():
             return False
-        output_path.write_text(result.text, encoding="utf-8")
+        atomic_write_text(output_path, result.text)
         return True
 
 
@@ -191,6 +276,7 @@ def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path |
         "socket_timeout": 30,
         "max_filesize": _MAX_AUDIO_BYTES,
         "noplaylist": True,
+        "progress_hooks": [_audio_download_progress],
     }
     try:
         with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
@@ -198,17 +284,26 @@ def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path |
     except Exception as exc:
         console.print(f"    [red]Audio download failed: {exc}[/red]")
         return None, "", 0.0
-    files = [f for f in tmpdir.iterdir() if f.is_file() and f.stat().st_size > 0]
+    files: list[Path] = []
+    try:
+        for candidate in tmpdir.iterdir():
+            if not candidate.is_file():
+                continue
+            size = candidate.stat().st_size
+            if size > _MAX_AUDIO_BYTES:
+                return None, "", 0.0
+            if size > 0:
+                files.append(candidate)
+    except OSError:
+        return None, "", 0.0
     if not files:
         return None, "", 0.0
     audio = max(files, key=lambda f: f.stat().st_size)
     hint = " - ".join(
         part for part in (first_text(info, ("title",)), first_text(info, ("uploader",))) if part
     )
-    duration = info.get("duration", 0.0)
-    duration_s = float(duration) if isinstance(duration, (int, float)) else 0.0
-    safe_duration_s = duration_s if math.isfinite(duration_s) and duration_s > 0 else 0.0
-    return audio, hint, safe_duration_s
+    duration_s = int_field(info, "duration")
+    return audio, hint, float(duration_s) if duration_s > 0 else 0.0
 
 
 def _vtt_to_text(vtt_content: str) -> str:
@@ -256,43 +351,8 @@ def _try_scribe(video_url: str, output_path: Path, config: DistillConfig) -> boo
         return False
 
     try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "scribe",
-                "url",
-                video_url,
-                "--no-notes",
-                "--no-joke",
-                "--no-meme",
-                "--no-docx",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=str(scribe_path),
-            timeout=600,
-        )
-
-        if result.returncode != 0:
-            console.print(f"    [red]Scribe failed: {result.stderr[:200]}[/red]")
-            return False
-
-        # Find the transcript file scribe created
-        # Scribe outputs to its configured output folder
-        # For now, look for the most recent .txt file
-        output_dir = scribe_path / "output"
-        if output_dir.exists():
-            txt_files = sorted(
-                output_dir.glob("*.txt"), key=lambda f: f.stat().st_mtime, reverse=True
-            )
-            if txt_files:
-                transcript = txt_files[0].read_text(encoding="utf-8")
-                output_path.write_text(transcript, encoding="utf-8")
-                return True
-
-        console.print("    [red]Scribe ran but transcript not found[/red]")
-        return False
+        with _scribe_output_lock(scribe_path):
+            return _run_scribe(video_url, output_path, scribe_path)
 
     except subprocess.TimeoutExpired:
         console.print("    [red]Scribe timed out[/red]")
@@ -300,3 +360,52 @@ def _try_scribe(video_url: str, output_path: Path, config: DistillConfig) -> boo
     except Exception as e:
         console.print(f"    [red]Scribe error: {e}[/red]")
         return False
+
+
+def _run_scribe(video_url: str, output_path: Path, scribe_path: Path) -> bool:
+    """Run Scribe and select its output while the shared lock is held."""
+
+    output_dir = scribe_path / "output"
+    before = {
+        path.resolve(): (path.stat().st_mtime_ns, path.stat().st_size)
+        for path in output_dir.glob("*.txt")
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scribe",
+            "url",
+            video_url,
+            "--no-notes",
+            "--no-joke",
+            "--no-meme",
+            "--no-docx",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(scribe_path),
+        timeout=600,
+    )
+
+    if result.returncode != 0:
+        console.print(f"    [red]Scribe failed: {result.stderr[:200]}[/red]")
+        return False
+
+    if output_dir.exists():
+        txt_files = sorted(
+            (
+                path
+                for path in output_dir.glob("*.txt")
+                if before.get(path.resolve()) != (path.stat().st_mtime_ns, path.stat().st_size)
+            ),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )
+        if txt_files:
+            transcript = txt_files[0].read_text(encoding="utf-8")
+            atomic_write_text(output_path, transcript)
+            return True
+
+    console.print("    [red]Scribe ran but transcript not found[/red]")
+    return False

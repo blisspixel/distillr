@@ -17,6 +17,7 @@ from hypothesis import strategies as st
 
 from distill.llm.providers.grok import GrokProvider
 from distill.llm.router import LLM_Response
+from distill.llm.usage import LLMUsageAttempt, usage_attempts_from_exception
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -45,6 +46,19 @@ def _build_provider() -> tuple[GrokProvider, MagicMock]:
         mock_cls.return_value = mock_client
         provider = GrokProvider(api_key="test-key")
     return provider, mock_client
+
+
+def test_init_disables_hidden_sdk_retries() -> None:
+    """Distill owns retry accounting, so the SDK must issue one request per call."""
+
+    with patch("distill.llm.providers.grok.OpenAI") as mock_cls:
+        GrokProvider(api_key="test-key")
+
+    mock_cls.assert_called_once_with(
+        api_key="test-key",
+        base_url="https://api.x.ai/v1",
+        max_retries=0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -117,17 +131,18 @@ class TestGrokProviderSuccess:
         assert result.output_tokens == 50
         assert result.model == "grok-4.3"
 
-    def test_empty_choices_returns_empty_response(self) -> None:
-        """Empty choices in API response returns LLM_Response with empty text."""
+    def test_empty_choices_preserves_conservative_usage(self) -> None:
+        """Empty choices must not turn a billable API call into zero usage."""
         provider, mock_client = _build_provider()
         mock_client.chat.completions.create.return_value = _make_mock_response(empty_choices=True)
 
-        result = asyncio.run(provider.call("grok-4.3", "hello"))
+        result = asyncio.run(provider.call("grok-4.3", "hello", max_tokens=42))
 
         assert result.text == ""
-        assert result.input_tokens == 0
-        assert result.output_tokens == 0
+        assert result.input_tokens == 1029
+        assert result.output_tokens == 42
         assert result.model == "grok-4.3"
+        assert result.usage_source == "conservative"
 
 
 class TestGrokProviderRetry:
@@ -147,6 +162,10 @@ class TestGrokProviderRetry:
         assert result.text == "ok"
         assert result.input_tokens == 5
         assert result.output_tokens == 3
+        assert [row.outcome for row in result.usage_attempts] == ["error", "success"]
+        assert result.usage_attempts[0].usage_source == "conservative"
+        assert result.usage_attempts[0].output_tokens == 8192
+        assert result.usage_attempts[1].usage_source == "reported"
         mock_sleep.assert_called_once_with(5)  # 2^0 * 5 = 5
 
     def test_raise_after_exhausted_retries(self) -> None:
@@ -156,8 +175,36 @@ class TestGrokProviderRetry:
 
         with (
             patch("distill.llm.providers.grok.time.sleep"),
-            pytest.raises(RuntimeError, match="permanent"),
+            pytest.raises(RuntimeError, match="permanent") as raised,
         ):
             asyncio.run(provider.call("grok-4.3", "hello", retries=2))
 
         assert mock_client.chat.completions.create.call_count == 3
+        attempts = usage_attempts_from_exception(raised.value)
+        assert len(attempts) == 3
+        assert all(row.outcome == "error" for row in attempts)
+
+    def test_usage_sink_stop_prevents_the_next_retry(self) -> None:
+        """A budget sink can stop a retry chain after accounting for one failure."""
+
+        class BudgetStop(Exception):
+            """Sentinel raised by the test usage sink."""
+
+        provider, mock_client = _build_provider()
+        mock_client.chat.completions.create.side_effect = RuntimeError("transient")
+
+        def stop_after_record(_attempt: LLMUsageAttempt) -> None:
+            raise BudgetStop
+
+        with pytest.raises(BudgetStop) as raised:
+            asyncio.run(
+                provider.call(
+                    "grok-4.3",
+                    "hello",
+                    retries=2,
+                    usage_sink=stop_after_record,
+                )
+            )
+
+        assert mock_client.chat.completions.create.call_count == 1
+        assert len(usage_attempts_from_exception(raised.value)) == 1

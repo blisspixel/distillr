@@ -14,6 +14,7 @@ import pytest
 
 from distill.llm.providers.gemini import GeminiProvider
 from distill.llm.router import LLM_Response
+from distill.llm.usage import usage_attempts_from_exception
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -65,7 +66,10 @@ def test_init_builds_google_genai_client() -> None:
 
         provider = GeminiProvider("test-key")
 
-    mock_genai.Client.assert_called_once_with(api_key="test-key")
+    mock_genai.Client.assert_called_once_with(
+        api_key="test-key",
+        http_options={"retry_options": {"attempts": 1}, "timeout": 300_000},
+    )
     assert provider._client is mock_genai.Client.return_value  # pyright: ignore[reportPrivateUsage]
 
 
@@ -89,31 +93,142 @@ class TestGeminiProviderSuccess:
         assert result.output_tokens == 50
         assert result.model == "gemini-3.1-pro"
 
-    def test_missing_usage_metadata_returns_zero_tokens(self) -> None:
-        """Missing usage_metadata returns zero token counts."""
+    def test_custom_timeout_configures_google_transport_in_milliseconds(self) -> None:
+        provider, default_client = _build_provider()
+        custom_client = MagicMock()
+        custom_client.models.generate_content.return_value = _make_mock_response()
+        factory = MagicMock(return_value=custom_client)
+        object.__setattr__(provider, "_api_key", "test-key")
+        object.__setattr__(provider, "_client_factory", factory)
+        object.__setattr__(provider, "_default_timeout", 300)
+
+        result = asyncio.run(provider.call("gemini-3.1-flash", "hello", timeout=42))
+
+        assert result.text == "gemini response"
+        factory.assert_called_once_with(
+            api_key="test-key",
+            http_options={"retry_options": {"attempts": 1}, "timeout": 42_000},
+        )
+        custom_client.models.generate_content.assert_called_once()
+        custom_client.close.assert_called_once_with()
+        default_client.models.generate_content.assert_not_called()
+
+    def test_custom_transport_cleanup_failure_preserves_success(self, caplog) -> None:
+        provider, _default_client = _build_provider()
+        custom_client = MagicMock()
+        custom_client.models.generate_content.return_value = _make_mock_response(
+            text="accepted response",
+            prompt_token_count=12,
+            candidates_token_count=7,
+        )
+        custom_client.close.side_effect = RuntimeError("cleanup failed")
+        object.__setattr__(provider, "_api_key", "test-key")
+        object.__setattr__(provider, "_client_factory", MagicMock(return_value=custom_client))
+        object.__setattr__(provider, "_default_timeout", 300)
+
+        with caplog.at_level("WARNING"):
+            result = asyncio.run(provider.call("gemini-3.1-flash", "hello", timeout=42))
+
+        assert result.text == "accepted response"
+        assert len(result.usage_attempts) == 1
+        assert result.usage_attempts[0].outcome == "success"
+        assert "custom transport cleanup failed" in caplog.text
+
+    def test_missing_usage_metadata_uses_conservative_tokens(self) -> None:
+        """Missing usage metadata must not erase a billable call from accounting."""
         provider, mock_client = _build_provider()
         mock_client.models.generate_content.return_value = _make_mock_response(
             text="no usage", has_usage=False
         )
 
-        result = asyncio.run(provider.call("gemini-3.1-flash", "hello"))
+        result = asyncio.run(provider.call("gemini-3.1-flash", "hello", max_tokens=77))
 
         assert result.text == "no usage"
-        assert result.input_tokens == 0
-        assert result.output_tokens == 0
+        assert result.input_tokens == 1029
+        assert result.output_tokens == 77
+        assert result.usage_source == "conservative"
 
-    def test_none_token_counts_default_to_zero(self) -> None:
-        """None values in usage metadata default to zero."""
+    def test_none_token_counts_use_conservative_tokens(self) -> None:
+        """Invalid usage values conservatively reserve the requested output."""
         provider, mock_client = _build_provider()
         usage = SimpleNamespace(prompt_token_count=None, candidates_token_count=None)
         mock_client.models.generate_content.return_value = SimpleNamespace(
             text="partial", usage_metadata=usage
         )
 
+        result = asyncio.run(provider.call("gemini-3.1-flash", "hello", max_tokens=88))
+
+        assert result.input_tokens == 1029
+        assert result.output_tokens == 88
+        assert result.usage_source == "conservative"
+
+    def test_thinking_tokens_are_included_in_reported_output_usage(self) -> None:
+        """Gemini thinking tokens are billable output and stay on the ledger."""
+        provider, mock_client = _build_provider()
+        usage = SimpleNamespace(
+            prompt_token_count=5,
+            candidates_token_count=7,
+            thoughts_token_count=93,
+        )
+        mock_client.models.generate_content.return_value = SimpleNamespace(
+            text="answer", usage_metadata=usage
+        )
+
+        result = asyncio.run(provider.call("gemini-3.1-pro", "hello", max_tokens=120))
+
+        assert result.output_tokens == 100
+        assert result.usage_source == "reported"
+
+    def test_absent_thinking_usage_is_treated_as_zero(self) -> None:
+        """The SDK uses null thought counts for ordinary non-thinking responses."""
+        provider, mock_client = _build_provider()
+        usage = SimpleNamespace(
+            prompt_token_count=5,
+            candidates_token_count=7,
+            thoughts_token_count=None,
+        )
+        mock_client.models.generate_content.return_value = SimpleNamespace(
+            text="answer", usage_metadata=usage
+        )
+
         result = asyncio.run(provider.call("gemini-3.1-flash", "hello"))
 
-        assert result.input_tokens == 0
-        assert result.output_tokens == 0
+        assert result.output_tokens == 7
+        assert result.usage_source == "reported"
+
+    def test_invalid_thinking_tokens_use_conservative_output_usage(self) -> None:
+        """Malformed thinking metadata must fail closed for cost accounting."""
+        provider, mock_client = _build_provider()
+        usage = SimpleNamespace(
+            prompt_token_count=5,
+            candidates_token_count=7,
+            thoughts_token_count=-1,
+        )
+        mock_client.models.generate_content.return_value = SimpleNamespace(
+            text="answer", usage_metadata=usage
+        )
+
+        result = asyncio.run(provider.call("gemini-3.1-pro", "hello", max_tokens=120))
+
+        assert result.output_tokens == 120
+        assert result.usage_source == "conservative"
+
+    def test_zero_candidate_tokens_with_visible_text_are_conservative(self) -> None:
+        """Thinking usage cannot hide inconsistent visible-output metadata."""
+        provider, mock_client = _build_provider()
+        usage = SimpleNamespace(
+            prompt_token_count=5,
+            candidates_token_count=0,
+            thoughts_token_count=93,
+        )
+        mock_client.models.generate_content.return_value = SimpleNamespace(
+            text="visible answer", usage_metadata=usage
+        )
+
+        result = asyncio.run(provider.call("gemini-3.1-pro", "hello", max_tokens=120))
+
+        assert result.output_tokens == 120
+        assert result.usage_source == "conservative"
 
     def test_temperature_is_forwarded_when_supplied(self) -> None:
         """Temperature is included only when the caller explicitly supplies it."""
@@ -161,6 +276,10 @@ class TestGeminiProviderRetry:
             result = asyncio.run(provider.call("gemini-3.1-pro", "hello", retries=2))
 
         assert result.text == "ok"
+        assert [row.outcome for row in result.usage_attempts] == ["error", "success"]
+        assert result.usage_attempts[0].usage_source == "conservative"
+        assert result.usage_attempts[0].output_tokens == 8192
+        assert result.usage_attempts[1].usage_source == "reported"
         mock_sleep.assert_called_once_with(5)  # 2^0 * 5 = 5
 
     def test_raise_after_exhausted_retries(self) -> None:
@@ -170,11 +289,14 @@ class TestGeminiProviderRetry:
 
         with (
             patch("distill.llm.providers.gemini.time.sleep"),
-            pytest.raises(RuntimeError, match="permanent"),
+            pytest.raises(RuntimeError, match="permanent") as raised,
         ):
             asyncio.run(provider.call("gemini-3.1-pro", "hello", retries=2))
 
         assert mock_client.models.generate_content.call_count == 3
+        attempts = usage_attempts_from_exception(raised.value)
+        assert len(attempts) == 3
+        assert all(row.outcome == "error" for row in attempts)
 
     def test_permanent_error_does_not_retry(self) -> None:
         """Permanent Gemini API errors raise immediately without sleeping or retrying."""

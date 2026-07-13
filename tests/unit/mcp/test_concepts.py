@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -90,10 +91,27 @@ def _seed_topic(config: DistillConfig, topic: str = "tkg") -> Path:
 
 def test_read_jsonl_skips_missing_blank_invalid_and_non_object_rows(tmp_path: Path) -> None:
     path = tmp_path / "concepts.jsonl"
-    assert _read_jsonl(path) == []
+    assert _read_jsonl(path, tmp_path) == []
 
     path.write_text('\nnot-json\n["not", "an", "object"]\n{"name": "valid"}\n', encoding="utf-8")
-    assert _read_jsonl(path) == [{"name": "valid"}]
+    assert _read_jsonl(path, tmp_path) == [{"name": "valid"}]
+
+
+def test_read_jsonl_skips_nonfinite_and_oversized_numbers(tmp_path: Path) -> None:
+    path = tmp_path / "concepts.jsonl"
+    path.write_text(
+        "\n".join(
+            [
+                '{"name":"nan","source_count":NaN}',
+                '{"name":"overflow","source_count":1e999}',
+                '{"name":"huge","source_count":' + "9" * 5000 + "}",
+                '{"name":"valid","source_count":2}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert _read_jsonl(path, tmp_path) == [{"name": "valid", "source_count": 2}]
 
 
 class TestFindConcepts:
@@ -111,11 +129,55 @@ class TestFindConcepts:
         assert result["results"][0]["name"] == "Rotational Embeddings"
 
     def test_contested_only_filter(self, mock_config: DistillConfig) -> None:
-        _seed_topic(mock_config)
+        topic_dir = _seed_topic(mock_config)
+        with (topic_dir / "concepts.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "name": "String False",
+                        "slug": "string_false",
+                        "kind": "technique",
+                        "source_count": 99,
+                        "contested": "false",
+                    }
+                )
+                + "\n"
+            )
         with patch("distill.mcp.server._config", return_value=mock_config):
             result = json.loads(find_concepts("tkg", contested_only=True))
         assert result["count"] == 1
         assert result["results"][0]["name"] == "Disputed Method"
+
+    @pytest.mark.parametrize("limit", [-1, 0, True])
+    def test_invalid_limit_returns_error(self, mock_config: DistillConfig, limit: int) -> None:
+        _seed_topic(mock_config)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(find_concepts("tkg", limit=limit))
+
+        assert result["status"] == "error"
+        assert "positive integer" in result["error"]
+
+    def test_large_limit_is_bounded(self, mock_config: DistillConfig) -> None:
+        _seed_topic(mock_config)
+        rows = [
+            {
+                "name": f"Concept {index}",
+                "slug": f"concept-{index}",
+                "kind": "technique",
+                "source_count": index,
+                "contested": False,
+            }
+            for index in range(200)
+        ]
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.mcp.tools.concepts._read_jsonl", side_effect=[rows, []]),
+        ):
+            result = json.loads(find_concepts("tkg", limit=10_000))
+
+        assert result["count"] == 100
 
     def test_query_substring_match(self, mock_config: DistillConfig) -> None:
         _seed_topic(mock_config)
@@ -214,29 +276,70 @@ class TestReadConcept:
             result = json.loads(read_concept("topics/tkg/concepts/outside.md"))
         assert result == {"status": "error", "error": "Path is not a concept or entity note."}
 
-    @pytest.mark.parametrize(
-        "read_error",
-        [
-            OSError("read denied"),
-            UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
-        ],
-    )
-    def test_unreadable_note_returns_bounded_error(
-        self,
-        mock_config: DistillConfig,
-        read_error: OSError | UnicodeDecodeError,
-    ) -> None:
+    def test_invalid_utf8_note_returns_bounded_error(self, mock_config: DistillConfig) -> None:
         _seed_topic(mock_config)
         note = mock_config.topic_dir("tkg") / "concepts" / "rotational_embedding.md"
-        with (
-            patch("distill.mcp.server._config", return_value=mock_config),
-            patch.object(Path, "read_text", side_effect=read_error) as read_text,
-        ):
+        note.write_bytes(b"\xff")
+        with patch("distill.mcp.server._config", return_value=mock_config):
             result = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
         assert result == {"status": "error", "error": "Cannot read concept or entity note."}
-        read_text.assert_called_once_with(encoding="utf-8")
-        assert read_text.call_args.args == ()
         assert note.is_file()
+
+    def test_note_open_error_returns_bounded_error(self, mock_config: DistillConfig) -> None:
+        _seed_topic(mock_config)
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.library.confined.os.open", side_effect=PermissionError("denied")),
+        ):
+            result = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
+
+        assert result == {"status": "error", "error": "Cannot read concept or entity note."}
+
+    def test_rejects_hardlinked_note(self, mock_config: DistillConfig, tmp_path: Path) -> None:
+        _seed_topic(mock_config)
+        note = mock_config.topic_dir("tkg") / "concepts" / "rotational_embedding.md"
+        outside = tmp_path / "outside-hardlink.md"
+        outside.write_text("private hard-linked note", encoding="utf-8")
+        note.unlink()
+        try:
+            note.hardlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"hard-link creation unavailable: {exc}")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
+
+        assert result["status"] == "error"
+        assert "private hard-linked note" not in json.dumps(result)
+
+    def test_rejects_descriptor_identity_swap(
+        self, mock_config: DistillConfig, tmp_path: Path
+    ) -> None:
+        _seed_topic(mock_config)
+        outside = tmp_path / "outside-swap.md"
+        outside.write_text("private swapped note", encoding="utf-8")
+        outside_descriptor = os.open(outside, os.O_RDONLY)
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.library.confined.os.open", return_value=outside_descriptor),
+        ):
+            result = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
+
+        assert result["status"] == "error"
+        assert "private swapped note" not in json.dumps(result)
+        with pytest.raises(OSError):
+            os.fstat(outside_descriptor)
+
+    def test_rejects_oversized_note(self, mock_config: DistillConfig) -> None:
+        _seed_topic(mock_config)
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.mcp.tools.concepts._MAX_CONCEPT_FILE_BYTES", 1),
+        ):
+            result = json.loads(read_concept("topics/tkg/concepts/rotational_embedding.md"))
+
+        assert result == {"status": "error", "error": "Cannot read concept or entity note."}
 
     def test_library_under_concepts_ancestor_does_not_bypass_guard(self, tmp_path: Path) -> None:
         """library_dir under an absolute ancestor named 'concepts' must not
@@ -446,6 +549,99 @@ class TestConceptDiff:
         assert result["sources_added"] == ["C"]
         assert result["old"] == "2026-05-29T08:10:31Z"
         assert result["new"] == "current"
+
+    def test_rejects_symlinked_topic_directory(
+        self, mock_config: DistillConfig, tmp_path: Path
+    ) -> None:
+        outside_topic = tmp_path / "outside-topic"
+        _build_history(outside_topic)
+        linked_topic = mock_config.topic_dir("linked")
+        linked_topic.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            linked_topic.symlink_to(outside_topic, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlink creation unavailable: {exc}")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            responses = [
+                json.loads(concept_diff("linked", "rotational_embedding")),
+                json.loads(concept_history("linked", "rotational_embedding")),
+                json.loads(find_concepts("linked")),
+                json.loads(read_concept("topics/linked/concepts/rotational_embedding.md")),
+            ]
+
+        assert not linked_topic.resolve().is_relative_to(mock_config.library_dir.resolve())
+        assert all(response["status"] == "error" for response in responses)
+
+    def test_collision_scan_rejects_symlink_without_reading_target(
+        self, mock_config: DistillConfig, tmp_path: Path
+    ) -> None:
+        topic_dir = mock_config.topic_dir("tkg")
+        _build_history(topic_dir)
+        outside = tmp_path / "outside-invalid.md"
+        outside.write_bytes(b"\xff")
+        collision = topic_dir / "concepts" / "collision.md"
+        try:
+            collision.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            history_result = json.loads(concept_history("tkg", "requested_slug"))
+            diff_result = json.loads(concept_diff("tkg", "requested_slug"))
+
+        assert history_result["status"] == "error"
+        assert diff_result["status"] == "error"
+
+    def test_rejects_symlinked_history_directory(
+        self, mock_config: DistillConfig, tmp_path: Path
+    ) -> None:
+        topic_dir = _seed_topic(mock_config)
+        outside_history = tmp_path / "outside-history"
+        outside_history.mkdir()
+        (outside_history / "2026-05-29T08-10-31Z.md").write_text(
+            "private outside snapshot",
+            encoding="utf-8",
+        )
+        linked_history = topic_dir / ".history" / "rotational_embedding"
+        linked_history.parent.mkdir()
+        try:
+            linked_history.symlink_to(outside_history, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlink creation unavailable: {exc}")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            history_result = json.loads(concept_history("tkg", "rotational_embedding"))
+            diff_result = json.loads(concept_diff("tkg", "rotational_embedding"))
+
+        assert history_result["status"] == "error"
+        assert diff_result["status"] == "error"
+
+    @pytest.mark.parametrize("linked_version", ["live", "snapshot"])
+    def test_rejects_symlinked_note_versions(
+        self, mock_config: DistillConfig, tmp_path: Path, linked_version: str
+    ) -> None:
+        topic_dir = mock_config.topic_dir("tkg")
+        _build_history(topic_dir)
+        outside = tmp_path / "outside.md"
+        outside.write_text("private outside note", encoding="utf-8")
+        if linked_version == "live":
+            linked = topic_dir / "concepts" / "rotational_embedding.md"
+            args = ()
+        else:
+            linked = next((topic_dir / ".history" / "rotational_embedding").glob("*.md"))
+            args = ("2026-05-29T08:10:31Z",)
+        linked.unlink()
+        try:
+            linked.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(concept_diff("tkg", "rotational_embedding", *args))
+
+        assert result["status"] == "error"
+        assert "private outside note" not in json.dumps(result)
 
     def test_unknown_timestamp_errors(self, mock_config: DistillConfig) -> None:
         _build_history(mock_config.topic_dir("tkg"))

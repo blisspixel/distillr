@@ -6,11 +6,22 @@ import json
 import re
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from distill._console import console
 from distill.ingestors.net import NetworkError, safe_urlopen
-from distill.ingestors.youtube.discovery import VideoInfo
+from distill.ingestors.youtube.discovery import (
+    MAX_YOUTUBE_SEARCH_RESULTS,
+    VideoInfo,
+    is_valid_youtube_lookback,
+)
+from distill.parsing import parse_ascii_uint, parse_bounded_json_int
+from distill.youtube_urls import (
+    normalize_video_id,
+    normalize_youtube_channel_url,
+    youtube_channel_url,
+    youtube_watch_url,
+)
 
 __all__ = [
     "parse_search_results_html",
@@ -18,13 +29,35 @@ __all__ = [
 ]
 
 _YT_INITIAL_DATA_RE = re.compile(r"var ytInitialData = (\{.*?\});</script>", re.DOTALL)
+_MAX_INITIAL_DATA_NODES = 100_000
+_MAX_SEARCH_HTML_BYTES = 10_000_000
+_MAX_NUMERIC_LABEL_CHARS = 128
+_MAX_TEXT_NODES = 10_000
+_MAX_TEXT_CHARS = 4_096
+_MAX_VIDEO_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
+_MAX_VIEW_COUNT = 1_000_000_000_000_000
+_MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
+_RELATIVE_UNIT_DELTAS = {
+    "minute": timedelta(minutes=1),
+    "hour": timedelta(hours=1),
+    "day": timedelta(days=1),
+    "week": timedelta(weeks=1),
+    "month": timedelta(days=30),
+    "year": timedelta(days=365),
+}
 
 
 def search_youtube_results(
     query_or_url: str, days: int = 60, limit: int = 20, hours: int | None = None
 ) -> list[VideoInfo]:
     """Search YouTube using the actual results page and return video candidates."""
-    if limit <= 0:
+    if (
+        isinstance(limit, bool)
+        or not isinstance(limit, int)
+        or limit <= 0
+        or limit > MAX_YOUTUBE_SEARCH_RESULTS
+        or not is_valid_youtube_lookback(days, hours)
+    ):
         return []
 
     search_url = query_or_url if _is_search_url(query_or_url) else _build_search_url(query_or_url)
@@ -33,15 +66,16 @@ def search_youtube_results(
         return []
 
     candidates = parse_search_results_html(html)
-    now = datetime.now()
+    now = datetime.now(UTC)
     cutoff = now - timedelta(hours=hours) if hours is not None else now - timedelta(days=days)
+    freshness_ceiling = now + _MAX_FUTURE_CLOCK_SKEW
     results = []
     seen_ids = set()
     for video in candidates:
         if video.video_id in seen_ids:
             continue
         published_dt = _published_to_datetime(video)
-        if published_dt and published_dt < cutoff:
+        if published_dt is None or not cutoff <= published_dt <= freshness_ceiling:
             continue
         seen_ids.add(video.video_id)
         results.append(video)
@@ -58,31 +92,32 @@ def parse_search_results_html(html: str) -> list[VideoInfo]:
         # ytInitialData comes from an untrusted fetched page and the non-greedy
         # capture can truncate mid-object; a malformed body must degrade to "no
         # candidates", not abort the whole search/discover run.
-        data = json.loads(match.group(1))
-    except json.JSONDecodeError:
+        data = json.loads(match.group(1), parse_int=parse_bounded_json_int)
+    except (RecursionError, ValueError):
         return []
 
     results: list[VideoInfo] = []
-
-    def walk(node):
+    stack = [data]
+    visited = 0
+    while stack:
+        visited += 1
+        if visited > _MAX_INITIAL_DATA_NODES:
+            return []
+        node = stack.pop()
         if isinstance(node, dict):
             renderer = node.get("videoRenderer")
-            if renderer:
+            if isinstance(renderer, dict):
                 video = _video_from_renderer(renderer)
                 if video:
                     results.append(video)
-            for value in node.values():
-                walk(value)
+            stack.extend(reversed(tuple(node.values())))
         elif isinstance(node, list):
-            for item in node:
-                walk(item)
-
-    walk(data)
+            stack.extend(reversed(node))
     return results
 
 
-def _video_from_renderer(renderer: dict) -> VideoInfo | None:
-    video_id = renderer.get("videoId") or ""
+def _video_from_renderer(renderer: dict[str, object]) -> VideoInfo | None:
+    video_id = normalize_video_id(renderer.get("videoId"))
     if not video_id:
         return None
 
@@ -109,7 +144,7 @@ def _video_from_renderer(renderer: dict) -> VideoInfo | None:
         title=title,
         upload_date=upload_date,
         duration=duration,
-        url=f"https://www.youtube.com/watch?v={video_id}",
+        url=youtube_watch_url(video_id),
         channel_name=channel_name,
         channel_url=channel_url,
         description=description,
@@ -147,20 +182,22 @@ def _fetch_with_playwright(search_url: str) -> str:
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(1500)
-            html = page.content()
-            browser.close()
-            return html
+            try:
+                page = browser.new_page()
+                page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(1500)
+                dom_chars = page.evaluate("document.documentElement.outerHTML.length")
+                if not isinstance(dom_chars, int) or dom_chars > _MAX_SEARCH_HTML_BYTES:
+                    return ""
+                html = page.content()
+                if len(html.encode("utf-8")) > _MAX_SEARCH_HTML_BYTES:
+                    return ""
+                return html
+            finally:
+                browser.close()
     except Exception as e:
         console.print(f"  [dim]Browser search fallback: {e}[/dim]")
         return ""
-
-
-# Cap the raw search HTML read so a hostile/MITM response cannot drive an
-# unbounded read into memory. NetworkError degrades to "" in the caller.
-_MAX_SEARCH_HTML_BYTES = 10_000_000
 
 
 def _fetch_with_urllib(search_url: str) -> str:
@@ -185,42 +222,104 @@ def _build_search_url(query: str) -> str:
 
 
 def _is_search_url(value: str) -> bool:
-    return value.startswith("https://www.youtube.com/results?") or value.startswith(
-        "http://www.youtube.com/results?"
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and (parsed.hostname or "").lower() == "www.youtube.com"
+        and parsed.username is None
+        and parsed.password is None
+        and port is None
+        and parsed.path == "/results"
+        and bool(parsed.query)
+        and not parsed.fragment
     )
 
 
-def _extract_text(node) -> str:
+def _extract_text(node: object) -> str:
     if not node:
         return ""
-    if isinstance(node, dict):
-        if "simpleText" in node:
-            return node.get("simpleText", "")
-        runs = node.get("runs")
-        if isinstance(runs, list):
-            return "".join(run.get("text", "") for run in runs)
-        for value in node.values():
-            text = _extract_text(value)
-            if text:
-                return text
-    elif isinstance(node, list):
-        return " ".join(filter(None, (_extract_text(item) for item in node)))
+    if not isinstance(node, list):
+        return _first_text(node)
+    parts: list[str] = []
+    characters = 0
+    for index, item in enumerate(node):
+        if index >= _MAX_TEXT_NODES:
+            break
+        text = _first_text(item)
+        if text:
+            separator_chars = 1 if parts else 0
+            remaining = _MAX_TEXT_CHARS - characters - separator_chars
+            if remaining <= 0:
+                break
+            parts.append(text[:remaining])
+            characters += separator_chars + min(len(text), remaining)
+    return " ".join(parts)
+
+
+def _first_text(node: object) -> str:
+    pending = [node]
+    visited = 0
+    while pending:
+        visited += 1
+        if visited > _MAX_TEXT_NODES:
+            return ""
+        current = pending.pop()
+        if isinstance(current, dict):
+            if "simpleText" in current:
+                simple_text = current.get("simpleText")
+                return simple_text[:_MAX_TEXT_CHARS] if isinstance(simple_text, str) else ""
+            runs = current.get("runs")
+            if isinstance(runs, list):
+                return _join_run_texts(runs)
+            pending.extend(reversed(tuple(current.values())))
+        elif isinstance(current, list):
+            pending.extend(reversed(current))
     return ""
 
 
-def _extract_owner_url(renderer: dict) -> str:
+def _join_run_texts(runs: list[object]) -> str:
+    parts: list[str] = []
+    characters = 0
+    for run in runs[:_MAX_TEXT_NODES]:
+        if not isinstance(run, dict):
+            continue
+        text = run.get("text")
+        if not isinstance(text, str):
+            continue
+        remaining = _MAX_TEXT_CHARS - characters
+        if remaining <= 0:
+            break
+        parts.append(text[:remaining])
+        characters += min(len(text), remaining)
+    return "".join(parts)
+
+
+def _extract_owner_url(renderer: dict[str, object]) -> str:
     for key in ("ownerText", "longBylineText"):
-        runs = renderer.get(key, {}).get("runs", [])
-        if not runs:
+        owner = renderer.get(key)
+        if not isinstance(owner, dict):
+            continue
+        runs = owner.get("runs")
+        if not isinstance(runs, list) or not runs or not isinstance(runs[0], dict):
             continue
         nav = runs[0].get("navigationEndpoint", {})
+        if not isinstance(nav, dict):
+            continue
         browse = nav.get("browseEndpoint", {})
+        if not isinstance(browse, dict):
+            continue
         canonical = browse.get("canonicalBaseUrl")
-        if canonical:
-            return "https://www.youtube.com" + canonical
+        canonical_url = normalize_youtube_channel_url(canonical)
+        if canonical_url:
+            return canonical_url
         browse_id = browse.get("browseId")
-        if browse_id:
-            return f"https://www.youtube.com/channel/{browse_id}"
+        channel_url = youtube_channel_url(browse_id)
+        if channel_url:
+            return channel_url
     return ""
 
 
@@ -230,52 +329,61 @@ def _relative_to_yyyymmdd(text: str) -> str:
 
 
 def _relative_to_datetime(text: str) -> datetime | None:
-    if not text:
+    if not text or len(text) > _MAX_NUMERIC_LABEL_CHARS:
         return None
     text = text.lower().strip()
-    if "streamed" in text:
-        text = text.replace("streamed", "").strip()
-    match = re.search(r"(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago", text)
+    for prefix in ("streamed ", "premiered "):
+        if text.startswith(prefix):
+            text = text.removeprefix(prefix).strip()
+            break
+    match = re.fullmatch(r"([0-9]+)\s+(minute|hour|day|week|month|year)s?\s+ago", text)
     if not match:
         return None
-    value = int(match.group(1))
-    unit = match.group(2)
-    now = datetime.now()
-    if unit == "minute":
-        return now - timedelta(minutes=value)
-    if unit == "hour":
-        return now - timedelta(hours=value)
-    if unit == "day":
-        return now - timedelta(days=value)
-    if unit == "week":
-        return now - timedelta(weeks=value)
-    if unit == "month":
-        return now - timedelta(days=value * 30)
-    return now - timedelta(days=value * 365)
+    value = parse_ascii_uint(match.group(1))
+    if value is None:
+        return None
+    unit_delta = _RELATIVE_UNIT_DELTAS[match.group(2)]
+    try:
+        return datetime.now(UTC) - unit_delta * value
+    except OverflowError:
+        return None
 
 
 def _duration_to_seconds(text: str) -> int:
-    if not text:
+    if not text or len(text) > _MAX_NUMERIC_LABEL_CHARS:
         return 0
-    parts = [int(p) for p in text.split(":") if p.isdigit()]
+    raw_parts = text.split(":")
+    if len(raw_parts) not in {1, 2, 3}:
+        return 0
+    parts: list[int] = []
+    for part in raw_parts:
+        value = parse_ascii_uint(part)
+        if value is None or value > _MAX_VIDEO_DURATION_SECONDS:
+            return 0
+        parts.append(value)
     if len(parts) == 3:
-        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        duration = parts[0] * 3600 + parts[1] * 60 + parts[2]
+        return duration if duration <= _MAX_VIDEO_DURATION_SECONDS else 0
     if len(parts) == 2:
-        return parts[0] * 60 + parts[1]
+        duration = parts[0] * 60 + parts[1]
+        return duration if duration <= _MAX_VIDEO_DURATION_SECONDS else 0
     if len(parts) == 1:
         return parts[0]
     return 0
 
 
 def _parse_int(text: str) -> int:
-    if not text:
+    if not text or len(text) > _MAX_NUMERIC_LABEL_CHARS:
         return 0
-    cleaned = re.sub(r"[^0-9]", "", text)
-    return int(cleaned) if cleaned else 0
+    match = re.fullmatch(r"([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)\s+views?", text.strip(), re.I)
+    if match is None:
+        return 0
+    value = parse_ascii_uint(match.group(1).replace(",", ""))
+    return value if value is not None and value <= _MAX_VIEW_COUNT else 0
 
 
 def _parse_upload_date(upload_date: str) -> datetime | None:
     try:
-        return datetime.strptime(upload_date, "%Y%m%d")
+        return datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=UTC)
     except ValueError:
         return None

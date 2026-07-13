@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from distill.llm.router import RouterConfig, call
 from distill.pipeline.analysis.chunking import estimate_tokens
+from distill.pipeline.costs import CostTracker
 
 __all__ = [
     "CompactionResult",
@@ -97,6 +98,7 @@ def compact_phase_output(
     context_window: int,
     *,
     target_ratio: float = 0.25,
+    tracker: CostTracker | None = None,
 ) -> CompactionResult:
     """High-recall summary preserving key facts, entities, and conclusions.
 
@@ -135,6 +137,7 @@ def compact_phase_output(
         workload_tag="report",
         prompt=prompt,
         call_type="compaction_high_recall",
+        usage_tracker=tracker,
     )
     compacted = response.text.strip()
 
@@ -149,6 +152,7 @@ def compact_phase_output(
             workload_tag="report",
             prompt=precision_prompt,
             call_type="compaction_precision",
+            usage_tracker=tracker,
         )
         compacted = precision_response.text.strip()
 
@@ -170,6 +174,7 @@ def compact_between_phases(
     context_window: int,
     *,
     target_ratio: float = 0.25,
+    tracker: CostTracker | None = None,
 ) -> str:
     """Compact prior-phase output for use as context in the next phase.
 
@@ -209,5 +214,6 @@ def compact_between_phases(
         config,
         context_window,
         target_ratio=target_ratio,
+        tracker=tracker,
     )
     return result.compacted_text

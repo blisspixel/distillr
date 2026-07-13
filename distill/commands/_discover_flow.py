@@ -38,6 +38,7 @@ from distill.ingestors.youtube.browser_search import search_youtube_results
 from distill.ingestors.youtube.discovery import VideoInfo, enrich_videos
 from distill.library.paths import find_artifact
 from distill.llm.router import RouterConfig
+from distill.parsing import parse_ascii_uint
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import synthesize_site_topic
 from distill.pipeline.costs import CostTracker, load_cost_calibration
@@ -179,10 +180,7 @@ def _discover_sizing_flow(
     if choice in ("n", "no", "cancel", ""):
         console.print("[yellow]Aborted by user.[/yellow]")
         return
-    try:
-        idx = int(choice)
-    except ValueError:
-        idx = 0
+    idx = parse_ascii_uint(choice) or 0
     if idx < 1 or idx > len(options):
         console.print(f"[yellow]'{choice}' is not a listed option. Aborted.[/yellow]")
         return

@@ -3,6 +3,7 @@
 import json
 import sys
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 import typer
@@ -577,6 +578,8 @@ class TestResolveVideoChannelName:
         assert result == "standalone"
 
     def test_yt_dlp_metadata_uses_uploader_string_when_channel_missing(self, monkeypatch):
+        seen_urls = []
+
         class FakeYDL:
             def __init__(self, _options):
                 pass
@@ -587,8 +590,9 @@ class TestResolveVideoChannelName:
             def __exit__(self, *_args):
                 return False
 
-            def extract_info(self, _url, *, download):
+            def extract_info(self, url, *, download):
                 assert download is False
+                seen_urls.append(url)
                 return {"uploader": "UploaderChannel"}
 
         monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYDL))
@@ -600,6 +604,20 @@ class TestResolveVideoChannelName:
         )
 
         assert result == "UploaderChannel"
+        assert seen_urls == ["https://www.youtube.com/watch?v=abc"]
+
+    def test_yt_dlp_metadata_rejects_open_redirect_without_fetching(self, monkeypatch):
+        youtube_dl = MagicMock()
+        monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=youtube_dl))
+
+        result = resolve_video_channel_name(
+            "https://www.youtube.com/redirect?q=http://169.254.169.254/",
+            SimpleNamespace(channel_name=""),
+            lambda url: "Fallback",
+        )
+
+        assert result == "standalone"
+        youtube_dl.assert_not_called()
 
 
 class TestEnsureChannelContext:

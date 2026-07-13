@@ -93,6 +93,7 @@ def synthesize_corpus_from_claims(
         workload_tag="synthesis",
         prompt=claim_synthesis_prompt(topic, claims, style=style),
         call_type="corpus_synthesis_two_pass",
+        usage_tracker=tracker,
     )
     synthesis = response.text
     if tracker:
@@ -303,6 +304,7 @@ def synthesize_corpus(
         workload_tag="site",
         prompt=corpus_synthesis_prompt(topic, source_sections, style=style),
         call_type="corpus_synthesis",
+        usage_tracker=tracker,
     )
     synthesis = response.text
     if tracker:

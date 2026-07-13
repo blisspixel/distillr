@@ -10,7 +10,10 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from distill.llm._parsing import parse_ascii_uint
+
 __all__ = [
+    "LOCAL_CALL_TIMEOUT_MAX",
     "LOCAL_PROVIDERS",
     "ProviderMetadata",
     "local_call_timeout",
@@ -51,6 +54,7 @@ LOCAL_FALLBACK_CONTEXT_WINDOW: int = 32_768
 # cloud-tuned default because a busy local GPU can pause tens of seconds between
 # tokens, and prompt prefill on a large paper produces no tokens for a while.
 LOCAL_CALL_TIMEOUT_FLOOR: int = 600
+LOCAL_CALL_TIMEOUT_MAX: int = 86_400
 
 
 def local_call_timeout(default: int) -> int:
@@ -63,9 +67,10 @@ def local_call_timeout(default: int) -> int:
     producing tokens; a genuinely stalled call fails after one idle window.
     """
     raw = os.environ.get("DISTILL_LOCAL_TIMEOUT", "").strip()
-    if raw.isdigit() and int(raw) > 0:
-        return int(raw)
-    return max(default, LOCAL_CALL_TIMEOUT_FLOOR)
+    configured = parse_ascii_uint(raw)
+    if configured is not None and 0 < configured <= LOCAL_CALL_TIMEOUT_MAX:
+        return configured
+    return min(max(default, LOCAL_CALL_TIMEOUT_FLOOR), LOCAL_CALL_TIMEOUT_MAX)
 
 
 @dataclass(frozen=True)

@@ -15,6 +15,12 @@ class TestRegistry:
         assert parse_prompt_id("ask.v1") == ("ask", 1)
         assert parse_prompt_id("not-a-prompt-id") is None
         assert parse_prompt_id("family.vX") is None
+        assert parse_prompt_id("family.v\u0661") is None
+        assert parse_prompt_id("family.v0") is None
+        assert parse_prompt_id("family.v01") is None
+        assert parse_prompt_id("family.v10000") is None
+        assert parse_prompt_id("Family.v1") is None
+        assert parse_prompt_id("family.v" + "9" * 5000) is None
 
     def test_every_registry_entry_is_parseable_and_self_consistent(self):
         """The registry must never carry an id whose family key disagrees with
@@ -59,6 +65,16 @@ class TestCollectStaleness:
     def test_empty_topic(self, tmp_path):
         rollup = collect_staleness(tmp_path / "empty")
         assert rollup == StalenessRollup()
+
+    def test_future_prompt_version_is_not_reported_as_current(self, tmp_path):
+        topic_dir = tmp_path / "t"
+        _insight(topic_dir, "future", "synthesis.paper.v9999")
+
+        rollup = collect_staleness(topic_dir)
+
+        assert rollup.current == 0
+        assert rollup.stale == []
+        assert rollup.unknown_family == 1
 
     def test_reanalysis_commands_route_by_source(self, tmp_path):
         from distill.pipeline.audit import reanalysis_commands

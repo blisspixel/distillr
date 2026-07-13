@@ -30,7 +30,12 @@ from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
 from distill.pipeline.report._file_search_upload import upload_documents
-from distill.pipeline.report._interactions import await_interaction, interaction_text
+from distill.pipeline.report._interactions import (
+    await_interaction,
+    interaction_text,
+    require_cost_tracker,
+    submit_metered_interaction,
+)
 from distill.pipeline.report.file_search import delete_store
 
 __all__ = [
@@ -193,6 +198,7 @@ def run_research_brief(
         provider="gemini",
         workload="research-brief",
     )
+    tracker = require_cost_tracker(tracker)
 
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 
@@ -224,20 +230,22 @@ def run_research_brief(
         console.print(f"  Agent: {DEEP_RESEARCH_MODEL}")
         console.print(f"  Grounded on {uploaded} docs. Expect 5-15 minutes.\n")
 
-        interaction = client.interactions.create(
-            input=prompt,
-            agent=DEEP_RESEARCH_MODEL,
-            background=True,
-            tools=[
-                {
-                    "type": "file_search",
-                    "file_search_store_names": [store_name],
-                }
-            ],
+        interaction = submit_metered_interaction(
+            lambda: client.interactions.create(
+                input=prompt,
+                agent=DEEP_RESEARCH_MODEL,
+                background=True,
+                tools=[
+                    {
+                        "type": "file_search",
+                        "file_search_store_names": [store_name],
+                    }
+                ],
+            ),
+            tracker=tracker,
+            model=DEEP_RESEARCH_MODEL,
         )
         interaction_id = interaction.id
-        if tracker:
-            tracker.record_gemini_query(DEEP_RESEARCH_MODEL)
         console.print(f"  [dim]Job ID: {interaction_id}[/dim]")
 
         completed = await_interaction(client, interaction_id, console, label="Research")

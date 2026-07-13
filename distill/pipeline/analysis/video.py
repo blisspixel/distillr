@@ -56,13 +56,25 @@ def analyze_video(
     prompt1 = pass1_extraction_prompt(
         title, upload_date, channel_name, transcript, custom_instructions, goal=goal
     )
-    response1 = llm_call(rc, workload_tag="analysis", prompt=prompt1, call_type="pass1")
+    response1 = llm_call(
+        rc,
+        workload_tag="analysis",
+        prompt=prompt1,
+        call_type="pass1",
+        usage_tracker=tracker,
+    )
     pass1 = response1.text
     if tracker:
         tracker.record(TokenUsage.from_response(response1, call_type="pass1"))
 
     prompt2 = pass2_synthesis_prompt(title, upload_date, channel_name, pass1, goal=goal, lens=lens)
-    response2 = llm_call(rc, workload_tag="analysis", prompt=prompt2, call_type="pass2")
+    response2 = llm_call(
+        rc,
+        workload_tag="analysis",
+        prompt=prompt2,
+        call_type="pass2",
+        usage_tracker=tracker,
+    )
     pass2 = response2.text
     if tracker:
         tracker.record(TokenUsage.from_response(response2, call_type="pass2"))
@@ -101,7 +113,12 @@ def analyze_short(
 
     prompt = shorts_insight_prompt(title, upload_date, channel_name, transcript, goal=goal)
     response = llm_call(
-        rc, workload_tag="analysis", prompt=prompt, max_tokens=2048, call_type="short"
+        rc,
+        workload_tag="analysis",
+        prompt=prompt,
+        max_tokens=2048,
+        call_type="short",
+        usage_tracker=tracker,
     )
     result = response.text
     if tracker:
@@ -143,7 +160,12 @@ def analyze_scan(
         title, upload_date, channel_name, transcript, custom_instructions, goal=goal
     )
     response = llm_call(
-        rc, workload_tag="analysis", prompt=prompt, max_tokens=2048, call_type="scan"
+        rc,
+        workload_tag="analysis",
+        prompt=prompt,
+        max_tokens=2048,
+        call_type="scan",
+        usage_tracker=tracker,
     )
     result = response.text
     if tracker:
@@ -175,7 +197,13 @@ def generate_channel_context(
     """Generate a channel profile/context document."""
     rc = RouterConfig()
     prompt = channel_context_prompt(channel_name, video_titles)
-    response = llm_call(rc, workload_tag="analysis", prompt=prompt, call_type="channel_context")
+    response = llm_call(
+        rc,
+        workload_tag="analysis",
+        prompt=prompt,
+        call_type="channel_context",
+        usage_tracker=tracker,
+    )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="channel_context"))
     return response.text
@@ -191,7 +219,12 @@ def generate_watch_instructions(
     rc = RouterConfig()
     prompt = auto_watch_instructions_prompt(channel_name, video_titles)
     response = llm_call(
-        rc, workload_tag="analysis", prompt=prompt, max_tokens=256, call_type="watch_instructions"
+        rc,
+        workload_tag="analysis",
+        prompt=prompt,
+        max_tokens=256,
+        call_type="watch_instructions",
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="watch_instructions"))

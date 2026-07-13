@@ -38,6 +38,7 @@ from distill.claims.extract import extract_claims_from_insight
 from distill.claims.records import Claim, utcnow_iso
 from distill.library.insights import InsightRef, discover_insights
 from distill.llm import RouterConfig
+from distill.parsing import parse_ascii_uint
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,8 @@ _DEFAULT_MAX_INSIGHTS_PER_RUN = 250
 
 def _max_insights_per_run() -> int:
     raw = os.environ.get("DISTILL_CLAIMS_MAX_INSIGHTS", "").strip()
-    return int(raw) if raw.isdigit() else _DEFAULT_MAX_INSIGHTS_PER_RUN
+    parsed = parse_ascii_uint(raw)
+    return parsed if parsed is not None else _DEFAULT_MAX_INSIGHTS_PER_RUN
 
 
 def _pending_claim_refs(
@@ -75,7 +77,7 @@ def _pending_claim_refs(
     uncapped_count = len(pending)
     cap = _max_insights_per_run()
     if cap:
-        pending = pending[:cap]
+        pending = pending[: min(cap, uncapped_count)]
     return refs, pending, uncapped_count
 
 

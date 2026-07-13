@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from pathlib import Path
@@ -11,13 +12,14 @@ from typing import Protocol
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
-from pypdf import PdfReader
 
 from distill.config import DistillConfig
+from distill.ingestors.local.extract import extract_pdf_text_bounded
 from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library.paths import slugify_title
+from distill.parsing import parse_ascii_uint
 
 __all__ = [
     "AttachmentRecord",
@@ -34,11 +36,21 @@ _ATTACHMENT_TEXT_LIMIT = 30_000
 # would otherwise be fully read into memory by ``response.content``.
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
 _PDF_MAX_REDIRECTS = 5
+_DIRECT_PROXIES = {"http": "", "https": ""}
 
 
 class _TranscriptionCostTracker(Protocol):
-    def record_transcription(
+    def authorize_transcription(
         self, provider: str, duration_s: float, *, model: str = ""
+    ) -> None: ...
+
+    def record_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+        outcome: str = "completed",
     ) -> None: ...
 
 
@@ -170,6 +182,7 @@ def _download_pdf_bytes(url: str) -> bytes:
                 timeout=30,
                 stream=True,
                 allow_redirects=False,
+                proxies=_DIRECT_PROXIES,
             ) as response,
         ):
             if 300 <= response.status_code < 400:
@@ -185,7 +198,8 @@ def _download_pdf_bytes(url: str) -> bytes:
             if content_type and content_type not in {"application/pdf", "application/octet-stream"}:
                 raise _AttachmentFetchError(f"Unexpected content-type: {content_type}")
             declared = response.headers.get("Content-Length")
-            if declared and declared.isdigit() and int(declared) > _PDF_DOWNLOAD_CAP_BYTES:
+            declared_size = parse_ascii_uint(declared or "")
+            if declared_size is not None and declared_size > _PDF_DOWNLOAD_CAP_BYTES:
                 raise _AttachmentFetchError("PDF exceeds size cap")
             buf = BytesIO()
             total = 0
@@ -215,13 +229,14 @@ def _ingest_pdf_attachment(
         return attachment, ""
     try:
         data = _download_pdf_bytes(attachment.url)
-        reader = PdfReader(BytesIO(data))
-        text_parts: list[str] = []
-        for pdf_page in reader.pages[:10]:
-            text = (pdf_page.extract_text() or "").strip()
-            if text:
-                text_parts.append(text)
-        extracted = "\n\n".join(text_parts).strip()[:_ATTACHMENT_TEXT_LIMIT]
+        with tempfile.TemporaryDirectory(prefix="distill-attachment-pdf-") as temp_dir:
+            pdf_path = Path(temp_dir) / "attachment.pdf"
+            pdf_path.write_bytes(data)
+            extracted = extract_pdf_text_bounded(
+                pdf_path,
+                max_chars=_ATTACHMENT_TEXT_LIMIT,
+                max_pages=10,
+            ).strip()
         if not extracted:
             attachment.status = "failed"
             attachment.note = "PDF downloaded but no extractable text was found"
@@ -293,16 +308,20 @@ def _extract_youtube_video_id(url: str) -> str:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     if _host_matches(host, "youtu.be"):
-        return parsed.path.strip("/")
+        return _validated_youtube_video_id(parsed.path.strip("/"))
     if not _host_matches(host, "youtube.com"):
         return ""
-    query_id = parse_qs(parsed.query).get("v")
-    if query_id:
-        return query_id[0]
+    for query_id in parse_qs(parsed.query).get("v", []):
+        if validated := _validated_youtube_video_id(query_id):
+            return validated
     match = re.search(r"/(?:embed|shorts)/([A-Za-z0-9_-]{6,})", parsed.path)
     if match:
-        return match.group(1)
+        return _validated_youtube_video_id(match.group(1))
     return ""
+
+
+def _validated_youtube_video_id(candidate: str) -> str:
+    return candidate if re.fullmatch(r"[A-Za-z0-9_-]{6,64}", candidate) else ""
 
 
 def _host_matches(host: str, domain: str) -> bool:

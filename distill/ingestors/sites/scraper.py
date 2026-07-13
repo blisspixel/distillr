@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from distill.ingestors.sites.pinned_proxy import PinnedBrowserProxy
 from distill.library.paths import site_name_from_url, slugify_title
 
 __all__ = [
@@ -229,19 +230,11 @@ def _link_is_crawlable_for_seed(
 
 
 def _install_public_web_route(context) -> None:
-    """Abort browser requests that leave the public web URL policy."""
+    """Abort non-HTTPS or non-public requests before they reach the pinned proxy."""
     from distill.ingestors.net import is_public_web_url
 
-    cache: dict[str, bool] = {}
-
     def guard(route, request) -> None:
-        parsed = urlparse(request.url)
-        cache_key = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
-        allowed = cache.get(cache_key)
-        if allowed is None:
-            allowed = is_public_web_url(request.url)
-            cache[cache_key] = allowed
-        if allowed:
+        if urlparse(request.url).scheme.lower() == "https" and is_public_web_url(request.url):
             route.continue_()
         else:
             route.abort()
@@ -256,7 +249,11 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
     # cloud-metadata link-local range, or non-http(s) schemes such as
     # ``file://``. Without this gate, Playwright would dutifully ``page.goto``
     # whatever the user/agent supplied and surface the response as page text.
-    if not is_public_web_url(seed.url) or not is_crawlable_url(seed.url):
+    if (
+        urlparse(seed.url).scheme.lower() != "https"
+        or not is_public_web_url(seed.url)
+        or not is_crawlable_url(seed.url)
+    ):
         return []
 
     from playwright.sync_api import sync_playwright
@@ -266,9 +263,18 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
     visited: set[str] = set()
     pages: list[SitePage] = []
 
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        context = browser.new_context()
+    with PinnedBrowserProxy() as proxy_server, sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-quic",
+                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            ],
+        )
+        context = browser.new_context(
+            proxy={"server": proxy_server},
+            service_workers="block",
+        )
         _install_public_web_route(context)
         page = context.new_page()
         page.set_default_timeout(30_000)

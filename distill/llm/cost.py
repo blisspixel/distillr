@@ -9,6 +9,7 @@ source of truth.  Supports per-token and per-query pricing models.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ TRANSCRIPTION_PRICING: dict[str, float] = {
     "local": 0.0,
     "faster-whisper": 0.0,
 }
+MAX_TRANSCRIPTION_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
 
 # ---------------------------------------------------------------------------
 # Pricing per 1 M tokens.  Per-query models use a ``per_query`` key instead.
@@ -100,14 +102,36 @@ def deep_research_query_cost(model: str = "") -> float:
     return get_pricing(name).get("per_query", GEMINI_DEEP_RESEARCH_COST)
 
 
-def transcription_cost(provider: str, seconds: float) -> float:
+def normalize_transcription_duration(seconds: object) -> float:
+    """Return a finite, nonnegative duration within the accounting bound."""
+
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+        raise ValueError("transcription duration must be a real number")
+    try:
+        normalized = float(seconds)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError("transcription duration is outside the supported range") from exc
+    if (
+        not math.isfinite(normalized)
+        or normalized < 0
+        or normalized > MAX_TRANSCRIPTION_DURATION_SECONDS
+    ):
+        raise ValueError(
+            "transcription duration must be finite and between 0 and "
+            f"{MAX_TRANSCRIPTION_DURATION_SECONDS} seconds"
+        )
+    return normalized
+
+
+def transcription_cost(provider: str, seconds: object) -> float:
     """USD for ``seconds`` of audio at ``provider``'s per-hour STT rate.
 
     Returns 0 for local/unknown providers. ``provider`` is the provider or model
     string from ``TranscriptionResult`` (e.g. ``"xai-grok-stt"``, ``"whisper-1"``).
     """
+    duration = normalize_transcription_duration(seconds)
     rate = TRANSCRIPTION_PRICING.get(provider, 0.0)
-    return rate * max(0.0, seconds) / 3600.0
+    return rate * duration / 3600.0
 
 
 def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:

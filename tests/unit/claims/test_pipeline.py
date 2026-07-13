@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from distill.claims import pipeline as pipeline_mod
 from distill.claims.exports import read_claims, record_extracted_sources
 from distill.claims.pipeline import ClaimsSummary, pending_claim_extraction_count, run_claims
 from distill.llm import RouterConfig
@@ -118,6 +119,18 @@ def test_pending_claim_extraction_count_respects_ledger_and_cap(
 
     monkeypatch.setenv("DISTILL_CLAIMS_MAX_INSIGHTS", "0")
     assert pending_claim_extraction_count(tmp_path) == 2
+
+    monkeypatch.setenv("DISTILL_CLAIMS_MAX_INSIGHTS", "9" * 100)
+    assert pending_claim_extraction_count(tmp_path) == 2
+
+
+@pytest.mark.parametrize("raw", ["\u00b2", "\u0661\u0662", "9" * 5000])
+def test_claim_limit_rejects_non_ascii_or_oversized_integer(
+    monkeypatch: pytest.MonkeyPatch, raw: str
+) -> None:
+    monkeypatch.setenv("DISTILL_CLAIMS_MAX_INSIGHTS", raw)
+
+    assert pipeline_mod._max_insights_per_run() == 250
 
 
 def test_run_claims_caps_pending_insights(

@@ -16,6 +16,7 @@ from benchmarks.corpus_scale import (
     run_corpus_scale,
     source_fingerprint,
 )
+from benchmarks.corpus_scale import generator as generator_module
 from benchmarks.corpus_scale import runner as runner_module
 from benchmarks.corpus_scale.__main__ import _parser, _result_exit_code
 from benchmarks.corpus_scale.generator import load_worker_corpus
@@ -141,6 +142,21 @@ def test_operation_result_digests_do_not_depend_on_temporary_root() -> None:
             digests.append({operation["name"]: operation["samples"][0]["result_digest"]})
 
     assert digests[0] == digests[1]
+
+
+def test_worker_token_with_option_prefix_is_passed_unambiguously(monkeypatch) -> None:
+    monkeypatch.setattr(generator_module.secrets, "token_urlsafe", lambda _length: "-leading")
+
+    with generated_corpus(scale=1, seed=8081) as corpus:
+        result = run_corpus_scale(
+            corpus,
+            iterations=1,
+            warmups=0,
+            operations=["discover_insights"],
+        )
+
+    operation = result["operations"][0]
+    assert operation["status"] == "ok", operation.get("error")
 
 
 def test_environment_reports_matching_source_and_installed_versions(monkeypatch) -> None:
@@ -296,7 +312,7 @@ def test_worker_crash_invalidates_operation(monkeypatch) -> None:
     assert operation["status"] == "error"
     assert operation.get("error") == {
         "type": "WorkerCrash",
-        "message": "discover_insights worker exited with code 9",
+        "message": "discover_insights worker exited with code 9: worker crashed",
     }
     assert _result_exit_code(result) == 1
 

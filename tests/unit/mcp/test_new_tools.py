@@ -213,13 +213,12 @@ class TestCostsTool:
 
 class TestDoctorTool:
     def test_returns_checks(self, mock_config):
-        # Keep live key validation off the network; return healthy stubs.
-        def _fake(provider, config):
-            return ("ok", "stub") if provider == "xai" else ("not_set", "")
-
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
-            patch("distill.doctor.checks._doctor_validate_key", side_effect=_fake),
+            patch(
+                "distill.doctor.checks._doctor_validate_key",
+                side_effect=AssertionError("MCP doctor must not contact providers"),
+            ),
         ):
             from distill.mcp.tools.doctor import doctor
 
@@ -229,43 +228,21 @@ class TestDoctorTool:
         assert "xai_api_key" in check_names
         assert "library_dir" in check_names
 
-    def test_flags_invalid_key(self, mock_config):
-        """A present-but-rejected key reports 'invalid', not a false-green 'ok'."""
-
-        def _fake(provider, config):
-            if provider == "gemini":
-                return ("invalid", "400 API_KEY_INVALID")
-            return ("ok", "stub")
-
+    def test_configured_key_is_truthfully_reported_as_not_live_validated(self, mock_config):
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
-            patch("distill.doctor.checks._doctor_validate_key", side_effect=_fake),
-        ):
-            from distill.mcp.tools.doctor import doctor
-
-            result = json.loads(doctor())
-        gem = next(c for c in result["checks"] if c["check"] == "gemini_api_key")
-        assert gem["status"] == "invalid"
-        assert result["status"] == "warning"
-
-    def test_reports_policy_skipped_key_validation(self, mock_config):
-        def _fake(provider, config):
-            del config
-            if provider == "gemini":
-                return ("skipped", "Route blocked by no-metered cost policy")
-            return ("ok", "stub")
-
-        with (
-            patch("distill.mcp.server._config", return_value=mock_config),
-            patch("distill.doctor.checks._doctor_validate_key", side_effect=_fake),
+            patch(
+                "distill.doctor.checks._doctor_validate_key",
+                side_effect=AssertionError("MCP doctor must not contact providers"),
+            ),
         ):
             from distill.mcp.tools.doctor import doctor
 
             result = json.loads(doctor())
 
-        gem = next(c for c in result["checks"] if c["check"] == "gemini_api_key")
-        assert gem["status"] == "skipped"
-        assert "Route blocked" in gem["detail"]
+        xai = next(c for c in result["checks"] if c["check"] == "xai_api_key")
+        assert xai["status"] == "unknown"
+        assert "distill doctor" in xai["detail"]
         assert result["status"] == "warning"
 
     def test_missing_api_key(self, tmp_path):
@@ -1200,6 +1177,20 @@ class TestDiscoverTool:
         monkeypatch.setattr("distill.ingestors.youtube.discovery.search_videos", youtube_search)
 
         assert _search_candidates("agent memory", days=30, limit=3) == [video]
+
+    def test_search_candidates_rejects_unbounded_days_without_fallback(self, monkeypatch):
+        from distill.mcp.tools.discover import _search_candidates
+
+        browser = MagicMock()
+        fallback = MagicMock()
+        monkeypatch.setattr(
+            "distill.ingestors.youtube.browser_search.search_youtube_results", browser
+        )
+        monkeypatch.setattr("distill.ingestors.youtube.discovery.search_videos", fallback)
+
+        assert _search_candidates("agent memory", days=10**4000, limit=3) == []
+        browser.assert_not_called()
+        fallback.assert_not_called()
 
     def test_search_videos_empty_candidates_returns_message(self, mock_config, monkeypatch):
         from distill.mcp.tools import discover as discover_tool

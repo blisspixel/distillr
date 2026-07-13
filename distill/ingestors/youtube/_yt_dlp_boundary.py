@@ -8,7 +8,10 @@ from typing import Any, cast
 
 from yt_dlp.utils import DateRange
 
+from distill.parsing import parse_ascii_uint
+
 YtDlpInfo = Mapping[str, object]
+_MAX_INTEGER_FIELD = (1 << 63) - 1
 
 
 def ydl_params(params: Mapping[str, object]) -> Any:
@@ -53,10 +56,14 @@ def first_text(row: YtDlpInfo, keys: Iterable[str], default: str = "") -> str:
 
 def int_field(row: YtDlpInfo, key: str, default: int = 0) -> int:
     value = row.get(key)
-    if not isinstance(value, str | int | float):
+    if isinstance(value, bool) or not isinstance(value, str | int | float):
         return default
-    try:
-        parsed = int(value)
-    except (OverflowError, TypeError, ValueError):
+    if isinstance(value, str):
+        parsed = parse_ascii_uint(value)
+    elif isinstance(value, float):
+        parsed = int(value) if math.isfinite(value) and value.is_integer() else None
+    else:
+        parsed = value
+    if parsed is None:
         return default
-    return parsed if math.isfinite(parsed) else default
+    return parsed if 0 <= parsed <= _MAX_INTEGER_FIELD else default

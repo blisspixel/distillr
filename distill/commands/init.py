@@ -13,7 +13,12 @@ manual next steps. Registered onto the app from ``distill.cli`` (mirroring
 
 from __future__ import annotations
 
+import contextlib
 import os
+import stat
+import tempfile
+from collections.abc import Callable, Generator
+from errno import ELOOP
 from pathlib import Path
 from typing import Literal, NotRequired, TypedDict
 
@@ -22,6 +27,8 @@ import typer
 from distill._console import console
 from distill.commands._helpers import tty_confirm, tty_prompt
 from distill.commands._json import emit_json, json_mode_active
+from distill.library.locking import exclusive_file_lock, open_lock_file
+from distill.library.paths import atomic_write_text
 
 type InitProvider = Literal["cloud", "local"]
 
@@ -61,8 +68,29 @@ GEMINI_API_KEY=
 # DISTILL_OUTPUT_DIR=./library
 """
 
+
+def _env_file_operation[T](path: Path, operation: Callable[[], T]) -> T:
+    """Run one expected env-file operation with a stable CLI failure surface."""
+
+    try:
+        return operation()
+    except (OSError, ValueError) as exc:
+        message = f"Environment configuration failed for {path}: {exc}"
+        if json_mode_active():
+            emit_json(
+                {"reason": "env_file_error", "env_file": str(path)},
+                error=message,
+            )
+        else:
+            console.print(f"[red]{message}[/red]")
+        exit_code = 3 if isinstance(exc, ValueError) else 1
+        raise typer.Exit(exit_code) from exc
+
+
 _ENV_FILE_MODE = 0o600
 _POSIX_PERMISSIONS = os.name == "posix"
+_ENV_RACE_RETRIES = 3
+_ENV_LOCK_TIMEOUT_SECONDS = 10.0
 
 
 def env_file_path() -> Path:
@@ -71,25 +99,155 @@ def env_file_path() -> Path:
     return Path.cwd() / ".env"
 
 
-def _restrict_env_file(path: Path) -> None:
-    """Limit an existing env file to its owner on POSIX systems."""
-    if _POSIX_PERMISSIONS:
-        path.chmod(_ENV_FILE_MODE)
-
-
-def _write_env_text(path: Path, content: str) -> None:
-    """Write env content with owner-only POSIX permissions from creation."""
-    if path.exists():
-        _restrict_env_file(path)
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, _ENV_FILE_MODE)
+def _initial_env_stat(path: Path) -> os.stat_result | None:
+    """Return validated initial metadata for an existing regular env file."""
     try:
-        stream = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        initial_stat = path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(initial_stat.st_mode):
+        raise ValueError(f"Refusing to use a symbolic link as an env file: {path}")
+    if not stat.S_ISREG(initial_stat.st_mode):
+        raise ValueError(f"Refusing to use a non-file env path: {path}")
+    if initial_stat.st_nlink != 1:
+        raise ValueError(f"Refusing to use a multiply linked env file: {path}")
+    return initial_stat
+
+
+def _validate_env_descriptor(
+    path: Path,
+    descriptor: int,
+    initial_stat: os.stat_result,
+) -> None:
+    """Confirm the opened descriptor still identifies the validated path."""
+    descriptor_stat = os.fstat(descriptor)
+    path_stat = path.lstat()
+    if stat.S_ISLNK(path_stat.st_mode):
+        raise ValueError(f"Refusing to use a symbolic link as an env file: {path}")
+    if not stat.S_ISREG(descriptor_stat.st_mode) or not stat.S_ISREG(path_stat.st_mode):
+        raise ValueError(f"Refusing to use a non-file env path: {path}")
+    if descriptor_stat.st_nlink != 1 or path_stat.st_nlink != 1:
+        raise ValueError(f"Refusing to use a multiply linked env file: {path}")
+    identities = {
+        (initial_stat.st_dev, initial_stat.st_ino),
+        (descriptor_stat.st_dev, descriptor_stat.st_ino),
+        (path_stat.st_dev, path_stat.st_ino),
+    }
+    if len(identities) != 1:
+        raise ValueError(f"Env file changed while it was being opened: {path}")
+
+
+def _open_existing_env(path: Path) -> int | None:
+    """Open an existing regular env file by descriptor, never through a symlink."""
+
+    initial_stat = _initial_env_stat(path)
+    if initial_stat is None:
+        return None
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        if exc.errno == ELOOP:
+            raise ValueError(f"Refusing to use a symbolic link as an env file: {path}") from exc
+        raise
+    try:
+        _validate_env_descriptor(path, descriptor, initial_stat)
+        if _POSIX_PERMISSIONS:
+            os.fchmod(descriptor, _ENV_FILE_MODE)
+        return descriptor
     except BaseException:
         os.close(descriptor)
         raise
-    with stream:
-        stream.write(content)
-    _restrict_env_file(path)
+
+
+def _read_existing_env(path: Path) -> str | None:
+    """Read an existing env file through the validated descriptor."""
+
+    descriptor = _open_existing_env(path)
+    if descriptor is None:
+        return None
+    with os.fdopen(descriptor, encoding="utf-8") as env_file:
+        return env_file.read()
+
+
+def _validate_env_path(path: Path) -> None:
+    """Reject paths whose writes could affect a different filesystem object."""
+
+    if path.is_symlink():
+        raise ValueError(f"Refusing to use a symbolic link as an env file: {path}")
+    if path.exists() and not path.is_file():
+        raise ValueError(f"Refusing to use a non-file env path: {path}")
+
+
+def _write_env_text(path: Path, content: str) -> None:
+    """Atomically write env content with owner-only POSIX permissions."""
+    _validate_env_path(path)
+    atomic_write_text(path, content)
+
+
+def _create_env_text_exclusive(path: Path, content: str) -> bool:
+    """Publish a complete env file only when no directory entry already exists."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temp_path = Path(temp_name)
+    try:
+        try:
+            env_file = os.fdopen(descriptor, "w", encoding="utf-8")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        with env_file:
+            env_file.write(content)
+            env_file.flush()
+            os.fsync(env_file.fileno())
+        try:
+            os.link(temp_path, path)
+        except FileExistsError:
+            return False
+        return True
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def _create_env_if_absent(path: Path, content: str) -> bool:
+    """Create once or preserve a concurrently published regular env file."""
+
+    for _ in range(_ENV_RACE_RETRIES):
+        descriptor = _open_existing_env(path)
+        if descriptor is not None:
+            os.close(descriptor)
+            return False
+        if _create_env_text_exclusive(path, content):
+            return True
+    raise OSError(f"Env path changed repeatedly while it was being created: {path}")
+
+
+@contextlib.contextmanager
+def _env_update_lock(path: Path) -> Generator[None]:
+    """Serialize env read-modify-write operations across threads and processes."""
+
+    lock_path = path.with_name(f"{path.name}.distill.lock")
+    with (
+        open_lock_file(lock_path) as lock_file,
+        exclusive_file_lock(
+            lock_file,
+            timeout_seconds=_ENV_LOCK_TIMEOUT_SECONDS,
+            timeout_message=f"timed out waiting for the env lock: {path}",
+        ),
+    ):
+        yield
 
 
 def create_env_file(path: Path, *, force: bool = False) -> bool:
@@ -100,11 +258,12 @@ def create_env_file(path: Path, *, force: bool = False) -> bool:
     user's API keys, and silently overwriting it is the one failure mode this
     command must not have.
     """
-    if path.exists() and not force:
-        _restrict_env_file(path)
-        return False
-    _write_env_text(path, _ENV_TEMPLATE)
-    return True
+    with _env_update_lock(path):
+        _validate_env_path(path)
+        if force:
+            _write_env_text(path, _ENV_TEMPLATE)
+            return True
+        return _create_env_if_absent(path, _ENV_TEMPLATE)
 
 
 def set_env_var(path: Path, key: str, value: str) -> None:
@@ -114,21 +273,29 @@ def set_env_var(path: Path, key: str, value: str) -> None:
     ``# key=`` are left untouched); appends the assignment if absent. Creates the
     file from the template first if it does not exist.
     """
-    if not path.exists():
-        create_env_file(path)
-    else:
-        _restrict_env_file(path)
-    lines = path.read_text(encoding="utf-8").splitlines()
-    prefix = f"{key}="
-    replaced = False
-    for i, line in enumerate(lines):
-        if line.lstrip().startswith(prefix) and not line.lstrip().startswith("#"):
-            lines[i] = f"{key}={value}"
-            replaced = True
-            break
-    if not replaced:
-        lines.append(f"{key}={value}")
-    _write_env_text(path, "\n".join(lines) + "\n")
+    with _env_update_lock(path):
+        _validate_env_path(path)
+        existing: str | None = None
+        for _ in range(_ENV_RACE_RETRIES):
+            existing = _read_existing_env(path)
+            if existing is not None:
+                break
+            if _create_env_text_exclusive(path, _ENV_TEMPLATE):
+                existing = _ENV_TEMPLATE
+                break
+        if existing is None:
+            raise OSError(f"Env path changed repeatedly while it was being opened: {path}")
+        lines = existing.splitlines()
+        prefix = f"{key}="
+        replaced = False
+        for i, line in enumerate(lines):
+            if line.lstrip().startswith(prefix) and not line.lstrip().startswith("#"):
+                lines[i] = f"{key}={value}"
+                replaced = True
+                break
+        if not replaced:
+            lines.append(f"{key}={value}")
+        _write_env_text(path, "\n".join(lines) + "\n")
 
 
 def chromium_status() -> str:
@@ -260,7 +427,7 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
     env_path = env_file_path()
 
     # 1. Env file -- create if missing, never clobber without --force.
-    created = create_env_file(env_path, force=force)
+    created = _env_file_operation(env_path, lambda: create_env_file(env_path, force=force))
     if not quiet:
         if created:
             console.print(f"  [green]Created[/green] {env_path}")
@@ -307,7 +474,10 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                 non_tty_default="",
             ).strip()
             if entered:
-                set_env_var(env_path, "XAI_API_KEY", entered)
+                _env_file_operation(
+                    env_path,
+                    lambda: set_env_var(env_path, "XAI_API_KEY", entered),
+                )
                 if not quiet:
                     console.print("  [green]Saved[/green] XAI_API_KEY to .env")
         if not quiet:
@@ -331,7 +501,10 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         prov = _local_provider()
         if not prov:
             # User asked for local but .env still defaults to cloud -- set it.
-            set_env_var(env_path, "DISTILL_PROVIDER", "ollama")
+            _env_file_operation(
+                env_path,
+                lambda: set_env_var(env_path, "DISTILL_PROVIDER", "ollama"),
+            )
             prov = "ollama"
             if not quiet:
                 console.print("  [green]Set[/green] DISTILL_PROVIDER=ollama in .env")

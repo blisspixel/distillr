@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import types
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -267,6 +268,7 @@ def test_transcribe_media_does_not_fall_through_after_cost_policy_refusal(
 
     media = tmp_path / "m.mp4"
     media.write_bytes(b"x")
+    tracker = MagicMock()
     openai = MagicMock()
 
     with (
@@ -278,11 +280,38 @@ def test_transcribe_media_does_not_fall_through_after_cost_policy_refusal(
             "distill.ingestors.transcribe._transcribe_grok",
             side_effect=CostPolicyError("policy refused"),
         ),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_openai", openai),
         pytest.raises(TranscriptionError, match="policy refused"),
     ):
+        transcribe_media(media, _config(), tracker=tracker)
+
+    openai.assert_not_called()
+
+
+def test_transcribe_media_refuses_untracked_cloud_call(tmp_path: Path) -> None:
+    from distill.ingestors.transcribe import _LocalUnavailable
+
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    grok = MagicMock()
+    openai = MagicMock()
+    probe = MagicMock(return_value=60.0)
+
+    with (
+        patch(
+            "distill.ingestors.transcribe._transcribe_local",
+            _make_local_raises(_LocalUnavailable("not installed")),
+        ),
+        patch("distill.ingestors.transcribe._probe_media_duration", probe),
+        patch("distill.ingestors.transcribe._transcribe_grok", grok),
+        patch("distill.ingestors.transcribe._transcribe_openai", openai),
+        pytest.raises(TranscriptionError, match="requires a cost tracker"),
+    ):
         transcribe_media(media, _config())
 
+    probe.assert_not_called()
+    grok.assert_not_called()
     openai.assert_not_called()
 
 
@@ -333,14 +362,43 @@ def test_transcribe_media_probes_duration_before_tracked_cloud_call(tmp_path: Pa
         )
 
     assert returned.duration_s == 63.0
-    tracker.record_transcription.assert_called_once_with("xai-grok-stt", 63.0, model="grok-stt")
+    tracker.authorize_transcription.assert_called_once_with("xai-grok-stt", 63.0, model="grok-stt")
+    tracker.record_transcription.assert_called_once_with(
+        "xai-grok-stt",
+        63.0,
+        model="grok-stt",
+        outcome="completed",
+    )
 
 
-def test_probe_media_duration_parses_ffprobe_output(tmp_path: Path) -> None:
-    completed = types.SimpleNamespace(returncode=0, stdout="12.75\n")
+def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"media")
+    stream_probe = types.SimpleNamespace(returncode=0, stdout="0\n")
+    decode_probe = types.SimpleNamespace(
+        returncode=0,
+        stdout="out_time_us=60032000\nout_time=00:01:00.032000\nprogress=end\n",
+    )
 
-    with patch("distill.ingestors.transcribe.subprocess.run", return_value=completed):
-        assert _probe_media_duration(tmp_path / "m.mp4") == 12.75
+    with patch(
+        "distill.ingestors.transcribe.subprocess.run",
+        side_effect=[stream_probe, decode_probe],
+    ) as run:
+        assert _probe_media_duration(media) == 60.032
+
+    stream_command = run.call_args_list[0].args[0]
+    decode_command = run.call_args_list[1].args[0]
+    assert stream_command[:4] == ["ffprobe", "-v", "error", "-protocol_whitelist"]
+    assert stream_command[4] == "cache,pipe"
+    assert stream_command[-1] == "cache:pipe:0"
+    assert "stream=index" in stream_command
+    assert "-xerror" in decode_command
+    assert decode_command[decode_command.index("-protocol_whitelist") + 1] == "cache,pipe"
+    assert decode_command[decode_command.index("-i") + 1] == "cache:pipe:0"
+    assert "asetpts=N/SR/TB" in decode_command
+    assert decode_command[decode_command.index("-progress") + 1] == "pipe:1"
+    assert run.call_args_list[0].kwargs["stdin"].closed
+    assert run.call_args_list[1].kwargs["stdin"].closed
 
 
 @pytest.mark.parametrize(
@@ -350,20 +408,120 @@ def test_probe_media_duration_parses_ffprobe_output(tmp_path: Path) -> None:
 def test_probe_media_duration_handles_unavailable_probe(
     tmp_path: Path, side_effect: Exception
 ) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"media")
     with patch("distill.ingestors.transcribe.subprocess.run", side_effect=side_effect):
-        assert _probe_media_duration(tmp_path / "m.mp4") == 0.0
+        assert _probe_media_duration(media) == 0.0
 
 
 @pytest.mark.parametrize(
-    "completed",
+    "probe_results",
     [
-        types.SimpleNamespace(returncode=1, stdout="12.0"),
-        types.SimpleNamespace(returncode=0, stdout="not-a-duration"),
+        [types.SimpleNamespace(returncode=1, stdout="0\n")],
+        [types.SimpleNamespace(returncode=0, stdout="")],
+        [types.SimpleNamespace(returncode=0, stdout="0\n1\n")],
+        [
+            types.SimpleNamespace(returncode=0, stdout="0\n"),
+            types.SimpleNamespace(returncode=1, stdout="out_time_us=12000000\nprogress=end\n"),
+        ],
+        [
+            types.SimpleNamespace(returncode=0, stdout="0\n"),
+            types.SimpleNamespace(returncode=0, stdout="out_time_us=12000000\n"),
+        ],
+        [
+            types.SimpleNamespace(returncode=0, stdout="0\n"),
+            types.SimpleNamespace(returncode=0, stdout="out_time_us=invalid\nprogress=end\n"),
+        ],
     ],
 )
-def test_probe_media_duration_rejects_invalid_output(tmp_path: Path, completed: Any) -> None:
-    with patch("distill.ingestors.transcribe.subprocess.run", return_value=completed):
-        assert _probe_media_duration(tmp_path / "m.mp4") == 0.0
+def test_probe_media_duration_rejects_unsafe_or_invalid_output(
+    tmp_path: Path, probe_results: list[Any]
+) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"media")
+    with patch("distill.ingestors.transcribe.subprocess.run", side_effect=probe_results):
+        assert _probe_media_duration(media) == 0.0
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="FFmpeg tools are optional",
+)
+def test_probe_media_duration_ignores_compressed_container_timestamps(tmp_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg is not None
+    media = tmp_path / "compressed-pts.m4a"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=6:sample_rate=16000",
+            "-af",
+            "asetpts=PTS/60",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "32k",
+            "-y",
+            str(media),
+        ],
+        capture_output=True,
+        check=True,
+        stdin=subprocess.DEVNULL,
+        timeout=10,
+    )
+
+    assert _probe_media_duration(media) >= 6.0
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="FFmpeg tools are optional",
+)
+def test_probe_media_duration_does_not_follow_manifest_file_uri(tmp_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg is not None
+    segment = tmp_path / "segment.ts"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1:sample_rate=16000",
+            "-c:a",
+            "aac",
+            "-f",
+            "mpegts",
+            "-y",
+            str(segment),
+        ],
+        capture_output=True,
+        check=True,
+        stdin=subprocess.DEVNULL,
+        timeout=10,
+    )
+    manifest = tmp_path / "attacker.m3u8"
+    manifest.write_text(
+        "#EXTM3U\n"
+        "#EXT-X-VERSION:3\n"
+        "#EXT-X-TARGETDURATION:1\n"
+        "#EXT-X-MEDIA-SEQUENCE:0\n"
+        "#EXTINF:1.0,\n"
+        f"{segment.as_uri()}\n"
+        "#EXT-X-ENDLIST\n",
+        encoding="utf-8",
+    )
+
+    assert _probe_media_duration(manifest) == 0.0
 
 
 def test_transcribe_media_auto_falls_back_to_cloud(tmp_path: Path) -> None:
@@ -382,9 +540,10 @@ def test_transcribe_media_auto_falls_back_to_cloud(tmp_path: Path) -> None:
             "distill.ingestors.transcribe._transcribe_local",
             _make_local_raises(_LocalUnavailable("not installed")),
         ),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_openai", _cloud),
     ):
-        result = transcribe_media(media, _config(xai_key=""))
+        result = transcribe_media(media, _config(xai_key=""), tracker=MagicMock())
 
     assert result.provider == "openai"
     assert result.text == "cloud OK"
@@ -419,9 +578,10 @@ def test_transcribe_media_cloud_only_skips_local(tmp_path: Path) -> None:
 
     with (
         patch("distill.ingestors.transcribe._transcribe_local", local_mock),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_openai", cloud_mock),
     ):
-        result = transcribe_media(media, _config(xai_key=""), prefer="cloud")
+        result = transcribe_media(media, _config(xai_key=""), prefer="cloud", tracker=MagicMock())
 
     assert cloud_mock.call_count == 1
     assert local_mock.call_count == 0
@@ -439,6 +599,7 @@ def test_transcribe_media_cloud_uses_grok_before_openai(tmp_path: Path) -> None:
     )
 
     with (
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_grok", grok_mock),
         patch("distill.ingestors.transcribe._transcribe_openai", openai_mock),
     ):
@@ -447,6 +608,7 @@ def test_transcribe_media_cloud_uses_grok_before_openai(tmp_path: Path) -> None:
             _config(),
             prefer="cloud",
             duration_hint_s=1.0,
+            tracker=MagicMock(),
         )
 
     grok_mock.assert_called_once()
@@ -466,10 +628,11 @@ def test_transcribe_media_both_providers_fail_raises_combined_error(tmp_path: Pa
             "distill.ingestors.transcribe._transcribe_local",
             _make_local_raises(RuntimeError("cuda OOM")),
         ),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_openai", _cloud_fail),
         pytest.raises(TranscriptionError) as ei,
     ):
-        transcribe_media(media, _config(xai_key=""))
+        transcribe_media(media, _config(xai_key=""), tracker=MagicMock())
 
     # Both error messages preserved
     assert "cuda OOM" in str(ei.value)
@@ -544,10 +707,11 @@ def test_transcribe_media_grok_only_routes_to_grok(tmp_path: Path) -> None:
 
     with (
         patch("distill.ingestors.transcribe._transcribe_local", local),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_grok", grok),
         patch("distill.ingestors.transcribe._transcribe_openai", openai),
     ):
-        result = transcribe_media(media, _config(), prefer="grok")
+        result = transcribe_media(media, _config(), prefer="grok", tracker=MagicMock())
 
     assert result.provider == "xai-grok-stt"
     assert grok.call_count == 1
@@ -571,14 +735,47 @@ def test_transcribe_media_auto_falls_back_to_grok_before_openai(tmp_path: Path) 
             "distill.ingestors.transcribe._transcribe_local",
             _make_local_raises(_LocalUnavailable("no local")),
         ),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
         patch("distill.ingestors.transcribe._transcribe_grok", grok),
         patch("distill.ingestors.transcribe._transcribe_openai", openai),
     ):
-        result = transcribe_media(media, _config())
+        result = transcribe_media(media, _config(), tracker=MagicMock())
 
     assert result.provider == "xai-grok-stt"
     assert grok.call_count == 1
     assert openai.call_count == 0  # grok succeeded; openai never tried
+
+
+def test_failed_cloud_attempt_and_successful_fallback_are_both_recorded(
+    tmp_path: Path,
+) -> None:
+    from distill.ingestors.transcribe import _LocalUnavailable
+
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    tracker = MagicMock()
+    openai_result = TranscriptionResult(text="fallback", provider="openai", model="whisper-1")
+
+    with (
+        patch(
+            "distill.ingestors.transcribe._transcribe_local",
+            _make_local_raises(_LocalUnavailable("no local")),
+        ),
+        patch("distill.ingestors.transcribe._probe_media_duration", return_value=60.0),
+        patch("distill.ingestors.transcribe._transcribe_grok", side_effect=TimeoutError("slow")),
+        patch("distill.ingestors.transcribe._transcribe_openai", return_value=openai_result),
+    ):
+        result = transcribe_media(media, _config(), tracker=tracker)
+
+    assert result is openai_result
+    assert tracker.authorize_transcription.call_args_list == [
+        call("xai-grok-stt", 60.0, model="grok-stt"),
+        call("openai", 60.0, model="whisper-1"),
+    ]
+    assert tracker.record_transcription.call_args_list == [
+        call("xai-grok-stt", 60.0, model="grok-stt", outcome="failed"),
+        call("openai", 60.0, model="whisper-1", outcome="completed"),
+    ]
 
 
 # ---------------------------------------------------------------------------

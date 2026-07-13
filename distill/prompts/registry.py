@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import re
 
+from distill.parsing import parse_ascii_uint
+
 __all__ = ["PROMPT_IDS", "current_version", "parse_prompt_id"]
 
 PROMPT_IDS: dict[str, str] = {
@@ -49,15 +51,23 @@ PROMPT_IDS: dict[str, str] = {
     "ask": "ask.v1",
 }
 
-_PROMPT_ID_RE = re.compile(r"^(?P<family>.+)\.v(?P<version>\d+)$")
+_MAX_PROMPT_ID_CHARS = 256
+_PROMPT_ID_RE = re.compile(
+    r"^(?P<family>[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)\.v"
+    r"(?P<version>[1-9][0-9]{0,3})$"
+)
 
 
 def parse_prompt_id(prompt_id: str) -> tuple[str, int] | None:
     """Split ``"analysis.podcast.v1"`` into ``("analysis.podcast", 1)``; ``None`` if unparseable."""
-    match = _PROMPT_ID_RE.match(prompt_id.strip())
+    normalized = prompt_id.strip()
+    if len(normalized) > _MAX_PROMPT_ID_CHARS:
+        return None
+    match = _PROMPT_ID_RE.fullmatch(normalized)
     if not match:
         return None
-    return match.group("family"), int(match.group("version"))
+    version = parse_ascii_uint(match.group("version"))
+    return (match.group("family"), version) if version is not None else None
 
 
 def current_version(family: str) -> int | None:

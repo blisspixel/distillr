@@ -54,7 +54,7 @@ class JsonEnvelope:
         d: dict[str, Any] = {"status": self.status, "data": self.data}
         if self.error is not None:
             d["error"] = self.error
-        return json.dumps(d, indent=2, default=str)
+        return json.dumps(d, indent=2, default=str, allow_nan=False)
 
     @classmethod
     def from_json(cls, s: str) -> JsonEnvelope:

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from distill.llm.router import LLM_Response
+from distill.llm.types import LLM_Response
+from distill.llm.usage import UsageAttemptSink
 
 
 @runtime_checkable
@@ -32,6 +33,7 @@ class Provider(Protocol):
         temperature: float | None = None,
         call_type: str = "",
         reasoning_effort: str | None = None,
+        usage_sink: UsageAttemptSink | None = None,
     ) -> LLM_Response:
         """Send a prompt to the LLM and return a uniform response."""
         ...

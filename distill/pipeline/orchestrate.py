@@ -257,6 +257,7 @@ class LlmRoute:
             prompt=prompt,
             call_type="orchestrate_route",
             temperature=0.0,
+            usage_tracker=tracker,
         )
         if tracker:
             tracker.record(TokenUsage.from_response(response, call_type="orchestrate_route"))

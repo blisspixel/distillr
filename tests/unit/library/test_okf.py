@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import distill.library.okf as okf_module
 from distill.config import DistillConfig
 from distill.library.okf import (
     _display_path,
@@ -179,6 +180,34 @@ class TestExportOkfBundle:
 
         assert "Profile `vendor-docs-watch`: succeeded" in log
 
+    def test_log_uses_strict_bounded_cost_rows_and_structured_topic(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        _write(config.topic_dir("ai") / "ai_Topic_Synthesis.md", "# Synthesis\n")
+        cost_log = config.library_dir / ".distill" / "cost_log.jsonl"
+        _write(
+            cost_log,
+            "\n".join(
+                [
+                    '{"timestamp":"2026-06-18T10:00:00Z","command":"bad","n":NaN}',
+                    '{"timestamp":"2026-06-18T11:00:00Z","command":"huge","n":' + "9" * 5000 + "}",
+                    json.dumps(
+                        {
+                            "timestamp": "2026-06-18T12:00:00Z",
+                            "command": "ingest",
+                            "metadata": {"topic": "ai"},
+                        }
+                    ),
+                ]
+            ),
+        )
+
+        result = export_okf_bundle(config, "ai")
+        log = (result.output_dir / "log.md").read_text(encoding="utf-8")
+
+        assert "Cost log: ingest" in log
+        assert "Cost log: bad" not in log
+        assert "Cost log: huge" not in log
+
     def test_exports_all_topics_under_topic_directories(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
         _write(config.topic_dir("ai") / "ai_Topic_Synthesis.md", "# AI\n")
@@ -264,6 +293,26 @@ class TestValidateEdgeCases:
         assert not result.ok
         assert any("Missing YAML frontmatter" in e.message for e in result.errors)
 
+    def test_nested_markdown_symlink_is_rejected_without_reading_target(
+        self, tmp_path: Path
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", "# I\n")
+        _write(bundle / "log.md", "# L\n")
+        outside = tmp_path / "outside.md"
+        outside.write_text("private outside content", encoding="utf-8")
+        linked = bundle / "concept.md"
+        try:
+            linked.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        result = validate_okf_bundle(bundle)
+
+        assert not result.ok
+        assert any("symbolic link" in issue.message for issue in result.errors)
+        assert all("private outside content" not in issue.message for issue in result.errors)
+
     def test_external_anchor_and_nonmd_links_are_not_validated(self, tmp_path: Path) -> None:
         bundle = tmp_path / "bundle"
         _write(bundle / "index.md", "# I\n")
@@ -322,8 +371,16 @@ class TestExportEdgeCases:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
         outside = tmp_path / "elsewhere"
         outside.mkdir()
-        with pytest.raises(ValueError, match="Refusing to replace"):
+        with pytest.raises(ValueError, match="Refusing output outside"):
             _replace_output_dir(config, outside)
+
+    def test_replace_output_dir_refuses_output_parent(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        output_parent = config.library_dir.parent / "output"
+        output_parent.mkdir(parents=True)
+
+        with pytest.raises(ValueError, match="Refusing output outside"):
+            _replace_output_dir(config, output_parent)
 
     def test_export_excludes_reserved_and_dotfile_sources(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -336,6 +393,86 @@ class TestExportEdgeCases:
 
         assert (result.output_dir / "real_Insights.md").exists()
         assert not (result.output_dir / ".hidden" / "secret_Insights.md").exists()
+
+    def test_export_rejects_symlinked_source_without_replacing_prior_output(
+        self, tmp_path: Path
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        outside = tmp_path / "outside.md"
+        outside.write_text("private outside content", encoding="utf-8")
+        linked = topic_dir / "concepts" / "leak.md"
+        linked.parent.mkdir(parents=True)
+        try:
+            linked.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+        prior_output = okf_bundle_output_dir(config.library_dir, "ai")
+        marker = prior_output / "existing.txt"
+        _write(marker, "preserve me")
+
+        with pytest.raises(ValueError, match="unsafe OKF source"):
+            export_okf_bundle(config, "ai")
+
+        assert marker.read_text(encoding="utf-8") == "preserve me"
+        assert not (prior_output / "concepts" / "leak.md").exists()
+
+    def test_export_rejects_oversized_source_without_replacing_prior_output(
+        self, tmp_path: Path
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        _write(topic_dir / "valid.md", "# Valid\n")
+        oversized = topic_dir / "oversized.md"
+        oversized.write_bytes(b"x" * (16 * 1024 * 1024 + 1))
+        prior_output = okf_bundle_output_dir(config.library_dir, "ai")
+        marker = prior_output / "existing.txt"
+        _write(marker, "preserve me")
+
+        with pytest.raises(ValueError, match="unsafe or unreadable OKF source"):
+            export_okf_bundle(config, "ai")
+
+        assert marker.read_text(encoding="utf-8") == "preserve me"
+        assert not (prior_output / "valid.md").exists()
+
+    def test_later_source_read_failure_preserves_prior_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        _write(topic_dir / "a.md", "# A\n")
+        _write(topic_dir / "b.md", "# B\n")
+        prior_output = okf_bundle_output_dir(config.library_dir, "ai")
+        marker = prior_output / "existing.txt"
+        _write(marker, "preserve me")
+        real_read = okf_module.read_confined_text
+
+        def fail_second_source(path: Path, root: Path, *, max_bytes: int) -> str | None:
+            if path.name == "b.md":
+                return None
+            return real_read(path, root, max_bytes=max_bytes)
+
+        monkeypatch.setattr(okf_module, "read_confined_text", fail_second_source)
+
+        with pytest.raises(ValueError, match="unsafe or unreadable OKF source"):
+            export_okf_bundle(config, "ai")
+
+        assert marker.read_text(encoding="utf-8") == "preserve me"
+        assert not list(prior_output.parent.glob(".okf-ai.staging-*"))
+
+    def test_export_rejects_symlinked_topic_directory(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        outside_topic = tmp_path / "outside-topic"
+        _write(outside_topic / "secret.md", "private outside content")
+        linked_topic = config.topic_dir("linked")
+        linked_topic.parent.mkdir(parents=True)
+        try:
+            linked_topic.symlink_to(outside_topic, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlink creation unavailable: {exc}")
+
+        with pytest.raises(ValueError, match="Source topic path is unsafe"):
+            export_okf_bundle(config, "linked")
 
 
 class TestTypeAndTagInference:

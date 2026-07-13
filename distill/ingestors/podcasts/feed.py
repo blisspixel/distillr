@@ -14,32 +14,47 @@ own transcript is fetched instead of downloading and transcribing the audio.
 from __future__ import annotations
 
 import email.utils
+import hashlib
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-
-from defusedxml.ElementTree import fromstring as xml_fromstring
+from xml.etree.ElementTree import Element
 
 from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.parsing import parse_ascii_uint
+from distill.xml_stream import iter_bounded_xml_events
 
 __all__ = [
     "PodcastEpisode",
     "PodcastFeed",
     "PodcastFetchError",
     "download_audio",
+    "feed_episode_identity",
     "fetch_feed",
     "fetch_transcript",
     "looks_like_feed_url",
     "parse_feed",
+    "select_feed_episode",
 ]
 
 _MAX_FEED_BYTES = 5_000_000
 _MAX_TRANSCRIPT_BYTES = 5_000_000
 _MAX_AUDIO_BYTES = 250_000_000
+_MAX_DURATION_CHARS = 32
+_MAX_EPISODE_DURATION_SECONDS = 30 * 24 * 60 * 60
+_MAX_FEED_XML_NODES = 100_000
+_MAX_FEED_EPISODES = 5_000
+_MAX_TITLE_CHARS = 1_000
+_MAX_GUID_CHARS = 4_096
+_MAX_DATE_CHARS = 128
+_MAX_URL_CHARS = 2_048
+_MAX_MEDIA_TYPE_CHARS = 256
+_MAX_DESCRIPTION_SOURCE_CHARS = 100_000
+_MAX_CONTENT_HTML_CHARS = 200_000
 _ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
 _CONTENT_NS = "{http://purl.org/rss/1.0/modules/content/}"
 # The Podcasting 2.0 namespace appears with both schemes in the wild.
@@ -47,6 +62,7 @@ _PODCAST_NSES = (
     "{https://podcastindex.org/namespace/1.0}",
     "{http://podcastindex.org/namespace/1.0}",
 )
+_EPISODE_ID_RE = re.compile(r"[0-9a-f]{40}\Z")
 
 
 class PodcastFetchError(RuntimeError):
@@ -71,8 +87,13 @@ class PodcastEpisode:
 
     def published_dt(self) -> datetime | None:
         try:
-            return email.utils.parsedate_to_datetime(self.published)
-        except (TypeError, ValueError):
+            parsed = email.utils.parsedate_to_datetime(self.published)
+            if parsed is None:
+                return None
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC)
+        except (OverflowError, TypeError, ValueError):
             return None
 
 
@@ -82,6 +103,64 @@ class PodcastFeed:
     link: str
     description: str
     episodes: list[PodcastEpisode] = field(default_factory=list)
+
+
+def feed_episode_identity(feed_url: str, episode: PodcastEpisode) -> str:
+    """Return the stable exact-item identity shared by preview and ingest."""
+
+    identity_material = (
+        f"guid:{episode.guid}"
+        if episode.guid
+        else f"link:{episode.link}"
+        if episode.link
+        else f"audio:{episode.audio_url}"
+        if episode.audio_url
+        else "\0".join(
+            (
+                "fields",
+                episode.title,
+                episode.published,
+                episode.transcript_url,
+                episode.content_html,
+                episode.description,
+            )
+        )
+    )
+    return hashlib.blake2s(
+        f"{feed_url}\0{identity_material}".encode("utf-8", errors="replace"),
+        digest_size=20,
+    ).hexdigest()
+
+
+def select_feed_episode(
+    feed_url: str,
+    feed: PodcastFeed,
+    episode_id: str,
+) -> PodcastFeed:
+    """Return a feed containing only the requested exact episode."""
+
+    if _EPISODE_ID_RE.fullmatch(episode_id) is None:
+        raise PodcastFetchError("Feed episode id must be 40 lowercase hexadecimal characters")
+    matches = [
+        episode
+        for episode in feed.episodes
+        if feed_episode_identity(feed_url, episode) == episode_id
+    ]
+    if not matches:
+        raise PodcastFetchError(
+            "Requested feed episode is no longer present; refresh the profile preview"
+        )
+    if len(matches) > 1:
+        raise PodcastFetchError(
+            "Requested feed episode identity is ambiguous; refresh the profile preview"
+        )
+    selected = matches[0]
+    return PodcastFeed(
+        title=feed.title,
+        link=feed.link,
+        description=feed.description,
+        episodes=[selected],
+    )
 
 
 def looks_like_feed_url(url: str) -> bool:
@@ -94,80 +173,206 @@ def looks_like_feed_url(url: str) -> bool:
     )
 
 
-def _text(elem, tag: str) -> str:
+def _text(elem, tag: str, *, maximum: int, field_name: str) -> str:
     child = elem.find(tag)
-    return (child.text or "").strip() if child is not None else ""
+    raw = child.text or "" if child is not None else ""
+    if len(raw) > maximum:
+        raise PodcastFetchError(f"feed {field_name} exceeds the {maximum:,}-character cap")
+    return raw.strip()
+
+
+def _bounded_attribute(value: str, *, maximum: int, field_name: str) -> str:
+    if len(value) > maximum:
+        raise PodcastFetchError(f"feed {field_name} exceeds the {maximum:,}-character cap")
+    return value
+
+
+def _validated_item_url(value: str, *, field_name: str) -> str:
+    value = _bounded_attribute(value, maximum=_MAX_URL_CHARS, field_name=field_name)
+    if not value:
+        return ""
+    if value != value.strip() or any(ord(character) < 32 for character in value):
+        raise PodcastFetchError(f"feed {field_name} is not a valid HTTP URL")
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise PodcastFetchError(f"feed {field_name} is not a valid HTTP URL") from exc
+    if (
+        parsed.scheme.casefold() not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or port == 0
+    ):
+        raise PodcastFetchError(f"feed {field_name} is not a valid HTTP URL")
+    return value
 
 
 def _parse_duration(raw: str) -> int:
     """itunes:duration is seconds ("3120") or clock form ("52:00" / "1:02:03")."""
-    raw = raw.strip()
-    if not raw:
+    if not raw or len(raw) > _MAX_DURATION_CHARS:
         return 0
-    if raw.isdigit():
-        return int(raw)
-    parts = raw.split(":")
-    if not all(p.strip().isdigit() for p in parts) or len(parts) > 3:
+    raw = raw.strip()
+    duration = parse_ascii_uint(raw)
+    if duration is not None:
+        return duration if duration <= _MAX_EPISODE_DURATION_SECONDS else 0
+    parts = [part.strip() for part in raw.split(":")]
+    if len(parts) > 3:
         return 0
     seconds = 0
     for part in parts:
-        seconds = seconds * 60 + int(part)
+        value = parse_ascii_uint(part)
+        if value is None:
+            return 0
+        seconds = seconds * 60 + value
+        if seconds > _MAX_EPISODE_DURATION_SECONDS:
+            return 0
     return seconds
 
 
 def _episode_from_item(item) -> PodcastEpisode | None:
     enclosure = item.find("enclosure")
-    audio_url = enclosure.get("url", "") if enclosure is not None else ""
+    audio_url = _validated_item_url(
+        enclosure.get("url", "") if enclosure is not None else "",
+        field_name="audio URL",
+    )
     transcript_url = ""
     transcript_type = ""
     for ns in _PODCAST_NSES:
         t = item.find(f"{ns}transcript")
         if t is not None and t.get("url"):
-            transcript_url = t.get("url", "")
-            transcript_type = t.get("type", "")
+            transcript_url = _validated_item_url(
+                t.get("url", ""),
+                field_name="transcript URL",
+            )
+            transcript_type = _bounded_attribute(
+                t.get("type", ""),
+                maximum=_MAX_MEDIA_TYPE_CHARS,
+                field_name="transcript type",
+            )
             break
-    title = _text(item, "title")
+    title = _text(item, "title", maximum=_MAX_TITLE_CHARS, field_name="episode title")
     if not title and not audio_url:
         return None  # an item with neither a title nor audio is not an episode
-    description = _text(item, "description") or _text(item, f"{_ITUNES_NS}summary")
-    link = _text(item, "link")
+    description = _text(
+        item,
+        "description",
+        maximum=_MAX_DESCRIPTION_SOURCE_CHARS,
+        field_name="episode description",
+    ) or _text(
+        item,
+        f"{_ITUNES_NS}summary",
+        maximum=_MAX_DESCRIPTION_SOURCE_CHARS,
+        field_name="episode summary",
+    )
+    link = _validated_item_url(
+        _text(item, "link", maximum=_MAX_URL_CHARS, field_name="episode link"),
+        field_name="episode link",
+    )
+    duration_element = item.find(f"{_ITUNES_NS}duration")
+    duration_text = duration_element.text or "" if duration_element is not None else ""
     return PodcastEpisode(
         title=title or "(untitled episode)",
-        guid=_text(item, "guid") or audio_url or link,
-        published=_text(item, "pubDate"),
+        guid=_text(item, "guid", maximum=_MAX_GUID_CHARS, field_name="episode GUID")
+        or audio_url
+        or link,
+        published=_text(item, "pubDate", maximum=_MAX_DATE_CHARS, field_name="publish date"),
         audio_url=audio_url,
-        audio_type=enclosure.get("type", "") if enclosure is not None else "",
-        duration_s=_parse_duration(_text(item, f"{_ITUNES_NS}duration")),
+        audio_type=_bounded_attribute(
+            enclosure.get("type", "") if enclosure is not None else "",
+            maximum=_MAX_MEDIA_TYPE_CHARS,
+            field_name="audio type",
+        ),
+        duration_s=_parse_duration(duration_text),
         description=re.sub(r"<[^>]+>", " ", description)[:4000].strip(),
         transcript_url=transcript_url,
         transcript_type=transcript_type,
         link=link,
-        content_html=_text(item, f"{_CONTENT_NS}encoded"),
+        content_html=_text(
+            item,
+            f"{_CONTENT_NS}encoded",
+            maximum=_MAX_CONTENT_HTML_CHARS,
+            field_name="episode content",
+        ),
     )
+
+
+@dataclass
+class _FeedParseState:
+    episodes: list[PodcastEpisode] = field(default_factory=list)
+    channel_found: bool = False
+    channel_depth: int = 0
+    feed_title: str = ""
+    feed_link: str = ""
+    feed_description: str = ""
+
+    def consume(self, event: str, element: Element) -> None:
+        if event == "start":
+            if element.tag == "channel":
+                self.channel_found = True
+                self.channel_depth += 1
+            return
+        if element.tag == "item" and self.channel_depth:
+            episode = _episode_from_item(element)
+            if episode is not None:
+                self.episodes.append(episode)
+            element.clear()
+            return
+        if element.tag != "channel":
+            return
+        self.feed_title = _text(
+            element,
+            "title",
+            maximum=_MAX_TITLE_CHARS,
+            field_name="title",
+        )
+        self.feed_link = _validated_item_url(
+            _text(element, "link", maximum=_MAX_URL_CHARS, field_name="link"),
+            field_name="link",
+        )
+        raw_description = _text(
+            element,
+            "description",
+            maximum=_MAX_DESCRIPTION_SOURCE_CHARS,
+            field_name="description",
+        )
+        self.feed_description = re.sub(r"<[^>]+>", " ", raw_description)[:2000].strip()
+        self.channel_depth -= 1
+        element.clear()
 
 
 def parse_feed(xml_text: str) -> PodcastFeed:
     """Parse an RSS 2.0 podcast feed. Raises :class:`PodcastFetchError` on junk."""
+    if len(xml_text) > _MAX_FEED_BYTES or len(xml_text.encode("utf-8")) > _MAX_FEED_BYTES:
+        raise PodcastFetchError(f"feed exceeds the {_MAX_FEED_BYTES:,}-byte cap")
+    state = _FeedParseState()
     try:
-        root = xml_fromstring(xml_text)
+        for event, element in iter_bounded_xml_events(
+            xml_text,
+            max_nodes=_MAX_FEED_XML_NODES,
+            record_tags=frozenset({"item"}),
+            max_records=_MAX_FEED_EPISODES,
+        ):
+            state.consume(event, element)
     except Exception as exc:  # defusedxml raises several parse/defense errors
+        if isinstance(exc, PodcastFetchError):
+            raise
         raise PodcastFetchError(f"Feed is not parseable XML: {exc}") from exc
-    channel = root.find("channel")
-    if channel is None:
+    if not state.channel_found:
         raise PodcastFetchError("Not an RSS podcast feed (no <channel> element).")
-    episodes = [ep for item in channel.findall("item") if (ep := _episode_from_item(item))]
     # Newest first: sort by parsed pubDate when available, else keep feed order
     # (RSS convention is already newest-first).
-    if any(ep.published_dt() for ep in episodes):
-        episodes.sort(
-            key=lambda e: e.published_dt() or datetime.min.replace(tzinfo=None),
+    if any(ep.published_dt() for ep in state.episodes):
+        state.episodes.sort(
+            key=lambda e: e.published_dt() or datetime.min.replace(tzinfo=UTC),
             reverse=True,
         )
     return PodcastFeed(
-        title=_text(channel, "title"),
-        link=_text(channel, "link"),
-        description=re.sub(r"<[^>]+>", " ", _text(channel, "description"))[:2000].strip(),
-        episodes=episodes,
+        title=state.feed_title,
+        link=state.feed_link,
+        description=state.feed_description,
+        episodes=state.episodes,
     )
 
 

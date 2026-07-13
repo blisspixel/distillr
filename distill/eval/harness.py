@@ -101,6 +101,7 @@ def _call(
         call_type=call_type,
         temperature=0.0,
         timeout=600,
+        usage_tracker=tracker,
     )
     tracker.record(TokenUsage.from_response(response, call_type=call_type))
     return response.text

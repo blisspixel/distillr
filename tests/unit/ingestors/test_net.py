@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.client
 import io
 import socket
+import threading
 import urllib.error
 import urllib.request
 from typing import Any
@@ -106,6 +107,41 @@ def test_pin_host_to_ip_matches_case_and_trailing_dot() -> None:
     assert socket.getaddrinfo is real
 
 
+def test_pin_host_to_ip_serializes_process_global_patches() -> None:
+    real = socket.getaddrinfo
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    second_entered = threading.Event()
+
+    def first() -> None:
+        with pin_host_to_ip("first.example", "93.184.216.34"):
+            first_entered.set()
+            assert release_first.wait(timeout=2)
+
+    def second() -> None:
+        assert first_entered.wait(timeout=2)
+        with pin_host_to_ip("second.example", "8.8.8.8"):
+            second_entered.set()
+
+    first_thread = threading.Thread(target=first)
+    second_thread = threading.Thread(target=second)
+    first_thread.start()
+    second_thread.start()
+    assert first_entered.wait(timeout=2)
+    try:
+        serialized = not second_entered.wait(timeout=0.1)
+    finally:
+        release_first.set()
+        first_thread.join(timeout=2)
+        second_thread.join(timeout=2)
+
+    assert serialized
+    assert not first_thread.is_alive()
+    assert not second_thread.is_alive()
+    assert second_entered.is_set()
+    assert socket.getaddrinfo is real
+
+
 # ---------------------------------------------------------------------------
 # resolve_public_ip — fail-closed branches
 # ---------------------------------------------------------------------------
@@ -168,10 +204,72 @@ def test_redirect_handler_refuses_non_public_target() -> None:
 def test_redirect_handler_allows_public_target() -> None:
     handler = _PublicWebRedirectHandler()
     req = urllib.request.Request(_PUBLIC_IP_URL)
-    result = handler.redirect_request(
-        req, io.BytesIO(), 302, "Found", _headers(), "https://93.184.216.34/"
-    )
+    with pin_host_to_ip("8.8.8.8", "8.8.8.8"):
+        result = handler.redirect_request(
+            req, io.BytesIO(), 302, "Found", _headers(), "https://93.184.216.34/"
+        )
     assert isinstance(result, urllib.request.Request)
+
+
+def test_redirect_handler_pins_the_validated_cross_host_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lookups: list[str] = []
+
+    def fake_getaddrinfo(host: str, *args: Any, **kwargs: Any) -> list[Any]:
+        lookups.append(host)
+        address = "93.184.216.34" if host == "rebind.example" else host
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 443))]
+
+    monkeypatch.setattr(net.socket, "getaddrinfo", fake_getaddrinfo)
+    handler = _PublicWebRedirectHandler()
+    request = urllib.request.Request("https://origin.example/feed")
+
+    with pin_host_to_ip("origin.example", "8.8.8.8"):
+        redirected = handler.redirect_request(
+            request,
+            io.BytesIO(),
+            302,
+            "Found",
+            _headers(),
+            "https://rebind.example/private",
+        )
+        socket.getaddrinfo("rebind.example", 443)
+
+    assert isinstance(redirected, urllib.request.Request)
+    assert lookups == ["rebind.example", "93.184.216.34"]
+
+
+def test_redirect_handler_rejects_https_downgrade() -> None:
+    handler = _PublicWebRedirectHandler()
+    request = urllib.request.Request(_PUBLIC_IP_URL)
+
+    with (
+        pin_host_to_ip("8.8.8.8", "8.8.8.8"),
+        pytest.raises(urllib.error.HTTPError, match="non-public"),
+    ):
+        handler.redirect_request(
+            request,
+            io.BytesIO(),
+            302,
+            "Found",
+            _headers(),
+            "http://93.184.216.34/private",
+        )
+
+
+def test_ssrf_safe_opener_disables_environment_proxies(monkeypatch) -> None:
+    monkeypatch.setattr(
+        urllib.request,
+        "getproxies",
+        lambda: {"https": "http://proxy.example:8080"},
+    )
+    opener = net._build_ssrf_safe_opener()
+    proxy_handlers = [
+        handler for handler in opener.handlers if isinstance(handler, urllib.request.ProxyHandler)
+    ]
+
+    assert proxy_handlers == []
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +287,21 @@ def test_safe_urlopen_accepts_request_object(monkeypatch: pytest.MonkeyPatch) ->
     sentinel = object()
     monkeypatch.setattr(net._SSRF_SAFE_OPENER, "open", lambda *a, **k: sentinel)
     assert safe_urlopen(urllib.request.Request(_PUBLIC_IP_URL)) is sentinel
+
+
+def test_safe_urlopen_refuses_preconfigured_request_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = urllib.request.Request(_PUBLIC_IP_URL)
+    request.set_proxy("127.0.0.1:8080", "https")
+    monkeypatch.setattr(
+        net._SSRF_SAFE_OPENER,
+        "open",
+        lambda *args, **kwargs: pytest.fail("proxied request must not be opened"),
+    )
+
+    with pytest.raises(ValueError, match="preconfigured proxy"):
+        safe_urlopen(request)
 
 
 def test_safe_urlopen_retries_on_5xx_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:

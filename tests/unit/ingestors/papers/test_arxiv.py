@@ -1,5 +1,6 @@
 import importlib
-from types import SimpleNamespace
+
+import pytest
 
 SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
@@ -222,17 +223,13 @@ def test_search_arxiv_multi_dedupes_and_continues_on_failures(monkeypatch):
 def test_fetch_paper_pdf_text_reads_full_text_within_page_limit(monkeypatch):
     paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
 
-    class FakePage:
-        def extract_text(self):
-            return "A" * 50000
-
     monkeypatch.setattr(
         "distill.ingestors.papers.arxiv.requests.get",
         lambda *args, **kwargs: FakePdfResponse(),
     )
     monkeypatch.setattr(
-        "distill.ingestors.papers.arxiv.PdfReader",
-        lambda stream: SimpleNamespace(pages=[FakePage(), FakePage(), FakePage()]),
+        "distill.ingestors.papers.arxiv.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages: "A" * 150004,
     )
 
     text = paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf")
@@ -261,6 +258,21 @@ def test_fetch_paper_pdf_text_rejects_oversized_pdf(monkeypatch):
     )
 
     assert paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf") == ""
+
+
+@pytest.mark.parametrize("declared", ["\u00b2", "\u0661\u0662", "9" * 5000])
+def test_fetch_paper_pdf_text_ignores_invalid_content_length(monkeypatch, declared):
+    paper_ingest = importlib.import_module("distill.ingestors.papers.arxiv")
+    monkeypatch.setattr(
+        "distill.ingestors.papers.arxiv.requests.get",
+        lambda *args, **kwargs: FakePdfResponse(headers={"Content-Length": declared}),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.papers.arxiv.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages: "parsed",
+    )
+
+    assert paper_ingest.fetch_paper_pdf_text("https://arxiv.org/pdf/2602.12670.pdf") == "parsed"
 
 
 def test_fetch_paper_pdf_text_revalidates_redirect(monkeypatch):
@@ -296,8 +308,8 @@ def test_fetch_paper_pdf_text_upgrades_http_to_https(monkeypatch):
 
     monkeypatch.setattr("distill.ingestors.papers.arxiv.requests.get", fake_get)
     monkeypatch.setattr(
-        "distill.ingestors.papers.arxiv.PdfReader",
-        lambda stream: SimpleNamespace(pages=[]),
+        "distill.ingestors.papers.arxiv.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages: "",
     )
 
     paper_ingest.fetch_paper_pdf_text("http://arxiv.org/pdf/2602.12670v1")

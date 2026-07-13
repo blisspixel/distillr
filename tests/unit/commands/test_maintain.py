@@ -148,6 +148,37 @@ def test_costs_json_malformed_log_returns_empty_entries(tmp_path, monkeypatch):
     assert parsed["data"]["cost_warnings"] == []
 
 
+def test_costs_json_skips_unsafe_numeric_rows_and_remains_strict(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    log_file = config.library_dir / ".distill" / "cost_log.jsonl"
+    log_file.parent.mkdir(parents=True)
+    log_file.write_text(
+        "\n".join(
+            [
+                '{"actual_cost": ' + "9" * 5_000 + "}",
+                '{"actual_cost": NaN}',
+                '{"actual_cost": Infinity}',
+                '{"actual_cost": 1e999}',
+                '{"actual_cost": true}',
+                '{"actual_cost": 1.25, "command": "papers"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--json", "costs"])
+
+    assert result.exit_code == 0, result.output
+
+    def reject_constant(value: str) -> None:
+        raise AssertionError(f"non-standard JSON constant emitted: {value}")
+
+    parsed = json.loads(result.output, parse_constant=reject_constant)
+    assert parsed["data"]["runs"] == [{"actual_cost": 1.25, "command": "papers"}]
+    assert parsed["data"]["total_cost"] == 1.25
+
+
 def test_costs_json_unreadable_cost_log_is_reported_not_fatal(tmp_path, monkeypatch):
     config = _config(tmp_path)
     _patch_config(monkeypatch, config)

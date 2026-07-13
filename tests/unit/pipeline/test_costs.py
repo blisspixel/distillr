@@ -1,14 +1,20 @@
 """Tests for distill.costs."""
 
 import json
+import math
+
+import pytest
 
 from distill.llm.cost import deep_research_query_cost
 from distill.llm.router import LLM_Response
 from distill.llm.run_context import run_scope
 from distill.pipeline.costs import (
     ACCORDION_GROK_ESTIMATE,
+    PROFILE_RECEIPT_ENV,
     CostTracker,
+    ProjectedBudgetExceededError,
     TokenUsage,
+    ensure_terminal_profile_receipt,
     estimate_ask_workflow_cost,
     estimate_paper_workflow_cost,
     estimate_routed_video_workflow_cost,
@@ -26,7 +32,7 @@ def test_scan_run_excluded_from_video_calibration():
     # The per-video calibration rate must come only from pure full-analysis
     # runs. A scan pass is ~8x cheaper and a mixed full+shorts run skews the
     # numerator/denominator, so both must be excluded (returns None).
-    from distill.pipeline.costs import _classify_clean_run
+    from distill.pipeline.cost_estimates import _classify_clean_run
 
     scan = {"actual_cost": 0.01, "full_videos": 5, "by_call_type": {"scan": {"calls": 5}}}
     assert _classify_clean_run(scan) is None
@@ -64,6 +70,23 @@ def test_cost_tracker_summary_and_formatting():
     assert summary["grok_calls"] == 1
     assert summary["gemini_queries"] == 1
     assert tracker.format_cost().startswith("$")
+    assert summary["conservative_usage_calls"] == 0
+
+
+def test_conservative_usage_provenance_reaches_cost_summary():
+    tracker = CostTracker()
+    response = LLM_Response(
+        text="bounded",
+        input_tokens=2048,
+        output_tokens=512,
+        model="grok-4.3",
+        usage_source="conservative",
+    )
+
+    tracker.record(TokenUsage.from_response(response, call_type="analysis"))
+
+    assert tracker.entries[0].usage_source == "conservative"
+    assert tracker.summary_dict()["conservative_usage_calls"] == 1
 
 
 def test_save_run_log_writes_breakdown(tmp_path):
@@ -490,7 +513,7 @@ def test_anthropic_sonnet5_uses_current_intro_pricing():
     assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
 
 
-def test_cost_tracker_treats_no_metered_provider_responses_as_zero():
+def test_cost_tracker_distinguishes_local_from_unproven_agent_usage():
     tracker = CostTracker()
     response = LLM_Response(
         text="ok",
@@ -512,9 +535,30 @@ def test_cost_tracker_treats_no_metered_provider_responses_as_zero():
         )
     )
 
-    assert tracker.total_cost == 0.0
-    assert tracker.format_cost() == "$0.0000"
-    assert tracker.summary_dict()["no_metered_calls"] == 2
+    assert tracker.total_cost > 0.0
+    assert tracker.format_cost() != "$0.0000"
+    assert tracker.summary_dict()["no_metered_calls"] == 1
+    assert tracker.summary_dict()["metered_calls"] == 1
+    assert tracker.entries[0].no_metered_cost is True
+    assert tracker.entries[1].no_metered_cost is False
+
+
+def test_cost_tracker_normalizes_oversized_public_usage_without_overflow():
+    tracker = CostTracker()
+
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=10**400,
+            completion_tokens=1,
+            model="grok-4.3",
+            provider_name="xai",
+            provider_type="cloud",
+        )
+    )
+
+    assert tracker.entries[0].prompt_tokens == 10**12
+    assert tracker.entries[0].usage_source == "conservative"
+    assert math.isfinite(tracker.total_cost)
 
 
 def test_budget_exceeded_error_formats_small_and_large_budgets():
@@ -540,12 +584,8 @@ def test_cost_tracker_budget_exceeded_raises_on_record():
     tracker = CostTracker(budget=0.001)
     tracker.record(TokenUsage(prompt_tokens=1, completion_tokens=1, model="grok-4.3"))
 
-    try:
+    with pytest.raises(BudgetExceededError):
         tracker.record(TokenUsage(prompt_tokens=100000, completion_tokens=100000, model="grok-4.3"))
-    except BudgetExceededError:
-        pass
-    else:
-        raise AssertionError("expected BudgetExceededError")
 
 
 def test_route_class_covers_included_plan_and_no_metered():
@@ -654,6 +694,54 @@ def test_save_run_log_default_does_not_suffix(tmp_path):
         (tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8").strip()
     )
     assert entry["command"] == "papers"
+
+
+def test_save_run_log_stamps_full_precision_reserved_profile_receipt(tmp_path, monkeypatch):
+    receipt_id = "a" * 64
+    monkeypatch.setenv(PROFILE_RECEIPT_ENV, receipt_id)
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=1,
+            completion_tokens=0,
+            model="grok-4-1-fast-non-reasoning",
+            call_type="analysis",
+        )
+    )
+
+    save_run_log(tmp_path, "video", tracker)
+
+    entry = json.loads(
+        (tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8").strip()
+    )
+    assert entry["actual_cost"] == 0.0
+    assert entry["profile_receipt_id"] == receipt_id
+    assert entry["profile_receipt_cost_usd"] == pytest.approx(0.0000001)
+    assert len(entry["profile_receipt_tracker_id"]) == 32
+
+
+def test_terminal_profile_receipt_is_written_once_for_zero_usage(tmp_path, monkeypatch):
+    receipt_id = "b" * 64
+    monkeypatch.setenv(PROFILE_RECEIPT_ENV, receipt_id)
+
+    with run_scope(
+        invocation_type="cli",
+        command="latest",
+        ops_dir=tmp_path / ".distill",
+    ):
+        ensure_terminal_profile_receipt()
+        ensure_terminal_profile_receipt()
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / ".distill" / "cost_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert len(rows) == 1
+    assert rows[0]["profile_receipt_id"] == receipt_id
+    assert rows[0]["profile_receipt_cost_usd"] == 0
+    assert rows[0]["metadata"] == {"profile_terminal_receipt": "zero_usage"}
 
 
 # ---------------------------------------------------------------------------
@@ -1026,7 +1114,7 @@ def test_estimate_run_cost_zero_items_no_accordion():
 
 
 def test_classify_clean_run_site_zero_calls_is_none():
-    from distill.pipeline.costs import _classify_clean_run
+    from distill.pipeline.cost_estimates import _classify_clean_run
 
     site_zero = {
         "actual_cost": 0.05,
@@ -1046,7 +1134,7 @@ def test_load_cost_calibration_oserror_on_read_returns_default(tmp_path):
         '{"actual_cost": 0.1, "by_call_type": {"paper": {"calls": 1}}}\n', encoding="utf-8"
     )
 
-    with patch.object(type(log), "read_text", side_effect=OSError("simulated read fail")):
+    with patch.object(type(log), "open", side_effect=OSError("simulated read fail")):
         cal = load_cost_calibration(tmp_path)
     # hits the except OSError path -> default
     assert cal.per_paper > 0
@@ -1134,6 +1222,26 @@ def test_gemini_cost_is_model_aware():
     assert tracker.total_gemini_cost == 7.50
 
 
+def test_gemini_query_authorization_refuses_without_ledger_row():
+    tracker = CostTracker(budget=2.49)
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        tracker.authorize_gemini_query("deep-research-preview-04-2026")
+
+    assert tracker.gemini_queries == 0
+    assert tracker.gemini_query_models == []
+    assert tracker.gemini_query_outcomes == []
+
+
+def test_gemini_query_outcomes_are_validated_and_summarized():
+    tracker = CostTracker()
+    tracker.record_gemini_query(outcome="ambiguous")
+
+    assert tracker.summary_dict()["gemini_query_outcomes"] == {"ambiguous": 1}
+    with pytest.raises(ValueError, match="unsupported Gemini query outcome"):
+        tracker.record_gemini_query(outcome="unknown")
+
+
 def test_gemini_cost_count_only_fallback():
     # A tracker that carries only a count (e.g. a sub-range report copy) still
     # prices at the standard per-query estimate.
@@ -1168,13 +1276,47 @@ def test_summary_dict_includes_transcription_when_present():
     summary = tracker.summary_dict()
     assert summary["transcription_calls"] == 1
     assert summary["estimated_transcription_cost"] == "$0.3600"
+    assert summary["transcription_outcomes"] == {"completed": 1}
+
+
+def test_authorize_transcription_refuses_projected_overspend_without_ledger_row():
+    tracker = CostTracker(budget=0.01)
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        tracker.authorize_transcription("openai", duration_s=3600.0)
+
+    assert tracker.transcriptions == []
+
+
+@pytest.mark.parametrize(
+    "duration",
+    [True, -1.0, float("nan"), float("inf"), 10**400],
+)
+def test_transcription_tracking_rejects_invalid_duration(duration: object):
+    tracker = CostTracker()
+
+    with pytest.raises(ValueError, match="transcription duration"):
+        tracker.authorize_transcription("openai", duration)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="transcription duration"):
+        tracker.record_transcription("openai", duration)  # type: ignore[arg-type]
+
+    assert tracker.transcriptions == []
+
+
+def test_record_transcription_rejects_unknown_outcome():
+    tracker = CostTracker()
+
+    with pytest.raises(ValueError, match="unsupported transcription outcome"):
+        tracker.record_transcription("openai", 60.0, outcome="maybe")
 
 
 def test_estimate_discover_cost():
-    from distill.pipeline.costs import (
+    from distill.pipeline.cost_estimates import (
         _DISCOVER_PAPER_COST,
         _DISCOVER_SITE_COST,
         _DISCOVER_VIDEO_COST,
+    )
+    from distill.pipeline.costs import (
         estimate_discover_cost,
     )
 
@@ -1260,7 +1402,8 @@ def test_discover_estimate_prices_only_metered_source_override():
 
 def test_stage_cost_tracks_default_model_pricing():
     from distill.llm.cost import DEFAULT_MODEL, compute_cost
-    from distill.pipeline.costs import _STAGE_TOKENS, estimate_stage_cost
+    from distill.pipeline.cost_estimates import _STAGE_TOKENS
+    from distill.pipeline.costs import estimate_stage_cost
 
     # estimate_stage_cost must equal compute_cost over the stage's token volumes
     # at the default model — i.e. it tracks the model, never a hard-coded rate.
@@ -1301,9 +1444,11 @@ def _video_row(cost: float, videos: int) -> dict:
 
 
 def test_load_cost_calibration_no_log_uses_defaults(tmp_path):
-    from distill.pipeline.costs import (
+    from distill.pipeline.cost_estimates import (
         _DISCOVER_PAPER_COST,
         _DISCOVER_VIDEO_COST,
+    )
+    from distill.pipeline.costs import (
         load_cost_calibration,
     )
 
@@ -1355,6 +1500,37 @@ def test_load_cost_calibration_skips_malformed_rows(tmp_path):
     assert cal.any_calibrated is True
 
 
+def test_load_cost_calibration_skips_overlong_integer_and_nonfinite_rows(tmp_path):
+    from distill.pipeline.costs import load_cost_calibration
+
+    log = tmp_path / ".distill" / "cost_log.jsonl"
+    log.parent.mkdir(parents=True)
+    malformed = [
+        '{"actual_cost": ' + "9" * 5_000 + ', "by_call_type": {"paper": {"calls": 3}}}',
+        '{"actual_cost": NaN, "by_call_type": {"paper": {"calls": 3}}}',
+        json.dumps(_paper_row(0.06, 3)),
+    ]
+    log.write_text("\n".join(malformed) + "\n", encoding="utf-8")
+
+    calibration = load_cost_calibration(tmp_path)
+
+    assert calibration.per_paper == pytest.approx(0.02)
+    assert calibration.samples["paper"] == 3
+
+
+def test_classify_clean_run_rejects_nonfinite_cost_and_unbounded_counts():
+    from distill.pipeline.cost_estimates import _classify_clean_run
+
+    assert (
+        _classify_clean_run({"actual_cost": float("nan"), "by_call_type": {"paper": {"calls": 3}}})
+        is None
+    )
+    assert (
+        _classify_clean_run({"actual_cost": 1.0, "by_call_type": {"paper": {"calls": 1_000_001}}})
+        is None
+    )
+
+
 def test_load_cost_calibration_derives_per_video_from_full_videos(tmp_path):
     from distill.pipeline.costs import load_cost_calibration
 
@@ -1367,7 +1543,8 @@ def test_load_cost_calibration_derives_per_video_from_full_videos(tmp_path):
 
 
 def test_load_cost_calibration_thin_history_falls_back(tmp_path):
-    from distill.pipeline.costs import _DISCOVER_PAPER_COST, load_cost_calibration
+    from distill.pipeline.cost_estimates import _DISCOVER_PAPER_COST
+    from distill.pipeline.costs import load_cost_calibration
 
     # Only 2 papers seen (< default min_samples of 3) -> keep the constant.
     _write_cost_rows(tmp_path, [_paper_row(0.50, 2)])
@@ -1377,7 +1554,8 @@ def test_load_cost_calibration_thin_history_falls_back(tmp_path):
 
 
 def test_load_cost_calibration_ignores_preview_and_mixed_runs(tmp_path):
-    from distill.pipeline.costs import _DISCOVER_PAPER_COST, load_cost_calibration
+    from distill.pipeline.cost_estimates import _DISCOVER_PAPER_COST
+    from distill.pipeline.costs import load_cost_calibration
 
     mixed = {
         "command": "discover",

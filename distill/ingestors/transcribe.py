@@ -39,6 +39,9 @@ __all__ = [
 
 _log = logging.getLogger(__name__)
 
+_STREAM_PROBE_TIMEOUT_SECONDS = 10
+_DECODE_DURATION_TIMEOUT_SECONDS = 30
+
 
 class TranscriptionError(RuntimeError):
     """Raised when no transcription provider can complete the task."""
@@ -81,8 +84,17 @@ ProgressCallback = Callable[[float, float, int], None]
 class TranscriptionCostTracker(Protocol):
     """Minimal ledger boundary needed by the transcription router."""
 
-    def record_transcription(
+    def authorize_transcription(
         self, provider: str, duration_s: float, *, model: str = ""
+    ) -> None: ...
+
+    def record_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+        outcome: str = "completed",
     ) -> None: ...
 
 
@@ -107,35 +119,119 @@ def _positive_duration(value: float) -> float:
     return duration if math.isfinite(duration) and duration > 0 else 0.0
 
 
-def _probe_media_duration(media_path: Path) -> float:
-    """Return media duration from ffprobe, or zero when it is unavailable."""
-
+def _run_media_probe(
+    command: list[str], media_path: Path, *, timeout_seconds: int
+) -> subprocess.CompletedProcess[str] | None:
+    """Run one bounded media probe over a pipe-only input boundary."""
     try:
-        completed = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                str(media_path),
-            ],
-            capture_output=True,
-            check=False,
-            stdin=subprocess.DEVNULL,
-            text=True,
-            timeout=10,
-        )
+        with media_path.open("rb") as media_file:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                check=False,
+                stdin=media_file,
+                text=True,
+                timeout=timeout_seconds,
+            )
     except (OSError, subprocess.TimeoutExpired):
-        return 0.0
+        return None
     if completed.returncode != 0:
+        return None
+    return completed
+
+
+def _has_one_audio_stream(media_path: Path) -> bool:
+    """Reject media whose cloud provider stream choice would be ambiguous."""
+
+    completed = _run_media_probe(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-protocol_whitelist",
+            "cache,pipe",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "csv=p=0",
+            "cache:pipe:0",
+        ],
+        media_path,
+        timeout_seconds=_STREAM_PROBE_TIMEOUT_SECONDS,
+    )
+    if completed is None:
+        return False
+    return len([line for line in completed.stdout.splitlines() if line.strip()]) == 1
+
+
+def _decoded_progress_duration(stdout: str) -> float:
+    """Parse the final sample-timeline duration from FFmpeg progress output."""
+
+    duration_us = 0
+    reached_end = False
+    for line in stdout.splitlines():
+        key, separator, raw_value = line.partition("=")
+        if not separator:
+            continue
+        if key == "out_time_us":
+            try:
+                duration_us = max(duration_us, int(raw_value))
+            except ValueError:
+                return 0.0
+        elif key == "progress" and raw_value == "end":
+            reached_end = True
+    if not reached_end:
         return 0.0
-    try:
-        return _positive_duration(float(completed.stdout.strip()))
-    except ValueError:
+    return _positive_duration(duration_us / 1_000_000)
+
+
+def _probe_media_duration(media_path: Path) -> float:
+    """Return decoded audio duration without trusting container timestamps.
+
+    Billing follows decoded audio, while container and stream duration fields
+    can be attacker-controlled presentation timestamps. FFmpeg therefore resets
+    timestamps from the decoded sample count before reporting progress. The
+    media bytes enter through a pipe whose protocol whitelist forbids manifests
+    from opening secondary files or network resources. The probe is
+    time-bounded, stops on the first decode error, and refuses media with zero
+    or multiple audio streams rather than guessing which stream a cloud
+    provider will bill.
+    """
+
+    if not _has_one_audio_stream(media_path):
         return 0.0
+    completed = _run_media_probe(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-xerror",
+            "-nostdin",
+            "-protocol_whitelist",
+            "cache,pipe",
+            "-stats_period",
+            "3600",
+            "-progress",
+            "pipe:1",
+            "-i",
+            "cache:pipe:0",
+            "-map",
+            "0:a:0",
+            "-af",
+            "asetpts=N/SR/TB",
+            "-f",
+            "null",
+            "-",
+        ],
+        media_path,
+        timeout_seconds=_DECODE_DURATION_TIMEOUT_SECONDS,
+    )
+    if completed is None:
+        return 0.0
+    return _decoded_progress_duration(completed.stdout)
 
 
 def _require_ledger_duration(media_path: Path) -> float:
@@ -145,7 +241,8 @@ def _require_ledger_duration(media_path: Path) -> float:
     if duration_s <= 0:
         raise TranscriptionError(
             "Cloud transcription refused because media duration is unavailable; "
-            "install ffprobe or supply duration metadata so spend can be recorded."
+            "install ffmpeg and ffprobe or provide single-stream decodable media so "
+            "spend can be recorded."
         )
     return duration_s
 
@@ -187,6 +284,12 @@ def _prepare_cloud_route(
         except CostPolicyError as exc:
             errors.append(f"{route_name}: {exc}")
             raise TranscriptionError("; ".join(errors)) from exc
+        if tracker is None:
+            errors.append(
+                f"{route_name}: cloud transcription requires a cost tracker so "
+                "provider usage cannot bypass the run ledger"
+            )
+            raise TranscriptionError("; ".join(errors))
     return _prepare_ledger_duration(
         media_path,
         duration_hint_s,
@@ -219,6 +322,84 @@ def _attempt(
         if must_succeed:
             raise TranscriptionError("; ".join(errors)) from exc
     return None
+
+
+def _recorded_cloud_attempt(
+    name: str,
+    fn: Callable[[], TranscriptionResult],
+    errors: list[str],
+    *,
+    must_succeed: bool,
+    tracker: TranscriptionCostTracker,
+    provider: str,
+    model: str,
+    duration_s: float,
+) -> TranscriptionResult | None:
+    """Attempt one admitted cloud call and persist success or failure."""
+
+    try:
+        result = _attempt(name, fn, errors, must_succeed=must_succeed)
+    except BaseException:
+        tracker.record_transcription(
+            provider,
+            duration_s,
+            model=model,
+            outcome="failed",
+        )
+        raise
+    tracker.record_transcription(
+        provider,
+        duration_s,
+        model=model,
+        outcome="completed" if result is not None else "failed",
+    )
+    return result
+
+
+def _attempt_cloud_route(
+    media_path: Path,
+    duration_hint_s: float,
+    *,
+    config: DistillConfig,
+    errors: list[str],
+    tracker: TranscriptionCostTracker | None,
+    route_name: str,
+    policy_provider: str,
+    ledger_provider: str,
+    model: str,
+    api_key: str,
+    fn: Callable[[], TranscriptionResult],
+    must_succeed: bool,
+) -> tuple[TranscriptionResult | None, float]:
+    duration_s = _prepare_cloud_route(
+        media_path,
+        duration_hint_s,
+        config=config,
+        route_name=route_name,
+        provider=policy_provider,
+        api_key=api_key,
+        errors=errors,
+        tracker=tracker,
+    )
+    if not api_key:
+        return _attempt(route_name, fn, errors, must_succeed=must_succeed), duration_s
+    if tracker is None:
+        raise TranscriptionError(
+            f"{route_name}: cloud transcription requires a cost tracker so "
+            "provider usage cannot bypass the run ledger"
+        )
+    tracker.authorize_transcription(ledger_provider, duration_s, model=model)
+    result = _recorded_cloud_attempt(
+        route_name,
+        fn,
+        errors,
+        must_succeed=must_succeed,
+        tracker=tracker,
+        provider=ledger_provider,
+        model=model,
+        duration_s=duration_s,
+    )
+    return result, duration_s
 
 
 def transcribe_media(
@@ -278,45 +459,41 @@ def transcribe_media(
 
     if prefer in {"auto", "auto-cloud", "grok"}:
         xai_api_key = config.xai_api_key.get_secret_value()
-        duration_hint_s = _prepare_cloud_route(
+        result, duration_hint_s = _attempt_cloud_route(
             media_path,
             duration_hint_s,
             config=config,
-            route_name="grok",
-            provider="xai",
-            api_key=xai_api_key,
             errors=errors,
             tracker=tracker,
-        )
-        result = _attempt(
-            "grok",
-            lambda: _transcribe_grok(media_path, config, vocabulary_hint=vocabulary_hint),
-            errors,
+            route_name="grok",
+            policy_provider="xai",
+            ledger_provider="xai-grok-stt",
+            model="grok-stt",
+            api_key=xai_api_key,
+            fn=lambda: _transcribe_grok(media_path, config, vocabulary_hint=vocabulary_hint),
             must_succeed=prefer == "grok",
         )
         if result is not None:
-            return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
+            return _complete_transcription(result, tracker=None, duration_hint_s=duration_hint_s)
 
     if prefer in {"auto", "auto-cloud", "openai"}:
         openai_api_key = config.openai_api_key.get_secret_value()
-        duration_hint_s = _prepare_cloud_route(
+        result, duration_hint_s = _attempt_cloud_route(
             media_path,
             duration_hint_s,
             config=config,
-            route_name="openai",
-            provider="openai",
-            api_key=openai_api_key,
             errors=errors,
             tracker=tracker,
-        )
-        result = _attempt(
-            "openai",
-            lambda: _transcribe_openai(media_path, config, vocabulary_hint=vocabulary_hint),
-            errors,
+            route_name="openai",
+            policy_provider="openai",
+            ledger_provider="openai",
+            model="whisper-1",
+            api_key=openai_api_key,
+            fn=lambda: _transcribe_openai(media_path, config, vocabulary_hint=vocabulary_hint),
             must_succeed=True,
         )
         if result is not None:
-            return _complete_transcription(result, tracker=tracker, duration_hint_s=duration_hint_s)
+            return _complete_transcription(result, tracker=None, duration_hint_s=duration_hint_s)
 
     raise TranscriptionError("; ".join(errors) or f"unknown prefer={prefer!r}")
 

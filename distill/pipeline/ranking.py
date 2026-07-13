@@ -137,6 +137,7 @@ def _llm_rerank(
         max_tokens=4096,
         call_type="search_rerank",
         temperature=0.0,  # deterministic rerank so a preview and its re-run agree
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="search_rerank"))
@@ -592,6 +593,7 @@ def _llm_rerank_papers(
         max_tokens=4096,
         call_type="paper_rerank",
         temperature=0.0,  # deterministic rerank so a preview and its re-run agree
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="paper_rerank"))

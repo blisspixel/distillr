@@ -44,6 +44,7 @@ _telemetry_record_st = st.builds(
     provider_type=st.sampled_from(["local", "cloud", ""]),
     provider_name=st.sampled_from(["ollama", "lmstudio", "xai", "gemini", "anthropic", ""]),
     tokens_per_second=st.floats(min_value=0.0, max_value=1000.0, allow_nan=False),
+    usage_source=st.sampled_from(["reported", "conservative", "unavailable", "unknown"]),
 )
 
 
@@ -86,6 +87,7 @@ def test_jsonl_round_trip(record: Telemetry_Record) -> None:
         assert got.provider_type == record.provider_type
         assert got.provider_name == record.provider_name
         assert got.tokens_per_second == record.tokens_per_second
+        assert got.usage_source == record.usage_source
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +280,7 @@ _telemetry_record_with_optional_new_fields_st = st.builds(
     tokens_per_second=st.one_of(
         st.just(0.0), st.floats(min_value=0.1, max_value=500.0, allow_nan=False)
     ),
+    usage_source=st.sampled_from(["reported", "conservative", "unavailable", "unknown"]),
 )
 
 
@@ -316,6 +319,7 @@ def test_telemetry_round_trip_with_new_fields(record: Telemetry_Record) -> None:
         assert got.provider_type == record.provider_type
         assert got.provider_name == record.provider_name
         assert got.tokens_per_second == record.tokens_per_second
+        assert got.usage_source == record.usage_source
 
 
 def test_backward_compat_records_without_new_fields(tmp_path: Path) -> None:
@@ -347,3 +351,4 @@ def test_backward_compat_records_without_new_fields(tmp_path: Path) -> None:
     assert got.provider_type == ""
     assert got.provider_name == ""
     assert got.tokens_per_second == 0.0
+    assert got.usage_source == "unknown"

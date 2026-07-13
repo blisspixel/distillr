@@ -1,3 +1,4 @@
+import contextlib
 import json
 import sys
 from types import SimpleNamespace
@@ -266,22 +267,33 @@ def test_public_web_route_aborts_private_requests(monkeypatch):
             self.pattern = pattern
             self.handler = handler
 
-    monkeypatch.setattr(
-        "distill.ingestors.net.is_public_web_url",
-        lambda url: url == "https://example.com/page",
-    )
+    verdicts = iter((True, False))
+    checked_urls = []
+
+    def public_verdict(url):
+        checked_urls.append(url)
+        return next(verdicts)
+
+    monkeypatch.setattr("distill.ingestors.net.is_public_web_url", public_verdict)
     context = FakeContext()
 
     _install_public_web_route(context)
 
     allowed = FakeRoute()
     context.handler(allowed, SimpleNamespace(url="https://example.com/page"))
+    rebound = FakeRoute()
+    context.handler(rebound, SimpleNamespace(url="https://example.com/asset.js"))
     blocked = FakeRoute()
     context.handler(blocked, SimpleNamespace(url="http://127.0.0.1/admin"))
 
     assert context.pattern == "**/*"
     assert allowed.action == "continue"
+    assert rebound.action == "abort"
     assert blocked.action == "abort"
+    assert checked_urls == [
+        "https://example.com/page",
+        "https://example.com/asset.js",
+    ]
 
 
 def test_site_section_key_uses_first_two_segments():
@@ -385,56 +397,46 @@ class FakePage:
         return self.payload
 
 
-def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None):
+def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None, observed=None):
     """Wire a headless-browser stand-in plus extract/network patches for crawl_site.
 
     ``is_public`` overrides the public-URL predicate (defaults to allowing only
     ``https://example.com`` hosts); ``fake_extract`` replaces ``_extract_page``.
     """
 
-    class FakeBrowserPage:
-        def set_default_timeout(self, timeout):
-            return None
+    observed = observed if observed is not None else {}
 
-    class FakeContext:
-        def route(self, pattern, handler):
-            return None
+    page = SimpleNamespace(set_default_timeout=lambda timeout: None)
+    context = SimpleNamespace(
+        route=lambda pattern, handler: None,
+        new_page=lambda: page,
+        close=lambda: None,
+    )
 
-        def new_page(self):
-            return FakeBrowserPage()
+    def new_context(**kwargs):
+        observed["context"] = kwargs
+        return context
 
-        def close(self):
-            return None
+    browser = SimpleNamespace(new_context=new_context, close=lambda: None)
 
-    class FakeBrowser:
-        def new_context(self):
-            return FakeContext()
+    def launch(headless=True, **kwargs):
+        observed["launch"] = {"headless": headless, **kwargs}
+        return browser
 
-        def close(self):
-            return None
-
-    class FakeChromium:
-        def launch(self, headless=True):
-            return FakeBrowser()
-
-    class FakePlaywright:
-        chromium = FakeChromium()
-
-    class FakePlaywrightContextManager:
-        def __enter__(self):
-            return FakePlaywright()
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
+    playwright = SimpleNamespace(chromium=SimpleNamespace(launch=launch))
 
     monkeypatch.setitem(
         sys.modules,
         "playwright.sync_api",
-        SimpleNamespace(sync_playwright=lambda: FakePlaywrightContextManager()),
+        SimpleNamespace(sync_playwright=lambda: contextlib.nullcontext(playwright)),
     )
     monkeypatch.setattr(
         "distill.ingestors.net.is_public_web_url",
         is_public or (lambda url: url.startswith("https://example.com")),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.sites.scraper.PinnedBrowserProxy",
+        lambda: contextlib.nullcontext("http://127.0.0.1:43123"),
     )
     monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
 
@@ -497,6 +499,7 @@ def test_extract_page_parses_payload_and_dedupes_fields():
         "http://127.0.0.1:8000/admin",
         "http://localhost:8000/admin",
         "http://169.254.169.254/latest/meta-data/",
+        "http://example.com/public",
     ],
 )
 def test_crawl_site_rejects_unsafe_seed_before_browser_launch(url, monkeypatch):
@@ -553,6 +556,31 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
     assert [page.url for page in pages] == ["https://example.com/start", "https://example.com/next"]
     assert pages[1].source_url == "https://example.com/start"
     assert pages[1].depth == 1
+
+
+def test_crawl_site_uses_pinned_proxy_and_blocks_service_workers(monkeypatch):
+    observed = {}
+
+    def fake_extract(page, url, site_name, source_url, depth):
+        return SitePage(
+            url=url,
+            title="Pinned",
+            site_name=site_name,
+            page_type="page",
+            text="body",
+        )
+
+    _install_fake_playwright(monkeypatch, fake_extract, observed=observed)
+
+    pages = crawl_site(SiteSeed(url="https://example.com/start", topic="web"))
+
+    assert len(pages) == 1
+    assert observed["context"] == {
+        "proxy": {"server": "http://127.0.0.1:43123"},
+        "service_workers": "block",
+    }
+    assert "--disable-quic" in observed["launch"]["args"]
+    assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in observed["launch"]["args"]
 
 
 def test_crawl_site_respects_crawl_prefix(monkeypatch):

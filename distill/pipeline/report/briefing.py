@@ -94,7 +94,12 @@ def generate_topic_brief(  # noqa: C901 - legacy orchestration kept intact
     rc = RouterConfig()
     prompt = topic_brief_prompt(topic, topic_synthesis, "\n\n---\n\n".join(insight_parts))
     response = llm_call(
-        rc, workload_tag="brief", prompt=prompt, max_tokens=4096, call_type="topic_brief"
+        rc,
+        workload_tag="brief",
+        prompt=prompt,
+        max_tokens=4096,
+        call_type="topic_brief",
+        usage_tracker=tracker,
     )
 
     if tracker:

@@ -160,7 +160,12 @@ def _llm_expand_learning_queries(
     rc = RouterConfig()
     prompt = search_query_expansion_prompt(query, skeptical=skeptical)
     response = llm_call(
-        rc, workload_tag="rerank", prompt=prompt, max_tokens=512, call_type="search_expand"
+        rc,
+        workload_tag="rerank",
+        prompt=prompt,
+        max_tokens=512,
+        call_type="search_expand",
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="search_expand"))
@@ -236,7 +241,12 @@ def _llm_expand_paper_queries(
     rc = RouterConfig()
     prompt = paper_query_expansion_prompt(query)
     response = llm_call(
-        rc, workload_tag="rerank", prompt=prompt, max_tokens=512, call_type="paper_expand"
+        rc,
+        workload_tag="rerank",
+        prompt=prompt,
+        max_tokens=512,
+        call_type="paper_expand",
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="paper_expand"))

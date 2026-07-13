@@ -94,7 +94,11 @@ def synthesize_channel(
         rc = RouterConfig()
         prompt = channel_synthesis_prompt(channel_name, channel_context, all_insights)
         response = llm_call(
-            rc, workload_tag="synthesis", prompt=prompt, call_type="channel_synthesis"
+            rc,
+            workload_tag="synthesis",
+            prompt=prompt,
+            call_type="channel_synthesis",
+            usage_tracker=tracker,
         )
         synthesis = response.text
         if tracker:
@@ -201,7 +205,11 @@ def synthesize_topic(
         rc = RouterConfig()
         prompt = topic_synthesis_prompt(topic, channel_syntheses, style=style)
         response = llm_call(
-            rc, workload_tag="synthesis", prompt=prompt, call_type="topic_synthesis"
+            rc,
+            workload_tag="synthesis",
+            prompt=prompt,
+            call_type="topic_synthesis",
+            usage_tracker=tracker,
         )
         synthesis = response.text
         if tracker:

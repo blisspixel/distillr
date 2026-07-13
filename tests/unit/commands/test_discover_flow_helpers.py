@@ -325,7 +325,7 @@ def test_sizing_flow_cancel_choice_aborts_without_ingest(
     assert called["ingest"] is False
 
 
-@pytest.mark.parametrize("choice", ["bad", "9"])
+@pytest.mark.parametrize("choice", ["bad", "9", "\u0661", "9" * 5000])
 def test_sizing_flow_invalid_choice_aborts_without_ingest(
     mock_config: DistillConfig,
     monkeypatch: pytest.MonkeyPatch,

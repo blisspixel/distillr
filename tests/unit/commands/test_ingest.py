@@ -16,7 +16,12 @@ from distill.commands.ingest import _host
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, RepoRecord
 from distill.ingestors.local import LocalExtractionError
-from distill.ingestors.podcasts import PodcastFeed, PodcastFetchError
+from distill.ingestors.podcasts import (
+    PodcastEpisode,
+    PodcastFeed,
+    PodcastFetchError,
+    feed_episode_identity,
+)
 from distill.ingestors.x.syndication import TweetRecord
 from distill.pipeline.analysis.local import LocalIngestResult
 from distill.pipeline.analysis.media import MediaIngestResult
@@ -461,7 +466,10 @@ def test_ingest_cmd_routes_media_github_and_feed_targets(
     assert calls == [
         ("media", {"analyze": False}),
         ("github", {"analyze": False}),
-        ("feed", {"episodes": 3, "transcribe": False, "analyze": False}),
+        (
+            "feed",
+            {"episodes": 3, "episode_id": "", "transcribe": False, "analyze": False},
+        ),
     ]
 
 
@@ -665,6 +673,58 @@ def test_ingest_feed_reports_fetch_errors(
 
     assert exc_info.value.exit_code == 2
     assert "feed unavailable" in capsys.readouterr().out
+
+
+def test_ingest_feed_selects_exact_episode_before_routing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config(tmp_path)
+    newest = PodcastEpisode(
+        title="Newest",
+        guid="newest",
+        published="",
+        audio_url="https://example.com/newest.mp3",
+        audio_type="audio/mpeg",
+        duration_s=60,
+        description="",
+    )
+    older = PodcastEpisode(
+        title="Older",
+        guid="older",
+        published="",
+        audio_url="https://example.com/older.mp3",
+        audio_type="audio/mpeg",
+        duration_s=60,
+        description="",
+    )
+    url = "https://example.com/feed.xml"
+    feed = PodcastFeed(title="Feed", link="", description="", episodes=[newest, older])
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(_ingest, "fetch_feed", lambda _url: feed)
+    monkeypatch.setattr(_ingest, "feed_is_newsletter", lambda _feed: False)
+
+    def fake_ingest_podcast(*args: object, **kwargs: object) -> PodcastIngestResult:
+        captured.update(kwargs)
+        return PodcastIngestResult(feed_title="Feed")
+
+    monkeypatch.setattr(_ingest, "ingest_podcast", fake_ingest_podcast)
+
+    _ingest._ingest_feed(
+        url,
+        "t",
+        config,
+        CostTracker(),
+        episodes=9,
+        transcribe=False,
+        analyze=False,
+        episode_id=feed_episode_identity(url, older),
+    )
+
+    selected_feed = captured["feed"]
+    assert isinstance(selected_feed, PodcastFeed)
+    assert [episode.guid for episode in selected_feed.episodes] == ["older"]
+    assert captured["episodes"] == 1
 
 
 def test_ingest_github_reports_invalid_fetch_errors_and_skipped_reasons(

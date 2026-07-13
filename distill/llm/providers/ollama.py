@@ -10,15 +10,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import time
 from typing import Any, cast
 
 import httpx
 
+from distill.llm._parsing import parse_ascii_uint
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.retry import is_permanent_error
-from distill.llm.router import LLM_Response
+from distill.llm.types import LLM_Response
+from distill.llm.usage import UsageAttemptSink
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,22 @@ _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
 _CONTENTION_INITIAL_BACKOFF_SECONDS = 1.0
 _CONTENTION_MAX_BACKOFF_SECONDS = 10.0
 _RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
+_MAX_CONTEXT_WINDOW = 16_777_216
+_MAX_PARAMETERS_CHARS = 100_000
+
+
+def _bounded_context_window(value: object) -> int | None:
+    if isinstance(value, str):
+        parsed = parse_ascii_uint(value)
+    elif isinstance(value, int) and not isinstance(value, bool):
+        parsed = value
+    elif isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        parsed = int(value)
+    else:
+        parsed = None
+    if parsed is None or not 1 <= parsed <= _MAX_CONTEXT_WINDOW:
+        return None
+    return parsed
 
 
 def _is_thinking_model(model: str) -> bool:
@@ -106,6 +125,7 @@ class OllamaProvider:
         temperature: float | None = None,
         call_type: str = "",
         reasoning_effort: str | None = None,  # Ignored for local models
+        usage_sink: UsageAttemptSink | None = None,
     ) -> LLM_Response:
         """Send a prompt to Ollama and return an LLM_Response.
 
@@ -352,7 +372,7 @@ class OllamaProvider:
         send-it-whole behavior so quality is never silently degraded.
         """
         raw = os.environ.get("OLLAMA_MAX_NUM_CTX", "").strip()
-        return int(raw) if raw.isdigit() else 0
+        return parse_ascii_uint(raw) or 0
 
     async def _adaptive_num_ctx(self, model: str, prompt: str, max_tokens: int) -> int:
         """Context size for this call: prompt + output + headroom, capped at model max.
@@ -419,27 +439,30 @@ class OllamaProvider:
             return 4096
 
     @staticmethod
-    def _parse_context_window(data: dict[str, Any]) -> int:
+    def _parse_context_window(data: object) -> int:
         """Extract context window from Ollama /api/show response data."""
-        model_info = data.get("model_info", {})
+        if not isinstance(data, dict):
+            return 0
+        payload = cast(dict[object, object], data)
+        raw_model_info = payload.get("model_info")
+        model_info = (
+            cast(dict[object, object], raw_model_info) if isinstance(raw_model_info, dict) else {}
+        )
 
         # Try model_info first (more reliable)
         for key, value in model_info.items():
-            if "context_length" in key.lower():
-                return int(value)
+            if isinstance(key, str) and "context_length" in key.casefold():
+                context_window = _bounded_context_window(value)
+                if context_window:
+                    return context_window
 
         # Fallback: parse from parameters string
-        params = data.get("parameters", "")
-        if "num_ctx" in params:
-            for line in params.split("\n"):
-                if "num_ctx" in line:
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        import contextlib
-
-                        with contextlib.suppress(ValueError):
-                            return int(parts[-1])
-                    break
+        params = payload.get("parameters")
+        if isinstance(params, str) and len(params) <= _MAX_PARAMETERS_CHARS:
+            for line in params.splitlines():
+                parts = line.split()
+                if len(parts) >= 2 and parts[0] == "num_ctx":
+                    return _bounded_context_window(parts[-1]) or 0
 
         return 0
 

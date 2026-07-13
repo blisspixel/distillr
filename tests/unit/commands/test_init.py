@@ -8,13 +8,14 @@ prompt with no TTY (the loop-ready invariant).
 from __future__ import annotations
 
 import builtins
+import errno
 import json
 import os
 import stat
 import subprocess
 import sys
+import threading
 from contextlib import nullcontext
-from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -42,46 +43,139 @@ class TestEnvFileHelpers:
 
         monkeypatch.setattr(init_mod.os, "open", open_with_mode)
         assert init_mod.create_env_file(path) is True
-        assert requested_modes == [0o600]
+        assert requested_modes[-1] == 0o600
 
     def test_existing_env_permissions_are_tightened_without_clobber(self, tmp_path, monkeypatch):
         path = tmp_path / ".env"
         path.write_text("XAI_API_KEY=keep\n", encoding="utf-8")
         chmod_modes = []
 
-        def record_chmod(file_path, mode):
-            assert file_path == path
+        def record_chmod(descriptor, mode):
+            assert isinstance(descriptor, int)
             chmod_modes.append(mode)
 
         monkeypatch.setattr(init_mod, "_POSIX_PERMISSIONS", True)
-        monkeypatch.setattr(Path, "chmod", record_chmod)
+        monkeypatch.setattr(init_mod.os, "fchmod", record_chmod, raising=False)
 
         assert init_mod.create_env_file(path) is False
         assert path.read_text(encoding="utf-8") == "XAI_API_KEY=keep\n"
         assert chmod_modes == [0o600]
 
-    def test_write_closes_descriptor_when_stream_creation_fails(self, tmp_path, monkeypatch):
+    def test_existing_env_descriptor_must_reference_regular_file(self, tmp_path, monkeypatch):
         path = tmp_path / ".env"
-        real_close = os.close
-        closed_descriptors = []
+        path.write_text("XAI_API_KEY=old\n", encoding="utf-8")
+        closed = []
+        monkeypatch.setattr(init_mod.os, "open", lambda file_path, flags: 41)
+        monkeypatch.setattr(
+            init_mod.os,
+            "fstat",
+            lambda descriptor: SimpleNamespace(st_mode=stat.S_IFDIR),
+        )
+        monkeypatch.setattr(init_mod.os, "close", lambda descriptor: closed.append(descriptor))
 
-        def fail_fdopen(descriptor, mode, *, encoding, newline):
-            assert descriptor >= 0
-            assert mode == "w"
-            assert encoding == "utf-8"
-            assert newline == "\n"
-            raise OSError("stream unavailable")
+        with pytest.raises(ValueError, match="non-file env path"):
+            init_mod._open_existing_env(path)
 
-        def record_close(descriptor):
-            closed_descriptors.append(descriptor)
-            real_close(descriptor)
+        assert closed == [41]
 
-        monkeypatch.setattr(init_mod.os, "fdopen", fail_fdopen)
-        monkeypatch.setattr(init_mod.os, "close", record_close)
+    @pytest.mark.parametrize(
+        ("error_number", "expected_exception"),
+        [(errno.ELOOP, ValueError), (errno.EACCES, PermissionError)],
+    )
+    def test_existing_env_open_errors_fail_closed(
+        self, tmp_path, monkeypatch, error_number, expected_exception
+    ):
+        path = tmp_path / ".env"
+        path.write_text("XAI_API_KEY=old\n", encoding="utf-8")
+
+        def fail_open(file_path, flags):
+            raise OSError(error_number, "refused")
+
+        monkeypatch.setattr(init_mod.os, "open", fail_open)
+
+        with pytest.raises(expected_exception):
+            init_mod._open_existing_env(path)
+
+    def test_env_path_rejects_directory(self, tmp_path):
+        with pytest.raises(ValueError, match="non-file env path"):
+            init_mod.create_env_file(tmp_path)
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows symlink-following descriptor semantics")
+    def test_windows_symlink_swap_and_replace_fails_identity_check(self, tmp_path, monkeypatch):
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me\n", encoding="utf-8")
+        path = tmp_path / ".env"
+        path.write_text("XAI_API_KEY=old\n", encoding="utf-8")
+        probe = tmp_path / "symlink-probe"
+        try:
+            probe.symlink_to(target)
+            probe.unlink()
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        real_open = os.open
+        real_lstat = type(path).lstat
+        swapped = False
+
+        def lstat_then_swap(file_path):
+            nonlocal swapped
+            result = real_lstat(file_path)
+            if file_path == path and not swapped:
+                file_path.unlink()
+                file_path.symlink_to(target)
+                swapped = True
+            return result
+
+        def open_then_replace(file_path, flags, mode=0o777):
+            descriptor = real_open(file_path, flags, mode)
+            path.unlink()
+            path.write_text("replacement\n", encoding="utf-8")
+            return descriptor
+
+        monkeypatch.setattr(type(path), "lstat", lstat_then_swap)
+        monkeypatch.setattr(init_mod.os, "open", open_then_replace)
+
+        with pytest.raises(ValueError, match="changed while it was being opened"):
+            init_mod._open_existing_env(path)
+
+        assert target.read_text(encoding="utf-8") == "preserve me\n"
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFO semantics")
+    def test_fifo_swap_after_validation_is_rejected_without_blocking(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+        path.write_text("XAI_API_KEY=old\n", encoding="utf-8")
+        real_lstat = type(path).lstat
+        swapped = False
+
+        def lstat_then_swap(file_path):
+            nonlocal swapped
+            result = real_lstat(file_path)
+            if file_path == path and not swapped:
+                file_path.unlink()
+                os.mkfifo(file_path)
+                swapped = True
+            return result
+
+        monkeypatch.setattr(type(path), "lstat", lstat_then_swap)
+
+        with pytest.raises(ValueError, match="non-file env path"):
+            init_mod._open_existing_env(path)
+
+    def test_atomic_write_failure_does_not_create_env(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+        real_create = init_mod._create_env_text_exclusive
+
+        def fail_write(file_path, content):
+            if file_path == path:
+                assert "XAI_API_KEY=" in content
+                raise OSError("stream unavailable")
+            return real_create(file_path, content)
+
+        monkeypatch.setattr(init_mod, "_create_env_text_exclusive", fail_write)
 
         with pytest.raises(OSError, match="stream unavailable"):
             init_mod.create_env_file(path)
-        assert len(closed_descriptors) == 1
+        assert not path.exists()
 
     @pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits")
     def test_env_file_stays_owner_only_across_writes(self, tmp_path):
@@ -114,6 +208,107 @@ class TestEnvFileHelpers:
         assert init_mod.create_env_file(path) is False
         assert path.read_text(encoding="utf-8") == "XAI_API_KEY=secret-do-not-lose\n"
 
+    def test_exclusive_create_never_replaces_existing_file(self, tmp_path):
+        path = tmp_path / ".env"
+        path.write_text("KEEP=1\n", encoding="utf-8")
+
+        assert init_mod._create_env_text_exclusive(path, "REPLACE=1\n") is False
+        assert path.read_text(encoding="utf-8") == "KEEP=1\n"
+
+    def test_create_preserves_file_that_wins_missing_path_race(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+
+        def lose_race(file_path, content):
+            file_path.write_text("RACER=keep\n", encoding="utf-8")
+            return False
+
+        monkeypatch.setattr(init_mod, "_create_env_text_exclusive", lose_race)
+
+        assert init_mod.create_env_file(path) is False
+        assert path.read_text(encoding="utf-8") == "RACER=keep\n"
+
+    def test_set_env_var_rereads_file_that_wins_creation_race(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+
+        def lose_race(file_path, content):
+            file_path.write_text("RACER=keep\n", encoding="utf-8")
+            return False
+
+        monkeypatch.setattr(init_mod, "_create_env_text_exclusive", lose_race)
+
+        init_mod.set_env_var(path, "XAI_API_KEY", "new")
+
+        assert path.read_text(encoding="utf-8") == "RACER=keep\nXAI_API_KEY=new\n"
+
+    def test_concurrent_env_updates_preserve_both_keys(self, tmp_path, monkeypatch):
+        path = tmp_path / ".env"
+        path.write_text("BASE=1\n", encoding="utf-8")
+        first_read = threading.Event()
+        release_first = threading.Event()
+        second_read = threading.Event()
+        failures: list[BaseException] = []
+        real_read = init_mod._read_existing_env
+
+        def observed_read(file_path):
+            content = real_read(file_path)
+            if file_path == path:
+                if threading.current_thread().name == "first-env-update":
+                    first_read.set()
+                    assert release_first.wait(timeout=2)
+                else:
+                    second_read.set()
+            return content
+
+        def update(key: str) -> None:
+            try:
+                init_mod.set_env_var(path, key, "1")
+            except BaseException as exc:
+                failures.append(exc)
+
+        monkeypatch.setattr(init_mod, "_read_existing_env", observed_read)
+        first = threading.Thread(target=update, args=("KEY_A",), name="first-env-update")
+        second = threading.Thread(target=update, args=("KEY_B",), name="second-env-update")
+        first.start()
+        assert first_read.wait(timeout=2)
+        second.start()
+        try:
+            assert not second_read.wait(timeout=0.1)
+        finally:
+            release_first.set()
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert failures == []
+        assert path.read_text(encoding="utf-8") == "BASE=1\nKEY_A=1\nKEY_B=1\n"
+
+    def test_preexisting_empty_env_lock_is_initialized(self, tmp_path):
+        path = tmp_path / ".env"
+        lock_path = tmp_path / ".env.distill.lock"
+        path.write_text("BASE=1\n", encoding="utf-8")
+        lock_path.touch()
+
+        init_mod.set_env_var(path, "KEY", "1")
+
+        assert path.read_text(encoding="utf-8") == "BASE=1\nKEY=1\n"
+        assert lock_path.read_bytes() == b"\0"
+
+    def test_existing_non_utf8_env_is_preserved_without_force(self, tmp_path):
+        path = tmp_path / ".env"
+        original = b"XAI_API_KEY=\xff\n"
+        path.write_bytes(original)
+
+        assert init_mod.create_env_file(path) is False
+        assert path.read_bytes() == original
+
+    def test_force_overwrites_existing_non_utf8_env(self, tmp_path):
+        path = tmp_path / ".env"
+        path.write_bytes(b"XAI_API_KEY=\xff\n")
+
+        assert init_mod.create_env_file(path, force=True) is True
+        assert "XAI_API_KEY=" in path.read_text(encoding="utf-8")
+
     def test_force_overwrites(self, tmp_path):
         path = tmp_path / ".env"
         path.write_text("OLD=1\n", encoding="utf-8")
@@ -142,6 +337,72 @@ class TestEnvFileHelpers:
         init_mod.set_env_var(path, "XAI_API_KEY", "k")
         assert path.exists()
         assert "XAI_API_KEY=k" in path.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("operation", ["set", "force"])
+    def test_env_writes_reject_symlinks_without_touching_the_target(self, tmp_path, operation):
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me\n", encoding="utf-8")
+        path = tmp_path / ".env"
+        try:
+            path.symlink_to(target)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            if operation == "set":
+                init_mod.set_env_var(path, "XAI_API_KEY", "attacker-value")
+            else:
+                init_mod.create_env_file(path, force=True)
+
+        assert path.is_symlink()
+        assert target.read_text(encoding="utf-8") == "preserve me\n"
+
+    @pytest.mark.parametrize("operation", ["set", "create"])
+    def test_env_reads_reject_hardlinks_without_touching_target(self, tmp_path, operation):
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me\n", encoding="utf-8")
+        path = tmp_path / ".env"
+        try:
+            path.hardlink_to(target)
+        except OSError as exc:
+            pytest.skip(f"hard-link creation unavailable: {exc}")
+
+        with pytest.raises(ValueError, match="multiply linked"):
+            if operation == "set":
+                init_mod.set_env_var(path, "XAI_API_KEY", "attacker-value")
+            else:
+                init_mod.create_env_file(path)
+
+        assert target.read_text(encoding="utf-8") == "preserve me\n"
+
+    @pytest.mark.skipif(
+        os.name != "posix" or not hasattr(os, "O_NOFOLLOW"),
+        reason="POSIX no-follow descriptor semantics",
+    )
+    def test_env_symlink_swap_after_validation_cannot_touch_target(self, tmp_path, monkeypatch):
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me\n", encoding="utf-8")
+        target.chmod(0o640)
+        path = tmp_path / ".env"
+        path.write_text("XAI_API_KEY=old\n", encoding="utf-8")
+        real_validate = init_mod._validate_env_path
+        swapped = False
+
+        def validate_then_swap(file_path):
+            nonlocal swapped
+            real_validate(file_path)
+            if not swapped:
+                file_path.unlink()
+                file_path.symlink_to(target)
+                swapped = True
+
+        monkeypatch.setattr(init_mod, "_validate_env_path", validate_then_swap)
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            init_mod.set_env_var(path, "XAI_API_KEY", "attacker-value")
+
+        assert target.read_text(encoding="utf-8") == "preserve me\n"
+        assert stat.S_IMODE(target.stat().st_mode) == 0o640
 
 
 class TestBrowserSetup:
@@ -369,6 +630,35 @@ def test_existing_env_not_clobbered_by_command(in_tmp, monkeypatch):
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
     runner.invoke(app, ["init", "--yes"])
     assert "keepme" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_invalid_env_type_is_clean_configuration_error(in_tmp):
+    (in_tmp / ".env").mkdir()
+
+    result = runner.invoke(app, ["init", "--yes"])
+
+    assert result.exit_code == 3
+    assert "Environment configuration failed" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_env_lock_timeout_is_json_runtime_error(in_tmp, monkeypatch):
+    def time_out(_path, *, force=False):
+        raise TimeoutError("timed out waiting for the env lock")
+
+    monkeypatch.setattr(init_mod, "create_env_file", time_out)
+
+    result = runner.invoke(app, ["--json", "init", "--yes"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"] == {
+        "reason": "env_file_error",
+        "env_file": str(in_tmp / ".env"),
+    }
+    assert "timed out waiting for the env lock" in payload["error"]
+    assert "Traceback" not in result.output
 
 
 def test_local_provider_path(in_tmp, monkeypatch):

@@ -16,8 +16,10 @@ from typing import Any, cast
 
 from distill.concepts import recovery
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
-from distill.library.paths import strip_frontmatter
+from distill.library.confined import list_confined_files, read_confined_text, validate_confined_path
+from distill.library.paths import extract_frontmatter, strip_frontmatter
 from distill.mcp.server import load_config, mcp, resolve_within_library
+from distill.parsing import strict_json_loads
 
 __all__: list[str] = []
 
@@ -26,18 +28,34 @@ type ConceptSearchRow = dict[str, str | int | bool]
 type ConceptHistoryRow = dict[str, str | None]
 type ConceptRepolarizedRow = dict[str, str]
 type ConceptFieldChangeRow = dict[str, Any]
+type DiffSelection = tuple[Path, Path, str, str]
+
+_MAX_CONCEPT_FILE_BYTES = 8 * 1024 * 1024
+_MAX_CONCEPT_DIRECTORY_ENTRIES = 4096
+_MAX_COLLISION_SCAN_BYTES = 16 * 1024 * 1024
+_MAX_HISTORY_SNAPSHOTS = 512
+_MAX_CONCEPT_RESULTS = 100
 
 
-def _read_jsonl(path: Path) -> list[ConceptJsonRow]:
-    if not path.exists():
+def _read_confined_text(path: Path, root: Path) -> str | None:
+    return read_confined_text(path, root, max_bytes=_MAX_CONCEPT_FILE_BYTES)
+
+
+def _is_confined_topic_dir(topic_dir: Path, library_dir: Path) -> bool:
+    return validate_confined_path(topic_dir, library_dir, expect_directory=True) is not None
+
+
+def _read_jsonl(path: Path, library_dir: Path) -> list[ConceptJsonRow]:
+    content = _read_confined_text(path, library_dir)
+    if content is None:
         return []
     rows: list[ConceptJsonRow] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in content.splitlines():
         line = line.strip()
         if line:
             try:
-                decoded: object = json.loads(line)
-            except json.JSONDecodeError:
+                decoded = strict_json_loads(line)
+            except (RecursionError, ValueError):
                 continue
             if isinstance(decoded, dict):
                 rows.append(cast("ConceptJsonRow", decoded))
@@ -55,7 +73,163 @@ def _row_int(row: ConceptJsonRow, key: str) -> int:
 
 
 def _row_bool(row: ConceptJsonRow, key: str) -> bool:
-    return bool(row.get(key))
+    value = row.get(key)
+    return value if isinstance(value, bool) else False
+
+
+def _read_topic_note(path: Path, topic_dir: Path, library_dir: Path) -> str | None:
+    """Read a regular note whose lexical path remains inside its trusted topic."""
+
+    try:
+        relative = path.relative_to(topic_dir)
+    except ValueError:
+        return None
+    if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+        return None
+    return _read_confined_text(path, library_dir)
+
+
+def _is_safe_slug(slug: str) -> bool:
+    return bool(
+        slug
+        and "\x00" not in slug
+        and "/" not in slug
+        and "\\" not in slug
+        and ":" not in slug
+        and slug not in {".", ".."}
+        and slug == Path(slug).name
+    )
+
+
+def _list_confined_markdown_paths(
+    directory: Path,
+    library_dir: Path,
+    *,
+    max_files: int,
+) -> list[Path] | None:
+    """Enumerate a bounded regular-file directory without trusting its entries."""
+
+    return list_confined_files(
+        directory,
+        library_dir,
+        suffix=".md",
+        max_entries=_MAX_CONCEPT_DIRECTORY_ENTRIES,
+        max_files=max_files,
+        max_file_bytes=_MAX_CONCEPT_FILE_BYTES,
+    )
+
+
+def _find_canonical_note_path(
+    topic_dir: Path,
+    slug: str,
+    library_dir: Path,
+) -> tuple[Path | None, bool]:
+    for subdirectory in ("concepts", "entities"):
+        candidate = topic_dir / subdirectory / f"{slug}.md"
+        content = _read_topic_note(candidate, topic_dir, library_dir)
+        if content is not None:
+            return candidate, False
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return None, True
+        return None, True
+    return None, False
+
+
+def _find_collision_note_path(
+    topic_dir: Path,
+    slug: str,
+    library_dir: Path,
+) -> tuple[Path | None, bool]:
+    """Scan collision names within a total byte and directory-entry budget."""
+
+    scanned_bytes = 0
+    for subdirectory in ("concepts", "entities"):
+        paths = _list_confined_markdown_paths(
+            topic_dir / subdirectory,
+            library_dir,
+            max_files=_MAX_CONCEPT_DIRECTORY_ENTRIES,
+        )
+        if paths is None:
+            return None, True
+        for path in paths:
+            content = _read_topic_note(path, topic_dir, library_dir)
+            if content is None:
+                return None, True
+            scanned_bytes += len(content.encode("utf-8"))
+            if scanned_bytes > _MAX_COLLISION_SCAN_BYTES:
+                return None, True
+            if extract_frontmatter(content).get("slug") == slug:
+                return path, False
+    return None, False
+
+
+def _find_confined_note_path(
+    topic_dir: Path,
+    slug: str,
+    library_dir: Path,
+) -> tuple[Path | None, bool]:
+    """Find a live note using only confined reads; return an unsafe flag."""
+
+    if not _is_safe_slug(slug):
+        return None, False
+    canonical, unsafe = _find_canonical_note_path(topic_dir, slug, library_dir)
+    if canonical is not None or unsafe:
+        return canonical, unsafe
+    return _find_collision_note_path(topic_dir, slug, library_dir)
+
+
+def _list_confined_snapshots(
+    topic_dir: Path,
+    slug: str,
+    library_dir: Path,
+) -> list[recovery.Snapshot] | None:
+    if not _is_safe_slug(slug):
+        return []
+    paths = _list_confined_markdown_paths(
+        recovery.history_dir_for_slug(topic_dir, slug),
+        library_dir,
+        max_files=_MAX_HISTORY_SNAPSHOTS,
+    )
+    if paths is None:
+        return None
+    snapshots = [
+        recovery.Snapshot(
+            slug=slug,
+            safe_ts=path.stem,
+            iso=recovery.safe_ts_to_iso(path.stem),
+            path=path,
+        )
+        for path in paths
+    ]
+    snapshots.sort(key=lambda snapshot: snapshot.safe_ts)
+    return snapshots
+
+
+def _resolve_snapshot(
+    snapshots: list[recovery.Snapshot],
+    timestamp: str,
+) -> recovery.Snapshot | None:
+    wanted = timestamp.strip().removesuffix(".md")
+    wanted_safe = recovery.iso_to_safe_ts(wanted)
+    return next(
+        (
+            snapshot
+            for snapshot in snapshots
+            if wanted in {snapshot.safe_ts, snapshot.iso} or wanted_safe == snapshot.safe_ts
+        ),
+        None,
+    )
+
+
+def _unsafe_note_response() -> str:
+    return json.dumps(
+        {"status": "error", "error": "Note path is unsafe or unreadable."},
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -77,13 +251,22 @@ def find_concepts(
     """
     config = load_config()
     topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
+    if not _is_confined_topic_dir(topic_dir, config.library_dir):
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
 
-    rows = _read_jsonl(concepts_jsonl_path(topic_dir)) + _read_jsonl(entities_jsonl_path(topic_dir))
+    if isinstance(limit, bool) or limit < 1:
+        return json.dumps(
+            {"status": "error", "error": "limit must be a positive integer."},
+            indent=2,
+        )
+    limit = min(limit, _MAX_CONCEPT_RESULTS)
+
+    rows = _read_jsonl(concepts_jsonl_path(topic_dir), config.library_dir) + _read_jsonl(
+        entities_jsonl_path(topic_dir), config.library_dir
+    )
 
     if contested_only:
-        rows = [r for r in rows if r.get("contested")]
+        rows = [r for r in rows if _row_bool(r, "contested")]
     if kind:
         rows = [r for r in rows if r.get("kind") == kind]
     if query:
@@ -130,8 +313,6 @@ def read_concept(path: str) -> str:
             {"status": "error", "error": "Path must be a relative path inside the library root."},
             indent=2,
         )
-    if not full_path.is_file():
-        return json.dumps({"status": "error", "error": f"Path not found: {path}"}, indent=2)
     # SECURITY: enforce the *library-relative* layout, not absolute-path parts.
     # An earlier version did substring checks on the unnormalized path string
     # (bypassed by ``concepts/../secret.md``); the replacement inspected
@@ -159,9 +340,9 @@ def read_concept(path: str) -> str:
             indent=2,
         )
 
-    try:
-        raw = full_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    lexical_path = config.library_dir.joinpath(*Path(path).parts)
+    raw = _read_confined_text(lexical_path, config.library_dir)
+    if raw is None:
         return json.dumps(
             {"status": "error", "error": "Cannot read concept or entity note."},
             indent=2,
@@ -190,26 +371,34 @@ def concept_history(topic: str, slug: str) -> str:
     """
     config = load_config()
     topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
+    if not _is_confined_topic_dir(topic_dir, config.library_dir):
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
 
-    snapshots = recovery.list_snapshots(topic_dir, slug)
-    live_path = recovery.note_path_for_slug(topic_dir, slug)
+    snapshots = _list_confined_snapshots(topic_dir, slug, config.library_dir)
+    live_path, unsafe_note = _find_confined_note_path(topic_dir, slug, config.library_dir)
+    if snapshots is None or unsafe_note:
+        return _unsafe_note_response()
     if live_path is None and not snapshots:
         return json.dumps(
             {"status": "error", "error": f"No note for slug '{slug}' in topic '{topic}'."},
             indent=2,
         )
 
-    newer_fields = (
-        recovery.parse_note_fields(live_path.read_text(encoding="utf-8"))
+    live_text = (
+        _read_topic_note(live_path, topic_dir, config.library_dir)
         if live_path is not None
         else None
     )
+    if live_path is not None and live_text is None:
+        return _unsafe_note_response()
+    newer_fields = recovery.parse_note_fields(live_text) if live_text is not None else None
     newer_label = "current"
     steps: list[ConceptHistoryRow] = []
     for snap in reversed(snapshots):
-        snap_fields = recovery.parse_note_fields(snap.path.read_text(encoding="utf-8"))
+        snap_text = _read_topic_note(snap.path, topic_dir, config.library_dir)
+        if snap_text is None:
+            return _unsafe_note_response()
+        snap_fields = recovery.parse_note_fields(snap_text)
         steps.append(
             {
                 "timestamp": snap.iso,
@@ -236,6 +425,60 @@ def concept_history(topic: str, slug: str) -> str:
     )
 
 
+def _select_diff_versions(
+    topic: str,
+    slug: str,
+    live_path: Path | None,
+    snapshots: list[recovery.Snapshot],
+    ts_a: str,
+    ts_b: str,
+) -> DiffSelection | str:
+    if ts_a and ts_b:
+        a = _resolve_snapshot(snapshots, ts_a)
+        b = _resolve_snapshot(snapshots, ts_b)
+        if a is None or b is None:
+            missing = ts_a if a is None else ts_b
+            return json.dumps(
+                {"status": "error", "error": f"No snapshot matching '{missing}'."}, indent=2
+            )
+        return (a.path, b.path, a.iso, b.iso)
+    if live_path is None:
+        return json.dumps(
+            {"status": "error", "error": "No live note; pass two timestamps."}, indent=2
+        )
+    if ts_a:
+        old = _resolve_snapshot(snapshots, ts_a)
+        if old is None:
+            return json.dumps(
+                {"status": "error", "error": f"No snapshot matching '{ts_a}'."}, indent=2
+            )
+    elif snapshots:
+        old = snapshots[-1]
+    else:
+        return json.dumps(
+            {
+                "topic": topic,
+                "slug": slug,
+                "message": "No history snapshots yet; nothing to diff.",
+            },
+            indent=2,
+        )
+    return (old.path, live_path, old.iso, "current")
+
+
+def _read_diff(
+    selection: DiffSelection,
+    topic_dir: Path,
+    library_dir: Path,
+) -> recovery.NoteDiff | None:
+    old_path, new_path, old_label, new_label = selection
+    old_text = _read_topic_note(old_path, topic_dir, library_dir)
+    new_text = _read_topic_note(new_path, topic_dir, library_dir)
+    if old_text is None or new_text is None:
+        return None
+    return recovery.diff_notes(old_text, new_text, old_label=old_label, new_label=new_label)
+
+
 @mcp.tool()
 def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
     """Diff a concept note across versions; return a structured delta.
@@ -251,61 +494,25 @@ def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
     """
     config = load_config()
     topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
+    if not _is_confined_topic_dir(topic_dir, config.library_dir):
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
 
-    live_path = recovery.note_path_for_slug(topic_dir, slug)
-    snapshots = recovery.list_snapshots(topic_dir, slug)
+    live_path, unsafe_note = _find_confined_note_path(topic_dir, slug, config.library_dir)
+    snapshots = _list_confined_snapshots(topic_dir, slug, config.library_dir)
+    if snapshots is None or unsafe_note:
+        return _unsafe_note_response()
     if live_path is None and not snapshots:
         return json.dumps(
             {"status": "error", "error": f"No note for slug '{slug}' in topic '{topic}'."},
             indent=2,
         )
 
-    def _resolve(ts: str) -> recovery.Snapshot | None:
-        return recovery.resolve_snapshot(topic_dir, slug, ts)
-
-    if ts_a and ts_b:
-        a, b = _resolve(ts_a), _resolve(ts_b)
-        if a is None or b is None:
-            missing = ts_a if a is None else ts_b
-            return json.dumps(
-                {"status": "error", "error": f"No snapshot matching '{missing}'."}, indent=2
-            )
-        diff = recovery.diff_notes(
-            a.path.read_text(encoding="utf-8"),
-            b.path.read_text(encoding="utf-8"),
-            old_label=a.iso,
-            new_label=b.iso,
-        )
-    else:
-        if live_path is None:
-            return json.dumps(
-                {"status": "error", "error": "No live note; pass two timestamps."}, indent=2
-            )
-        if ts_a:
-            old = _resolve(ts_a)
-            if old is None:
-                return json.dumps(
-                    {"status": "error", "error": f"No snapshot matching '{ts_a}'."}, indent=2
-                )
-        elif snapshots:
-            old = snapshots[-1]
-        else:
-            return json.dumps(
-                {
-                    "topic": topic,
-                    "slug": slug,
-                    "message": "No history snapshots yet; nothing to diff.",
-                },
-                indent=2,
-            )
-        diff = recovery.diff_notes(
-            old.path.read_text(encoding="utf-8"),
-            live_path.read_text(encoding="utf-8"),
-            old_label=old.iso,
-            new_label="current",
-        )
+    selection = _select_diff_versions(topic, slug, live_path, snapshots, ts_a, ts_b)
+    if isinstance(selection, str):
+        return selection
+    diff = _read_diff(selection, topic_dir, config.library_dir)
+    if diff is None:
+        return _unsafe_note_response()
 
     sources_repolarized: list[ConceptRepolarizedRow] = [
         {"source_id": sid, "from": old_pol, "to": new_pol}

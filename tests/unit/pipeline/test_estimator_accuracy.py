@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from distill.pipeline.costs import estimator_accuracy
+from distill.pipeline.cost_history import read_cost_log_rows
+from distill.pipeline.costs import estimator_accuracy, projected_next_run_cost
 
 
 def _row(est, act, command="papers"):
@@ -64,6 +65,41 @@ class TestEstimatorAccuracy:
         assert result3 is not None
         # median abs around 10-20%
         assert result3["median_abs_pct_error"] > 0
+
+    def test_non_finite_and_boolean_costs_are_not_metrics(self):
+        invalid = [
+            _row(float("nan"), 1.0),
+            _row(1.0, float("inf")),
+            _row(True, 1.0),
+            _row(1.0, False),
+        ]
+
+        assert estimator_accuracy(invalid) is None
+        assert (
+            projected_next_run_cost(
+                [_row(1.0, float("nan")), _row(1.0, float("inf")), _row(1.0, True)]
+            )
+            == 0.0
+        )
+
+
+def test_cost_log_reader_skips_oversized_nonfinite_and_boolean_rows(tmp_path):
+    log = tmp_path / "cost_log.jsonl"
+    log.write_text(
+        "\n".join(
+            [
+                '{"actual_cost": ' + "9" * 5_000 + "}",
+                '{"actual_cost": NaN}',
+                '{"actual_cost": Infinity}',
+                '{"actual_cost": 1e999}',
+                '{"actual_cost": true}',
+                '{"actual_cost": 1.25, "command": "papers"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert read_cost_log_rows(log) == [{"actual_cost": 1.25, "command": "papers"}]
 
 
 def test_run_summary_estimate_reaches_the_log(tmp_path):

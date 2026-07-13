@@ -39,6 +39,7 @@ from distill.library.paths import (
     write_text_artifact,
 )
 from distill.llm import call as llm_call
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.podcasts import podcast_insight_prompt
@@ -193,6 +194,11 @@ def ingest_podcast(
                 result.skipped_reasons.append(f"{ep.title}: no transcript; analysis skipped")
             continue
 
+        if tracker is None:
+            raise CostPolicyError(
+                "Podcast analysis refused because a cost tracker is required "
+                "for every provider call."
+            )
         rc = RouterConfig()
         response = llm_call(
             rc,
@@ -206,9 +212,9 @@ def ingest_podcast(
                 transcript=transcript,
             ),
             call_type="podcast_analysis",
+            usage_tracker=tracker,
         )
-        if tracker is not None:
-            tracker.record(TokenUsage.from_response(response, call_type="podcast_analysis"))
+        tracker.record(TokenUsage.from_response(response, call_type="podcast_analysis"))
 
         # Write-time verify hook: the receipt is the transcript + show notes.
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook

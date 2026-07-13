@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from distill.ingestors.x import media
@@ -22,10 +23,10 @@ class _FakeStream:
         return self
 
     def __exit__(self, *_: Any) -> None:
-        pass
+        return None
 
     def raise_for_status(self) -> None:
-        pass
+        return None
 
     def iter_bytes(self, chunk_size: int) -> list[bytes]:
         return self._chunks
@@ -56,6 +57,7 @@ def test_download_video_sends_referer_header(tmp_path: Path) -> None:
 
     def _fake_stream(method: str, url: str, **kwargs: Any) -> _FakeStream:
         captured["headers"] = kwargs.get("headers", {})
+        captured["trust_env"] = kwargs.get("trust_env")
         return _FakeStream([b"x"])
 
     with (
@@ -67,6 +69,7 @@ def test_download_video_sends_referer_header(tmp_path: Path) -> None:
 
     assert captured["headers"].get("Referer") == "https://platform.twitter.com/"
     assert "User-Agent" in captured["headers"]
+    assert captured["trust_env"] is False
 
 
 def test_download_video_pins_connection_to_resolved_ip(tmp_path: Path) -> None:
@@ -174,6 +177,7 @@ def test_download_video_rejects_too_many_redirects(tmp_path: Path, monkeypatch) 
 
 def test_download_video_enforces_size_cap(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(media, "_MAX_VIDEO_BYTES", 4)
+    dest = tmp_path / "media.mp4"
     with (
         patch(
             "distill.ingestors.x.media.httpx.stream",
@@ -183,4 +187,36 @@ def test_download_video_enforces_size_cap(tmp_path: Path, monkeypatch) -> None:
         patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
         pytest.raises(ValueError, match="exceeds"),
     ):
-        download_video("https://video.twimg.com/big.mp4", tmp_path / "media.mp4")
+        download_video("https://video.twimg.com/big.mp4", dest)
+
+    assert not dest.exists()
+    assert list(tmp_path.glob(".media.mp4.*.tmp")) == []
+
+
+def test_download_video_cleans_partial_file_and_subsequent_retry_succeeds(tmp_path: Path) -> None:
+    dest = tmp_path / "media.mp4"
+    attempts = 0
+
+    class FailingStream(_FakeStream):
+        def iter_bytes(self, chunk_size: int):
+            yield b"partial"
+            raise httpx.ReadTimeout("stream stopped")
+
+    def _fake_stream(method: str, url: str, **kwargs: Any) -> _FakeStream:
+        nonlocal attempts
+        attempts += 1
+        return FailingStream([]) if attempts == 1 else _FakeStream([b"complete"])
+
+    with (
+        patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream),
+        patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
+    ):
+        with pytest.raises(httpx.ReadTimeout):
+            download_video("https://video.twimg.com/test.mp4", dest)
+        assert not dest.exists()
+        assert list(tmp_path.glob(".media.mp4.*.tmp")) == []
+
+        assert download_video("https://video.twimg.com/test.mp4", dest) == dest
+
+    assert dest.read_bytes() == b"complete"

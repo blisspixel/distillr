@@ -2,6 +2,8 @@
 
 import os
 import sys
+import threading
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -176,6 +178,46 @@ class TestGetTranscript:
         result = get_transcript("https://youtube.com/watch?v=abc", "abc", output, config)
         assert result is True
         assert output.read_text(encoding="utf-8") == "Hello world transcript"
+        mock_captions.assert_called_once_with("https://www.youtube.com/watch?v=abc", "abc")
+
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    def test_atomic_caption_failure_preserves_prior_transcript(
+        self, mock_captions, tmp_path, monkeypatch
+    ):
+        mock_captions.return_value = "replacement transcript"
+        output = tmp_path / "transcript.txt"
+        output.write_text("verified prior transcript", encoding="utf-8")
+
+        def fail_replace(_source: Path, _target: Path) -> Path:
+            raise OSError("simulated interrupted replacement")
+
+        monkeypatch.setattr(Path, "replace", fail_replace)
+
+        with pytest.raises(OSError, match="interrupted replacement"):
+            get_transcript(
+                "https://youtube.com/watch?v=abc",
+                "abc",
+                output,
+                DistillConfig(distill_output_dir=tmp_path / "lib"),
+            )
+
+        assert output.read_text(encoding="utf-8") == "verified prior transcript"
+        assert list(tmp_path.glob(".transcript.txt.*.tmp")) == []
+
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    def test_rejects_noncanonical_or_mismatched_video_identity(self, mock_captions, tmp_path):
+        config = DistillConfig(distill_output_dir=tmp_path / "lib")
+        output = tmp_path / "transcript.txt"
+
+        for url, video_id in (
+            ("https://youtube.com/redirect?q=http://169.254.169.254/", "abc"),
+            ("https://evil.youtube.com/watch?v=abc", "abc"),
+            ("https://youtube.com/watch?v=abc", "different"),
+            ("http://youtube.com/watch?v=abc", "abc"),
+        ):
+            assert get_transcript(url, video_id, output, config) is False
+
+        mock_captions.assert_not_called()
 
     @patch("distill.ingestors.youtube.transcripts._try_whisper_ladder")
     @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
@@ -299,11 +341,39 @@ class TestYoutubeCaptionsFallback:
 
         assert result == "Hello"
 
+    @patch("distill.ingestors.youtube.transcripts.tempfile.TemporaryDirectory")
+    @patch("distill.ingestors.youtube.transcripts.yt_dlp.YoutubeDL")
+    def test_caption_reader_rejects_oversized_vtt(
+        self, mock_ydl, mock_tmpdir, tmp_path, monkeypatch
+    ):
+        temp_dir = tmp_path / "captions"
+        temp_dir.mkdir()
+        mock_tmpdir.return_value.__enter__.return_value = str(temp_dir)
+        mock_tmpdir.return_value.__exit__.return_value = False
+        monkeypatch.setattr(transcripts, "_MAX_CAPTION_BYTES", 10)
+
+        def fake_download(_urls):
+            (temp_dir / "abc.en.vtt").write_bytes(b"x" * 11)
+
+        mock_ydl.return_value.__enter__.return_value.download.side_effect = fake_download
+
+        assert (
+            transcripts._fetch_captions_once("https://www.youtube.com/watch?v=abc", "abc") is None
+        )
+
 
 class TestWhisperLadderFallback:
     @pytest.mark.parametrize(
         ("raw_duration", "expected_duration"),
-        [(87, 87.0), ("unknown", 0.0), (-5, 0.0), (float("inf"), 0.0)],
+        [
+            (87, 87.0),
+            ("unknown", 0.0),
+            (-5, 0.0),
+            (float("inf"), 0.0),
+            (True, 0.0),
+            (1.5, 0.0),
+            (10**4000, 0.0),
+        ],
     )
     def test_download_audio_returns_largest_file_and_safe_duration(
         self, tmp_path, monkeypatch, raw_duration, expected_duration
@@ -352,6 +422,58 @@ class TestWhisperLadderFallback:
                 return False
 
         monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FailingYDL)
+
+        assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
+            None,
+            "",
+            0.0,
+        )
+
+    def test_download_audio_aborts_unknown_length_transfer_over_cap(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(transcripts, "_MAX_AUDIO_BYTES", 10)
+
+        class FakeYDL:
+            def __init__(self, options):
+                self.options = options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, _url, *, download):
+                assert download is True
+                self.options["progress_hooks"][0]({"status": "downloading", "downloaded_bytes": 11})
+                return {}
+
+        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+
+        assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
+            None,
+            "",
+            0.0,
+        )
+
+    def test_download_audio_rejects_oversized_resulting_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(transcripts, "_MAX_AUDIO_BYTES", 10)
+        (tmp_path / "abc.m4a").write_bytes(b"x" * 11)
+
+        class FakeYDL:
+            def __init__(self, _options):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, _url, *, download):
+                assert download is True
+                return {"duration": 1}
+
+        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
 
         assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
             None,
@@ -451,6 +573,62 @@ class TestWhisperLadderFallback:
 
 
 class TestScribeFallback:
+    def test_scribe_output_lock_rejects_symlink_without_touching_target(self, tmp_path):
+        target = tmp_path / "target.txt"
+        target.write_bytes(b"")
+        lock_path = tmp_path / ".distill-scribe.lock"
+        try:
+            lock_path.symlink_to(target)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with (
+            pytest.raises(ValueError, match="symbolic link"),
+            transcripts._scribe_output_lock(tmp_path),
+        ):
+            pytest.fail("unsafe lock must not enter its protected section")
+
+        assert target.read_bytes() == b""
+
+    def test_scribe_output_lock_serializes_overlapping_runs(self, tmp_path):
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        second_entered = threading.Event()
+        failures: list[BaseException] = []
+
+        def first() -> None:
+            try:
+                with transcripts._scribe_output_lock(tmp_path):
+                    first_entered.set()
+                    assert release_first.wait(timeout=2)
+            except BaseException as exc:
+                failures.append(exc)
+
+        def second() -> None:
+            try:
+                assert first_entered.wait(timeout=2)
+                with transcripts._scribe_output_lock(tmp_path):
+                    second_entered.set()
+            except BaseException as exc:
+                failures.append(exc)
+
+        first_thread = threading.Thread(target=first)
+        second_thread = threading.Thread(target=second)
+        first_thread.start()
+        second_thread.start()
+        assert first_entered.wait(timeout=2)
+        try:
+            assert not second_entered.wait(timeout=0.1)
+        finally:
+            release_first.set()
+            first_thread.join(timeout=2)
+            second_thread.join(timeout=2)
+
+        assert failures == []
+        assert second_entered.is_set()
+        assert not first_thread.is_alive()
+        assert not second_thread.is_alive()
+
     def test_try_scribe_requires_configured_path(self, tmp_path):
         config = DistillConfig(distill_output_dir=tmp_path / "lib", scribe_path="")
 
@@ -504,21 +682,20 @@ class TestScribeFallback:
         output_dir = scribe_dir / "output"
         output_dir.mkdir(parents=True)
         old_file = output_dir / "old.txt"
-        new_file = output_dir / "new.txt"
         old_file.write_text("old", encoding="utf-8")
-        new_file.write_text("new", encoding="utf-8")
-        # Set explicit, distinct mtimes so "latest output" is unambiguous.
-        # Back-to-back touch() calls can land on the same mtime tick on
-        # coarse-resolution filesystems (notably in CI), making the
-        # tie-break arbitrary and the test flaky.
         os.utime(old_file, (1_000_000, 1_000_000))
-        os.utime(new_file, (2_000_000, 2_000_000))
         config = DistillConfig(
             distill_output_dir=tmp_path / "lib",
             scribe_path=str(scribe_dir),
         )
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stderr = ""
+
+        def create_output(*_args, **_kwargs):
+            new_file = output_dir / "new.txt"
+            new_file.write_text("new", encoding="utf-8")
+            os.utime(new_file, (2_000_000, 2_000_000))
+            return type("Result", (), {"returncode": 0, "stderr": ""})()
+
+        mock_run.side_effect = create_output
         target = tmp_path / "transcript.txt"
 
         result = _try_scribe("https://youtube.com/watch?v=abc", target, config)
@@ -527,6 +704,23 @@ class TestScribeFallback:
         command = mock_run.call_args.args[0]
         assert command[:3] == [sys.executable, "-m", "scribe"]
         assert target.read_text(encoding="utf-8") == "new"
+
+    @patch("distill.ingestors.youtube.transcripts.subprocess.run")
+    def test_try_scribe_does_not_reuse_stale_output(self, mock_run, tmp_path):
+        scribe_dir = tmp_path / "scribe"
+        output_dir = scribe_dir / "output"
+        output_dir.mkdir(parents=True)
+        (output_dir / "stale.txt").write_text("old transcript", encoding="utf-8")
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "lib",
+            scribe_path=str(scribe_dir),
+        )
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = ""
+        target = tmp_path / "transcript.txt"
+
+        assert _try_scribe("https://youtube.com/watch?v=abc", target, config) is False
+        assert not target.exists()
 
     @patch("distill.ingestors.youtube.transcripts.subprocess.run", side_effect=TimeoutError())
     def test_try_scribe_handles_generic_exception(self, mock_run, tmp_path):

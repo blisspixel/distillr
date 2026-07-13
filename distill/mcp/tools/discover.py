@@ -12,7 +12,7 @@ from mcp.server.fastmcp import Context
 
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
-from distill.ingestors.youtube.discovery import VideoInfo
+from distill.ingestors.youtube.discovery import VideoInfo, is_valid_youtube_lookback
 from distill.library import Library
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
@@ -61,6 +61,8 @@ def _search_candidates(query: str, *, days: int, limit: int) -> list[VideoInfo]:
     from distill.ingestors.youtube.browser_search import search_youtube_results
     from distill.ingestors.youtube.discovery import search_videos as yt_search
 
+    if not is_valid_youtube_lookback(days):
+        return []
     candidates = search_youtube_results(query, days=days, limit=limit)
     if not candidates:
         candidates = yt_search(query, days=days, limit=limit)

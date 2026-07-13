@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.transcribe import TranscriptionError, transcribe_media
-from distill.ingestors.x.media import download_video
+from distill.ingestors.x.media import download_video, is_reusable_video
 from distill.ingestors.x.syndication import TweetRecord, fetch_tweet
 from distill.library.paths import (
     ProvenanceFields,
@@ -80,8 +80,20 @@ def _stable_media_url(value: str) -> str:
     """Discard volatile query parameters while retaining media identity."""
     if not value:
         return ""
-    parsed = urlsplit(value)
-    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path}"
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return ""
+    if (
+        parsed.scheme.casefold() not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+    ):
+        return ""
+    return f"{parsed.scheme.lower()}://{parsed.hostname.lower()}{parsed.path}"
 
 
 def _tweet_source_content_hash(tweet: TweetRecord) -> str:
@@ -478,7 +490,10 @@ def _expanded_vocabulary_hint(
             workload_tag="analysis",
             prompt=prompt,
             call_type="x_vocab_expand",
+            usage_tracker=tracker,
         )
+    except BudgetExceededError:
+        raise
     except Exception as exc:
         console.print(
             f"        [yellow]vocab expansion failed (continuing without): {exc}[/yellow]"
@@ -550,7 +565,13 @@ def analyze_tweet(
         transcript=transcript_text,
         media_summary=_media_summary(tweet),
     )
-    response = llm_call(rc, workload_tag="analysis", prompt=prompt, call_type="x_tweet")
+    response = llm_call(
+        rc,
+        workload_tag="analysis",
+        prompt=prompt,
+        call_type="x_tweet",
+        usage_tracker=tracker,
+    )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="x_tweet"))
     body = response.text
@@ -716,12 +737,13 @@ def ingest_tweet(
     if tweet.has_video and transcribe:
         media_path = post_dir / "media.mp4"
         try:
-            if media_path.exists() and media_path.stat().st_size > 0:
+            if is_reusable_video(media_path):
                 console.print(
                     f"        reusing existing {media_path.name} "
                     f"({media_path.stat().st_size / 1_000_000:.1f} MB)"
                 )
             else:
+                media_path.unlink(missing_ok=True)
                 console.print(
                     f"        downloading video ({tweet.video_duration_ms / 1000:.1f}s) "
                     f"to {media_path.name}"

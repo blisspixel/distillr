@@ -26,6 +26,8 @@ from typing import Any, cast
 
 from rich.console import Console
 
+from distill.library.paths import atomic_write_text
+
 PACKAGE = "distillr"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE}/json"
 UPDATE_CACHE_NAME = ".update_check.json"
@@ -209,7 +211,7 @@ def _write_cache(path: Path | None, data: dict[str, Any]) -> None:
         return
     with contextlib.suppress(Exception):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data), encoding="utf-8")
+        atomic_write_text(path, json.dumps(data))
 
 
 def _is_fresh(entry: dict[str, Any], now: datetime) -> bool:

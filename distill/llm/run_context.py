@@ -45,6 +45,7 @@ class RunContext:
     ops_dir: Path | None
     started_monotonic: float = field(default_factory=time.monotonic)
     outcome: str = ""
+    profile_receipt_written: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +106,14 @@ def mark_current_run_outcome(outcome: str) -> None:
     context = current_run()
     if context is not None:
         context.outcome = outcome
+
+
+def mark_profile_receipt_written() -> None:
+    """Record that this command durably appended its profile cost receipt."""
+
+    context = current_run()
+    if context is not None:
+        context.profile_receipt_written = True
 
 
 def _start_run(
@@ -304,6 +313,7 @@ __all__ = [
     "current_run_elapsed_seconds",
     "current_run_id",
     "mark_current_run_outcome",
+    "mark_profile_receipt_written",
     "phase_scope",
     "record_completed_phase",
     "run_scope",

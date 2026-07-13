@@ -9,7 +9,7 @@ rollup ends every `audit all` run with the library-wide facts.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from distill.pipeline.audit import (
@@ -202,7 +202,16 @@ class TestCollect:
         assert h.issue_count == 0
 
     def test_profile_health_reports_invalid_run_state_shapes(self, tmp_path):
-        for name, state in {"array-state": "[]", "broken-json": "{"}.items():
+        states = {
+            "array-state": "[]",
+            "broken-json": "{",
+            "huge-integer": '{"value":' + "9" * 5_000 + "}",
+            "deep-state": "[" * 2_000 + "0" + "]" * 2_000,
+            "wrong-failure": json.dumps(
+                {"schema_version": "profile-run-state.v1", "last_failure": []}
+            ),
+        }
+        for name, state in states.items():
             _profile(tmp_path, name, topic=name)
             _topic(tmp_path, name, sources=1, orientation=True)
             state_path = profile_run_state_path(tmp_path, name)
@@ -214,11 +223,17 @@ class TestCollect:
         details = {item["profile"]: item["detail"] for item in h.invalid_state}
         assert details["array-state"] == "state is not a JSON object"
         assert details["broken-json"]
+        assert details["huge-integer"]
+        assert details["deep-state"]
+        assert details["wrong-failure"] == "last_failure must be a JSON object"
 
     def test_profile_health_treats_missing_and_bad_timestamps_as_stale(self, tmp_path):
         for name, state in {
-            "missing-time": {},
-            "bad-time": {"last_run_at": "not-a-time"},
+            "missing-time": {"schema_version": "profile-run-state.v1"},
+            "bad-time": {
+                "schema_version": "profile-run-state.v1",
+                "last_run_at": "not-a-time",
+            },
         }.items():
             _profile(tmp_path, name, topic=name, stale_after="P1D")
             _topic(tmp_path, name, sources=1, orientation=True)
@@ -234,6 +249,56 @@ class TestCollect:
         stale = {item["profile"]: item["last_run_at"] for item in h.stale}
         assert stale == {"bad-time": "not-a-time", "missing-time": "never"}
 
+    def test_profile_health_treats_implausibly_future_timestamp_as_stale(self, tmp_path):
+        _profile(tmp_path, "future-time", topic="future-time", stale_after="P1D")
+        _topic(tmp_path, "future-time", sources=1, orientation=True)
+        state_path = profile_run_state_path(tmp_path, "future-time")
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "profile-run-state.v1",
+                    "last_run_at": "9999-12-31T23:59:59Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        health = collect_profile_health(
+            tmp_path,
+            now=datetime(2026, 7, 13, 0, 0, tzinfo=UTC),
+        )
+
+        assert health.stale[0]["profile"] == "future-time"
+
+    def test_profile_health_rejects_state_schema_and_provenance_mismatches(self, tmp_path):
+        cases = {
+            "wrong-schema": {"schema_version": "profile-run-state.v2"},
+            "wrong-profile": {
+                "schema_version": "profile-run-state.v1",
+                "profile": "someone-else",
+                "topic": "wrong-profile",
+            },
+            "wrong-topic": {
+                "schema_version": "profile-run-state.v1",
+                "profile": "wrong-topic",
+                "topic": "someone-else",
+            },
+        }
+        for name, state in cases.items():
+            _profile(tmp_path, name, topic=name)
+            _topic(tmp_path, name, sources=1, orientation=True)
+            state_path = profile_run_state_path(tmp_path, name)
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        health = collect_profile_health(tmp_path)
+
+        details = {item["profile"]: item["detail"] for item in health.invalid_state}
+        assert "schema_version" in details["wrong-schema"]
+        assert "profile does not match" in details["wrong-profile"]
+        assert "topic does not match" in details["wrong-topic"]
+
     def test_profile_health_counts_unreadable_topic_sources_as_thin(self, tmp_path, monkeypatch):
         _profile(tmp_path, "agent-news", topic="agent-news")
         _topic(tmp_path, "agent-news", sources=1, orientation=True)
@@ -248,7 +313,14 @@ class TestCollect:
         assert h.thin_corpus[0]["profile"] == "agent-news"
 
     def test_profile_health_pure_fallback_helpers(self, tmp_path):
-        assert _parse_profile_duration("not-duration").days == 7
+        assert _parse_profile_duration("P0D") == timedelta(0)
+        for raw in (
+            "not-duration",
+            "P\u0661D",
+            "P" + "9" * 100 + "D",
+            "P" + "9" * 5000 + "D",
+        ):
+            assert _parse_profile_duration(raw).days == 7
         assert _library_relative(tmp_path / "outside.md", tmp_path / "library") == str(
             tmp_path / "outside.md"
         )

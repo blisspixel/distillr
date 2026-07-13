@@ -574,6 +574,7 @@ def test_telemetry_emitted_on_success() -> None:
         assert len(records) == 1
         assert records[0].outcome == "success"
         assert records[0].workload_tag == "analysis"
+        assert records[0].usage_source == "reported"
 
 
 def test_local_telemetry_records_tokens_per_second() -> None:
@@ -593,8 +594,8 @@ def test_local_telemetry_records_tokens_per_second() -> None:
 
         with (
             patch("distill.llm.router._get_provider", return_value=mock_prov),
-            patch("distill.llm.router.run_coroutine_sync", return_value=response) as runner,
-            patch("distill.llm.router.time.monotonic", side_effect=[100.0, 102.0]),
+            patch("distill.llm.call_execution.run_coroutine_sync", return_value=response) as runner,
+            patch("distill.llm.call_execution.time.monotonic", side_effect=[100.0, 102.0]),
         ):
             call(config, "analysis", "test prompt")
 

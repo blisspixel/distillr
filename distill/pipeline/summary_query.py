@@ -159,6 +159,7 @@ def summarize_query(
             sources_block="\n\n---\n\n".join(blocks),
         ),
         call_type="find_summary",
+        usage_tracker=tracker,
     )
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="find_summary"))

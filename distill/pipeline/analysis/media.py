@@ -98,6 +98,7 @@ def ingest_media_file(
         workload_tag="site",
         prompt=media_insight_prompt(file_name=path.name, transcript=transcript),
         call_type="media_analysis",
+        usage_tracker=tracker,
     )
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="media_analysis"))

@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from distill.library import Library
@@ -95,7 +96,7 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
         encoding="utf-8",
     )
 
-    client = TestClient(create_app(config))
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 
     dashboard_response = client.get("/")
     watchlist_response = client.get("/watchlist")
@@ -132,7 +133,7 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
 
 
 def test_empty_dashboard_offers_a_truthful_first_action(config):
-    client = TestClient(create_app(config))
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 
     response = client.get("/")
 
@@ -147,7 +148,7 @@ def test_empty_dashboard_offers_a_truthful_first_action(config):
 
 
 def test_dashboard_styles_include_narrow_screen_and_focus_support(config):
-    client = TestClient(create_app(config))
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 
     response = client.get("/static/style.css")
 
@@ -155,6 +156,49 @@ def test_dashboard_styles_include_narrow_screen_and_focus_support(config):
     assert "@media (max-width: 760px)" in response.text
     assert ".skip-link:focus" in response.text
     assert ":focus-visible" in response.text
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "localhost",
+        "localhost:8899",
+        "127.0.0.1",
+        "127.0.0.1:8899",
+        "127.0.0.2:8899",
+        "[::1]",
+        "[::1]:8899",
+    ],
+)
+def test_dashboard_accepts_literal_loopback_host_forms(config, host):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/", headers={"host": host})
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "attacker.example:8899",
+        "localhost.attacker.example:8899",
+        "localhost:invalid",
+        "localhost:",
+        "localhost:" + "9" * 5000,
+        "[::1]attacker:8899",
+        "[::1]:",
+        "::1",
+        "",
+    ],
+)
+def test_dashboard_rejects_non_loopback_or_malformed_host_headers(config, host):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/", headers={"host": host})
+
+    assert response.status_code == 400
+    assert response.text == "Invalid host header"
 
 
 def test_create_app_fallback_markdown_filter_and_run_server(monkeypatch, config):
@@ -196,6 +240,54 @@ def test_create_app_fallback_markdown_filter_and_run_server(monkeypatch, config)
     assert started == [(SimpleNamespace(name="app"), "127.0.0.1", 8899, "warning")]
 
 
+@pytest.mark.parametrize("host", ["::1", "[::1]"])
+def test_run_server_normalizes_ipv6_loopback_for_bind_and_browser(monkeypatch, config, host):
+    opened = []
+    started = []
+    monkeypatch.setattr("distill.web.server.create_app", lambda cfg: SimpleNamespace(name="app"))
+    monkeypatch.setattr("distill.web.server.webbrowser.open", lambda url: opened.append(url))
+
+    class FakeTimer:
+        def __init__(self, _delay, callback):
+            self.callback = callback
+
+        def start(self):
+            self.callback()
+
+    monkeypatch.setattr("distill.web.server.threading.Timer", FakeTimer)
+    monkeypatch.setattr(
+        "distill.web.server.uvicorn.run",
+        lambda app, host, port, log_level: started.append((app, host, port, log_level)),
+    )
+
+    run_server(config, host, 8899, open_browser=True)
+
+    assert opened == ["http://[::1]:8899"]
+    assert started == [(SimpleNamespace(name="app"), "::1", 8899, "warning")]
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.20", "dashboard.example"])
+def test_run_server_rejects_non_loopback_bindings(monkeypatch, config, host):
+    monkeypatch.setattr(
+        "distill.web.server.create_app",
+        lambda _config: pytest.fail("app must not be created for an unsafe bind"),
+    )
+
+    with pytest.raises(ValueError, match="loopback"):
+        run_server(config, host, 8899, open_browser=False)
+
+
+@pytest.mark.parametrize("port", [True, 0, -1, 65_536, 10**4_000])
+def test_run_server_rejects_invalid_ports_before_creating_app(monkeypatch, config, port):
+    monkeypatch.setattr(
+        "distill.web.server.create_app",
+        lambda _config: pytest.fail("app must not be created for an invalid port"),
+    )
+
+    with pytest.raises(ValueError, match="port must be an integer between 1 and 65535"):
+        run_server(config, "127.0.0.1", port, open_browser=False)
+
+
 def test_channel_video_collection_handles_missing_and_invalid_metadata(tmp_path):
     from distill.config import DistillConfig
 
@@ -220,7 +312,7 @@ def test_dashboard_route_falls_back_to_dev_version(monkeypatch, config):
         importlib.metadata, "version", lambda _name: (_ for _ in ()).throw(RuntimeError("boom"))
     )
 
-    client = TestClient(create_app(config))
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 
     response = client.get("/")
     assert response.status_code == 200

@@ -149,6 +149,7 @@ def extract_from_insight(
         workload_tag="concepts",
         prompt=prompt,
         call_type="concepts_extract",
+        usage_tracker=tracker,
     )
 
     if tracker:

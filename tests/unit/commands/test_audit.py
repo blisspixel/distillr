@@ -338,6 +338,24 @@ class TestAuditActions:
 
         handler.assert_called_once()
 
+    @pytest.mark.parametrize("choice", ["\u00b2", "\u0661", "9" * 5000])
+    def test_action_menu_ignores_non_ascii_or_oversized_choice(self, tmp_path, monkeypatch, choice):
+        config = _config(tmp_path)
+        handler = MagicMock()
+        monkeypatch.setitem(audit_mod._ACTIONS, "orientation", handler)
+        monkeypatch.setattr(audit_mod, "tty_prompt", lambda *_a, **_k: choice)
+        monkeypatch.setattr(audit_mod, "console", MagicMock())
+
+        audit_mod._action_menu(
+            config,
+            ["t"],
+            [],
+            self._link_result(),
+            "2026-06-21T00:00:00Z",
+        )
+
+        handler.assert_not_called()
+
 
 class TestAuditCommand:
     def test_no_topics_console_message(self, tmp_path, monkeypatch):

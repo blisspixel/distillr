@@ -4,27 +4,48 @@
 from __future__ import annotations
 
 import json
-import subprocess
+import math
+import secrets
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Generator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from hashlib import blake2s
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, BinaryIO, cast
 
-from distill.library.paths import atomic_write_text, sanitize_path_component
-from distill.pipeline.costs import CostTracker, save_run_log
-from distill.pipeline.next_actions import (
-    NextAction,
-    NextActionVerifier,
-    action_id,
-    loop_metadata,
+from distill.library.locking import exclusive_file_lock, open_lock_file
+from distill.library.okf import okf_bundle_output_dir, validate_okf_bundle
+from distill.library.paths import sanitize_path_component
+from distill.parsing import parse_bounded_json_int
+from distill.pipeline.costs import PROFILE_RECEIPT_ENV, CostTracker, save_run_log
+from distill.pipeline.next_actions import NextAction
+from distill.pipeline.profile_actions import profile_next_actions as _profile_next_actions
+from distill.pipeline.profile_execution import (
+    CommandExecution,
+    CommandExecutor,
+    execute_command,
+    validate_profile_timeout,
 )
+from distill.pipeline.profile_execution import subprocess as subprocess
 from distill.pipeline.profile_preview import (
     ProfilePreviewCandidate,
     ProfilePreviewResult,
     command_text,
+)
+from distill.pipeline.profile_state import (
+    completed_keys as _completed_keys,
+)
+from distill.pipeline.profile_state import (
+    load_profile_state,
+    profile_state_shape_error,
+    read_profile_state_document,
+    record_profile_event,
+    save_profile_state,
+)
+from distill.pipeline.profile_state import (
+    prune_inactive_event_state as _prune_inactive_event_state,
 )
 
 __all__ = [
@@ -34,36 +55,27 @@ __all__ = [
     "ProfileRunResult",
     "execute_command",
     "profile_run_state_path",
+    "profile_state_shape_error",
+    "read_profile_state_document",
     "run_profile_preview",
 ]
 
 _COMPLETABLE_KINDS = frozenset({"feed_item", "youtube_video"})
-_STATE_SCHEMA_VERSION = "profile-run-state.v1"
 _RESULT_SCHEMA_VERSION = "profile-run.v1"
-_OUTPUT_TAIL_CHARS = 4000
+_MAX_COST_APPEND_BYTES = 10_000_000
+_PROFILE_LOCK_TIMEOUT_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
-class CommandExecution:
-    """Subprocess outcome captured for state and JSON callers."""
-
-    exit_code: int
-    elapsed_seconds: float
-    stdout_tail: str = ""
-    stderr_tail: str = ""
-    timed_out: bool = False
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "exit_code": self.exit_code,
-            "elapsed_seconds": round(self.elapsed_seconds, 3),
-            "stdout_tail": self.stdout_tail,
-            "stderr_tail": self.stderr_tail,
-            "timed_out": self.timed_out,
-        }
+class _CostLogCheckpoint:
+    exists: bool
+    device: int = 0
+    inode: int = 0
+    size: int = 0
 
 
-CommandExecutor = Callable[[list[str], int], CommandExecution]
+class _ProfileBusyError(Exception):
+    """Signal that another process holds the profile execution lock."""
 
 
 @dataclass(frozen=True)
@@ -138,10 +150,16 @@ class ProfileRunResult:
     executed: bool
     fresh_item_limit: int
     ordering: str
+    busy: bool = False
+    max_metered_usd: float = 0.0
+    metered_spend_usd: float = 0.0
+    metered_spend_verified: bool = True
     commands: list[ProfileRunCommand] = field(default_factory=list[ProfileRunCommand])
     events: list[ProfileRunEvent] = field(default_factory=list[ProfileRunEvent])
     next_actions: list[NextAction] = field(default_factory=list[NextAction])
     warnings: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
+    last_run: dict[str, object] = field(default_factory=dict[str, object])
+    okf_bundle_required: bool = False
     okf_bundle_dir: str = ""
     okf_bundle_valid: bool = False
 
@@ -163,14 +181,38 @@ class ProfileRunResult:
 
     @property
     def pending_count(self) -> int:
+        if self.busy:
+            return self.selected_count
         if self.approved:
             return 0
         return self.selected_count
 
     @property
     def health_status(self) -> str:
+        if self.busy:
+            return "busy"
+        durable_status = self.last_run.get("status")
+        if not self.approved and durable_status in {
+            "failed",
+            "output_failed",
+            "budget_unverified",
+            "budget_exceeded",
+        }:
+            return str(durable_status)
+        if not self.metered_spend_verified:
+            return "budget_unverified"
+        if self.metered_spend_usd > self.max_metered_usd:
+            return "budget_exceeded"
         if self.failed_count:
             return "failed"
+        if (
+            self.okf_bundle_required
+            and not self.okf_bundle_valid
+            and (
+                self.approved or self.last_run.get("status") in {"ok", "complete", "output_failed"}
+            )
+        ):
+            return "output_failed"
         if self.selected_count == 0:
             return "complete"
         if not self.approved:
@@ -187,8 +229,12 @@ class ProfileRunResult:
             "state_path": self.state_path,
             "approved": self.approved,
             "executed": self.executed,
+            "busy": self.busy,
             "fresh_item_limit": self.fresh_item_limit,
             "ordering": self.ordering,
+            "max_metered_usd": self.max_metered_usd,
+            "metered_spend_usd": round(self.metered_spend_usd, 6),
+            "metered_spend_verified": self.metered_spend_verified,
             "candidate_count": len(self.commands),
             "selected_count": self.selected_count,
             "skipped_count": self.skipped_count,
@@ -203,6 +249,8 @@ class ProfileRunResult:
             "events": [event.to_dict() for event in self.events],
             "next_actions": [action.to_dict() for action in self.next_actions],
             "warnings": self.warnings,
+            "last_run": self.last_run,
+            "okf_bundle_required": self.okf_bundle_required,
             "okf_bundle_dir": self.okf_bundle_dir,
             "okf_bundle_valid": self.okf_bundle_valid,
         }
@@ -212,41 +260,228 @@ def profile_run_state_path(library_dir: Path, profile_name: str) -> Path:
     """Return the durable run-state path for one recurring profile."""
 
     safe_name = sanitize_path_component(profile_name)
+    if safe_name != profile_name:
+        raise ValueError("profile_name must be a canonical cross-platform path component")
     return library_dir / ".distill" / "profiles" / safe_name / "run_state.json"
 
 
-def execute_command(command: list[str], timeout_seconds: int) -> CommandExecution:
-    """Run one command with shell disabled and bounded captured output."""
+def _effective_profile_command(
+    command: list[str],
+    *,
+    cost_mode: str,
+    remaining_budget: float,
+) -> list[str]:
+    if cost_mode == "no-metered":
+        return _with_cost_mode(command, "no-metered")
+    if remaining_budget > 0:
+        return list(command)
+    return _with_cost_mode(command, "no-metered")
 
-    start = time.monotonic()
+
+def _with_cost_mode(command: list[str], cost_mode: str) -> list[str]:
+    updated = list(command)
+    if not updated or updated[0] != "distill":
+        return updated
+    for index, argument in enumerate(updated[1:], start=1):
+        if argument == "--cost-mode" and index + 1 < len(updated):
+            updated[index + 1] = cost_mode
+            return updated
+        if argument.startswith("--cost-mode="):
+            updated[index] = f"--cost-mode={cost_mode}"
+            return updated
+    updated[1:1] = ["--cost-mode", cost_mode]
+    return updated
+
+
+def _profile_budget_environment(
+    command: list[str],
+    *,
+    remaining_budget: float,
+    workflow_budgets_usd: Mapping[str, float] | None,
+) -> dict[str, str]:
+    command_name = _distill_command_name(command)
+    if not command_name:
+        return {}
+    budgets: dict[str, float] = {}
+    for key, value in (workflow_budgets_usd or {}).items():
+        normalized = _finite_nonnegative_float(value)
+        if key and normalized is not None:
+            budgets[key] = normalized
+    configured = budgets.get(command_name)
+    budgets[command_name] = (
+        min(configured, remaining_budget) if configured is not None else remaining_budget
+    )
+    serialized = ",".join(f"{key}={budgets[key]:.12g}" for key in sorted(budgets))
+    return {"DISTILL_COST_WORKFLOW_BUDGETS": serialized}
+
+
+def _distill_command_name(command: list[str]) -> str:
+    index = 1
+    while index < len(command):
+        argument = command[index]
+        if argument == "--cost-mode":
+            index += 2
+            continue
+        if argument.startswith("--cost-mode=") or argument == "--json":
+            index += 1
+            continue
+        return "" if argument.startswith("-") else argument.strip().lower()
+    return ""
+
+
+def _distill_cost_mode(command: list[str]) -> str:
+    for index, argument in enumerate(command[1:], start=1):
+        if argument == "--cost-mode" and index + 1 < len(command):
+            return command[index + 1]
+        if argument.startswith("--cost-mode="):
+            return argument.partition("=")[2]
+    return ""
+
+
+def _cost_log_checkpoint(path: Path) -> _CostLogCheckpoint | None:
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-        return CommandExecution(
-            exit_code=completed.returncode,
-            elapsed_seconds=time.monotonic() - start,
-            stdout_tail=_tail(completed.stdout),
-            stderr_tail=_tail(completed.stderr),
-        )
-    except FileNotFoundError as exc:
-        return CommandExecution(
-            exit_code=127,
-            elapsed_seconds=time.monotonic() - start,
-            stderr_tail=str(exc),
-        )
-    except subprocess.TimeoutExpired as exc:
-        return CommandExecution(
-            exit_code=124,
-            elapsed_seconds=time.monotonic() - start,
-            stdout_tail=_tail(_coerce_text(exc.stdout)),
-            stderr_tail=_tail(_coerce_text(exc.stderr) or f"Timed out after {timeout_seconds}s"),
-            timed_out=True,
-        )
+        file_stat = path.stat()
+    except FileNotFoundError:
+        return _CostLogCheckpoint(exists=False)
+    except OSError:
+        return None
+    return _CostLogCheckpoint(
+        exists=True,
+        device=file_stat.st_dev,
+        inode=file_stat.st_ino,
+        size=file_stat.st_size,
+    )
+
+
+def _appended_cost(
+    path: Path,
+    checkpoint: _CostLogCheckpoint | None,
+    *,
+    receipt_id: str,
+    require_receipt: bool,
+) -> tuple[float, bool]:
+    if checkpoint is None:
+        return 0.0, False
+    append = _read_cost_log_append(path, checkpoint)
+    if append is None:
+        return 0.0, False
+    content, append_complete = append
+    return _parse_cost_log_append(
+        content,
+        receipt_id=receipt_id,
+        require_receipt=require_receipt,
+        append_complete=append_complete,
+    )
+
+
+def _read_cost_log_append(path: Path, checkpoint: _CostLogCheckpoint) -> tuple[bytes, bool] | None:
+    try:
+        current = path.stat()
+    except FileNotFoundError:
+        return None if checkpoint.exists else (b"", True)
+    except OSError:
+        return None
+    if checkpoint.exists and (
+        current.st_dev != checkpoint.device
+        or current.st_ino != checkpoint.inode
+        or current.st_size < checkpoint.size
+    ):
+        return None
+    appended_size = current.st_size - checkpoint.size
+    try:
+        with path.open("rb") as stream:
+            stream.seek(checkpoint.size)
+            content = stream.read(_MAX_COST_APPEND_BYTES + 1)
+    except OSError:
+        return None
+    complete = appended_size <= _MAX_COST_APPEND_BYTES and len(content) == appended_size
+    return content[:_MAX_COST_APPEND_BYTES], complete
+
+
+def _parse_cost_log_append(
+    content: bytes,
+    *,
+    receipt_id: str,
+    require_receipt: bool,
+    append_complete: bool,
+) -> tuple[float, bool]:
+    if not content:
+        return 0.0, append_complete and not require_receipt
+    matched_receipt = False
+    tracker_costs: dict[str, float] = {}
+    total = 0.0
+    verified = append_complete and content.endswith(b"\n")
+    lines = content.split(b"\n")
+    if lines and not lines[-1]:
+        lines.pop()
+    for raw_line in lines:
+        if not raw_line:
+            continue
+        try:
+            line = raw_line.removesuffix(b"\r").decode("utf-8")
+            receipt_cost = _validated_receipt_cost(
+                json.loads(line, parse_int=parse_bounded_json_int), receipt_id
+            )
+        except (OverflowError, TypeError, UnicodeDecodeError, ValueError):
+            verified = False
+            continue
+        if receipt_cost is None:
+            continue
+        matched_receipt = True
+        tracker_id, cost = receipt_cost
+        previous = tracker_costs.get(tracker_id, 0.0)
+        if cost <= previous:
+            continue
+        next_total = total + (cost - previous)
+        if not math.isfinite(next_total):
+            return total, False
+        total = next_total
+        tracker_costs[tracker_id] = cost
+    return total, verified and (matched_receipt or not require_receipt)
+
+
+def _validated_receipt_cost(row: object, receipt_id: str) -> tuple[str, float] | None:
+    if not isinstance(row, dict):
+        raise ValueError("cost ledger row must be an object")
+    mapping = cast(dict[str, object], row)
+    if mapping.get("profile_receipt_id") != receipt_id:
+        return None
+    tracker_id = _validated_receipt_tracker_id(mapping.get("profile_receipt_tracker_id"))
+    cost = _validated_receipt_float(mapping.get("profile_receipt_cost_usd"))
+    return tracker_id, cost
+
+
+def _validated_receipt_tracker_id(value: object) -> str:
+    if not isinstance(value, str) or len(value) != 32:
+        raise ValueError("invalid profile receipt tracker id")
+    if any(character not in "0123456789abcdef" for character in value):
+        raise ValueError("invalid profile receipt tracker id")
+    return value
+
+
+def _validated_receipt_float(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError("invalid profile receipt cost")
+    cost = float(value)
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("invalid profile receipt cost")
+    return cost
+
+
+def _is_finite_nonnegative_number(value: object) -> bool:
+    return _finite_nonnegative_float(value) is not None
+
+
+def _finite_nonnegative_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        normalized = float(value)
+    except OverflowError:
+        return None
+    if not math.isfinite(normalized) or normalized < 0:
+        return None
+    return normalized
 
 
 def run_profile_preview(
@@ -257,20 +492,106 @@ def run_profile_preview(
     profile_ref: str = "",
     timeout_seconds: int = 1800,
     executor: CommandExecutor = execute_command,
+    workflow_budgets_usd: Mapping[str, float] | None = None,
+    result_finalizer: Callable[[ProfileRunResult], ProfileRunResult] | None = None,
 ) -> ProfileRunResult:
     """Execute or plan the commands from a profile preview."""
+
+    validate_profile_timeout(timeout_seconds)
+    if not approved:
+        return _run_profile_preview_unlocked(
+            preview,
+            library_dir=library_dir,
+            approved=False,
+            profile_ref=profile_ref,
+            timeout_seconds=timeout_seconds,
+            executor=executor,
+            workflow_budgets_usd=workflow_budgets_usd,
+        )
+
+    state_path = profile_run_state_path(library_dir, preview.profile)
+    lock_path = state_path.with_name("run.lock")
+    try:
+        with (
+            open_lock_file(lock_path) as lock_file,
+            _profile_execution_lock(lock_file, profile=preview.profile),
+        ):
+            return _run_profile_preview_unlocked(
+                preview,
+                library_dir=library_dir,
+                approved=True,
+                profile_ref=profile_ref,
+                timeout_seconds=timeout_seconds,
+                executor=executor,
+                workflow_budgets_usd=workflow_budgets_usd,
+                result_finalizer=result_finalizer,
+            )
+    except _ProfileBusyError:
+        return _busy_profile_run_result(
+            preview,
+            library_dir=library_dir,
+            profile_ref=profile_ref or preview.profile,
+        )
+
+
+@contextmanager
+def _profile_execution_lock(lock_file: BinaryIO, *, profile: str) -> Generator[None]:
+    acquired = False
+    try:
+        with exclusive_file_lock(
+            lock_file,
+            timeout_seconds=_PROFILE_LOCK_TIMEOUT_SECONDS,
+            timeout_message=f"Profile {profile!r} is already running",
+        ):
+            acquired = True
+            yield
+    except TimeoutError as exc:
+        if acquired:
+            raise
+        raise _ProfileBusyError from exc
+
+
+def _run_profile_preview_unlocked(
+    preview: ProfilePreviewResult,
+    *,
+    library_dir: Path,
+    approved: bool,
+    profile_ref: str = "",
+    timeout_seconds: int = 1800,
+    executor: CommandExecutor = execute_command,
+    workflow_budgets_usd: Mapping[str, float] | None = None,
+    result_finalizer: Callable[[ProfileRunResult], ProfileRunResult] | None = None,
+) -> ProfileRunResult:
+    """Run a preview while the caller holds its profile lock when approved."""
+
+    if not _is_finite_nonnegative_number(preview.max_metered_usd):
+        raise ValueError("profile max_metered_usd must be a finite nonnegative number")
 
     state_path = profile_run_state_path(library_dir, preview.profile)
     state = _load_state(state_path, profile=preview.profile, topic=preview.topic)
     commands = _build_commands(preview.candidates, completed=_completed_keys(state))
     events: list[ProfileRunEvent] = []
+    warnings = [warning.to_dict() for warning in preview.warnings]
+    metered_spend = 0.0
+    metered_spend_verified = True
+    cost_log_path = library_dir / ".distill" / "cost_log.jsonl"
     started = time.monotonic()
+    run_started_at = ""
 
     if approved:
+        _prune_inactive_event_state(state, active_keys={command.key for command in commands})
+        run_started_at = _now_iso()
         state["profile"] = preview.profile
         state["topic"] = preview.topic
-        state["updated_at"] = _now_iso()
-        state["last_run_at"] = state["updated_at"]
+        state["updated_at"] = run_started_at
+        state["last_started_at"] = run_started_at
+        state["last_run"] = _last_run_state(
+            status="running",
+            max_metered_usd=preview.max_metered_usd,
+            metered_spend_usd=0.0,
+            metered_spend_verified=False,
+            started_at=run_started_at,
+        )
         state.setdefault("completed", {})
         state.setdefault("last_success", {})
         state.setdefault("last_failure", {})
@@ -282,25 +603,107 @@ def run_profile_preview(
             if item.status == "skipped":
                 updated_commands.append(item)
                 continue
-            execution = executor(item.command, timeout_seconds)
-            status = "succeeded" if execution.exit_code == 0 else "failed"
+            remaining_budget = (
+                max(0.0, preview.max_metered_usd - metered_spend) if metered_spend_verified else 0.0
+            )
+            effective_command = _effective_profile_command(
+                item.command,
+                cost_mode=preview.cost_mode,
+                remaining_budget=remaining_budget,
+            )
+            metered_permitted = (
+                remaining_budget > 0 and _distill_cost_mode(effective_command) != "no-metered"
+            )
+            receipt_id = secrets.token_hex(32)
+            cost_log_checkpoint = _cost_log_checkpoint(cost_log_path)
+            environment = {PROFILE_RECEIPT_ENV: receipt_id}
+            if metered_permitted:
+                environment.update(
+                    _profile_budget_environment(
+                        effective_command,
+                        remaining_budget=remaining_budget,
+                        workflow_budgets_usd=workflow_budgets_usd,
+                    )
+                )
+            execution = executor(
+                effective_command,
+                timeout_seconds,
+                environment=environment,
+            )
+            appended_spend, spend_verified = _appended_cost(
+                cost_log_path,
+                cost_log_checkpoint,
+                receipt_id=receipt_id,
+                require_receipt=metered_permitted,
+            )
+            if metered_permitted and (execution.exit_code != 0 or execution.timed_out):
+                spend_verified = False
+            next_metered_spend = metered_spend + appended_spend
+            if math.isfinite(next_metered_spend):
+                metered_spend = next_metered_spend
+            else:
+                metered_spend = max(metered_spend, appended_spend)
+                spend_verified = False
+            if not spend_verified and metered_spend_verified:
+                metered_spend_verified = False
+                warnings.append(
+                    {
+                        "source": "profile_budget",
+                        "message": (
+                            "Could not verify appended cost-ledger rows; remaining commands "
+                            "were restricted to no-metered routes."
+                        ),
+                    }
+                )
+            status = (
+                "succeeded"
+                if execution.exit_code == 0
+                and not execution.timed_out
+                and spend_verified
+                and appended_spend <= remaining_budget
+                else "failed"
+            )
             event = ProfileRunEvent(
                 key=item.key,
                 kind=item.kind,
                 title=item.title,
-                command=item.command,
+                command=effective_command,
                 resume_policy=item.resume_policy,
                 status=status,
                 attempted_at=_now_iso(),
                 execution=execution,
             )
             events.append(event)
-            updated = replace(item, status=status, execution=execution)
+            updated = replace(
+                item,
+                command=effective_command,
+                status=status,
+                execution=execution,
+            )
             updated_commands.append(updated)
             _record_event(state, event)
+            state["last_run"] = _last_run_state(
+                status=(
+                    "budget_unverified"
+                    if not metered_spend_verified
+                    else "failed"
+                    if any(record.status == "failed" for record in events)
+                    else "running"
+                ),
+                max_metered_usd=preview.max_metered_usd,
+                metered_spend_usd=metered_spend,
+                metered_spend_verified=metered_spend_verified,
+                started_at=run_started_at,
+            )
             _save_state(state_path, state)
         commands = updated_commands
 
+    durable_last_run = _last_run_from_state(state)
+    okf_bundle_dir, okf_bundle_valid = _durable_okf_bundle_state(
+        library_dir,
+        preview,
+        durable_last_run,
+    )
     result = ProfileRunResult(
         schema_version=_RESULT_SCHEMA_VERSION,
         profile=preview.profile,
@@ -312,19 +715,34 @@ def run_profile_preview(
         executed=approved,
         fresh_item_limit=preview.fresh_item_limit,
         ordering=preview.ordering,
+        max_metered_usd=preview.max_metered_usd,
+        metered_spend_usd=metered_spend,
+        metered_spend_verified=metered_spend_verified,
         commands=commands,
         events=events,
-        warnings=[warning.to_dict() for warning in preview.warnings],
+        warnings=warnings,
+        last_run=durable_last_run,
+        okf_bundle_required=preview.okf_export_required,
+        okf_bundle_dir=okf_bundle_dir,
+        okf_bundle_valid=okf_bundle_valid,
     )
-    result = replace(
+    result = _apply_result_finalizer(
         result,
-        next_actions=_profile_next_actions(
-            result,
-            library_dir=library_dir,
-            profile_ref=profile_ref or preview.profile,
-        ),
+        approved=approved,
+        result_finalizer=result_finalizer,
     )
     if approved:
+        state["last_run_at"] = result.generated_at
+        state["last_run"] = _last_run_state(
+            status=result.health_status,
+            max_metered_usd=result.max_metered_usd,
+            metered_spend_usd=result.metered_spend_usd,
+            metered_spend_verified=result.metered_spend_verified,
+            started_at=run_started_at,
+            finished_at=result.generated_at,
+        )
+        _save_state(state_path, state)
+        result = replace(result, last_run=_last_run_from_state(state))
         save_run_log(
             library_dir,
             "profile-run",
@@ -338,110 +756,119 @@ def run_profile_preview(
                 "skipped_count": str(result.skipped_count),
                 "succeeded_count": str(result.succeeded_count),
                 "failed_count": str(result.failed_count),
+                "max_metered_usd": f"{result.max_metered_usd:.6f}",
+                "metered_spend_usd": f"{result.metered_spend_usd:.6f}",
+                "metered_spend_verified": str(result.metered_spend_verified).lower(),
             },
         )
-    return result
-
-
-def _profile_next_actions(
-    result: ProfileRunResult,
-    *,
-    library_dir: Path,
-    profile_ref: str,
-) -> list[NextAction]:
-    if result.failed_count:
-        return [
-            _profile_action(result, library_dir=library_dir, profile_ref=profile_ref, retry=True)
-        ]
-    if not result.approved and result.selected_count:
-        return [
-            _profile_action(result, library_dir=library_dir, profile_ref=profile_ref, retry=False)
-        ]
-    return []
-
-
-def _profile_action(
-    result: ProfileRunResult,
-    *,
-    library_dir: Path,
-    profile_ref: str,
-    retry: bool,
-) -> NextAction:
-    suffix = "retry" if retry else "run"
-    action_id_value = action_id("profile", result.profile, suffix)
-    selected = result.failed_count if retry else result.selected_count
-    approval = _approval_for_cost_mode(result.cost_mode)
-    return NextAction(
-        id=action_id_value,
-        kind="profile_run_retry" if retry else "profile_run",
-        severity="warning" if retry else "info",
-        rationale=_profile_action_rationale(selected, retry=retry),
-        command=_profile_run_command(
-            result.cost_mode,
-            profile_ref,
-            json_output=False,
-            approved=True,
+    else:
+        result = replace(result, last_run=_last_run_from_state(state))
+    return replace(
+        result,
+        next_actions=_profile_next_actions(
+            result,
+            library_dir=library_dir,
+            profile_ref=profile_ref or preview.profile,
         ),
-        approval=approval,
-        estimated_cost_usd=0.0 if approval == "operator" else None,
-        writes=_profile_action_writes(result, library_dir),
-        verifier=NextActionVerifier(
-            command=_profile_run_command(
-                result.cost_mode,
-                profile_ref,
-                json_output=True,
-                approved=False,
-            ),
-            expect="state file exists and health.status != 'failed'",
-        ),
-        loop=loop_metadata(action_id_value, max_attempts=3 if retry else 1),
     )
 
 
-def _profile_action_rationale(count: int, *, retry: bool) -> str:
-    if retry:
-        return (
-            f"{count} profile command(s) failed; rerun skips completed exact items "
-            "and retries pending work."
-        )
-    return f"{count} profile command(s) are pending approval."
-
-
-def _approval_for_cost_mode(cost_mode: str) -> str:
-    return "operator" if cost_mode == "no-metered" else "spend"
-
-
-def _profile_run_command(
-    cost_mode: str,
-    profile_ref: str,
+def _apply_result_finalizer(
+    result: ProfileRunResult,
     *,
-    json_output: bool,
     approved: bool,
-) -> list[str]:
-    command = ["distill"]
-    if cost_mode != "auto":
-        command.extend(["--cost-mode", cost_mode])
-    if json_output:
-        command.append("--json")
-    command.extend(["profile", "run", profile_ref])
-    if approved:
-        command.append("--yes")
-    return command
+    result_finalizer: Callable[[ProfileRunResult], ProfileRunResult] | None,
+) -> ProfileRunResult:
+    """Apply required-output finalization only to the lock-holding execution."""
+
+    if not approved or result_finalizer is None:
+        return result
+    return result_finalizer(result)
 
 
-def _profile_action_writes(result: ProfileRunResult, library_dir: Path) -> list[str]:
-    return [
-        _library_relative(Path(result.state_path), library_dir),
-        f"topics/{result.topic}/**/*",
-        ".distill/cost_log.jsonl",
-    ]
+def _durable_okf_bundle_state(
+    library_dir: Path,
+    preview: ProfilePreviewResult,
+    last_run: Mapping[str, object],
+) -> tuple[str, bool]:
+    """Revalidate a previously successful required bundle on verifier runs."""
 
-
-def _library_relative(path: Path, library_dir: Path) -> str:
+    if not preview.okf_export_required:
+        return "", False
+    output_dir = okf_bundle_output_dir(library_dir, preview.topic)
+    if last_run.get("status") not in {"ok", "complete"}:
+        return str(output_dir), False
     try:
-        return path.relative_to(library_dir).as_posix()
-    except ValueError:
-        return str(path)
+        valid = validate_okf_bundle(output_dir).ok
+    except (OSError, UnicodeError, ValueError):
+        valid = False
+    return str(output_dir), valid
+
+
+def _busy_profile_run_result(
+    preview: ProfilePreviewResult,
+    *,
+    library_dir: Path,
+    profile_ref: str,
+) -> ProfileRunResult:
+    state_path = profile_run_state_path(library_dir, preview.profile)
+    result = ProfileRunResult(
+        schema_version=_RESULT_SCHEMA_VERSION,
+        profile=preview.profile,
+        topic=preview.topic,
+        cost_mode=preview.cost_mode,
+        generated_at=_now_iso(),
+        state_path=str(state_path),
+        approved=True,
+        executed=False,
+        busy=True,
+        fresh_item_limit=preview.fresh_item_limit,
+        ordering=preview.ordering,
+        max_metered_usd=preview.max_metered_usd,
+        commands=_build_commands(preview.candidates, completed=set()),
+        warnings=[
+            {
+                "source": "profile_lock",
+                "message": f"Profile {preview.profile!r} is already running.",
+            }
+        ],
+    )
+    return replace(
+        result,
+        next_actions=_profile_next_actions(
+            result,
+            library_dir=library_dir,
+            profile_ref=profile_ref,
+        ),
+    )
+
+
+def _last_run_state(
+    *,
+    status: str,
+    max_metered_usd: float,
+    metered_spend_usd: float,
+    metered_spend_verified: bool,
+    started_at: str,
+    finished_at: str = "",
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "status": status,
+        "max_metered_usd": max_metered_usd,
+        "metered_spend_usd": metered_spend_usd,
+        "metered_spend_verified": metered_spend_verified,
+        "started_at": started_at,
+    }
+    if finished_at:
+        payload["finished_at"] = finished_at
+    return payload
+
+
+def _last_run_from_state(state: Mapping[str, object]) -> dict[str, object]:
+    last_run = state.get("last_run")
+    if not isinstance(last_run, dict):
+        return {}
+    return dict(cast(dict[str, object], last_run))
 
 
 def _build_commands(
@@ -484,83 +911,25 @@ def _resume_policy(candidate: ProfilePreviewCandidate) -> str:
 
 
 def _load_state(path: Path, *, profile: str, topic: str) -> dict[str, Any]:
-    if not path.exists():
-        return _empty_state(profile, topic)
-    try:
-        raw_data: object = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Profile run state is not parseable: {path}") from exc
-    if not isinstance(raw_data, dict):
-        raise ValueError(f"Profile run state must be a JSON object: {path}")
-    data = cast(dict[str, Any], raw_data)
-    if data.get("schema_version") != _STATE_SCHEMA_VERSION:
-        raise ValueError(f"Unsupported profile run state schema in {path}")
-    data.setdefault("profile", profile)
-    data.setdefault("topic", topic)
-    data.setdefault("completed", {})
-    data.setdefault("last_success", {})
-    data.setdefault("last_failure", {})
-    data.setdefault("attempts", [])
-    return data
-
-
-def _empty_state(profile: str, topic: str) -> dict[str, Any]:
-    now = _now_iso()
-    return {
-        "schema_version": _STATE_SCHEMA_VERSION,
-        "profile": profile,
-        "topic": topic,
-        "created_at": now,
-        "updated_at": now,
-        "completed": {},
-        "last_success": {},
-        "last_failure": {},
-        "attempts": [],
-    }
+    return load_profile_state(path, profile=profile, topic=topic, created_at=_now_iso())
 
 
 def _save_state(path: Path, state: dict[str, Any]) -> None:
-    state["updated_at"] = _now_iso()
-    atomic_write_text(path, json.dumps(state, indent=2, sort_keys=True) + "\n")
-
-
-def _completed_keys(state: dict[str, Any]) -> set[str]:
-    completed = state.get("completed", {})
-    if not isinstance(completed, Mapping):
-        return set()
-    completed_map = cast(Mapping[object, object], completed)
-    return {str(key) for key in completed_map}
+    save_profile_state(path, state, updated_at=_now_iso())
 
 
 def _record_event(state: dict[str, Any], event: ProfileRunEvent) -> None:
-    payload = event.to_dict()
-    state.setdefault("attempts", []).append(payload)
-    if event.status == "succeeded":
-        state.setdefault("last_success", {})[event.key] = payload
-        state.setdefault("last_failure", {}).pop(event.key, None)
-        if event.resume_policy == "complete-on-success":
-            state.setdefault("completed", {})[event.key] = {
-                "completed_at": event.attempted_at,
-                "command": event.command,
-                "exit_code": event.execution.exit_code,
-            }
-    else:
-        state.setdefault("last_failure", {})[event.key] = payload
+    record_profile_event(
+        state,
+        payload=event.to_dict(),
+        key=event.key,
+        status=event.status,
+        resume_policy=event.resume_policy,
+        attempted_at=event.attempted_at,
+        command=event.command,
+        exit_code=event.execution.exit_code,
+    )
 
 
 def _now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _tail(value: str) -> str:
-    if len(value) <= _OUTPUT_TAIL_CHARS:
-        return value
-    return value[-_OUTPUT_TAIL_CHARS:]
-
-
-def _coerce_text(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value

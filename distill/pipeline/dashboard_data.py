@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import json
+import math
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,7 +14,9 @@ from distill.library import Library, TopicWatchEntry
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
 from distill.llm.router import RouterConfig
+from distill.parsing import read_bounded_json_object, read_bounded_jsonl_objects
 from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
+from distill.pipeline.cost_history import read_cost_log_rows
 from distill.pipeline.costs import (
     cost_anomaly_warnings,
     estimate_routed_video_workflow_cost,
@@ -34,6 +36,10 @@ from distill.pipeline.dashboard_records import (
     object_list,
     site_manifest_from_json,
 )
+
+_MAX_DASHBOARD_JSON_BYTES = 8 * 1024 * 1024
+_MAX_TOPIC_HISTORY_BYTES = 8 * 1024 * 1024
+_MAX_TOPIC_HISTORY_ROWS = 10_000
 
 
 def duration_str(seconds: object) -> str:
@@ -67,11 +73,7 @@ def read_json_dict(path: Path) -> JsonObject:
     payload (a list or scalar) would otherwise crash a later ``.get(...)`` and
     take the whole dashboard down, so it is normalized to an empty mapping here.
     """
-    try:
-        data: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return json_object(data)
+    return json_object(read_bounded_json_object(path, max_bytes=_MAX_DASHBOARD_JSON_BYTES))
 
 
 __all__ = [
@@ -108,27 +110,7 @@ __all__ = [
 
 
 def load_recent_cost_runs(log_file: Path, limit: int = 5) -> list[CostRun]:
-    if not log_file.exists():
-        return []
-    entries: list[CostRun] = []
-    try:
-        for line in log_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry: object = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            # Only dict rows are usable; a valid-JSON-but-non-object line would
-            # crash consumers like ``sum_recent_cost`` (``entry.get(...)``) and
-            # take the whole dashboard down on one corrupt cost_log.jsonl line.
-            entry_row = json_object(entry)
-            if isinstance(entry, dict):
-                entries.append(entry_row)
-    except OSError:
-        return []
-    return entries[-limit:]
+    return [json_object(entry) for entry in read_cost_log_rows(log_file, limit=limit)]
 
 
 def load_all_cost_runs(log_file: Path) -> list[CostRun]:
@@ -143,35 +125,35 @@ def load_latest_run_payload(log_dir: Path) -> JsonObject:
 
 
 def _float_value(value: object, default: float = 0.0) -> float:
-    if isinstance(value, (int, float, str)):
+    if not isinstance(value, bool) and isinstance(value, (int, float, str)):
         try:
-            return float(value)
-        except ValueError:
+            result = float(value)
+        except (OverflowError, ValueError):
             return default
+        return result if math.isfinite(result) else default
     return default
 
 
 def _int_value(value: object, default: int = 0) -> int:
-    if isinstance(value, (int, float, str)):
+    if not isinstance(value, bool) and isinstance(value, (int, float, str)):
         try:
             return int(value)
-        except ValueError:
+        except (OverflowError, ValueError):
             return default
     return default
 
 
 def _invalid_cost_value(value: object) -> bool:
-    return (
-        _float_value(value) == 0.0
-        and value is not None
-        and value
-        not in {
-            0,
-            "",
-            "0",
-            "0.0",
-        }
-    )
+    if isinstance(value, bool):
+        return True
+    if value is None or value == "":
+        return False
+    if not isinstance(value, int | float | str):
+        return True
+    try:
+        return not math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return True
 
 
 def sum_recent_cost(entries: Sequence[CostRun]) -> float:
@@ -638,35 +620,28 @@ def load_topic_change_history(config: DistillConfig, topic: str) -> list[TopicCh
     if not history_path.exists():
         return []
     records: list[TopicChangeHistoryRecord] = []
-    try:
-        for line in history_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                payload: object = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            row = json_object(payload)
-            if not row:
-                continue
-            generated_at = parse_run_datetime(str(row.get("generated_at", "")))
-            counts = json_object(row.get("counts"))
-            if generated_at is None:
-                continue
-            records.append(
-                {
-                    "generated_at": generated_at,
-                    "summary": str(row.get("summary", "") or ""),
-                    "counts": {
-                        "videos": _int_value(counts.get("videos")),
-                        "pages": _int_value(counts.get("pages")),
-                        "papers": _int_value(counts.get("papers")),
-                        "outputs": _int_value(counts.get("outputs")),
-                    },
-                }
-            )
-    except OSError:
-        return []
+    rows = read_bounded_jsonl_objects(
+        history_path,
+        max_bytes=_MAX_TOPIC_HISTORY_BYTES,
+        max_rows=_MAX_TOPIC_HISTORY_ROWS,
+    )
+    for row in rows:
+        generated_at = parse_run_datetime(str(row.get("generated_at", "")))
+        counts = json_object(row.get("counts"))
+        if generated_at is None:
+            continue
+        records.append(
+            {
+                "generated_at": generated_at,
+                "summary": str(row.get("summary", "") or ""),
+                "counts": {
+                    "videos": _int_value(counts.get("videos")),
+                    "pages": _int_value(counts.get("pages")),
+                    "papers": _int_value(counts.get("papers")),
+                    "outputs": _int_value(counts.get("outputs")),
+                },
+            }
+        )
     records.sort(key=lambda item: item["generated_at"], reverse=True)
     return records
 

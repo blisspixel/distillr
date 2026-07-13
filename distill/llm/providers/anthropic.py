@@ -5,12 +5,20 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from typing import cast
 
 import httpx
 
+from distill.llm.providers._usage import conservative_usage, usage_or_conservative
 from distill.llm.retry import is_permanent_error
-from distill.llm.router import LLM_Response
+from distill.llm.types import LLM_Response
+from distill.llm.usage import (
+    LLMUsageAttempt,
+    UsageAttemptSink,
+    attach_usage_attempts,
+    emit_usage_attempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +50,11 @@ class AnthropicProvider:
         temperature: float | None = None,
         call_type: str = "",
         reasoning_effort: str | None = None,
+        usage_sink: UsageAttemptSink | None = None,
     ) -> LLM_Response:
         """Send a prompt to Anthropic and return an LLM_Response."""
         last_error: Exception | None = None
+        usage_attempts: list[LLMUsageAttempt] = []
         for attempt in range(retries + 1):
             try:
                 payload: dict[str, object] = {
@@ -70,9 +80,33 @@ class AnthropicProvider:
                     response.raise_for_status()
                     data = response.json()
 
-                return _response_from_payload(cast(dict[str, object], data), fallback_model=model)
+                parsed = _response_from_payload(
+                    cast(dict[str, object], data),
+                    fallback_model=model,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                )
             except Exception as exc:
                 last_error = exc
+                failed_input, failed_output = conservative_usage(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                )
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=failed_input,
+                        output_tokens=failed_output,
+                        model=model,
+                        provider_name="anthropic",
+                        provider_type="cloud",
+                        usage_source="conservative",
+                        outcome="error",
+                        error_type=type(exc).__name__,
+                    ),
+                    usage_sink,
+                )
+                attach_usage_attempts(exc, usage_attempts)
                 if is_permanent_error(exc):
                     raise
                 if attempt < retries:
@@ -87,12 +121,33 @@ class AnthropicProvider:
                     time.sleep(wait)
                 else:
                     raise
+            else:
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=parsed.input_tokens,
+                        output_tokens=parsed.output_tokens,
+                        model=parsed.model,
+                        provider_name="anthropic",
+                        provider_type="cloud",
+                        usage_source=parsed.usage_source,
+                        outcome="success",
+                    ),
+                    usage_sink,
+                )
+                return replace(parsed, usage_attempts=tuple(usage_attempts))
 
         assert last_error is not None  # nosec B101
         raise last_error
 
 
-def _response_from_payload(data: dict[str, object], *, fallback_model: str) -> LLM_Response:
+def _response_from_payload(
+    data: dict[str, object],
+    *,
+    fallback_model: str,
+    prompt: str,
+    max_tokens: int,
+) -> LLM_Response:
     content = data.get("content")
     text = ""
     if isinstance(content, list):
@@ -101,14 +156,22 @@ def _response_from_payload(data: dict[str, object], *, fallback_model: str) -> L
 
     usage = data.get("usage")
     usage_row = cast(dict[str, object], usage) if isinstance(usage, dict) else {}
-    input_tokens = _non_negative_int(usage_row.get("input_tokens"))
-    output_tokens = _non_negative_int(usage_row.get("output_tokens"))
+    input_tokens, output_tokens, estimated = usage_or_conservative(
+        usage_row.get("input_tokens"),
+        usage_row.get("output_tokens"),
+        prompt=prompt,
+        output_text=text,
+        max_tokens=max_tokens,
+    )
+    if estimated:
+        logger.warning("Anthropic response omitted valid usage metadata; using conservative bounds")
     model = data.get("model")
     return LLM_Response(
         text=text,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         model=model if isinstance(model, str) and model else fallback_model,
+        usage_source="conservative" if estimated else "reported",
     )
 
 
@@ -124,11 +187,3 @@ def _content_block_text(block: object) -> str:
 
 def _supports_custom_sampling(model: str) -> bool:
     return not model.startswith(_SONNET_5_PREFIX)
-
-
-def _non_negative_int(value: object) -> int:
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return max(0, value)
-    return 0

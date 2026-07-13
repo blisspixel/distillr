@@ -65,6 +65,10 @@ from distill.pipeline.costs import (
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube.transcripts import get_transcript
+from distill.youtube_urls import (
+    normalize_youtube_channel_url,
+    normalize_youtube_video_url,
+)
 
 if TYPE_CHECKING:
     from distill.ingestors.youtube.discovery import VideoInfo
@@ -538,18 +542,22 @@ def resolve_video_channel_name(
     video_info: "VideoInfo",
     fallback_resolver: Callable[[str], str],
 ) -> str:
-    if "/@" in url:
-        return fallback_resolver(url)
+    channel_url = normalize_youtube_channel_url(url)
+    if channel_url and "/@" in channel_url:
+        return fallback_resolver(channel_url)
 
     channel_name = getattr(video_info, "channel_name", "") or ""
     if channel_name:
         return channel_name
 
+    canonical_url = normalize_youtube_video_url(url)
+    if not canonical_url:
+        return "standalone"
     try:
         import yt_dlp
 
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
-            full_info = ydl.extract_info(url, download=False)
+            full_info = ydl.extract_info(canonical_url, download=False)
             candidate = full_info.get("channel") or full_info.get("uploader")
             return candidate if isinstance(candidate, str) and candidate else "standalone"
     except Exception:

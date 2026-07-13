@@ -43,6 +43,7 @@ class Telemetry_Record:
     provider_type: str = ""  # "local" or "cloud"
     provider_name: str = ""  # "ollama", "lmstudio", "xai", etc.
     tokens_per_second: float = 0.0  # output_tokens / elapsed_seconds for local
+    usage_source: str = "unknown"  # reported, conservative, unavailable, or legacy unknown
 
 
 def write_record(ops_dir: str, record: Telemetry_Record) -> None:

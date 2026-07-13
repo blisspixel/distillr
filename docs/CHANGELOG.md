@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- Made provider token accounting fail closed when usage metadata is absent or
+  malformed, including Gemini thinking tokens, and preserved usage provenance
+  through router, telemetry, and cost-ledger records. Cloud transcription now
+  requires admission and outcome recording before a configured paid route can
+  run, derives billable duration from decoded audio samples rather than
+  attacker-controlled container timestamps, and disables hidden OpenAI SDK
+  retries so each admitted request is the only request in its ledger attempt.
+- Bounded feed durations, browser result parsing, transcript output reuse, and
+  local or remote PDF extraction. PDF parsing now runs in a timeout and
+  memory-limited worker with page and character ceilings. Its safe-path
+  subprocess mode preserves supported user-site package installs.
+- Made update caches and generated transcript handoffs atomic and serialized,
+  rejected unsafe attachment identifiers and symlinked corpus reads, and kept
+  profile execution on the isolated current interpreter rather than a
+  current-directory executable.
+- Normalized raw and bracketed IPv6 loopback dashboard hosts into valid socket
+  bind and browser URL forms. Fixed an intermittent benchmark worker crash when
+  an opaque URL-safe credential began with an option prefix, and retained
+  bounded child-process diagnostics for future failures.
+- Made podcast publication-date normalization reject dates that overflow UTC
+  conversion instead of aborting feed ingestion.
+- Centralized structural unsigned-integer parsing for untrusted text and made
+  it total over Unicode numeric lookalikes, malformed values, and inputs beyond
+  Python's integer-conversion limit. Feed durations, HTTP content lengths,
+  dashboard Host ports, source identifiers, CLI selectors, provider limits,
+  browser counts and relative dates, profile freshness durations, and prompt
+  versions now fail closed instead of raising or accepting non-ASCII digits.
+- Hardened recurring profile execution with a cross-process lock, isolated
+  child interpreter, bounded output capture, strict durable state, per-attempt
+  cost receipts, fail-closed budget verification, and current OKF bundle
+  validation. Failed, over-budget, unverified, or missing-output runs remain
+  unhealthy until a verified recovery succeeds, even when a later preview has
+  no current commands.
+- Added exact podcast feed-item selectors for replayable preview actions.
+  Stable identity now includes bounded semantic fields when publisher IDs and
+  links are absent, and duplicate identities are refused instead of selecting
+  an arbitrary episode.
+- Made Deep Research entry points require the caller's shared cost tracker
+  before creating remote resources. Accepted and ambiguous query outcomes now
+  pass through the same metered interaction ledger as reports, preventing
+  untracked spend after timeout or transport ambiguity.
+- Made strict, bounded JSON readers reject non-finite numbers, oversized
+  integers, invalid encodings, excessive documents, and malformed rows across
+  profile state, dashboard, audit, cost, topic-history, and MCP boundaries.
+- Preserved successful provider-route outcomes when client cleanup or usage
+  accounting fails. Cleanup cannot discard a paid result, and accounting
+  failures surface unchanged without fallback, masking, or duplicate attempt
+  emission on either primary or fallback routes.
+
+### Security
+
+- Closed DNS-rebinding windows across feed, enclosure, publisher transcript,
+  trusted-site, and browser fetches. Redirect hops are revalidated, direct
+  HTTP clients ignore ambient proxies, and browser TLS tunnels connect only to
+  the exact public IP authorized for each host.
+- Confined FFmpeg duration probes to seekable, pipe-fed media bytes and a
+  `cache,pipe` protocol allowlist so untrusted playlists cannot trigger local,
+  UNC, or network resource fetches before cloud transcription admission.
+- Restricted the unauthenticated local dashboard to loopback, rejected
+  non-loopback and malformed HTTP Host headers before route dispatch to prevent
+  DNS rebinding, and changed the MCP doctor surface to configuration-only
+  checks so it cannot bypass the tool's spend cap or usage ledger.
+- Hardened `.env` creation and updates against symlinks, hard links, FIFOs,
+  identity-swap races, concurrent lost updates, invalid existing encodings,
+  and no-clobber races. Portable advisory lock files use exclusive creation,
+  no-follow and nonblocking opens, inode identity checks, bounded waits, and
+  owner-only permissions.
+- Pinned source installers to a versioned bootstrap artifact and verified its
+  SHA-256 digest before execution.
+
+### Quality
+
+- Added adversarial regression coverage for exact-IP networking, lock and file
+  races, resource-limited PDF workers, conservative usage accounting, cloud
+  transcription ledgers, manipulated media timestamps, dashboard Host headers,
+  overflowing feed dates, Unicode duration lookalikes, installer integrity,
+  isolated profile execution, durable recovery health, exact feed identities,
+  strict JSON state, and post-response accounting failures.
+- Split provider usage records and budget exceptions from the cost tracker to
+  retain the enforced 1,000-line module ceiling without changing the public
+  cost API.
+- Declared Starlette's `httpx2` test transport in the development lock so the
+  dashboard suite runs without its deprecated `httpx` compatibility warning.
+- Verified the maintenance candidate above the 95 percent branch-coverage gate
+  with warning-sensitive tests and Pyright, Ruff, import contracts, Bandit,
+  pip-audit, lock and public-contract checks, installer tests, and source and
+  wheel builds. All local validation used no external provider spend.
+
 ## 0.19.35 - 2026-07-12
 
 ### Fixed

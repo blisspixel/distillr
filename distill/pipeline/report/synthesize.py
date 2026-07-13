@@ -110,6 +110,7 @@ def run_synthesis(
         prompt=prompt,
         max_tokens=max_tokens,
         call_type="synthesis",
+        usage_tracker=tracker,
     )
     result = response.text
     if tracker:

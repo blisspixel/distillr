@@ -756,6 +756,37 @@ class TestOllamaGetContextWindow:
 
         assert result == 4096
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            [],
+            {"model_info": "not-an-object", "parameters": []},
+            {"model_info": {"context_length": True}},
+            {"model_info": {"context_length": 1.5}},
+            {"model_info": {"context_length": "\u0664\u0660\u0669\u0666"}},
+            {"model_info": {"context_length": "9" * 5_000}},
+            {"model_info": {"context_length": 16_777_217}},
+            {"parameters": "num_ctx true"},
+            {"parameters": "other_num_ctx 8192"},
+            {"parameters": "num_ctx " + "9" * 5_000},
+            {"parameters": "x" * 100_001},
+        ],
+    )
+    def test_parse_context_window_is_total_over_malformed_shapes(self, payload: object) -> None:
+        assert OllamaProvider._parse_context_window(payload) == 0
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [("8192", 8192), (8192, 8192), (8192.0, 8192), (16_777_216, 16_777_216)],
+    )
+    def test_parse_context_window_accepts_bounded_integral_values(
+        self, value: object, expected: int
+    ) -> None:
+        assert (
+            OllamaProvider._parse_context_window({"model_info": {"model.context_length": value}})
+            == expected
+        )
+
 
 class TestOllamaListModels:
     """Test OllamaProvider.list_models()."""
@@ -832,6 +863,14 @@ class TestOllamaProviderInit:
 class TestAdaptiveNumCtx:
     """num_ctx is sized to the prompt, not the model's (possibly huge) default —
     so a 262144-context model doesn't allocate a KV cache that spills VRAM to CPU."""
+
+    @pytest.mark.parametrize("raw", ["\u00b2", "\u0661\u0662", "9" * 5000])
+    def test_num_ctx_ceiling_rejects_non_ascii_or_oversized_integer(
+        self, monkeypatch: pytest.MonkeyPatch, raw: str
+    ) -> None:
+        monkeypatch.setenv("OLLAMA_MAX_NUM_CTX", raw)
+
+        assert OllamaProvider._num_ctx_ceiling() == 0
 
     def test_tiny_prompt_uses_floor_not_model_default(self) -> None:
         import asyncio

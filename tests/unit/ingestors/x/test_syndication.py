@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -13,6 +14,7 @@ import pytest
 from distill.ingestors.x.syndication import (
     TweetRecord,
     _record_from_payload,
+    _safe_int,
     _syndication_token,
     fetch_tweet,
     parse_tweet_url,
@@ -32,6 +34,16 @@ from distill.ingestors.x.syndication import (
         ("https://twitter.com/i/web/status/2055709363701264550", "2055709363701264550"),
         ("http://x.com/u/status/12345", "12345"),
         ("https://www.x.com/user/status/9876543210", "9876543210"),
+        ("https://x.com/u/status/123?lang=en", "123"),
+        ("https://x.com/u/status/000123", "123"),
+        ("https://x.com/u/status/123/analytics", "123"),
+        ("https://x.com/user?next=/status/123", None),
+        ("https://x.com/user#frag/status/123", None),
+        ("https://x.com/?next=/status/123", None),
+        ("https://user@x.com/u/status/123", None),
+        ("https://x.com:443/u/status/123", None),
+        ("https://x.com/u/status/123abc", None),
+        ("https://x.com/u/status/" + "9" * 5000, None),
         ("https://example.com/post/123", None),
         ("https://x.com/user/likes", None),
         ("not a url at all", None),
@@ -62,6 +74,32 @@ def test_syndication_token_format() -> None:
     assert len(token) == 11
     assert token.isalnum()
     assert token == token.lower()  # no uppercase
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        float("inf"),
+        10**4000,
+        "9" * 4000,
+        "\u0661\u0662",
+        "\u00b2",
+        "+12",
+        " 12 ",
+        1.9,
+        True,
+        -1,
+        2_147_483_648,
+    ],
+)
+def test_safe_int_rejects_unbounded_or_non_count_values(value: object) -> None:
+    assert _safe_int(value) == 0
+
+
+def test_safe_int_accepts_ascii_and_integral_values_at_the_boundary() -> None:
+    assert _safe_int("12") == 12
+    assert _safe_int(12.0) == 12
+    assert _safe_int(2_147_483_647) == 2_147_483_647
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +202,105 @@ def test_record_from_payload_photos() -> None:
         "https://pbs.twimg.com/a.jpg",
         "https://pbs.twimg.com/b.jpg",
     ]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://[",
+        "https://example.com/a.jpg",
+        "https://user@pbs.twimg.com/a.jpg",
+        "https://pbs.twimg.com:443/a.jpg",
+        "https://pbs.twimg.com/a.jpg#fragment",
+        " https://pbs.twimg.com/a.jpg",
+        "https://pbs.twimg.com/" + "a" * 2_048,
+    ],
+)
+def test_record_from_payload_omits_malformed_or_untrusted_media_urls(url: str) -> None:
+    payload = _payload(photos=[{"url": url}])
+    payload["video"] = {
+        "poster": url,
+        "variants": [{"src": url, "bitrate": 100}],
+    }
+
+    record = _record_from_payload("42", payload)
+
+    assert record.photo_urls == []
+    assert record.video_poster == ""
+    assert record.video_url == ""
+
+
+@pytest.mark.parametrize("handle", ["bad/handle", "a" * 16, "@alice", {"x": 1}])
+def test_record_from_payload_rejects_malformed_primary_handle(handle: object) -> None:
+    payload = _payload()
+    payload["user"]["screen_name"] = handle
+
+    record = _record_from_payload("42", payload)
+
+    assert record.author_handle == ""
+    assert record.url == "https://x.com/i/status/42"
+
+
+def test_record_from_payload_rejects_near_body_cap_semantic_text() -> None:
+    payload = _payload(text="x" * 4_900_000)
+
+    with pytest.raises(ValueError, match="tweet text exceeds"):
+        _record_from_payload("42", payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("photos", [{}] * 17, "too many photos"),
+        ("video", {"variants": [{}] * 65}, "too many variants"),
+        (
+            "card",
+            {"binding_values": {f"key-{index}": "x" for index in range(101)}},
+            "too many binding values",
+        ),
+    ],
+)
+def test_record_from_payload_rejects_oversized_semantic_collections(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    payload = _payload()
+    payload[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        _record_from_payload("42", payload)
+
+
+def test_record_from_payload_does_not_stringify_nonstring_core_fields() -> None:
+    payload = _payload()
+    payload["text"] = {"hostile": "text"}
+    payload["created_at"] = ["hostile"]
+    payload["lang"] = {"value": "en"}
+    payload["user"] = {
+        "screen_name": "alice",
+        "name": {"hostile": "name"},
+        "verified": {"truthy": True},
+    }
+
+    record = _record_from_payload("42", payload)
+
+    assert record.text == ""
+    assert record.created_at == ""
+    assert record.language == ""
+    assert record.author_name == ""
+    assert record.author_verified is False
+
+
+def test_record_from_payload_enforces_total_normalized_source_budget() -> None:
+    payload = _payload(
+        text="t" * 50_000,
+        note_tweet={"text": "n" * 50_000},
+        name="A",
+    )
+
+    with pytest.raises(ValueError, match="normalized syndication source"):
+        _record_from_payload("42", payload)
 
 
 def test_record_from_payload_picks_highest_bitrate_mp4() -> None:
@@ -312,7 +449,7 @@ def test_record_from_live_shape_marks_quoted_tweet_reference_partial() -> None:
 
 def test_record_from_payload_accepts_top_level_quote_reference_and_explicit_url() -> None:
     reference_payload = _payload()
-    reference_payload["quoted_tweet_id_str"] = "91"
+    reference_payload["quoted_tweet_id_str"] = "00091"
     reference = _record_from_payload("9", reference_payload)
     assert reference.quoted_tweet_status == "partial"
     assert reference.quoted_tweet_id == "91"
@@ -423,6 +560,85 @@ def test_record_from_payload_empty_or_missing_user() -> None:
     assert rec.author_verified is False
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("user", "not-an-object"),
+        ("user", ["not-an-object"]),
+        ("photos", {"url": "https://pbs.twimg.com/a.jpg"}),
+        ("photos", "not-an-array"),
+        ("video", {"variants": {"src": "https://video.twimg.com/a.mp4"}}),
+        ("video", {"variants": "not-an-array"}),
+    ],
+)
+def test_record_from_payload_ignores_malformed_nested_containers(field: str, value: object) -> None:
+    payload = _payload()
+    payload[field] = value
+
+    record = _record_from_payload("42", payload)
+
+    assert record.tweet_id == "42"
+    if field == "user":
+        assert record.author_handle == ""
+    if field == "photos":
+        assert record.photo_urls == []
+    if field == "video":
+        assert record.video_url == ""
+
+
+@pytest.mark.parametrize(
+    "quote_id",
+    ["0", "\u0661", str(1 << 64), True, {"id": "91"}, ["91"]],
+)
+def test_record_from_payload_rejects_invalid_quote_identifiers(quote_id: object) -> None:
+    payload = _payload()
+    payload["quoted_tweet_id_str"] = quote_id
+
+    record = _record_from_payload("42", payload)
+
+    assert record.quoted_tweet_status == "none"
+    assert record.quoted_tweet_id == ""
+    assert record.quoted_tweet_url == ""
+
+
+@pytest.mark.parametrize(
+    "explicit_url",
+    [
+        "https://example.com/source/status/92",
+        "https://x.com/source/status/93",
+        "https://user@x.com/source/status/92",
+        "not a url",
+    ],
+)
+def test_record_from_payload_does_not_trust_mismatched_quote_url(
+    explicit_url: str,
+) -> None:
+    payload = _payload()
+    payload["quoted_tweet"] = {
+        "id_str": "92",
+        "url": explicit_url,
+        "text": "quoted body",
+    }
+
+    record = _record_from_payload("42", payload)
+
+    assert record.quoted_tweet_id == "92"
+    assert record.quoted_tweet_url == "https://x.com/i/status/92"
+
+
+def test_record_from_payload_derives_quote_id_from_valid_explicit_url() -> None:
+    payload = _payload()
+    payload["quoted_tweet"] = {
+        "url": "https://twitter.com/source/status/92",
+        "text": "quoted body",
+    }
+
+    record = _record_from_payload("42", payload)
+
+    assert record.quoted_tweet_id == "92"
+    assert record.quoted_tweet_url == "https://twitter.com/source/status/92"
+
+
 # ---------------------------------------------------------------------------
 # TweetRecord properties
 # ---------------------------------------------------------------------------
@@ -498,6 +714,8 @@ class _FakeResponse:
             raise httpx.HTTPStatusError("err", request=None, response=None)  # type: ignore[arg-type]
 
     def iter_bytes(self) -> list[bytes]:
+        if isinstance(self._data, bytes):
+            return [self._data]
         return [json.dumps(self._data).encode("utf-8")]
 
 
@@ -528,9 +746,62 @@ def test_fetch_tweet_accepts_bare_id() -> None:
     assert "token" in fake.stream_calls[0][1]
 
 
-def test_fetch_tweet_unrecognized_url_raises() -> None:
+def test_fetch_tweet_canonicalizes_zero_padded_bare_id() -> None:
+    fake = _FakeClient(_payload())
+    with patch("distill.ingestors.x.syndication.httpx.Client", return_value=fake):
+        record = fetch_tweet("00042")
+
+    assert record.tweet_id == "42"
+    assert fake.stream_calls[0][1]["id"] == "42"
+
+
+def test_fetch_tweet_disables_redirects_and_environment_proxies() -> None:
+    fake = _FakeClient({})
+    with (
+        patch("distill.ingestors.x.syndication.httpx.Client", return_value=fake) as client,
+        pytest.raises(ValueError, match="syndication payload"),
+    ):
+        fetch_tweet("42")
+
+    client.assert_called_once_with(timeout=20.0, follow_redirects=False, trust_env=False)
+    assert len(fake.stream_calls) == 1
+
+
+def test_fetch_tweet_bounds_json_integers_when_interpreter_cap_is_disabled() -> None:
+    fake = _FakeClient(b'{"id":' + b"9" * 1_000_000 + b"}")
+    previous = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(0)
+        with (
+            patch("distill.ingestors.x.syndication.httpx.Client", return_value=fake),
+            pytest.raises(ValueError, match="digit bound"),
+        ):
+            fetch_tweet("42")
+    finally:
+        sys.set_int_max_str_digits(previous)
+
+
+@pytest.mark.parametrize("value", ["\u00b2", "\u0661\u0662", "9" * 5000])
+def test_fetch_tweet_rejects_non_ascii_or_oversized_bare_id(value: str) -> None:
     with pytest.raises(ValueError, match="recognizable"):
-        fetch_tweet("https://example.com/not-a-tweet")
+        fetch_tweet(value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/not-a-tweet",
+        "https://x.com/u/status/123abc",
+        "https://x.com/u/status/" + "9" * 5000,
+    ],
+)
+def test_fetch_tweet_unrecognized_url_raises_without_network(url: str) -> None:
+    with (
+        patch("distill.ingestors.x.syndication.httpx.Client") as client,
+        pytest.raises(ValueError, match="recognizable"),
+    ):
+        fetch_tweet(url)
+    client.assert_not_called()
 
 
 def test_fetch_tweet_empty_payload_raises() -> None:

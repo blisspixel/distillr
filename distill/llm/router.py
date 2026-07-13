@@ -5,23 +5,14 @@ from __future__ import annotations
 
 import logging
 import os
-import time
-from dataclasses import dataclass, replace
 from typing import Any
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 
-from distill.llm.async_compat import run_coroutine_sync
+from distill.llm.call_execution import CallOptions, execute_call
 from distill.llm.cost_policy import CostMode, normalize_cost_mode, require_route_allowed
-from distill.llm.fallback import (
-    fallback_failure_to_surface as _fallback_failure_to_surface,
-)
-from distill.llm.fallback import fallback_target as _fallback_target
-from distill.llm.fallback import (
-    require_fallback_route_allowed as _require_fallback_route_allowed,
-)
-from distill.llm.metadata import LOCAL_PROVIDERS, local_call_timeout
+from distill.llm.fallback import fallback_target
 from distill.llm.model_policy import (
     RETIRED_MODELS,
     RETIREMENT_DATE,
@@ -29,22 +20,11 @@ from distill.llm.model_policy import (
     xai_media_generation_refusal,
 )
 from distill.llm.provider_cache import provider_cache_key
-from distill.llm.reasoning import configured_anthropic_effort, resolve_xai_reasoning_effort
 from distill.llm.run_context import current_run_id
+from distill.llm.types import LLM_Response, UsageTracker
+from distill.llm.usage import LLMUsageAttempt, UsageAttemptBatchSink, UsageAttemptSink
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class LLM_Response:
-    """Uniform response from any LLM provider (immutable, hashable)."""
-
-    text: str
-    input_tokens: int
-    output_tokens: int
-    model: str
-    provider_name: str = ""
-    provider_type: str = ""
 
 
 class LLMRouterError(Exception):
@@ -329,6 +309,39 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
 
 
 get_provider = _get_provider
+_fallback_target = fallback_target  # pyright: ignore[reportUnusedVariable] "legacy monkeypatch seam retained for compatibility"
+
+
+def _usage_sinks(
+    usage_tracker: UsageTracker | None,
+    *,
+    call_type: str,
+) -> tuple[UsageAttemptSink | None, UsageAttemptBatchSink | None]:
+    """Build one-call sinks that deliver each identified attempt once."""
+
+    if usage_tracker is None:
+        return None, None
+    emitted_attempt_ids: set[str] = set()
+
+    def record_one(attempt: LLMUsageAttempt) -> None:
+        if attempt.attempt_id and attempt.attempt_id in emitted_attempt_ids:
+            return
+        if attempt.attempt_id:
+            emitted_attempt_ids.add(attempt.attempt_id)
+        usage_tracker.record_attempt(attempt, call_type=call_type)
+
+    def record_batch(attempts: tuple[LLMUsageAttempt, ...]) -> None:
+        pending: list[LLMUsageAttempt] = []
+        for attempt in attempts:
+            if attempt.attempt_id and attempt.attempt_id in emitted_attempt_ids:
+                continue
+            if attempt.attempt_id:
+                emitted_attempt_ids.add(attempt.attempt_id)
+            pending.append(attempt)
+        if pending:
+            usage_tracker.record_attempts(tuple(pending), call_type=call_type)
+
+    return record_one, record_batch
 
 
 def call(
@@ -343,11 +356,10 @@ def call(
     call_type: str = "",
     ops_dir: str = "",
     run_id: str = "",
+    usage_tracker: UsageTracker | None = None,
 ) -> LLM_Response:
     """Dispatch an LLM call through the configured provider, with optional local fallback."""
     config.validate_config(workload_tag)
-    effective_run_id = run_id or current_run_id()
-
     if workload_tag not in WORKLOAD_TAGS:
         logger.warning(
             "Unknown workload tag '%s'; falling back to default tier model",
@@ -355,134 +367,24 @@ def call(
         )
 
     provider_name, model_id = config.resolve(workload_tag)
-    effective_ops_dir = ops_dir or config.ops_dir
+    sink, batch_sink = _usage_sinks(usage_tracker, call_type=call_type)
 
-    def _attempt(p_name: str, m_id: str) -> LLM_Response:
-        provider = _get_provider(p_name, config)
-        # Local models need a longer read timeout than the cloud-tuned default.
-        effective_timeout = local_call_timeout(timeout) if p_name in LOCAL_PROVIDERS else timeout
-        reasoning_effort: str | None = None
-        if p_name == "xai" and m_id.startswith("grok-4.3"):
-            reasoning_effort = resolve_xai_reasoning_effort(config, workload_tag)
-        elif p_name == "anthropic" and m_id.startswith("claude-sonnet-5"):
-            reasoning_effort = configured_anthropic_effort(workload_tag)
-        coro = provider.call(
-            m_id,
-            prompt,
-            max_tokens=max_tokens,
-            timeout=effective_timeout,
-            retries=retries,
-            temperature=temperature,
-            call_type=call_type,
-            reasoning_effort=reasoning_effort,
-        )
-        # Run the provider coroutine to completion from this sync path. When a
-        # loop is already running (e.g. the async MCP server), run_coroutine_sync
-        # offloads to a dedicated thread instead of failing on a nested loop.
-        response = run_coroutine_sync(coro)
-        provider_type = "local" if p_name in LOCAL_PROVIDERS else "cloud"
-        return replace(response, provider_name=p_name, provider_type=provider_type)
+    def _provider_getter(name: str) -> Any:
+        return _get_provider(name, config)
 
-    def _record(
-        p_name: str,
-        m_id: str,
-        resp: LLM_Response | None,
-        outcome: str,
-        error_type: str,
-        elapsed: float,
-    ) -> None:
-        provider_type = "local" if p_name in LOCAL_PROVIDERS else "cloud"
-        tps = 0.0
-        if resp is not None and provider_type == "local" and elapsed > 0:
-            tps = resp.output_tokens / elapsed
-        _emit_telemetry(
-            ops_dir=effective_ops_dir,
-            model=resp.model if resp is not None else m_id,
-            workload_tag=workload_tag,
-            input_tokens=resp.input_tokens if resp is not None else 0,
-            output_tokens=resp.output_tokens if resp is not None else 0,
-            elapsed_seconds=round(elapsed, 3),
-            outcome=outcome,
-            error_type=error_type,
-            call_type=call_type,
-            run_id=effective_run_id,
-            provider_type=provider_type,
-            provider_name=p_name,
-            tokens_per_second=round(tps, 2),
-        )
-
-    start_time = time.monotonic()
-    try:
-        response = _attempt(provider_name, model_id)
-    except Exception as exc:
-        _record(
-            provider_name,
-            model_id,
-            None,
-            "error",
-            type(exc).__name__,
-            time.monotonic() - start_time,
-        )
-        target = _fallback_target(config, provider_name, exc)
-        if target is None:
-            raise
-        fb_provider, fb_model = target
-        _require_fallback_route_allowed(config, fb_provider, workload_tag)
-        logger.warning(
-            "Primary provider '%s' failed (%s); falling back to '%s' / '%s'.",
-            provider_name,
-            type(exc).__name__,
-            fb_provider,
-            fb_model,
-        )
-        fb_start = time.monotonic()
-        try:
-            response = _attempt(fb_provider, fb_model)
-        except Exception as fallback_exc:
-            _record(
-                fb_provider, fb_model, None, "error", "FallbackFailed", time.monotonic() - fb_start
-            )
-            raise _fallback_failure_to_surface(exc, fallback_exc) from None
-        _record(fb_provider, fb_model, response, "success", "", time.monotonic() - fb_start)
-        return response
-
-    _record(provider_name, model_id, response, "success", "", time.monotonic() - start_time)
-    return response
-
-
-def _emit_telemetry(
-    *,
-    ops_dir: str,
-    model: str,
-    workload_tag: str,
-    input_tokens: int,
-    output_tokens: int,
-    elapsed_seconds: float,
-    outcome: str,
-    error_type: str,
-    call_type: str,
-    run_id: str,
-    provider_type: str,
-    provider_name: str,
-    tokens_per_second: float,
-) -> None:
-    """Write a telemetry record if ops_dir is configured."""
-    if not ops_dir:
-        return
-    from distill.llm.telemetry import Telemetry_Record, write_record
-
-    record = Telemetry_Record(
-        model=model,
+    options = CallOptions(
+        config=config,
         workload_tag=workload_tag,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        elapsed_seconds=elapsed_seconds,
-        outcome=outcome,
-        error_type=error_type,
+        prompt=prompt,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        retries=retries,
+        temperature=temperature,
         call_type=call_type,
-        run_id=run_id,
-        provider_type=provider_type,
-        provider_name=provider_name,
-        tokens_per_second=tokens_per_second,
+        ops_dir=ops_dir or config.ops_dir,
+        run_id=run_id or current_run_id(),
+        usage_sink=sink,
+        usage_batch_sink=batch_sink,
+        provider_getter=_provider_getter,
     )
-    write_record(ops_dir, record)
+    return execute_call(options, provider_name, model_id)

@@ -207,7 +207,12 @@ def test_pdf_attachment_revalidates_redirect_targets(monkeypatch, tmp_path):
     assert calls == [
         (
             "https://example.com/guide.pdf",
-            {"timeout": 30, "stream": True, "allow_redirects": False},
+            {
+                "timeout": 30,
+                "stream": True,
+                "allow_redirects": False,
+                "proxies": {"http": "", "https": ""},
+            },
         )
     ]
 
@@ -228,29 +233,19 @@ def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
         )
     )[0]
 
-    class EmptyPdfPage:
-        def extract_text(self):
-            return ""
-
-    class EmptyPdfReader:
-        def __init__(self, _content):
-            self.pages = [EmptyPdfPage()]
-
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda *_args, **_kwargs: type(
-            "Response",
-            (),
-            {"content": b"pdf", "raise_for_status": staticmethod(lambda: None)},
-        )(),
+        "distill.ingestors.sites.attachments._download_pdf_bytes", lambda url: b"pdf"
     )
-    monkeypatch.setattr("distill.ingestors.sites.attachments.PdfReader", EmptyPdfReader)
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages: "",
+    )
     updated_pdf, pdf_context = _ingest_pdf_attachment(pdf_attachment, attachments_dir)
     assert updated_pdf.status == "failed"
     assert pdf_context == ""
 
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
+        "distill.ingestors.sites.attachments._download_pdf_bytes",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     failed_pdf, _ = _ingest_pdf_attachment(pdf_attachment, attachments_dir)
@@ -277,6 +272,9 @@ def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
     assert _extract_youtube_video_id("https://www.youtube.com/shorts/abc123xyz99") == "abc123xyz99"
     assert _extract_youtube_video_id("https://youtube.com.evil/watch?v=abc123xyz99") == ""
     assert _extract_youtube_video_id("https://youtu.be.evil/abc123xyz99") == ""
+    assert _extract_youtube_video_id("https://youtu.be/../../outside") == ""
+    assert _extract_youtube_video_id("https://youtube.com/watch?v=../outside") == ""
+    assert _extract_youtube_video_id("https://youtube.com/watch?v=abc123/extra") == ""
     assert _extract_youtube_video_id("https://example.com/video") == ""
 
     no_id_attachment = type(video_attachment)(
@@ -360,15 +358,15 @@ def test_pdf_attachment_success_extracts_and_writes(monkeypatch, tmp_path):
         ),
     )
 
-    class _Page:
-        def extract_text(self):
-            return "Extracted text."
+    def extract(path, *, max_chars, max_pages):
+        assert path.read_bytes() == b"%PDF-1.4 data"
+        assert (max_chars, max_pages) == (30_000, 10)
+        return "Extracted text."
 
-    class _Reader:
-        def __init__(self, _content):
-            self.pages = [_Page()]
-
-    monkeypatch.setattr("distill.ingestors.sites.attachments.PdfReader", _Reader)
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
+        extract,
+    )
 
     updated, context = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
 
@@ -405,6 +403,29 @@ def test_pdf_download_rejects_oversized_content_length(monkeypatch, tmp_path):
     updated, _ = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
     assert updated.status == "failed"
     assert "size cap" in updated.note
+
+
+@pytest.mark.parametrize("declared", ["\u00b2", "\u0661\u0662", "9" * 5000])
+def test_pdf_download_ignores_invalid_content_length(monkeypatch, tmp_path, declared):
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.requests.get",
+        lambda url, **kwargs: _FakeResponse(
+            status_code=200,
+            headers={"Content-Type": "application/pdf", "Content-Length": declared},
+            chunks=[b"%PDF-1.4 data"],
+        ),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages: "Extracted text.",
+    )
+
+    updated, context = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
+
+    assert updated.status == "ingested"
+    assert "Extracted text." in context
 
 
 def test_pdf_download_enforces_streaming_size_cap(monkeypatch, tmp_path):
@@ -491,15 +512,10 @@ def test_pdf_download_skips_empty_chunks_and_reports_no_text(monkeypatch, tmp_pa
         ),
     )
 
-    class _BlankPage:
-        def extract_text(self):
-            return ""
-
-    class _Reader:
-        def __init__(self, _content):
-            self.pages = [_BlankPage()]
-
-    monkeypatch.setattr("distill.ingestors.sites.attachments.PdfReader", _Reader)
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages: "",
+    )
     updated, context = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
 
     assert updated.status == "failed"

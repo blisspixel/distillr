@@ -136,6 +136,7 @@ def ask_corpus(
         workload_tag="qa",
         prompt=ask_prompt(topic=topic, question=question, sources_block=sources_block),
         call_type="ask",
+        usage_tracker=tracker,
     )
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="ask"))

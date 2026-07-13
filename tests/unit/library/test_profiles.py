@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -134,7 +135,29 @@ def test_goal_file_must_be_relative_safe_path(tmp_path: Path) -> None:
         load_research_profile(path)
 
 
-@pytest.mark.parametrize("stale_after", ["P", "PT", "P1DT"])
+@pytest.mark.parametrize(
+    "goal_file",
+    [
+        "goals/con.md",
+        "goals/a?.md",
+        "goals/name.",
+        "goals/name. /file.md",
+        "goals/file:stream",
+        "goals/./x.md",
+        "goals//x.md",
+    ],
+)
+def test_goal_file_requires_canonical_cross_platform_components(goal_file: str) -> None:
+    raw = _valid_profile(goal_file=goal_file)
+
+    with pytest.raises(ValueError, match="goal_file"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    "stale_after",
+    ["P", "PT", "P1DT", "P\u0661D", "P" + "9" * 100 + "D", "P" + "9" * 5000 + "D"],
+)
 def test_freshness_duration_requires_a_complete_day_or_hour_value(stale_after: str) -> None:
     raw = {
         "schema_version": "research-profile.v1",
@@ -147,6 +170,176 @@ def test_freshness_duration_requires_a_complete_day_or_hour_value(stale_after: s
 
     with pytest.raises(ValueError, match="stale_after"):
         ResearchProfile.model_validate(raw)
+
+
+def test_freshness_duration_accepts_ten_year_boundary() -> None:
+    raw = {
+        "schema_version": "research-profile.v1",
+        "name": "agent-news",
+        "topic": "agent-news",
+        "goal_file": "goals/agent-news.md",
+        "sources": {"youtube_channels": [{"handle": "@Example"}]},
+        "freshness": {"stale_after": "P3650D"},
+    }
+
+    assert ResearchProfile.model_validate(raw).freshness.stale_after == "P3650D"
+
+
+@pytest.mark.parametrize("stale_after", ["P3651D", "P3650DT1H"])
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"handle": "@Example"},
+        {"url": "https://www.youtube.com/@Example"},
+        {"channel_id": "UC123456"},
+    ],
+)
+def test_freshness_duration_rejects_windows_beyond_discovery_horizon(
+    stale_after: str, source: dict[str, str]
+) -> None:
+    raw = {
+        "schema_version": "research-profile.v1",
+        "name": "agent-news",
+        "topic": "agent-news",
+        "goal_file": "goals/agent-news.md",
+        "sources": {"youtube_channels": [source]},
+        "freshness": {"stale_after": stale_after},
+    }
+
+    with pytest.raises(ValueError, match="cannot exceed P3650D"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("max_new_items", True), ("max_metered_usd", True)],
+)
+def test_profile_limits_reject_boolean_coercion(field: str, value: object) -> None:
+    raw = {
+        "schema_version": "research-profile.v1",
+        "name": "agent-news",
+        "topic": "agent-news",
+        "goal_file": "goals/agent-news.md",
+        "queries": ["agent loops"],
+        "limits": {field: value},
+    }
+
+    with pytest.raises(ValueError, match="numeric, not boolean"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_profile_metered_budget_must_be_finite(value: float) -> None:
+    raw = _valid_profile(limits={"max_metered_usd": value})
+
+    with pytest.raises(ValueError, match="finite number"):
+        ResearchProfile.model_validate(raw)
+
+
+def test_profile_new_item_limit_has_a_hard_ceiling() -> None:
+    raw = _valid_profile(limits={"max_new_items": 1_001})
+
+    with pytest.raises(ValueError, match="less than or equal to 1000"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"queries": [f"query {index}" for index in range(101)], "sources": {}},
+        {"sources": {"feeds": [f"https://example.com/{index}.xml" for index in range(101)]}},
+        {
+            "queries": [f"query {index}" for index in range(50)],
+            "sources": {"domains": [f"domain{index}.example.com" for index in range(51)]},
+        },
+    ],
+)
+def test_profile_declarations_have_per_list_and_total_caps(
+    overrides: dict[str, object],
+) -> None:
+    raw = _valid_profile(**overrides)
+
+    with pytest.raises(ValueError, match=r"(at most 100 items|more than 100 total)"):
+        ResearchProfile.model_validate(raw)
+
+
+def test_load_profile_wraps_oversized_yaml_integer_conversion(tmp_path: Path) -> None:
+    path = tmp_path / "huge.yaml"
+    path.write_text(
+        "schema_version: research-profile.v1\n"
+        "name: huge\n"
+        "topic: huge\n"
+        "goal_file: g.md\n"
+        "queries: [x]\n"
+        f"limits:\n  max_new_items: {'9' * 5000}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProfileValidationError, match="Invalid YAML"):
+        load_research_profile(path)
+
+
+def test_profile_yaml_integer_cap_is_independent_of_interpreter_limit(tmp_path: Path) -> None:
+    path = tmp_path / "huge-disabled-cap.yaml"
+    path.write_text(
+        "schema_version: research-profile.v1\n"
+        "name: huge-disabled-cap\n"
+        "topic: huge-disabled-cap\n"
+        "goal_file: g.md\n"
+        "queries: [x]\n"
+        f"limits:\n  max_new_items: {'9' * 900_000}\n",
+        encoding="utf-8",
+    )
+    previous = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(0)
+        with pytest.raises(ProfileValidationError, match="100 source characters"):
+            load_research_profile(path)
+    finally:
+        sys.set_int_max_str_digits(previous)
+
+
+@pytest.mark.parametrize(
+    "integer_text",
+    [
+        "+" + "9" * 101,
+        "0x" + "f" * 101,
+        "0b" + "1" * 101,
+        "1:" * 51 + "1",
+        "1_" * 51 + "1",
+    ],
+)
+def test_profile_yaml_integer_cap_covers_yaml_integer_forms(
+    tmp_path: Path,
+    integer_text: str,
+) -> None:
+    path = tmp_path / "numeric-forms.yaml"
+    path.write_text(f"value: {integer_text}\n", encoding="utf-8")
+
+    with pytest.raises(ProfileValidationError, match="100 source characters"):
+        load_research_profile(path)
+
+
+def test_load_profile_rejects_oversized_file_before_yaml_parse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "oversized.yaml"
+    path.write_bytes(b"x" * 1_000_001)
+    calls: list[object] = []
+    monkeypatch.setattr(yaml, "load", lambda value, Loader: calls.append((value, Loader)) or {})
+
+    with pytest.raises(ProfileValidationError, match="byte cap"):
+        load_research_profile(path)
+
+    assert calls == []
+
+
+def test_load_profile_rejects_recursive_yaml_alias(tmp_path: Path) -> None:
+    path = tmp_path / "recursive.yaml"
+    path.write_text("root: &root\n  child: *root\n", encoding="utf-8")
+
+    with pytest.raises(ProfileValidationError, match="recursive YAML aliases"):
+        load_research_profile(path)
 
 
 def test_profile_path_resolution_prefers_existing_files(tmp_path: Path) -> None:
@@ -193,6 +386,31 @@ def test_rejects_repository_url_not_on_github():
         ResearchProfile.model_validate(bad)
 
 
+@pytest.mark.parametrize(
+    "repository",
+    [
+        "https://user@github.com/openai/codex",
+        "https://github.com:443/openai/codex",
+        "https://github.com/openai/codex/issues",
+        "https://github.com/openai/codex?tab=readme",
+        "https://github.com/openai/codex#readme",
+    ],
+)
+def test_rejects_ambiguous_repository_urls(repository: str) -> None:
+    raw = _valid_profile(sources={"repositories": [repository]})
+
+    with pytest.raises(ValueError, match="repository"):
+        ResearchProfile.model_validate(raw)
+
+
+def test_normalizes_exact_github_clone_url() -> None:
+    raw = _valid_profile(sources={"repositories": ["https://github.com/openai/codex.git"]})
+
+    profile = ResearchProfile.model_validate(raw)
+
+    assert profile.sources.repositories == ["openai/codex"]
+
+
 def test_rejects_goal_file_with_drive_or_absolute(tmp_path: Path) -> None:
     path = tmp_path / "drive.yaml"
     path.write_text(
@@ -210,16 +428,40 @@ def test_rejects_goal_file_with_drive_or_absolute(tmp_path: Path) -> None:
         load_research_profile(path)
 
 
-def test_rejects_bad_http_url_in_feeds():
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.com/feed",
+        "ftp://example.com/feed",
+        "https://example.com:0/feed",
+        "https://example.com:65536/feed",
+    ],
+)
+def test_rejects_unsupported_feed_url(url: str):
     bad_feed = {
         "schema_version": "research-profile.v1",
         "name": "x",
         "topic": "x",
         "goal_file": "g.md",
-        "sources": {"feeds": ["ftp://example.com/feed"]},
+        "sources": {"feeds": [url]},
     }
-    with pytest.raises(ValueError, match="http"):
+    with pytest.raises(ValueError, match=r"HTTPS|invalid port|between 1 and 65535|http or https"):
         ResearchProfile.model_validate(bad_feed)
+
+
+@pytest.mark.parametrize("port", [443, 8443])
+def test_accepts_feed_url_with_valid_explicit_port(port: int):
+    profile = ResearchProfile.model_validate(
+        {
+            "schema_version": "research-profile.v1",
+            "name": "x",
+            "topic": "x",
+            "goal_file": "g.md",
+            "sources": {"feeds": [f"https://example.com:{port}/feed"]},
+        }
+    )
+
+    assert profile.sources.feeds[0].url == f"https://example.com:{port}/feed"
 
 
 def test_rejects_empty_name_or_goal():
@@ -276,10 +518,83 @@ def test_youtube_channel_requires_an_identifier() -> None:
         ResearchProfile.model_validate(raw)
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"channel_id": "UC123456", "handle": "@Example"},
+        {"channel_id": "UC123456", "url": "https://youtube.com/@Different"},
+        {"handle": "@Example", "url": "https://youtube.com/@Different"},
+    ],
+)
+def test_youtube_channel_rejects_ambiguous_identifiers(source: dict[str, str]) -> None:
+    raw = _valid_profile(sources={"youtube_channels": [source]})
+
+    with pytest.raises(ValueError, match="exactly one"):
+        ResearchProfile.model_validate(raw)
+
+
 def test_youtube_channel_rejects_non_http_url() -> None:
     """A YouTube channel url must be http or https."""
     raw = _valid_profile(sources={"youtube_channels": [{"url": "ftp://youtube.com/x"}]})
     with pytest.raises(ValueError, match="youtube channel url"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://youtube.com/watch",
+        "https://youtube.com/results",
+        "https://youtube.com/embed/abc123",
+        "https://youtube.com/arbitrary",
+        "https://youtube.com/@Example/live",
+        "https://youtube.com/channel/UC123456/extra",
+        "https://youtube.com/@ab",
+        "https://youtube.com/channel/not-a-channel",
+        "https://user@youtube.com/@Example",
+        "https://youtube.com:443/@Example",
+        "https://youtube.com/@Example?view=1",
+        "http://youtube.com/@Example",
+    ],
+)
+def test_youtube_channel_rejects_noncanonical_url_paths(url: str) -> None:
+    raw = _valid_profile(sources={"youtube_channels": [{"url": url}]})
+
+    with pytest.raises(ValueError, match="youtube channel url"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://youtube.com/@Example",
+        "https://youtube.com/@Example/videos",
+        "https://youtube.com/@Example/shorts/",
+        "https://youtube.com/channel/UC123456",
+        "https://youtube.com/channel/UC123456/videos",
+    ],
+)
+def test_youtube_channel_accepts_canonical_url_paths(url: str) -> None:
+    raw = _valid_profile(sources={"youtube_channels": [{"url": url}]})
+
+    profile = ResearchProfile.model_validate(raw)
+
+    assert profile.sources.youtube_channels[0].url == url.rstrip("/")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"handle": "@ab"},
+        {"handle": "@bad/path"},
+        {"channel_id": "UCbad?value"},
+        {"channel_id": "UC123"},
+    ],
+)
+def test_youtube_channel_rejects_invalid_bounded_identifiers(source: dict[str, str]) -> None:
+    raw = _valid_profile(sources={"youtube_channels": [source]})
+
+    with pytest.raises(ValueError, match=r"youtube (handle|channel_id)"):
         ResearchProfile.model_validate(raw)
 
 
@@ -290,10 +605,40 @@ def test_rejects_domain_without_a_hostname() -> None:
         ResearchProfile.model_validate(raw)
 
 
+@pytest.mark.parametrize(
+    "domain",
+    [
+        "https://user@example.com",
+        "example.com:443",
+        "example.com?x=1",
+        "127.0.0.1",
+        "[::1]",
+        "-bad.example",
+        "bad_.example",
+    ],
+)
+def test_rejects_ambiguous_or_non_dns_domains(domain: str) -> None:
+    raw = _valid_profile(sources={"domains": [domain]})
+
+    with pytest.raises(ValueError, match="domain"):
+        ResearchProfile.model_validate(raw)
+
+
 def test_rejects_invalid_profile_name() -> None:
     """A profile name that is not a lowercase slug is rejected."""
     raw = _valid_profile(name="Not A Slug")
     with pytest.raises(ValueError, match="lowercase slug"):
+        ResearchProfile.model_validate(raw)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["a.", "con", "nul", "com1", "lpt9", "con.profile"],
+)
+def test_rejects_profile_names_that_collide_on_windows(name: str) -> None:
+    raw = _valid_profile(name=name)
+
+    with pytest.raises(ValueError, match="canonical cross-platform"):
         ResearchProfile.model_validate(raw)
 
 

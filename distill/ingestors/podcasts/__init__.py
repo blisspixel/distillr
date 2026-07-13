@@ -5,10 +5,12 @@ from distill.ingestors.podcasts.feed import (
     PodcastFeed,
     PodcastFetchError,
     download_audio,
+    feed_episode_identity,
     fetch_feed,
     fetch_transcript,
     looks_like_feed_url,
     parse_feed,
+    select_feed_episode,
 )
 
 __all__ = [
@@ -16,8 +18,10 @@ __all__ = [
     "PodcastFeed",
     "PodcastFetchError",
     "download_audio",
+    "feed_episode_identity",
     "fetch_feed",
     "fetch_transcript",
     "looks_like_feed_url",
     "parse_feed",
+    "select_feed_episode",
 ]

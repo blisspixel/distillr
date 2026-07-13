@@ -37,7 +37,7 @@ def test_transcribe_with_openai_calls_audio_transcriptions(tmp_path: Path) -> No
         text = transcribe_with_openai(media, api_key="sk-test")
 
     assert text == "transcribed text"
-    openai_ctor.assert_called_once_with(api_key="sk-test")
+    openai_ctor.assert_called_once_with(api_key="sk-test", max_retries=0)
     create_call = mock_client.audio.transcriptions.create.call_args
     assert create_call.kwargs["model"] == "whisper-1"
     assert create_call.kwargs["response_format"] == "text"

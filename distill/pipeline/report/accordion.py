@@ -34,7 +34,12 @@ from distill.pipeline.citation_refs import (
     unresolved_numbered_citation_reason as _unresolved_numbered_citation_reason,
 )
 from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
-from distill.pipeline.report._interactions import await_interaction, interaction_text
+from distill.pipeline.report._interactions import (
+    await_interaction,
+    interaction_text,
+    require_cost_tracker,
+    submit_metered_interaction,
+)
 from distill.pipeline.report.accordion_qa import (
     extract_section_feedback as _extract_section_feedback,
 )
@@ -90,6 +95,7 @@ def run_accordion_research(
         provider="gemini",
         workload="report",
     )
+    tracker = require_cost_tracker(tracker)
     phase_total = 1 if dossier_only else 3 if skip_qa else 4
     phase_progress = BatchProgress("report", phase_total, tracker)
 
@@ -275,6 +281,7 @@ def _run_dossier_phase(
         provider="gemini",
         workload="report",
     )
+    tracker = require_cost_tracker(tracker)
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 
     console.print("[cyan]Preparing research corpus...[/cyan]")
@@ -293,21 +300,23 @@ def _run_dossier_phase(
     )
 
     try:
-        interaction = client.interactions.create(
-            input=prompt,
-            agent=DEEP_RESEARCH_MODEL,
-            background=True,
-            tools=[
-                {
-                    "type": "file_search",
-                    "file_search_store_names": [store_name],
-                }
-            ],
+        interaction = submit_metered_interaction(
+            lambda: client.interactions.create(
+                input=prompt,
+                agent=DEEP_RESEARCH_MODEL,
+                background=True,
+                tools=[
+                    {
+                        "type": "file_search",
+                        "file_search_store_names": [store_name],
+                    }
+                ],
+            ),
+            tracker=tracker,
+            model=DEEP_RESEARCH_MODEL,
         )
 
         interaction_id = interaction.id
-        if tracker:
-            tracker.record_gemini_query(DEEP_RESEARCH_MODEL)
         console.print(f"[dim]Job ID: {interaction_id}[/dim]")
 
         completed = await_interaction(client, interaction_id, console, label="Deep Research")
@@ -397,6 +406,7 @@ def _write_sections(  # noqa: C901 - sequential section orchestration and failur
                 max_tokens=16384,
                 temperature=_temp,
                 call_type=f"section:{_section_title[:30]}",
+                usage_tracker=tracker,
             )
             if tracker:
                 tracker.record(
@@ -558,6 +568,7 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
             max_tokens=16384,
             retries=1,
             call_type="qa_review",
+            usage_tracker=tracker,
         )
         qa_result = qa_response.text
         if tracker:
@@ -630,6 +641,7 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
                 ),
                 max_tokens=16384,
                 call_type=f"fix:{title[:25]}",
+                usage_tracker=tracker,
             )
             rewrite = fix_response.text
             if tracker:

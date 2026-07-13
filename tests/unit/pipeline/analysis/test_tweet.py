@@ -90,6 +90,14 @@ def test_source_content_hash_ignores_counts_but_detects_post_edits() -> None:
     assert _tweet_source_content_hash(original) != _tweet_source_content_hash(edited)
 
 
+@pytest.mark.parametrize("url", ["http://[", "https://x.test:bad/a.mp4"])
+def test_source_content_hash_omits_malformed_media_urls(url: str) -> None:
+    malformed = _tweet(photo_urls=[url], video_url=url)
+    absent = _tweet(photo_urls=[""], video_url="")
+
+    assert _tweet_source_content_hash(malformed) == _tweet_source_content_hash(absent)
+
+
 def test_expanded_vocabulary_hint_calls_llm() -> None:
     with patch(
         "distill.pipeline.analysis.tweet.llm_call",
@@ -117,6 +125,19 @@ def test_expanded_vocabulary_hint_returns_empty_on_llm_failure() -> None:
     with patch("distill.pipeline.analysis.tweet.llm_call", _raise):
         out = _expanded_vocabulary_hint(_tweet())
     assert out == ""
+
+
+def test_expanded_vocabulary_hint_propagates_budget_stop() -> None:
+    from distill.pipeline.costs import BudgetExceededError
+
+    def _raise(*args: Any, **kwargs: Any) -> Any:
+        raise BudgetExceededError(1.0, 0.0)
+
+    with (
+        patch("distill.pipeline.analysis.tweet.llm_call", _raise),
+        pytest.raises(BudgetExceededError),
+    ):
+        _expanded_vocabulary_hint(_tweet())
 
 
 def test_vocabulary_hint_combines_source_and_expanded() -> None:
@@ -853,6 +874,41 @@ def test_ingest_tweet_reuses_cached_media(tmp_path: Path) -> None:
         ingest_tweet("https://x.com/alice/status/12345", topic="t", config=config)
 
     assert download_called["n"] == 0
+
+
+def test_ingest_tweet_replaces_oversized_cached_media(tmp_path: Path, monkeypatch) -> None:
+    from distill.ingestors.transcribe import TranscriptionResult
+    from distill.ingestors.x import media as x_media
+
+    monkeypatch.setattr(x_media, "_MAX_VIDEO_BYTES", 10)
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    video_tweet = _tweet(video_url="https://video.twimg.com/test.mp4", video_duration_ms=1000)
+    expected_dir = _x_post_dir(config, "t", video_tweet)
+    expected_dir.mkdir(parents=True, exist_ok=True)
+    media_path = expected_dir / "media.mp4"
+    media_path.write_bytes(b"x" * 11)
+    download_calls = 0
+
+    def _fake_download(_url: str, dest: Path, **_kwargs: Any) -> Path:
+        nonlocal download_calls
+        download_calls += 1
+        assert not dest.exists()
+        dest.write_bytes(b"valid")
+        return dest
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=video_tweet),
+        patch("distill.pipeline.analysis.tweet.download_video", side_effect=_fake_download),
+        patch(
+            "distill.pipeline.analysis.tweet.transcribe_media",
+            return_value=TranscriptionResult(text="t", provider="faster-whisper", model="large-v3"),
+        ),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm("ok")),
+    ):
+        ingest_tweet("https://x.com/alice/status/12345", topic="t", config=config)
+
+    assert download_calls == 1
+    assert media_path.read_bytes() == b"valid"
 
 
 def test_ingest_tweet_transcription_failure_is_recorded_and_does_not_crash(tmp_path: Path) -> None:

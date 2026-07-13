@@ -138,6 +138,11 @@ ARTIFACT_SUFFIXES: dict[str, str] = _ARTIFACT_SUFFIXES
 LEGACY_ARTIFACT_NAMES: dict[str, str] = _LEGACY_NAMES
 
 _WINDOWS_RESERVED_CHARS = r'[<>:"/\\|?*]'
+_WINDOWS_RESERVED_NAMES = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -195,11 +200,6 @@ def slugify_title(title: str, source_id: str = "", max_len: int = 60) -> str:
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
     # Avoid Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
-    _WINDOWS_RESERVED_NAMES = frozenset(
-        {"con", "prn", "aux", "nul"}
-        | {f"com{i}" for i in range(1, 10)}
-        | {f"lpt{i}" for i in range(1, 10)}
-    )
     if slug in _WINDOWS_RESERVED_NAMES:
         slug = f"_{slug}"
     if source_id:
@@ -225,6 +225,8 @@ def sanitize_path_component(value: str) -> str:
     cleaned = re.sub(_WINDOWS_RESERVED_CHARS, "-", value)
     cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(". ")
     cleaned = re.sub(r"-{2,}", "-", cleaned)
+    if cleaned.casefold().partition(".")[0] in _WINDOWS_RESERVED_NAMES:
+        cleaned = f"_{cleaned}"
     return cleaned or "untitled"
 
 

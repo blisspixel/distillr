@@ -464,6 +464,15 @@ def _worker_environment() -> dict[str, str]:
     return environment
 
 
+def _worker_crash_message(operation_name: str, completed: subprocess.CompletedProcess[str]) -> str:
+    message = f"{operation_name} worker exited with code {completed.returncode}"
+    stderr = completed.stderr.strip()
+    if not stderr:
+        return message
+    compact_stderr = " ".join(stderr.split())
+    return f"{message}: {compact_stderr[:500]}"
+
+
 def _run_worker_sample(
     corpus: GeneratedCorpus,
     operation_name: str,
@@ -477,8 +486,7 @@ def _run_worker_sample(
         "benchmarks.corpus_scale.worker",
         "--workspace",
         str(corpus.workspace),
-        "--worker-token",
-        corpus.worker_token,
+        f"--worker-token={corpus.worker_token}",
         "--operation",
         operation_name,
     ]
@@ -511,7 +519,7 @@ def _run_worker_sample(
                 raise
         raise BenchmarkWorkerError(
             "WorkerCrash",
-            f"{operation_name} worker exited with code {completed.returncode}",
+            _worker_crash_message(operation_name, completed),
         )
     return _parse_worker_sample(completed.stdout, operation_name)
 

@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
 
 from distill.library.paths import find_artifact
+from distill.parsing import read_bounded_json_object
 
 __all__ = [
     "LONG_VIDEO_SECONDS",
@@ -22,6 +22,7 @@ __all__ = [
 
 LONG_VIDEO_SECONDS = 1800
 MIN_TRANSCRIPT_CHARS = 500
+_MAX_VIDEO_METADATA_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -89,9 +90,15 @@ def render_thin_video_transcripts_section(items: list[ThinTranscript]) -> list[s
 
 
 def format_duration(seconds: int | float | None) -> str:
-    if seconds is None:
+    if seconds is None or isinstance(seconds, bool):
         return "?"
-    total = int(seconds)
+    try:
+        normalized = float(seconds)
+    except (OverflowError, TypeError, ValueError):
+        return "?"
+    if not math.isfinite(normalized):
+        return "?"
+    total = int(normalized)
     if total < 0:
         return "?"
     if total < 60:
@@ -103,24 +110,35 @@ def format_duration(seconds: int | float | None) -> str:
     return f"{hours}h{minutes:02d}m"
 
 
-def _read_json_dict(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
+def _read_json_dict(path: Path) -> dict[str, object]:
+    return read_bounded_json_object(path, max_bytes=_MAX_VIDEO_METADATA_BYTES)
 
 
 def _duration_seconds(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
     try:
         duration = int(float(str(value)))
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return 0
     return max(duration, 0)
 
 
 def _transcript_chars(path: Path) -> int:
+    """Return an exact thin-file count without loading large transcripts.
+
+    Once a file has more than the warning threshold of decoded characters, an
+    exact total is unnecessary. If the bounded prefix is mostly whitespace and
+    more content exists, return the threshold conservatively rather than issue
+    a potentially false warning about a file we intentionally did not scan.
+    """
+
     try:
-        return len(path.read_text(encoding="utf-8").strip())
-    except OSError:
+        with path.open("r", encoding="utf-8") as stream:
+            prefix = stream.read(MIN_TRANSCRIPT_CHARS + 1)
+            has_more = bool(stream.read(1))
+    except (OSError, UnicodeError):
         return 0
+    if has_more:
+        return max(len(prefix.strip()), MIN_TRANSCRIPT_CHARS)
+    return len(prefix.strip())

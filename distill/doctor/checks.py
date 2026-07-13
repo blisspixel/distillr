@@ -72,9 +72,34 @@ def _doctor_key_auth_rejected(exc: Exception) -> bool:
     return status in (401, 403)
 
 
-def doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
-    """Public API-key validation seam for CLI and MCP doctor surfaces."""
+def doctor_validate_key(
+    provider: str,
+    config: DistillConfig,
+    *,
+    live: bool = True,
+) -> tuple[DoctorKeyStatus, str]:
+    """Return provider-key health, optionally without provider contact."""
+    if not live:
+        return _doctor_key_presence(provider, config)
     return _doctor_validate_key(provider, config)
+
+
+def _doctor_key_presence(provider: str, config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
+    fields = {
+        "xai": "xai_api_key",
+        "gemini": "gemini_api_key",
+        "anthropic": "anthropic_api_key",
+        "openai": "openai_api_key",
+    }
+    field = fields.get(provider)
+    if field is None:
+        raise ValueError(f"unknown provider: {provider}")
+    if not getattr(config, field):
+        return ("missing" if provider == "xai" else "not_set", "")
+    return (
+        "unknown",
+        "Configured but not live-validated through MCP; run `distill doctor` locally.",
+    )
 
 
 def _doctor_validate_key(provider: str, config: DistillConfig) -> tuple[DoctorKeyStatus, str]:  # pyright: ignore[reportUnusedFunction] "called via doctor command (commands/doctor.py and mcp) through dynamic lookup; not direct in this module"

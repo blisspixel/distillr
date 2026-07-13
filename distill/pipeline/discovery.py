@@ -270,6 +270,7 @@ def discover_generate_queries(
         max_tokens=768,
         call_type="discover_plan",
         temperature=0.0,  # deterministic queries so re-previews search the same pool
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="discover_plan"))
@@ -418,6 +419,7 @@ def discover_rerank(  # noqa: C901 — legacy, will refactor
         max_tokens=8192,
         call_type="discover_rerank",
         temperature=0.0,  # deterministic rerank so the previewed order is reproducible
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="discover_rerank"))

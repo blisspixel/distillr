@@ -14,6 +14,7 @@ from hypothesis import strategies as st
 
 from distill.llm.metadata import (
     DEFAULT_CONTEXT_WINDOW,
+    LOCAL_CALL_TIMEOUT_MAX,
     LOCAL_FALLBACK_CONTEXT_WINDOW,
     LOCAL_PROVIDERS,
     local_call_timeout,
@@ -171,8 +172,31 @@ def test_local_call_timeout_env_override(monkeypatch: pytest.MonkeyPatch) -> Non
     assert local_call_timeout(300) == 2400
 
 
-@pytest.mark.parametrize("bad", ["", "  ", "0", "-5", "not-a-number", "12.5"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "  ",
+        "0",
+        "-5",
+        "not-a-number",
+        "12.5",
+        "\u00b2",
+        "\u0661\u0662",
+        "86401",
+        "9" * 4000,
+        "9" * 5000,
+    ],
+)
 def test_local_call_timeout_ignores_invalid_env(monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
     """Blank, non-numeric, or non-positive overrides fall back to the floor."""
     monkeypatch.setenv("DISTILL_LOCAL_TIMEOUT", bad)
     assert local_call_timeout(300) == 600
+
+
+def test_local_call_timeout_clamps_unbounded_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DISTILL_LOCAL_TIMEOUT", raising=False)
+
+    assert local_call_timeout(10**4000) == LOCAL_CALL_TIMEOUT_MAX

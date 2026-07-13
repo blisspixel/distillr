@@ -579,7 +579,9 @@ def collect_staleness(topic_dir: Path) -> StalenessRollup:
             unknown_family += 1
             continue
         current_parsed = parse_prompt_id(current_id)
-        if current_parsed is not None and version < current_parsed[1]:
+        if current_parsed is None or version > current_parsed[1]:
+            unknown_family += 1
+        elif version < current_parsed[1]:
             stale.append(
                 {"insight": ref.artifact_path, "recorded": recorded, "current": current_id}
             )

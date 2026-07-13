@@ -69,7 +69,7 @@ def test_run_deep_research_returns_none_when_no_files(tmp_path, monkeypatch, cos
         lambda client, name: deleted.append(name),
     )
 
-    result = run_deep_research("ai", config)
+    result = run_deep_research("ai", config, tracker=CostTracker())
 
     assert result is None
     assert deleted == ["store-1"]
@@ -94,6 +94,17 @@ def test_run_deep_research_no_metered_refuses_before_client_or_store(tmp_path, m
 
     client.assert_not_called()
     create_store.assert_not_called()
+
+
+def test_run_deep_research_requires_tracker_before_client(tmp_path, monkeypatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    client = MagicMock(side_effect=AssertionError("client constructed without a ledger"))
+    monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", client)
+
+    with pytest.raises(ValueError, match="CostTracker is required"):
+        run_deep_research("ai", config)
+
+    client.assert_not_called()
 
 
 def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
@@ -198,7 +209,7 @@ def test_run_deep_research_handles_failed_interaction(tmp_path, monkeypatch):
         lambda client, name: deleted.append(name),
     )
 
-    result = run_deep_research("ai", config)
+    result = run_deep_research("ai", config, tracker=CostTracker())
 
     assert result is None
     assert deleted == ["store-1"]
@@ -231,11 +242,14 @@ def test_run_deep_research_records_submitted_failed_interaction(tmp_path, monkey
     assert tracker.gemini_queries == 1
 
 
-def test_run_deep_research_budget_crossing_stops_before_polling(tmp_path, monkeypatch):
+def test_run_deep_research_budget_refusal_stops_before_submission(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    submitted = False
 
     class FakeInteractions:
         def create(self, **kwargs):
+            nonlocal submitted
+            submitted = True
             return SimpleNamespace(id="job-1")
 
     class FakeClient:
@@ -259,7 +273,8 @@ def test_run_deep_research_budget_crossing_stops_before_polling(tmp_path, monkey
     with pytest.raises(BudgetExceededError):
         run_deep_research("ai", config, tracker=tracker)
 
-    assert tracker.gemini_queries == 1
+    assert submitted is False
+    assert tracker.gemini_queries == 0
     poll.assert_not_called()
     assert deleted == ["store-1"]
 
@@ -289,7 +304,7 @@ def test_run_deep_research_returns_none_when_completed_without_output(tmp_path, 
         lambda client, name: deleted.append(name),
     )
 
-    result = run_deep_research("ai", config)
+    result = run_deep_research("ai", config, tracker=CostTracker())
 
     assert result is None
     assert deleted == ["store-1"]
@@ -317,7 +332,9 @@ def test_run_deep_research_returns_none_on_interaction_exception(tmp_path, monke
         lambda client, name: deleted.append(name),
     )
 
-    assert run_deep_research("ai", config) is None
+    tracker = CostTracker()
+    assert run_deep_research("ai", config, tracker=tracker) is None
+    assert tracker.gemini_query_outcomes == ["ambiguous"]
     assert deleted == ["store-1"]
 
 
@@ -355,5 +372,5 @@ def test_run_deep_research_logs_long_running_status(tmp_path, monkeypatch):
         lambda client, name: deleted.append(name),
     )
 
-    assert run_deep_research("ai", config) == "done"
+    assert run_deep_research("ai", config, tracker=CostTracker()) == "done"
     assert deleted == ["store-1"]

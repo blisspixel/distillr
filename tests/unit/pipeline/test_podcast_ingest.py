@@ -6,6 +6,7 @@ import pytest
 
 from distill.config import DistillConfig
 from distill.ingestors.podcasts.feed import PodcastEpisode, PodcastFeed
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis import podcast as pod_mod
 from distill.pipeline.costs import CostTracker
@@ -106,7 +107,9 @@ def test_audio_fallback_routes_through_transcribe(config, monkeypatch, tmp_path)
     monkeypatch.setattr(pod_mod, "transcribe_media", fake_transcribe)
     _patch_llm(monkeypatch)
 
-    result = pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
+    result = pod_mod.ingest_podcast(
+        "https://example.com/pod.rss", topic="pods", config=config, tracker=CostTracker()
+    )
 
     assert seen["downloaded"] == ep.audio_url
     assert "Grounding numbers in audio" in seen["hint"]  # vocabulary from episode metadata
@@ -120,11 +123,27 @@ def test_no_transcript_no_audio_skips_analysis(config, monkeypatch):
     monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
     _patch_llm(monkeypatch)
 
-    result = pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
+    result = pod_mod.ingest_podcast(
+        "https://example.com/pod.rss", topic="pods", config=config, tracker=CostTracker()
+    )
 
     assert len(result.episode_paths) == 1  # receipt still captured
     assert result.insight_paths == []
     assert any("no audio enclosure" in r for r in result.skipped_reasons)
+
+
+def test_analysis_refuses_provider_call_without_cost_tracker(config, monkeypatch):
+    ep = _episode(transcript_url="https://example.com/ep42.txt")
+    monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
+    monkeypatch.setattr(
+        pod_mod, "fetch_transcript", lambda url, transcript_type="": "Grounded transcript."
+    )
+    monkeypatch.setattr(
+        pod_mod, "llm_call", lambda *args, **kwargs: pytest.fail("must not call provider")
+    )
+
+    with pytest.raises(CostPolicyError, match="cost tracker is required"):
+        pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
 
 
 def test_empty_feed_fetch_records_no_episode_skip(config, monkeypatch):
@@ -153,7 +172,9 @@ def test_failed_publisher_transcript_falls_back_to_no_audio_skip(config, monkeyp
     monkeypatch.setattr(pod_mod, "fetch_transcript", fail_transcript)
     _patch_llm(monkeypatch)
 
-    result = pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
+    result = pod_mod.ingest_podcast(
+        "https://example.com/pod.rss", topic="pods", config=config, tracker=CostTracker()
+    )
 
     assert len(result.episode_paths) == 1
     assert result.insight_paths == []
@@ -232,7 +253,9 @@ def test_strict_refusal_on_unsupported_claim(config, monkeypatch):
     _patch_llm(monkeypatch, text="## Summary\nThe guest reports 99.99 MRR.")
     config.distill_verify = "strict"
 
-    result = pod_mod.ingest_podcast("https://example.com/pod.rss", topic="pods", config=config)
+    result = pod_mod.ingest_podcast(
+        "https://example.com/pod.rss", topic="pods", config=config, tracker=CostTracker()
+    )
 
     assert result.insight_paths == []
     assert any("refused" in r for r in result.skipped_reasons)
@@ -250,7 +273,11 @@ def test_episodes_limit_takes_latest_n(config, monkeypatch):
     _patch_llm(monkeypatch)
 
     result = pod_mod.ingest_podcast(
-        "https://example.com/pod.rss", topic="pods", config=config, episodes=2
+        "https://example.com/pod.rss",
+        topic="pods",
+        config=config,
+        episodes=2,
+        tracker=CostTracker(),
     )
 
     assert len(result.episode_paths) == 2

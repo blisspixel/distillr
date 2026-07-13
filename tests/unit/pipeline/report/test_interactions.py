@@ -14,10 +14,12 @@ from types import SimpleNamespace
 import pytest
 from rich.console import Console
 
+from distill.pipeline.costs import CostTracker, ProjectedBudgetExceededError
 from distill.pipeline.report._interactions import (
     POLLING_STATUSES,
     await_interaction,
     interaction_text,
+    submit_metered_interaction,
 )
 
 
@@ -33,6 +35,62 @@ def _text_part(text: str) -> SimpleNamespace:
 
 def _model_output(*texts: str) -> SimpleNamespace:
     return SimpleNamespace(type="model_output", content=[_text_part(t) for t in texts])
+
+
+# ── submit_metered_interaction ───────────────────────────────────────
+
+
+def test_submit_metered_interaction_authorizes_and_records_acceptance():
+    tracker = CostTracker(budget=2.50)
+    interaction = SimpleNamespace(id="job-1")
+
+    result = submit_metered_interaction(
+        lambda: interaction,
+        tracker=tracker,
+        model="deep-research-preview-04-2026",
+    )
+
+    assert result is interaction
+    assert tracker.gemini_queries == 1
+    assert tracker.gemini_query_outcomes == ["accepted"]
+
+
+def test_submit_metered_interaction_records_ambiguous_transport_failure():
+    tracker = CostTracker()
+
+    def fail_after_contact() -> object:
+        raise TimeoutError("provider response timed out")
+
+    with pytest.raises(TimeoutError, match="provider response timed out"):
+        submit_metered_interaction(
+            fail_after_contact,
+            tracker=tracker,
+            model="deep-research-preview-04-2026",
+        )
+
+    assert tracker.gemini_queries == 1
+    assert tracker.gemini_query_outcomes == ["ambiguous"]
+    assert tracker.total_gemini_cost == 2.50
+
+
+def test_submit_metered_interaction_refuses_budget_before_contact():
+    tracker = CostTracker(budget=0.0)
+    contacted = False
+
+    def submit() -> object:
+        nonlocal contacted
+        contacted = True
+        return SimpleNamespace(id="job-1")
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        submit_metered_interaction(
+            submit,
+            tracker=tracker,
+            model="deep-research-preview-04-2026",
+        )
+
+    assert contacted is False
+    assert tracker.gemini_queries == 0
 
 
 # ── interaction_text ──────────────────────────────────────────────────

@@ -24,7 +24,12 @@ from distill.commands._helpers import (
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
-from distill.ingestors.podcasts import PodcastFetchError, fetch_feed, looks_like_feed_url
+from distill.ingestors.podcasts import (
+    PodcastFetchError,
+    fetch_feed,
+    looks_like_feed_url,
+    select_feed_episode,
+)
 from distill.ingestors.x.syndication import parse_tweet_url
 from distill.pipeline.analysis.local import ingest_local_file
 from distill.pipeline.analysis.media import ingest_media_file, is_media_file
@@ -70,6 +75,11 @@ def ingest_cmd(
         1,
         "--episodes",
         help="For podcast feeds: how many of the latest episodes to ingest (default 1).",
+    ),
+    episode_id: str = typer.Option(
+        "",
+        "--episode-id",
+        help="Ingest one exact feed item identity emitted by profile preview.",
     ),
 ) -> None:
     """Ingest a single URL or local file into the library, picking the right adapter.
@@ -137,6 +147,7 @@ def ingest_cmd(
                 config,
                 tracker,
                 episodes=episodes,
+                episode_id=episode_id,
                 transcribe=not no_transcribe,
                 analyze=not no_analyze,
             )
@@ -271,10 +282,14 @@ def _ingest_feed(
     episodes: int,
     transcribe: bool,
     analyze: bool,
+    episode_id: str = "",
 ) -> None:
     """One fetch, then route: enclosures mean a podcast, post bodies a newsletter."""
     try:
         feed = fetch_feed(url)
+        if episode_id:
+            feed = select_feed_episode(url, feed, episode_id)
+            episodes = 1
         if feed_is_newsletter(feed):
             nl = ingest_newsletter(
                 url,

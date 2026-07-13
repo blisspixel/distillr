@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import NoReturn
 
@@ -17,16 +18,22 @@ from distill.config import DistillConfig
 from distill.library.okf import export_okf_bundle
 from distill.library.profiles import (
     ProfileValidationError,
+    ResearchProfile,
     find_research_profile,
     load_research_profile,
 )
+from distill.llm.cost_policy import CostMode, normalize_cost_mode
+from distill.pipeline.profile_execution import MAX_PROFILE_TIMEOUT_SECONDS
 from distill.pipeline.profile_preview import (
     ProfilePreviewResult,
     build_profile_preview,
     command_shell_label,
     command_text,
 )
-from distill.pipeline.profile_run import ProfileRunResult, run_profile_preview
+from distill.pipeline.profile_run import (
+    ProfileRunResult,
+    run_profile_preview,
+)
 
 __all__ = ["profile_app", "profile_preview_cmd", "profile_run_cmd", "register"]
 
@@ -95,6 +102,7 @@ def profile_run_cmd(
         1800,
         "--timeout",
         min=1,
+        max=MAX_PROFILE_TIMEOUT_SECONDS,
         help="Maximum seconds to allow each profile command.",
     ),
 ):
@@ -111,16 +119,25 @@ def profile_run_cmd(
 
     try:
         config, path, preview = _load_profile_preview(profile, limit, fetch_sources)
-        loaded = load_research_profile(path)
         result = run_profile_preview(
             preview,
             library_dir=config.library_dir,
             approved=yes,
             profile_ref=profile,
             timeout_seconds=timeout_seconds,
+            workflow_budgets_usd=config.cost_workflow_budgets_usd,
+            result_finalizer=(
+                (
+                    lambda run_result: _maybe_export_okf_bundle(
+                        config,
+                        preview.topic,
+                        run_result,
+                    )
+                )
+                if yes and preview.okf_export_required
+                else None
+            ),
         )
-        if yes and loaded.outputs.okf_export:
-            result = _maybe_export_okf_bundle(config, preview.topic, result)
     except ProfileValidationError as exc:
         _exit_with_error(str(exc))
     except ValueError as exc:
@@ -128,9 +145,10 @@ def profile_run_cmd(
 
     if json_mode_active():
         emit_json(result.to_dict())
-        return
-
-    _render_profile_run(result, path)
+    else:
+        _render_profile_run(result, path)
+    if yes and result.health_status not in {"ok", "complete"}:
+        raise typer.Exit(1)
 
 
 def _maybe_export_okf_bundle(
@@ -142,22 +160,26 @@ def _maybe_export_okf_bundle(
 
     try:
         okf_result = export_okf_bundle(config, topic)
-    except (FileNotFoundError, ValueError) as exc:
-        if json_mode_active():
-            return replace(
-                result,
-                okf_bundle_dir="",
-                okf_bundle_valid=False,
-                warnings=[
-                    *result.warnings,
-                    {"source": "okf_export", "message": str(exc)},
-                ],
-            )
-        console.print(f"[yellow]OKF export skipped: {exc}[/yellow]")
-        return result
+    except (OSError, ValueError) as exc:
+        failed_result = replace(
+            result,
+            okf_bundle_required=True,
+            okf_bundle_dir="",
+            okf_bundle_valid=False,
+            warnings=[
+                *result.warnings,
+                {"source": "okf_export", "message": str(exc)},
+            ],
+        )
+        if not json_mode_active():
+            console.print(f"[yellow]OKF export skipped: {exc}[/yellow]")
+        return failed_result
 
+    validation_errors = len(okf_result.validation.errors)
+    validation_warnings = len(okf_result.validation.warnings)
     return replace(
         result,
+        okf_bundle_required=True,
         okf_bundle_dir=str(okf_result.output_dir),
         okf_bundle_valid=okf_result.validation.ok,
         warnings=[
@@ -167,11 +189,13 @@ def _maybe_export_okf_bundle(
                     {
                         "source": "okf_export",
                         "message": (
-                            f"OKF bundle written with {len(okf_result.validation.warnings)} warning(s)"
+                            f"OKF bundle validation failed with {validation_errors} error(s)"
+                            if validation_errors
+                            else f"OKF bundle written with {validation_warnings} warning(s)"
                         ),
                     }
                 ]
-                if okf_result.validation.warnings
+                if validation_errors or validation_warnings
                 else []
             ),
         ],
@@ -188,13 +212,27 @@ def _load_profile_preview(
     if not path.exists():
         _exit_with_error(f"Profile not found: {path}")
 
-    loaded = load_research_profile(path)
+    loaded = _apply_profile_cost_policy(
+        load_research_profile(path),
+        normalize_cost_mode(os.environ.get("DISTILL_COST_MODE", config.distill_cost_mode)),
+    )
     result = build_profile_preview(
         loaded,
         fresh_item_limit=limit,
         fetch_sources=fetch_sources,
     )
     return config, path, result
+
+
+def _apply_profile_cost_policy(profile: ResearchProfile, configured: CostMode) -> ResearchProfile:
+    """Apply the most restrictive no-metered policy across CLI and profile scope."""
+
+    if configured == "no-metered" or profile.cost_mode == "no-metered":
+        limits = profile.limits.model_copy(update={"max_metered_usd": 0.0})
+        return profile.model_copy(update={"cost_mode": "no-metered", "limits": limits})
+    if profile.cost_mode != "auto":
+        return profile
+    return profile.model_copy(update={"cost_mode": configured})
 
 
 def _exit_with_error(message: str) -> NoReturn:

@@ -14,7 +14,7 @@ import os
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import typer
 from rich import box
@@ -70,6 +70,7 @@ from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
 from distill.llm.cost_policy import require_route_allowed
 from distill.llm.router import RouterConfig
+from distill.pipeline.cost_history import read_cost_log_rows
 from distill.pipeline.costs import (
     CostWarning,
     cost_anomaly_warnings,
@@ -114,8 +115,6 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     Displays actual vs estimated costs, token usage breakdown, and per-run timing.
     """
-    import json as _json
-
     from distill.commands._json import JsonEnvelope
 
     config = get_config()
@@ -159,19 +158,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
             _costs_biggest_prompts_section(config, biggest_prompts)
         return
 
-    try:
-        cost_log_text = log_file.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        cost_log_text = ""
-    entries: list[dict[str, Any]] = []
-    for line in cost_log_text.strip().split("\n"):
-        if line.strip():
-            try:
-                loaded = _json.loads(line)
-            except (_json.JSONDecodeError, RecursionError):
-                continue
-            if isinstance(loaded, dict):
-                entries.append(cast("dict[str, Any]", loaded))
+    entries = read_cost_log_rows(log_file)
 
     if not entries:
         if json_mode:

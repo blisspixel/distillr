@@ -228,6 +228,16 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
 
 - **Branch test coverage ≥95%**, ratcheted. 0.8.3 turns on branch coverage and starts the up-only climb from the measured baseline; the blocking CI and pre-push gates now enforce 95% across the surface. Branch (not line) is the metric, and the target is flat rather than tiered - the cost is real on presentation-heavy code (CLI rendering, web routes, dashboards), and that trade-off is accepted deliberately rather than hidden behind a per-package carve-out. Coverage is reported on every PR and can go up, not down.
   - Status 2026-07-12: the 0.19.34 release CI passes 4,227 tests at 95.01% branch coverage on Python 3.12, with the Python 3.13 and 3.14 matrix plus macOS and Windows smoke suites green.
+  - Status 2026-07-13: the current maintenance candidate adds adversarial
+    coverage for exact-IP fetches, resource-limited PDF parsing, fail-closed
+    provider and transcription accounting, concurrent secret-file updates,
+    decoded-sample duration accounting, hidden-retry refusal, dashboard Host
+    validation, manifest-protocol confinement, malformed feed normalization,
+    installer integrity, total ASCII structural-integer parsing, and isolated
+    subprocess entry points. The definitive local gate passes 4,855 tests with
+    three platform skips and eight live-network tests deselected at 95.02
+    percent branch coverage; final release evidence belongs in the changelog
+    once the candidate ships.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.
 - **Pyright blocking across the full package surface, with strict-mode promotion still open.** CI runs `pyright --warnings distill/` and fails on any diagnostic. `distill/llm/` is centrally strict, and promoted modules elsewhere carry file-level strict directives; remaining packages continue through the strict ratchet before 1.0. No `# type: ignore` without an inline reason comment.
 - **Parse, don't validate - strict domain types at every boundary.** Every external input (MCP tool arguments, frontmatter parsing, local-file/adapter ingest, LLM structured outputs) is *parsed once* at the system boundary into a rich domain type (a Pydantic v2 model with `strict=True, extra='forbid'`, a `NewType`, or a frozen dataclass), not re-validated ad hoc deeper in. Core logic never receives raw primitives that could be invalid - illegal states are made unrepresentable, so malformed input fails at the boundary with a precise error instead of propagating. The audit health surface now parses verify sidecars into typed flag rows and stale prompt records before rendering or action planning. The shared dashboard data surface parses cost logs, latest-run payloads, topic-change history, and site manifests into typed records before CLI or web renderers read them. Shared command helpers now preserve typed metadata-writing and duration-formatting contracts before artifact writes. Topic diff, trend, watch-alert, and change-history command paths now use typed topic-change rows and typed count records before writing artifacts or rendering command output. Reinforces the verifiable-corpus thesis: the corpus is only as trustworthy as the parsing on what enters it.

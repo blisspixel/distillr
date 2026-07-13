@@ -922,7 +922,7 @@ class TestDossierPhase:
 
         monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", FakeClient)
 
-        result = _run_dossier_phase("ai", config, "topic", None, None, False)
+        result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=CostTracker())
 
         assert result is None
         assert deleted == ["store-1"]
@@ -960,7 +960,7 @@ class TestDossierPhase:
 
         monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", FakeClient)
 
-        result = _run_dossier_phase("ai", config, "topic", None, None, False)
+        result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=CostTracker())
 
         assert result == "dossier body"
         assert deleted == ["store-1"]
@@ -990,7 +990,7 @@ class TestDossierPhase:
 
         monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", FakeClient)
 
-        result = _run_dossier_phase("ai", config, "topic", None, None, False)
+        result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=CostTracker())
 
         assert result is None
         assert deleted == ["store-1"]
@@ -1020,7 +1020,7 @@ class TestDossierPhase:
 
         monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", FakeClient)
 
-        result = _run_dossier_phase("ai", config, "topic", None, None, False)
+        result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=CostTracker())
 
         assert result is None
         assert deleted == ["store-1"]
@@ -1060,11 +1060,18 @@ class TestDossierPhase:
         result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
 
         assert result == "dossier body"
-        tracker.record_gemini_query.assert_called_once_with("deep-research-preview-04-2026")
+        tracker.authorize_gemini_query.assert_called_once_with("deep-research-preview-04-2026")
+        tracker.record_gemini_query.assert_called_once_with(
+            "deep-research-preview-04-2026", outcome="accepted"
+        )
 
-    def test_run_dossier_budget_crossing_stops_before_polling(self, config, monkeypatch):
+    def test_run_dossier_budget_refusal_stops_before_submission(self, config, monkeypatch):
+        submitted = False
+
         class FakeInteractions:
             def create(self, **kwargs):
+                nonlocal submitted
+                submitted = True
                 return SimpleNamespace(id="job-1")
 
         class FakeClient:
@@ -1088,7 +1095,8 @@ class TestDossierPhase:
         with pytest.raises(BudgetExceededError):
             _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
 
-        assert tracker.gemini_queries == 1
+        assert submitted is False
+        assert tracker.gemini_queries == 0
         poll.assert_not_called()
         assert deleted == ["store-1"]
 
@@ -1107,12 +1115,24 @@ class TestAccordionRun:
 
         dossier_phase.assert_not_called()
 
+    def test_requires_tracker_before_dossier_phase(self, config, monkeypatch):
+        dossier_phase = MagicMock(side_effect=AssertionError("dossier started without ledger"))
+        monkeypatch.setattr(
+            "distill.pipeline.report.accordion._run_dossier_phase",
+            dossier_phase,
+        )
+
+        with pytest.raises(ValueError, match="CostTracker is required"):
+            run_accordion_research("ai", config)
+
+        dossier_phase.assert_not_called()
+
     def test_run_accordion_research_returns_none_when_dossier_fails(self, config, monkeypatch):
         monkeypatch.setattr(
             "distill.pipeline.report.accordion._run_dossier_phase", lambda *args, **kwargs: None
         )
 
-        result = run_accordion_research("ai", config)
+        result = run_accordion_research("ai", config, tracker=CostTracker())
 
         assert result is None
 
@@ -1125,7 +1145,7 @@ class TestAccordionRun:
             "distill.pipeline.report.accordion._count_sources", lambda *args, **kwargs: (3, 2)
         )
 
-        result = run_accordion_research("ai", config, dossier_only=True)
+        result = run_accordion_research("ai", config, dossier_only=True, tracker=CostTracker())
 
         assert result == "dossier body"
         research_path = artifact_path(config.topic_dir("ai"), "research", identity="ai")
@@ -1146,7 +1166,7 @@ class TestAccordionRun:
             "distill.pipeline.report.accordion._write_sections", lambda *args, **kwargs: []
         )
 
-        result = run_accordion_research("ai", config)
+        result = run_accordion_research("ai", config, tracker=CostTracker())
 
         assert result is None
 
@@ -1173,7 +1193,7 @@ class TestAccordionRun:
             ],
         )
 
-        result = run_accordion_research("ai", config, skip_qa=True)
+        result = run_accordion_research("ai", config, skip_qa=True, tracker=CostTracker())
 
         assert "section body" in result
         assert artifact_path(config.topic_dir("ai"), "report", identity="ai").exists()
@@ -1252,6 +1272,6 @@ class TestAccordionRun:
             ),
         )
 
-        result = run_accordion_research("ai", config)
+        result = run_accordion_research("ai", config, tracker=CostTracker())
 
         assert "rewritten" in result

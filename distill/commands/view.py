@@ -85,6 +85,7 @@ from distill.library.paths import (
 )
 from distill.library.state import ChannelState
 from distill.llm.router import RouterConfig
+from distill.parsing import parse_ascii_uint
 from distill.pipeline.costs import BudgetExceededError, estimate_synthesis_workflow_cost
 from distill.pipeline.dashboard_records import JsonObject
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
@@ -357,8 +358,9 @@ def show(  # noqa: C901 — legacy, will refactor
 
     # Parse second arg: if it looks like an int, use as index; otherwise treat as channel
     index = 1
-    if index_or_channel.isdigit():
-        index = int(index_or_channel)
+    parsed_index = parse_ascii_uint(index_or_channel)
+    if parsed_index is not None:
+        index = parsed_index
     else:
         # Treat as channel name (positional overrides -c flag)
         channel = index_or_channel

@@ -56,7 +56,13 @@ def analyze_site_page(
         goal=goal,
         lens=lens,
     )
-    response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="site_page")
+    response = llm_call(
+        rc,
+        workload_tag="site",
+        prompt=prompt,
+        call_type="site_page",
+        usage_tracker=tracker,
+    )
     result = response.text
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="site_page"))
@@ -112,6 +118,7 @@ def synthesize_site(
         workload_tag="site",
         prompt=site_synthesis_prompt(site_name, "".join(parts)),
         call_type="site_synthesis",
+        usage_tracker=tracker,
     )
     synthesis = response.text
     if tracker:
@@ -191,6 +198,7 @@ def synthesize_site_topic(
         workload_tag="site",
         prompt=site_topic_synthesis_prompt(topic, site_summaries),
         call_type="site_topic_synthesis",
+        usage_tracker=tracker,
     )
     synthesis = response.text
     if tracker:

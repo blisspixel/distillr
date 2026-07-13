@@ -177,12 +177,15 @@ def main() -> None:
     from distill.llm.cost_policy import CostPolicyError
     from distill.llm.errors import describe_provider_error
     from distill.llm.run_context import mark_current_run_outcome, run_scope
-    from distill.pipeline.costs import BudgetExceededError, ProjectedBudgetExceededError
+    from distill.pipeline.costs import (
+        BudgetExceededError,
+        ProjectedBudgetExceededError,
+    )
 
     app.pretty_exceptions_enable = False
     with run_scope(invocation_type="cli", command="cli"):
         try:
-            app()
+            _run_app_with_terminal_receipt()
         except CostPolicyError as exc:
             mark_current_run_outcome("refused")
             if json_mode_active():
@@ -216,3 +219,20 @@ def main() -> None:
             # 4=network/timeout, ...) so an agent or loop can branch on the cause
             # instead of seeing an undifferentiated 1.
             raise SystemExit(int(map_exception_to_exit_code(exc))) from exc
+
+
+def _run_app_with_terminal_receipt() -> None:
+    """Invoke the CLI and close a successful profile child's receipt contract."""
+
+    from distill.pipeline.costs import ensure_terminal_profile_receipt
+
+    completed_successfully = False
+    try:
+        app()
+        completed_successfully = True
+    except SystemExit as exc:
+        completed_successfully = exc.code in (None, 0)
+        raise
+    finally:
+        if completed_successfully:
+            ensure_terminal_profile_receipt()

@@ -229,6 +229,7 @@ def multi_pass_analysis(
             workload_tag="analysis",
             prompt=prompt,
             call_type=f"paper_multipass_{analysis_pass.section.lower().replace(' ', '_')}",
+            usage_tracker=tracker,
         )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type="paper"))
@@ -301,6 +302,7 @@ def _legacy_category_passes(
             workload_tag="analysis",
             prompt=prompt,
             call_type=f"multipass_{category.lower().replace(' ', '_')}",
+            usage_tracker=tracker,
         )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type="paper"))

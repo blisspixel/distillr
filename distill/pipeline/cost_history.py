@@ -4,12 +4,53 @@
 
 from __future__ import annotations
 
-from typing import Any
+import math
+from pathlib import Path
+from typing import Any, cast
+
+from distill.parsing import read_bounded_jsonl_objects
 
 __all__ = [
     "estimator_accuracy",
     "projected_next_run_cost",
+    "read_cost_log_rows",
 ]
+
+_MAX_COST_LOG_BYTES = 16 * 1024 * 1024
+_MAX_COST_LOG_ROWS = 10_000
+
+
+def _has_boolean_monetary_value(row: dict[str, Any]) -> bool:
+    return any(isinstance(row.get(field), bool) for field in ("actual_cost", "estimated_cost"))
+
+
+def read_cost_log_rows(path: Path, *, limit: int = _MAX_COST_LOG_ROWS) -> list[dict[str, Any]]:
+    """Read the newest bounded, strict JSON object rows from a cost ledger."""
+
+    if limit <= 0:
+        return []
+    entries: list[dict[str, Any]] = []
+    rows = read_bounded_jsonl_objects(
+        path,
+        max_bytes=_MAX_COST_LOG_BYTES,
+        max_rows=_MAX_COST_LOG_ROWS,
+    )
+    for loaded in rows:
+        row = cast(dict[str, Any], loaded)
+        if _has_boolean_monetary_value(row):
+            continue
+        entries.append(row)
+    return entries[-min(limit, _MAX_COST_LOG_ROWS) :]
+
+
+def _positive_finite_cost(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        cost = float(value)
+    except OverflowError:
+        return None
+    return cost if math.isfinite(cost) and cost > 0 else None
 
 
 def _median(values: list[float]) -> float:
@@ -25,11 +66,9 @@ def estimator_accuracy(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
     for row in entries:
         if str(row.get("command", "")).endswith("_preview"):
             continue
-        estimated = row.get("estimated_cost")
-        actual = row.get("actual_cost")
-        if not isinstance(estimated, int | float) or not isinstance(actual, int | float):
-            continue
-        if estimated <= 0 or actual <= 0:
+        estimated = _positive_finite_cost(row.get("estimated_cost"))
+        actual = _positive_finite_cost(row.get("actual_cost"))
+        if estimated is None or actual is None:
             continue
         signed_pct.append((estimated - actual) / actual * 100.0)
     if not signed_pct:
@@ -49,9 +88,9 @@ def projected_next_run_cost(entries: list[dict[str, Any]]) -> float:
     for row in reversed(entries):
         if str(row.get("command", "")).endswith("_preview"):
             continue
-        actual = row.get("actual_cost")
-        if isinstance(actual, int | float) and actual > 0:
-            costs.append(float(actual))
+        actual = _positive_finite_cost(row.get("actual_cost"))
+        if actual is not None:
+            costs.append(actual)
         if len(costs) >= 5:
             break
     if not costs:

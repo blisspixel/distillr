@@ -10,8 +10,8 @@ Connect-time IP pinning (:func:`resolve_public_ip` + :func:`pin_host_to_ip`)
 closes the DNS-rebind window for the Python fetch paths -- ``safe_urlopen`` and
 the requests-based attachment download resolve+validate the host once and pin
 the connection to that IP, while TLS still verifies the original host. The
-in-browser scraper (Playwright/Chromium) does its own DNS and is bounded by its
-public-web route policy rather than IP pinning.
+browser scraper uses a loopback CONNECT proxy that applies the same exact-IP
+validation before tunneling Chromium traffic without intercepting TLS.
 """
 
 from __future__ import annotations
@@ -20,11 +20,13 @@ import contextlib
 import ipaddress
 import logging
 import socket
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,8 @@ __all__ = [
 
 _ALLOWED_SCHEMES = frozenset({"https"})
 _PUBLIC_WEB_SCHEMES = frozenset({"http", "https"})
+_PIN_LOCK = threading.RLock()
+_PIN_STATE = threading.local()
 
 
 def _is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
@@ -120,25 +124,55 @@ def pin_host_to_ip(host: str, ip: str) -> Iterator[None]:
     use ``host`` (the URL is unchanged), so HTTPS is unaffected. Only ``host`` is
     pinned; other hosts resolve normally.
 
-    Best-effort: the patch is process-global, so a concurrent fetch to the same
-    host on another thread would also be pinned. distill fetches sequentially,
-    so this is safe in practice -- it is not a general-purpose primitive.
+    The socket patch is process-global, so pinned scopes are serialized. Nested
+    scopes in one thread remain supported through the reentrant lock. This
+    prevents out-of-order restoration from leaving an obsolete resolver active.
     """
-    real_getaddrinfo = socket.getaddrinfo
-    # Normalize the pin key so a differently-cased or trailing-dot FQDN form of
-    # the same host (Example.com, example.com.) still matches -- otherwise the
-    # pin would silently fail open and the host would resolve unpinned.
-    norm_host = host.casefold().rstrip(".")
+    with _PIN_LOCK:
+        real_getaddrinfo = socket.getaddrinfo
+        previous_pins = getattr(_PIN_STATE, "pins", None)
+        pins = dict(previous_pins or {})
+        pins[_normalize_host(host)] = ip
+        _PIN_STATE.pins = pins
 
-    def _patched(h, *args, **kwargs):  # type: ignore[no-untyped-def]
-        h_norm = h.casefold().rstrip(".") if isinstance(h, str) else h
-        return real_getaddrinfo(ip if h_norm == norm_host else h, *args, **kwargs)
+        def _patched(h: str | bytes | None, *args: Any, **kwargs: Any) -> Any:
+            normalized = _normalize_host(h) if isinstance(h, str) else h
+            pinned = pins.get(normalized, h)
+            return real_getaddrinfo(pinned, *args, **kwargs)
 
-    socket.getaddrinfo = _patched
+        socket.getaddrinfo = _patched
+        try:
+            yield
+        finally:
+            socket.getaddrinfo = real_getaddrinfo
+            if previous_pins is None:
+                delattr(_PIN_STATE, "pins")
+            else:
+                _PIN_STATE.pins = previous_pins
+
+
+def _normalize_host(host: str) -> str:
+    """Return the canonical pin-map key for a hostname."""
+
+    return host.casefold().rstrip(".")
+
+
+def _pin_public_redirect(url: str) -> bool:
+    """Validate an HTTPS redirect and retain its IP for the pending connect."""
+
     try:
-        yield
-    finally:
-        socket.getaddrinfo = real_getaddrinfo
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme.lower() not in _ALLOWED_SCHEMES:
+        return False
+    host = parsed.hostname or ""
+    pinned_ip = resolve_public_ip(url)
+    pins = getattr(_PIN_STATE, "pins", None)
+    if not host or pinned_ip is None or pins is None:
+        return False
+    pins[_normalize_host(host)] = pinned_ip
+    return True
 
 
 class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -146,27 +180,30 @@ class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
 
     ``urllib`` follows 30x redirects transparently, so a trusted host can bounce
     a request to ``http://169.254.169.254/`` or an RFC1918 address. This handler
-    runs each redirect hop's URL through :func:`is_public_web_url` and refuses
-    the redirect if it points anywhere non-public.
-
-    Residual (accepted): the caller's ``pin_host_to_ip`` pins only the *original*
-    host, so a redirect to a *different* public host is boolean-validated here but
-    then resolved fresh at connect -- a narrow DNS-rebind window on cross-host
-    redirect hops. Closing it fully would require pinning each new host from
-    inside this handler, which urllib's model doesn't cleanly allow; the per-hop
-    public-URL check bounds the exposure to attacker-controlled rebinding of a
-    host that also issues the redirect.
+    validates each redirect hop, retains the selected public IP in the active
+    pin scope, and refuses scheme downgrades. The subsequent urllib connection
+    therefore resolves the redirect host to the exact address that passed the
+    policy check.
     """
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
-        if not is_public_web_url(newurl):
+        if not _pin_public_redirect(newurl):
             raise urllib.error.HTTPError(
                 newurl, code, "refusing redirect to non-public URL", headers, fp
             )
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-_SSRF_SAFE_OPENER = urllib.request.build_opener(_PublicWebRedirectHandler())
+# A proxy would resolve the target outside this process and bypass the exact-IP
+# pin. Security-sensitive fetches therefore use a direct connection.
+def _build_ssrf_safe_opener() -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _PublicWebRedirectHandler(),
+    )
+
+
+_SSRF_SAFE_OPENER = _build_ssrf_safe_opener()
 
 
 class NetworkError(Exception):
@@ -201,6 +238,10 @@ def safe_urlopen(
         if isinstance(url_or_request, urllib.request.Request)
         else url_or_request
     )
+    if isinstance(url_or_request, urllib.request.Request) and _request_uses_proxy(
+        url_or_request, target_url
+    ):
+        raise ValueError("Refusing a request with a preconfigured proxy")
     parsed = urllib.parse.urlparse(target_url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"Refusing to open URL with scheme {parsed.scheme!r}: {target_url}")
@@ -265,6 +306,19 @@ def safe_urlopen(
         f"Failed after {retries + 1} attempts: {last_error}",
         url=target_url,
     )
+
+
+def _request_uses_proxy(request: urllib.request.Request, target_url: str) -> bool:
+    """Detect Request mutation that would route around the direct opener."""
+
+    if request.has_proxy() or getattr(request, "_tunnel_host", None) is not None:
+        return True
+    target_host = urllib.parse.urlparse(target_url).hostname or ""
+    try:
+        request_host = urllib.parse.urlsplit(f"//{request.host}").hostname or ""
+    except ValueError:
+        return True
+    return _normalize_host(request_host) != _normalize_host(target_host)
 
 
 def _truncate_url(url: str, max_len: int = 80) -> str:

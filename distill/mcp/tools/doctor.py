@@ -43,17 +43,17 @@ def doctor() -> str:
     config = load_config()
     checks: list[DoctorCheck] = []
 
-    # API keys -- live-validated via the shared CLI helper so the MCP doctor,
-    # the CLI doctor, and the --json path never disagree about key health.
-    # Presence alone is not health: a revoked/expired key is present but dead,
-    # and reporting it "ok" is the false-green this tool used to produce.
+    # MCP diagnostics are configuration-only. Live provider probes can create
+    # spend and do not pass through this tool's per-call tracker or ledger.
+    # Configured keys therefore remain unknown until the operator runs the local
+    # CLI doctor, where live validation is explicit and cost policy is visible.
     for provider, label in (
         ("xai", "xai_api_key"),
         ("gemini", "gemini_api_key"),
         ("anthropic", "anthropic_api_key"),
         ("openai", "openai_api_key"),
     ):
-        status, detail = doctor_validate_key(provider, config)
+        status, detail = doctor_validate_key(provider, config, live=False)
         entry: DoctorCheck = {"check": label, "status": status}
         if status in ("invalid", "unknown", "skipped"):
             entry["detail"] = detail[:120]

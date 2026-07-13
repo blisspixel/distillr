@@ -60,7 +60,7 @@ def transcribe_with_openai(
             "Use Grok STT (500 MB cap) or local faster-whisper instead."
         )
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, max_retries=0)
     with media_path.open("rb") as fh:
         if vocabulary_hint:
             result = client.audio.transcriptions.create(

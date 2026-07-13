@@ -189,6 +189,7 @@ def _one_comparison(
         max_tokens=2048,
         call_type="eval_judge_pairwise",
         temperature=0.0,
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="eval_judge_pairwise"))
@@ -342,6 +343,7 @@ def judge_faithfulness(
         max_tokens=2048,
         call_type="eval_judge_faithfulness",
         temperature=0.0,
+        usage_tracker=tracker,
     )
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="eval_judge_faithfulness"))

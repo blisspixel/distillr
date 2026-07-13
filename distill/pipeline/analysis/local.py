@@ -77,7 +77,13 @@ def ingest_local_file(
         else:
             prompt = site_page_insight_prompt(doc.title, str(path), "local", doc.kind, doc.text)
 
-        response = llm_call(rc, workload_tag="site", prompt=prompt, call_type="local")
+        response = llm_call(
+            rc,
+            workload_tag="site",
+            prompt=prompt,
+            call_type="local",
+            usage_tracker=tracker,
+        )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type="local"))
         # Write-time verify hook: ground numeric claims against the extracted

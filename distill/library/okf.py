@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-import json
 import re
+import secrets
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass
@@ -17,6 +17,7 @@ from urllib.parse import unquote, urlparse
 import yaml
 
 from distill.config import DistillConfig
+from distill.library.confined import read_confined_text, validate_confined_path
 from distill.library.paths import (
     atomic_write_text,
     dump_frontmatter,
@@ -26,9 +27,11 @@ from distill.library.paths import (
     strip_frontmatter,
 )
 from distill.library.wikilinks import WIKI_LINK_PATTERN
+from distill.parsing import read_bounded_json_object, read_bounded_jsonl_objects
 
 IssueSeverity = Literal["error", "warning"]
 
+_MAX_OKF_SOURCE_BYTES = 16 * 1024 * 1024
 _RESERVED_NAMES = {"index.md", "log.md"}
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+(?:\s[^)]*)?)\)")
 _URL_KEYS = ("url", "source_url", "resource", "video_url", "paper_url", "page_url", "repo_url")
@@ -48,6 +51,9 @@ _INDEX_TYPE_ORDER: tuple[str, ...] = (
     "Distill Artifact",
 )
 _MAX_LOG_HISTORY = 20
+_MAX_PROFILE_STATE_BYTES = 10 * 1024 * 1024
+_MAX_COST_LOG_BYTES = 8 * 1024 * 1024
+_MAX_COST_LOG_ROWS = 10_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +143,13 @@ def validate_okf_bundle(root: Path) -> OkfValidationResult:
     if not root_log.exists():
         warnings.append(OkfIssue("warning", "log.md", "Root log.md is missing"))
 
-    md_files = sorted(path for path in root.rglob("*.md") if path.is_file())
+    root_resolved = root.resolve()
+    md_files = sorted(path for path in root.rglob("*.md") if path.is_file() or path.is_symlink())
     for md_file in md_files:
         rel = _display_path(root, md_file)
+        if md_file.is_symlink() or not md_file.resolve().is_relative_to(root_resolved):
+            errors.append(OkfIssue("error", rel, "Markdown file is a symbolic link"))
+            continue
         text = md_file.read_text(encoding="utf-8")
         meta = _parse_frontmatter(
             text, rel, errors, require_frontmatter=md_file.name not in _RESERVED_NAMES
@@ -179,43 +189,62 @@ def export_okf_bundle(config: DistillConfig, topic: str) -> OkfExportResult:
     if not source_root.exists():
         msg = f"Source topic path does not exist: {source_root}"
         raise FileNotFoundError(msg)
+    if validate_confined_path(source_root, config.library_dir, expect_directory=True) is None:
+        msg = f"Source topic path is unsafe: {source_root}"
+        raise ValueError(msg)
 
     output_root = _okf_output_root(config, output_name)
-    _replace_output_dir(config, output_root)
-
-    generated_at = utc_now_iso()
+    staging_root = output_root.with_name(f".{output_root.name}.staging-{secrets.token_hex(8)}")
     source_files = _collect_markdown_sources(source_root)
     stem_index = _build_stem_index(source_root, source_files)
-    index_entries: list[tuple[str, str, str]] = []
-    written_docs: list[Path] = []
-    for source_file in source_files:
-        rel_path = source_file.relative_to(source_root)
-        target = output_root / rel_path
-        okf_doc, concept_type, title = _render_okf_document(
-            source_root=source_root,
-            source_file=source_file,
-            rel_path=rel_path,
-            topic=topic_label,
-            generated_at=generated_at,
-            stem_index=stem_index,
+    _replace_output_dir(config, staging_root)
+    try:
+        generated_at = utc_now_iso()
+        index_entries: list[tuple[str, str, str]] = []
+        written_docs: list[Path] = []
+        for source_file in source_files:
+            rel_path = source_file.relative_to(source_root)
+            target = staging_root / rel_path
+            okf_doc, concept_type, title = _render_okf_document(
+                source_root=source_root,
+                source_file=source_file,
+                rel_path=rel_path,
+                topic=topic_label,
+                generated_at=generated_at,
+                stem_index=stem_index,
+            )
+            atomic_write_text(target, okf_doc)
+            written_docs.append(target)
+            index_entries.append((rel_path.as_posix(), concept_type, title))
+
+        history = _collect_log_history(config, topic_label)
+        _write_index(staging_root, topic_label, source_root, index_entries, generated_at)
+        _write_log(
+            staging_root,
+            topic_label,
+            source_root,
+            len(written_docs),
+            generated_at,
+            history=history,
         )
-        atomic_write_text(target, okf_doc)
-        written_docs.append(target)
-        index_entries.append((rel_path.as_posix(), concept_type, title))
+        _write_llms_txt(staging_root, topic_label, len(written_docs))
 
-    history = _collect_log_history(config, topic_label)
-    _write_index(output_root, topic_label, source_root, index_entries, generated_at)
-    _write_log(
-        output_root,
-        topic_label,
-        source_root,
-        len(written_docs),
-        generated_at,
-        history=history,
+        staged_validation = validate_okf_bundle(staging_root)
+        if not staged_validation.ok:
+            details = "; ".join(issue.message for issue in staged_validation.errors[:3])
+            raise ValueError(f"Generated OKF bundle failed validation: {details}")
+        _publish_staged_output(config, staging_root, output_root)
+    except BaseException:
+        if staging_root.exists():
+            shutil.rmtree(staging_root, ignore_errors=True)
+        raise
+
+    validation = OkfValidationResult(
+        root=output_root,
+        files_checked=staged_validation.files_checked,
+        errors=staged_validation.errors,
+        warnings=staged_validation.warnings,
     )
-    _write_llms_txt(output_root, topic_label, len(written_docs))
-
-    validation = validate_okf_bundle(output_root)
     return OkfExportResult(
         output_dir=output_root,
         source_root=source_root,
@@ -290,12 +319,13 @@ def _collect_markdown_sources(source_root: Path) -> list[Path]:
     ignored_names = {"index.md", "log.md"}
     files: list[Path] = []
     for path in source_root.rglob("*.md"):
-        if not path.is_file():
-            continue
         if path.name in ignored_names:
             continue
         if any(part.startswith(".") for part in path.relative_to(source_root).parts):
             continue
+        if validate_confined_path(path, source_root, expect_directory=False) is None:
+            msg = f"Refusing unsafe OKF source path: {path.relative_to(source_root)}"
+            raise ValueError(msg)
         files.append(path)
     files.sort()
     return files
@@ -334,7 +364,10 @@ def _render_okf_document(
     generated_at: str,
     stem_index: dict[str, str],
 ) -> tuple[str, str, str]:
-    source_text = source_file.read_text(encoding="utf-8")
+    source_text = read_confined_text(source_file, source_root, max_bytes=_MAX_OKF_SOURCE_BYTES)
+    if source_text is None:
+        msg = f"Refusing unsafe or unreadable OKF source: {rel_path}"
+        raise ValueError(msg)
     native_meta = extract_frontmatter(source_text)
     raw_body = strip_frontmatter(source_text).strip()
     title = _title_for(source_file, native_meta)
@@ -453,41 +486,28 @@ def _profile_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]
 def _cost_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]:
     entries: list[tuple[str, str]] = []
     cost_log = library_dir / ".distill" / "cost_log.jsonl"
-    if not cost_log.is_file():
-        return entries
-
-    try:
-        lines = cost_log.read_text(encoding="utf-8").splitlines()[-_MAX_LOG_HISTORY:]
-    except OSError:
-        return entries
-
-    for line in lines:
-        row = _parse_json_line(line)
-        if row is None:
-            continue
+    rows = read_bounded_jsonl_objects(
+        cost_log,
+        max_bytes=_MAX_COST_LOG_BYTES,
+        max_rows=_MAX_COST_LOG_ROWS,
+    )
+    for row in rows:
         command = str(row.get("command", ""))
-        if topic not in command and row.get("topic") != topic:
+        metadata = row.get("metadata")
+        metadata_topic = (
+            cast("dict[str, object]", metadata).get("topic") if isinstance(metadata, dict) else None
+        )
+        if topic not in command.split() and row.get("topic") != topic and metadata_topic != topic:
             continue
         when = str(row.get("timestamp", row.get("started_at", ""))).strip()
         if when:
             entries.append((when, f"Cost log: {command}"))
-    return entries
+    return entries[-_MAX_LOG_HISTORY:]
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return cast("dict[str, Any]", data) if isinstance(data, dict) else None
-
-
-def _parse_json_line(line: str) -> dict[str, Any] | None:
-    try:
-        data = json.loads(line)
-    except json.JSONDecodeError:
-        return None
-    return cast("dict[str, Any]", data) if isinstance(data, dict) else None
+    data = read_bounded_json_object(path, max_bytes=_MAX_PROFILE_STATE_BYTES)
+    return cast("dict[str, Any]", data) if data else None
 
 
 def _write_llms_txt(output_root: Path, topic: str, concept_count: int) -> None:
@@ -540,16 +560,54 @@ def _okf_output_root(config: DistillConfig, output_name: str) -> Path:
 
 
 def _replace_output_dir(config: DistillConfig, output_root: Path) -> None:
-    output_parent = (config.library_dir.parent / "output").resolve()
-    resolved_output = output_root.resolve()
+    output_parent, resolved_output = _validated_output_root(config, output_root)
     if output_root.exists():
-        try:
-            resolved_output.relative_to(output_parent)
-        except ValueError as exc:
-            msg = f"Refusing to replace output outside {output_parent}: {resolved_output}"
-            raise ValueError(msg) from exc
+        if validate_confined_path(resolved_output, output_parent, expect_directory=True) is None:
+            raise ValueError(f"Refusing unsafe output directory: {resolved_output}")
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
+
+
+def _validated_output_root(config: DistillConfig, candidate: Path) -> tuple[Path, Path]:
+    output_parent = (config.library_dir.parent / "output").resolve()
+    resolved = candidate.resolve()
+    if resolved.parent != output_parent:
+        raise ValueError(f"Refusing output outside {output_parent}: {resolved}")
+    return output_parent, resolved
+
+
+def _publish_staged_output(
+    config: DistillConfig,
+    staging_root: Path,
+    output_root: Path,
+) -> None:
+    """Publish a validated staging bundle while retaining a recoverable prior copy."""
+
+    output_parent, resolved_staging = _validated_output_root(config, staging_root)
+    _, resolved_output = _validated_output_root(config, output_root)
+    if validate_confined_path(resolved_staging, output_parent, expect_directory=True) is None:
+        raise ValueError(f"Refusing unsafe staging directory: {resolved_staging}")
+    backup_root = output_root.with_name(f".{output_root.name}.previous")
+    _, resolved_backup = _validated_output_root(config, backup_root)
+    if backup_root.exists():
+        if validate_confined_path(resolved_backup, output_parent, expect_directory=True) is None:
+            raise ValueError(f"Refusing unsafe backup directory: {resolved_backup}")
+        if output_root.exists():
+            shutil.rmtree(backup_root)
+        else:
+            backup_root.rename(output_root)
+    if output_root.exists():
+        if validate_confined_path(resolved_output, output_parent, expect_directory=True) is None:
+            raise ValueError(f"Refusing unsafe output directory: {resolved_output}")
+        output_root.rename(backup_root)
+    try:
+        staging_root.rename(output_root)
+    except OSError:
+        if backup_root.exists() and not output_root.exists():
+            backup_root.rename(output_root)
+        raise
+    if backup_root.exists():
+        shutil.rmtree(backup_root, ignore_errors=True)
 
 
 def _title_for(source_file: Path, native_meta: dict[str, str]) -> str:

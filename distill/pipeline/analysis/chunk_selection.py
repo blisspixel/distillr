@@ -327,6 +327,7 @@ def _call_chunk_rank(
             call_type=call_type,
             max_tokens=max_tokens,
             temperature=0.0,
+            usage_tracker=tracker,
         )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type=call_type))

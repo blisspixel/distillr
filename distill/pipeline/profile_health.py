@@ -4,16 +4,17 @@
 
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
 from distill.library.profiles import ProfileValidationError, ResearchProfile, load_research_profile
+from distill.parsing import parse_iso_day_hour_duration
 
 __all__ = ["ProfileHealth", "collect_profile_health", "render_profile_health_section"]
+
+_MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
 
 
 @dataclass(frozen=True)
@@ -148,7 +149,7 @@ def _profile_corpus_findings(profile: ResearchProfile, library_dir: Path) -> lis
 def _profile_state_findings(
     profile: ResearchProfile, *, library_dir: Path, now: datetime
 ) -> dict[str, list[dict[str, str]]]:
-    from distill.pipeline.profile_run import profile_run_state_path
+    from distill.pipeline.profile_run import profile_run_state_path, profile_state_shape_error
 
     state_path = profile_run_state_path(library_dir, profile.name)
     state = _load_profile_state(state_path)
@@ -176,6 +177,21 @@ def _profile_state_findings(
                     "profile": profile.name,
                     "path": _library_relative(state_path, library_dir),
                     "detail": str(state_error),
+                }
+            ]
+        }
+    shape_error = profile_state_shape_error(
+        state,
+        profile=profile.name,
+        topic=profile.topic,
+    )
+    if shape_error:
+        return {
+            "invalid_state": [
+                {
+                    "profile": profile.name,
+                    "path": _library_relative(state_path, library_dir),
+                    "detail": shape_error,
                 }
             ]
         }
@@ -208,14 +224,24 @@ def _profile_failure_findings(
     library_dir: Path,
 ) -> list[dict[str, str]]:
     failures = state.get("last_failure")
-    if not isinstance(failures, dict) or not failures:
+    failure_entries = cast("dict[object, object]", failures) if isinstance(failures, dict) else {}
+    failure_count = len(failure_entries)
+    last_run = state.get("last_run")
+    run_status = ""
+    if isinstance(last_run, dict):
+        typed_last_run = cast("dict[str, Any]", last_run)
+        status = typed_last_run.get("status")
+        verified = typed_last_run.get("metered_spend_verified")
+        if isinstance(status, str) and (status not in {"ok", "complete"} or verified is False):
+            run_status = status
+    if not failure_count and not run_status:
         return []
-    failures = cast("dict[str, Any]", failures)
     return [
         {
             "profile": profile.name,
             "path": _library_relative(state_path, library_dir),
-            "failures": str(len(failures)),
+            "failures": str(max(1, failure_count)),
+            "status": run_status or "failed",
         }
     ]
 
@@ -244,14 +270,18 @@ def _load_profile_state(path: Path) -> object | None:
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        from distill.pipeline.profile_run import read_profile_state_document
+
+        return read_profile_state_document(path)
+    except (OSError, RecursionError, UnicodeError, ValueError) as exc:
         return {"__invalid_state_error": str(exc)}
 
 
 def _profile_is_stale(last_run_at: str, stale_after: str, *, now: datetime) -> bool:
     last_run = _parse_profile_time(last_run_at)
     if last_run is None:
+        return True
+    if last_run > now + _MAX_FUTURE_CLOCK_SKEW:
         return True
     return now - last_run > _parse_profile_duration(stale_after)
 
@@ -266,12 +296,8 @@ def _parse_profile_time(value: str) -> datetime | None:
 
 
 def _parse_profile_duration(value: str) -> timedelta:
-    match = re.fullmatch(r"P(?:(?P<days>\d+)D(?:T(?P<day_hours>\d+)H)?|T(?P<hours>\d+)H)", value)
-    if match is None:
-        return timedelta(days=7)
-    days = int(match.group("days") or 0)
-    hours = int(match.group("day_hours") or match.group("hours") or 0)
-    return timedelta(days=days, hours=hours)
+    duration = parse_iso_day_hour_duration(value)
+    return timedelta(days=7) if duration is None else duration
 
 
 def _library_relative(path: Path, library_dir: Path) -> str:

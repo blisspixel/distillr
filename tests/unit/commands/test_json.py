@@ -57,6 +57,12 @@ def test_json_envelope_from_json_rejects_non_string_error():
         JsonEnvelope.from_json('{"status": "error", "error": 404}')
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_json_envelope_refuses_non_finite_numbers(value):
+    with pytest.raises(ValueError, match="JSON compliant"):
+        JsonEnvelope.success({"cost": value}).to_json()
+
+
 # ── Property 7: --json flag produces valid JSON on stdout ──
 # Feature: mcp-first-surface, Property 7: --json flag produces valid JSON on stdout
 # **Validates: Requirements 3.1, 3.3, 3.6**

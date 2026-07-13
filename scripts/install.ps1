@@ -6,20 +6,57 @@ $ErrorActionPreference = "Stop"
 
 $Package = "distillr"
 $Cli = "distill"
+$UvVersion = "0.11.11"
+$UvInstallerSha256 = "8034382058eae34a765c6b439d2e1a4987bab519cb444afd117c4bf139d89839"
 
 Write-Host "==> Installing $Package ..." -ForegroundColor Cyan
 Write-Host ""
 
+function Get-SuitablePythonCommand {
+    foreach ($candidate in @("python", "py")) {
+        if (-not (Get-Command $candidate -ErrorAction SilentlyContinue)) {
+            continue
+        }
+        & $candidate -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function Assert-NativeSuccess {
+    param(
+        [Parameter(Mandatory = $true)][string]$Operation,
+        [Parameter(Mandatory = $true)][int]$ExitCode
+    )
+    if ($ExitCode -ne 0) {
+        throw "$Operation exited with status $ExitCode."
+    }
+}
+
 # Prefer uv (the 2026 default for Python CLI tools): it manages its own Python,
 # so it works even when no suitable interpreter is on PATH.
 #
-# If uv is missing AND there's no usable Python, bootstrap uv via its official
+# If uv is missing AND there's no suitable Python, bootstrap uv via its official
 # installer so the one-liner works on a clean machine -- no manual Python setup.
 $haveUv = [bool](Get-Command uv -ErrorAction SilentlyContinue)
-$havePy = [bool]((Get-Command python -ErrorAction SilentlyContinue) -or (Get-Command py -ErrorAction SilentlyContinue))
-if (-not $haveUv -and -not $havePy) {
-    Write-Host "==> Neither uv nor Python found. Bootstrapping uv (manages its own Python)..." -ForegroundColor Yellow
-    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+$python = Get-SuitablePythonCommand
+if (-not $haveUv -and -not $python) {
+    Write-Host "==> uv and Python 3.12+ are unavailable. Bootstrapping uv..." -ForegroundColor Yellow
+    $installer = Join-Path ([System.IO.Path]::GetTempPath()) (([System.IO.Path]::GetRandomFileName()) + ".ps1")
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri "https://astral.sh/uv/$UvVersion/install.ps1" -OutFile $installer
+        $actualSha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualSha256 -ne $UvInstallerSha256) {
+            throw "uv installer checksum mismatch; refusing to execute it."
+        }
+        & powershell -NoProfile -ExecutionPolicy ByPass -File $installer
+        Assert-NativeSuccess -Operation "uv installer" -ExitCode $LASTEXITCODE
+    }
+    finally {
+        Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+    }
     # uv installs to %USERPROFILE%\.local\bin; make it usable this session.
     $env:Path = "$env:USERPROFILE\.local\bin;" + $env:Path
 }
@@ -27,37 +64,35 @@ if (-not $haveUv -and -not $havePy) {
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-Host "==> Using uv to install $Package ..." -ForegroundColor Green
     uv tool install $Package
+    Assert-NativeSuccess -Operation "uv tool install" -ExitCode $LASTEXITCODE
 }
 else {
     # Fall back to pipx, which needs a Python 3.12+ interpreter present.
-    $python = "python"
-    if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
-        $python = "py"
-    }
-    if (-not (Get-Command $python -ErrorAction SilentlyContinue)) {
+    $python = Get-SuitablePythonCommand
+    if (-not $python) {
         Write-Host "Error: need either 'uv' or Python 3.12+." -ForegroundColor Red
         Write-Host "Install uv:     https://docs.astral.sh/uv/getting-started/installation/" -ForegroundColor Yellow
         Write-Host "Install Python: https://www.python.org/downloads/" -ForegroundColor Yellow
         exit 1
     }
 
-    $ver = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-    if (-not $ver -or ([version]$ver -lt [version]"3.12")) {
-        Write-Host "Error: Python 3.12+ is required (found $ver). Or install uv, which manages its own Python." -ForegroundColor Red
-        exit 1
-    }
-
-    # pipx: isolated, automatic PATH shims, no activation
-    if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+    # Invoke pipx through the verified interpreter. A bare pipx executable can
+    # belong to an older Python and silently select an incompatible runtime.
+    & $python -m pipx --version 2>$null
+    $haveSuitablePipx = $LASTEXITCODE -eq 0
+    if (-not $haveSuitablePipx) {
         Write-Host "==> pipx not found. Installing pipx (recommended for CLI tools)..." -ForegroundColor Yellow
         & $python -m pip install --user pipx --quiet
+        Assert-NativeSuccess -Operation "pip install pipx" -ExitCode $LASTEXITCODE
         & $python -m pipx ensurepath
+        Assert-NativeSuccess -Operation "pipx ensurepath" -ExitCode $LASTEXITCODE
         # Refresh PATH for this session
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
     }
 
     Write-Host "==> Using pipx to install $Package ..." -ForegroundColor Green
-    pipx install $Package
+    & $python -m pipx install --python $python $Package
+    Assert-NativeSuccess -Operation "pipx install" -ExitCode $LASTEXITCODE
 }
 
 Write-Host ""

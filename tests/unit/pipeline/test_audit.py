@@ -7,6 +7,8 @@ import os
 import time
 from pathlib import Path
 
+import pytest
+
 from distill.library.links import BrokenLink
 from distill.pipeline.audit import (
     AuditReport,
@@ -22,6 +24,7 @@ from distill.pipeline.audit import (
     render_audit_md,
     write_audit_artifact,
 )
+from distill.pipeline.audit_transcripts import format_duration
 
 NOW = "2026-06-11T20:00:00Z"
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "audit_next_actions"
@@ -289,6 +292,17 @@ class TestThinVideoTranscripts:
         broken.mkdir(parents=True, exist_ok=True)
         (broken / "metadata.json").write_text("{bad json", encoding="utf-8")
         (broken / "transcript.txt").write_text("tiny", encoding="utf-8")
+        for name, duration in (
+            ("huge", "9" * 5_000),
+            ("nan", "NaN"),
+            ("infinity", "1e999"),
+        ):
+            candidate = topic / "channels" / "Creator" / "videos" / name
+            candidate.mkdir(parents=True)
+            (candidate / "metadata.json").write_text(
+                f'{{"duration": {duration}}}', encoding="utf-8"
+            )
+            (candidate / "transcript.txt").write_text("tiny", encoding="utf-8")
         _seed_video_metadata(
             topic,
             "Creator",
@@ -297,6 +311,85 @@ class TestThinVideoTranscripts:
         )
 
         assert collect_thin_video_transcripts(topic) == []
+
+    def test_classifies_large_transcript_from_bounded_prefix(self, tmp_path: Path, monkeypatch):
+        topic = tmp_path / "t"
+        _seed_video_transcript(
+            topic,
+            "Creator",
+            "large",
+            metadata={"title": "Large", "duration": 3600},
+            transcript=" " * 501 + "content" * 100_000,
+        )
+
+        monkeypatch.setattr(
+            Path,
+            "read_text",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("transcript must not be loaded with Path.read_text")
+            ),
+        )
+
+        assert collect_thin_video_transcripts(topic) == []
+
+    def test_skips_non_directory_entries_and_handles_unreadable_transcript(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        topic = tmp_path / "t"
+        channels = topic / "channels"
+        channels.mkdir(parents=True)
+        (channels / "README.txt").write_text("not a channel", encoding="utf-8")
+        videos = channels / "Creator" / "videos"
+        videos.mkdir(parents=True)
+        (videos / "README.txt").write_text("not a video", encoding="utf-8")
+        broken = videos / "broken"
+        broken.mkdir()
+        (broken / "metadata.json").write_text(
+            json.dumps({"title": "Broken", "duration": 3600}),
+            encoding="utf-8",
+        )
+        (broken / "transcript.txt").write_bytes(b"\xff\xfe")
+
+        assert collect_thin_video_transcripts(topic) == [
+            ThinTranscript(
+                path="channels/Creator/videos/broken",
+                channel="Creator",
+                title="Broken",
+                duration_seconds=3600,
+                transcript_chars=0,
+            )
+        ]
+
+    @pytest.mark.parametrize("duration", [True, False, -1, "bad", 10**400])
+    def test_ignores_invalid_duration_values(self, tmp_path: Path, duration: object) -> None:
+        topic = tmp_path / "t"
+        _seed_video_transcript(
+            topic,
+            "Creator",
+            "invalid-duration",
+            metadata={"duration": duration},
+            transcript="tiny",
+        )
+
+        assert collect_thin_video_transcripts(topic) == []
+
+
+@pytest.mark.parametrize(
+    ("seconds", "expected"),
+    [
+        (None, "?"),
+        (True, "?"),
+        (-1, "?"),
+        (float("nan"), "?"),
+        (10**400, "?"),
+        (59.9, "59s"),
+        (61, "1m01s"),
+        (3661, "1h01m"),
+    ],
+)
+def test_format_duration_is_total_and_compact(seconds: object, expected: str) -> None:
+    assert format_duration(seconds) == expected  # type: ignore[arg-type]
 
 
 def _report(**overrides) -> AuditReport:

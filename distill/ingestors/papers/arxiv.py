@@ -10,17 +10,20 @@ from __future__ import annotations
 
 import logging
 import re
+import tempfile
 import time
 import urllib.parse
 from dataclasses import dataclass, field
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import requests
 from defusedxml.ElementTree import fromstring as xml_fromstring
-from pypdf import PdfReader
 
+from distill.ingestors.local.extract import extract_pdf_text_bounded
 from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.parsing import parse_ascii_uint
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ ATOM_NS = {
     "arxiv": "http://arxiv.org/schemas/atom",
 }
 _PDF_PAGE_LIMIT = 200
+_PDF_TEXT_LIMIT = 2_000_000
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
 _PDF_MAX_REDIRECTS = 5
 # Cap the Atom feed read, mirroring the PDF cap, so a compromised endpoint or a
@@ -233,9 +237,9 @@ def build_paper_document(paper: PaperRecord, pdf_text: str = "") -> str:
 def fetch_paper_pdf_text(pdf_url: str) -> str:
     """Download an arXiv PDF and return extracted text, or empty string on failure.
 
-    Capped at _PDF_PAGE_LIMIT pages and _PDF_DOWNLOAD_CAP_BYTES on download size.
-    Analysis chunks long documents when the provider window requires it. Returns
-    empty on any network or parse failure; the pipeline falls back to abstract-only.
+    Capped by page, text, memory, time, and download-size limits. Analysis chunks
+    long documents when the provider window requires it. Returns empty on any
+    network or parse failure; the pipeline falls back to abstract-only.
     """
     if not pdf_url:
         return ""
@@ -243,13 +247,14 @@ def fetch_paper_pdf_text(pdf_url: str) -> str:
         data = _download_arxiv_pdf_bytes(pdf_url)
         if not data:
             return ""
-        reader = PdfReader(BytesIO(data))
-        text_parts: list[str] = []
-        for page in reader.pages[:_PDF_PAGE_LIMIT]:
-            text = (page.extract_text() or "").strip()
-            if text:
-                text_parts.append(text)
-        combined = "\n\n".join(text_parts).strip()
+        with tempfile.TemporaryDirectory(prefix="distill-arxiv-pdf-") as temp_dir:
+            pdf_path = Path(temp_dir) / "paper.pdf"
+            pdf_path.write_bytes(data)
+            combined = extract_pdf_text_bounded(
+                pdf_path,
+                max_chars=_PDF_TEXT_LIMIT,
+                max_pages=_PDF_PAGE_LIMIT,
+            ).strip()
         # pypdf occasionally emits lone surrogate codepoints for supplementary-plane
         # characters (e.g. math alphanumerics). These break JSON encoding for the
         # API call. Roundtrip through utf-8 with errors='replace' to strip them.
@@ -313,7 +318,8 @@ def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
                 continue
             response.raise_for_status()
             declared = response.headers.get("Content-Length")
-            if declared and declared.isdigit() and int(declared) > _PDF_DOWNLOAD_CAP_BYTES:
+            declared_size = parse_ascii_uint(declared or "")
+            if declared_size is not None and declared_size > _PDF_DOWNLOAD_CAP_BYTES:
                 return b""
             buf = BytesIO()
             total = 0

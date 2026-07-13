@@ -1,9 +1,9 @@
 """Video discovery - list channel videos and search results via yt-dlp."""
 
 import logging
-import urllib.parse
+import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import yt_dlp
 
@@ -18,15 +18,27 @@ from distill.ingestors.youtube._yt_dlp_boundary import (
     text_field,
     ydl_params,
 )
+from distill.parsing import MAX_LOOKBACK_DAYS, MAX_LOOKBACK_HOURS
+from distill.youtube_urls import (
+    normalize_video_id,
+    normalize_youtube_channel_url,
+    normalize_youtube_video_url,
+    youtube_channel_url,
+    youtube_watch_url,
+)
 
 __all__ = [
     "VideoInfo",
     "discover_videos",
     "enrich_videos",
     "get_video_info",
+    "is_valid_youtube_lookback",
     "resolve_channel_name",
     "search_videos",
 ]
+
+MAX_YOUTUBE_SEARCH_RESULTS = 100
+_MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
 
 _EXTRACTOR_ERROR_HINTS = (
     "extractor",
@@ -88,6 +100,8 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     include_shorts: bool = False,
     days: int | None = None,
     quiet: bool = False,
+    hours: int | None = None,
+    raise_on_error: bool = False,
 ) -> list[VideoInfo]:
     """List videos from a channel within a lookback window.
 
@@ -100,18 +114,32 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     for meaningful 2-pass analysis. Set include_shorts=True to also scan
     the /shorts tab.
     """
-    # yt-dlp does its own networking, so an unvalidated channel URL would let it
-    # fetch an arbitrary host (the urllib/requests SSRF guards do not cover it).
-    # Pin to YouTube hosts, exactly as get_video_info / resolve_channel_name do.
-    if not is_youtube_url(channel_url):
+    normalized_channel_url = normalize_youtube_channel_url(channel_url)
+    if not normalized_channel_url:
         console.print(f"  [red]Refusing non-YouTube URL: {channel_url}[/red]")
         return []
 
-    lookback_days = days if days is not None else months * 30
-    cutoff = datetime.now() - timedelta(days=lookback_days)
+    if hours is not None:
+        if not _bounded_nonnegative_int(hours, MAX_LOOKBACK_HOURS) or (
+            days is not None and not _bounded_nonnegative_int(days, MAX_LOOKBACK_DAYS)
+        ):
+            return []
+        lookback = timedelta(hours=hours)
+    elif days is not None:
+        if not _bounded_nonnegative_int(days, MAX_LOOKBACK_DAYS):
+            return []
+        lookback = timedelta(days=days)
+    else:
+        if not _bounded_nonnegative_int(months, MAX_LOOKBACK_DAYS // 30):
+            return []
+        lookback = timedelta(days=months * 30)
+    lookback_days = max(1, math.ceil(lookback.total_seconds() / 86_400))
+    now = datetime.now(UTC)
+    cutoff = now - lookback
+    freshness_ceiling = now + _MAX_FUTURE_CLOCK_SKEW
     cutoff_str = cutoff.strftime("%Y%m%d")
 
-    base_url = channel_url.rstrip("/").removesuffix("/videos").removesuffix("/shorts")
+    base_url = normalized_channel_url.rstrip("/").removesuffix("/videos").removesuffix("/shorts")
     urls_to_scan = [base_url + "/videos"]
     if include_shorts:
         urls_to_scan.append(base_url + "/shorts")
@@ -135,7 +163,7 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
                 "no_warnings": True,
                 "extract_flat": False,
                 "lazy_playlist": True,
-                "ignoreerrors": True,
+                "ignoreerrors": not raise_on_error,
                 "playlistend": playlist_depth,
                 "logger": _QuietLogger("yt-dlp"),
             }
@@ -143,6 +171,8 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
                 info = info_mapping(ydl.extract_info(scan_url, download=False))
 
                 if info is None:
+                    if raise_on_error:
+                        raise RuntimeError(f"YouTube discovery returned no data for {scan_url}")
                     continue
 
                 entries = info.get("entries")
@@ -153,7 +183,21 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
 
                     # yt-dlp daterange doesn't reliably filter channel tabs —
                     # enforce cutoff ourselves.
-                    if video.upload_date < cutoff_str:
+                    if hours is not None:
+                        if not video.published_at:
+                            if raise_on_error and _upload_date_overlaps_window(
+                                video.upload_date,
+                                cutoff,
+                                freshness_ceiling,
+                            ):
+                                raise RuntimeError(
+                                    "YouTube discovery returned a potentially fresh video "
+                                    f"without a precise timestamp: {video.video_id}"
+                                )
+                            continue
+                        if not _is_recent_enough_precise(video, cutoff, freshness_ceiling):
+                            continue
+                    elif not _is_recent_enough(video.upload_date, cutoff, freshness_ceiling):
                         continue
 
                     if video.video_id in seen_ids:
@@ -165,6 +209,8 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
             console.print(f"  [red]Discovery error ({tab}): {e}[/red]")
             if _looks_like_extractor_failure(str(e)):
                 _print_extractor_hint()
+            if raise_on_error:
+                raise RuntimeError(f"YouTube discovery failed for {scan_url}: {e}") from e
 
     videos.sort(key=lambda v: v.upload_date, reverse=True)
     if not quiet:
@@ -172,33 +218,16 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     return videos
 
 
-_YOUTUBE_HOSTS = frozenset(
-    {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
-)
-
-
 def is_youtube_url(url: str) -> bool:
-    """True if ``url`` is an http(s) URL on a YouTube host.
+    """Return whether a URL identifies a supported canonicalizable video."""
 
-    yt-dlp does its own networking, so an attacker-supplied video/channel URL
-    would otherwise let it fetch an arbitrary host -- including internal or
-    cloud-metadata addresses (the SSRF guards on the urllib/requests paths do
-    not apply to yt-dlp). URLs handed to yt-dlp are therefore pinned to YouTube
-    hosts.
-    """
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except ValueError:
-        return False
-    if parsed.scheme.lower() not in {"http", "https"}:
-        return False
-    host = (parsed.hostname or "").lower()
-    return host in _YOUTUBE_HOSTS or host.endswith(".youtube.com")
+    return bool(normalize_youtube_video_url(url))
 
 
 def get_video_info(video_url: str) -> VideoInfo | None:
     """Get metadata for a single video URL."""
-    if not is_youtube_url(video_url):
+    canonical_url = normalize_youtube_video_url(video_url)
+    if not canonical_url:
         console.print(f"[red]Refusing non-YouTube URL: {video_url}[/red]")
         return None
     ydl_opts: dict[str, object] = {
@@ -208,10 +237,10 @@ def get_video_info(video_url: str) -> VideoInfo | None:
 
     try:
         with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
-            info = info_mapping(ydl.extract_info(video_url, download=False))
+            info = info_mapping(ydl.extract_info(canonical_url, download=False))
             if info is None:
                 return None
-            return _entry_to_video_info(info, fallback_url=video_url)
+            return _entry_to_video_info(info)
     except Exception as e:
         console.print(f"[red]Failed to get video info: {e}[/red]")
         return None
@@ -245,12 +274,16 @@ def search_videos(
     enrich: bool = False,
 ) -> list[VideoInfo]:
     """Search YouTube for recent videos on a topic."""
-    if limit <= 0:
+    if not _bounded_positive_int(
+        limit, MAX_YOUTUBE_SEARCH_RESULTS
+    ) or not is_valid_youtube_lookback(days):
         return []
 
     search_limit = max(limit * 3, 25)
     search_expr = _search_expression(query, search_limit, sort)
-    cutoff = datetime.now() - timedelta(days=days)
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(days=days)
+    freshness_ceiling = now + _MAX_FUTURE_CLOCK_SKEW
 
     ydl_opts: dict[str, object] = {
         "quiet": True,
@@ -283,7 +316,7 @@ def search_videos(
         video = _entry_to_video_info(entry)
         if not video:
             continue
-        if not _is_recent_enough(video.upload_date, cutoff):
+        if not _is_recent_enough(video.upload_date, cutoff, freshness_ceiling):
             continue
         candidates.append(video)
 
@@ -297,16 +330,17 @@ def search_videos(
 
 def resolve_channel_name(channel_url: str) -> str:
     """Extract channel name from URL or metadata."""
-    if "/@" in channel_url:
-        name = channel_url.split("/@")[1].split("/")[0].split("?")[0]
+    normalized_channel_url = normalize_youtube_channel_url(channel_url)
+    if not normalized_channel_url:
+        return "unknown"
+    if "/@" in normalized_channel_url:
+        name = normalized_channel_url.split("/@")[1].split("/")[0]
         return name
 
-    if not is_youtube_url(channel_url):
-        return "unknown"
     try:
         ydl_opts: dict[str, object] = {"quiet": True, "no_warnings": True, "extract_flat": True}
         with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
-            info = info_mapping(ydl.extract_info(channel_url, download=False))
+            info = info_mapping(ydl.extract_info(normalized_channel_url, download=False))
             if info is None:
                 return "unknown"
             return first_text(info, ("channel", "uploader"), "unknown")
@@ -319,13 +353,13 @@ def _search_expression(query: str, limit: int, sort: str) -> str:
     return f"{prefix}{limit}:{query}"
 
 
-def _entry_to_video_info(entry: YtDlpInfo | None, fallback_url: str = "") -> VideoInfo | None:
+def _entry_to_video_info(entry: YtDlpInfo | None) -> VideoInfo | None:
     if not entry:
         return None
 
-    video_id = text_field(entry, "id")
+    video_id = normalize_video_id(text_field(entry, "id"))
     upload_date = text_field(entry, "upload_date")
-    if not video_id or not upload_date:
+    if not video_id or not _valid_upload_date(upload_date):
         return None
 
     channel_name = first_text(entry, ("channel", "uploader", "channel_id"), "unknown")
@@ -333,20 +367,25 @@ def _entry_to_video_info(entry: YtDlpInfo | None, fallback_url: str = "") -> Vid
         first_text(entry, ("channel_url", "uploader_url")) or _channel_url_from_metadata(entry)
     )
 
+    timestamp = int_field(entry, "timestamp")
+    try:
+        published_at = datetime.fromtimestamp(timestamp, UTC).isoformat() if timestamp > 0 else ""
+    except (OSError, OverflowError, ValueError):
+        published_at = ""
+
     return VideoInfo(
         video_id=video_id,
         title=text_field(entry, "title", "Unknown"),
         upload_date=upload_date,
         duration=int_field(entry, "duration"),
-        url=text_field(entry, "webpage_url")
-        or fallback_url
-        or f"https://www.youtube.com/watch?v={video_id}",
+        url=youtube_watch_url(video_id),
         channel_name=channel_name,
         channel_url=channel_url,
         description=text_field(entry, "description").strip(),
         view_count=int_field(entry, "view_count"),
         like_count=int_field(entry, "like_count"),
         comment_count=int_field(entry, "comment_count"),
+        published_at=published_at,
     )
 
 
@@ -363,35 +402,95 @@ def _merge_video_info(base: VideoInfo, detailed: VideoInfo) -> VideoInfo:
         view_count=detailed.view_count or base.view_count,
         like_count=detailed.like_count or base.like_count,
         comment_count=detailed.comment_count or base.comment_count,
+        published_at=detailed.published_at or base.published_at,
     )
 
 
 def _channel_url_from_metadata(entry: YtDlpInfo) -> str:
     uploader_id = first_text(entry, ("uploader_id", "channel_id"))
-    if not uploader_id:
-        return ""
-    if uploader_id.startswith("@"):
-        return f"https://www.youtube.com/{uploader_id}"
-    if uploader_id.startswith("UC"):
-        return f"https://www.youtube.com/channel/{uploader_id}"
-    return ""
+    return youtube_channel_url(uploader_id)
 
 
 def _normalize_channel_url(channel_url: str) -> str:
-    if not channel_url:
-        return ""
-    if channel_url.startswith("http://") or channel_url.startswith("https://"):
-        return channel_url.rstrip("/")
-    if channel_url.startswith("/"):
-        return f"https://www.youtube.com{channel_url}".rstrip("/")
-    return channel_url.rstrip("/")
+    return normalize_youtube_channel_url(channel_url)
 
 
-def _is_recent_enough(upload_date: str, cutoff: datetime) -> bool:
+def _is_recent_enough(
+    upload_date: str,
+    cutoff: datetime,
+    freshness_ceiling: datetime | None = None,
+) -> bool:
     try:
-        return datetime.strptime(upload_date, "%Y%m%d") >= cutoff
+        published = datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=UTC)
     except ValueError:
         return False
+    normalized_cutoff = _as_utc(cutoff)
+    ceiling = _as_utc(freshness_ceiling or datetime.now(UTC) + _MAX_FUTURE_CLOCK_SKEW)
+    return normalized_cutoff.date() <= published.date() <= ceiling.date()
+
+
+def _valid_upload_date(value: str) -> bool:
+    if len(value) != 8 or not value.isascii() or not value.isdecimal():
+        return False
+    try:
+        datetime.strptime(value, "%Y%m%d")
+    except ValueError:
+        return False
+    return True
+
+
+def _is_recent_enough_precise(
+    video: VideoInfo,
+    cutoff: datetime,
+    freshness_ceiling: datetime | None = None,
+) -> bool:
+    if not video.published_at:
+        return False
+    try:
+        published = datetime.fromisoformat(video.published_at)
+    except (OverflowError, ValueError):
+        return False
+    try:
+        normalized_published = _as_utc(published)
+        normalized_cutoff = _as_utc(cutoff)
+        ceiling = _as_utc(freshness_ceiling or datetime.now(UTC) + _MAX_FUTURE_CLOCK_SKEW)
+        return normalized_cutoff <= normalized_published <= ceiling
+    except (OSError, OverflowError, ValueError):
+        return False
+
+
+def _upload_date_overlaps_window(
+    upload_date: str,
+    cutoff: datetime,
+    freshness_ceiling: datetime,
+) -> bool:
+    try:
+        day_start = datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=UTC)
+    except ValueError:
+        return False
+    return _as_utc(cutoff).date() <= day_start.date() <= _as_utc(freshness_ceiling).date()
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _bounded_nonnegative_int(value: object, maximum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= maximum
+
+
+def _bounded_positive_int(value: object, maximum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 0 < value <= maximum
+
+
+def is_valid_youtube_lookback(days: object, hours: object | None = None) -> bool:
+    """Return whether browser and yt-dlp lookback inputs are safely bounded."""
+
+    return _bounded_nonnegative_int(days, MAX_LOOKBACK_DAYS) and (
+        hours is None or _bounded_nonnegative_int(hours, MAX_LOOKBACK_HOURS)
+    )
 
 
 def _rank_search_results(videos: list[VideoInfo], sort: str) -> list[VideoInfo]:

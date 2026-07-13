@@ -14,7 +14,8 @@ import time
 from openai import OpenAI
 
 from distill.llm.retry import is_permanent_error
-from distill.llm.router import LLM_Response
+from distill.llm.types import LLM_Response
+from distill.llm.usage import UsageAttemptSink
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class LMStudioProvider:
         temperature: float | None = None,
         call_type: str = "",
         reasoning_effort: str | None = None,  # Ignored for local models
+        usage_sink: UsageAttemptSink | None = None,
     ) -> LLM_Response:
         """Send a prompt to LM Studio and return an LLM_Response.
 

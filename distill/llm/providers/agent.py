@@ -1,5 +1,5 @@
 # pyright: strict
-"""Agent provider — zero-cost deferred execution via structured task files.
+"""Billing-unknown deferred agent execution via structured task files.
 
 Instead of making API calls, the Agent provider writes Task_Files that an
 external agentic assistant (Claude Code, Kiro, etc.) can pick up and process.
@@ -14,7 +14,9 @@ import shutil
 import uuid
 from pathlib import Path
 
-from distill.llm.router import LLM_Response, PendingTaskError
+from distill.llm.router import PendingTaskError
+from distill.llm.types import LLM_Response
+from distill.llm.usage import UsageAttemptSink
 
 
 class AgentProvider:
@@ -138,6 +140,7 @@ class AgentProvider:
         temperature: float | None = None,
         call_type: str = "",
         reasoning_effort: str | None = None,
+        usage_sink: UsageAttemptSink | None = None,
     ) -> LLM_Response:
         """Check for existing result or write a new task file.
 

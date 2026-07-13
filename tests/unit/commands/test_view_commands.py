@@ -441,6 +441,18 @@ class TestShowCommand:
         assert result.exit_code == 0
         assert "No channels found" in result.output
 
+    @pytest.mark.parametrize("selector", ["\u00b2", "\u0661", "9" * 5000])
+    def test_show_rejects_non_ascii_or_oversized_index(self, tmp_path, monkeypatch, selector):
+        config = _config(tmp_path)
+        _seed_library(config)
+        _seed_video(config)
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["show", "ai", selector])
+
+        assert result.exit_code == 0
+        assert "No channels found" in result.output
+
     def test_show_skips_non_directory_entries(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_library(config)

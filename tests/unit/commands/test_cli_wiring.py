@@ -3846,6 +3846,34 @@ def test_cli_topic_change_history_normalizes_malformed_counts(mock_config):
     }
 
 
+def test_cli_topic_change_history_skips_nonfinite_and_oversized_rows(mock_config):
+    history_path = mock_config.topic_dir("ai") / "change_history.jsonl"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    valid = json.dumps(
+        {
+            "generated_at": "2026-04-01T08:00:00",
+            "topic": "ai",
+            "counts": {"videos": 1},
+        }
+    )
+    history_path.write_text(
+        "\n".join(
+            [
+                '{"generated_at":"2026-04-04T08:00:00","counts":{"videos":NaN}}',
+                '{"generated_at":"2026-04-03T08:00:00","counts":{"videos":1e999}}',
+                '{"generated_at":"2026-04-02T08:00:00","counts":{"videos":' + "9" * 5000 + "}}",
+                valid,
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    records = cli._load_topic_change_history(mock_config, "ai")
+
+    assert len(records) == 1
+    assert records[0]["counts"]["videos"] == 1
+
+
 def test_cli_trend_and_alert_helpers(mock_config):
     generated_at = datetime.now().replace(microsecond=0)
     records = [

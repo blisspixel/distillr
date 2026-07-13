@@ -153,6 +153,7 @@ def extract_claims_from_insight(
         workload_tag="concepts",
         prompt=prompt,
         call_type="claims_extract",
+        usage_tracker=tracker,
     )
 
     if tracker:

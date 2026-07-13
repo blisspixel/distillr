@@ -21,9 +21,14 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.parsing import read_bounded_json_object, read_bounded_jsonl_objects
 from distill.pipeline.dashboard_data import format_run_timestamp as _format_run_timestamp
 from distill.pipeline.dashboard_data import parse_run_datetime as _parse_run_datetime
 from distill.pipeline.dashboard_records import JsonObject, TopicChangeCounts, json_object
+
+_MAX_TOPIC_JSON_BYTES = 8 * 1024 * 1024
+_MAX_TOPIC_HISTORY_BYTES = 8 * 1024 * 1024
+_MAX_TOPIC_HISTORY_ROWS = 10_000
 
 
 class _ChangedArtifact(TypedDict):
@@ -77,10 +82,7 @@ class _TopicChangeHistoryRecord(TypedDict):
 
 
 def _read_json_file(path_obj: Path) -> JsonObject:
-    try:
-        return json_object(json.loads(path_obj.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return json_object(read_bounded_json_object(path_obj, max_bytes=_MAX_TOPIC_JSON_BYTES))
 
 
 def _text_field(record: JsonObject, key: str, default: str = "") -> str:
@@ -523,17 +525,13 @@ def _load_topic_change_history(
     config: DistillConfig, topic: str
 ) -> list[_TopicChangeHistoryRecord]:
     history_path = _topic_change_history_path(config, topic)
-    if not history_path.exists():
-        return []
-
     records: list[_TopicChangeHistoryRecord] = []
-    for line in history_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = json_object(json.loads(line))
-        except json.JSONDecodeError:
-            continue
+    for row in read_bounded_jsonl_objects(
+        history_path,
+        max_bytes=_MAX_TOPIC_HISTORY_BYTES,
+        max_rows=_MAX_TOPIC_HISTORY_ROWS,
+    ):
+        payload = json_object(row)
         generated_at = _parse_run_datetime(str(payload.get("generated_at", "")))
         if generated_at is None:
             continue

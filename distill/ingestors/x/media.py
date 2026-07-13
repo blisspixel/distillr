@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import urllib.parse
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import httpx
 
 from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
 
-__all__ = ["download_video"]
+__all__ = ["download_video", "is_reusable_video"]
 
 # X serves amplify_video assets from video.twimg.com. The video URL comes from
 # the attacker-influenced syndication JSON, so it is pinned to *.twimg.com AND
@@ -37,6 +38,15 @@ def _is_allowed_video_url(url: str) -> bool:
     return on_twimg and is_public_web_url(url)
 
 
+def is_reusable_video(path: Path) -> bool:
+    """Return whether a cached media file is nonempty and within the byte cap."""
+
+    try:
+        return path.is_file() and 0 < path.stat().st_size <= _MAX_VIDEO_BYTES
+    except OSError:
+        return False
+
+
 def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
     """Stream a public ``video.twimg.com`` .mp4 to *dest*.
 
@@ -61,19 +71,40 @@ def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
         with (
             pin_host_to_ip(host, pinned_ip),
             httpx.stream(
-                "GET", current, headers=_HEADERS, timeout=timeout, follow_redirects=False
+                "GET",
+                current,
+                headers=_HEADERS,
+                timeout=timeout,
+                follow_redirects=False,
+                trust_env=False,
             ) as resp,
         ):
             if resp.is_redirect:
                 current = urllib.parse.urljoin(current, resp.headers.get("location", ""))
                 continue
             resp.raise_for_status()
-            written = 0
-            with dest.open("wb") as fh:
-                for chunk in resp.iter_bytes(chunk_size=1 << 16):
-                    written += len(chunk)
-                    if written > _MAX_VIDEO_BYTES:
-                        raise ValueError(f"video exceeds {_MAX_VIDEO_BYTES}-byte cap: {url}")
-                    fh.write(chunk)
-            return dest
+            temporary_path: Path | None = None
+            try:
+                written = 0
+                with NamedTemporaryFile(
+                    mode="wb",
+                    dir=dest.parent,
+                    prefix=f".{dest.name}.",
+                    suffix=".tmp",
+                    delete=False,
+                ) as stream:
+                    temporary_path = Path(stream.name)
+                    for chunk in resp.iter_bytes(chunk_size=1 << 16):
+                        written += len(chunk)
+                        if written > _MAX_VIDEO_BYTES:
+                            raise ValueError(f"video exceeds {_MAX_VIDEO_BYTES}-byte cap: {url}")
+                        stream.write(chunk)
+                if written == 0:
+                    raise ValueError(f"video response was empty: {url}")
+                temporary_path.replace(dest)
+                return dest
+            except BaseException:
+                if temporary_path is not None:
+                    temporary_path.unlink(missing_ok=True)
+                raise
     raise ValueError(f"too many redirects fetching video: {url}")

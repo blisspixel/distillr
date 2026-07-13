@@ -8,8 +8,10 @@ both the result extraction and the poll loop live here in one place rather than
 copy-pasted into every report writer. See the "parse, don't validate" principle
 in the roadmap: parse the external input once, here, into a plain string.
 
-Two functions:
+Three functions:
 
+- :func:`submit_metered_interaction` -- authorize fixed-price spend before
+  provider contact and record both accepted and ambiguous submissions.
 - :func:`interaction_text` -- pull the model's text answer out of a completed
   interaction, tolerant of both the 2.7+ ``steps`` shape and the legacy
   ``outputs`` shape.
@@ -25,10 +27,14 @@ from typing import cast
 
 from rich.console import Console
 
+from distill.pipeline.costs import CostTracker
+
 __all__ = [
     "POLLING_STATUSES",
     "await_interaction",
     "interaction_text",
+    "require_cost_tracker",
+    "submit_metered_interaction",
 ]
 
 # Statuses that mean "still working" -- keep polling. Everything else is
@@ -36,6 +42,38 @@ __all__ = [
 # status google-genai adds later). Fail-closed by design: an unrecognized
 # status exits the loop rather than hanging the run.
 POLLING_STATUSES = frozenset({"in_progress", "requires_action"})
+
+
+def require_cost_tracker(tracker: CostTracker | None) -> CostTracker:
+    """Fail closed before a metered report path can create remote resources."""
+
+    if tracker is None:
+        raise ValueError("A CostTracker is required for metered Deep Research calls")
+    return tracker
+
+
+def submit_metered_interaction[InteractionT](
+    submit: Callable[[], InteractionT],
+    *,
+    tracker: CostTracker,
+    model: str,
+) -> InteractionT:
+    """Submit one fixed-price interaction with fail-closed cost accounting.
+
+    A transport exception after request bytes leave the process cannot prove
+    that the provider rejected the job. Such failures are recorded as
+    ``ambiguous`` and priced conservatively so the local ledger never reports a
+    known lower bound as exact spend.
+    """
+
+    tracker.authorize_gemini_query(model)
+    try:
+        interaction = submit()
+    except Exception:
+        tracker.record_gemini_query(model, outcome="ambiguous")
+        raise
+    tracker.record_gemini_query(model, outcome="accepted")
+    return interaction
 
 
 def _attr(value: object, name: str, default: object = None) -> object:
