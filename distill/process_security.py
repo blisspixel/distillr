@@ -27,10 +27,9 @@ _EXACT_SECRET_NAMES = frozenset(
 )
 
 
-def _candidate_names(name: str, env: Mapping[str, str]) -> tuple[str, ...]:
-    if os.name != "nt" or Path(name).suffix:
-        return (name,)
-    raw_extensions = env.get("PATHEXT", os.pathsep.join(_WINDOWS_DEFAULT_EXTENSIONS))
+def _windows_candidate_names(name: str, raw_extensions: str) -> tuple[str, ...]:
+    """Return deduplicated executable candidates from an allowlisted PATHEXT."""
+
     extensions: list[str] = []
     for extension in raw_extensions.split(os.pathsep):
         normalized = extension.strip().upper()
@@ -39,6 +38,13 @@ def _candidate_names(name: str, env: Mapping[str, str]) -> tuple[str, ...]:
         if normalized in _WINDOWS_DEFAULT_EXTENSIONS and normalized not in extensions:
             extensions.append(normalized)
     return tuple(f"{name}{extension}" for extension in extensions)
+
+
+def _candidate_names(name: str, env: Mapping[str, str]) -> tuple[str, ...]:
+    if os.name != "nt" or Path(name).suffix:
+        return (name,)
+    raw_extensions = env.get("PATHEXT", os.pathsep.join(_WINDOWS_DEFAULT_EXTENSIONS))
+    return _windows_candidate_names(name, raw_extensions)
 
 
 def _usable_executable(path: Path) -> Path | None:

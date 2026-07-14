@@ -10,12 +10,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
-import stat
 import uuid
 from pathlib import Path
+from typing import cast
 
+from distill.llm.providers._agent_files import (
+    read_task_text,
+    task_root_is_unchanged,
+    validated_task_root,
+    write_task_bytes,
+)
 from distill.llm.providers._usage import conservative_usage
 from distill.llm.router import PendingTaskError
 from distill.llm.types import LLM_Response
@@ -29,169 +33,6 @@ from distill.llm.usage import (
 _MAX_AGENT_TASK_BYTES = 1 * 1024 * 1024
 _MAX_AGENT_RESULT_BYTES = 16 * 1024 * 1024
 _RESULT_BYTES_PER_TOKEN = 16
-
-
-def _task_file_revision(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
-    return (
-        file_stat.st_dev,
-        file_stat.st_ino,
-        file_stat.st_nlink,
-        file_stat.st_size,
-        file_stat.st_mtime_ns,
-    )
-
-
-def _unsafe_task_file(path: Path, file_stat: os.stat_result) -> bool:
-    reparse_flag = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
-    attributes = int(getattr(file_stat, "st_file_attributes", 0))
-    return (
-        stat.S_ISLNK(file_stat.st_mode)
-        or not stat.S_ISREG(file_stat.st_mode)
-        or file_stat.st_nlink != 1
-        or bool(reparse_flag and attributes & reparse_flag)
-        or (hasattr(path, "is_junction") and path.is_junction())
-    )
-
-
-def _unsafe_task_directory(path: Path, directory_stat: os.stat_result) -> bool:
-    reparse_flag = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
-    attributes = int(getattr(directory_stat, "st_file_attributes", 0))
-    return (
-        stat.S_ISLNK(directory_stat.st_mode)
-        or not stat.S_ISDIR(directory_stat.st_mode)
-        or bool(reparse_flag and attributes & reparse_flag)
-        or (hasattr(path, "is_junction") and path.is_junction())
-    )
-
-
-def _directory_identity(directory_stat: os.stat_result) -> tuple[int, int]:
-    return directory_stat.st_dev, directory_stat.st_ino
-
-
-def _same_path(left: Path, right: Path) -> bool:
-    return os.path.normcase(str(left.absolute())) == os.path.normcase(str(right.absolute()))
-
-
-def _validated_task_root(root: Path) -> tuple[Path, tuple[int, int]] | None:
-    """Resolve a stable, non-link task root and return its directory identity."""
-
-    try:
-        root_absolute = root.absolute()
-        initial_stat = root_absolute.lstat()
-        if _unsafe_task_directory(root_absolute, initial_stat):
-            return None
-        identity = _directory_identity(initial_stat)
-        root_resolved = root_absolute.resolve(strict=True)
-        current_stat = root_absolute.lstat()
-    except (OSError, RuntimeError, ValueError):
-        return None
-    if (
-        not _same_path(root_resolved, root_absolute)
-        or _unsafe_task_directory(root_absolute, current_stat)
-        or _directory_identity(current_stat) != identity
-    ):
-        return None
-    return root_absolute, identity
-
-
-def _task_root_is_unchanged(root: Path, identity: tuple[int, int]) -> bool:
-    current = _validated_task_root(root)
-    return current is not None and current[1] == identity
-
-
-def _close_task_descriptors(*descriptors: int) -> None:
-    for descriptor in descriptors:
-        if descriptor >= 0:
-            os.close(descriptor)
-
-
-def _open_task_file(
-    path: Path,
-    root: Path,
-    root_identity: tuple[int, int],
-    *,
-    max_bytes: int,
-) -> tuple[int, int, tuple[int, int, int, int, int]] | None:
-    descriptor = -1
-    directory_descriptor = -1
-    accepted = False
-    try:
-        if not _same_path(path.parent, root) or not _task_root_is_unchanged(root, root_identity):
-            return None
-        initial_stat = path.lstat()
-        if _unsafe_task_file(path, initial_stat) or initial_stat.st_size > max_bytes:
-            return None
-        revision = _task_file_revision(initial_stat)
-        directory_flags = (
-            os.O_RDONLY
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_DIRECTORY", 0)
-            | getattr(os, "O_NOFOLLOW", 0)
-        )
-        supports_openat = os.open in os.supports_dir_fd
-        if supports_openat:
-            directory_descriptor = os.open(root, directory_flags)
-            if _directory_identity(os.fstat(directory_descriptor)) != root_identity:
-                return None
-        flags = (
-            os.O_RDONLY
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_NOFOLLOW", 0)
-            | getattr(os, "O_NONBLOCK", 0)
-        )
-        if supports_openat:
-            descriptor = os.open(path.name, flags, dir_fd=directory_descriptor)
-        else:
-            descriptor = os.open(path, flags)
-        descriptor_stat = os.fstat(descriptor)
-        current_stat = path.lstat()
-        if (
-            not _task_root_is_unchanged(root, root_identity)
-            or _unsafe_task_file(path, descriptor_stat)
-            or _task_file_revision(descriptor_stat) != revision
-            or _task_file_revision(current_stat) != revision
-        ):
-            return None
-        accepted = True
-        return descriptor, directory_descriptor, revision
-    except (OSError, RuntimeError, ValueError):
-        return None
-    finally:
-        if not accepted:
-            _close_task_descriptors(descriptor, directory_descriptor)
-
-
-def _read_task_text(path: Path, root: Path, *, max_bytes: int) -> str | None:
-    """Read one direct task child while detecting links, swaps, and size overruns."""
-
-    if max_bytes < 0:
-        return None
-    validated_root = _validated_task_root(root)
-    if validated_root is None:
-        return None
-    root_path, root_identity = validated_root
-    opened = _open_task_file(path, root_path, root_identity, max_bytes=max_bytes)
-    if opened is None:
-        return None
-    descriptor, directory_descriptor, revision = opened
-    try:
-        with os.fdopen(descriptor, "rb") as stream:
-            descriptor = -1
-            content = stream.read(max_bytes + 1)
-            descriptor_after = os.fstat(stream.fileno())
-        final_stat = path.lstat()
-        if (
-            len(content) > max_bytes
-            or not _task_root_is_unchanged(root_path, root_identity)
-            or _task_file_revision(descriptor_after) != revision
-            or _task_file_revision(final_stat) != revision
-        ):
-            return None
-        return content.decode("utf-8")
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
-    finally:
-        _close_task_descriptors(descriptor, directory_descriptor)
 
 
 class AgentProvider:
@@ -215,7 +56,6 @@ class AgentProvider:
             )
         self._ops_dir = Path(ops_dir)
         self._pending_dir = self._ops_dir / "tasks" / "pending"
-        self._completed_dir = self._ops_dir / "tasks" / "completed"
 
     @staticmethod
     def _prompt_hash(prompt: str, workload_tag: str) -> str:
@@ -297,18 +137,117 @@ class AgentProvider:
                 "inside ops_dir/tasks and must not be a symlink."
             )
 
-    def _is_pending_result_path(self, result_path: Path) -> bool:
-        """Return whether a task result path is inside the pending task root."""
+    @staticmethod
+    def _direct_pending_result_path(
+        result_path: Path,
+        pending_root: Path,
+        root_identity: tuple[int, int],
+    ) -> Path | None:
+        """Rebase a direct result child onto the validated canonical task root.
+
+        Only the parent is resolved. Resolving the leaf would erase evidence
+        that the declared result is a symlink before the no-follow reader can
+        inspect it.
+        """
+
         try:
-            pending_root = self._task_root(self._pending_dir, "pending")
-            if pending_root is None:
-                return False
-            resolved_result = result_path.resolve(strict=False)
-        except OSError:
-            return False
-        return result_path.name.endswith("_result.md") and resolved_result.is_relative_to(
-            pending_root
-        )
+            if not task_root_is_unchanged(pending_root, root_identity):
+                return None
+            resolved_parent = result_path.parent.resolve(strict=True)
+        except (OSError, RuntimeError, ValueError):
+            return None
+        if (
+            not result_path.name.endswith("_result.md")
+            or resolved_parent != pending_root
+            or not task_root_is_unchanged(pending_root, root_identity)
+        ):
+            return None
+        return pending_root / result_path.name
+
+    def _pending_result_path(self, result_path: Path) -> Path | None:
+        """Validate a result path against the current pending-directory identity."""
+
+        pending_root = self._task_root(self._pending_dir, "pending")
+        if pending_root is None:
+            return None
+        validated_root = validated_task_root(pending_root)
+        if validated_root is None:
+            return None
+        root_path, root_identity = validated_root
+        return self._direct_pending_result_path(result_path, root_path, root_identity)
+
+    def _bound_pending_root(self) -> tuple[Path, tuple[int, int]]:
+        """Return the canonical pending root and its current directory identity."""
+
+        from distill.llm.router import ConfigurationError
+
+        pending_root = self._task_root(self._pending_dir, "pending")
+        validated_root = None if pending_root is None else validated_task_root(pending_root)
+        if validated_root is None:
+            raise ConfigurationError(
+                "AgentProvider pending task directory changed during validation."
+            )
+        return validated_root
+
+    def _is_pending_result_path(self, result_path: Path) -> bool:
+        """Return whether a task result path is a direct pending-root child."""
+
+        return self._pending_result_path(result_path) is not None
+
+    def _read_matching_result(
+        self,
+        task_path: Path,
+        pending_root: Path,
+        root_identity: tuple[int, int],
+        target_hash: str,
+        *,
+        max_result_bytes: int,
+    ) -> str | None:
+        """Read a matching receipt without changing its bound directory identity."""
+
+        try:
+            task_text = read_task_text(
+                task_path,
+                pending_root,
+                max_bytes=_MAX_AGENT_TASK_BYTES,
+                root_identity=root_identity,
+            )
+            if task_text is None:
+                return None
+            parsed_task: object = json.loads(task_text)
+            if not isinstance(parsed_task, dict):
+                return None
+            task_data = cast(dict[str, object], parsed_task)
+            if task_data.get("prompt_hash") != target_hash:
+                return None
+            declared_result_path = task_data.get("result_path")
+            if not isinstance(declared_result_path, str):
+                return None
+            result_path = self._direct_pending_result_path(
+                Path(declared_result_path),
+                pending_root,
+                root_identity,
+            )
+            if result_path is None:
+                return None
+            result_text = read_task_text(
+                result_path,
+                pending_root,
+                max_bytes=max_result_bytes,
+                root_identity=root_identity,
+            )
+            if result_text is None or not task_root_is_unchanged(pending_root, root_identity):
+                return None
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            OSError,
+            RecursionError,
+            RuntimeError,
+            ValueError,
+        ):
+            return None
+        return result_text.replace("\r\n", "\n").replace("\r", "\n")
 
     def _find_existing_result(
         self,
@@ -316,6 +255,7 @@ class AgentProvider:
         workload_tag: str,
         *,
         max_result_bytes: int,
+        bound_root: tuple[Path, tuple[int, int]] | None = None,
     ) -> tuple[Path, str] | None:
         """Find an existing pending task+result for this exact prompt.
 
@@ -324,31 +264,37 @@ class AgentProvider:
         "result_path": Path}`` if a completed result exists, else ``None``.
         """
         target_hash = self._prompt_hash(prompt, workload_tag)
-        pending_root = self._task_root(self._pending_dir, "pending")
-        if pending_root is None or not self._pending_dir.exists():
+        if bound_root is None:
+            pending_root = self._task_root(self._pending_dir, "pending")
+            validated_root = None if pending_root is None else validated_task_root(pending_root)
+            if validated_root is None:
+                return None
+            pending_root, root_identity = validated_root
+        else:
+            pending_root, root_identity = bound_root
+            if not task_root_is_unchanged(pending_root, root_identity):
+                return None
+        # Iterate through the validated canonical root. Temporary directories on
+        # macOS commonly have ``/var`` and ``/private/var`` aliases, and Windows
+        # runners may expose an 8.3 path that resolves to a long path. Mixing the
+        # lexical root with its canonical identity would make safe files appear
+        # to have escaped the directory and strand replayable receipts.
+        try:
+            task_paths = tuple(pending_root.glob(f"{workload_tag}_*.json"))
+        except OSError:
             return None
-        for task_path in self._pending_dir.glob(f"{workload_tag}_*.json"):
-            try:
-                task_text = _read_task_text(
-                    task_path,
-                    pending_root,
-                    max_bytes=_MAX_AGENT_TASK_BYTES,
-                )
-                if task_text is None:
-                    continue
-                task_data: dict[str, object] = json.loads(task_text)
-                if task_data.get("prompt_hash") == target_hash:
-                    result_path = Path(str(task_data["result_path"]))
-                    if self._is_pending_result_path(result_path) and result_path.exists():
-                        result_text = _read_task_text(
-                            result_path,
-                            pending_root,
-                            max_bytes=max_result_bytes,
-                        )
-                        if result_text is not None:
-                            return task_path, result_text.replace("\r\n", "\n").replace("\r", "\n")
-            except (json.JSONDecodeError, KeyError, OSError):
-                continue
+        if not task_root_is_unchanged(pending_root, root_identity):
+            return None
+        for task_path in task_paths:
+            result_text = self._read_matching_result(
+                task_path,
+                pending_root,
+                root_identity,
+                target_hash,
+                max_result_bytes=max_result_bytes,
+            )
+            if result_text is not None:
+                return task_path, result_text
         return None
 
     async def call(
@@ -366,10 +312,10 @@ class AgentProvider:
     ) -> LLM_Response:
         """Check for existing result or write a new task file.
 
-        If a result file exists for this prompt (idempotent re-call), reads
-        the result, moves the task to ``completed/``, and returns an
-        ``LLM_Response``.  Otherwise writes a Task_File and raises
-        ``PendingTaskError``.
+        If a result file exists for this prompt (idempotent re-call), reads the
+        result and returns an ``LLM_Response``. The task and result remain as a
+        replayable receipt for later identical calls. Otherwise writes a
+        Task_File and raises ``PendingTaskError``.
         """
         if isinstance(max_tokens, bool) or max_tokens <= 0:
             raise ValueError("max_tokens must be a positive integer")
@@ -380,10 +326,10 @@ class AgentProvider:
         task_filename = f"{workload_tag}_{task_id}.json"
         result_filename = f"{workload_tag}_{task_id}_result.md"
 
-        task_path = self._pending_dir / task_filename
-        result_path = self._pending_dir / result_filename
-
         self._ensure_task_dir(self._pending_dir, "pending")
+        pending_root, pending_identity = self._bound_pending_root()
+        task_path = pending_root / task_filename
+        result_path = pending_root / result_filename
 
         # Check if a result already exists for this prompt (idempotent re-call)
         max_result_bytes = min(
@@ -394,6 +340,7 @@ class AgentProvider:
             prompt,
             workload_tag,
             max_result_bytes=max_result_bytes,
+            bound_root=(pending_root, pending_identity),
         )
         if existing:
             task_src, result_text = existing
@@ -408,9 +355,6 @@ class AgentProvider:
                 ),
                 usage_sink,
             )
-            if task_src.exists():
-                self._ensure_task_dir(self._completed_dir, "completed")
-                shutil.move(str(task_src), str(self._completed_dir / task_src.name))
             return LLM_Response(
                 text=result_text,
                 input_tokens=attempt.input_tokens,
@@ -453,7 +397,7 @@ class AgentProvider:
             usage_sink,
         )
         try:
-            task_path.write_bytes(task_bytes)
+            write_task_bytes(task_path, pending_root, pending_identity, task_bytes)
         except Exception as exc:
             attach_usage_attempts(exc, attempts)
             raise

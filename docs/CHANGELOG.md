@@ -17,9 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   answer artifacts cannot re-enter retrieval and saved answers retain their
   required verification binding even if frontmatter is downgraded.
 - Bounded deferred-agent task and result files, rejected unsafe result objects,
-  and recorded the declared task timeout. Oversized files, hard links, and
-  invalid token or timeout limits now fail closed before external-worker output
-  can enter a model response.
+  required the task JSON object schema, and recorded the declared task timeout.
+  One canonical pending-directory identity now remains bound across task and
+  result reads, so link, file, and regular-directory replacement races fail
+  closed before external-worker output can enter a model response.
+- Published deferred-agent tasks from owner-only exclusive temporary files
+  through atomic no-overwrite links under the bound pending-directory identity.
+  Mid-open and pre-publication directory swaps cannot leak prompts or strand
+  external files, workers cannot observe partial JSON, and completed task and
+  result pairs remain replayable receipts without a post-read archive race.
 - Lock-pinned the CycloneDX generator and its complete dependency closure in a
   dedicated dependency group. The publish job exports and installs that tool
   environment with required hashes instead of resolving a transitive release
@@ -91,7 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Bounded feed durations, browser result parsing, transcript output reuse, and
   local or remote PDF extraction. PDF parsing now runs in a timeout and
   memory-limited worker with page and character ceilings. Its safe-path
-  subprocess mode preserves supported user-site package installs.
+  subprocess mode preserves supported user-site package installs, and inherited
+  address-space hard limits are never raised by the worker.
 - Made update caches and generated transcript handoffs atomic and serialized,
   rejected unsafe attachment identifiers and symlinked corpus reads, and kept
   profile execution on the isolated current interpreter rather than a
@@ -179,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   cost API.
 - Declared Starlette's `httpx2` test transport in the development lock so the
   dashboard suite runs without its deprecated `httpx` compatibility warning.
-- Verified the maintenance candidate with 5,202 passing tests and 95.07 percent
+- Verified the maintenance candidate with 5,219 passing tests and 95.01 percent
   branch coverage, plus warning-sensitive tests, Pyright, Ruff, import
   contracts, Bandit, pip-audit, lock and public-contract checks, installer
   tests, and source and wheel builds. All local validation used no external

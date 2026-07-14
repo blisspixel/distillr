@@ -228,14 +228,15 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
 
 - **Branch test coverage ≥95%**, ratcheted. 0.8.3 turns on branch coverage and starts the up-only climb from the measured baseline; the blocking CI and pre-push gates now enforce 95% across the surface. Branch (not line) is the metric, and the target is flat rather than tiered - the cost is real on presentation-heavy code (CLI rendering, web routes, dashboards), and that trade-off is accepted deliberately rather than hidden behind a per-package carve-out. Coverage is reported on every PR and can go up, not down.
   - Status 2026-07-12: the 0.19.34 release CI passes 4,227 tests at 95.01% branch coverage on Python 3.12, with the Python 3.13 and 3.14 matrix plus macOS and Windows smoke suites green.
-  - Status 2026-07-13: the current maintenance candidate adds adversarial
+  - Status 2026-07-14: the 0.19.36 maintenance candidate adds adversarial
     coverage for exact-IP fetches, resource-limited PDF parsing, fail-closed
     provider and transcription accounting, concurrent secret-file updates,
     decoded-sample duration accounting, hidden-retry refusal, dashboard Host
     validation, manifest-protocol confinement, malformed feed normalization,
-    installer integrity, total ASCII structural-integer parsing, and isolated
-    subprocess entry points. The definitive local gate passes 4,855 tests with
-    three platform skips and eight live-network tests deselected at 95.02
+    installer integrity, total ASCII structural-integer parsing, isolated
+    subprocess entry points, and identity-bound atomic deferred-agent task
+    publication. The definitive local gate passes 5,219 tests with three
+    platform skips and eight live-network tests deselected at 95.01
     percent branch coverage; final release evidence belongs in the changelog
     once the candidate ships.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.

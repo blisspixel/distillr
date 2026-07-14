@@ -83,6 +83,15 @@ def test_resolve_executable_handles_explicit_suffix_and_quoted_path(tmp_path, mo
     assert resolved == str(expected.resolve())
 
 
+def test_windows_candidate_names_allow_only_executable_image_types():
+    candidates = process_security._windows_candidate_names(
+        "worker",
+        os.pathsep.join(("exe", ".BAT", ".COM", ".EXE", r".\..\cmd.exe")),
+    )
+
+    assert candidates == ("worker.EXE", "worker.COM")
+
+
 @pytest.mark.skipif(os.name != "nt", reason="PATHEXT is Windows-specific")
 def test_resolve_executable_rejects_traversing_pathext(monkeypatch, tmp_path):
     working = tmp_path / "working"
@@ -146,6 +155,23 @@ def test_resolve_executable_fails_closed_when_working_directory_is_unavailable(
     monkeypatch.setattr(process_security.Path, "cwd", classmethod(unavailable))
 
     assert resolve_executable("worker", env={"PATH": "C:\\trusted", "PATHEXT": ".EXE"}) is None
+
+
+def test_search_directory_fails_closed_when_resolution_raises(tmp_path, monkeypatch):
+    working = tmp_path / "working"
+    unavailable = tmp_path / "unavailable"
+    working.mkdir()
+    unavailable.mkdir()
+    real_resolve = process_security.Path.resolve
+
+    def fail_selected(path, *, strict=False):
+        if path == unavailable:
+            raise OSError("directory unavailable")
+        return real_resolve(path, strict=strict)
+
+    monkeypatch.setattr(process_security.Path, "resolve", fail_selected)
+
+    assert process_security._search_directory(str(unavailable), working) is None
 
 
 def test_usable_executable_requires_execute_permission_off_windows(tmp_path, monkeypatch):

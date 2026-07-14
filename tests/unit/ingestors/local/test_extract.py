@@ -293,7 +293,11 @@ def test_pdf_worker_main_reports_invalid_numeric_limits(monkeypatch, capsys):
 
 @pytest.mark.parametrize(
     ("current_limits", "expected"),
-    [((-1, -1), (512, 512)), ((256, 1024), (256, 512))],
+    [
+        ((-1, -1), (512, 512)),
+        ((256, 1024), (256, 512)),
+        ((-1, 128), (128, 128)),
+    ],
 )
 def test_pdf_worker_applies_bounded_posix_memory_limit(monkeypatch, current_limits, expected):
     from distill.ingestors.local import _pdf_worker
@@ -445,6 +449,44 @@ def test_non_windows_pdf_worker_needs_no_job_object(monkeypatch):
     monkeypatch.setattr(ex.os, "name", "posix")
 
     assert ex._assign_windows_memory_job(_FakeWorkerProcess(returncode=0), 1024) is None
+
+
+class _FakeKernelFunction:
+    def __init__(self, result):
+        self.result = result
+        self.calls = []
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        return self.result
+
+
+class _FakeKernel32:
+    def __init__(self):
+        self.CreateJobObjectW = _FakeKernelFunction(91)
+        self.SetInformationJobObject = _FakeKernelFunction(True)
+        self.AssignProcessToJobObject = _FakeKernelFunction(True)
+        self.CloseHandle = _FakeKernelFunction(True)
+
+
+def test_windows_pdf_worker_job_boundary_is_portably_exercised(monkeypatch):
+    import ctypes
+
+    from distill.ingestors.local import extract as ex
+
+    kernel32 = _FakeKernel32()
+    process = _FakeWorkerProcess(returncode=0)
+    process._handle = 73
+    monkeypatch.setattr(ex.os, "name", "nt")
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: kernel32, raising=False)
+
+    job_handle = ex._assign_windows_memory_job(process, 4096)
+
+    assert job_handle == 91
+    assert len(kernel32.SetInformationJobObject.calls) == 1
+    assert len(kernel32.AssignProcessToJobObject.calls) == 1
+    ex._close_windows_job(job_handle)
+    assert len(kernel32.CloseHandle.calls) == 1
 
 
 def test_windows_pdf_worker_skips_posix_limit(monkeypatch):

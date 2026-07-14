@@ -356,8 +356,10 @@ def test_adapter_enforces_deadline_while_response_headers_trickle(monkeypatch):
 
 
 def test_adapter_enforces_deadline_during_dns_resolution(monkeypatch):
+    release_resolver = threading.Event()
+
     def blocked_resolver(_url):
-        time.sleep(0.2)
+        release_resolver.wait(timeout=1)
         return "203.0.113.10"
 
     monkeypatch.setattr(
@@ -371,8 +373,10 @@ def test_adapter_enforces_deadline_during_dns_resolution(monkeypatch):
     try:
         with pytest.raises(RequestError, match="operation exceeds"):
             adapter.send(request, timeout=1, proxies={})
-        assert time.monotonic() - started < 0.15
+        assert time.monotonic() - started < 0.5
+        assert not release_resolver.is_set()
     finally:
+        release_resolver.set()
         adapter.close()
         deadline.cancel()
 

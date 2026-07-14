@@ -15,8 +15,8 @@ def _set_posix_memory_limit(limit_bytes: int) -> None:
     import resource
 
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    bounded_soft = limit_bytes if soft == resource.RLIM_INFINITY else min(soft, limit_bytes)
     bounded_hard = limit_bytes if hard == resource.RLIM_INFINITY else min(hard, limit_bytes)
+    bounded_soft = bounded_hard if soft == resource.RLIM_INFINITY else min(soft, bounded_hard)
     resource.setrlimit(resource.RLIMIT_AS, (bounded_soft, bounded_hard))
 
 

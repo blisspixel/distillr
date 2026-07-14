@@ -57,7 +57,9 @@ class TestEnvFileHelpers:
         monkeypatch.setattr(init_mod, "_POSIX_PERMISSIONS", True)
         monkeypatch.setattr(init_mod.os, "fchmod", record_chmod, raising=False)
 
-        assert init_mod.create_env_file(path) is False
+        descriptor = init_mod._open_existing_env(path)
+        assert descriptor is not None
+        os.close(descriptor)
         assert path.read_text(encoding="utf-8") == "XAI_API_KEY=keep\n"
         assert chmod_modes == [0o600]
 
