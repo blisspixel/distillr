@@ -15,9 +15,11 @@ def _set_posix_memory_limit(limit_bytes: int) -> None:
     import resource
 
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    bounded_hard = limit_bytes if hard == resource.RLIM_INFINITY else min(hard, limit_bytes)
-    bounded_soft = bounded_hard if soft == resource.RLIM_INFINITY else min(soft, bounded_hard)
-    resource.setrlimit(resource.RLIMIT_AS, (bounded_soft, bounded_hard))
+    hard_is_unlimited = hard == resource.RLIM_INFINITY or hard < 0
+    soft_is_unlimited = soft == resource.RLIM_INFINITY or soft < 0
+    maximum_soft = limit_bytes if hard_is_unlimited else min(hard, limit_bytes)
+    bounded_soft = maximum_soft if soft_is_unlimited else min(soft, maximum_soft)
+    resource.setrlimit(resource.RLIMIT_AS, (bounded_soft, hard))
 
 
 def extract_pdf_to_file(

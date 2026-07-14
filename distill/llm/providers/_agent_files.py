@@ -8,6 +8,8 @@ import stat
 import uuid
 from pathlib import Path
 
+_OPEN_SUPPORTS_DIR_FD = os.open in os.supports_dir_fd
+
 
 def _task_file_revision(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
     return (
@@ -205,7 +207,7 @@ def _unlink_bound_child(
 def _open_bound_directory(root: Path, root_identity: tuple[int, int]) -> int:
     if not task_root_is_unchanged(root, root_identity):
         raise OSError("agent task root changed before task creation")
-    if os.open not in os.supports_dir_fd:
+    if not _OPEN_SUPPORTS_DIR_FD:
         return -1
     flags = (
         os.O_RDONLY

@@ -235,8 +235,8 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
     validation, manifest-protocol confinement, malformed feed normalization,
     installer integrity, total ASCII structural-integer parsing, isolated
     subprocess entry points, and identity-bound atomic deferred-agent task
-    publication. The definitive local gate passes 5,219 tests with three
-    platform skips and eight live-network tests deselected at 95.01
+    publication. The definitive local gate passes 5,220 tests with three
+    platform skips and eight live-network tests deselected at 95.02
     percent branch coverage; final release evidence belongs in the changelog
     once the candidate ships.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.

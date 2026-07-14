@@ -292,20 +292,23 @@ def test_pdf_worker_main_reports_invalid_numeric_limits(monkeypatch, capsys):
 
 
 @pytest.mark.parametrize(
-    ("current_limits", "expected"),
+    ("current_limits", "infinity", "expected"),
     [
-        ((-1, -1), (512, 512)),
-        ((256, 1024), (256, 512)),
-        ((-1, 128), (128, 128)),
+        ((-1, -1), -1, (512, -1)),
+        ((256, 1024), -1, (256, 1024)),
+        ((-1, 128), -1, (128, 128)),
+        ((-1, -1), 2**63 - 1, (512, -1)),
     ],
 )
-def test_pdf_worker_applies_bounded_posix_memory_limit(monkeypatch, current_limits, expected):
+def test_pdf_worker_applies_bounded_posix_memory_limit(
+    monkeypatch, current_limits, infinity, expected
+):
     from distill.ingestors.local import _pdf_worker
 
     observed = []
     fake_resource = types.SimpleNamespace(
         RLIMIT_AS=9,
-        RLIM_INFINITY=-1,
+        RLIM_INFINITY=infinity,
         getrlimit=lambda resource: current_limits,
         setrlimit=lambda resource, limits: observed.append((resource, limits)),
     )
