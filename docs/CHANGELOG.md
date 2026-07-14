@@ -186,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   cost API.
 - Declared Starlette's `httpx2` test transport in the development lock so the
   dashboard suite runs without its deprecated `httpx` compatibility warning.
-- Verified the maintenance candidate with 5,220 passing tests and 95.02 percent
+- Verified the maintenance candidate with 5,224 passing tests and 95.01 percent
   branch coverage, plus warning-sensitive tests, Pyright, Ruff, import
   contracts, Bandit, pip-audit, lock and public-contract checks, installer
   tests, and source and wheel builds. All local validation used no external

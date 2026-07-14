@@ -320,6 +320,100 @@ def test_pdf_worker_applies_bounded_posix_memory_limit(
     assert observed == [(9, expected)]
 
 
+def test_pdf_worker_retries_darwin_limit_above_existing_address_space(monkeypatch):
+    from distill.ingestors.local import _pdf_worker
+
+    observed = []
+
+    def setrlimit(resource, limits):
+        observed.append((resource, limits))
+        if len(observed) == 1:
+            raise ValueError("current limit exceeds maximum limit")
+
+    fake_resource = types.SimpleNamespace(
+        RLIMIT_AS=9,
+        RLIM_INFINITY=-1,
+        getrlimit=lambda resource: (-1, -1),
+        setrlimit=setrlimit,
+    )
+    monkeypatch.setattr(_pdf_worker.os, "name", "posix")
+    monkeypatch.setattr(_pdf_worker.sys, "platform", "darwin")
+    monkeypatch.setattr(_pdf_worker, "_darwin_virtual_size_bytes", lambda: 2048)
+    monkeypatch.setitem(sys.modules, "resource", fake_resource)
+
+    _pdf_worker._set_posix_memory_limit(512)
+
+    assert observed == [(9, (512, 512)), (9, (2560, 2560))]
+
+
+def test_pdf_worker_reads_darwin_virtual_size_from_bound_task_info(monkeypatch):
+    import ctypes
+
+    from distill.ingestors.local import _pdf_worker
+
+    class _FakeProcPidInfo:
+        argtypes = None
+        restype = None
+
+        def __call__(self, pid, flavor, argument, buffer, buffer_size):
+            assert (pid, flavor, argument) == (73, 4, 0)
+            ctypes.cast(buffer, ctypes.POINTER(ctypes.c_uint64))[0] = 4096
+            return buffer_size
+
+    fake_function = _FakeProcPidInfo()
+    fake_library = types.SimpleNamespace(proc_pidinfo=fake_function)
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: fake_library)
+    monkeypatch.setattr(_pdf_worker.os, "getpid", lambda: 73)
+
+    assert _pdf_worker._darwin_virtual_size_bytes() == 4096
+    assert fake_function.restype is ctypes.c_int
+
+
+def test_pdf_worker_fails_closed_when_darwin_task_info_is_unavailable(monkeypatch):
+    import ctypes
+
+    from distill.ingestors.local import _pdf_worker
+
+    class _FakeProcPidInfo:
+        argtypes = None
+        restype = None
+
+        def __call__(self, pid, flavor, argument, buffer, buffer_size):
+            return 0
+
+    fake_library = types.SimpleNamespace(proc_pidinfo=_FakeProcPidInfo())
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: fake_library)
+    monkeypatch.setattr(ctypes, "get_errno", lambda: 5)
+
+    with pytest.raises(OSError, match="Darwin worker address space"):
+        _pdf_worker._darwin_virtual_size_bytes()
+
+
+def test_pdf_worker_does_not_weaken_failed_address_space_limit_elsewhere(monkeypatch):
+    from distill.ingestors.local import _pdf_worker
+
+    observed = []
+
+    def reject_limit(resource, limits):
+        observed.append((resource, limits))
+        raise ValueError("invalid limit")
+
+    fake_resource = types.SimpleNamespace(
+        RLIMIT_AS=9,
+        RLIM_INFINITY=-1,
+        getrlimit=lambda resource: (-1, -1),
+        setrlimit=reject_limit,
+    )
+    monkeypatch.setattr(_pdf_worker.os, "name", "posix")
+    monkeypatch.setattr(_pdf_worker.sys, "platform", "linux")
+    monkeypatch.setitem(sys.modules, "resource", fake_resource)
+
+    with pytest.raises(ValueError, match="invalid limit"):
+        _pdf_worker._set_posix_memory_limit(512)
+
+    assert observed == [(9, (512, 512))]
+
+
 class _FakeWorkerStdin:
     def write(self, data: bytes) -> None:
         assert data == b"1"

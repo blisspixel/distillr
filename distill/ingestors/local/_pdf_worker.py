@@ -9,18 +9,93 @@ from itertools import islice
 from pathlib import Path
 
 
+def _bounded_resource_limits(
+    soft: int,
+    hard: int,
+    infinity: int,
+    limit_bytes: int,
+) -> tuple[int, int]:
+    hard_is_unlimited = hard == infinity or hard < 0
+    soft_is_unlimited = soft == infinity or soft < 0
+    maximum_soft = limit_bytes if hard_is_unlimited else min(hard, limit_bytes)
+    bounded_soft = maximum_soft if soft_is_unlimited else min(soft, maximum_soft)
+    bounded_hard = maximum_soft if hard_is_unlimited else hard
+    return bounded_soft, bounded_hard
+
+
+def _darwin_virtual_size_bytes() -> int:
+    import ctypes
+
+    class _ProcTaskInfo(ctypes.Structure):
+        _fields_ = [
+            ("pti_virtual_size", ctypes.c_uint64),
+            ("pti_resident_size", ctypes.c_uint64),
+            ("pti_total_user", ctypes.c_uint64),
+            ("pti_total_system", ctypes.c_uint64),
+            ("pti_threads_user", ctypes.c_uint64),
+            ("pti_threads_system", ctypes.c_uint64),
+            ("pti_policy", ctypes.c_int32),
+            ("pti_faults", ctypes.c_int32),
+            ("pti_pageins", ctypes.c_int32),
+            ("pti_cow_faults", ctypes.c_int32),
+            ("pti_messages_sent", ctypes.c_int32),
+            ("pti_messages_received", ctypes.c_int32),
+            ("pti_syscalls_mach", ctypes.c_int32),
+            ("pti_syscalls_unix", ctypes.c_int32),
+            ("pti_csw", ctypes.c_int32),
+            ("pti_threadnum", ctypes.c_int32),
+            ("pti_numrunning", ctypes.c_int32),
+            ("pti_priority", ctypes.c_int32),
+        ]
+
+    libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    libproc.proc_pidinfo.argtypes = [
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_uint64,
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
+    libproc.proc_pidinfo.restype = ctypes.c_int
+    task_info = _ProcTaskInfo()
+    task_info_size = ctypes.sizeof(task_info)
+    bytes_read = libproc.proc_pidinfo(
+        os.getpid(),
+        4,  # PROC_PIDTASKINFO
+        0,
+        ctypes.byref(task_info),
+        task_info_size,
+    )
+    if bytes_read != task_info_size or task_info.pti_virtual_size <= 0:
+        error_code = ctypes.get_errno()
+        raise OSError(error_code, "could not measure Darwin worker address space")
+    return int(task_info.pti_virtual_size)
+
+
 def _set_posix_memory_limit(limit_bytes: int) -> None:
     if os.name == "nt":
         return
     import resource
 
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    hard_is_unlimited = hard == resource.RLIM_INFINITY or hard < 0
-    soft_is_unlimited = soft == resource.RLIM_INFINITY or soft < 0
-    maximum_soft = limit_bytes if hard_is_unlimited else min(hard, limit_bytes)
-    bounded_soft = maximum_soft if soft_is_unlimited else min(soft, maximum_soft)
-    bounded_hard = maximum_soft if hard_is_unlimited else hard
-    resource.setrlimit(resource.RLIMIT_AS, (bounded_soft, bounded_hard))
+    def apply(resource_kind: int, requested_limit: int) -> None:
+        soft, hard = resource.getrlimit(resource_kind)
+        limits = _bounded_resource_limits(
+            soft,
+            hard,
+            resource.RLIM_INFINITY,
+            requested_limit,
+        )
+        resource.setrlimit(resource_kind, limits)
+
+    try:
+        apply(resource.RLIMIT_AS, limit_bytes)
+    except ValueError:
+        if sys.platform != "darwin":
+            raise
+        # Darwin rejects a total address-space ceiling below the interpreter's
+        # existing system mappings. Measure that trusted pre-parser baseline,
+        # then keep the requested allocation headroom kernel-enforced.
+        apply(resource.RLIMIT_AS, _darwin_virtual_size_bytes() + limit_bytes)
 
 
 def extract_pdf_to_file(
