@@ -19,7 +19,7 @@ from distill.mcp.server import (
     refuse_if_host_not_allowed,
     write_tool,
 )
-from distill.pipeline.costs import BudgetExceededError, save_run_log
+from distill.pipeline.costs import BudgetExceededError
 
 __all__: list[str] = []
 
@@ -65,7 +65,7 @@ def _site_result_parts(
 
 
 @mcp.tool()
-@write_tool("site_batch", allow_preview=True)
+@write_tool("site_batch", allow_preview=True, ledger_command="site-batch")
 async def site_batch(  # noqa: C901 - legacy site workflow
     topic: str,
     urls: list[str] | None = None,
@@ -133,11 +133,14 @@ async def site_batch(  # noqa: C901 - legacy site workflow
     else:
         return json.dumps({"status": "error", "error": "Provide either 'urls' or 'seed_file'."})
 
-    seeds = resolve_site_batch_seeds(
-        seeds,
-        seed_only=seed_only,
-        same_section_only=same_section_only,
-    )
+    try:
+        seeds = resolve_site_batch_seeds(
+            seeds,
+            seed_only=seed_only,
+            same_section_only=same_section_only,
+        )
+    except ValueError as e:
+        return json.dumps({"status": "error", "error": str(e)})
 
     if not seeds:
         return json.dumps({"status": "error", "error": "No URLs to process."})
@@ -196,7 +199,6 @@ async def site_batch(  # noqa: C901 - legacy site workflow
     if ctx:
         await ctx.report_progress(progress=len(seeds), total=len(seeds))
 
-    save_run_log(config.library_dir, "site-batch", tracker)
     return json.dumps(
         {
             "status": "complete",

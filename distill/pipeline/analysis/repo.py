@@ -18,6 +18,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.github import RepoRecord, fetch_repo, parse_github_url
+from distill.library.insights import receipt_body_sha256
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
@@ -88,6 +89,8 @@ def ingest_repo(
     slug = slugify_title(record.full_name.replace("/", " "), source_id=repo)
     repo_dir = config.topic_dir(topic) / "repos" / slug
     repo_md = _repo_markdown(record)
+    receipt_sha256 = receipt_body_sha256(repo_md)
+    repo_name = artifact_path(repo_dir, "repo", identity=slug).name
     frontmatter = base_frontmatter(
         artifact_type="repo",
         title=record.full_name,
@@ -102,6 +105,7 @@ def ingest_repo(
             "language": record.language,
             "license": record.license_name,
             "archived": record.archived,
+            "receipt_sha256": receipt_sha256,
         },
     )
     repo_path = write_markdown_artifact(
@@ -139,7 +143,7 @@ def ingest_repo(
             mode=resolve_verify_mode(config.distill_verify),
             identity=slug,
             insight_name=artifact_path(repo_dir, "insights", identity=slug).name,
-            source_name=repo_path.name,
+            source_name=repo_name,
         )
         if outcome is not None and not outcome.report.ok:
             style = "red" if outcome.refused else "yellow"
@@ -162,7 +166,12 @@ def ingest_repo(
                     date=record.pushed_at,
                     tags=tags_for(topic, "github"),
                     synthesis_scope="single-source",
-                    extra={"stars": record.stars, "language": record.language},
+                    extra={
+                        "stars": record.stars,
+                        "language": record.language,
+                        "source_receipt": repo_name,
+                        "source_receipt_sha256": receipt_sha256,
+                    },
                     provenance=ProvenanceFields(
                         model=response.model,
                         model_version=response.model,

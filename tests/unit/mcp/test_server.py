@@ -49,6 +49,7 @@ from distill.mcp.tools.gaps import research_gaps
 from distill.mcp.tools.reports import generate_report, resynthesize_topic
 from distill.mcp.tools.topics import process_video_url
 from distill.mcp.tools.watch import catch_up, watch_add, watch_remove
+from distill.pipeline.costs import TokenUsage
 
 # Stable mock return for _cost_summary so we don't hit CostTracker.total_calls bug
 _FAKE_COST = {"total_cost": 0, "total_input_tokens": 0, "total_output_tokens": 0, "calls": 0}
@@ -611,6 +612,99 @@ class TestGetCosts:
         # Malformed line is skipped
         assert result["runs_shown"] == 2
 
+    def test_projects_known_fields_without_arbitrary_payloads(self, mock_config):
+        mock_config.library_dir.mkdir(parents=True, exist_ok=True)
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.write_text(
+            json.dumps(
+                {
+                    "command": "catch-up",
+                    "actual_cost": 0.05,
+                    "metadata": {"private": "not-for-resource"},
+                    "arbitrary_secret": "must-not-cross-mcp",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(get_costs())
+
+        assert result["recent_runs"] == [{"command": "catch-up", "actual_cost": 0.05}]
+
+
+def test_artifact_resources_do_not_follow_library_symlinks(mock_config):
+    _setup_library(mock_config, "ai", "TestChannel")
+    topic_dir = mock_config.topic_dir("ai")
+    channel_dir = mock_config.channel_dir("ai", "TestChannel")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    channel_dir.mkdir(parents=True, exist_ok=True)
+    outside = mock_config.library_dir.parent / "outside-secret.md"
+    outside.write_text("MCP-RESOURCE-SECRET", encoding="utf-8")
+    links = (
+        topic_dir / "topic_synthesis.md",
+        topic_dir / "corpus_synthesis.md",
+        topic_dir / "topic_diff.md",
+        topic_dir / "topic_trends.md",
+        mock_config.library_dir / "watch_alerts.md",
+        channel_dir / "synthesis.md",
+    )
+    try:
+        for link in links:
+            link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    with patch("distill.mcp.server._config", return_value=mock_config):
+        results = (
+            get_topic_synthesis("ai"),
+            get_topic_corpus("ai"),
+            get_topic_diff("ai"),
+            get_topic_trends("ai"),
+            get_watch_alerts(),
+            get_channel_synthesis("ai", "TestChannel"),
+        )
+
+    assert all("MCP-RESOURCE-SECRET" not in result for result in results)
+
+
+def test_video_insights_resource_does_not_follow_library_symlink(mock_config):
+    _setup_library(mock_config, "ai", "TestChannel")
+    _populate_videos(mock_config, "ai", "TestChannel", count=1)
+    insights = mock_config.video_dir("ai", "TestChannel", "vid000") / "insights.md"
+    outside = mock_config.library_dir.parent / "outside-video-secret.md"
+    outside.write_text("MCP-VIDEO-SECRET", encoding="utf-8")
+    insights.unlink()
+    try:
+        insights.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    with patch("distill.mcp.server._config", return_value=mock_config):
+        result = get_video_insights("ai", "TestChannel", "1")
+
+    assert "MCP-VIDEO-SECRET" not in result
+
+
+def test_cost_resource_does_not_follow_library_symlink(mock_config):
+    ops_dir = mock_config.library_dir / ".distill"
+    ops_dir.mkdir(parents=True, exist_ok=True)
+    outside = mock_config.library_dir.parent / "outside-cost-secret.jsonl"
+    outside.write_text(
+        json.dumps({"command": "secret", "actual_cost": 1, "secret": "MCP-COST-SECRET"}),
+        encoding="utf-8",
+    )
+    log_file = ops_dir / "cost_log.jsonl"
+    try:
+        log_file.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    with patch("distill.mcp.server._config", return_value=mock_config):
+        result = get_costs()
+
+    assert "MCP-COST-SECRET" not in result
+
 
 # ── Tool tests ───────────────────────────────────────────────────────
 
@@ -644,11 +738,15 @@ class TestWatchAdd:
 
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
-            patch("distill.ingestors.youtube.discovery.resolve_channel_name", return_value="Dup"),
-            patch("distill.ingestors.youtube.discovery.discover_videos", return_value=[]),
+            patch(
+                "distill.ingestors.youtube.discovery.resolve_channel_name", return_value="Dup"
+            ) as resolve,
+            patch("distill.ingestors.youtube.discovery.discover_videos") as discover,
         ):
             result = json.loads(watch_add(url="https://youtube.com/@Dup"))
         assert result["status"] == "already_watching"
+        resolve.assert_not_called()
+        discover.assert_not_called()
 
     def test_add_with_instructions(self, mock_config):
         Library(mock_config)
@@ -670,9 +768,21 @@ class TestWatchAdd:
         assert result["status"] == "added"
         assert result["days"] == 2
 
-    def test_auto_generates_instructions_when_available(self, mock_config):
+    def test_auto_suggestion_requires_explicit_approval(self, mock_config):
         Library(mock_config)
         fake_vid = MagicMock(title="Daily Deals Rundown")
+
+        def generate(name, titles, config, tracker=None):
+            assert tracker is not None
+            tracker.record(
+                TokenUsage(
+                    call_type="watch_instructions",
+                    prompt_tokens=100,
+                    completion_tokens=25,
+                    model="grok-4.3",
+                )
+            )
+            return "Extract prices and store names"
 
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
@@ -682,13 +792,70 @@ class TestWatchAdd:
             patch("distill.ingestors.youtube.discovery.discover_videos", return_value=[fake_vid]),
             patch(
                 "distill.pipeline.analysis.video.generate_watch_instructions",
-                return_value="Extract prices and store names",
+                side_effect=generate,
             ),
         ):
             result = json.loads(watch_add(url="https://youtube.com/@DealCh"))
 
         assert result["status"] == "added"
-        assert result["instructions"] == "Extract prices and store names"
+        assert result["instructions"] == "(none)"
+        assert result["suggested_instructions"] == "Extract prices and store names"
+        entry = Library(mock_config).get_watchlist()[0]
+        assert entry.instructions == ""
+        assert entry.instructions_approved is False
+        assert entry.active_instructions == ""
+        rows = [
+            json.loads(line)
+            for line in (mock_config.library_dir / ".distill" / "cost_log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "watch-add"
+        assert rows[0]["grok_calls"] == 1
+
+    def test_auto_suggestion_budget_stop_is_persisted_before_watch_mutation(self, mock_config):
+        Library(mock_config)
+        mock_config.distill_mcp_max_spend_per_call = 0.01
+        fake_vid = MagicMock(title="Daily Deals Rundown")
+
+        def exceed_budget(name, titles, config, tracker=None):
+            assert tracker is not None
+            tracker.record(
+                TokenUsage(
+                    call_type="watch_instructions",
+                    prompt_tokens=1_000_000,
+                    completion_tokens=1,
+                    model="grok-4.3",
+                )
+            )
+            return "unreachable"
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch(
+                "distill.ingestors.youtube.discovery.resolve_channel_name",
+                return_value="DealCh",
+            ),
+            patch("distill.ingestors.youtube.discovery.discover_videos", return_value=[fake_vid]),
+            patch(
+                "distill.pipeline.analysis.video.generate_watch_instructions",
+                side_effect=exceed_budget,
+            ),
+        ):
+            payload = json.loads(watch_add(url="https://youtube.com/@DealCh"))
+
+        assert payload["status"] == "budget_exceeded"
+        assert Library(mock_config).get_watchlist() == []
+        rows = [
+            json.loads(line)
+            for line in (mock_config.library_dir / ".distill" / "cost_log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "watch-add"
+        assert rows[0]["grok_calls"] == 1
 
     def test_auto_generation_failures_are_reported(self, mock_config):
         Library(mock_config)
@@ -761,7 +928,7 @@ class TestCatchUp:
             patch("distill.mcp.server._config", return_value=mock_config),
             patch("distill.ingestors.youtube.discovery.discover_videos", return_value=[fake_vid]),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
-            patch("distill.mcp.tools.watch.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
         ):
             result = json.loads(catch_up())
         # vid000 is already processed, so channel is up_to_date
@@ -788,7 +955,7 @@ class TestCatchUp:
             patch("distill.pipeline.synthesis.topic.synthesize_channel"),
             patch("distill.pipeline.synthesis.topic.synthesize_topic"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
-            patch("distill.mcp.tools.watch.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
         ):
             result = json.loads(catch_up())
         assert result["results"][0]["status"] == "processed"
@@ -833,7 +1000,7 @@ class TestCatchUp:
                 side_effect=RuntimeError("network fail"),
             ),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
-            patch("distill.mcp.tools.watch.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
         ):
             result = json.loads(catch_up())
         assert result["results"][0]["status"] == "error"
@@ -849,7 +1016,7 @@ class TestCatchUp:
                 "distill.ingestors.youtube.discovery.discover_videos", return_value=[]
             ) as mock_discover,
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
-            patch("distill.mcp.tools.watch.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
         ):
             json.loads(catch_up(days=2))
 
@@ -1043,7 +1210,7 @@ class TestLearnTopic:
             patch("distill.cli_shared.process_video", return_value=True),
             patch("distill.pipeline.synthesis.topic.synthesize_channel"),
             patch("distill.pipeline.synthesis.topic.synthesize_topic"),
-            patch("distill.mcp.tools.discover.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             result = json.loads(learn_topic("ai agents", limit=2))
@@ -1090,7 +1257,7 @@ class TestProcessVideoUrl:
             patch("distill.cli_shared.resolve_video_channel_name", return_value="Chan"),
             patch("distill.cli_shared.ensure_channel_context"),
             patch("distill.cli_shared.process_video", side_effect=_process),
-            patch("distill.mcp.tools.topics.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             result = json.loads(process_video_url("https://youtube.com/watch?v=abc"))
@@ -1124,7 +1291,7 @@ class TestGenerateReport:
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
             patch("distill.pipeline.report.accordion.run_accordion_research", return_value=report),
-            patch("distill.mcp.tools.reports.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             result = json.loads(generate_report("ai", channel="TestChannel"))
@@ -1138,7 +1305,7 @@ class TestGenerateReport:
         with (
             patch("distill.mcp.server._config", return_value=mock_config),
             patch("distill.pipeline.report.accordion.run_accordion_research", return_value=None),
-            patch("distill.mcp.tools.reports.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             result = json.loads(generate_report("ai"))

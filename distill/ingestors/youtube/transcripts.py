@@ -24,15 +24,17 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Protocol
 
-import yt_dlp
-
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.youtube._yt_dlp_boundary import (
     first_text,
     info_mapping,
     int_field,
-    ydl_params,
+)
+from distill.ingestors.youtube.safe_ytdlp import (
+    YTDLP_METADATA_RESPONSE_BYTES,
+    YTDLP_METADATA_TOTAL_BYTES,
+    SafeYoutubeDL,
 )
 from distill.library.locking import exclusive_file_lock, open_lock_file
 from distill.library.paths import atomic_write_text
@@ -196,7 +198,11 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
         }
 
         try:
-            with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+            with SafeYoutubeDL(
+                ydl_opts,
+                metadata_byte_limit=_MAX_CAPTION_BYTES,
+                total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+            ) as ydl:
                 ydl.download([video_url])
         except Exception:
             return None
@@ -279,7 +285,12 @@ def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path |
         "progress_hooks": [_audio_download_progress],
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+        with SafeYoutubeDL(
+            ydl_opts,
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            media_byte_limit=_MAX_AUDIO_BYTES,
+            total_byte_limit=_MAX_AUDIO_BYTES + YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
             info = info_mapping(ydl.extract_info(video_url, download=True)) or {}
     except Exception as exc:
         console.print(f"    [red]Audio download failed: {exc}[/red]")

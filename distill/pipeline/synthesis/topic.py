@@ -21,7 +21,11 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
-from distill.prompts.synthesis import channel_synthesis_prompt, topic_synthesis_prompt
+from distill.prompts.synthesis import (
+    channel_synthesis_evidence,
+    channel_synthesis_prompt,
+    topic_synthesis_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +123,11 @@ def synthesize_channel(
     if run_synthesis_verify(
         channel_dir,
         synthesis,
-        all_insights,
+        channel_synthesis_evidence(channel_name, channel_context, all_insights),
         verify_mode=config.distill_verify,
         identity=f"{topic}_{channel_dir.name}",
         insight_name=f"{channel_name} channel synthesis",
-        source_name="per-video insights",
+        source_name="channel context and per-video insights",
         notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
     ):
         console.print(
@@ -222,9 +226,9 @@ def synthesize_topic(
         console.print(f"  [red]Topic synthesis API error: {e}[/red]")
         return ""
 
-    # Verify against the channel syntheses the prompt was built from; the
-    # sidecar identity is distinct from the artifact's so the three
-    # topic-level syntheses can't collide.
+    # Verify against the channel syntheses used by the prompt. The identity
+    # names the video-topic modality explicitly and remains distinct from site,
+    # paper, and mixed-corpus receipts.
     from distill.pipeline.verify import run_synthesis_verify
 
     if run_synthesis_verify(

@@ -278,6 +278,29 @@ class TestSiteLoopIsolation:
         assert len(issues) == 1
         assert issues[0].context == "web"
 
+    def test_site_synthesis_budget_exceeded_is_a_hard_stop(self, tmp_path):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        summary = RunSummary(command="discover")
+
+        def exceed_budget(*args, **kwargs):
+            raise BudgetExceededError(0.6, 0.5)
+
+        with pytest.raises(BudgetExceededError):
+            _discover_ingest.ingest_sites(
+                "web",
+                config,
+                CostTracker(),
+                summary,
+                [],
+                ingest_attachments=False,
+                has_videos=False,
+                process_site_seed_fn=_successful_site_ingest,
+                synthesize_site_topic_fn=exceed_budget,
+                find_artifact_fn=lambda *args, **kwargs: tmp_path / "unused.md",
+            )
+
+        assert summary.issues == []
+
 
 class TestVideoLoopIsolation:
     def test_one_crashed_video_does_not_kill_the_channel_sweep(self, tmp_path):

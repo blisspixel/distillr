@@ -386,9 +386,13 @@
         "properties": {
           "limit": {
             "default": 10,
+            "maximum": 50,
+            "minimum": 1,
             "type": "integer"
           },
           "query": {
+            "maxLength": 4096,
+            "minLength": 1,
             "type": "string"
           },
           "topic": {

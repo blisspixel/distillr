@@ -115,7 +115,12 @@ def is_public_web_url(url: str) -> bool:
 
 
 @contextlib.contextmanager
-def pin_host_to_ip(host: str, ip: str) -> Iterator[None]:
+def pin_host_to_ip(
+    host: str,
+    ip: str,
+    *,
+    timeout_seconds: float | None = None,
+) -> Iterator[None]:
     """Force ``socket.getaddrinfo(host, ...)`` to return only ``ip`` in-scope.
 
     Closes the DNS-rebind TOCTOU: resolve+validate ``host`` -> ``ip`` once (via
@@ -128,7 +133,15 @@ def pin_host_to_ip(host: str, ip: str) -> Iterator[None]:
     scopes in one thread remain supported through the reentrant lock. This
     prevents out-of-order restoration from leaving an obsolete resolver active.
     """
-    with _PIN_LOCK:
+    if timeout_seconds is None:
+        acquired = _PIN_LOCK.acquire()
+    elif timeout_seconds <= 0:
+        acquired = False
+    else:
+        acquired = _PIN_LOCK.acquire(timeout=timeout_seconds)
+    if not acquired:
+        raise TimeoutError("timed out waiting for the process-wide DNS pin lock")
+    try:
         real_getaddrinfo = socket.getaddrinfo
         previous_pins = getattr(_PIN_STATE, "pins", None)
         pins = dict(previous_pins or {})
@@ -149,6 +162,8 @@ def pin_host_to_ip(host: str, ip: str) -> Iterator[None]:
                 delattr(_PIN_STATE, "pins")
             else:
                 _PIN_STATE.pins = previous_pins
+    finally:
+        _PIN_LOCK.release()
 
 
 def _normalize_host(host: str) -> str:

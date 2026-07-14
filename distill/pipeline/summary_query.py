@@ -32,7 +32,7 @@ from distill.pipeline.citation_refs import (
     extract_source_citations,
 )
 from distill.pipeline.costs import CostTracker, TokenUsage
-from distill.pipeline.search import search_corpus
+from distill.pipeline.search import read_search_result, search_corpus
 from distill.prompts.summary_query import summary_query_prompt
 
 __all__ = ["QuerySummary", "summarize_query"]
@@ -126,9 +126,8 @@ def summarize_query(
     stems: list[str] = []
     revision_sources: list[tuple[str, str]] = []
     for result, source_file in zip(results, files, strict=True):
-        try:
-            source_text = source_file.read_text(encoding="utf-8")
-        except OSError:
+        source_text = read_search_result(config, result)
+        if source_text is None:
             continue
         body = strip_frontmatter(source_text)[:_MAX_SOURCE_CHARS]
         stems.append(source_file.stem)

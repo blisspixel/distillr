@@ -96,9 +96,49 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/v}"
           uv export --frozen --no-dev --no-emit-project --format requirements-txt -o sbom-requirements.txt
-          uvx --from cyclonedx-bom==7.3.0 cyclonedx-py requirements sbom-requirements.txt \
-            --pyproject pyproject.toml --of JSON -o "distillr-${tag}.cdx.json"
-          rm -f sbom-requirements.txt
+          uv export --frozen --only-group sbom --no-emit-project --format requirements-txt -o sbom-tool-requirements.txt
+          uv venv --python 3.12 .sbom-venv
+          uv venv --python 3.12 .sbom-tool-venv
+          sbom_python=".sbom-venv/bin/python"
+          sbom_tool=".sbom-tool-venv/bin/cyclonedx-py"
+          uv pip install --python "${sbom_python}" --require-hashes -r sbom-requirements.txt
+          uv pip install --python .sbom-tool-venv/bin/python --require-hashes -r sbom-tool-requirements.txt
+          uv pip install --python "${sbom_python}" --no-deps dist/*.whl
+          "${sbom_tool}" environment \
+            --pyproject pyproject.toml \
+            --mc-type application \
+            --sv 1.6 \
+            --output-reproducible \
+            --of JSON \
+            -o "distillr-${tag}.cdx.json" \
+            "${sbom_python}"
+          SBOM_PATH="distillr-${tag}.cdx.json" SBOM_VERSION="${tag}" "${sbom_python}" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["SBOM_PATH"])
+          bom = json.loads(path.read_text(encoding="utf-8"))
+          component = bom.get("metadata", {}).get("component", {})
+          root_ref = component.get("bom-ref")
+          dependencies = bom.get("dependencies", [])
+          dependency_by_ref = {row.get("ref"): row for row in dependencies}
+          root_dependencies = dependency_by_ref.get(root_ref, {}).get("dependsOn", [])
+          known_refs = {root_ref}
+          known_refs.update(row.get("bom-ref") for row in bom.get("components", []))
+
+          if bom.get("bomFormat") != "CycloneDX" or bom.get("specVersion") != "1.6":
+              raise SystemExit("SBOM format or specification version is invalid")
+          if component.get("name") != "distillr" or component.get("version") != os.environ["SBOM_VERSION"]:
+              raise SystemExit("SBOM root component does not match the release")
+          if not root_ref or not root_dependencies:
+              raise SystemExit("SBOM root dependency graph is empty")
+          if any(ref not in known_refs for row in dependencies for ref in [row.get("ref"), *row.get("dependsOn", [])]):
+              raise SystemExit("SBOM dependency graph contains an unknown component reference")
+          PY
+          rm -rf .sbom-venv
+          rm -rf .sbom-tool-venv
+          rm -f sbom-requirements.txt sbom-tool-requirements.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

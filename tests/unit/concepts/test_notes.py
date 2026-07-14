@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+import pytest
 
 from distill.concepts.notes import (
     _extracted_sources_path,
@@ -27,6 +31,8 @@ from distill.concepts.records import (
     Polarity,
     SourceEvidence,
 )
+from distill.concepts.recovery import diff_notes, list_snapshots, note_path_for_slug
+from distill.library.links import check_links, fix_broken_links
 
 
 def _concept(
@@ -94,6 +100,20 @@ class TestPathResolution:
         # ':' is invalid in Windows filenames; we swap to '-'
         assert ":" not in path.name
         assert path == tmp_path / ".history" / "rotational_embeddings" / "2026-05-15T14-30-00Z.md"
+
+    @pytest.mark.parametrize(
+        "storage_slug", ["", ".", "..", "../escape", "..\\escape", "C:escape", "bad\x00slug"]
+    )
+    def test_history_path_rejects_unsafe_storage_slug(
+        self, tmp_path: Path, storage_slug: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Unsafe history storage slug"):
+            history_path_for(
+                tmp_path,
+                _concept(),
+                "2026-05-15T14:30:00Z",
+                storage_slug=storage_slug,
+            )
 
 
 class TestRenderPlaybook:
@@ -265,6 +285,42 @@ class TestWritePlaybook:
         path2, _ = write_playbook(tmp_path, c, now_iso="2026-05-15T11:00:00Z")
         assert path1 == path2  # same logical concept -> same file
 
+    def test_collision_histories_follow_resolved_note_identity(self, tmp_path: Path) -> None:
+        first = _concept(name="A B", normalized="a b", helpful=(1, 1))
+        second = _concept(name="A/B", normalized="a/b", helpful=(1, 1))
+
+        first_path, _ = write_playbook(tmp_path, first, now_iso="2026-05-15T10:00:00Z")
+        second_path, _ = write_playbook(tmp_path, second, now_iso="2026-05-15T10:00:01Z")
+        write_playbook(
+            tmp_path,
+            _concept(name="A B", normalized="a b", helpful=(2, 2)),
+            now_iso="2026-05-15T11:00:00Z",
+        )
+        write_playbook(
+            tmp_path,
+            _concept(name="A/B", normalized="a/b", helpful=(3, 3)),
+            now_iso="2026-05-15T11:00:01Z",
+        )
+
+        first_history = list((tmp_path / ".history" / first_path.stem).glob("*.md"))
+        second_history = list((tmp_path / ".history" / second_path.stem).glob("*.md"))
+        assert first_path.stem == "a_b"
+        assert second_path.stem == "a_b__2"
+        assert len(first_history) == len(second_history) == 1
+        assert 'normalized_name: "a b"' in first_history[0].read_text(encoding="utf-8")
+        assert 'normalized_name: "a/b"' in second_history[0].read_text(encoding="utf-8")
+        assert note_path_for_slug(tmp_path, second_path.stem) == second_path
+
+        second_snapshots = list_snapshots(tmp_path, second_path.stem)
+        second_diff = diff_notes(
+            second_snapshots[0].path.read_text(encoding="utf-8"),
+            second_path.read_text(encoding="utf-8"),
+        )
+        assert {change.field for change in second_diff.field_changes} == {
+            "helpful_count",
+            "helpful_evidence",
+        }
+
     def test_overwrites_and_snapshots_prior(self, tmp_path: Path) -> None:
         first = _concept(helpful=(2, 4))
         write_playbook(tmp_path, first, now_iso="2026-05-15T14:30:00Z")
@@ -286,7 +342,7 @@ class TestWritePlaybook:
         path, changed = write_playbook(tmp_path, second, now_iso="2026-05-16T10:00:00Z")
         assert changed is True
 
-        history_files = list((tmp_path / ".history" / "rotational_embeddings").iterdir())
+        history_files = list((tmp_path / ".history" / "rotational_embeddings").glob("*.md"))
         assert len(history_files) == 1
         assert history_files[0].read_text(encoding="utf-8") == prior_content
 
@@ -294,6 +350,72 @@ class TestWritePlaybook:
         new_content = path.read_text(encoding="utf-8")
         assert new_content != prior_content
         assert "[[new_Insights]]" in new_content
+
+    def test_link_repair_cannot_overwrite_a_concurrent_playbook_write(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        initial = _concept()
+        note_path, _ = write_playbook(
+            tmp_path,
+            initial,
+            now_iso="2026-05-15T10:00:00Z",
+        )
+        broken = check_links(tmp_path).broken_links
+        assert broken
+
+        updated = _concept(
+            extra_sources=[
+                SourceEvidence(
+                    source_id="D",
+                    artifact_path="papers/new/new_Insights.md",
+                    polarity=Polarity.HELPFUL,
+                    claim_excerpt="Newer evidence must survive link repair.",
+                )
+            ]
+        )
+        repair_read = threading.Event()
+        release_repair = threading.Event()
+        writer_finished = threading.Event()
+        real_read_text = Path.read_text
+        intercepted = False
+        intercept_lock = threading.Lock()
+
+        def blocking_read_text(path: Path, *args, **kwargs) -> str:
+            nonlocal intercepted
+            content = real_read_text(path, *args, **kwargs)
+            if path == note_path:
+                with intercept_lock:
+                    should_block = not intercepted
+                    intercepted = True
+                if should_block:
+                    repair_read.set()
+                    assert release_repair.wait(timeout=5)
+            return content
+
+        def concurrent_writer() -> None:
+            write_playbook(
+                tmp_path,
+                updated,
+                now_iso="2026-05-15T11:00:00Z",
+            )
+            writer_finished.set()
+
+        monkeypatch.setattr(Path, "read_text", blocking_read_text)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            repair = executor.submit(fix_broken_links, tmp_path, broken)
+            assert repair_read.wait(timeout=5)
+            writer = executor.submit(concurrent_writer)
+            writer_finished_before_release = writer_finished.wait(timeout=0.25)
+            release_repair.set()
+            assert repair.result(timeout=5) > 0
+            writer.result(timeout=5)
+
+        assert writer_finished_before_release is False
+        final_content = note_path.read_text(encoding="utf-8")
+        assert "source_count: 4" in final_content
+        assert "Newer evidence must survive link repair." in final_content
 
 
 class TestMentionsJsonl:

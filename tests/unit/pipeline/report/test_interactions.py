@@ -18,6 +18,7 @@ from distill.pipeline.costs import CostTracker, ProjectedBudgetExceededError
 from distill.pipeline.report._interactions import (
     POLLING_STATUSES,
     await_interaction,
+    file_search_grounding_reason,
     interaction_text,
     submit_metered_interaction,
 )
@@ -64,6 +65,25 @@ def test_submit_metered_interaction_records_ambiguous_transport_failure():
     with pytest.raises(TimeoutError, match="provider response timed out"):
         submit_metered_interaction(
             fail_after_contact,
+            tracker=tracker,
+            model="deep-research-preview-04-2026",
+        )
+
+    assert tracker.gemini_queries == 1
+    assert tracker.gemini_query_outcomes == ["ambiguous"]
+    assert tracker.total_gemini_cost == 2.50
+
+
+@pytest.mark.parametrize("error_type", [KeyboardInterrupt, SystemExit, GeneratorExit])
+def test_submit_metered_interaction_records_ambiguous_process_interruption(error_type):
+    tracker = CostTracker()
+
+    def interrupt_after_contact() -> object:
+        raise error_type()
+
+    with pytest.raises(error_type):
+        submit_metered_interaction(
+            interrupt_after_contact,
             tracker=tracker,
             model="deep-research-preview-04-2026",
         )
@@ -150,6 +170,61 @@ def test_interaction_text_ignores_malformed_text_field():
         ]
     )
     assert interaction_text(interaction) == ""
+
+
+def test_file_search_grounding_requires_matched_result_and_final_file_citation():
+    grounded = SimpleNamespace(
+        steps=[
+            SimpleNamespace(type="file_search_call", id="search-1"),
+            SimpleNamespace(type="file_search_result", call_id="search-1"),
+            SimpleNamespace(
+                type="model_output",
+                content=[
+                    SimpleNamespace(
+                        type="text",
+                        text="grounded answer",
+                        annotations=[SimpleNamespace(type="file_citation", file_name="doc.md")],
+                    )
+                ],
+            ),
+        ]
+    )
+
+    assert file_search_grounding_reason(grounded) is None
+
+
+def test_file_search_grounding_rejects_missing_or_mismatched_evidence():
+    citation = SimpleNamespace(type="file_citation", file_name="doc.md")
+    no_result = SimpleNamespace(
+        steps=[
+            SimpleNamespace(type="file_search_call", id="search-1"),
+            SimpleNamespace(
+                type="model_output",
+                content=[SimpleNamespace(type="text", text="answer", annotations=[citation])],
+            ),
+        ]
+    )
+    no_citation = SimpleNamespace(
+        steps=[
+            SimpleNamespace(type="file_search_call", id="search-1"),
+            SimpleNamespace(type="file_search_result", call_id="search-1"),
+            _model_output("answer"),
+        ]
+    )
+    mismatched = SimpleNamespace(
+        steps=[
+            SimpleNamespace(type="file_search_call", id="search-1"),
+            SimpleNamespace(type="file_search_result", call_id="search-2"),
+            SimpleNamespace(
+                type="model_output",
+                content=[SimpleNamespace(type="text", text="answer", annotations=[citation])],
+            ),
+        ]
+    )
+
+    assert "matched File Search result" in file_search_grounding_reason(no_result)
+    assert "file citation" in file_search_grounding_reason(no_citation)
+    assert "matched File Search result" in file_search_grounding_reason(mismatched)
 
 
 # ── await_interaction ─────────────────────────────────────────────────

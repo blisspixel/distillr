@@ -1,5 +1,7 @@
 """Tests for distill.eval.harness (two-phase run + score + cost + cache + estimate)."""
 
+import json
+
 import pytest
 
 from distill.eval import harness as harness_mod
@@ -178,6 +180,99 @@ def test_malformed_cache_entry_recomputes(tmp_path, monkeypatch):
     )
     assert len(calls) == 3  # recomputed, did not serve the poisoned cache
     assert all(not r.cached for r in rows)
+
+
+def test_judge_caches_are_bound_to_exact_outputs(tmp_path, monkeypatch):
+    pairwise_calls: list[tuple[str, str]] = []
+    faithfulness_calls: list[str] = []
+
+    def pairwise(source, candidate, anchor, **kwargs):
+        pairwise_calls.append((candidate, anchor))
+        return PairwiseResult(win_rate=0.75, comparisons=2, rationale="current outputs")
+
+    def faithful(source, output, **kwargs):
+        faithfulness_calls.append(output)
+        return FaithfulnessVerdict(label="faithful", unsupported=(), rationale="current output")
+
+    output = {"value": _OUTPUT + " FIRST"}
+
+    def analyze(fixture, rc, tracker):
+        return output["value"]
+
+    monkeypatch.setattr(harness_mod, "judge_pairwise", pairwise)
+    monkeypatch.setattr(harness_mod, "judge_faithfulness", faithful)
+    run_model_eval(
+        "paper",
+        ["grok-4.3", "candidate"],
+        anchor="grok-4.3",
+        cache_dir=tmp_path,
+        analyze=analyze,
+    )
+    assert len(pairwise_calls) == 3
+    assert len(faithfulness_calls) == 6
+
+    for path in tmp_path.glob("*.json"):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if "output" in payload:
+            path.unlink()
+
+    output["value"] = _OUTPUT + " SECOND"
+    rows = run_model_eval(
+        "paper",
+        ["grok-4.3", "candidate"],
+        anchor="grok-4.3",
+        cache_dir=tmp_path,
+        analyze=analyze,
+    )
+
+    assert len(pairwise_calls) == 6
+    assert len(faithfulness_calls) == 12
+    assert all(
+        "SECOND" in candidate and "SECOND" in anchor for candidate, anchor in pairwise_calls[3:]
+    )
+    assert all("SECOND" in judged_output for judged_output in faithfulness_calls[6:])
+    assert all(row.faithfulness == "faithful" for row in rows)
+
+
+def test_invalid_judge_cache_values_are_recomputed(tmp_path, monkeypatch):
+    calls = {"pairwise": 0, "faithfulness": 0}
+
+    def pairwise(source, candidate, anchor, **kwargs):
+        calls["pairwise"] += 1
+        return PairwiseResult(win_rate=0.5, comparisons=2, rationale="bounded")
+
+    def faithful(source, output, **kwargs):
+        calls["faithfulness"] += 1
+        return FaithfulnessVerdict(label="minor", unsupported=(), rationale="known label")
+
+    monkeypatch.setattr(harness_mod, "judge_pairwise", pairwise)
+    monkeypatch.setattr(harness_mod, "judge_faithfulness", faithful)
+    run_model_eval(
+        "paper",
+        ["grok-4.3", "candidate"],
+        anchor="grok-4.3",
+        cache_dir=tmp_path,
+        analyze=_fake_analyze_factory([]),
+    )
+
+    for path in tmp_path.glob("*.json"):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if "win_rate" in payload:
+            path.write_text('{"win_rate": 999, "rationale": "poisoned"}', encoding="utf-8")
+        elif "label" in payload:
+            path.write_text('{"label": "unknown", "rationale": "poisoned"}', encoding="utf-8")
+
+    rows = run_model_eval(
+        "paper",
+        ["grok-4.3", "candidate"],
+        anchor="grok-4.3",
+        cache_dir=tmp_path,
+        analyze=_fake_analyze_factory([]),
+    )
+
+    assert calls == {"pairwise": 6, "faithfulness": 12}
+    assert all(row.pairwise_winrate == 0.5 for row in rows if row.model == "candidate")
+    assert all(row.faithfulness == "minor" for row in rows)
 
 
 def test_estimate_is_fixture_aware_and_modest():

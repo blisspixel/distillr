@@ -64,6 +64,27 @@ class MigrationResult:
     errors: list[str] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[str]
 
 
+@dataclass(frozen=True, slots=True)
+class _StemRemap:
+    """One successful rename with enough path identity to resolve local links."""
+
+    source_path: Path
+    target_path: Path
+
+
+def _ambiguous_wiki_link_errors(stem_remaps: dict[str, list[_StemRemap]]) -> list[str]:
+    errors: list[str] = []
+    for old_stem, remaps in sorted(stem_remaps.items()):
+        if len(remaps) <= 1:
+            continue
+        targets = ", ".join(str(remap.target_path) for remap in remaps)
+        errors.append(
+            f"Ambiguous wiki-link stem '{old_stem}' maps to multiple targets "
+            f"({targets}); non-colocated links were left unchanged"
+        )
+    return errors
+
+
 def _compute_modern_name(legacy_path: Path) -> str:
     """Derive modern filename from legacy path context.
 
@@ -137,8 +158,7 @@ def apply_migration(
     conflicts_skipped = 0
     errors: list[str] = []
 
-    # Track old_stem → new_stem for link updates
-    stem_remap: dict[str, str] = {}
+    stem_remaps: dict[str, list[_StemRemap]] = {}
 
     for action in actions:
         if action.action_type != "rename":
@@ -167,15 +187,18 @@ def apply_migration(
             old_stem = source.stem
             new_stem = target.stem
             if old_stem != new_stem:
-                stem_remap[old_stem] = new_stem
+                stem_remaps.setdefault(old_stem, []).append(
+                    _StemRemap(source_path=source, target_path=target)
+                )
         except OSError as e:
             errors.append(f"Rename failed {source} → {target}: {e}")
 
     # Update wiki-links in all markdown files in the library
-    if stem_remap:
+    if stem_remaps:
         root = library_dir or _find_library_root(actions)
         if root:
-            links_updated = _update_wiki_links(root, stem_remap)
+            errors.extend(_ambiguous_wiki_link_errors(stem_remaps))
+            links_updated = _update_wiki_links(root, stem_remaps)
 
     return MigrationResult(
         files_renamed=files_renamed,
@@ -358,11 +381,22 @@ def apply_frontmatter_field_migration(
     )
 
 
-def _update_wiki_links(library_dir: Path, stem_remap: dict[str, str]) -> int:
-    """Update wiki-links in all markdown files to reflect renamed stems."""
+def _link_target_for_file(md_file: Path, remaps: list[_StemRemap]) -> str | None:
+    colocated = {
+        remap.target_path.stem for remap in remaps if remap.source_path.parent == md_file.parent
+    }
+    if len(colocated) == 1:
+        return next(iter(colocated))
+    if len(remaps) == 1:
+        return remaps[0].target_path.stem
+    return None
+
+
+def _update_wiki_links(library_dir: Path, stem_remaps: dict[str, list[_StemRemap]]) -> int:
+    """Update only wiki-links whose renamed destination is unambiguous."""
     updated_count = 0
 
-    for md_file in library_dir.rglob("*.md"):
+    for md_file in sorted(library_dir.rglob("*.md")):
         try:
             content = md_file.read_text(encoding="utf-8")
         except OSError:
@@ -371,7 +405,10 @@ def _update_wiki_links(library_dir: Path, stem_remap: dict[str, str]) -> int:
 
         new_content = content
         file_updates = 0
-        for old_stem, new_stem in stem_remap.items():
+        for old_stem, remaps in stem_remaps.items():
+            new_stem = _link_target_for_file(md_file, remaps)
+            if new_stem is None:
+                continue
             # Count replacements in original content before modifying
             old_pattern = re.escape(old_stem)
             matches = re.findall(rf"\[\[{old_pattern}([^\]]*)\]\]", new_content)

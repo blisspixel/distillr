@@ -1233,6 +1233,34 @@ def test_gemini_query_authorization_refuses_without_ledger_row():
     assert tracker.gemini_query_outcomes == []
 
 
+def test_token_usage_authorization_refuses_without_ledger_row():
+    tracker = CostTracker(budget=0.000001)
+    projected = TokenUsage(
+        prompt_tokens=1_024,
+        completion_tokens=5,
+        model="grok-4.3",
+        provider_name="xai",
+        provider_type="cloud",
+        usage_source="conservative",
+    )
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        tracker.authorize_token_usage(projected)
+
+    assert tracker.entries == []
+
+
+def test_token_usage_authorization_includes_existing_spend_without_mutation():
+    tracker = CostTracker(budget=0.003)
+    existing = TokenUsage(prompt_tokens=1_000, model="grok-4.3")
+    projected = TokenUsage(prompt_tokens=1_000, model="grok-4.3")
+    tracker.record(existing)
+
+    tracker.authorize_token_usage(projected)
+
+    assert tracker.entries == [existing]
+
+
 def test_gemini_query_outcomes_are_validated_and_summarized():
     tracker = CostTracker()
     tracker.record_gemini_query(outcome="ambiguous")

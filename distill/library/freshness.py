@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from distill.library.insights import discover_insights
+from distill.library.insights import discover_insights, read_discovered_insight
 from distill.library.paths import artifact_filename, extract_frontmatter, legacy_artifact_path
 
 __all__ = [
@@ -34,10 +34,12 @@ __all__ = [
 # Topic-level synthesis kinds checked for source-relative freshness, each
 # scoped to the source subtree it actually synthesizes (``None`` = the whole
 # topic). Without the scoping, a paper synthesis would read "stale" the moment
-# a video landed -- caught live on the dogfood library. Site syntheses live
-# per-site, and reports are terminal artifacts; neither belongs here.
+# a video landed -- caught live on the dogfood library. Per-site syntheses live
+# below ``sites/``; the root site synthesis is the cross-site rollup tracked
+# here. Reports are terminal artifacts and do not belong here.
 _SYNTHESIS_KINDS: dict[str, tuple[str, ...] | None] = {
     "topic_synthesis": ("channels",),
+    "site_synthesis": ("sites",),
     "corpus_synthesis": None,
     "paper_synthesis": ("papers",),
 }
@@ -56,12 +58,14 @@ class SynthesisFreshness:
     shadowed_legacy: list[dict[str, Any]] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] dataclass default_factory appears as list[Unknown] under strict; usage confirms list[dict] -- {active, legacy}
 
 
-def _artifact_timestamp(path: Path) -> datetime | None:
+def _artifact_timestamp(path: Path, content: str | None = None) -> datetime | None:
     """Best timestamp for an artifact: frontmatter ``generated_at``, else mtime."""
-    try:
-        recorded = extract_frontmatter(path.read_text(encoding="utf-8")).get("generated_at", "")
-    except OSError:
-        return None
+    if content is None:
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+    recorded = extract_frontmatter(content).get("generated_at", "")
     if recorded:
         try:
             return datetime.fromisoformat(recorded.replace("Z", "+00:00")).replace(tzinfo=None)
@@ -81,11 +85,14 @@ def collect_synthesis_freshness(topic_dir: Path, topic: str) -> SynthesisFreshne
     everything newer), and a superseded legacy-named synthesis lingering beside
     its modern replacement (two confident syntheses, one wrong by age).
     """
-    timed_insights = [
-        (ref.path.relative_to(topic_dir).parts[0], t)
-        for ref, t in ((ref, _artifact_timestamp(ref.path)) for ref in discover_insights(topic_dir))
-        if t
-    ]
+    timed_insights: list[tuple[str, datetime]] = []
+    for ref in discover_insights(topic_dir):
+        content = read_discovered_insight(ref, topic_dir.parent.parent)
+        if content is None:
+            continue
+        timestamp = _artifact_timestamp(ref.path, content)
+        if timestamp is not None:
+            timed_insights.append((ref.path.relative_to(topic_dir).parts[0], timestamp))
 
     checked = 0
     stale: list[dict[str, Any]] = []

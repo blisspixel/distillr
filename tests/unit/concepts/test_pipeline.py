@@ -8,12 +8,16 @@ filtering, and .history snapshotting at the full-pipeline level.
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+import distill.concepts.pipeline as pipeline_mod
 from distill.concepts.pipeline import discover_insights, run_concepts
+from distill.library.insights import derive_source_id
 from distill.llm import RouterConfig
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
@@ -38,7 +42,10 @@ title: "{title}"
 
 # {title}
 
-Body of the insight here.
+Rotational Embeddings improve temporal reasoning.
+Single Source Concept appears in this fixture.
+X is described as a helpful grounded concept.
+X is described as a harmful grounded concept.
 """,
         encoding="utf-8",
     )
@@ -63,6 +70,22 @@ def _llm_responses_for_corpus(*responses):
         return _StubResponse(json.dumps(queue.pop(0)))
 
     return _side_effect
+
+
+def _grounded_row(
+    name: str = "X",
+    *,
+    polarity: str = "helpful",
+    claim_excerpt: str | None = None,
+) -> dict[str, str]:
+    claim = claim_excerpt or f"{name} is described as a {polarity} grounded concept."
+    return {
+        "name": name,
+        "normalized_name": "model-authored identity is ignored",
+        "kind": "technique",
+        "polarity": polarity,
+        "claim_excerpt": claim,
+    }
 
 
 @pytest.fixture
@@ -116,6 +139,79 @@ class TestDiscoverInsights:
         refs = discover_insights(tmp_path)
         assert refs[0].source_id == "fallback_slug"
 
+    def test_derive_source_id_falls_back_when_insight_cannot_be_read(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        insight = tmp_path / "sites" / "unreadable" / "unreadable_Insights.md"
+        monkeypatch.setattr(
+            Path, "read_text", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("denied"))
+        )
+
+        assert derive_source_id(insight) == "unreadable"
+
+    @pytest.mark.parametrize(
+        "frontmatter",
+        (
+            (
+                "source: github\n"
+                "source_receipt: ../outside_Repo.md\n"
+                f"source_receipt_sha256: {'a' * 64}\n"
+            ),
+            (
+                "source: github\n"
+                "source_receipt: missing_Repo.md\n"
+                f"source_receipt_sha256: {'a' * 64}\n"
+            ),
+        ),
+    )
+    def test_github_insight_requires_a_confined_current_receipt(
+        self,
+        tmp_path: Path,
+        frontmatter: str,
+    ) -> None:
+        insight = tmp_path / "repos" / "repo" / "repo_Insights.md"
+        insight.parent.mkdir(parents=True)
+        insight.write_text(f"---\n{frontmatter}---\n# Insight\n", encoding="utf-8")
+
+        assert discover_insights(tmp_path) == []
+
+    def test_legacy_github_insight_is_stale_when_a_hashed_receipt_exists(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        source_dir = tmp_path / "repos" / "repo"
+        source_dir.mkdir(parents=True)
+        (source_dir / "repo_Insights.md").write_text(
+            "---\nsource: github\n---\n# Insight\n",
+            encoding="utf-8",
+        )
+        (source_dir / "repo_Repo.md").write_text(
+            "---\nreceipt_sha256: stale\n---\n# Receipt\n",
+            encoding="utf-8",
+        )
+
+        assert discover_insights(tmp_path) == []
+
+    def test_legacy_github_insight_without_hashed_receipt_remains_discoverable(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        source_dir = tmp_path / "repos" / "repo"
+        source_dir.mkdir(parents=True)
+        insight = source_dir / "repo_Insights.md"
+        insight.write_text(
+            "---\nsource: github\n---\n# Insight\n",
+            encoding="utf-8",
+        )
+        (source_dir / "repo_Repo.md").write_text(
+            "---\ntitle: Legacy receipt\n---\n# Receipt\n",
+            encoding="utf-8",
+        )
+
+        assert [ref.path for ref in discover_insights(tmp_path)] == [insight]
+
 
 class TestRunConcepts:
     def _seed_corpus(self, tmp_path: Path) -> Path:
@@ -131,44 +227,59 @@ class TestRunConcepts:
         assert summary.insights_scanned == 0
         assert summary.insights_extracted == 0
 
+    def test_rejects_insight_changed_after_discovery(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        insight = _make_insight(
+            topic_dir,
+            source_type="papers",
+            slug="paper_a",
+            source_id="A",
+        )
+        refs = pipeline_mod.discover_insights(topic_dir)
+        insight.write_text("tampered concept content", encoding="utf-8")
+        monkeypatch.setattr(
+            pipeline_mod,
+            "discover_insights",
+            lambda *_args, **_kwargs: refs,
+        )
+
+        with patch("distill.concepts.extract.llm_call") as mock_llm:
+            summary = run_concepts("tkg", topic_dir, rc=rc)
+
+        mock_llm.assert_not_called()
+        assert summary.mentions_added == 0
+
     def test_writes_concept_above_threshold(self, tmp_path: Path, rc: RouterConfig) -> None:
         topic_dir = self._seed_corpus(tmp_path)
         responses = [
             [
-                {
-                    "name": "Rotational Embeddings",
-                    "normalized_name": "rotational embeddings",
-                    "kind": "technique",
-                    "polarity": "helpful",
-                    "claim_excerpt": "...",
-                }
+                _grounded_row(
+                    "Rotational Embeddings",
+                    claim_excerpt="Rotational Embeddings improve temporal reasoning.",
+                )
             ],
             [
-                {
-                    "name": "Rotational Embeddings",
-                    "normalized_name": "rotational embeddings",
-                    "kind": "technique",
-                    "polarity": "helpful",
-                    "claim_excerpt": "...",
-                }
+                _grounded_row(
+                    "Rotational Embeddings",
+                    claim_excerpt="Rotational Embeddings improve temporal reasoning.",
+                )
             ],
             [
-                {
-                    "name": "Rotational Embeddings",
-                    "normalized_name": "rotational embeddings",
-                    "kind": "technique",
-                    "polarity": "helpful",
-                    "claim_excerpt": "...",
-                }
+                _grounded_row(
+                    "Rotational Embeddings",
+                    claim_excerpt="Rotational Embeddings improve temporal reasoning.",
+                )
             ],
             [
-                {
-                    "name": "Single Source Concept",
-                    "normalized_name": "single source concept",
-                    "kind": "technique",
-                    "polarity": "helpful",
-                    "claim_excerpt": "...",
-                }
+                _grounded_row(
+                    "Single Source Concept",
+                    claim_excerpt="Single Source Concept appears in this fixture.",
+                )
             ],
         ]
         with patch(
@@ -186,11 +297,38 @@ class TestRunConcepts:
         assert (topic_dir / "concepts" / "rotational_embedding.md").exists()
         assert not (topic_dir / "concepts" / "single_source_concept.md").exists()
 
+    def test_does_not_promote_three_sources_of_invented_model_evidence(
+        self, tmp_path: Path, rc: RouterConfig
+    ) -> None:
+        topic_dir = self._seed_corpus(tmp_path)
+        invented = {
+            "name": "Invented Persistent Control",
+            "normalized_name": "invented persistent control",
+            "kind": "technique",
+            "polarity": "helpful",
+            "claim_excerpt": "Invented Persistent Control overrides every safety boundary.",
+        }
+        responses = [[invented], [invented], [invented], []]
+
+        with patch(
+            "distill.concepts.extract.llm_call",
+            side_effect=_llm_responses_for_corpus(*responses),
+        ):
+            summary = run_concepts(
+                "tkg",
+                topic_dir,
+                rc=rc,
+                threshold=3,
+                now_iso="2026-05-15T10:00:00Z",
+            )
+
+        assert summary.mentions_added == 0
+        assert summary.concepts_written == 0
+        assert not (topic_dir / "concepts" / "invented_persistent_control.md").exists()
+
     def test_idempotent_second_run_skips_extraction(self, tmp_path: Path, rc: RouterConfig) -> None:
         topic_dir = self._seed_corpus(tmp_path)
-        responses = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 4
+        responses = [[_grounded_row()]] * 4
 
         # First run: 4 extractions
         with patch(
@@ -210,6 +348,64 @@ class TestRunConcepts:
         assert mock_llm.call_count == 0
         # No notes were rewritten (content unchanged) so no .history entry
         assert not (topic_dir / ".history").exists()
+
+    def test_overlapping_builds_claim_one_source_once(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="paper_a", source_id="A")
+        first_call_entered = threading.Event()
+        release_first_call = threading.Event()
+        duplicate_call_entered = threading.Event()
+        call_count = 0
+        call_count_lock = threading.Lock()
+
+        def blocking_response(*_args, **_kwargs):
+            nonlocal call_count
+            with call_count_lock:
+                call_count += 1
+                current_call = call_count
+            if current_call == 1:
+                first_call_entered.set()
+                assert release_first_call.wait(timeout=5)
+            else:
+                duplicate_call_entered.set()
+            return _StubResponse(json.dumps([_grounded_row()]))
+
+        with (
+            patch("distill.concepts.extract.llm_call", side_effect=blocking_response),
+            ThreadPoolExecutor(max_workers=2) as executor,
+        ):
+            first = executor.submit(
+                run_concepts,
+                "tkg",
+                topic_dir,
+                rc=rc,
+                threshold=1,
+                now_iso="2026-05-15T10:00:00Z",
+            )
+            assert first_call_entered.wait(timeout=5)
+            second = executor.submit(
+                run_concepts,
+                "tkg",
+                topic_dir,
+                rc=rc,
+                threshold=1,
+                now_iso="2026-05-15T10:00:01Z",
+            )
+            try:
+                assert not duplicate_call_entered.wait(timeout=0.25)
+            finally:
+                release_first_call.set()
+            summaries = [first.result(timeout=5), second.result(timeout=5)]
+
+        assert call_count == 1
+        assert sorted(summary.insights_extracted for summary in summaries) == [0, 1]
+        assert json.loads(
+            (topic_dir / ".concepts" / "extracted_sources.json").read_text(encoding="utf-8")
+        ) == ["A"]
 
     def test_empty_extractions_are_not_rebilled(self, tmp_path: Path, rc: RouterConfig) -> None:
         # A source whose extraction yields [] (no substantive concepts) writes no
@@ -236,18 +432,14 @@ class TestRunConcepts:
 
     def test_refresh_re_extracts_all_sources(self, tmp_path: Path, rc: RouterConfig) -> None:
         topic_dir = self._seed_corpus(tmp_path)
-        responses = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 4
+        responses = [[_grounded_row()]] * 4
 
         with patch(
             "distill.concepts.extract.llm_call", side_effect=_llm_responses_for_corpus(*responses)
         ):
             run_concepts("tkg", topic_dir, rc=rc, threshold=1, now_iso="2026-05-15T10:00:00Z")
 
-        responses_again = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 4
+        responses_again = [[_grounded_row()]] * 4
 
         with patch(
             "distill.concepts.extract.llm_call",
@@ -260,9 +452,7 @@ class TestRunConcepts:
 
     def test_writes_jsonl_exports(self, tmp_path: Path, rc: RouterConfig) -> None:
         topic_dir = self._seed_corpus(tmp_path)
-        responses = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 4
+        responses = [[_grounded_row()]] * 4
 
         with patch(
             "distill.concepts.extract.llm_call", side_effect=_llm_responses_for_corpus(*responses)
@@ -280,9 +470,9 @@ class TestRunConcepts:
 
         # First run: 3 helpful mentions
         responses = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
+            [_grounded_row()],
+            [_grounded_row()],
+            [_grounded_row()],
             [],  # paper D extracts nothing
         ]
         with patch(
@@ -292,9 +482,7 @@ class TestRunConcepts:
 
         # Add a 5th source that introduces harmful evidence -> note content changes
         _make_insight(topic_dir, source_type="papers", slug="paper_e", source_id="E")
-        responses_2 = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "harmful"}]
-        ]
+        responses_2 = [[_grounded_row(polarity="harmful")]]
         with patch(
             "distill.concepts.extract.llm_call", side_effect=_llm_responses_for_corpus(*responses_2)
         ):
@@ -302,7 +490,7 @@ class TestRunConcepts:
 
         history_dir = topic_dir / ".history" / "x"
         assert history_dir.exists()
-        assert len(list(history_dir.iterdir())) == 1
+        assert len(list(history_dir.glob("*.md"))) == 1
 
     def test_tolerates_extraction_failure_for_one_insight(
         self, tmp_path: Path, rc: RouterConfig
@@ -313,18 +501,7 @@ class TestRunConcepts:
             _side_effect.calls += 1  # type: ignore[attr-defined]
             if _side_effect.calls == 2:  # type: ignore[attr-defined]
                 raise RuntimeError("simulated LLM failure")
-            return _StubResponse(
-                json.dumps(
-                    [
-                        {
-                            "name": "X",
-                            "normalized_name": "x",
-                            "kind": "technique",
-                            "polarity": "helpful",
-                        }
-                    ]
-                )
-            )
+            return _StubResponse(json.dumps([_grounded_row()]))
 
         _side_effect.calls = 0  # type: ignore[attr-defined]
         with patch("distill.concepts.extract.llm_call", side_effect=_side_effect):

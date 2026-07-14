@@ -7,11 +7,14 @@ Tests: --links, --links --json, --links --fix
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
 from distill.library.links import check_links, fix_broken_links
+from distill.library.paths import atomic_write_text
 
 
 @pytest.fixture
@@ -179,3 +182,62 @@ class TestFixBrokenLinks:
         new_lines = summary_file.read_text(encoding="utf-8").splitlines()
         # Same number of lines (links replaced inline, not removed)
         assert len(new_lines) == len(original_lines)
+
+    def test_fix_does_not_overwrite_a_concurrent_atomic_update(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        library_dir = tmp_path / "library"
+        library_dir.mkdir()
+        source = library_dir / "source.md"
+        source.write_text("# Source\n\n[[missing|Missing]]\n", encoding="utf-8")
+        broken = check_links(library_dir).broken_links
+        repair_read = threading.Event()
+        release_repair = threading.Event()
+        writer_finished = threading.Event()
+        real_read_text = Path.read_text
+        intercepted = False
+        intercept_lock = threading.Lock()
+
+        def blocking_read_text(path: Path, *args, **kwargs) -> str:
+            nonlocal intercepted
+            content = real_read_text(path, *args, **kwargs)
+            if path == source:
+                with intercept_lock:
+                    should_block = not intercepted
+                    intercepted = True
+                if should_block:
+                    repair_read.set()
+                    assert release_repair.wait(timeout=5)
+            return content
+
+        def concurrent_writer() -> None:
+            atomic_write_text(
+                source,
+                "# Source updated\n\nConcurrent corpus update\n\n[[missing|Missing]]\n",
+            )
+            writer_finished.set()
+
+        monkeypatch.setattr(Path, "read_text", blocking_read_text)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            repair = executor.submit(fix_broken_links, library_dir, broken)
+            assert repair_read.wait(timeout=5)
+            writer = executor.submit(concurrent_writer)
+            writer_finished.wait(timeout=0.25)
+            release_repair.set()
+            assert repair.result(timeout=5) == 1
+            writer.result(timeout=5)
+
+        assert "Concurrent corpus update" in source.read_text(encoding="utf-8")
+
+    def test_fix_skips_a_stale_link_that_is_no_longer_present(self, tmp_path: Path) -> None:
+        library_dir = tmp_path / "library"
+        library_dir.mkdir()
+        source = library_dir / "source.md"
+        source.write_text("# Source\n\n[[missing|Missing]]\n", encoding="utf-8")
+        stale_broken = check_links(library_dir).broken_links
+        atomic_write_text(source, "# Source\n\nAlready repaired elsewhere\n")
+
+        assert fix_broken_links(library_dir, stale_broken) == 0
+        assert source.read_text(encoding="utf-8").endswith("Already repaired elsewhere\n")

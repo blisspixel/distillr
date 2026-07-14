@@ -22,6 +22,8 @@ from typing import Any, cast
 
 from rich.console import Console
 
+from distill.process_security import package_install_context
+
 YTDLP_STALE_DAYS = 14
 PREFLIGHT_CACHE_NAME = ".preflight.json"
 CACHE_TTL_HOURS = 24
@@ -158,11 +160,7 @@ def update_ytdlp(timeout: int = 300) -> tuple[bool, str, bool]:
     # ``python -m pip``'s module search path. ``PYTHONSAFEPATH`` is honored on
     # newer Python versions; the trusted cwd keeps this safe on older supported
     # versions too.
-    safe_cwd = str(Path(sys.executable).resolve().parent)
-    safe_env = dict(os.environ)
-    safe_env.pop("PYTHONPATH", None)
-    safe_env.pop("PYTHONHOME", None)
-    safe_env["PYTHONSAFEPATH"] = "1"
+    safe_cwd, safe_env = package_install_context()
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],

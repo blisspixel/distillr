@@ -10,7 +10,7 @@ from mcp.server.fastmcp import Context
 
 from distill.llm.availability import model_available
 from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
-from distill.pipeline.costs import BudgetExceededError, save_run_log
+from distill.pipeline.costs import BudgetExceededError
 
 __all__: list[str] = []
 
@@ -103,7 +103,6 @@ async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     if ctx:
         await ctx.report_progress(progress=total_steps, total=total_steps)
 
-    save_run_log(config.library_dir, "synthesize", tracker)
     return json.dumps(
         {
             "status": "complete",

@@ -25,7 +25,13 @@ def _channels(count: int) -> list[SimpleNamespace]:
 
 
 def _watch(name: str, topic: str, *, days: int = 7, instructions: str = "") -> SimpleNamespace:
-    return SimpleNamespace(name=name, topic=topic, days=days, instructions=instructions)
+    return SimpleNamespace(
+        name=name,
+        topic=topic,
+        days=days,
+        instructions=instructions,
+        active_instructions=instructions,
+    )
 
 
 def _topic_watch(

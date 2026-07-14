@@ -7,8 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.36 - 2026-07-14
+
 ### Fixed
 
+- Bound corpus search hits to the exact content snapshot that was ranked. Ask,
+  query summaries, concepts, claims, deduplication, audit, and freshness now
+  reject regular-file replacement races as well as unsafe links, while raw
+  answer artifacts cannot re-enter retrieval and saved answers retain their
+  required verification binding even if frontmatter is downgraded.
+- Bounded deferred-agent task and result files, rejected unsafe result objects,
+  and recorded the declared task timeout. Oversized files, hard links, and
+  invalid token or timeout limits now fail closed before external-worker output
+  can enter a model response.
+- Lock-pinned the CycloneDX generator and its complete dependency closure in a
+  dedicated dependency group. The publish job exports and installs that tool
+  environment with required hashes instead of resolving a transitive release
+  tool at tag time.
+- Generated the release SBOM from an isolated, lock-pinned installation of the
+  built wheel. The publish gate now rejects an empty root dependency graph,
+  mismatched release metadata, unknown component references, and invalid
+  CycloneDX output instead of attaching a component list with no root edges.
+- Serialized complete concept builds and rollbacks per topic so overlapping
+  runs cannot duplicate model work, lose completion receipts, or desynchronize
+  live notes from structured rollups. Concept ledgers and rollups now use
+  durable atomic replacement inside that transaction boundary.
+- Serialized library-wide latest-change feed updates and cooperating atomic
+  text writers. Link repair now re-reads and transforms the current file under
+  its per-path write lock, preserving concurrent corpus updates and skipping
+  stale repair requests that are no longer present.
+- Confined MCP resources, public cost history, local-file ingestion, and File
+  Search uploads to bounded regular files below the configured library root.
+  Symlink, hardlink, special-file, metadata-link, oversized-log, and path-swap
+  cases now fail closed before content can be returned or uploaded.
+- Resolved child executables to absolute paths from trusted PATH entries,
+  excluding the working directory and relative search entries. Package update
+  children no longer receive provider credentials or Python path injection,
+  and Windows media probes cannot select same-directory executable decoys.
+- Bounded concept and entity filename components across UTF-8 and Windows
+  UTF-16 limits with stable identity digests and reserved-device protection.
+  Lossy slug collisions now keep independent history streams keyed by each
+  resolved live note stem, including recovery and diff operations.
+- Made watch instruction suggestions use the same durable cost lifecycle as
+  other model-backed workflows. Exact duplicate URLs now return before name
+  resolution or provider contact, and CLI plus MCP paths persist success,
+  failure, cancellation, and budget refusal without mutating the watchlist on
+  refusal.
+- Made live doctor key probes preauthorize conservative token usage, cap every
+  response, and aggregate one durable `doctor` cost row across the command.
+  Malformed usage, failed requests, and cancellation retain conservative
+  evidence, while no-metered or over-budget probes refuse before constructing
+  a cloud client.
+- Made deferred-agent task admission transactional with cost accounting.
+  Stable attempt identities and conservative usage are emitted before pending
+  work becomes visible, cached results remain in place if accounting fails,
+  and rejected accounting cannot create or consume a task.
+- Added the Windows time-zone database dependency, isolated doctor tests from
+  ambient cloud credentials, refreshed generated public contract snapshots,
+  and expanded defensive branch coverage at browser, yt-dlp, GitHub receipt,
+  doctor, and deferred-agent boundaries.
+- Separated cross-site and cross-channel topic rollups into distinct artifacts
+  and verification receipts. Both modalities now coexist regardless of writer
+  order, command summaries report the correct output, and audit and freshness
+  checks follow each artifact's own receipt set.
 - Made provider token accounting fail closed when usage metadata is absent or
   malformed, including Gemini thinking tokens, and preserved usage provenance
   through router, telemetry, and cost-ledger records. Cloud transcription now
@@ -16,6 +77,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   run, derives billable duration from decoded audio samples rather than
   attacker-controlled container timestamps, and disables hidden OpenAI SDK
   retries so each admitted request is the only request in its ledger attempt.
+- Centralized MCP write-tool accounting so each model-using call persists one
+  registered tracker before success, failure, cancellation, or budget refusal.
+  Search, discovery, learning, reports, resynthesis, papers, site batches,
+  video analysis, synthesis, summaries, catch-up, and saved answers no longer
+  depend on success-only tool-local ledger writes. Ledger failure blocks a
+  successful result and is explicitly reported on a budget refusal.
+- Enforced the interactive discovery estimate before ingestion, preserved
+  terminal budget stops through site synthesis and paper query expansion, and
+  made report cost deltas persist once on success or failure. Deep Research
+  process interruptions now retain conservative query accounting, and File
+  Search store cleanup owns every post-creation exceptional exit.
 - Bounded feed durations, browser result parsing, transcript output reuse, and
   local or remote PDF extraction. PDF parsing now runs in a timeout and
   memory-limited worker with page and character ceilings. Its safe-path
@@ -60,6 +132,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- Replaced yt-dlp's ambient response handling with a public-HTTPS-only,
+  exact-IP-pinned transport that refuses proxy routing and content encoding,
+  closes redirects without consuming their bodies, and enforces response and
+  cumulative byte ceilings. One absolute operation deadline now covers DNS,
+  the process-wide pin lock, connection setup, response headers, and body
+  reads, including peers that trickle data within an idle socket timeout.
+- Restricted Windows executable discovery to simple `.COM` and `.EXE`
+  candidates and required every resolved candidate to remain directly inside
+  its absolute PATH entry. Crafted PATHEXT traversal and current-directory
+  executable substitution now fail closed.
 - Closed DNS-rebinding windows across feed, enclosure, publisher transcript,
   trusted-site, and browser fetches. Redirect hops are revalidated, direct
   HTTP clients ignore ambient proxies, and browser TLS tunnels connect only to
@@ -81,6 +163,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Quality
 
+- Added deterministic regressions for corpus content swaps after discovery,
+  verification-sidecar downgrade attempts, linked topic roots, unsafe search
+  artifacts, DNS and header deadline overruns, redirect-body avoidance,
+  cancellation cleanup, executable-resolution traversal, and bounded deferred
+  agent results.
 - Added adversarial regression coverage for exact-IP networking, lock and file
   races, resource-limited PDF workers, conservative usage accounting, cloud
   transcription ledgers, manipulated media timestamps, dashboard Host headers,
@@ -92,10 +179,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   cost API.
 - Declared Starlette's `httpx2` test transport in the development lock so the
   dashboard suite runs without its deprecated `httpx` compatibility warning.
-- Verified the maintenance candidate above the 95 percent branch-coverage gate
-  with warning-sensitive tests and Pyright, Ruff, import contracts, Bandit,
-  pip-audit, lock and public-contract checks, installer tests, and source and
-  wheel builds. All local validation used no external provider spend.
+- Verified the maintenance candidate with 5,202 passing tests and 95.07 percent
+  branch coverage, plus warning-sensitive tests, Pyright, Ruff, import
+  contracts, Bandit, pip-audit, lock and public-contract checks, installer
+  tests, and source and wheel builds. All local validation used no external
+  provider spend.
 
 ## 0.19.35 - 2026-07-12
 

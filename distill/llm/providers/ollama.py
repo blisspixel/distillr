@@ -41,6 +41,16 @@ _CONTENTION_MAX_BACKOFF_SECONDS = 10.0
 _RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
 _MAX_CONTEXT_WINDOW = 16_777_216
 _MAX_PARAMETERS_CHARS = 100_000
+_STRUCTURED_JSON_CALL_TYPES = frozenset(
+    {
+        "discover_plan",
+        "discover_rerank",
+        "paper_expand",
+        "paper_rerank",
+        "search_expand",
+        "search_rerank",
+    }
+)
 
 
 def _bounded_context_window(value: object) -> int | None:
@@ -72,24 +82,10 @@ def _canonical_model_name(model: str) -> str:
     return normalized
 
 
-def _wants_json_output(prompt: str) -> bool:
-    """Detect if a prompt explicitly requests JSON output.
+def _uses_structured_json(call_type: str) -> bool:
+    """Select JSON mode only from trusted first-party workload metadata."""
 
-    Looks for common patterns in distillr prompts that indicate
-    structured JSON is expected. When detected, we set format="json"
-    in the Ollama request to constrain output.
-    """
-    lower = prompt.lower()
-    return (
-        "return only valid json" in lower
-        or "return only json" in lower
-        or "respond with json" in lower
-        or '"ranked_videos"' in lower
-        or '"ranked_papers"' in lower
-        or '"ranked_items"' in lower
-        or '"paper_queries"' in lower
-        or '"queries"' in lower
-    )
+    return call_type in _STRUCTURED_JSON_CALL_TYPES
 
 
 def _describe_ollama_error(exc: Exception) -> str:
@@ -148,6 +144,7 @@ class OllamaProvider:
                     max_tokens=max_tokens,
                     num_ctx=num_ctx,
                     temperature=temperature,
+                    call_type=call_type,
                 )
                 return await self._stream_chat(model, payload, timeout)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
@@ -291,13 +288,14 @@ class OllamaProvider:
         max_tokens: int,
         num_ctx: int,
         temperature: float | None,
+        call_type: str = "",
     ) -> dict[str, Any]:
         """Assemble the /api/chat request body.
 
         Streams (see :meth:`_stream_chat`) so the read timeout is an idle timeout.
-        JSON prompts force ``format=json`` without thinking (which conflicts with
-        the JSON constraint on most models); other prompts enable thinking on
-        thinking-capable models for deeper reasoning.
+        Trusted structured workloads force ``format=json`` without thinking
+        because thinking conflicts with the JSON constraint on most models.
+        Prompt text never controls transport options.
         """
         payload: dict[str, Any] = {
             "model": model,
@@ -305,7 +303,7 @@ class OllamaProvider:
             "stream": True,
             "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
         }
-        if _wants_json_output(prompt):
+        if _uses_structured_json(call_type):
             payload["format"] = "json"
             payload["think"] = False
         elif _is_thinking_model(model):

@@ -20,12 +20,21 @@ from distill.library.state import ChannelState
 runner = CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_local_provider_probes(monkeypatch) -> None:
+    """Keep doctor unit tests independent of services running on the host."""
+
+    monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda: ("unavailable", ()))
+    monkeypatch.setattr(doctor_mod, "_check_lmstudio_status", lambda: "unavailable")
+
+
 def _config(tmp_path: Path, **kwargs) -> DistillConfig:
     defaults = {
         "xai_api_key": "test-key",
         "gemini_api_key": "",
         "openai_api_key": "",
         "distill_output_dir": tmp_path / "library",
+        "distill_cost_mode": "no-metered",
     }
     defaults.update(kwargs)
     config = DistillConfig(**defaults)
@@ -230,6 +239,7 @@ class TestDoctorHumanOutputBranches:
             tmp_path,
             xai_api_key="xai-secret-value",
             openai_api_key="openai-secret-value",
+            distill_cost_mode="auto",
         )
 
         warnings = doctor_mod._cost_mode_warnings(config)
@@ -254,6 +264,7 @@ class TestDoctorHumanOutputBranches:
             tmp_path,
             xai_api_key="xai-secret-value",
             openai_api_key="openai-secret-value",
+            distill_cost_mode="auto",
         )
 
         def fake(provider, _config):
@@ -325,7 +336,7 @@ class TestDoctorHumanOutputBranches:
             "distill.pipeline.verify_entailment.entailment_available",
             lambda: True,
         )
-        sys.modules["yt_dlp"] = MagicMock()
+        monkeypatch.setitem(sys.modules, "yt_dlp", MagicMock())
         monkeypatch.setattr(
             doctor_mod,
             "ytdlp_age_days",
@@ -450,7 +461,7 @@ class TestDoctorHumanOutput:
         monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
 
         present = runner.invoke(cli.app, ["doctor"])
-        assert "scribe.sh" in present.output
+        assert str(scribe) in present.output.replace("\n", "")
 
     def test_library_stats_and_watchlists(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -514,6 +525,7 @@ class TestDoctorJsonExtras:
             tmp_path,
             xai_api_key="xai-secret-value",
             openai_api_key="openai-secret-value",
+            distill_cost_mode="auto",
         )
 
         def fake(provider, _config):

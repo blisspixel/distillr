@@ -23,6 +23,7 @@ Vocabulary:
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -36,6 +37,55 @@ __all__ = [
     "Polarity",
     "SourceEvidence",
 ]
+
+_MAX_SLUG_COMPONENT_UNITS = 120
+_SLUG_DIGEST_LENGTH = 12
+_WINDOWS_RESERVED_COMPONENTS = {
+    "aux",
+    "con",
+    "nul",
+    "prn",
+    *(f"com{number}" for number in range(1, 10)),
+    *(f"lpt{number}" for number in range(1, 10)),
+}
+
+
+def _bounded_slug(slug: str, *, identity: str) -> str:
+    """Bound a filesystem component while preserving stable identity.
+
+    The limit applies independently to UTF-8 bytes and UTF-16 code units so
+    the same component remains safe on common POSIX filesystems and Windows.
+    Short slugs remain unchanged for backward compatibility.
+    """
+    utf8_length = len(slug.encode("utf-8"))
+    utf16_length = len(slug.encode("utf-16-le")) // 2
+    if (
+        max(utf8_length, utf16_length) <= _MAX_SLUG_COMPONENT_UNITS
+        and slug.casefold() not in _WINDOWS_RESERVED_COMPONENTS
+    ):
+        return slug
+
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:_SLUG_DIGEST_LENGTH]
+    suffix = f"__{digest}"
+    prefix_budget = _MAX_SLUG_COMPONENT_UNITS - len(suffix)
+    prefix_chars: list[str] = []
+    utf8_length = 0
+    utf16_length = 0
+    for character in slug:
+        character_utf8 = len(character.encode("utf-8"))
+        character_utf16 = len(character.encode("utf-16-le")) // 2
+        next_units = max(
+            utf8_length + character_utf8,
+            utf16_length + character_utf16,
+        )
+        if next_units > prefix_budget:
+            break
+        prefix_chars.append(character)
+        utf8_length += character_utf8
+        utf16_length += character_utf16
+
+    prefix = "".join(prefix_chars).rstrip("_")
+    return f"{prefix}{suffix}"
 
 
 class Polarity(StrEnum):
@@ -87,8 +137,8 @@ class ConceptMention:
             "Rotational Embeddings" or "rotation embeddings"). Preserved
             verbatim for display; normalization happens separately so we
             don't lose the original phrasing.
-        normalized_name: case-folded, whitespace-stripped, alias-resolved
-            canonical name. Two mentions with the same normalized_name
+        normalized_name: deterministic canonical form derived from the
+            grounded surface name. Two mentions with the same normalized_name
             merge into one concept.
         kind: routing category (concept vs entity, technique vs dataset, ...).
         polarity: helpful / harmful / neutral.
@@ -98,9 +148,8 @@ class ConceptMention:
         artifact_path: relative path from the topic dir to the source
             ``_Insights.md`` (e.g. ``papers/romem/romem_Insights.md``).
             Used by the notes layer to emit wiki-link backlinks.
-        claim_excerpt: short verbatim or near-verbatim quote from the
-            insight grounding the polarity. Empty string is acceptable
-            when the mention is structural (e.g. a tag in frontmatter).
+        claim_excerpt: exact quote from the insight body containing the
+            surface name and grounding the polarity.
         evidence_type: optional label for what kind of evidence the
             source provides (e.g. ``empirical_result``, ``methodology``,
             ``citation``). Free-form; not validated.
@@ -247,10 +296,10 @@ class MergedConcept:
         """Stable filesystem slug derived from normalized_name.
 
         Deliberately simple: lowercase, replace non-alphanumerics with
-        underscores, collapse runs. The notes layer is responsible for
-        collision handling against existing files in ``concepts/`` /
-        ``entities/`` (mirroring how ``library.paths.slugify_title``
-        handles it for source artifacts).
+        underscores, and collapse runs. Long components receive a stable
+        digest suffix so model-produced names cannot exceed filesystem
+        component limits. The notes layer handles remaining lossy collisions
+        against existing files in ``concepts/`` and ``entities/``.
         """
         out_chars: list[str] = []
         prev_underscore = False
@@ -261,7 +310,8 @@ class MergedConcept:
             elif not prev_underscore:
                 out_chars.append("_")
                 prev_underscore = True
-        return "".join(out_chars).strip("_") or "unnamed"
+        slug = "".join(out_chars).strip("_") or "unnamed"
+        return _bounded_slug(slug, identity=self.normalized_name)
 
     def to_jsonl_row(self) -> dict[str, Any]:
         """Project into a scalar-friendly row for ``concepts.jsonl`` / ``entities.jsonl``.

@@ -8,13 +8,15 @@ hand-rolled approximation of it.
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
 from distill.concepts import recovery
 from distill.concepts.exports import write_exports
-from distill.concepts.notes import write_playbook
+from distill.concepts.notes import render_playbook, write_playbook
 from distill.concepts.records import (
     ConceptKind,
     EvidenceInterval,
@@ -68,10 +70,10 @@ def test_recovery_rejects_traversal_slug(tmp_path: Path) -> None:
         recovery.rollback(td, bad, "2026-01-01T00-00-00Z", now_iso="2026-01-02T00:00:00Z")
 
 
-def test_rollback_refuses_on_slug_collision(tmp_path: Path) -> None:
+def test_rollback_uses_collision_resolved_storage_slug(tmp_path: Path) -> None:
     # "gpt 4" and "gpt-4" are distinct concepts that both slugify to "gpt_4".
-    # Rolling back the slug to the bumped concept's snapshot must NOT clobber
-    # the base concept's note -- it must refuse on the identity mismatch.
+    # Each history follows its resolved live note stem, so rollback can select
+    # the bumped concept without touching the base concept.
     td = tmp_path / "topics" / "tkg"
     td.mkdir(parents=True)
     base = _concept(
@@ -82,7 +84,7 @@ def test_rollback_refuses_on_slug_collision(tmp_path: Path) -> None:
         harmful=(0, 0),
         last_seen="2026-05-28T07:00:00Z",
     )
-    write_playbook(td, base, now_iso="2026-05-28T07:00:00Z")
+    base_path, _ = write_playbook(td, base, now_iso="2026-05-28T07:00:00Z")
     bumped_v1 = _concept(
         name="GPT-4",
         normalized="gpt-4",
@@ -91,7 +93,8 @@ def test_rollback_refuses_on_slug_collision(tmp_path: Path) -> None:
         harmful=(0, 0),
         last_seen="2026-05-28T07:30:00Z",
     )
-    write_playbook(td, bumped_v1, now_iso="2026-05-28T07:30:00Z")
+    bumped_path, _ = write_playbook(td, bumped_v1, now_iso="2026-05-28T07:30:00Z")
+    write_exports(td, [base, bumped_v1])
     bumped_v2 = _concept(
         name="GPT-4",
         normalized="gpt-4",
@@ -101,9 +104,318 @@ def test_rollback_refuses_on_slug_collision(tmp_path: Path) -> None:
         last_seen="2026-05-29T09:00:00Z",
     )
     write_playbook(td, bumped_v2, now_iso="2026-05-29T09:00:00Z")
+    write_exports(td, [base, bumped_v2])
 
-    with pytest.raises(ValueError, match="shared by multiple concepts"):
-        recovery.rollback(td, "gpt_4", "2026-05-29T09:00:00Z", now_iso="2026-05-29T10:00:00Z")
+    base_content = base_path.read_text(encoding="utf-8")
+    result = recovery.rollback(
+        td,
+        bumped_path.stem,
+        "2026-05-29T09:00:00Z",
+        now_iso="2026-05-29T10:00:00Z",
+    )
+
+    assert result.note_path == bumped_path
+    assert base_path.read_text(encoding="utf-8") == base_content
+    assert 'normalized_name: "gpt-4"' in bumped_path.read_text(encoding="utf-8")
+    assert "source_count: 1" in bumped_path.read_text(encoding="utf-8")
+    rollup_rows = [
+        json.loads(line)
+        for line in (td / "concepts.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert {row["normalized_name"] for row in rollup_rows} == {"gpt 4", "gpt-4"}
+    assert (
+        next(row for row in rollup_rows if row["normalized_name"] == "gpt 4")["source_count"] == 1
+    )
+    assert (
+        next(row for row in rollup_rows if row["normalized_name"] == "gpt-4")["source_count"] == 1
+    )
+
+
+def test_rollback_preserves_legacy_same_slug_sibling(tmp_path: Path) -> None:
+    topic_dir = tmp_path / "topics" / "tkg"
+    topic_dir.mkdir(parents=True)
+    legacy_sibling = _concept(
+        name="GPT 4",
+        normalized="gpt 4",
+        sources=[("A", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:00:00Z",
+    )
+    target_v1 = _concept(
+        name="GPT-4",
+        normalized="gpt-4",
+        sources=[("B", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:30:00Z",
+    )
+    write_playbook(topic_dir, legacy_sibling, now_iso="2026-05-28T07:00:00Z")
+    target_path, _ = write_playbook(
+        topic_dir,
+        target_v1,
+        now_iso="2026-05-28T07:30:00Z",
+    )
+    target_v2 = _concept(
+        name="GPT-4",
+        normalized="gpt-4",
+        sources=[("B", Polarity.HELPFUL), ("C", Polarity.HELPFUL)],
+        helpful=(2, 2),
+        harmful=(0, 0),
+        last_seen="2026-05-29T09:00:00Z",
+    )
+    write_playbook(topic_dir, target_v2, now_iso="2026-05-29T09:00:00Z")
+    write_exports(topic_dir, [legacy_sibling, target_v2])
+    rollup_path = topic_dir / "concepts.jsonl"
+    rows = [json.loads(line) for line in rollup_path.read_text(encoding="utf-8").splitlines()]
+    next(row for row in rows if row["normalized_name"] == "gpt 4").pop("normalized_name")
+    rollup_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    recovery.rollback(
+        topic_dir,
+        target_path.stem,
+        "2026-05-29T09:00:00Z",
+        now_iso="2026-05-29T10:00:00Z",
+    )
+
+    restored_rows = [
+        json.loads(line) for line in rollup_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(restored_rows) == 2
+    assert sum("normalized_name" not in row for row in restored_rows) == 1
+    restored_target = next(row for row in restored_rows if row.get("normalized_name") == "gpt-4")
+    assert restored_target["source_count"] == 1
+
+
+def test_rollback_rejects_ambiguous_legacy_rows_before_mutating_note(tmp_path: Path) -> None:
+    topic_dir = tmp_path / "topics" / "tkg"
+    topic_dir.mkdir(parents=True)
+    v1 = _concept(
+        name="Alpha",
+        normalized="alpha",
+        sources=[("A", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:00:00Z",
+    )
+    live_path, _ = write_playbook(topic_dir, v1, now_iso="2026-05-28T07:00:00Z")
+    v2 = _concept(
+        name="Alpha",
+        normalized="alpha",
+        sources=[("A", Polarity.HELPFUL), ("B", Polarity.HELPFUL)],
+        helpful=(2, 2),
+        harmful=(0, 0),
+        last_seen="2026-05-29T09:00:00Z",
+    )
+    write_playbook(topic_dir, v2, now_iso="2026-05-29T09:00:00Z")
+    snapshot = recovery.list_snapshots(topic_dir, "alpha")[0]
+    snapshot.path.write_text(
+        "\n".join(
+            line
+            for line in snapshot.path.read_text(encoding="utf-8").splitlines()
+            if not line.startswith("normalized_name:")
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    legacy_row = v2.to_jsonl_row()
+    legacy_row.pop("normalized_name")
+    duplicate = {**legacy_row, "name": "Ambiguous Alpha"}
+    rollup_path = topic_dir / "concepts.jsonl"
+    rollup_path.write_text(
+        json.dumps(legacy_row) + "\n" + json.dumps(duplicate) + "\n",
+        encoding="utf-8",
+    )
+    live_before = live_path.read_text(encoding="utf-8")
+    rollup_before = rollup_path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="multiple legacy rows"):
+        recovery.rollback(
+            topic_dir,
+            "alpha",
+            snapshot.iso,
+            now_iso="2026-05-29T10:00:00Z",
+        )
+
+    assert live_path.read_text(encoding="utf-8") == live_before
+    assert rollup_path.read_text(encoding="utf-8") == rollup_before
+
+
+def test_rollback_rejects_identityless_snapshot_with_legacy_and_named_rows(
+    tmp_path: Path,
+) -> None:
+    topic_dir = tmp_path / "topics" / "tkg"
+    topic_dir.mkdir(parents=True)
+    base = _concept(
+        name="GPT 4",
+        normalized="gpt 4",
+        sources=[("A", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:00:00Z",
+    )
+    target = _concept(
+        name="GPT-4",
+        normalized="gpt-4",
+        sources=[("B", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:30:00Z",
+    )
+    base_path, _ = write_playbook(topic_dir, base, now_iso="2026-05-28T07:00:00Z")
+    target_path, _ = write_playbook(topic_dir, target, now_iso="2026-05-28T07:30:00Z")
+    write_exports(topic_dir, [base, target])
+    base_path.write_text(
+        "\n".join(
+            line
+            for line in base_path.read_text(encoding="utf-8").splitlines()
+            if not line.startswith("normalized_name:")
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rollup_path = topic_dir / "concepts.jsonl"
+    rollup_rows = [
+        json.loads(line) for line in rollup_path.read_text(encoding="utf-8").splitlines()
+    ]
+    next(row for row in rollup_rows if row["normalized_name"] == "gpt 4").pop("normalized_name")
+    rollup_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rollup_rows),
+        encoding="utf-8",
+    )
+    legacy_content = (
+        "\n".join(
+            line
+            for line in render_playbook(target).splitlines()
+            if not line.startswith("normalized_name:")
+        )
+        + "\n"
+    )
+    legacy_snapshot = (
+        recovery.history_dir_for_slug(topic_dir, base.slug) / "2026-05-29T09-00-00Z.md"
+    )
+    legacy_snapshot.parent.mkdir(parents=True)
+    legacy_snapshot.write_text(legacy_content, encoding="utf-8")
+    base_before = base_path.read_text(encoding="utf-8")
+    target_before = target_path.read_text(encoding="utf-8")
+    rollup_before = rollup_path.read_text(encoding="utf-8")
+    history_before = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in recovery.history_dir_for_slug(topic_dir, base.slug).glob("*.md")
+    }
+
+    with pytest.raises(ValueError, match="identity-less snapshot"):
+        recovery.rollback(
+            topic_dir,
+            base.slug,
+            "2026-05-29T09:00:00Z",
+            now_iso="2026-05-29T10:00:00Z",
+        )
+
+    assert base_path.read_text(encoding="utf-8") == base_before
+    assert target_path.read_text(encoding="utf-8") == target_before
+    assert rollup_path.read_text(encoding="utf-8") == rollup_before
+    assert {
+        path.name: path.read_text(encoding="utf-8")
+        for path in recovery.history_dir_for_slug(topic_dir, base.slug).glob("*.md")
+    } == history_before
+
+
+def test_concurrent_rollbacks_keep_live_notes_and_rollup_consistent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    topic_dir = tmp_path / "topics" / "tkg"
+    topic_dir.mkdir(parents=True)
+    alpha_v1 = _concept(
+        name="Alpha",
+        normalized="alpha",
+        sources=[("A1", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:00:00Z",
+    )
+    beta_v1 = _concept(
+        name="Beta",
+        normalized="beta",
+        sources=[("B1", Polarity.HELPFUL)],
+        helpful=(1, 1),
+        harmful=(0, 0),
+        last_seen="2026-05-28T07:00:00Z",
+    )
+    alpha_v2 = _concept(
+        name="Alpha",
+        normalized="alpha",
+        sources=[("A1", Polarity.HELPFUL), ("A2", Polarity.HELPFUL)],
+        helpful=(2, 2),
+        harmful=(0, 0),
+        last_seen="2026-05-29T09:00:00Z",
+    )
+    beta_v2 = _concept(
+        name="Beta",
+        normalized="beta",
+        sources=[("B1", Polarity.HELPFUL), ("B2", Polarity.HELPFUL)],
+        helpful=(2, 2),
+        harmful=(0, 0),
+        last_seen="2026-05-29T09:00:00Z",
+    )
+    write_playbook(topic_dir, alpha_v1, now_iso="2026-05-28T07:00:00Z")
+    write_playbook(topic_dir, beta_v1, now_iso="2026-05-28T07:00:00Z")
+    write_exports(topic_dir, [alpha_v1, beta_v1])
+    write_playbook(topic_dir, alpha_v2, now_iso="2026-05-29T09:00:00Z")
+    write_playbook(topic_dir, beta_v2, now_iso="2026-05-29T09:00:00Z")
+    write_exports(topic_dir, [alpha_v2, beta_v2])
+
+    real_read = recovery._read_rollup_rows
+    first_read = threading.Event()
+    second_read = threading.Event()
+    read_count = 0
+    read_count_lock = threading.Lock()
+
+    def overlapping_read(path: Path):
+        nonlocal read_count
+        rows = real_read(path)
+        with read_count_lock:
+            read_count += 1
+            current_read = read_count
+        if current_read == 1:
+            first_read.set()
+            second_read.wait(timeout=0.25)
+        elif current_read == 2:
+            second_read.set()
+        return rows
+
+    monkeypatch.setattr(recovery, "_read_rollup_rows", overlapping_read)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        alpha_result = executor.submit(
+            recovery.rollback,
+            topic_dir,
+            "alpha",
+            "2026-05-29T09:00:00Z",
+            now_iso="2026-05-29T10:00:00Z",
+        )
+        assert first_read.wait(timeout=5)
+        beta_result = executor.submit(
+            recovery.rollback,
+            topic_dir,
+            "beta",
+            "2026-05-29T09:00:00Z",
+            now_iso="2026-05-29T10:00:01Z",
+        )
+        alpha_result.result(timeout=5)
+        beta_result.result(timeout=5)
+
+    rollup_rows = {
+        row["slug"]: row for row in recovery._read_rollup_rows(topic_dir / "concepts.jsonl")
+    }
+    for slug in ("alpha", "beta"):
+        live_path = recovery.note_path_for_slug(topic_dir, slug)
+        assert live_path is not None
+        live_fields = recovery.parse_note_fields(live_path.read_text(encoding="utf-8"))
+        assert rollup_rows[slug]["source_count"] == live_fields["source_count"] == 1
 
 
 @pytest.fixture

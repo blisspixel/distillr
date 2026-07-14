@@ -466,10 +466,10 @@ def site_cmd(
 
     if not scrape_only:
         try:
-            topic_synth = synthesize_site_topic(topic, config, tracker=tracker)
-            if topic_synth:
+            site_synth = synthesize_site_topic(topic, config, tracker=tracker)
+            if site_synth:
                 summary.add_output(
-                    find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
+                    find_artifact(config.topic_dir(topic), "site_synthesis", identity=topic)
                 )
             corpus_synth = synthesize_corpus(topic, config, tracker=tracker)
             if corpus_synth:

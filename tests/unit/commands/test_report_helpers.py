@@ -12,7 +12,7 @@ from pydantic import SecretStr
 from distill.commands import _helpers
 from distill.commands import _report_helpers as report_helpers
 from distill.config import DistillConfig
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.pipeline.summary import RunSummary
 
 
@@ -169,3 +169,46 @@ def test_budget_error_is_logged_and_reraised(
     if summary is not None:
         assert summary.issue_count == 1
         assert summary.issues[0].stage == "report-budget"
+
+
+def test_generic_report_failure_persists_incurred_usage_once(
+    config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracker = CostTracker()
+    saved: list[CostTracker] = []
+    monkeypatch.setattr(
+        report_helpers,
+        "save_run_log",
+        lambda path, command, cost_tracker, **kwargs: saved.append(cost_tracker),
+    )
+
+    def fail_after_usage(**_kwargs) -> str:
+        tracker.record(
+            TokenUsage(
+                call_type="report-test",
+                prompt_tokens=100,
+                completion_tokens=50,
+                model="grok-4.3",
+            )
+        )
+        raise RuntimeError("provider failed")
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        report_helpers._run_accordion_report_with_budget_log(
+            topic="ai",
+            config=config,
+            scope="topic",
+            channel_name=None,
+            test=False,
+            tracker=tracker,
+            focus=None,
+            summary=None,
+            start_entry_count=0,
+            start_gemini_queries=0,
+            metadata={"workflow": "report"},
+            run_accordion_research=fail_after_usage,
+        )
+
+    assert len(saved) == 1
+    assert len(saved[0].entries) == 1

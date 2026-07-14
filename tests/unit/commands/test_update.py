@@ -320,14 +320,17 @@ class TestRunSelfUpdate:
         monkeypatch.setattr(upd, "detect_install_method", lambda: upd.METHOD_UV)
         monkeypatch.setattr(upd, "get_installed_version", lambda: "0.13.0")
         monkeypatch.setattr(upd, "_safe_subprocess_env", lambda: ("/safe", {"PYTHONSAFEPATH": "1"}))
+        monkeypatch.setattr(upd, "resolve_executable", lambda name: "/trusted/uv")
         result = MagicMock(returncode=0, stdout="", stderr="")
-        monkeypatch.setattr(upd.subprocess, "run", lambda *a, **k: result)
+        run = MagicMock(return_value=result)
+        monkeypatch.setattr(upd.subprocess, "run", run)
 
         ok, detail, noop = upd.run_self_update()
 
         assert ok is True
         assert detail == "0.13.0"
         assert noop is True
+        assert run.call_args.args[0] == ["/trusted/uv", "tool", "upgrade", "distillr"]
 
     def test_upgrade_nonzero_exit(self, monkeypatch):
         monkeypatch.setattr(upd, "detect_install_method", lambda: upd.METHOD_PIP)
@@ -345,12 +348,15 @@ class TestRunSelfUpdate:
     def test_upgrade_command_not_found(self, monkeypatch):
         monkeypatch.setattr(upd, "detect_install_method", lambda: upd.METHOD_UV)
         monkeypatch.setattr(upd, "_safe_subprocess_env", lambda: ("/safe", {}))
-        monkeypatch.setattr(upd.subprocess, "run", MagicMock(side_effect=FileNotFoundError("uv")))
+        monkeypatch.setattr(upd, "resolve_executable", lambda name: None)
+        run = MagicMock()
+        monkeypatch.setattr(upd.subprocess, "run", run)
 
         ok, detail, _noop = upd.run_self_update()
 
         assert ok is False
         assert "not found on PATH" in detail
+        run.assert_not_called()
 
     def test_upgrade_generic_exception(self, monkeypatch):
         monkeypatch.setattr(upd, "detect_install_method", lambda: upd.METHOD_PIP)
@@ -379,9 +385,11 @@ class TestRunSelfUpdate:
     def test_safe_subprocess_env_strips_python_injection(self, monkeypatch):
         monkeypatch.setenv("PYTHONPATH", "/evil")
         monkeypatch.setenv("PYTHONHOME", "/evil")
+        monkeypatch.setenv("XAI_API_KEY", "secret")
         cwd, env = upd._safe_subprocess_env()
         assert "PYTHONPATH" not in env
         assert "PYTHONHOME" not in env
+        assert "XAI_API_KEY" not in env
         assert env["PYTHONSAFEPATH"] == "1"
         assert cwd
 

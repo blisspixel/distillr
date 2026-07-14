@@ -36,6 +36,7 @@ from distill.pipeline.citation_refs import (
 from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.pipeline.report._interactions import (
     await_interaction,
+    file_search_grounding_reason,
     interaction_text,
     require_cost_tracker,
     submit_metered_interaction,
@@ -323,6 +324,10 @@ def _run_dossier_phase(
         if completed is None:
             return None
 
+        grounding_refusal = file_search_grounding_reason(completed)
+        if grounding_refusal:
+            console.print(f"[red]Deep Research refused:[/red] {grounding_refusal}")
+            return None
         result_text = interaction_text(completed)
         if not result_text:
             console.print("[red]Research completed but no output received[/red]")

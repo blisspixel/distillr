@@ -10,11 +10,12 @@ do not collapse into hundreds of indistinguishable ``insights.md`` notes.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,8 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 import deal
+
+from distill.library.locking import exclusive_path_lock
 
 __all__ = [
     "ARTIFACT_SUFFIXES",
@@ -33,6 +36,7 @@ __all__ = [
     "artifact_filename",
     "artifact_identity",
     "artifact_path",
+    "atomic_update_text",
     "atomic_write_text",
     "base_frontmatter",
     "dump_frontmatter",
@@ -41,6 +45,7 @@ __all__ = [
     "legacy_artifact_path",
     "provenance_frontmatter",
     "read_artifact",
+    "render_markdown_artifact",
     "resolve_slug_collision",
     "sanitize_path_component",
     "sanitize_topic",
@@ -53,18 +58,16 @@ __all__ = [
     "write_text_artifact",
 ]
 
+_TEXT_WRITE_LOCK_TIMEOUT_SECONDS = 30.0
 
-def atomic_write_text(path: Path, content: str) -> None:
-    """Write ``content`` to ``path`` atomically and durably.
 
-    Creates a uniquely-named temp file in the destination directory via
-    ``mkstemp`` (O_EXCL, so a pre-placed symlink at a predictable ``.tmp`` name
-    cannot redirect the write), fsyncs it, then ``os.replace``s it onto the final
-    name. Replacement is atomic on the same filesystem, so readers see either
-    complete version, never a torn file. Concurrent complete writes are still
-    last-writer-wins and must be serialized when lost updates matter. The temp
-    file is removed if anything fails before the rename.
-    """
+def _text_write_lock_path(path: Path) -> Path:
+    normalized_name = os.path.normcase(path.name)
+    digest = hashlib.sha256(normalized_name.encode("utf-8")).hexdigest()
+    return path.parent / f".distill-write-{digest}.lock"
+
+
+def _atomic_write_text_unlocked(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -77,6 +80,57 @@ def atomic_write_text(path: Path, content: str) -> None:
         with contextlib.suppress(OSError):
             Path(tmp).unlink()
         raise
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    """Write ``content`` to ``path`` atomically, durably, and serially.
+
+    Creates a uniquely-named temp file in the destination directory via
+    ``mkstemp`` (O_EXCL, so a pre-placed symlink at a predictable ``.tmp`` name
+    cannot redirect the write), fsyncs it, then ``os.replace``s it onto the final
+    name. Replacement is atomic on the same filesystem, so readers see either
+    complete version, never a torn file. A per-path advisory lock serializes
+    cooperating writers and read-modify-write transactions. The temp file is
+    removed if anything fails before the rename.
+    """
+    with exclusive_path_lock(
+        _text_write_lock_path(path),
+        timeout_seconds=_TEXT_WRITE_LOCK_TIMEOUT_SECONDS,
+        timeout_message=f"Timed out writing {path}",
+    ):
+        _atomic_write_text_unlocked(path, content)
+
+
+def atomic_update_text[UpdateResult](
+    path: Path,
+    update: Callable[[str], tuple[str, UpdateResult]],
+    *,
+    missing: str | None = None,
+) -> UpdateResult:
+    """Read, derive, and conditionally replace text under its write lock.
+
+    When ``missing`` is supplied, a path that does not yet exist is treated as
+    that text and created under the same lock. The default preserves the prior
+    behavior of raising ``FileNotFoundError`` for a missing path.
+    """
+
+    with exclusive_path_lock(
+        _text_write_lock_path(path),
+        timeout_seconds=_TEXT_WRITE_LOCK_TIMEOUT_SECONDS,
+        timeout_message=f"Timed out updating {path}",
+    ):
+        path_was_missing = False
+        try:
+            current = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            if missing is None:
+                raise
+            current = missing
+            path_was_missing = True
+        replacement, result = update(current)
+        if path_was_missing or replacement != current:
+            _atomic_write_text_unlocked(path, replacement)
+        return result
 
 
 _ARTIFACT_SUFFIXES = {
@@ -495,12 +549,28 @@ def write_markdown_artifact(
     identity: str | None = None,
     frontmatter: Mapping[str, Any] | None = None,
 ) -> Path:
+    content = render_markdown_artifact(
+        artifact_type,
+        content,
+        frontmatter=frontmatter,
+    )
+    return write_text_artifact(directory, artifact_type, content, identity=identity)
+
+
+def render_markdown_artifact(
+    artifact_type: str,
+    content: str,
+    *,
+    frontmatter: Mapping[str, Any] | None = None,
+) -> str:
+    """Return the exact normalized text that the artifact writer persists."""
+
     content = normalize_markdown_headings(content)
     if artifact_type not in _SOURCE_CAPTURE_TYPES:
         content = normalize_dashes(content)
     if frontmatter:
         content = apply_frontmatter(content, frontmatter)
-    return write_text_artifact(directory, artifact_type, content, identity=identity)
+    return content
 
 
 def _parse_scalar_or_list(value: str) -> str | list[str]:

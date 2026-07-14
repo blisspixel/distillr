@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from distill.config import DistillConfig
+from distill.library.insights import discover_insights, insight_content_sha256
 from distill.pipeline.search import SearchResult, extract_section, search_corpus
 
 
@@ -80,7 +82,7 @@ def test_search_results_sorted_by_score_descending(corpus_config, query):
 
 
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(limit=st.integers(min_value=1, max_value=100))
+@given(limit=st.integers(min_value=1, max_value=50))
 def test_limit_bounds_result_count(corpus_config, limit):
     """Property 3: Limit parameter bounds result count."""
     results = search_corpus(corpus_config, "test-topic", "machine learning", limit=limit)
@@ -118,7 +120,7 @@ def test_preview_single_line_within_120_chars(content):
 def test_search_spans_all_artifact_types(corpus_config, data):
     """Property 2: Search spans all artifact types when all types contain the query."""
     # The corpus_config fixture has all types with "machine learning"
-    results = search_corpus(corpus_config, "test-topic", "machine learning", limit=100)
+    results = search_corpus(corpus_config, "test-topic", "machine learning", limit=50)
     types_found = {r.artifact_type for r in results}
     # All major types should be represented
     expected_types = {"insights", "synthesis", "diff", "trends", "corpus", "paper"}
@@ -157,6 +159,45 @@ def test_section_extraction_boundaries(section_content, other_content):
 
 
 class TestSearchCorpus:
+    @pytest.mark.parametrize("limit", [-1, 0, 51])
+    def test_rejects_result_limits_outside_security_bounds(self, corpus_config, limit):
+        with pytest.raises(ValueError, match="search limit must be between 1 and 50"):
+            search_corpus(corpus_config, "test-topic", "machine learning", limit=limit)
+
+    def test_accepts_result_limit_at_security_boundary(self, corpus_config):
+        results = search_corpus(corpus_config, "test-topic", "machine learning", limit=50)
+
+        assert len(results) == 6
+
+    def test_rejects_query_above_character_bound_before_corpus_walk(
+        self, corpus_config, monkeypatch
+    ):
+        def unexpected_walk(*_args, **_kwargs):
+            raise AssertionError("oversized query reached the corpus walk")
+
+        monkeypatch.setattr(Path, "rglob", unexpected_walk)
+
+        with pytest.raises(ValueError, match="search query exceeds 4096 characters"):
+            search_corpus(corpus_config, "test-topic", "x" * 4097)
+
+    def test_accepts_query_at_character_boundary(self, corpus_config):
+        assert search_corpus(corpus_config, "test-topic", "x" * 4096) == []
+
+    def test_rejects_too_many_unique_terms_before_corpus_walk(self, corpus_config, monkeypatch):
+        def unexpected_walk(*_args, **_kwargs):
+            raise AssertionError("oversized term set reached the corpus walk")
+
+        monkeypatch.setattr(Path, "rglob", unexpected_walk)
+        query = " ".join(f"term{index}" for index in range(129))
+
+        with pytest.raises(ValueError, match="search query exceeds 128 unique terms"):
+            search_corpus(corpus_config, "test-topic", query)
+
+    def test_repeated_terms_are_deduplicated_before_scoring(self):
+        from distill.pipeline.search import _tokenize
+
+        assert _tokenize("alpha ALPHA beta alpha") == ["alpha", "beta"]
+
     def test_empty_query_returns_empty(self, corpus_config):
         results = search_corpus(corpus_config, "test-topic", "")
         assert results == []
@@ -174,6 +215,160 @@ class TestSearchCorpus:
         assert len(results) > 0
         assert all(isinstance(r, SearchResult) for r in results)
         assert all(r.score > 0 for r in results)
+
+    @pytest.mark.parametrize("filename", ("unsafe_Insights.md", "unsafe_insights.md"))
+    def test_skips_insight_with_mismatched_required_verification_binding(self, tmp_path, filename):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        insight_dir = config.topic_dir("test-topic") / "answers" / "unsafe"
+        insight = insight_dir / filename
+        _write_artifact(
+            insight,
+            "---\nverification_required: true\n---\n\nuntrustedneedle",
+        )
+        (insight_dir / "unsafe_Verify.json").write_text(
+            json.dumps(
+                {
+                    "insight": insight.name,
+                    "insight_sha256": "0" * 64,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert search_corpus(config, "test-topic", "untrustedneedle") == []
+
+    def test_never_indexes_raw_answer_artifacts(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        answers_dir = config.topic_dir("test-topic") / "answers"
+        _write_artifact(answers_dir / "refused_Answer.md", "refusedanswerneedle")
+        _write_artifact(answers_dir / "tampered_Answer.md", "tamperedanswerneedle")
+        (answers_dir / "tampered_Verify.json").write_text(
+            json.dumps(
+                {
+                    "insight": "tampered_Answer.md",
+                    "insight_sha256": "0" * 64,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert search_corpus(config, "test-topic", "refusedanswerneedle") == []
+        assert search_corpus(config, "test-topic", "tamperedanswerneedle") == []
+
+    def test_saved_answer_cannot_downgrade_its_verification_requirement(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        insight = config.topic_dir("test-topic") / "answers" / "tampered" / "tampered_Insights.md"
+        _write_artifact(insight, "downgradecanary")
+
+        assert (
+            discover_insights(
+                config.topic_dir("test-topic"),
+                confinement_root=config.library_dir,
+            )
+            == []
+        )
+        assert search_corpus(config, "test-topic", "downgradecanary") == []
+
+    def test_indexes_only_the_content_snapshot_validated_by_discovery(self, tmp_path, monkeypatch):
+        import distill.pipeline.search as search_mod
+
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        insight_dir = config.topic_dir("test-topic") / "answers" / "verified"
+        insight = insight_dir / "verified_Insights.md"
+        original = "---\nverification_required: true\n---\n\ntrusted content"
+        _write_artifact(insight, original)
+        (insight_dir / "verified_Verify.json").write_text(
+            json.dumps(
+                {
+                    "insight": insight.name,
+                    "insight_sha256": insight_content_sha256(original),
+                }
+            ),
+            encoding="utf-8",
+        )
+        real_discover = search_mod.discover_insights
+
+        def discover_then_replace(*args, **kwargs):
+            refs = real_discover(*args, **kwargs)
+            insight.write_text("racebypassneedle", encoding="utf-8")
+            return refs
+
+        monkeypatch.setattr(search_mod, "discover_insights", discover_then_replace)
+
+        assert search_mod.search_corpus(config, "test-topic", "racebypassneedle") == []
+
+    def test_rejects_hardlinked_artifacts_from_outside_the_corpus(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        topic_dir = config.topic_dir("test-topic")
+        topic_dir.mkdir(parents=True)
+        outside = tmp_path / "outside-secret.md"
+        outside.write_text("outsidehardlinkneedle", encoding="utf-8")
+        try:
+            (topic_dir / "linked.md").hardlink_to(outside)
+            linked_insight = topic_dir / "linked_Insights.md"
+            linked_insight.hardlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"hard links unavailable: {exc}")
+
+        assert discover_insights(topic_dir) == []
+        assert search_corpus(config, "test-topic", "outsidehardlinkneedle") == []
+
+    def test_rejects_symlinked_artifacts_from_outside_the_corpus(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        topic_dir = config.topic_dir("test-topic")
+        topic_dir.mkdir(parents=True)
+        outside = tmp_path / "outside-secret.md"
+        outside.write_text("outsidesymlinkneedle", encoding="utf-8")
+        try:
+            (topic_dir / "linked.md").symlink_to(outside)
+            linked_insight = topic_dir / "linked_Insights.md"
+            linked_insight.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"file symlinks unavailable: {exc}")
+
+        assert discover_insights(topic_dir) == []
+        assert search_corpus(config, "test-topic", "outsidesymlinkneedle") == []
+
+    def test_rejects_topic_directory_linked_outside_the_library(self, tmp_path):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        (config.library_dir / "topics").mkdir(parents=True)
+        outside_topic = tmp_path / "outside-topic"
+        _write_artifact(outside_topic / "outside_Insights.md", "outsidetopicneedle")
+        topic_dir = config.topic_dir("test-topic")
+        try:
+            topic_dir.symlink_to(outside_topic, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlinks unavailable: {exc}")
+
+        assert (
+            discover_insights(
+                topic_dir,
+                confinement_root=config.library_dir,
+            )
+            == []
+        )
+        assert search_corpus(config, "test-topic", "outsidetopicneedle") == []
 
     def test_artifact_type_unaffected_by_absolute_ancestor_names(self, tmp_path):
         """Classification must not key off ancestor directories outside the library.
@@ -199,7 +394,7 @@ class TestSearchCorpus:
         assert len(results) == 1
         assert results[0].artifact_type == "insights"  # not "paper"
 
-    def test_skips_directories_unreadable_files_and_empty_bodies(self, tmp_path, monkeypatch):
+    def test_skips_directories_unreadable_files_and_empty_bodies(self, tmp_path):
         config = DistillConfig(
             xai_api_key="test",
             distill_output_dir=tmp_path / "library",
@@ -210,17 +405,8 @@ class TestSearchCorpus:
         unreadable_artifact = topic_dir / "unreadable.md"
         readable_artifact = topic_dir / "artifact.md"
         _write_artifact(empty_artifact, "---\ntitle: empty\n---\n   \n")
-        _write_artifact(unreadable_artifact, "machine learning hidden")
+        unreadable_artifact.write_bytes(b"machine learning hidden\xff")
         _write_artifact(readable_artifact, "machine learning visible")
-
-        original_read_text = Path.read_text
-
-        def read_text_or_raise(path: Path, *args, **kwargs):
-            if path == unreadable_artifact:
-                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")
-            return original_read_text(path, *args, **kwargs)
-
-        monkeypatch.setattr(Path, "read_text", read_text_or_raise)
 
         results = search_corpus(config, "test-topic", "machine learning")
 

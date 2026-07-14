@@ -150,6 +150,71 @@ def test_run_research_brief_requires_tracker_before_client_or_gather(tmp_path, m
     gather.assert_not_called()
 
 
+def test_run_research_brief_refuses_when_no_documents_indexed(tmp_path, monkeypatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    submit = MagicMock(side_effect=AssertionError("metered interaction submitted"))
+    deleted: list[str] = []
+
+    class FakeClient:
+        def __init__(self):
+            self.file_search_stores = SimpleNamespace(
+                create=lambda **kwargs: SimpleNamespace(name="store-1")
+            )
+            self.interactions = SimpleNamespace(create=submit)
+
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.gather_topic_files",
+        lambda *args, **kwargs: [("doc", "body")],
+    )
+    monkeypatch.setattr("distill.pipeline.report.brief._upload_files", lambda *args: 0)
+    monkeypatch.setattr("distill.pipeline.report.brief.genai.Client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.delete_store",
+        lambda client, name: deleted.append(name),
+    )
+
+    result = run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker())
+
+    assert result is None
+    submit.assert_not_called()
+    assert deleted == ["store-1"]
+
+
+def test_research_brief_recovers_store_identity_when_initial_name_access_fails(
+    tmp_path, monkeypatch
+):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    deleted = []
+
+    class FlakyStore:
+        accesses = 0
+
+        @property
+        def name(self):
+            self.accesses += 1
+            if self.accesses == 1:
+                raise BrokenPipeError("name access failed")
+            return "store-1"
+
+    client = SimpleNamespace(
+        file_search_stores=SimpleNamespace(create=lambda **kwargs: FlakyStore())
+    )
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.gather_topic_files",
+        lambda *args, **kwargs: [("doc", "body")],
+    )
+    monkeypatch.setattr("distill.pipeline.report.brief.genai.Client", lambda **kwargs: client)
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.delete_store",
+        lambda client, name: deleted.append(name),
+    )
+
+    with pytest.raises(BrokenPipeError, match="name access failed"):
+        run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker())
+
+    assert deleted == ["store-1"]
+
+
 def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
     deleted = []
@@ -185,7 +250,19 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     )
     monkeypatch.setattr(
         "distill.pipeline.report.brief.genai.Client",
-        lambda **_kwargs: FakeClient([SimpleNamespace(status="completed", steps=[])]),
+        lambda **_kwargs: FakeClient(
+            [
+                SimpleNamespace(
+                    status="completed",
+                    steps=[
+                        SimpleNamespace(
+                            type="model_output",
+                            content=[SimpleNamespace(type="text", text="ungrounded body")],
+                        )
+                    ],
+                )
+            ]
+        ),
     )
     assert run_research_brief(["ai"], "ctx", "demo", config, tracker=CostTracker()) is None
 
@@ -221,10 +298,23 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
                 SimpleNamespace(
                     status="completed",
                     steps=[
+                        SimpleNamespace(type="file_search_call", id="search-1"),
+                        SimpleNamespace(type="file_search_result", call_id="search-1"),
                         SimpleNamespace(
                             type="model_output",
-                            content=[SimpleNamespace(type="text", text="brief body")],
-                        )
+                            content=[
+                                SimpleNamespace(
+                                    type="text",
+                                    text="brief body",
+                                    annotations=[
+                                        SimpleNamespace(
+                                            type="file_citation",
+                                            file_name="doc.md",
+                                        )
+                                    ],
+                                )
+                            ],
+                        ),
                     ],
                 ),
             ]
@@ -252,15 +342,20 @@ def test_run_research_brief_refuses_unresolved_numbered_citation(tmp_path, monke
             return SimpleNamespace(
                 status="completed",
                 steps=[
+                    SimpleNamespace(type="file_search_call", id="search-1"),
+                    SimpleNamespace(type="file_search_result", call_id="search-1"),
                     SimpleNamespace(
                         type="model_output",
                         content=[
                             SimpleNamespace(
                                 type="text",
                                 text="Unsupported briefing claim [cite: 1].",
+                                annotations=[
+                                    SimpleNamespace(type="file_citation", file_name="doc.md")
+                                ],
                             )
                         ],
-                    )
+                    ),
                 ],
             )
 

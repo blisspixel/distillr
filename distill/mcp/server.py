@@ -12,9 +12,13 @@ from __future__ import annotations
 import functools
 import inspect
 import json
+import logging
+import math
 import string
-from collections.abc import Awaitable, Callable, Mapping, Sequence
-from contextlib import suppress
+from collections.abc import Awaitable, Callable, Generator, Mapping, Sequence
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
+from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, ParamSpec, TypeVar, cast
@@ -27,7 +31,7 @@ from mcp.types import ContentBlock
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.llm.run_context import mark_current_run_outcome, run_scope, update_current_run
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
 from distill.pipeline.gaps import (
     TopicInventory,
     VideoMetadata,
@@ -50,6 +54,7 @@ __all__ = [
     "read_markdown_resource",
     "refuse_if_host_not_allowed",
     "resolve_within_library",
+    "set_tracker_estimated_cost",
     "strip_frontmatter",
     "topic_source_inventory",
     "video_list",
@@ -59,6 +64,22 @@ __all__ = [
 P = ParamSpec("P")
 R = TypeVar("R", str, Awaitable[str])
 _SAFE_TOOL_NAME_CHARS = frozenset(string.ascii_letters + string.digits + "_.-")
+_ACCOUNTING_FAILURE_NOTE = "MCP cost-ledger persistence failed; inspect local logs."
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _ToolCostState:
+    command: str
+    tracker: CostTracker | None = None
+    library_dir: Path | None = None
+    estimated_cost: float | None = None
+
+
+_current_tool_cost_state: ContextVar[_ToolCostState | None] = ContextVar(
+    "distill_mcp_tool_cost_state",
+    default=None,
+)
 
 
 def _telemetry_tool_name(name: str) -> str:
@@ -140,23 +161,78 @@ def capped_tracker() -> CostTracker:
     :func:`write_tool` turns into a structured response. Enforcement on actual
     spend, never on an estimate.
     """
-    cap = _config().distill_mcp_max_spend_per_call
-    return CostTracker(budget=cap if cap > 0 else None)
+    config = _config()
+    cap = config.distill_mcp_max_spend_per_call
+    tracker = CostTracker(budget=cap if cap > 0 else None)
+    state = _current_tool_cost_state.get()
+    if state is not None:
+        if state.tracker is not None:
+            raise RuntimeError("an MCP tool call may own only one cost tracker")
+        state.tracker = tracker
+        state.library_dir = config.library_dir
+    return tracker
+
+
+def set_tracker_estimated_cost(tracker: CostTracker, estimated_cost: float) -> None:
+    """Attach a finite workflow estimate to the current MCP ledger row."""
+    state = _current_tool_cost_state.get()
+    if state is None or state.tracker is not tracker:
+        raise RuntimeError("tracker does not belong to the current MCP tool call")
+    if not math.isfinite(estimated_cost) or estimated_cost < 0:
+        raise ValueError("estimated cost must be finite and non-negative")
+    state.estimated_cost = estimated_cost
+
+
+def _persist_tool_cost(state: _ToolCostState) -> None:
+    if state.tracker is None:
+        return
+    if state.library_dir is None:
+        raise RuntimeError("tracked MCP tool has no ledger directory")
+    save_run_log(
+        state.library_dir,
+        state.command,
+        state.tracker,
+        estimated_cost=state.estimated_cost,
+    )
+
+
+@contextmanager
+def _tool_cost_scope(command: str) -> Generator[None]:
+    """Persist one registered tracker before any tool result crosses MCP."""
+    state = _ToolCostState(command=command)
+    token = _current_tool_cost_state.set(state)
+    active_error: BaseException | None = None
+    try:
+        yield
+    except BaseException as exc:
+        active_error = exc
+        raise
+    finally:
+        try:
+            _persist_tool_cost(state)
+        except Exception:
+            if active_error is None:
+                raise
+            active_error.add_note(_ACCOUNTING_FAILURE_NOTE)
+            logger.exception(_ACCOUNTING_FAILURE_NOTE)
+        finally:
+            _current_tool_cost_state.reset(token)
 
 
 def _budget_response(action: str, exc: BudgetExceededError) -> str:
-    return json.dumps(
-        {
-            "status": "budget_exceeded",
-            "error": f"'{action}' stopped: {exc}. Artifacts written before the "
-            "stop are durable and verify-gated; re-running converges (already-"
-            "ingested sources are skipped). Raise DISTILL_MCP_MAX_SPEND_PER_CALL "
-            "or run the action via the distill CLI.",
-            "spent": round(exc.spent, 6),
-            "cap": exc.budget,
-        },
-        indent=2,
-    )
+    payload: dict[str, object] = {
+        "status": "budget_exceeded",
+        "error": f"'{action}' stopped: {exc}. Artifacts written before the "
+        "stop are durable and verify-gated; re-running converges (already-"
+        "ingested sources are skipped). Raise DISTILL_MCP_MAX_SPEND_PER_CALL "
+        "or run the action via the distill CLI.",
+        "spent": round(exc.spent, 6),
+        "cap": exc.budget,
+    }
+    if _ACCOUNTING_FAILURE_NOTE in getattr(exc, "__notes__", ()):
+        payload["accounting_status"] = "failed"
+        payload["accounting_error"] = _ACCOUNTING_FAILURE_NOTE
+    return json.dumps(payload, indent=2)
 
 
 def _write_tool_read_only_refusal(
@@ -174,18 +250,22 @@ def write_tool(
     action: str,
     *,
     allow_preview: bool = False,
+    ledger_command: str | None = None,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorator marking an MCP tool as write-side (spend, ingest, or mutation).
 
     Stacks *under* ``@mcp.tool()`` so the registered callable carries the
-    read-only gate and the per-call spend cap (a ``BudgetExceededError`` from
-    the tool's ``capped_tracker()`` becomes a structured response instead of a
-    protocol error). Tools can opt into read-only preview calls when
-    ``preview=True`` is structurally non-mutating. ``functools.wraps`` preserves
-    the signature FastMCP introspects for the schema.
+    read-only gate and the per-call spend cap. The first
+    ``capped_tracker()`` created inside the tool becomes the call's single
+    ledger owner and is persisted before success, failure, cancellation, or a
+    structured budget response crosses the MCP boundary. Tools can opt into
+    read-only preview calls when ``preview=True`` is structurally
+    non-mutating. ``functools.wraps`` preserves the signature FastMCP
+    introspects for the schema.
     """
 
     def deco(fn: Callable[P, R]) -> Callable[P, R]:
+        command = ledger_command or action
         if inspect.iscoroutinefunction(fn):
             async_fn = cast("Callable[P, Awaitable[str]]", fn)
 
@@ -200,7 +280,8 @@ def write_tool(
                     mark_current_run_outcome("refused")
                     return refusal
                 try:
-                    return await async_fn(*args, **kwargs)
+                    with _tool_cost_scope(command):
+                        return await async_fn(*args, **kwargs)
                 except BudgetExceededError as exc:
                     mark_current_run_outcome("budget_exceeded")
                     return _budget_response(action, exc)
@@ -220,7 +301,8 @@ def write_tool(
                 mark_current_run_outcome("refused")
                 return refusal
             try:
-                return sync_fn(*args, **kwargs)
+                with _tool_cost_scope(command):
+                    return sync_fn(*args, **kwargs)
             except BudgetExceededError as exc:
                 mark_current_run_outcome("budget_exceeded")
                 return _budget_response(action, exc)

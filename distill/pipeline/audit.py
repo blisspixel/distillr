@@ -21,11 +21,17 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import Counter
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from distill.library.freshness import SynthesisFreshness, collect_synthesis_freshness
-from distill.library.insights import discover_insights
+from distill.library.insights import (
+    discover_insights,
+    insight_verification_payload_is_valid,
+    read_discovered_insight,
+    verify_sidecar_for_insight,
+)
 from distill.library.okf import detect_okf_export_staleness
 from distill.library.paths import (
     artifact_path,
@@ -73,6 +79,7 @@ from distill.pipeline.quality_history import (
     quality_snapshot_from_report,
 )
 from distill.pipeline.quality_trend import render_quality_trend
+from distill.pipeline.verify_sidecar import parse_verify_sidecar
 from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 _action_id = action_id
@@ -376,76 +383,21 @@ def build_next_action_plan(
     )
 
 
-def _json_object(value: object) -> dict[str, Any] | None:
-    return cast("dict[str, Any]", value) if isinstance(value, dict) else None
-
-
-def _json_object_list(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    rows: list[dict[str, Any]] = []
-    for item in cast("list[object]", value):
-        parsed = _json_object(item)
-        if parsed is not None:
-            rows.append(parsed)
-    return rows
-
-
-def _sidecar_flags(data: dict[str, Any], artifact_path: str) -> list[VerifyFlag]:
-    """All flagged claims in one sidecar: numeric tier + the additive
-    entailment block (schema v2; a missing block means the tier wasn't run,
-    so v1 sidecars stay valid)."""
-    flags: list[VerifyFlag] = []
-    unsupported = _json_object_list(data.get("unsupported"))
-    for item in unsupported:
-        flags.append(
-            {
-                "insight": artifact_path,
-                "token": str(item.get("token", "")),
-                "kind": str(item.get("kind", "")),
-                "context": str(item.get("context", ""))[:200],
-            }
-        )
-    ent = _json_object(data.get("entailment"))
-    ent_flagged = _json_object_list(ent.get("flagged")) if ent is not None else []
-    for item in ent_flagged:
-        flags.append(
-            {
-                "insight": artifact_path,
-                "token": str(item.get("claim", ""))[:80],
-                "kind": "entailment",
-                "context": str(item.get("best_chunk_preview", ""))[:200],
-            }
-        )
-    return flags
-
-
-def _checked_claim_count(data: dict[str, Any]) -> int:
-    """Return positive claim coverage across the numeric and entailment tiers."""
-
-    def positive_int(value: object) -> int:
-        return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 0
-
-    total = positive_int(data.get("checked"))
-    entailment = _json_object(data.get("entailment"))
-    if entailment is not None:
-        total += positive_int(entailment.get("checked"))
-    return total
-
-
 def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
     """Every synthesis artifact a topic can carry, with its verify-sidecar
     identity: ``(artifact_path, sidecar_dir-relative artifact label, identity)``.
 
-    Identities mirror exactly what the synthesis writers stamp (paper:
-    ``<topic>-paper-synthesis`` etc.; channel/site syntheses reuse their
-    artifact identity), so the audit reads the same sidecar the emit wrote.
+    Identities mirror exactly what the synthesis writers stamp. Topic-level
+    paper, corpus, site, and video rollups have modality-specific identities;
+    nested channel and site syntheses reuse their artifact identities. The
+    audit therefore reads the same sidecar each writer emitted.
     """
     topic = topic_dir.name
     found: list[tuple[Path, str, str]] = []
     topic_level = [
         ("paper_synthesis", f"{topic}-paper-synthesis"),
         ("corpus_synthesis", f"{topic}-corpus-synthesis"),
+        ("site_synthesis", f"{topic}-site-topic-synthesis"),
         ("topic_synthesis", f"{topic}-topic-synthesis"),
     ]
     for artifact_type, sidecar_identity in topic_level:
@@ -466,29 +418,69 @@ def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
     return found
 
 
-def _read_sidecar(sidecar: Path, label: str) -> tuple[bool, list[VerifyFlag]] | None:
+def _read_sidecar(
+    sidecar: Path,
+    label: str,
+    *,
+    insight_path: Path | None = None,
+    allow_nameless_legacy: bool = False,
+) -> tuple[bool, list[VerifyFlag]] | None:
     """Read one ``_Verify.json`` sidecar. Returns ``(is_clean, flags)`` or
-    ``None`` when the file is absent/unreadable/not an object -- the caller
-    counts ``None`` as unverified (parse-don't-crash over local state).
+    ``None`` when the file is absent, unreadable, or violates its versioned
+    schema. The caller counts ``None`` as unverified.
 
-    A parseable sidecar is clean only when at least one numeric or entailment
-    claim was actually checked. Zero-check sidecars provide no verification
-    coverage and therefore return ``None`` rather than a false clean result.
-    Existing flags still take precedence over a malformed zero count.
+    A valid sidecar is clean only when at least one usable numeric or semantic
+    claim was checked. Zero-check and failed required-semantic records provide
+    no verification coverage and cannot become false clean results.
     """
     if not sidecar.exists():
         return None
     try:
         data = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, RecursionError):
         return None
-    parsed = _json_object(data)
-    if parsed is None:
+    if not _legacy_sidecar_matches(
+        sidecar,
+        data,
+        insight_path=insight_path,
+        allow_nameless=allow_nameless_legacy,
+    ):
         return None
-    flags = _sidecar_flags(parsed, label)
-    if not flags and _checked_claim_count(parsed) == 0:
+    parsed = parse_verify_sidecar(data)
+    if parsed is None or not parsed.has_usable_coverage:
         return None
+    if insight_path is not None and not insight_verification_payload_is_valid(insight_path, data):
+        return None
+    flags: list[VerifyFlag] = [
+        {
+            "insight": label,
+            "token": flag.token,
+            "kind": flag.kind,
+            "context": flag.context,
+        }
+        for flag in parsed.flags
+    ]
     return (not flags, flags)
+
+
+def _legacy_sidecar_matches(
+    sidecar: Path,
+    payload: object,
+    *,
+    insight_path: Path | None,
+    allow_nameless: bool,
+) -> bool:
+    """Bind directory-wide ``verify.json`` to at most one intended insight."""
+
+    if sidecar.name.casefold() != "verify.json" or insight_path is None:
+        return True
+    if not isinstance(payload, dict):
+        return False
+    data = cast("dict[object, object]", payload)
+    insight_name = data.get("insight")
+    if insight_name is None or (isinstance(insight_name, str) and not insight_name.strip()):
+        return allow_nameless
+    return isinstance(insight_name, str) and insight_name == insight_path.name
 
 
 def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
@@ -500,15 +492,25 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     corruptible local state). Synthesis artifacts are swept too (their sidecars
     are keyed by the writer's identity), counted separately from insights.
     """
-    insights = discover_insights(topic_dir)
+    insights = discover_insights(topic_dir, validate_verification=False)
+    insight_counts_by_directory = Counter(ref.path.parent for ref in insights)
+    consumed_sidecars: set[Path] = set()
     checked = 0
     clean = 0
     flagged: list[VerifyFlag] = []
     for ref in insights:
-        sidecars = sorted(ref.path.parent.glob("*_Verify.json"))
-        result = _read_sidecar(sidecars[0], ref.artifact_path) if sidecars else None
+        sidecar = verify_sidecar_for_insight(ref.path)
+        if sidecar in consumed_sidecars:
+            continue
+        result = _read_sidecar(
+            sidecar,
+            ref.artifact_path,
+            insight_path=ref.path,
+            allow_nameless_legacy=insight_counts_by_directory[ref.path.parent] == 1,
+        )
         if result is None:
             continue
+        consumed_sidecars.add(sidecar)
         checked += 1
         is_clean, flags = result
         flagged += flags
@@ -561,9 +563,8 @@ def collect_staleness(topic_dir: Path) -> StalenessRollup:
     unknown_family = 0
     no_provenance = 0
     for ref in discover_insights(topic_dir):
-        try:
-            text = ref.path.read_text(encoding="utf-8")
-        except OSError:
+        text = read_discovered_insight(ref, topic_dir.parent.parent)
+        if text is None:
             continue
         recorded = _frontmatter_prompt_id(text)
         if not recorded:

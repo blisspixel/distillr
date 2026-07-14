@@ -228,7 +228,7 @@ def _show_dashboard() -> None:  # noqa: C901
     if watchlist:
         channel_lines: list[str] = []
         for entry in watchlist[:5]:
-            suffix = " / custom" if entry.instructions else ""
+            suffix = " / custom" if entry.active_instructions else ""
             channel_lines.append(f"{entry.name} [dim]{entry.topic} / {entry.days}d{suffix}[/dim]")
         if len(watchlist) > 5:
             channel_lines.append(f"[dim]+{len(watchlist) - 5} more[/dim]")

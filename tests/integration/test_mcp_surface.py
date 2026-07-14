@@ -215,7 +215,14 @@ class TestCliJsonIntegration:
 
         runner = CliRunner()
         # Use a config with no API key to trigger an error in doctor
-        config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+        config = DistillConfig(
+            xai_api_key="",
+            gemini_api_key="",
+            anthropic_api_key="",
+            openai_api_key="",
+            distill_cost_mode="no-metered",
+            distill_output_dir=tmp_path / "library",
+        )
         with patch("distill.commands.doctor.get_config", return_value=config):
             result = runner.invoke(app, ["--json", "doctor"])
 

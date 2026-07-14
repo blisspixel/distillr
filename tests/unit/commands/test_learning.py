@@ -1,9 +1,11 @@
 from datetime import datetime
 from types import SimpleNamespace
 
+import pytest
+
 from distill.cli_support import learning
 from distill.ingestors.youtube.discovery import VideoInfo
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.ranking import RankedPaper
 
 
@@ -93,6 +95,17 @@ def test_expand_paper_queries_falls_back_when_llm_errors(config, monkeypatch):
     queries = learning._expand_paper_queries("agent memory", config, CostTracker(), expand=True)
 
     assert queries == ["agent memory"]
+
+
+def test_expand_paper_queries_propagates_terminal_budget_stop(config, monkeypatch):
+    monkeypatch.setattr(
+        learning,
+        "_llm_expand_paper_queries",
+        lambda *args, **kwargs: (_ for _ in ()).throw(BudgetExceededError(0.02, 0.01)),
+    )
+
+    with pytest.raises(BudgetExceededError):
+        learning._expand_paper_queries("agent memory", config, CostTracker(), expand=True)
 
 
 def test_llm_expand_paper_queries_parses_response_and_records_usage(config, monkeypatch):

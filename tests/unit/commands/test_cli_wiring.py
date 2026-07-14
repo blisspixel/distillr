@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
-from distill.commands import _discover_flow, _helpers, _site_ingest
+from distill.commands import _discover_flow, _helpers, _site_ingest, _site_page_storage
 from distill.commands import _learning as _learning_support
 from distill.commands import dashboard as _dashboard
 from distill.commands import discover as _discover
@@ -3307,7 +3307,11 @@ class TestSiteCommands:
             site_manifest = json.loads(
                 (config.site_dir("web", "example.com") / "site.json").read_text(encoding="utf-8")
             )
-            page_dir = config.site_page_dir("web", "example.com", "Example Page", "example-com")
+            page_dir = next(
+                path
+                for path in config.site_pages_dir("web", "example.com").iterdir()
+                if path.is_dir()
+            )
             assert find_artifact(page_dir, "content").exists()
             assert (page_dir / "metadata.json").exists()
             assert (page_dir / "attachments.json").exists()
@@ -3463,7 +3467,11 @@ class TestSiteCommands:
             )
 
             assert result.exit_code == 0
-            page_dir = config.site_page_dir("web", "example.com", "Example Page", "example-com")
+            page_dir = next(
+                path
+                for path in config.site_pages_dir("web", "example.com").iterdir()
+                if path.is_dir()
+            )
             assert (page_dir / "attachments.json").exists()
             assert "Attachment Extracts" in find_artifact(page_dir, "content").read_text(
                 encoding="utf-8"
@@ -3495,8 +3503,12 @@ class TestSiteCommands:
                 text="Body text",
                 source_url="https://example.com/agent",
             )
-            page_dir = config.site_page_dir("web", "example.com", "Agent Page", page.page_id)
-            page_dir.mkdir(parents=True, exist_ok=True)
+            page_dir = _site_page_storage.reserve_site_page_directory(
+                config,
+                "web",
+                "example.com",
+                page,
+            ).path
             prior_doc = _site_ingest.build_page_document(page)
             (page_dir / "metadata.json").write_text(
                 json.dumps({"content_hash": _site_ingest.content_hash(prior_doc)}),

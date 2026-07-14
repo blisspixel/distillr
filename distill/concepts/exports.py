@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 
 from distill.concepts.records import MergedConcept
+from distill.library.paths import atomic_write_text
 
 __all__ = ["concepts_jsonl_path", "entities_jsonl_path", "write_exports"]
 
@@ -51,12 +52,12 @@ def write_exports(
     entities_path = entities_jsonl_path(topic_dir)
     topic_dir.mkdir(parents=True, exist_ok=True)
 
-    concepts_path.write_text(
+    atomic_write_text(
+        concepts_path,
         "".join(json.dumps(c.to_jsonl_row(), ensure_ascii=False) + "\n" for c in concepts),
-        encoding="utf-8",
     )
-    entities_path.write_text(
+    atomic_write_text(
+        entities_path,
         "".join(json.dumps(c.to_jsonl_row(), ensure_ascii=False) + "\n" for c in entities),
-        encoding="utf-8",
     )
     return concepts_path, entities_path

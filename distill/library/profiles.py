@@ -88,6 +88,16 @@ _BoundedSafeLoader.add_constructor(
 )
 
 
+def _load_bounded_yaml(source: str) -> object:
+    """Parse YAML with the bounded SafeLoader and always release parser state."""
+
+    loader = _BoundedSafeLoader(source)
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()  # pyright: ignore[reportUnknownMemberType] "PyYAML has incomplete stubs"
+
+
 def _clean(value: object) -> str:
     return "" if value is None else str(value).strip()
 
@@ -488,7 +498,7 @@ def load_research_profile(path: Path) -> ResearchProfile:
             content = stream.read(_MAX_PROFILE_FILE_BYTES + 1)
         if len(content) > _MAX_PROFILE_FILE_BYTES:
             raise ValueError(f"profile exceeds the {_MAX_PROFILE_FILE_BYTES:,}-byte cap")
-        payload = yaml.load(content.decode("utf-8"), Loader=_BoundedSafeLoader)
+        payload = _load_bounded_yaml(content.decode("utf-8"))
         _validate_yaml_tree(payload)
     except OSError as exc:
         raise ProfileValidationError(f"Could not read profile {path}: {exc}") from exc

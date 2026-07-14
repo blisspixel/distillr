@@ -11,6 +11,7 @@ import pytest
 from pydantic import SecretStr
 
 from distill.config import DistillConfig
+from distill.library.insights import insight_content_sha256
 from distill.llm.router import LLM_Response
 from distill.pipeline import summary_query as sq_mod
 from distill.pipeline.costs import CostTracker
@@ -77,6 +78,55 @@ class TestSummarizeQuery:
         )
 
         assert sq_mod.summarize_query(config, "t", "vanished source") is None
+
+    def test_source_reread_rejects_path_swapped_to_outside_hardlink(
+        self, config, monkeypatch, tmp_path
+    ):
+        insight = _seed(config)
+        outside = tmp_path / "outside-secret.md"
+        outside.write_text("grounding verification SECRET-OUTSIDE-LIBRARY", encoding="utf-8")
+        real_search = sq_mod.search_corpus
+
+        def search_then_swap(*args, **kwargs):
+            results = real_search(*args, **kwargs)
+            insight.unlink()
+            try:
+                insight.hardlink_to(outside)
+            except OSError as exc:
+                pytest.skip(f"hard links unavailable: {exc}")
+            return results
+
+        monkeypatch.setattr(sq_mod, "search_corpus", search_then_swap)
+        monkeypatch.setattr(
+            sq_mod,
+            "llm_call",
+            lambda *_args, **_kwargs: pytest.fail("unsafe source must not reach the model"),
+        )
+
+        assert sq_mod.summarize_query(config, "t", "grounding verification") is None
+
+    def test_source_reread_rejects_regular_file_replaced_after_search(self, config, monkeypatch):
+        insight = _seed(config)
+        real_search = sq_mod.search_corpus
+
+        def search_then_replace(*args, **kwargs):
+            results = real_search(*args, **kwargs)
+            replacement = insight.with_suffix(".replacement")
+            replacement.write_text(
+                "grounding verification UNVERIFIED-REPLACEMENT",
+                encoding="utf-8",
+            )
+            replacement.replace(insight)
+            return results
+
+        monkeypatch.setattr(sq_mod, "search_corpus", search_then_replace)
+        monkeypatch.setattr(
+            sq_mod,
+            "llm_call",
+            lambda *_args, **_kwargs: pytest.fail("changed source must not reach the model"),
+        )
+
+        assert sq_mod.summarize_query(config, "t", "grounding verification") is None
 
     def test_summary_with_citations_and_cache_write(self, config, monkeypatch):
         _seed(config)
@@ -190,7 +240,10 @@ class TestSummarizeQuery:
 
         def ranked_results(*_args, **_kwargs):
             return [
-                SimpleNamespace(path=path.relative_to(config.library_dir).as_posix())
+                SimpleNamespace(
+                    path=path.relative_to(config.library_dir).as_posix(),
+                    content_sha256=insight_content_sha256(path.read_text(encoding="utf-8")),
+                )
                 for path in ranked_paths
             ]
 

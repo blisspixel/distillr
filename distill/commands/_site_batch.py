@@ -10,7 +10,7 @@ from typing import Any
 from distill._console import console
 from distill.commands._helpers import record_exception_issue
 from distill.commands._site_ingest import site_ingest_status_phase
-from distill.ingestors.sites.scraper import SiteSeed
+from distill.ingestors.sites.scraper import MAX_SITE_BATCH_PAGES, SiteSeed
 from distill.library.paths import find_artifact
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
@@ -77,7 +77,7 @@ def resolve_site_batch_seeds(
     seed_only: bool,
     same_section_only: bool,
 ) -> list[SiteSeed]:
-    return [
+    resolved = [
         site_batch_seed(
             seed,
             seed_only=seed_only,
@@ -85,6 +85,9 @@ def resolve_site_batch_seeds(
         )
         for seed in seeds
     ]
+    if sum(seed.max_pages for seed in resolved) > MAX_SITE_BATCH_PAGES:
+        raise ValueError(f"site batch page budget exceeds {MAX_SITE_BATCH_PAGES}")
+    return resolved
 
 
 def site_batch_plan_rows(seeds: list[SiteSeed]) -> list[SiteBatchPlanRow]:
@@ -212,12 +215,12 @@ def run_site_batch_syntheses(
     summary: RunSummary,
 ) -> None:
     try:
-        topic_synth = synthesize_site_topic(target_topic, config, tracker=tracker)
-        if topic_synth:
+        site_synth = synthesize_site_topic(target_topic, config, tracker=tracker)
+        if site_synth:
             summary.add_output(
                 find_artifact(
                     config.topic_dir(target_topic),
-                    "topic_synthesis",
+                    "site_synthesis",
                     identity=target_topic,
                 )
             )

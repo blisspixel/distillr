@@ -85,6 +85,30 @@ def test_rejects_extensionless_dotfile(tmp_path: Path):
         extract_local_document(p)
 
 
+def test_rejects_benign_name_symlink_to_secret(tmp_path: Path):
+    secret = _write(tmp_path / ".provider-secret", "API_KEY=must-not-ingest")
+    alias = tmp_path / "research-notes.txt"
+    try:
+        alias.symlink_to(secret)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    with pytest.raises(LocalExtractionError, match="unsafe"):
+        extract_local_document(alias)
+
+
+def test_rejects_hard_link_alias_to_secret(tmp_path: Path):
+    secret = _write(tmp_path / ".provider-secret", "API_KEY=must-not-ingest")
+    alias = tmp_path / "research-notes.txt"
+    try:
+        alias.hardlink_to(secret)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+
+    with pytest.raises(LocalExtractionError, match="unsafe"):
+        extract_local_document(alias)
+
+
 def test_html_strips_script_and_style(tmp_path: Path):
     p = _write(
         tmp_path / "page.html",

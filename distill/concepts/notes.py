@@ -29,7 +29,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from distill.concepts.records import MergedConcept, Polarity, SourceEvidence
-from distill.library.paths import dump_frontmatter
+from distill.library.paths import (
+    atomic_update_text,
+    atomic_write_text,
+    dump_frontmatter,
+    extract_frontmatter,
+)
 
 __all__ = [
     "concept_dir_for_topic",
@@ -77,6 +82,13 @@ def note_path_for(topic_dir: Path, concept: MergedConcept) -> Path:
     return parent / f"{concept.slug}.md"
 
 
+def _content_owner(content: str) -> str | None:
+    """Return the normalized concept identity recorded in note content."""
+
+    name = extract_frontmatter(content).get("normalized_name", "")
+    return name or None
+
+
 def _existing_owner(target: Path) -> str | None:
     """Return the ``normalized_name`` recorded in an existing note's frontmatter, or ``None``.
 
@@ -92,11 +104,7 @@ def _existing_owner(target: Path) -> str | None:
         content = target.read_text(encoding="utf-8")
     except OSError:
         return None
-    from distill.library.paths import extract_frontmatter
-
-    fm = extract_frontmatter(content)
-    name = fm.get("normalized_name", "")
-    return name or None
+    return _content_owner(content)
 
 
 def _resolve_collision(parent: Path, slug: str, normalized_name: str) -> Path:
@@ -125,17 +133,32 @@ def _resolve_collision(parent: Path, slug: str, normalized_name: str) -> Path:
     return parent / f"{slug}__{digest}.md"
 
 
-def history_path_for(topic_dir: Path, concept: MergedConcept, timestamp: str) -> Path:
-    """Return the snapshot path under ``.history/<slug>/<timestamp>.md``.
+def history_path_for(
+    topic_dir: Path,
+    concept: MergedConcept,
+    timestamp: str,
+    *,
+    storage_slug: str | None = None,
+) -> Path:
+    """Return the snapshot path under ``.history/<storage-slug>/<timestamp>.md``.
 
-    Snapshots are per-slug so a single concept's history is easy to
-    browse; per-topic ``.history`` keeps the layout self-contained.
+    The storage slug is the live note stem after collision resolution. This
+    keeps the histories of concepts with the same lossy logical slug isolated.
+    Callers that only need the canonical base path may omit it.
     Timestamp should be ISO 8601 with second precision, ``:`` swapped to
     ``-`` for filesystem compatibility (Windows can't have ``:`` in
     filenames).
     """
+    history_slug = concept.slug if storage_slug is None else storage_slug
+    if (
+        not history_slug
+        or history_slug in {".", ".."}
+        or any(character in history_slug for character in ("/", "\\", ":", "\x00"))
+        or Path(history_slug).name != history_slug
+    ):
+        raise ValueError(f"Unsafe history storage slug: {history_slug!r}")
     safe_ts = timestamp.replace(":", "-")
-    return topic_dir / ".history" / concept.slug / f"{safe_ts}.md"
+    return topic_dir / ".history" / history_slug / f"{safe_ts}.md"
 
 
 # ---- rendering -------------------------------------------------------------
@@ -305,20 +328,34 @@ def write_playbook(
     chosen filename so the snapshot tree mirrors the live tree.
     """
     parent = note_path_for(topic_dir, concept).parent
-    target = _resolve_collision(parent, concept.slug, concept.normalized_name)
     new_content = render_playbook(concept)
 
-    if target.exists():
-        existing = target.read_text(encoding="utf-8")
-        if existing == new_content:
-            return target, False
-        history = history_path_for(topic_dir, concept, now_iso)
-        history.parent.mkdir(parents=True, exist_ok=True)
-        history.write_text(existing, encoding="utf-8")
+    for _ in range(1001):
+        target = _resolve_collision(parent, concept.slug, concept.normalized_name)
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(new_content, encoding="utf-8")
-    return target, True
+        def update(existing: str, candidate: Path = target) -> tuple[str, bool | None]:
+            owner = _content_owner(existing) if existing else None
+            if existing and owner is not None and owner != concept.normalized_name:
+                return existing, None
+            if existing == new_content:
+                return existing, False
+            if existing:
+                history = history_path_for(
+                    topic_dir,
+                    concept,
+                    now_iso,
+                    storage_slug=candidate.stem,
+                )
+                atomic_write_text(history, existing)
+            return new_content, True
+
+        changed = atomic_update_text(target, update, missing="")
+        if changed is not None:
+            return target, changed
+
+    raise RuntimeError(
+        f"Could not claim a collision-safe note path for {concept.normalized_name!r}"
+    )
 
 
 # ---- mentions.jsonl (append-only log) -------------------------------------
@@ -411,4 +448,4 @@ def record_extracted_sources(topic_dir: Path, source_ids: Iterable[str]) -> None
     merged = read_extracted_sources(topic_dir) | new
     path = _extracted_sources_path(topic_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(sorted(merged), ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_text(path, json.dumps(sorted(merged), ensure_ascii=False, indent=2))

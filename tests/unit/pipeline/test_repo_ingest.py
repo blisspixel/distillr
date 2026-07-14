@@ -6,6 +6,8 @@ import pytest
 
 from distill.config import DistillConfig
 from distill.ingestors.github import RepoRecord
+from distill.library.insights import discover_insights
+from distill.library.paths import extract_frontmatter
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis import repo as repo_mod
 from distill.pipeline.costs import CostTracker
@@ -64,6 +66,10 @@ def test_ingest_repo_writes_receipt_and_verified_insight(config, monkeypatch):
     insight = result.insights_path.read_text(encoding="utf-8")
     assert 'source_id: "o/r"' in insight
     assert 'prompt_id: "analysis.github_repo.v1"' in insight
+    receipt_frontmatter = extract_frontmatter(receipt)
+    insight_frontmatter = extract_frontmatter(insight)
+    assert insight_frontmatter["source_receipt"] == result.repo_path.name
+    assert insight_frontmatter["source_receipt_sha256"] == receipt_frontmatter["receipt_sha256"]
     # Verify hook ran and the claims ground in the receipt.
     sidecars = list(result.repo_path.parent.glob("*_Verify.json"))
     assert len(sidecars) == 1
@@ -81,6 +87,62 @@ def test_ingest_repo_strict_refuses_unsupported_insight(config, monkeypatch):
     assert result.repo_path.exists()  # receipt kept
 
 
+def test_repo_reingest_refusal_invalidates_prior_insight_generation(config, monkeypatch):
+    records = iter(
+        [
+            _record(),
+            _record(
+                stars=2000,
+                pushed_at="2026-07-14T00:00:00Z",
+                readme="Now reaches 80.0 accuracy with 2,000 users.",
+            ),
+        ]
+    )
+    responses = iter(
+        [
+            "## Summary\nReaches 72.6 accuracy with 1,234 users.",
+            "## Summary\nClaims unsupported 99.99 accuracy.",
+        ]
+    )
+    monkeypatch.setattr(repo_mod, "fetch_repo", lambda owner, repo: next(records))
+    monkeypatch.setattr(
+        repo_mod,
+        "llm_call",
+        lambda rc, **kwargs: LLM_Response(
+            text=next(responses),
+            input_tokens=10,
+            output_tokens=5,
+            model="grok-4.3",
+        ),
+    )
+    config.distill_verify = "strict"
+
+    first = repo_mod.ingest_repo("https://github.com/o/r", topic="tkg", config=config)
+    assert first.insights_path is not None
+    prior_insight = first.insights_path.read_text(encoding="utf-8")
+
+    second = repo_mod.ingest_repo("https://github.com/o/r", topic="tkg", config=config)
+
+    assert second.insights_path is None
+    assert "Stars: 2,000" in second.repo_path.read_text(encoding="utf-8")
+    assert first.insights_path.read_text(encoding="utf-8") == prior_insight
+    assert discover_insights(config.topic_dir("tkg")) == []
+
+
+def test_repo_insight_discovery_rejects_modified_receipt_body(config, monkeypatch):
+    _patch(monkeypatch, insight_text="## Summary\nReaches 72.6 accuracy; 1,234 users.")
+    result = repo_mod.ingest_repo("https://github.com/o/r", topic="tkg", config=config)
+    assert len(discover_insights(config.topic_dir("tkg"))) == 1
+
+    receipt = result.repo_path.read_text(encoding="utf-8")
+    result.repo_path.write_text(
+        receipt.replace("Reaches 72.6 accuracy", "Reaches 80.0 accuracy"),
+        encoding="utf-8",
+    )
+
+    assert discover_insights(config.topic_dir("tkg")) == []
+
+
 def test_ingest_repo_no_analyze_captures_only(config, monkeypatch):
     monkeypatch.setattr(repo_mod, "fetch_repo", lambda owner, repo: _record())
 
@@ -90,6 +152,46 @@ def test_ingest_repo_no_analyze_captures_only(config, monkeypatch):
 
     assert result.repo_path.exists()
     assert result.insights_path is None
+
+
+def test_repo_capture_only_reingest_invalidates_prior_insight_generation(config, monkeypatch):
+    records = iter(
+        [
+            _record(),
+            _record(
+                stars=2000,
+                pushed_at="2026-07-14T00:00:00Z",
+                readme="Now reaches 80.0 accuracy with 2,000 users.",
+            ),
+        ]
+    )
+    monkeypatch.setattr(repo_mod, "fetch_repo", lambda owner, repo: next(records))
+    monkeypatch.setattr(
+        repo_mod,
+        "llm_call",
+        lambda rc, **kwargs: LLM_Response(
+            text="## Summary\nReaches 72.6 accuracy with 1,234 users.",
+            input_tokens=10,
+            output_tokens=5,
+            model="grok-4.3",
+        ),
+    )
+
+    first = repo_mod.ingest_repo("https://github.com/o/r", topic="tkg", config=config)
+    assert first.insights_path is not None
+    assert len(discover_insights(config.topic_dir("tkg"))) == 1
+
+    second = repo_mod.ingest_repo(
+        "https://github.com/o/r",
+        topic="tkg",
+        config=config,
+        analyze=False,
+    )
+
+    assert second.insights_path is None
+    assert "Stars: 2,000" in second.repo_path.read_text(encoding="utf-8")
+    assert first.insights_path.exists()
+    assert discover_insights(config.topic_dir("tkg")) == []
 
 
 def test_ingest_repo_rejects_bad_url(config):

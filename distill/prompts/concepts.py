@@ -38,7 +38,7 @@ from distill.prompts.shared import (
 __all__ = ["EXTRACTION_PROMPT_ID", "concept_extraction_prompt"]
 
 
-EXTRACTION_PROMPT_ID = "concepts.extract.v1"
+EXTRACTION_PROMPT_ID = "concepts.extract.v2"
 
 
 def concept_extraction_prompt(insight_content: str, topic: str) -> str:
@@ -68,10 +68,9 @@ A single JSON array of objects. No prose before or after. No markdown wrapping. 
 
 {{
   "name": "surface form of the concept as it appears in the insight",
-  "normalized_name": "lowercase canonical form, e.g. 'rotational embeddings'",
   "kind": "technique" | "architecture" | "dataset" | "metric" | "person" | "organization" | "vendor",
   "polarity": "helpful" | "harmful" | "neutral",
-  "claim_excerpt": "10-25 word verbatim or near-verbatim quote from the insight grounding your polarity assignment",
+  "claim_excerpt": "10-25 word exact quote from the insight that contains name and grounds the polarity assignment",
   "evidence_type": "empirical_result" | "methodology" | "citation" | "comparison" | "limitation" | "background"
 }}
 
@@ -95,8 +94,9 @@ QUALITY RULES:
 - Only extract concepts the insight discusses *substantively*. Skip passing mentions in references.
 - Extract at most one mention per concept per insight. If the insight discusses "transformers" in three places,
   emit ONE mention with the most informative claim_excerpt.
-- The normalized_name must be lowercase, singular where natural English allows ("rotational embedding"
-  not "rotational embeddings"), and stripped of trailing punctuation.
+- Copy name and claim_excerpt exactly from the insight body. The quote must contain
+  the exact name. Do not use frontmatter, links, or fenced code as evidence.
+  Distill derives the normalized identity deterministically.
 - {ANTI_HALLUCINATION_RULES}
 - {FORMATTING_RULES}
 - If the insight contains no named concepts or entities (rare), return an empty array: [].

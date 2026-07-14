@@ -27,7 +27,14 @@ class _StubResponse:
         self.output_tokens = 50
 
 
-def _write_insight(tmp_path: Path, content: str = "# Sample insight\n\nbody") -> Path:
+def _write_insight(
+    tmp_path: Path,
+    content: str = (
+        "# Sample insight\n\n"
+        "**Rotational Embeddings** beat discrete timestamps.\n\n"
+        "EST is a temporal architecture."
+    ),
+) -> Path:
     path = tmp_path / "papers" / "sample" / "sample_Insights.md"
     path.parent.mkdir(parents=True)
     path.write_text(content, encoding="utf-8")
@@ -40,7 +47,7 @@ def _valid_row(**overrides) -> dict:
         "normalized_name": "rotational embeddings",
         "kind": "technique",
         "polarity": "helpful",
-        "claim_excerpt": "Rotation beats discrete timestamps.",
+        "claim_excerpt": "Rotational Embeddings beat discrete timestamps.",
         "evidence_type": "empirical_result",
     }
     base.update(overrides)
@@ -53,9 +60,82 @@ def rc() -> RouterConfig:
 
 
 class TestExtractFromInsight:
+    @pytest.mark.parametrize(
+        "content,row",
+        [
+            (
+                "# Sample insight\n\nA generic source body without the invented technique.",
+                _valid_row(),
+            ),
+            (
+                "# Sample insight\n\nRotational Embeddings are discussed here.",
+                _valid_row(claim_excerpt="Rotational Embeddings beat every baseline."),
+            ),
+            (
+                "---\ntitle: Rotational Embeddings\n---\n\nNo named technique appears in the body.",
+                _valid_row(claim_excerpt="Rotational Embeddings"),
+            ),
+            (
+                "# Sample insight\n\n```text\nRotational Embeddings beat discrete timestamps.\n```",
+                _valid_row(),
+            ),
+            (
+                "# References\n\n[Rotational Embeddings beat discrete timestamps.](https://example.com)",
+                _valid_row(),
+            ),
+            (
+                "# Sample insight\n\nRotational Embeddings are discussed. Benchmarks improve accuracy.",
+                _valid_row(claim_excerpt="Benchmarks improve accuracy."),
+            ),
+            (
+                "# Sample insight\n\nTesting improves reliability.",
+                _valid_row(name="EST", claim_excerpt="Testing improves reliability."),
+            ),
+        ],
+        ids=[
+            "invented-name-and-evidence",
+            "invented-evidence",
+            "frontmatter-only",
+            "fenced-code-only",
+            "link-only",
+            "evidence-does-not-name-concept",
+            "name-is-only-a-substring",
+        ],
+    )
+    def test_rejects_ungrounded_model_rows(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        content: str,
+        row: dict[str, object],
+    ) -> None:
+        path = _write_insight(tmp_path, content)
+        with patch(
+            "distill.concepts.extract.llm_call",
+            return_value=_StubResponse(json.dumps([row])),
+        ):
+            result = extract_from_insight(
+                path,
+                topic="tkg",
+                source_id="X",
+                artifact_path="papers/sample/sample_Insights.md",
+                rc=rc,
+            )
+
+        assert result.mentions == []
+        assert len(result.skipped_rows) == 1
+
     def test_happy_path(self, tmp_path: Path, rc: RouterConfig) -> None:
         path = _write_insight(tmp_path)
-        rows = [_valid_row(), _valid_row(name="EST", normalized_name="est", kind="architecture")]
+        rows = [
+            _valid_row(),
+            _valid_row(
+                name="EST",
+                normalized_name="est",
+                kind="architecture",
+                claim_excerpt="EST is a temporal architecture.",
+            ),
+        ]
         with patch(
             "distill.concepts.extract.llm_call",
             return_value=_StubResponse(json.dumps(rows)),
@@ -91,12 +171,34 @@ class TestExtractFromInsight:
                 rc=rc,
             )
         assert result.model == "grok-4.3"
-        assert result.prompt_id == "concepts.extract.v1"
+        assert result.prompt_id == "concepts.extract.v2"
         assert result.provenance == {
             "model": "grok-4.3",
             "model_version": "grok-4.3",
-            "prompt_id": "concepts.extract.v1",
+            "prompt_id": "concepts.extract.v2",
         }
+
+    def test_prompt_requires_exact_grounded_spans_and_no_model_identity(
+        self, tmp_path: Path, rc: RouterConfig
+    ) -> None:
+        path = _write_insight(tmp_path)
+        with patch(
+            "distill.concepts.extract.llm_call",
+            return_value=_StubResponse("[]"),
+        ) as mock_llm:
+            extract_from_insight(
+                path,
+                topic="tkg",
+                source_id="X",
+                artifact_path="papers/x/x_Insights.md",
+                rc=rc,
+            )
+
+        prompt = mock_llm.call_args.kwargs["prompt"]
+        assert '"normalized_name"' not in prompt
+        assert "10-25 word exact quote" in prompt
+        assert "The quote must contain" in prompt
+        assert "Distill derives the normalized identity deterministically" in prompt
 
     def test_empty_array_response(self, tmp_path: Path, rc: RouterConfig) -> None:
         path = _write_insight(tmp_path)
@@ -147,11 +249,30 @@ class TestExtractFromInsight:
         assert result.mentions == []
         assert len(result.skipped_rows) == 1
 
+    @pytest.mark.parametrize("evidence_type", ["invented_type", ["methodology"]])
+    def test_invalid_evidence_type_skipped(
+        self, tmp_path: Path, rc: RouterConfig, evidence_type: object
+    ) -> None:
+        path = _write_insight(tmp_path)
+        rows = [_valid_row(evidence_type=evidence_type)]
+        with patch(
+            "distill.concepts.extract.llm_call",
+            return_value=_StubResponse(json.dumps(rows)),
+        ):
+            result = extract_from_insight(
+                path,
+                topic="tkg",
+                source_id="X",
+                artifact_path="p.md",
+                rc=rc,
+            )
+
+        assert result.mentions == []
+        assert len(result.skipped_rows) == 1
+
     def test_missing_required_field_skipped(self, tmp_path: Path, rc: RouterConfig) -> None:
         path = _write_insight(tmp_path)
-        rows = [
-            {"name": "X", "kind": "technique", "polarity": "helpful"}
-        ]  # missing normalized_name
+        rows = [{"name": "X", "kind": "technique", "polarity": "helpful"}]
         with patch(
             "distill.concepts.extract.llm_call",
             return_value=_StubResponse(json.dumps(rows)),
@@ -246,9 +367,11 @@ class TestExtractFromInsight:
             )
         assert any(u.call_type == "concepts_extract" for u in tracker.entries)
 
-    def test_normalized_name_forced_lowercase(self, tmp_path: Path, rc: RouterConfig) -> None:
+    def test_normalized_name_is_derived_from_grounded_surface(
+        self, tmp_path: Path, rc: RouterConfig
+    ) -> None:
         path = _write_insight(tmp_path)
-        rows = [_valid_row(normalized_name="MIXED Case Concept")]
+        rows = [_valid_row(normalized_name="invented model identity")]
         with patch(
             "distill.concepts.extract.llm_call",
             return_value=_StubResponse(json.dumps(rows)),
@@ -260,4 +383,4 @@ class TestExtractFromInsight:
                 artifact_path="p.md",
                 rc=rc,
             )
-        assert result.mentions[0].normalized_name == "mixed case concept"
+        assert result.mentions[0].normalized_name == "rotational embedding"

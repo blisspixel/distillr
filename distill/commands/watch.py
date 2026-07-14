@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import typer
+from rich.markup import escape
 
 from distill import cli_shared
 from distill.cli_shared import SHORTS_THRESHOLD, console
@@ -28,6 +29,7 @@ from distill.commands._helpers import (
     budgeted_cost_tracker,
     enforce_projected_workflow_budget,
     get_config,
+    save_command_cost,
 )
 from distill.commands._helpers import (
     ensure_channel_context as _ensure_channel_context,
@@ -129,7 +131,8 @@ def watch_default(ctx: typer.Context) -> None:
         if e.instructions:
             # Show first 60 chars of instructions
             preview = e.instructions[:57] + "..." if len(e.instructions) > 60 else e.instructions
-            console.print(f"  {' ' * max_name}  [dim]{preview}[/dim]")
+            approval = "" if e.instructions_approved else " [approval required]"
+            console.print(f"  {' ' * max_name}  [dim]{escape(preview)}{approval}[/dim]")
 
     console.print()
     console.print(f"  [dim]{len(watchlist)} watched  ·  distill catch-up to refresh[/dim]")
@@ -241,9 +244,15 @@ def watch_add(
     """
     config = get_config()
     lib = Library(config)
+    existing = next((entry for entry in lib.get_watchlist() if entry.url == url), None)
+    if existing is not None:
+        console.print(f"  [dim]{existing.name} already on watch list[/dim]")
+        return
     name = resolve_channel_name(url)
 
-    # Auto-generate smart instructions if none provided (any configured model)
+    suggested_instructions = ""
+    # Suggestions derived from public titles are never promoted to operator
+    # instructions without a separate, explicit approval command.
     if not instructions and model_available():
         with console.status(
             f"  {name}  [dim]generating analysis focus[/dim]",
@@ -257,10 +266,24 @@ def watch_add(
                         generate_watch_instructions,
                     )
 
-                    auto = generate_watch_instructions(name, titles, config)
-                    if auto and auto.strip():
-                        instructions = auto.strip()
-            except (CostPolicyError, ProviderBusyTimeoutError):
+                    tracker = budgeted_cost_tracker(config, "watch-add")
+                    try:
+                        auto = generate_watch_instructions(
+                            name,
+                            titles,
+                            config,
+                            tracker=tracker,
+                        )
+                        if auto and auto.strip():
+                            suggested_instructions = auto.strip()[:2048]
+                    finally:
+                        save_command_cost(
+                            config,
+                            "watch-add",
+                            tracker,
+                            metadata={"channel": name, "topic": topic},
+                        )
+            except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
                 raise
             except Exception as exc:
                 console.print(f"  [yellow]auto-instructions skipped: {exc}[/yellow]")
@@ -268,7 +291,14 @@ def watch_add(
     if lib.add_to_watchlist(url, name, topic=topic, instructions=instructions, days=days_opt):
         console.print(f"  Watching [{_ACCENT}]{name}[/{_ACCENT}]  [dim]{topic} / {days_opt}d[/dim]")
         if instructions:
-            console.print(f"  [dim]Focus: {instructions[:100]}[/dim]")
+            console.print(f"  [dim]Focus: {escape(instructions[:100])}[/dim]")
+        elif suggested_instructions:
+            console.print(
+                f"  [dim]Suggested focus (not active): {escape(suggested_instructions[:200])}[/dim]"
+            )
+            console.print(
+                f'  [dim]Approve with: distill watch instructions {escape(name)} "..."[/dim]'
+            )
         console.print()
         console.print(
             f"  [dim]distill catch-up {name}                    Scan for new videos now[/dim]"
@@ -487,7 +517,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
                 summary,
                 state=state,
                 analysis_mode="scan",
-                custom_instructions=entry.instructions,
+                custom_instructions=entry.active_instructions,
                 eta=eta,
             )
 

@@ -34,7 +34,6 @@ from distill.commands._helpers import (
     enforce_projected_workflow_budget,
     file_link,
     get_config,
-    resolve_intent,
     run_preflight,
 )
 from distill.commands._helpers import (
@@ -58,21 +57,13 @@ from distill.ingestors.youtube.discovery import (
     get_video_info,
     resolve_channel_name,
 )
-from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library import Library
-from distill.library.paths import (
-    base_frontmatter,
-    find_artifact,
-    tags_for,
-    write_markdown_artifact,
-)
+from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.video import (
-    analyze_short,
-    analyze_video,
     generate_channel_context,
 )
 from distill.pipeline.costs import (
@@ -83,7 +74,6 @@ from distill.pipeline.costs import (
 from distill.pipeline.summary import (
     ETATracker,
     RunSummary,
-    VideoResult,
     display_estimate,
     display_summary,
 )
@@ -92,7 +82,6 @@ from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topi
 _duration_str = duration_str
 _file_link = file_link
 _preflight = run_preflight
-_resolve_intent = resolve_intent
 
 
 def _nonempty(path: Path) -> bool:
@@ -548,7 +537,6 @@ def run(  # noqa: C901 — legacy, will refactor
                     )
                     continue
 
-                vid_start = run_eta.start() if run_eta else 0
                 run_eta_hint = (
                     f"  [dim]{run_eta.eta_str}[/dim]" if run_eta and run_eta.eta_str else ""
                 )
@@ -557,140 +545,19 @@ def run(  # noqa: C901 — legacy, will refactor
                     f"  [dim]{_format_date(video.upload_date)} | {_duration_str(video.duration)}[/dim]{run_eta_hint}"
                 )
 
-                vid_dir = config.video_dir_slug(t, ch.name, video.title, video.video_id)
-                vid_dir.mkdir(parents=True, exist_ok=True)
-
-                # Save metadata
-                meta = {
-                    "video_id": video.video_id,
-                    "title": video.title,
-                    "upload_date": video.upload_date,
-                    "duration": video.duration,
-                    "url": video.url,
-                    "channel": ch.name,
-                }
-                (vid_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-
-                # Get transcript
-                transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
-                if transcript_file.exists():
-                    console.print("    [dim]Transcript already exists[/dim]")
-                else:
-                    console.print("    Getting transcript...")
-                    success = get_transcript(
-                        video.url, video.video_id, transcript_file, config, tracker=tracker
-                    )
-                    if not success:
-                        console.print("    [red]Failed to get transcript, skipping[/red]")
-                        summary.add_result(
-                            VideoResult(
-                                video.video_id,
-                                video.title,
-                                False,
-                                error="No transcript",
-                            )
-                        )
-                        if run_eta:
-                            run_eta.tick(vid_start)
-                        continue
-                    console.print(
-                        f"    [green]Transcript saved ({transcript_file.stat().st_size:,} bytes)[/green]"
-                    )
-
-                # Analyze
-                transcript = transcript_file.read_text(encoding="utf-8")
-                if not transcript.strip():
-                    console.print("    [red]Empty transcript, skipping analysis[/red]")
-                    summary.add_result(
-                        VideoResult(video.video_id, video.title, False, error="Empty transcript")
-                    )
-                    if run_eta:
-                        run_eta.tick(vid_start)
-                    continue
-
-                is_short = video.duration <= SHORTS_THRESHOLD
-                label = "Quick insight (Short)" if is_short else "Analyzing"
-                console.print(f"    {label}...")
-                try:
-                    _intent = _resolve_intent(config, t)
-                    if is_short:
-                        insights = analyze_short(
-                            video.title,
-                            video.upload_date,
-                            ch.name,
-                            transcript,
-                            config,
-                            tracker=tracker,
-                            intent=_intent,
-                        )
-                    else:
-                        insights = analyze_video(
-                            video.title,
-                            video.upload_date,
-                            ch.name,
-                            transcript,
-                            config,
-                            tracker=tracker,
-                            intent=_intent,
-                        )
-                    analysis_mode = "short" if is_short else "full"
-                    insights_file = write_markdown_artifact(
-                        vid_dir,
-                        "insights",
-                        insights,
-                        frontmatter=base_frontmatter(
-                            artifact_type="insights",
-                            title=video.title,
-                            topic=t,
-                            source="youtube",
-                            source_id=video.video_id,
-                            url=video.url,
-                            date=video.upload_date,
-                            tags=tags_for(t, "youtube", analysis_mode),
-                            synthesis_scope="single-source",
-                            extra={
-                                "channel": ch.name,
-                                "duration_seconds": video.duration,
-                                "analysis_mode": analysis_mode,
-                                "legacy_filename": "insights.md",
-                            },
-                        ),
-                    )
-                    console.print("    [green]Insights saved[/green]")
-                    summary.add_output(insights_file)
-
-                    state.mark_processed(video.video_id, video.title, video.upload_date)
-                    summary.add_result(
-                        VideoResult(
-                            video.video_id,
-                            video.title,
-                            True,
-                            is_short=is_short,
-                            duration=video.duration,
-                        )
-                    )
+                if _process_video(
+                    t,
+                    ch.name,
+                    video,
+                    config,
+                    tracker,
+                    summary,
+                    state=state,
+                    eta=run_eta,
+                ):
                     total_analyzed += 1
-                    if run_eta:
-                        run_eta.tick(vid_start)
-                except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
-                    raise
-                except Exception as e:
-                    console.print(f"    [red]Analysis failed: {e}[/red]")
-                    console.print(
-                        "    [dim]Transcript saved - will retry analysis on next run[/dim]"
-                    )
-                    summary.add_result(
-                        VideoResult(
-                            video.video_id,
-                            video.title,
-                            False,
-                            is_short=is_short,
-                            error=str(e),
-                        )
-                    )
-                    if run_eta:
-                        run_eta.tick(vid_start)
-                    continue  # Channel synthesis
+
+            # Channel synthesis
             console.print(f"\n  Synthesizing channel: {ch.name}...")
             try:
                 synthesize_channel(t, ch.name, config, tracker=tracker)

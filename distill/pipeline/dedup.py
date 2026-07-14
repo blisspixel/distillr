@@ -25,7 +25,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from distill.library.insights import discover_insights
+from distill.library.insights import discover_insights, read_discovered_insight
 from distill.library.paths import strip_frontmatter
 
 __all__ = ["DuplicateGroup", "collect_near_duplicates", "shingle_similarity"]
@@ -70,10 +70,10 @@ def _load_shingled_docs(topic_dir: Path) -> list[tuple[str, frozenset[str]]]:
     """Read each insight once and shingle it; stubs and unreadables drop out."""
     docs: list[tuple[str, frozenset[str]]] = []
     for ref in discover_insights(topic_dir):
-        try:
-            body = strip_frontmatter(ref.path.read_text(encoding="utf-8"))
-        except OSError:
+        content = read_discovered_insight(ref, topic_dir.parent.parent)
+        if content is None:
             continue
+        body = strip_frontmatter(content)
         shingles = _shingles(body)
         if shingles:
             docs.append((ref.artifact_path, shingles))

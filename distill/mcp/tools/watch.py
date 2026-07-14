@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 
+from distill.config import DistillConfig
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.mcp.server import (
@@ -17,7 +18,7 @@ from distill.mcp.server import (
     refuse_if_host_not_allowed,
     write_tool,
 )
-from distill.pipeline.costs import BudgetExceededError, save_run_log
+from distill.pipeline.costs import BudgetExceededError
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,37 @@ type CatchUpRow = dict[str, object]
 type ProcessedVideoRow = dict[str, str | bool]
 
 
+def _suggest_watch_instructions(
+    url: str,
+    name: str,
+    config: DistillConfig,
+) -> tuple[str, str]:
+    """Return an untrusted title-derived suggestion and any non-fatal warning."""
+
+    from distill.ingestors.youtube.discovery import discover_videos
+    from distill.pipeline.analysis.video import generate_watch_instructions
+
+    try:
+        videos = discover_videos(url, months=1, quiet=True)
+        if not videos:
+            return "", ""
+        tracker = capped_tracker()
+        suggestion = generate_watch_instructions(
+            name,
+            [video.title for video in videos[:15]],
+            config,
+            tracker=tracker,
+        )
+        return (suggestion.strip()[:2048] if suggestion and suggestion.strip() else "", "")
+    except BudgetExceededError:
+        raise
+    except Exception as exc:
+        logger.warning("watch_add auto-instructions skipped for %s: %s", name, exc)
+        return "", f"Auto-instructions skipped: {exc}"
+
+
 @mcp.tool()
-@write_tool("catch_up")
+@write_tool("catch_up", ledger_command="catch-up")
 def catch_up(  # noqa: C901 - legacy, will refactor
     channel: str | None = None,
     topic: str | None = None,
@@ -105,7 +135,7 @@ def catch_up(  # noqa: C901 - legacy, will refactor
                 summary,
                 state=state,
                 analysis_mode="scan",
-                custom_instructions=entry.instructions,
+                custom_instructions=entry.active_instructions,
                 eta=eta,
             )
             processed.append({"title": vid.title, "success": success})
@@ -137,12 +167,11 @@ def catch_up(  # noqa: C901 - legacy, will refactor
         except Exception as exc:
             logger.warning("catch_up topic synthesis failed for %s: %s", t, exc)
 
-    save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps({"results": results, "cost": cost_summary(tracker)}, indent=2)
 
 
 @mcp.tool()
-@write_tool("watch_add")
+@write_tool("watch_add", ledger_command="watch-add")
 def watch_add(
     url: str,
     topic: str = "watch",
@@ -157,29 +186,24 @@ def watch_add(
         days: Lookback window for catch-up
         instructions: Custom analysis instructions
     """
-    from distill.ingestors.youtube.discovery import discover_videos, resolve_channel_name
+    from distill.ingestors.youtube.discovery import resolve_channel_name
 
     refusal = refuse_if_host_not_allowed(url)
     if refusal is not None:
         return refusal
     config = load_config()
     lib = library(config)
+    existing = next((entry for entry in lib.get_watchlist() if entry.url == url), None)
+    if existing is not None:
+        return json.dumps({"status": "already_watching", "name": existing.name})
     name = resolve_channel_name(url)
-    instruction_warning = ""
-
-    # Auto-generate instructions if none provided
-    if not instructions and model_available():
-        try:
-            vids = discover_videos(url, months=1, quiet=True)
-            if vids:
-                from distill.pipeline.analysis.video import generate_watch_instructions
-
-                auto = generate_watch_instructions(name, [v.title for v in vids[:15]], config)
-                if auto and auto.strip():
-                    instructions = auto.strip()
-        except Exception as exc:
-            instruction_warning = f"Auto-instructions skipped: {exc}"
-            logger.warning("watch_add auto-instructions skipped for %s: %s", name, exc)
+    # Public-title-derived text is returned only as a suggestion. A later
+    # operator-authored watch update is required before it can steer analysis.
+    suggested_instructions, instruction_warning = (
+        _suggest_watch_instructions(url, name, config)
+        if not instructions and model_available()
+        else ("", "")
+    )
 
     if lib.add_to_watchlist(url, name, topic=topic, instructions=instructions, days=days):
         response: dict[str, str | int] = {
@@ -187,11 +211,10 @@ def watch_add(
             "name": name,
             "topic": topic,
             "days": days,
-            # Show the resolved instructions (user-provided or auto-generated),
-            # else "(none)". The prior `a or b if a else c` form left the middle
-            # branch unreachable; this is the behavior its test already pinned.
             "instructions": instructions if instructions else "(none)",
         }
+        if suggested_instructions:
+            response["suggested_instructions"] = suggested_instructions
         if instruction_warning:
             response["warning"] = instruction_warning
         return json.dumps(response, indent=2)

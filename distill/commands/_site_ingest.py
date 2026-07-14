@@ -12,6 +12,11 @@ from hashlib import sha1
 import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.commands._helpers import resolve_intent
+from distill.commands._site_page_storage import (
+    remove_absent_attachments,
+    remove_absent_transcript,
+    reserve_site_page_directory,
+)
 from distill.config import DistillConfig
 from distill.ingestors.sites.attachments import (
     collect_page_attachments,
@@ -195,8 +200,13 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     skipped_pages = 0
     for index, page_obj in enumerate(pages, 1):
         console.print(f"  [{index}/{len(pages)}] [bold]{page_obj.title}[/bold]")
-        page_dir = config.site_page_dir(seed.topic, site_name, page_obj.title, page_obj.page_id)
-        page_dir.mkdir(parents=True, exist_ok=True)
+        owned_page = reserve_site_page_directory(
+            config,
+            seed.topic,
+            site_name,
+            page_obj,
+        )
+        page_dir = owned_page.path
         attachments = []
         if ingest_attachments:
             attachments, attachment_context = ingest_page_attachments(
@@ -211,6 +221,8 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             attachments = collect_page_attachments(page_obj)
         if not attachments:
             attachments = collect_page_attachments(page_obj)
+        if not attachments:
+            remove_absent_attachments(page_dir)
         attachment_manifest = write_attachment_manifest(page_dir, attachments)
         if attachment_manifest:
             summary.add_output(attachment_manifest)
@@ -239,7 +251,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             title=page_obj.title,
             topic=seed.topic,
             source="website",
-            source_id=page_obj.page_id,
+            source_id=owned_page.source_id,
             url=page_obj.final_url or page_obj.url,
             date=page_obj.published_at,
             authors=page_obj.authors,
@@ -268,6 +280,8 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                 extension="txt",
             )
             summary.add_output(transcript_path)
+        else:
+            remove_absent_transcript(page_dir)
         if scrape_only:
             continue
         insights_path = find_artifact(page_dir, "insights")

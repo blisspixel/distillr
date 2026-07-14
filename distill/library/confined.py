@@ -77,9 +77,11 @@ def _file_revision(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
     )
 
 
-def read_confined_text(path: Path, root: Path, *, max_bytes: int) -> str | None:
-    """Read one bounded regular UTF-8 file while detecting path and inode swaps."""
+def read_confined_bytes(path: Path, root: Path, *, max_bytes: int) -> bytes | None:
+    """Read one bounded regular file while detecting path and inode swaps."""
 
+    if max_bytes < 0:
+        return None
     validated = validate_confined_path(path, root, expect_directory=False)
     if validated is None:
         return None
@@ -118,12 +120,24 @@ def read_confined_text(path: Path, root: Path, *, max_bytes: int) -> str | None:
             or _file_revision(final[1]) != _file_revision(initial_stat)
         ):
             return None
-        return content.decode("utf-8")
-    except (OSError, UnicodeDecodeError, ValueError):
+        return content
+    except (OSError, ValueError):
         return None
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+
+
+def read_confined_text(path: Path, root: Path, *, max_bytes: int) -> str | None:
+    """Read one bounded regular UTF-8 file while detecting path and inode swaps."""
+
+    content = read_confined_bytes(path, root, max_bytes=max_bytes)
+    if content is None:
+        return None
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _scan_confined_files(
@@ -196,3 +210,68 @@ def list_confined_files(
     ):
         return None
     return sorted(paths, key=lambda item: item.name)
+
+
+def _scan_confined_directories(
+    directory: Path,
+    root: Path,
+    *,
+    max_entries: int,
+    max_directories: int,
+) -> list[Path] | None:
+    directories: list[Path] = []
+    with os.scandir(directory) as entries:
+        for entry_count, entry in enumerate(entries, start=1):
+            if entry_count > max_entries:
+                return None
+            try:
+                is_directory = entry.is_dir(follow_symlinks=False)
+            except OSError:
+                return None
+            if not is_directory:
+                continue
+            if len(directories) >= max_directories:
+                return None
+            path = directory / entry.name
+            if validate_confined_path(path, root, expect_directory=True) is None:
+                return None
+            directories.append(path)
+    return directories
+
+
+def list_confined_directories(
+    directory: Path,
+    root: Path,
+    *,
+    max_entries: int,
+    max_directories: int,
+) -> list[Path] | None:
+    """List bounded no-follow child directories under one trusted root."""
+
+    try:
+        directory.lstat()
+    except FileNotFoundError:
+        return []
+    except OSError:
+        return None
+    initial = validate_confined_path(directory, root, expect_directory=True)
+    if initial is None:
+        return None
+    try:
+        directories = _scan_confined_directories(
+            directory,
+            root,
+            max_entries=max_entries,
+            max_directories=max_directories,
+        )
+    except OSError:
+        return None
+    if directories is None:
+        return None
+    final = validate_confined_path(directory, root, expect_directory=True)
+    if final is None or (initial[1].st_dev, initial[1].st_ino) != (
+        final[1].st_dev,
+        final[1].st_ino,
+    ):
+        return None
+    return sorted(directories, key=lambda item: item.name)

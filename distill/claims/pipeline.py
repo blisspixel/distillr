@@ -36,7 +36,7 @@ from distill.claims.exports import (
 )
 from distill.claims.extract import extract_claims_from_insight
 from distill.claims.records import Claim, utcnow_iso
-from distill.library.insights import InsightRef, discover_insights
+from distill.library.insights import InsightRef, discover_insights, read_discovered_insight
 from distill.llm import RouterConfig
 from distill.parsing import parse_ascii_uint
 from distill.pipeline.costs import BudgetExceededError, CostTracker
@@ -162,6 +162,10 @@ def run_claims(
     processed: list[str] = []
     for ref in pending:
         try:
+            content = read_discovered_insight(ref, topic_dir.parent.parent)
+            if content is None:
+                logger.warning("Claim extraction skipped changed or unsafe insight %s", ref.path)
+                continue
             result = extract_claims_from_insight(
                 ref.path,
                 topic=topic,
@@ -170,6 +174,7 @@ def run_claims(
                 rc=rc,
                 tracker=tracker,
                 now_iso=timestamp,
+                insight_content=content,
             )
         except BudgetExceededError:
             raise

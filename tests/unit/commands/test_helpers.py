@@ -533,17 +533,10 @@ class TestResolveVideoChannelName:
 
     def test_fallback_to_standalone(self, monkeypatch):
         """When video_info has no channel and yt_dlp fails, returns 'standalone'."""
-        # Make yt_dlp import fail
-        import builtins
-
-        real_import = builtins.__import__
-
-        def mock_import(name, *args, **kwargs):
-            if name == "yt_dlp":
-                raise ImportError("no yt_dlp")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", mock_import)
+        monkeypatch.setattr(
+            "distill.commands._helpers.SafeYoutubeDL",
+            MagicMock(side_effect=RuntimeError("yt-dlp unavailable")),
+        )
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/watch?v=abc",
@@ -554,7 +547,7 @@ class TestResolveVideoChannelName:
 
     def test_yt_dlp_metadata_falls_back_when_channel_fields_are_not_strings(self, monkeypatch):
         class FakeYDL:
-            def __init__(self, _options):
+            def __init__(self, _options, **_limits):
                 pass
 
             def __enter__(self):
@@ -567,7 +560,7 @@ class TestResolveVideoChannelName:
                 assert download is False
                 return {"channel": None, "uploader": 123}
 
-        monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYDL))
+        monkeypatch.setattr("distill.commands._helpers.SafeYoutubeDL", FakeYDL)
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/watch?v=abc",
@@ -581,8 +574,11 @@ class TestResolveVideoChannelName:
         seen_urls = []
 
         class FakeYDL:
-            def __init__(self, _options):
-                pass
+            def __init__(self, _options, **limits):
+                assert limits == {
+                    "metadata_byte_limit": 20_000_000,
+                    "total_byte_limit": 64_000_000,
+                }
 
             def __enter__(self):
                 return self
@@ -595,7 +591,7 @@ class TestResolveVideoChannelName:
                 seen_urls.append(url)
                 return {"uploader": "UploaderChannel"}
 
-        monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYDL))
+        monkeypatch.setattr("distill.commands._helpers.SafeYoutubeDL", FakeYDL)
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/watch?v=abc",
@@ -608,7 +604,7 @@ class TestResolveVideoChannelName:
 
     def test_yt_dlp_metadata_rejects_open_redirect_without_fetching(self, monkeypatch):
         youtube_dl = MagicMock()
-        monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=youtube_dl))
+        monkeypatch.setattr("distill.commands._helpers.SafeYoutubeDL", youtube_dl)
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/redirect?q=http://169.254.169.254/",
@@ -813,6 +809,44 @@ class TestProcessVideo:
         report = json.loads(sidecar.read_text(encoding="utf-8"))
         assert report["supported"] == 0
         assert [claim["token"] for claim in report["unsupported"]] == ["2037"]
+
+    def test_strict_refusal_preserves_existing_insight_in_explicit_video_directory(
+        self, config, monkeypatch
+    ):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        config.distill_verify = "strict"
+        video = self._make_video()
+        legacy_dir = config.videos_dir("ai", "TestCh") / "legacy-video-directory"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "transcript.txt").write_text(
+            "The speaker discusses release planning without stating a year.",
+            encoding="utf-8",
+        )
+        existing_insight = legacy_dir / "insights.md"
+        existing_insight.write_text("# Previously verified insight\n", encoding="utf-8")
+        monkeypatch.setattr(
+            "distill.commands._helpers.analyze_video",
+            lambda *args, **kwargs: "# Insights\n\nThe video predicts a release in 2037.",
+        )
+        monkeypatch.setattr("distill.pipeline.verify._entailment_checker", lambda: None)
+
+        result = process_video(
+            "ai",
+            "TestCh",
+            video,
+            config,
+            CostTracker(),
+            RunSummary(command="test"),
+            analysis_mode="full",
+            video_dir=legacy_dir,
+        )
+
+        assert result is False
+        assert existing_insight.read_text(encoding="utf-8") == "# Previously verified insight\n"
+        assert next(legacy_dir.glob("*_Verify.json")).exists()
 
     def test_short_video_uses_short_analysis(self, config, monkeypatch):
         from distill.cli_shared import process_video

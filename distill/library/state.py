@@ -50,7 +50,13 @@ class WatchEntry:
     topic: str
     added_at: str = ""
     instructions: str = ""
+    instructions_approved: bool = False
     days: int = 14
+
+    @property
+    def active_instructions(self) -> str:
+        """Return only instructions explicitly approved by the local operator."""
+        return self.instructions if self.instructions_approved else ""
 
 
 @dataclass
@@ -90,6 +96,7 @@ class WatchRow(TypedDict):
     topic: str
     added_at: str
     instructions: str
+    instructions_approved: bool
     days: int
 
 
@@ -176,6 +183,9 @@ def _watch_row(value: object) -> WatchRow:
         "topic": _str(row.get("topic"), "watch"),
         "added_at": _str(row.get("added_at")),
         "instructions": _str(row.get("instructions")),
+        # Historical auto-generated instructions have no provenance. Fail
+        # closed until the operator explicitly saves them again.
+        "instructions_approved": _bool(row.get("instructions_approved")),
         "days": _int(row.get("days"), 14),
     }
 
@@ -394,6 +404,7 @@ class Library:
                 topic=sanitize_topic(e["topic"]),
                 added_at=e["added_at"],
                 instructions=e["instructions"],
+                instructions_approved=e["instructions_approved"],
                 days=e["days"],
             )
             for e in self._data["watchlist"]
@@ -420,6 +431,7 @@ class Library:
                 "topic": topic,
                 "added_at": datetime.now().isoformat(),
                 "instructions": instructions,
+                "instructions_approved": bool(instructions),
                 "days": days,
             }
         )
@@ -459,6 +471,7 @@ class Library:
         for e in self._data["watchlist"]:
             if e["name"].lower() == name.lower():
                 e["instructions"] = instructions
+                e["instructions_approved"] = bool(instructions)
                 self._save()
                 return True
         return False

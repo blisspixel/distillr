@@ -88,7 +88,7 @@ def _stub_youtube_discovery(monkeypatch, extraction_result: object) -> MagicMock
     mock_context.__enter__.return_value = mock_ydl
     mock_context.__exit__.return_value = False
     youtube_dl = MagicMock(return_value=mock_context)
-    monkeypatch.setattr("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL", youtube_dl)
+    monkeypatch.setattr("distill.ingestors.youtube.discovery.SafeYoutubeDL", youtube_dl)
     return youtube_dl
 
 

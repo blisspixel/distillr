@@ -27,7 +27,6 @@ def upload_documents(
     safe_display: Callable[[object], str] = str,
 ) -> int:
     """Upload Markdown documents to a File Search store and wait for indexing."""
-    uploaded = 0
     pending_ops: list[types.Operation] = []
     temp_paths: list[Path] = []
     total = len(files)
@@ -49,7 +48,6 @@ def upload_documents(
                     config={"display_name": label[:200], "mime_type": "text/markdown"},
                 )
                 pending_ops.append(op)
-                uploaded += 1
                 if progress_every and (index % progress_every == 0 or index == total):
                     console.print(f"  [dim]Uploaded {index}/{total}...[/dim]")
             except Exception as exc:
@@ -63,19 +61,19 @@ def upload_documents(
                     with contextlib.suppress(Exception):
                         tmp_path.unlink(missing_ok=True)
 
-        _wait_for_indexing(client, pending_ops)
-        return uploaded
+        return _wait_for_indexing(client, pending_ops)
     finally:
         for tmp_path in temp_paths:
             with contextlib.suppress(Exception):
                 tmp_path.unlink(missing_ok=True)
 
 
-def _wait_for_indexing(client: genai.Client, pending_ops: list[types.Operation]) -> None:
+def _wait_for_indexing(client: genai.Client, pending_ops: list[types.Operation]) -> int:
     if not pending_ops:
-        return
+        return 0
 
     console.print(f"  [dim]Waiting for indexing ({len(pending_ops)} docs)...[/dim]")
+    indexed = 0
     wait_rounds = 0
     max_wait_rounds = 60
     while wait_rounds < max_wait_rounds:
@@ -83,7 +81,12 @@ def _wait_for_indexing(client: genai.Client, pending_ops: list[types.Operation])
         for op in pending_ops:
             try:
                 refreshed = client.operations.get(op)
-                if refreshed.done is not True:
+                if refreshed.done is True:
+                    if getattr(refreshed, "error", None) is None:
+                        indexed += 1
+                    else:
+                        console.print("  [yellow]A File Search document failed indexing[/yellow]")
+                else:
                     still_pending.append(refreshed)
             except Exception:
                 still_pending.append(op)
@@ -97,5 +100,6 @@ def _wait_for_indexing(client: genai.Client, pending_ops: list[types.Operation])
 
     if wait_rounds >= max_wait_rounds:
         console.print(
-            f"  [yellow]Indexing timeout - {len(pending_ops)} docs may still be processing[/yellow]"
+            f"  [yellow]Indexing timeout - {len(pending_ops)} documents were not verified[/yellow]"
         )
+    return indexed

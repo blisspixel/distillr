@@ -200,12 +200,16 @@ class TestToolWiring:
         assert result["status"] == "domain_not_allowed"
         assert "evil.example" in result["error"]
 
-    def test_search_videos_budget_error_becomes_structured_response(self, monkeypatch):
+    def test_search_videos_budget_error_becomes_structured_response(self, tmp_path, monkeypatch):
         monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
         from distill.ingestors.youtube.discovery import VideoInfo
         from distill.mcp.tools.discover import search_videos
 
-        config = DistillConfig(xai_api_key="t", distill_mcp_max_spend_per_call=0.5)
+        config = DistillConfig(
+            xai_api_key="t",
+            distill_output_dir=tmp_path / "library",
+            distill_mcp_max_spend_per_call=0.5,
+        )
         monkeypatch.setattr(_server, "_config", lambda: config)
         monkeypatch.setattr(
             "distill.mcp.tools.discover._search_candidates",
@@ -222,12 +226,22 @@ class TestToolWiring:
             ],
         )
 
-        def budget_stop(*args, **kwargs):
-            raise BudgetExceededError(0.61, 0.5)
+        def budget_stop(query, candidates, config, tracker, *, limit):
+            tracker.record(_usage(prompt=10_000_000, completion=5_000_000))
 
         monkeypatch.setattr("distill.mcp.tools.discover._rank_candidates", budget_stop)
 
         result = json.loads(search_videos("budget"))
 
         assert result["status"] == "budget_exceeded"
-        assert result["spent"] == 0.61
+        assert result["spent"] > 0.5
+        rows = [
+            json.loads(line)
+            for line in (config.library_dir / ".distill" / "cost_log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "search-videos"
+        assert rows[0]["grok_calls"] == 1
+        assert rows[0]["actual_cost"] == result["spent"]

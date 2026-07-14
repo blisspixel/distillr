@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -34,6 +35,26 @@ def _load_fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
+def _verify_sidecar(
+    checked: int,
+    *,
+    unsupported: list[dict[str, object]] | None = None,
+    version: int = 1,
+    entailment: dict[str, object] | None = None,
+) -> dict[str, object]:
+    flags = unsupported or []
+    payload: dict[str, object] = {
+        "schema_version": version,
+        "mode": "warn",
+        "checked": checked,
+        "supported": checked - len(flags),
+        "unsupported": flags,
+    }
+    if entailment is not None:
+        payload["entailment"] = entailment
+    return payload
+
+
 def _seed_insight(topic_dir: Path, rel: str, *, sidecar: dict | None = None) -> None:
     d = topic_dir / rel
     d.mkdir(parents=True, exist_ok=True)
@@ -64,14 +85,14 @@ def _seed_video_transcript(
 class TestVerifyRollup:
     def test_counts_clean_flagged_and_never_checked(self, tmp_path: Path):
         topic = tmp_path / "t"
-        _seed_insight(topic, "papers/p1", sidecar={"checked": 3, "unsupported": []})
+        _seed_insight(topic, "papers/p1", sidecar=_verify_sidecar(3))
         _seed_insight(
             topic,
             "papers/p2",
-            sidecar={
-                "checked": 2,
-                "unsupported": [{"token": "99.9", "kind": "decimal", "context": "line"}],
-            },
+            sidecar=_verify_sidecar(
+                2,
+                unsupported=[{"token": "99.9", "kind": "decimal", "context": "line"}],
+            ),
         )
         _seed_insight(topic, "papers/p3")  # never checked
 
@@ -95,12 +116,137 @@ class TestVerifyRollup:
         assert rollup.checked == 0
         assert rollup.never_checked == 1
 
+    def test_mismatched_content_binding_counts_as_never_checked(self, tmp_path: Path) -> None:
+        topic = tmp_path / "t"
+        sidecar = _verify_sidecar(1)
+        sidecar["insight"] = "p1_Insights.md"
+        sidecar["insight_sha256"] = hashlib.sha256(b"different content").hexdigest()
+        _seed_insight(topic, "papers/p1", sidecar=sidecar)
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.insights_total == 1
+        assert rollup.checked == 0
+        assert rollup.clean == 0
+        assert rollup.never_checked == 1
+
+    def test_legacy_sidecar_is_counted_once_for_its_named_insight(self, tmp_path: Path) -> None:
+        topic = tmp_path / "t"
+        shared = topic / "papers" / "shared"
+        shared.mkdir(parents=True)
+        (shared / "a_Insights.md").write_text("first", encoding="utf-8")
+        (shared / "b_Insights.md").write_text("second", encoding="utf-8")
+        sidecar = _verify_sidecar(1)
+        sidecar["insight"] = "a_Insights.md"
+        (shared / "verify.json").write_text(json.dumps(sidecar), encoding="utf-8")
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.insights_total == 2
+        assert rollup.checked == 1
+        assert rollup.clean == 1
+        assert rollup.never_checked == 1
+
+    def test_nameless_legacy_sidecar_requires_exactly_one_insight(self, tmp_path: Path) -> None:
+        topic = tmp_path / "t"
+        shared = topic / "papers" / "shared"
+        shared.mkdir(parents=True)
+        (shared / "a_Insights.md").write_text("first", encoding="utf-8")
+        (shared / "b_Insights.md").write_text("second", encoding="utf-8")
+        (shared / "verify.json").write_text(
+            json.dumps(_verify_sidecar(1)),
+            encoding="utf-8",
+        )
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.insights_total == 2
+        assert rollup.checked == 0
+        assert rollup.never_checked == 2
+
+    def test_nameless_legacy_sidecar_is_accepted_for_single_insight(self, tmp_path: Path) -> None:
+        topic = tmp_path / "t"
+        shared = topic / "papers" / "shared"
+        shared.mkdir(parents=True)
+        (shared / "only_Insights.md").write_text("only", encoding="utf-8")
+        (shared / "verify.json").write_text(
+            json.dumps(_verify_sidecar(1)),
+            encoding="utf-8",
+        )
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.insights_total == 1
+        assert rollup.checked == 1
+        assert rollup.clean == 1
+
+    @pytest.mark.parametrize(
+        "sidecar",
+        [
+            {"schema_version": 1, "mode": "warn", "checked": 1, "supported": 1},
+            {
+                "schema_version": 1,
+                "mode": "warn",
+                "checked": 1,
+                "supported": 1,
+                "unsupported": ["not-an-object"],
+            },
+            {
+                "schema_version": 1,
+                "mode": "warn",
+                "checked": 1,
+                "supported": 1,
+                "unsupported": [{"token": "99.9", "kind": "decimal", "context": "inconsistent"}],
+            },
+            {
+                "schema_version": 99,
+                "mode": "warn",
+                "checked": 1,
+                "supported": 1,
+                "unsupported": [],
+            },
+        ],
+    )
+    def test_malformed_or_unknown_sidecar_is_unverified(
+        self, tmp_path: Path, sidecar: dict[str, object]
+    ) -> None:
+        topic = tmp_path / "t"
+        _seed_insight(topic, "papers/p1", sidecar=sidecar)
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.checked == 0
+        assert rollup.clean == 0
+        assert rollup.never_checked == 1
+
+    def test_failed_required_semantic_check_is_unverified_even_with_numeric_coverage(
+        self, tmp_path: Path
+    ) -> None:
+        topic = tmp_path / "t"
+        sidecar = _verify_sidecar(1, version=3)
+        sidecar["entailment"] = {
+            "status": "unavailable",
+            "checked": 0,
+            "supported": 0,
+            "flagged": [],
+            "model": "",
+            "threshold": None,
+            "reason": "checker unavailable",
+        }
+        _seed_insight(topic, "papers/p1", sidecar=sidecar)
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.checked == 0
+        assert rollup.clean == 0
+        assert rollup.never_checked == 1
+
     def test_zero_checked_sidecar_is_unverified_not_clean(self, tmp_path: Path):
         topic = tmp_path / "t"
         _seed_insight(
             topic,
             "papers/p1",
-            sidecar={"checked": 0, "supported": 0, "unsupported": []},
+            sidecar=_verify_sidecar(0),
         )
 
         rollup = collect_verify_rollup(topic)
@@ -115,12 +261,17 @@ class TestVerifyRollup:
         _seed_insight(
             topic,
             "papers/p1",
-            sidecar={
-                "checked": 0,
-                "supported": 0,
-                "unsupported": [],
-                "entailment": {"checked": 2, "supported": 2, "flagged": []},
-            },
+            sidecar=_verify_sidecar(
+                0,
+                version=2,
+                entailment={
+                    "checked": 2,
+                    "supported": 2,
+                    "flagged": [],
+                    "model": "test-entailment-model",
+                    "threshold": 0.58,
+                },
+            ),
         )
 
         rollup = collect_verify_rollup(topic)
@@ -137,35 +288,43 @@ class TestVerifyRollup:
         """0.13.1: synthesis artifacts are swept by their writer-stamped sidecar
         identity, counted apart from insights, and their flags join the list."""
         topic = tmp_path / "t"
-        _seed_insight(topic, "papers/p1", sidecar={"checked": 1, "unsupported": []})
+        _seed_insight(topic, "papers/p1", sidecar=_verify_sidecar(1))
 
         # A clean paper synthesis (sidecar identity t-paper-synthesis -> file stem
         # t_paper_synthesis) and a flagged corpus synthesis.
         topic.mkdir(parents=True, exist_ok=True)
         (topic / "t_Paper_Synthesis.md").write_text("syn", encoding="utf-8")
         (topic / "t_paper_synthesis_Verify.json").write_text(
-            json.dumps({"checked": 2, "unsupported": []}), encoding="utf-8"
+            json.dumps(_verify_sidecar(2)), encoding="utf-8"
         )
         (topic / "t_Corpus_Synthesis.md").write_text("syn", encoding="utf-8")
         (topic / "t_corpus_synthesis_Verify.json").write_text(
             json.dumps(
-                {"checked": 1, "unsupported": [{"token": "9.9", "kind": "decimal", "context": "l"}]}
+                _verify_sidecar(
+                    1,
+                    unsupported=[{"token": "9.9", "kind": "decimal", "context": "l"}],
+                )
             ),
+            encoding="utf-8",
+        )
+        (topic / "t_Site_Synthesis.md").write_text("syn", encoding="utf-8")
+        (topic / "t_site_topic_synthesis_Verify.json").write_text(
+            json.dumps(_verify_sidecar(1)),
             encoding="utf-8",
         )
         # A topic synthesis with a zero-check sidecar (unverified, not clean).
         (topic / "t_Topic_Synthesis.md").write_text("syn", encoding="utf-8")
         (topic / "t_topic_synthesis_Verify.json").write_text(
-            json.dumps({"checked": 0, "supported": 0, "unsupported": []}),
+            json.dumps(_verify_sidecar(0)),
             encoding="utf-8",
         )
 
         rollup = collect_verify_rollup(topic)
 
         assert rollup.insights_total == 1
-        assert rollup.synthesis_total == 3
-        assert rollup.synthesis_checked == 2
-        assert rollup.synthesis_clean == 1
+        assert rollup.synthesis_total == 4
+        assert rollup.synthesis_checked == 3
+        assert rollup.synthesis_clean == 2
         assert rollup.synthesis_never_checked == 1
         assert rollup.synthesis_unverified == 1
         # The corpus-synthesis flag is in the shared list, labelled by artifact.
@@ -649,10 +808,10 @@ def test_audit_command_report_only(tmp_path, monkeypatch):
     _seed_insight(
         topic_dir,
         "papers/p1",
-        sidecar={
-            "checked": 1,
-            "unsupported": [{"token": "5.5", "kind": "decimal", "context": "x"}],
-        },
+        sidecar=_verify_sidecar(
+            1,
+            unsupported=[{"token": "5.5", "kind": "decimal", "context": "x"}],
+        ),
     )
     _seed_video_transcript(
         topic_dir,
@@ -684,7 +843,7 @@ def test_audit_command_next_actions_json(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr("distill.commands.audit.get_config", lambda: config)
     topic_dir = config.topic_dir("t")
-    _seed_insight(topic_dir, "papers/p1", sidecar={"checked": 1, "unsupported": []})
+    _seed_insight(topic_dir, "papers/p1", sidecar=_verify_sidecar(1))
 
     result = CliRunner().invoke(cli.app, ["audit", "t", "--next-actions", "--json"])
 

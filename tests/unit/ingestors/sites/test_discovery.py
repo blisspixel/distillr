@@ -1,4 +1,13 @@
-from distill.ingestors.sites.discovery import discover_trusted_site_seeds
+import pytest
+
+from distill.ingestors.sites.discovery import (
+    LandingParseLimit,
+    _AnchorParser,
+    _candidate_urls_from_landing,
+    _dedupe_landing_candidates,
+    _LandingPageCandidate,
+    discover_trusted_site_seeds,
+)
 
 
 def test_discover_trusted_site_seeds_enumerates_sitemaps_and_landing_links(monkeypatch):
@@ -137,3 +146,103 @@ def test_discover_trusted_site_seeds_prefers_toc_links_from_landing_page(monkeyp
         "trusted site",
     ]
     assert result.fetched_landing_pages == 1
+
+
+def test_anchor_parser_preserves_toc_context_without_stack_scans():
+    parser = _AnchorParser()
+
+    parser.feed(
+        '<main><a href="/body">Body</a></main>'
+        '<nav aria-label="Table of contents"><div><a href="/toc">TOC</a></div></nav>'
+    )
+    parser.close()
+
+    assert parser.links == [("/body", "Body", False), ("/toc", "TOC", True)]
+
+
+def test_anchor_parser_unmatched_end_is_constant_state_noop():
+    parser = _AnchorParser()
+    parser.feed("<div><section>")
+    before = list(parser._element_stack)
+    positions_before = {tag: list(values) for tag, values in parser._positions.items()}
+
+    parser.feed("</span>" * 100)
+
+    assert parser._element_stack == before
+    assert parser._positions == positions_before
+
+
+def test_anchor_parser_matched_end_removes_malformed_suffix():
+    parser = _AnchorParser()
+    parser.feed("<div><section><span>")
+
+    parser.feed("</section>")
+
+    assert parser._element_stack == [("div", False)]
+    assert parser._positions == {"div": [0]}
+
+
+def test_anchor_parser_event_budget_is_cumulative_across_feed_calls():
+    parser = _AnchorParser(max_events=3)
+    parser.feed("<div>")
+    parser.feed("text")
+    parser.feed("</div>")
+
+    with pytest.raises(LandingParseLimit, match="event budget"):
+        parser.feed("<span>")
+
+
+def test_anchor_parser_depth_budget_accepts_boundary_and_rejects_next_tag():
+    parser = _AnchorParser(max_depth=2)
+    parser.feed("<div><section>")
+
+    with pytest.raises(LandingParseLimit, match="nesting depth"):
+        parser.feed("<span>")
+
+
+def test_anchor_parser_anchor_budget_accepts_boundary_and_rejects_next_anchor():
+    parser = _AnchorParser(max_anchors=2)
+    parser.feed('<a href="/one">One</a><a href="/two">Two</a>')
+
+    with pytest.raises(LandingParseLimit, match="anchor budget"):
+        parser.feed('<a href="/three">Three</a>')
+
+    assert [href for href, _text, _toc in parser.links] == ["/one", "/two"]
+
+
+def test_anchor_parser_bounds_retained_anchor_text():
+    parser = _AnchorParser(max_anchor_text_chars=8)
+
+    parser.feed('<a href="/bounded">abcdefghijk</a>')
+
+    assert parser.links == [("/bounded", "abcdefgh", False)]
+
+
+def test_landing_parse_limit_discards_partial_candidates():
+    result = _candidate_urls_from_landing(
+        "https://example.com/docs",
+        fetch_text=lambda _url: "<div>" * 513 + '<a href="/partial">Partial</a>',
+    )
+
+    assert result.urls == []
+    assert result.landing_fetches == 1
+
+
+def test_dedupe_promotes_reverse_toc_duplicates_in_linear_mapping_order():
+    ordinary = [
+        _LandingPageCandidate(f"https://example.com/{index}", f"ordinary-{index}", "landing link")
+        for index in range(4)
+    ]
+    toc = [
+        _LandingPageCandidate(f"https://example.com/{index}", f"toc-{index}", "toc link")
+        for index in reversed(range(4))
+    ]
+
+    deduped = _dedupe_landing_candidates(ordinary + toc)
+
+    assert [candidate.label for candidate in deduped] == [
+        "toc-3",
+        "toc-2",
+        "toc-1",
+        "toc-0",
+    ]

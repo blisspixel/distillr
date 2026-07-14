@@ -11,7 +11,7 @@ from typing import Any
 
 import deal
 
-from distill.library.paths import atomic_write_text
+from distill.library.paths import atomic_update_text
 from distill.library.wikilinks import WIKI_LINK_PATTERN
 
 __all__ = [
@@ -152,29 +152,31 @@ def fix_broken_links(library_dir: Path, broken: list[BrokenLink]) -> int:
     fixed_count = 0
     for file_path, file_broken in by_file.items():
         try:
-            content = file_path.read_text(encoding="utf-8")
+            fixed_count += atomic_update_text(
+                file_path,
+                lambda content, repairs=file_broken: _repair_broken_links(content, repairs),
+            )
         except OSError:
             logger.warning("Could not read file for fixing: %s", file_path)
-            continue
-
-        # Replace each broken link with its display text
-        for bl in file_broken:
-            # Extract display title from the link text
-            match = WIKI_LINK_PATTERN.search(bl.link_text)
-            if match:
-                display = match.group(2)
-                replacement = display.strip() if display else match.group(1).strip()
-            else:
-                replacement = bl.target_slug
-
-            content = content.replace(bl.link_text, replacement, 1)
-            fixed_count += 1
-
-        try:
-            atomic_write_text(file_path, content)
-        except OSError:
-            logger.warning("Could not write fixed file: %s", file_path)
-            # Undo the count for this file's fixes
-            fixed_count -= len(file_broken)
 
     return fixed_count
+
+
+def _repair_broken_links(content: str, broken: list[BrokenLink]) -> tuple[str, int]:
+    """Repair links still present in the latest locked file content."""
+
+    fixed_count = 0
+    for item in broken:
+        if item.link_text not in content:
+            continue
+        match = WIKI_LINK_PATTERN.search(item.link_text)
+        if match:
+            display = match.group(2)
+            replacement = display.strip() if display else match.group(1).strip()
+        else:
+            replacement = item.target_slug
+        updated = content.replace(item.link_text, replacement, 1)
+        if updated != content:
+            content = updated
+            fixed_count += 1
+    return content, fixed_count

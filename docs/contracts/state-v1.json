@@ -200,6 +200,7 @@
                 "added_at": "",
                 "days": 14,
                 "instructions": "",
+                "instructions_approved": false,
                 "name": "Legacy Watch",
                 "topic": "watch",
                 "url": "https://example.com/watch"
@@ -263,6 +264,7 @@
                 "added_at": "",
                 "days": 14,
                 "instructions": "",
+                "instructions_approved": false,
                 "name": "",
                 "topic": "watch",
                 "url": ""
@@ -330,6 +332,7 @@
                 "added_at": "2026-07-10T00:00:00",
                 "days": 21,
                 "instructions": "Track releases",
+                "instructions_approved": false,
                 "name": "Explicit Watch",
                 "topic": "explicit-topic",
                 "url": "https://example.com/explicit-watch"
@@ -456,6 +459,9 @@
                 "instructions": {
                   "type": "string"
                 },
+                "instructions_approved": {
+                  "type": "boolean"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -470,6 +476,7 @@
                 "added_at",
                 "days",
                 "instructions",
+                "instructions_approved",
                 "name",
                 "topic",
                 "url"

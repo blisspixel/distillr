@@ -131,6 +131,26 @@ def exclusive_file_lock(
 
 
 @contextlib.contextmanager
+def exclusive_path_lock(
+    path: Path,
+    *,
+    timeout_seconds: float,
+    timeout_message: str,
+) -> Generator[None]:
+    """Open, validate, and exclusively hold one advisory lock path."""
+
+    with (
+        open_lock_file(path) as lock_file,
+        exclusive_file_lock(
+            lock_file,
+            timeout_seconds=timeout_seconds,
+            timeout_message=timeout_message,
+        ),
+    ):
+        yield
+
+
+@contextlib.contextmanager
 def _windows_file_lock(
     lock_file: BinaryIO,
     timeout_seconds: float,

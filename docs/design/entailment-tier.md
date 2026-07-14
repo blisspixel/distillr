@@ -2,7 +2,8 @@
 
 Status: shipped in 0.13.0, with synthesis-path coverage completed in 0.13.1.
 Companion to the shipped deterministic tier (`distill/pipeline/verify.py`,
-0.10.1) -- this tier layers on top of it and never replaces it.
+0.10.1) -- this tier layers on top of it and never replaces it. Saved-answer
+promotion requires a complete semantic result as of 0.19.36.
 
 ## Why this exists
 
@@ -58,20 +59,30 @@ The implementation lives in `distill/pipeline/verify_entailment.py`, isolated fr
    Guardian through Ollama remains a candidate, not a shipped checker. A claim's
    score is the max over its paired chunks; below threshold (default 0.5,
    `DISTILL_ENTAILMENT_THRESHOLD`) it is flagged.
-4. **Sidecar (additive).** `_Verify.json` schema_version 2 adds an
-   `entailment` block: `{checked, supported, flagged: [{claim, score,
-   best_chunk_preview}], model, threshold}`. v1 sidecars stay valid; the
-   audit rollup treats a missing block as "entailment not run".
+4. **Sidecar (additive).** `_Verify.json` schema version 2 added the
+   entailment report. Schema version 3 adds an explicit `status` value:
+   `passed`, `flagged`, `unavailable`, `error`, or `incomplete`. Required
+   verification also records a bounded reason when no clean report exists.
+   Older sidecars stay valid; a missing block means "entailment not run" and
+   can never satisfy a workflow that requires semantic verification. Audit
+   accepts only schemas 1 through 3 and validates count consistency, claim-row
+   shapes, score ranges, and version-specific semantic states before granting
+   coverage. Unknown, malformed, and failed required-semantic records remain
+   unverified rather than appearing clean.
 5. **Modes.** The existing `warn | strict | off` applies unchanged; strict
-   refuses the write on either tier's flags. When the optional dependency is
-   absent, the tier is silently skipped (today's behavior is the fallback,
-   never an error) and `distill doctor` shows availability.
+   refuses the write on either tier's flags. Ordinary ingest can skip the
+   optional tier when it is absent, and `distill doctor` shows availability.
+   `distill ask --save` is an authoritative re-ingestion boundary: it
+   preflights the pinned local checker before the answer-model call and
+   refuses promotion on unavailable, failed, incomplete, or flagged semantic
+   verification. Unsaved answers remain available without the extra.
 
 ## Packaging
 
 Optional extra: `pip install distillr[entailment]` pulls
 `transformers` + `torch` (CPU build is sufficient; local accelerator hardware
-can speed it up). CI does not install the extra -- unit tests mock the
+can speed it up). The extra is required only for `distill ask --save`, not for
+ordinary ingest or unsaved question answering. CI does not install the extra -- unit tests mock the
 `EntailmentChecker` protocol; the model-loading path is covered by marked
 opt-in integration tests and live validation.
 

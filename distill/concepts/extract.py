@@ -25,10 +25,15 @@ threshold filter will catch noise either way.
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any, cast
 
+from distill.concepts.normalize import canonicalize
 from distill.concepts.records import ConceptKind, ConceptMention, Polarity, utcnow_iso
+from distill.library.confined import read_confined_text
+from distill.library.paths import strip_frontmatter
 from distill.llm import RouterConfig
 from distill.llm import call as llm_call
 from distill.llm.json_extract import extract_json
@@ -42,6 +47,19 @@ __all__ = ["ExtractionResult", "extract_from_insight"]
 
 _VALID_POLARITIES = {p.value for p in Polarity}
 _VALID_KINDS = {k.value for k in ConceptKind}
+_VALID_EVIDENCE_TYPES = {
+    "background",
+    "citation",
+    "comparison",
+    "empirical_result",
+    "limitation",
+    "methodology",
+}
+_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+_MARKDOWN_LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+_RAW_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_MARKDOWN_CONTROL_RE = re.compile(r"[`*_~]")
 
 
 class ExtractionResult:
@@ -74,28 +92,53 @@ class ExtractionResult:
 def _row_to_mention(
     row: dict[str, Any],
     *,
+    evidence_text: str,
     source_id: str,
     artifact_path: str,
     extracted_at: str,
 ) -> ConceptMention | None:
     """Project one LLM row into a ``ConceptMention``, or ``None`` if invalid.
 
-    Validation is deliberately permissive on optional fields and strict
-    on required fields. A row missing ``name`` / ``normalized_name`` /
-    ``kind`` / ``polarity`` is dropped (and logged via the caller's
-    skipped_rows list) -- we cannot store an evidence record without
-    knowing what evidence it is or what side it falls on.
+    Validation is deliberately permissive on optional fields and strict on
+    required fields. The surface name and exact evidence span must occur in
+    the visible insight body, and the evidence span must contain the name.
+    Canonical identity is derived locally from that grounded surface form.
     """
-    name = str(row.get("name", "")).strip()
-    normalized = str(row.get("normalized_name", "")).strip().lower()
-    kind_str = str(row.get("kind", "")).strip().lower()
-    polarity_str = str(row.get("polarity", "")).strip().lower()
+    name_value = row.get("name")
+    claim_value = row.get("claim_excerpt")
+    kind_value = row.get("kind")
+    polarity_value = row.get("polarity")
+    required = (name_value, claim_value, kind_value, polarity_value)
+    if not all(isinstance(value, str) for value in required):
+        return None
 
-    if not name or not normalized:
+    name = cast("str", name_value).strip()
+    claim_excerpt = cast("str", claim_value).strip()
+    kind_str = cast("str", kind_value).strip().lower()
+    polarity_str = cast("str", polarity_value).strip().lower()
+    normalized = canonicalize(name)
+
+    if not name or not normalized or not claim_excerpt:
         return None
     if kind_str not in _VALID_KINDS:
         return None
     if polarity_str not in _VALID_POLARITIES:
+        return None
+
+    normalized_name = _normalize_grounding_text(name)
+    normalized_claim = _normalize_grounding_text(claim_excerpt)
+    if (
+        not _contains_name(evidence_text, normalized_name)
+        or normalized_claim not in evidence_text
+        or not _contains_name(normalized_claim, normalized_name)
+    ):
+        return None
+
+    evidence_type_value = row.get("evidence_type", "")
+    if not isinstance(evidence_type_value, str):
+        return None
+    evidence_type = evidence_type_value.strip().lower()
+    if evidence_type and evidence_type not in _VALID_EVIDENCE_TYPES:
         return None
 
     return ConceptMention(
@@ -105,10 +148,38 @@ def _row_to_mention(
         polarity=Polarity(polarity_str),
         source_id=source_id,
         artifact_path=artifact_path,
-        claim_excerpt=str(row.get("claim_excerpt", "")).strip(),
-        evidence_type=str(row.get("evidence_type", "")).strip(),
+        claim_excerpt=claim_excerpt,
+        evidence_type=evidence_type,
         extracted_at=extracted_at,
     )
+
+
+def _normalize_grounding_text(value: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
+def _contains_name(text: str, normalized_name: str) -> bool:
+    if not normalized_name:
+        return False
+    return re.search(rf"(?<!\w){re.escape(normalized_name)}(?!\w)", text) is not None
+
+
+def _grounding_text(insight_content: str) -> str:
+    body = strip_frontmatter(insight_content)
+    visible_lines: list[str] = []
+    in_fence = False
+    for line in body.splitlines():
+        if _FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            visible_lines.append(line)
+    visible = "\n".join(visible_lines)
+    visible = _MARKDOWN_LINK_RE.sub(" ", visible)
+    visible = _RAW_URL_RE.sub(" ", visible)
+    visible = _HTML_TAG_RE.sub(" ", visible)
+    visible = _MARKDOWN_CONTROL_RE.sub("", visible)
+    return _normalize_grounding_text(visible)
 
 
 def extract_from_insight(
@@ -120,6 +191,7 @@ def extract_from_insight(
     rc: RouterConfig,
     tracker: CostTracker | None = None,
     now_iso: str | None = None,
+    insight_content: str | None = None,
 ) -> ExtractionResult:
     """Run extraction over one ``_Insights.md`` file.
 
@@ -140,7 +212,16 @@ def extract_from_insight(
     """
     if not insight_path.exists():
         raise FileNotFoundError(f"Insight not found: {insight_path}")
-    content = insight_path.read_text(encoding="utf-8")
+    content = insight_content
+    if content is None:
+        content = read_confined_text(
+            insight_path,
+            insight_path.parent,
+            max_bytes=4 * 1024 * 1024,
+        )
+    if content is None:
+        raise OSError(f"Insight is unsafe, unreadable, or oversized: {insight_path}")
+    evidence_text = _grounding_text(content)
     extracted_at = now_iso or utcnow_iso()
 
     prompt = concept_extraction_prompt(content, topic)
@@ -173,6 +254,7 @@ def extract_from_insight(
         row = cast("dict[str, Any]", raw)
         mention = _row_to_mention(
             row,
+            evidence_text=evidence_text,
             source_id=source_id,
             artifact_path=artifact_path,
             extracted_at=extracted_at,

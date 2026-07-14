@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.pipeline.report.file_search import _gather_files, cleanup_stores, create_research_store
 
@@ -74,6 +76,59 @@ def test_gather_files_ignores_non_string_metadata_fields(tmp_path):
     assert "[260312]" not in bundled
 
 
+def test_gather_files_refuses_linked_corpus_artifacts(tmp_path):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    video_dir = config.channel_dir("ai", "Creator") / "videos" / "video-1"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    outside = tmp_path / "outside-secret.md"
+    outside.write_text("FILE-SEARCH-SECRET", encoding="utf-8")
+    insights = video_dir / "insights.md"
+    try:
+        insights.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    files = _gather_files("ai", config, "channel", "Creator")
+
+    assert "FILE-SEARCH-SECRET" not in "\n".join(content for _, content in files)
+
+
+def test_gather_files_refuses_hard_linked_corpus_artifacts(tmp_path):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    video_dir = config.channel_dir("ai", "Creator") / "videos" / "video-1"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    outside = tmp_path / "outside-secret.md"
+    outside.write_text("FILE-SEARCH-HARDLINK-SECRET", encoding="utf-8")
+    try:
+        (video_dir / "insights.md").hardlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+
+    files = _gather_files("ai", config, "channel", "Creator")
+
+    assert "FILE-SEARCH-HARDLINK-SECRET" not in "\n".join(content for _, content in files)
+
+
+def test_gather_files_refuses_linked_metadata_payload(tmp_path):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    video_dir = config.channel_dir("ai", "Creator") / "videos" / "video-1"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "insights.md").write_text("# Safe insight", encoding="utf-8")
+    outside = tmp_path / "outside-metadata.json"
+    outside.write_text(
+        json.dumps({"title": "FILE-SEARCH-METADATA-SECRET", "upload_date": "20260101"}),
+        encoding="utf-8",
+    )
+    try:
+        (video_dir / "metadata.json").symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    files = _gather_files("ai", config, "channel", "Creator")
+
+    assert "FILE-SEARCH-METADATA-SECRET" not in "\n".join(content for _, content in files)
+
+
 def test_create_research_store_returns_zero_when_no_files(tmp_path, monkeypatch):
     config = DistillConfig(distill_output_dir=tmp_path / "lib")
     client = SimpleNamespace(
@@ -87,6 +142,106 @@ def test_create_research_store_returns_zero_when_no_files(tmp_path, monkeypatch)
 
     assert store_name == "store-1"
     assert uploaded == 0
+
+
+def test_create_research_store_deletes_store_when_post_create_output_fails(tmp_path, monkeypatch):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    deleted = []
+
+    class FakeStores:
+        def create(self, config):
+            return SimpleNamespace(name="store-1")
+
+        def delete(self, name, config):
+            deleted.append(name)
+
+    print_calls = 0
+
+    def fail_first_print(*args, **kwargs):
+        nonlocal print_calls
+        print_calls += 1
+        if print_calls == 1:
+            raise BrokenPipeError("closed output")
+
+    client = SimpleNamespace(file_search_stores=FakeStores())
+    monkeypatch.setattr("distill.pipeline.report.file_search.console.print", fail_first_print)
+
+    with pytest.raises(BrokenPipeError, match="closed output"):
+        create_research_store(client, "ai", config, "topic", None)
+
+    assert deleted == ["store-1"]
+
+
+def test_create_research_store_recovers_identity_before_cleanup_when_name_access_fails(
+    tmp_path, monkeypatch
+):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    deleted = []
+
+    class FlakyStore:
+        accesses = 0
+
+        @property
+        def name(self):
+            self.accesses += 1
+            if self.accesses == 1:
+                raise BrokenPipeError("name access failed")
+            return "store-1"
+
+    client = SimpleNamespace(
+        file_search_stores=SimpleNamespace(
+            create=lambda config: FlakyStore(),
+            delete=lambda name, config: deleted.append(name),
+        )
+    )
+
+    with pytest.raises(BrokenPipeError, match="name access failed"):
+        create_research_store(client, "ai", config, "topic", None)
+
+    assert deleted == ["store-1"]
+
+
+def test_create_research_store_deletes_store_on_process_interruption(tmp_path, monkeypatch):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    deleted = []
+    client = SimpleNamespace(
+        file_search_stores=SimpleNamespace(
+            create=lambda config: SimpleNamespace(name="store-1"),
+            delete=lambda name, config: deleted.append(name),
+        )
+    )
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("distill.pipeline.report.file_search._gather_files", interrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        create_research_store(client, "ai", config, "topic", None)
+
+    assert deleted == ["store-1"]
+
+
+def test_create_research_store_preserves_active_error_when_cleanup_is_interrupted(
+    tmp_path, monkeypatch
+):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    client = SimpleNamespace(
+        file_search_stores=SimpleNamespace(
+            create=lambda config: SimpleNamespace(name="store-1"),
+            delete=lambda name, config: (_ for _ in ()).throw(SystemExit(2)),
+        )
+    )
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt("operator cancelled")
+
+    monkeypatch.setattr("distill.pipeline.report.file_search._gather_files", interrupt)
+
+    with pytest.raises(KeyboardInterrupt, match="operator cancelled") as exc_info:
+        create_research_store(client, "ai", config, "topic", None)
+
+    assert any("cleanup was interrupted" in note for note in exc_info.value.__notes__)
 
 
 def test_cleanup_stores_deletes_matching_prefix_and_skips_others():
@@ -232,7 +387,7 @@ def test_create_research_store_handles_upload_failures_and_timeouts(tmp_path, mo
     store_name, uploaded = create_research_store(client, "ai", config, "topic", None)
 
     assert store_name == "store-1"
-    assert uploaded == 1
+    assert uploaded == 0
 
 
 def test_cleanup_stores_swallows_delete_errors():
@@ -277,7 +432,33 @@ def test_create_research_store_reports_timeout(tmp_path, monkeypatch):
     store_name, uploaded = create_research_store(client, "ai", config, "topic", None)
 
     assert store_name == "store-1"
-    assert uploaded == 1
+    assert uploaded == 0
+
+
+def test_create_research_store_excludes_failed_completed_operations(tmp_path, monkeypatch):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    monkeypatch.setattr(
+        "distill.pipeline.report.file_search._gather_files",
+        lambda *args, **kwargs: [("doc-1", "# One")],
+    )
+
+    class FakeStores:
+        def create(self, config):
+            return SimpleNamespace(name="store-1")
+
+        def upload_to_file_search_store(self, file, file_search_store_name, config):
+            return SimpleNamespace(name="op-1")
+
+    class FakeOperations:
+        def get(self, op):
+            return SimpleNamespace(name="op-1", done=True, error={"code": 13})
+
+    client = SimpleNamespace(file_search_stores=FakeStores(), operations=FakeOperations())
+
+    store_name, indexed = create_research_store(client, "ai", config, "topic", None)
+
+    assert store_name == "store-1"
+    assert indexed == 0
 
 
 def test_gather_files_skips_nondirs_and_splits_large_bundles(tmp_path):

@@ -9,7 +9,7 @@ from typing import Protocol
 from distill.config import DistillConfig
 from distill.llm.availability import model_available
 from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
-from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 __all__: list[str] = []
 
@@ -26,7 +26,7 @@ class TopicSynthesizer(Protocol):
 
 
 @mcp.tool()
-@write_tool("generate_report")
+@write_tool("generate_report", ledger_command="report")
 def generate_report(topic: str, channel: str | None = None) -> str:
     """Generate a deep research report for a topic (long-running).
 
@@ -39,10 +39,8 @@ def generate_report(topic: str, channel: str | None = None) -> str:
         return "Error: GEMINI_API_KEY not configured. Required for reports."
 
     from distill.pipeline.report.accordion import run_accordion_research
-    from distill.pipeline.summary import RunSummary
 
     tracker = capped_tracker()
-    summary = RunSummary(command="report")
     scope = "channel" if channel else "topic"
 
     try:
@@ -57,8 +55,6 @@ def generate_report(topic: str, channel: str | None = None) -> str:
         raise  # the per-call spend cap is a hard stop; write_tool answers
     except Exception as e:
         return json.dumps({"error": str(e)})
-
-    save_run_log(config.library_dir, summary.command, tracker)
 
     if result:
         return json.dumps(
@@ -75,7 +71,7 @@ def generate_report(topic: str, channel: str | None = None) -> str:
 
 
 @mcp.tool()
-@write_tool("resynthesize_topic")
+@write_tool("resynthesize_topic", ledger_command="resynthesize-topic")
 def resynthesize_topic(topic: str, channel: str | None = None) -> str:
     """Regenerate synthesis from existing insights without re-analysis.
 

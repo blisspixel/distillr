@@ -64,6 +64,12 @@ from distill.pipeline.costs import (
 )
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
+from distill.ingestors.youtube._yt_dlp_boundary import first_text, info_mapping
+from distill.ingestors.youtube.safe_ytdlp import (
+    YTDLP_METADATA_RESPONSE_BYTES,
+    YTDLP_METADATA_TOTAL_BYTES,
+    SafeYoutubeDL,
+)
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.youtube_urls import (
     normalize_youtube_channel_url,
@@ -554,12 +560,17 @@ def resolve_video_channel_name(
     if not canonical_url:
         return "standalone"
     try:
-        import yt_dlp
-
-        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
-            full_info = ydl.extract_info(canonical_url, download=False)
-            candidate = full_info.get("channel") or full_info.get("uploader")
-            return candidate if isinstance(candidate, str) and candidate else "standalone"
+        with SafeYoutubeDL(
+            {"quiet": True, "no_warnings": True},
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
+            full_info = info_mapping(ydl.extract_info(canonical_url, download=False))
+            return (
+                first_text(full_info, ("channel", "uploader"), "standalone")
+                if full_info
+                else "standalone"
+            )
     except Exception:
         return "standalone"
 
@@ -663,9 +674,11 @@ def process_video(  # noqa: C901 — legacy, will refactor
     analysis_mode: str = "auto",
     custom_instructions: str = "",
     eta: ETATracker | None = None,
+    *,
+    video_dir: Path | None = None,
 ) -> bool:
     vid_start = eta.start() if eta else 0
-    vid_dir = config.video_dir_slug(topic, channel_name, video.title, video.video_id)
+    vid_dir = video_dir or config.video_dir_slug(topic, channel_name, video.title, video.video_id)
     vid_dir.mkdir(parents=True, exist_ok=True)
 
     is_short = video.duration <= SHORTS_THRESHOLD

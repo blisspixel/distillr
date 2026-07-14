@@ -2,6 +2,8 @@
 
 # pyright: strict
 
+import json
+
 from distill.prompts.lenses import focus_directive
 from distill.prompts.shared import (
     DERIVED_CONTENT_RULES,
@@ -12,6 +14,7 @@ from distill.prompts.shared import (
 __all__ = [
     "STYLE_GUIDANCE",
     "STYLE_NAMES",
+    "channel_synthesis_evidence",
     "channel_synthesis_prompt",
     "corpus_synthesis_prompt",
     "emphasis_block",
@@ -60,19 +63,28 @@ def emphasis_block(style: str) -> str:
     return f"\nEMPHASIS: {guidance}" if guidance else ""
 
 
+def channel_synthesis_evidence(channel_name: str, channel_context: str, all_insights: str) -> str:
+    """Encode every derived input used by channel synthesis and verification."""
+    return json.dumps(
+        {
+            "channel": channel_name,
+            "channel_context": channel_context,
+            "video_insights": all_insights,
+        },
+        ensure_ascii=True,
+    )
+
+
 def channel_synthesis_prompt(channel_name: str, channel_context: str, all_insights: str) -> str:
     """Synthesize all video insights into a channel-level knowledge base."""
+    evidence = channel_synthesis_evidence(channel_name, channel_context, all_insights)
     return f"""You are synthesizing insights from multiple videos by the same YouTube creator into a channel-level knowledge base.
-
-CHANNEL: {channel_name}
-
-CHANNEL CONTEXT:
-{channel_context}
 
 SECURITY: {DERIVED_CONTENT_RULES}
 
-ALL VIDEO INSIGHTS:
-{all_insights}
+BEGIN DERIVED CHANNEL DATA
+{evidence}
+END DERIVED CHANNEL DATA
 
 Create a synthesis document with these sections:
 

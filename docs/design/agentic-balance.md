@@ -37,7 +37,8 @@ That keeps the rule/judgment split intact:
   faithfulness verdicts over the captured evidence.
 - Cost policy is rule-owned: local sunk-cost routes, included-plan routes, and
   metered API routes are labeled by preflight and ledger rules, not model
-  claims.
+  claims. MCP write tools also use one rule-owned lifecycle boundary to persist
+  the exact registered tracker before any terminal outcome escapes.
 
 A stale local model may still be useful when the source receipt is fresh and the
 task is extraction, classification, or bounded synthesis. It is not enough for
@@ -73,6 +74,12 @@ Invariant #6 says "Python decides," but *decides what?* The line is not rule-vs-
 A full audit of where this failure mode still lives in distill - and the staged fix (route judgment to whatever model the user has, cloud *or* local; degrade honestly when there is none) - is in the sibling doc [`model-judgment-vs-brittle-fallbacks.md`](model-judgment-vs-brittle-fallbacks.md). The eval grader below is the first worked case study.
 
 **Case study - the eval quality grader (`distill/eval/scoring.py`).** Its "concept coverage" dimension scored an analysis by regex-extracting capitalized terms and substring-matching them against a golden list. A model that *paraphrased* a concept ("late-interaction retrieval" → "token-level matching") scored zero; a model that parroted the exact capitalized string won. "Depth" was word-count bands; "structure" was substring `##`. That is a rule impersonating a judgment of analytical quality - gameable by padding and keyword-stuffing, and punishing of good paraphrase, which is the precise opposite of the goal. The first step of the fix rebuilt the judge: a rubric-structured LLM judge (`distill/eval/judge.py`) that reads the source as ground truth and weighs faithfulness > substance > coverage > conciseness with explicit bias guards. **But that step was incomplete, and an adversarial review (2026-06-13) caught the gap: the brittle scorer still *decided*.** `distill/eval/report.py:102-108` computed the recommendation purely from the deterministic `mean_composite`; the rubric judge's win-rate only fed the *confidence label* (`_confidence`, lines 141-155) and could not change the pick. So a verbose, well-formatted, keyword-stuffing, *unfaithful* output still cleared the migration gate, and the one signal that could see faithfulness was forbidden from vetoing it. The roles were inverted from what this case study originally claimed: the regex proxy was the oracle, the judge a footnote. **Fixed 2026-06-13 and completed 2026-06-14:** migration eligibility is now the source-anchored faithfulness veto plus pairwise at-par judging. Both are model judgments in modes the evidence supports: coarse absolute faithfulness for grounding, pairwise comparison for ranking among faithful outputs. The deterministic composite survives only as the offline golden-CI regression tripwire and a labeled advisory diagnostic, and `--threshold` is demoted to that advisory reference. The reverted bootstrap attempt is documented in [`model-judgment-vs-brittle-fallbacks.md`](model-judgment-vs-brittle-fallbacks.md) as fake rigor over too few fixtures. There is no deterministic surface-form metric left anywhere in the migration gate.
+
+**Cache integrity completed 2026-07-14.** Pairwise and faithfulness cache
+identities include full digests of every output judged. Cached verdicts must use
+known labels, bounded finite win rates, and text rationales. Migration and route
+graduation require a valid judge signal for every successful candidate fixture,
+so stale, malformed, unknown, or partial evidence cannot certify a switch.
 
 ## How this constrains the agentic-vision RFCs
 

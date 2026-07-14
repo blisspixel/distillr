@@ -4,16 +4,28 @@
 from __future__ import annotations
 
 import json
+from typing import Annotated
+
+from pydantic import Field
 
 from distill.library.paths import strip_frontmatter
 from distill.mcp.server import load_config, mcp, resolve_within_library
-from distill.pipeline.search import extract_section, search_corpus
+from distill.pipeline.search import (
+    MAX_SEARCH_QUERY_CHARS,
+    MAX_SEARCH_RESULTS,
+    extract_section,
+    search_corpus,
+)
 
 __all__: list[str] = []
 
 
 @mcp.tool()
-def find_insights(topic: str, query: str, limit: int = 10) -> str:
+def find_insights(
+    topic: str,
+    query: Annotated[str, Field(min_length=1, max_length=MAX_SEARCH_QUERY_CHARS)],
+    limit: Annotated[int, Field(ge=1, le=MAX_SEARCH_RESULTS)] = 10,
+) -> str:
     """Search topic corpus; return ranked path/preview/score tuples.
 
     Args:
@@ -38,7 +50,13 @@ def find_insights(topic: str, query: str, limit: int = 10) -> str:
             indent=2,
         )
 
-    results = search_corpus(config, topic, query, limit=limit)
+    try:
+        results = search_corpus(config, topic, query, limit=limit)
+    except ValueError as exc:
+        return json.dumps(
+            {"status": "error", "error": str(exc)},
+            indent=2,
+        )
 
     if not results:
         return json.dumps(

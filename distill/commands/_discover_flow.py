@@ -16,6 +16,7 @@ from distill._console import console
 from distill.cli_shared import tty_confirm as _tty_confirm
 from distill.cli_shared import tty_prompt as _tty_prompt
 from distill.commands import _discover_ingest as _discover_ingest_support
+from distill.commands._helpers import enforce_projected_workflow_budget
 from distill.commands._helpers import resolve_intent as _resolve_intent
 from distill.commands._learning import (
     dedupe_candidates as _dedupe_candidates,
@@ -188,6 +189,7 @@ def _discover_sizing_flow(
     chosen = options[idx - 1]
     est = chosen.estimate
     summary.estimated_cost = est.expected
+    enforce_projected_workflow_budget(config, "discover", est.expected)
     snapshot = save_preview(
         preview_cache_dir(config.library_dir),
         goal=goal,

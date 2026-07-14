@@ -50,7 +50,7 @@ def test_is_youtube_url_rejects_non_youtube_and_internal():
 
 
 def test_get_video_info_refuses_non_youtube_url_without_fetching():
-    with patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL") as mock_ydl:
+    with patch("distill.ingestors.youtube.discovery.SafeYoutubeDL") as mock_ydl:
         assert get_video_info("http://169.254.169.254/") is None
         mock_ydl.assert_not_called()
 
@@ -61,7 +61,7 @@ def _recent(days_ago: int = 1) -> str:
 
 
 class TestDiscoverVideos:
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_refuses_non_youtube_url_without_fetching(self, mock_ydl_cls):
         # SSRF guard: an attacker-influenced channel URL (reachable by default
         # via the MCP watch_add / catch_up write tools) must never reach yt-dlp,
@@ -75,7 +75,7 @@ class TestDiscoverVideos:
             assert discover_videos(url, months=3) == []
         mock_ydl_cls.assert_not_called()
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_basic_discovery(self, mock_ydl_cls):
         """Discovers videos from a channel."""
         mock_ydl = MagicMock()
@@ -102,8 +102,12 @@ class TestDiscoverVideos:
         assert len(videos) == 2
         assert videos[0].video_id in ("abc123", "def456")
         assert all(isinstance(v, VideoInfo) for v in videos)
+        assert mock_ydl_cls.call_args.kwargs == {
+            "metadata_byte_limit": 20_000_000,
+            "total_byte_limit": 64_000_000,
+        }
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_discovery_rejects_future_dated_entries(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -122,7 +126,7 @@ class TestDiscoverVideos:
 
         assert discover_videos("https://www.youtube.com/@Test", days=7) == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_discovery_rejects_noncanonical_channel_urls(self, mock_ydl_cls):
         for channel_url in (
             "http://www.youtube.com/@Test",
@@ -135,7 +139,7 @@ class TestDiscoverVideos:
             assert discover_videos(channel_url, days=7) == []
         mock_ydl_cls.assert_not_called()
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_precise_hour_window_filters_channel_entries(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -162,7 +166,7 @@ class TestDiscoverVideos:
 
         assert [video.video_id for video in videos] == ["fresh123"]
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_strict_precise_window_rejects_potentially_fresh_date_only_entry(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -185,7 +189,7 @@ class TestDiscoverVideos:
                 raise_on_error=True,
             )
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_discovery_rejects_unbounded_windows_before_fetch(self, mock_ydl_cls):
         url = "https://www.youtube.com/@Test"
 
@@ -194,7 +198,7 @@ class TestDiscoverVideos:
         assert discover_videos(url, months=10**4000) == []
         mock_ydl_cls.assert_not_called()
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_empty_channel(self, mock_ydl_cls):
         """Handles a channel with no videos."""
         mock_ydl = MagicMock()
@@ -205,7 +209,7 @@ class TestDiscoverVideos:
         videos = discover_videos("https://www.youtube.com/@Empty", months=3)
         assert videos == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_null_entries(self, mock_ydl_cls):
         """Handles None entries in the playlist (yt-dlp returns None for errors)."""
         mock_ydl = MagicMock()
@@ -228,7 +232,7 @@ class TestDiscoverVideos:
         assert len(videos) == 1
         assert videos[0].video_id == "abc"
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_missing_upload_date_skipped(self, mock_ydl_cls):
         """Videos without upload_date are skipped."""
         mock_ydl = MagicMock()
@@ -250,7 +254,7 @@ class TestDiscoverVideos:
         assert len(videos) == 1
         assert videos[0].video_id == "def"
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_missing_duration_defaults_zero(self, mock_ydl_cls):
         """Videos with None duration get 0."""
         mock_ydl = MagicMock()
@@ -271,7 +275,7 @@ class TestDiscoverVideos:
         assert len(videos) == 1
         assert videos[0].duration == 0
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_no_info_returned(self, mock_ydl_cls):
         """Handles yt-dlp returning None."""
         mock_ydl = MagicMock()
@@ -282,7 +286,7 @@ class TestDiscoverVideos:
         videos = discover_videos("https://www.youtube.com/@Test")
         assert videos == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_no_info_returned_fails_closed_in_strict_mode(self, mock_ydl_cls):
         """Strict discovery reports a swallowed top-level extraction failure."""
         mock_ydl = MagicMock()
@@ -295,7 +299,7 @@ class TestDiscoverVideos:
 
         assert mock_ydl_cls.call_args.args[0]["ignoreerrors"] is False
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_entries_none_single_video(self, mock_ydl_cls):
         """Handles case where entries key is None (single video URL)."""
         mock_ydl = MagicMock()
@@ -306,7 +310,7 @@ class TestDiscoverVideos:
         videos = discover_videos("https://www.youtube.com/watch?v=abc")
         assert videos == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_exception_returns_empty(self, mock_ydl_cls):
         """Handles exceptions from yt-dlp."""
         mock_ydl = MagicMock()
@@ -317,7 +321,7 @@ class TestDiscoverVideos:
         videos = discover_videos("https://www.youtube.com/@Test")
         assert videos == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_sorted_newest_first(self, mock_ydl_cls):
         """Videos are sorted newest-first by upload_date."""
         mock_ydl = MagicMock()
@@ -349,7 +353,7 @@ class TestDiscoverVideos:
         videos = discover_videos("https://www.youtube.com/@Test")
         assert [v.video_id for v in videos] == ["new", "mid", "old"]
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_old_videos_filtered_by_cutoff(self, mock_ydl_cls):
         """Videos older than the lookback window are excluded."""
         mock_ydl = MagicMock()
@@ -407,7 +411,7 @@ class TestResolveChannelName:
         name = resolve_channel_name("https://www.youtube.com/@TestChannel?sub=1")
         assert name == "unknown"
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_fallback_to_ytdlp(self, mock_ydl_cls):
         """Falls back to yt-dlp for non-@ URLs."""
         mock_ydl = MagicMock()
@@ -418,7 +422,7 @@ class TestResolveChannelName:
         name = resolve_channel_name("https://www.youtube.com/channel/UC123456")
         assert name == "Resolved Name"
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_fallback_ytdlp_error(self, mock_ydl_cls):
         """Returns 'unknown' when yt-dlp fails and no @ in URL."""
         mock_ydl = MagicMock()
@@ -429,7 +433,7 @@ class TestResolveChannelName:
         name = resolve_channel_name("https://www.youtube.com/channel/UC123456")
         assert name == "unknown"
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_fallback_ignores_non_string_metadata(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -442,7 +446,7 @@ class TestResolveChannelName:
 
 
 class TestSearchVideos:
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_filters_recent_dedupes_and_caps_channels(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -502,7 +506,7 @@ class TestSearchVideos:
         assert [v.video_id for v in videos] == ["a1", "b1"]
         assert videos[0].channel_url == "https://www.youtube.com/@ChanA"
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_date_sort_orders_newest_first(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -548,7 +552,8 @@ class TestVideoInfoHelpers:
                 raise Exception("boom")
 
         monkeypatch.setattr(
-            "distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL", lambda opts: FakeYDL()
+            "distill.ingestors.youtube.discovery.SafeYoutubeDL",
+            lambda _opts, **_limits: FakeYDL(),
         )
 
         assert get_video_info("https://youtube.com/watch?v=abc") is None
@@ -714,7 +719,7 @@ class TestVideoInfoHelpers:
 
 
 class TestDiscoveryAdditionalBranches:
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_discover_videos_scans_shorts_and_dedupes(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -752,7 +757,7 @@ class TestDiscoveryAdditionalBranches:
 
         assert [v.video_id for v in videos] == ["short2", "dup"]
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_get_video_info_returns_parsed_video(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -774,7 +779,7 @@ class TestDiscoveryAdditionalBranches:
             "https://www.youtube.com/watch?v=abc", download=False
         )
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_get_video_info_returns_none_for_empty_info(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -783,14 +788,14 @@ class TestDiscoveryAdditionalBranches:
 
         assert get_video_info("https://youtube.com/watch?v=abc") is None
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_videos_returns_empty_on_non_positive_limit(self, mock_ydl_cls):
         from distill.ingestors.youtube.discovery import search_videos
 
         assert search_videos("fabric", limit=0) == []
         mock_ydl_cls.assert_not_called()
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_videos_rejects_unbounded_inputs_before_fetch(self, mock_ydl_cls):
         from distill.ingestors.youtube.discovery import search_videos
 
@@ -799,7 +804,7 @@ class TestDiscoveryAdditionalBranches:
         assert search_videos("fabric", days=True) == []
         mock_ydl_cls.assert_not_called()
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_videos_returns_empty_on_error(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -810,7 +815,7 @@ class TestDiscoveryAdditionalBranches:
 
         assert search_videos("fabric") == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_videos_returns_empty_when_entries_missing(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
@@ -821,7 +826,7 @@ class TestDiscoveryAdditionalBranches:
 
         assert search_videos("fabric") == []
 
-    @patch("distill.ingestors.youtube.discovery.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_search_videos_enriches_selected_results(self, mock_ydl_cls, monkeypatch):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)

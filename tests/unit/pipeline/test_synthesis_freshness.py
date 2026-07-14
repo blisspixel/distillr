@@ -112,6 +112,22 @@ class TestCollect:
         f = collect_synthesis_freshness(tmp_path, "t")
         assert f.stale == []
 
+    def test_site_topic_synthesis_tracks_only_site_sources(self, tmp_path):
+        _write(tmp_path / "t_Site_Synthesis.md", "2026-06-09T11:00:00")
+        _write(
+            tmp_path / "sites" / "example.com" / "pages" / "p1" / "p1_Insights.md",
+            "2026-06-11T15:00:00",
+        )
+        _write(
+            tmp_path / "channels" / "c" / "videos" / "v1" / "v1_Insights.md",
+            "2026-06-12T15:00:00",
+        )
+
+        f = collect_synthesis_freshness(tmp_path, "t")
+
+        assert f.checked == 1
+        assert f.stale == [{"synthesis": "t_Site_Synthesis.md", "behind": 1, "gap_days": 2}]
+
     def test_corpus_synthesis_staled_by_any_source(self, tmp_path):
         _write(tmp_path / "t_Corpus_Synthesis.md", "2026-06-09T11:00:00")
         _write(

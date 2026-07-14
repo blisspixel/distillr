@@ -167,6 +167,33 @@ def test_synthesize_channel_writes_verify_sidecar(tmp_path):
     assert sidecar.exists()
 
 
+def test_synthesize_channel_verifies_context_and_insights_as_derived_evidence(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    channel_dir = config.channel_dir("ai", "Creator")
+    video_dir = channel_dir / "videos" / "v1"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "insights.md").write_text("# Receipt insight", encoding="utf-8")
+    (channel_dir / "channel_context.md").write_text("# Generated context", encoding="utf-8")
+    captured: dict[str, str] = {}
+
+    def capture_evidence(_directory, _synthesis, evidence, **_kwargs):
+        captured["evidence"] = evidence
+        return False
+
+    with (
+        patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("synthesis")),
+        patch(
+            "distill.pipeline.verify.run_synthesis_verify",
+            side_effect=capture_evidence,
+        ),
+    ):
+        assert synthesize_channel("ai", "Creator", config) == "synthesis"
+
+    evidence = json.loads(captured["evidence"])
+    assert evidence["channel_context"] == "# Generated context"
+    assert "# Receipt insight" in evidence["video_insights"]
+
+
 def test_synthesize_topic_budget_exceeded_re_raises(tmp_path):
     """Covers BudgetExceededError re-raise (line ~200) in synthesize_topic."""
     from distill.pipeline.costs import BudgetExceededError

@@ -383,7 +383,7 @@ Full cost model, the route-class table, and per-stage costs: [`docs/cost.md`](do
 
 ## Reliability and trust boundaries
 
-**What's enforced** (every release clears the same CI gate): more than 4,200 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
+**What's enforced** (every release clears the same CI gate): more than 5,100 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
 
 **Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
 
@@ -409,7 +409,7 @@ Distillr is in active use and ships frequent patch releases; the feature spine -
 eight source types, goal-aware discovery, the write-time verify gate,
 cross-source synthesis, `ask`, `audit`, MCP, and the dashboard - is complete. The
 `0.x` version is deliberate and does **not** mean "unfinished" or "unreliable":
-every release clears the same CI gate (4,200+ tests at 95%+ **branch** coverage,
+every release clears the same CI gate (5,100+ tests at 95%+ **branch** coverage,
 ruff + Pyright + import-linter + bandit + pip-audit, Linux on Python 3.12-3.14,
 macOS and Windows smoke tests on Python 3.12, and PEP 740 build provenance).
 What `0.x` means is that

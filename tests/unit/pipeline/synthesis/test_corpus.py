@@ -91,14 +91,8 @@ def test_has_two_pass_synthesis_inputs_discovers_nested_source_insights(tmp_path
     assert has_two_pass_synthesis_inputs(topic, config)
 
 
-def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesis(tmp_path):
-    """Regression: corpus must read per-channel video syntheses directly.
-
-    The topic_synthesis filename is shared by the video and website producers,
-    so in a mixed run the website synthesis overwrites the video one. Corpus
-    synthesis must surface the channel content regardless and must not depend on
-    the collidable topic_synthesis file.
-    """
+def test_synthesize_corpus_includes_channels_and_ignores_rolled_up_topic_synthesis(tmp_path):
+    """Corpus synthesis reads original channel rollups, not a summary of them."""
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic = "mixed"
 
@@ -114,7 +108,7 @@ def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesi
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "synthesis.md").write_text("GAMMA_SITE_INSIGHT", encoding="utf-8")
 
-    # Simulate the collision: a site-only rollup left in topic_synthesis on disk.
+    # A topic rollup is derived from the same channels and must not be re-ingested.
     topic_dir = config.topic_dir(topic)
     topic_dir.mkdir(parents=True, exist_ok=True)
     (topic_dir / "topic_synthesis.md").write_text("SITE_ONLY_ROLLUP", encoding="utf-8")
@@ -132,7 +126,7 @@ def test_synthesize_corpus_includes_channels_and_ignores_collided_topic_synthesi
     assert "ALPHA_CHANNEL_INSIGHT" in prompt
     assert "BETA_CHANNEL_INSIGHT" in prompt
     assert "GAMMA_SITE_INSIGHT" in prompt
-    # The collidable topic_synthesis file is no longer trusted as a source.
+    # The derived topic rollup is not treated as an independent source.
     assert "SITE_ONLY_ROLLUP" not in prompt
 
 

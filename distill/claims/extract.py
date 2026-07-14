@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from distill.claims.records import Claim, ClaimRole, utcnow_iso
+from distill.library.confined import read_confined_text
 from distill.llm import RouterConfig
 from distill.llm import call as llm_call
 from distill.llm.json_extract import extract_json
@@ -123,6 +124,21 @@ def _row_to_claim(
     )
 
 
+def _load_insight_content(insight_path: Path, supplied: str | None) -> str:
+    """Return caller-captured content or a bounded, confined file snapshot."""
+
+    if supplied is not None:
+        return supplied
+    content = read_confined_text(
+        insight_path,
+        insight_path.parent,
+        max_bytes=4 * 1024 * 1024,
+    )
+    if content is None:
+        raise OSError(f"Insight is unsafe, unreadable, or oversized: {insight_path}")
+    return content
+
+
 def extract_claims_from_insight(
     insight_path: Path,
     *,
@@ -132,6 +148,7 @@ def extract_claims_from_insight(
     rc: RouterConfig,
     tracker: CostTracker | None = None,
     now_iso: str | None = None,
+    insight_content: str | None = None,
 ) -> ClaimExtractionResult:
     """Run claim extraction over one ``_Insights.md`` file.
 
@@ -144,7 +161,7 @@ def extract_claims_from_insight(
     """
     if not insight_path.exists():
         raise FileNotFoundError(f"Insight not found: {insight_path}")
-    content = insight_path.read_text(encoding="utf-8")
+    content = _load_insight_content(insight_path, insight_content)
     extracted_at = now_iso or utcnow_iso()
 
     prompt = claim_extraction_prompt(content, topic)

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from distill.pipeline.verify import run_verify_hook, verify_insight, write_verify_sidecar
 from distill.pipeline.verify_entailment import (
     EntailmentReport,
@@ -122,7 +124,8 @@ class TestSidecarV2:
         )
         path = write_verify_sidecar(tmp_path, report, entailment=ent)
         data = json.loads(path.read_text(encoding="utf-8"))
-        assert data["schema_version"] == 2
+        assert data["schema_version"] == 3
+        assert data["entailment"]["status"] == "flagged"
         assert data["entailment"]["checked"] == 2
         assert data["entailment"]["flagged"][0]["claim"] == "c"
 
@@ -131,6 +134,12 @@ class TestSidecarV2:
         path = write_verify_sidecar(tmp_path, report)
         data = json.loads(path.read_text(encoding="utf-8"))
         assert "entailment" not in data
+
+    def test_sidecar_rejects_passed_status_without_a_report(self, tmp_path):
+        report = verify_insight("- a 72.6 claim", "72.6", mode="strict")
+
+        with pytest.raises(ValueError, match="complete clean report"):
+            write_verify_sidecar(tmp_path, report, entailment_status="passed")
 
 
 class TestHookIntegration:
@@ -193,6 +202,104 @@ class TestHookIntegration:
         assert outcome is not None
         assert outcome.entailment is None  # tier skipped, deterministic stands
 
+    def test_required_entailment_refuses_when_checker_is_unavailable(self, tmp_path, monkeypatch):
+        import distill.pipeline.verify as verify_mod
+
+        monkeypatch.setattr(verify_mod, "_checker", None)
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+
+        outcome = run_verify_hook(
+            tmp_path,
+            _INSIGHT,
+            _SOURCE,
+            mode="strict",
+            require_entailment=True,
+        )
+
+        assert outcome is not None
+        assert outcome.refused
+        assert outcome.entailment_status == "unavailable"
+        data = json.loads(outcome.sidecar.read_text(encoding="utf-8"))
+        assert data["entailment"] == {
+            "status": "unavailable",
+            "checked": 0,
+            "supported": 0,
+            "flagged": [],
+            "model": "",
+            "threshold": None,
+            "reason": "checker unavailable",
+        }
+
+    def test_required_entailment_refuses_checker_failure(self, tmp_path, monkeypatch):
+        import distill.pipeline.verify as verify_mod
+
+        class ExplodingChecker:
+            model_name = "boom"
+
+            def score(self, evidence: str, claim: str) -> float:
+                raise RuntimeError("model exploded")
+
+        monkeypatch.setattr(verify_mod, "_checker", ExplodingChecker())
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+
+        outcome = run_verify_hook(
+            tmp_path,
+            _INSIGHT,
+            _SOURCE,
+            mode="strict",
+            require_entailment=True,
+        )
+
+        assert outcome is not None
+        assert outcome.refused
+        assert outcome.entailment_status == "error"
+        data = json.loads(outcome.sidecar.read_text(encoding="utf-8"))
+        assert data["entailment"]["status"] == "error"
+        assert data["entailment"]["reason"] == "checker evaluation failed"
+
+    def test_required_entailment_refuses_zero_claim_coverage(self, tmp_path, monkeypatch):
+        import distill.pipeline.verify as verify_mod
+
+        monkeypatch.setattr(verify_mod, "_checker", FakeChecker())
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+
+        outcome = run_verify_hook(
+            tmp_path,
+            "Brief claim.",
+            _SOURCE,
+            mode="strict",
+            require_entailment=True,
+        )
+
+        assert outcome is not None
+        assert outcome.refused
+        assert outcome.entailment_status == "incomplete"
+        data = json.loads(outcome.sidecar.read_text(encoding="utf-8"))
+        assert data["entailment"]["status"] == "incomplete"
+        assert data["entailment"]["checked"] == 0
+
+    def test_required_entailment_passes_only_complete_clean_report(self, tmp_path, monkeypatch):
+        import distill.pipeline.verify as verify_mod
+
+        checker = FakeChecker(supported_markers=("phase rotation",))
+        monkeypatch.setattr(verify_mod, "_checker", checker)
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+
+        outcome = run_verify_hook(
+            tmp_path,
+            "- RoMem replaces discrete timestamp lookup tables with continuous phase rotation.",
+            _SOURCE,
+            mode="strict",
+            require_entailment=True,
+        )
+
+        assert outcome is not None
+        assert not outcome.refused
+        assert outcome.entailment_status == "passed"
+        data = json.loads(outcome.sidecar.read_text(encoding="utf-8"))
+        assert data["entailment"]["status"] == "passed"
+        assert data["entailment"]["checked"] == 1
+
 
 class TestAuditRollup:
     def test_entailment_flags_count_in_verify_rollup(self, tmp_path):
@@ -205,6 +312,7 @@ class TestAuditRollup:
             json.dumps(
                 {
                     "schema_version": 2,
+                    "mode": "warn",
                     "checked": 0,
                     "supported": 0,
                     "unsupported": [],

@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +23,12 @@ from pathlib import Path
 from distill.eval._models import is_local as _is_local
 from distill.eval._models import provider_for_model
 from distill.eval.fixtures import Fixture, load_fixtures
-from distill.eval.judge import DEFAULT_JUDGE_MODEL, judge_faithfulness, judge_pairwise
+from distill.eval.judge import (
+    DEFAULT_JUDGE_MODEL,
+    FAITHFULNESS_ORDINAL,
+    judge_faithfulness,
+    judge_pairwise,
+)
 from distill.eval.scoring import QualityScore, score_output
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
@@ -135,14 +141,21 @@ def _run_analysis(fixture: Fixture, rc: RouterConfig, tracker: CostTracker) -> s
 
 
 def _hash(*parts: str) -> str:
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256()
+    for part in parts:
+        encoded = part.encode("utf-8")
+        digest.update(len(encoded).to_bytes(8, byteorder="big"))
+        digest.update(encoded)
+    return digest.hexdigest()
 
 
 def _src_hash(fixture: Fixture) -> str:
-    if not fixture.question and not fixture.source_stems:
-        return hashlib.sha256(fixture.source_text.encode("utf-8")).hexdigest()[:8]
-    payload = "\n".join([fixture.question, ",".join(fixture.source_stems), fixture.source_text])
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+    return _hash(
+        "fixture-source-v2",
+        fixture.question,
+        *fixture.source_stems,
+        fixture.source_text,
+    )
 
 
 def _sources_block(fixture: Fixture) -> str:
@@ -254,6 +267,27 @@ def _heuristic_summary(qs: QualityScore) -> str:
     return f"{dims} (composite {qs.composite:.2f})"
 
 
+def _validated_win_rate(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("pairwise win rate must be numeric")
+    win_rate = float(value)
+    if not math.isfinite(win_rate) or not 0.0 <= win_rate <= 1.0:
+        raise ValueError("pairwise win rate must be finite and between zero and one")
+    return win_rate
+
+
+def _validated_rationale(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("judge rationale must be text")
+    return value
+
+
+def _validated_faithfulness_label(value: object) -> str:
+    if not isinstance(value, str) or value not in FAITHFULNESS_ORDINAL:
+        raise ValueError("faithfulness label is not recognized")
+    return value
+
+
 def _pairwise(
     model: str,
     fixture: Fixture,
@@ -264,14 +298,22 @@ def _pairwise(
     run_tracker: CostTracker,
     cache_dir: Path | None,
 ) -> tuple[float | None, str]:
-    # "pairwise-v2": rubric prompt + advisory heuristic priors. The version token
-    # invalidates verdicts cached under the old holistic prompt.
-    key = _hash("pairwise-v2", model, fixture.id, _src_hash(fixture), anchor, judge_model)
+    key = _hash(
+        "pairwise-v3",
+        model,
+        fixture.id,
+        _src_hash(fixture),
+        anchor,
+        judge_model,
+        _hash("candidate-output-v1", candidate_output),
+        _hash("anchor-output-v1", anchor_output),
+    )
     cached = _load_json(cache_dir, key)
     if cached is not None:
         try:
-            wr = cached.get("win_rate")
-            return (float(wr) if wr is not None else None), str(cached.get("rationale", ""))
+            return _validated_win_rate(cached.get("win_rate")), _validated_rationale(
+                cached.get("rationale", "")
+            )
         except (TypeError, ValueError):
             logger.warning("Ignoring malformed eval pairwise cache for %s/%s", model, fixture.id)
 
@@ -298,12 +340,17 @@ def _pairwise(
     except Exception as exc:
         logger.warning("eval pairwise judge failed for %s on %s: %s", model, fixture.id, exc)
         return None, ""
-    win_rate = result.win_rate if result else None
-    rationale = result.rationale if result else ""
+    if result is None:
+        return None, ""
+    try:
+        win_rate = _validated_win_rate(result.win_rate)
+        rationale = _validated_rationale(result.rationale)
+    except ValueError:
+        logger.warning("Ignoring malformed eval pairwise verdict for %s/%s", model, fixture.id)
+        return None, ""
     # Don't cache a failed verdict (None) — otherwise a transient judge failure is
     # frozen in and every rerun reuses it instead of re-judging.
-    if win_rate is not None:
-        _save_json(cache_dir, key, {"win_rate": win_rate, "rationale": rationale})
+    _save_json(cache_dir, key, {"win_rate": win_rate, "rationale": rationale})
     return win_rate, rationale
 
 
@@ -321,11 +368,20 @@ def _faithfulness(
     produced (parse failure / judge error) — the row then carries no faithfulness
     signal rather than a fabricated one.
     """
-    key = _hash("faithful-v1", model, fixture.id, _src_hash(fixture), judge_model)
+    key = _hash(
+        "faithful-v2",
+        model,
+        fixture.id,
+        _src_hash(fixture),
+        judge_model,
+        _hash("judged-output-v1", output),
+    )
     cached = _load_json(cache_dir, key)
     if cached is not None:
         try:
-            return str(cached.get("label", "")), str(cached.get("rationale", ""))
+            return _validated_faithfulness_label(cached.get("label")), _validated_rationale(
+                cached.get("rationale", "")
+            )
         except (TypeError, ValueError):
             logger.warning(
                 "Ignoring malformed eval faithfulness cache for %s/%s", model, fixture.id
@@ -340,8 +396,14 @@ def _faithfulness(
     if verdict is None:
         # Unparseable verdict: no signal, and don't cache (a rerun re-judges).
         return "", ""
-    _save_json(cache_dir, key, {"label": verdict.label, "rationale": verdict.rationale})
-    return verdict.label, verdict.rationale
+    try:
+        label = _validated_faithfulness_label(verdict.label)
+        rationale = _validated_rationale(verdict.rationale)
+    except ValueError:
+        logger.warning("Ignoring malformed eval faithfulness verdict for %s/%s", model, fixture.id)
+        return "", ""
+    _save_json(cache_dir, key, {"label": label, "rationale": rationale})
+    return label, rationale
 
 
 def run_model_eval(

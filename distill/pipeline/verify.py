@@ -23,7 +23,9 @@ Scope of this tier is deliberate (the dogfood corpus in
 Modes (``DISTILL_VERIFY`` or ``--verify`` on the ingest commands): ``warn``
 (default -- flag to console, write anyway), ``strict`` (refuse to write an
 insight with unsupported claims; the sidecar still records why), ``off``
-(skip the check).
+(skip the check). Saved-answer promotion additionally requires a complete,
+clean semantic report and fails closed when the optional checker is absent or
+fails.
 """
 
 # pyright: strict
@@ -47,11 +49,14 @@ from distill.pipeline.verify_entailment import (
     evaluate_entailment,
     load_default_checker,
 )
+from distill.pipeline.verify_sidecar import VERIFY_SCHEMA_VERSION, EntailmentStatus
 
 __all__ = [
+    "EntailmentStatus",
     "NumericClaim",
     "VerifyOutcome",
     "VerifyReport",
+    "entailment_checker_available",
     "extract_numeric_claims",
     "resolve_verify_mode",
     "run_synthesis_verify",
@@ -59,10 +64,6 @@ __all__ = [
     "verify_insight",
     "write_verify_sidecar",
 ]
-
-# v2 adds the additive "entailment" block (0.13.0); v1 sidecars stay valid and
-# readers treat a missing block as "entailment not run".
-VERIFY_SCHEMA_VERSION = 2
 
 # The entailment checker loads once per process (the model is ~110M params);
 # None-after-attempt means the optional extra is absent and the deterministic
@@ -77,6 +78,11 @@ def _entailment_checker() -> EntailmentChecker | None:
         _checker = load_default_checker()
         _checker_loaded = True
     return _checker
+
+
+def entailment_checker_available() -> bool:
+    """Return whether the pinned local semantic checker loaded successfully."""
+    return _entailment_checker() is not None
 
 
 # Claim-side token shapes, most specific first. Small bare integers (<= 3
@@ -312,6 +318,9 @@ class VerifyOutcome:
     sidecar: Path
     insight_name: str = ""
     entailment: EntailmentReport | None = None
+    entailment_status: EntailmentStatus = "not_required"
+    entailment_required: bool = False
+    entailment_reason: str = ""
 
     @property
     def _entailment_flags(self) -> int:
@@ -321,7 +330,14 @@ class VerifyOutcome:
     def refused(self) -> bool:
         if self.report.mode != "strict":
             return False
-        return not self.report.ok or self._entailment_flags > 0
+        semantic_passed = (
+            self.entailment_status == "passed"
+            and self.entailment is not None
+            and self.entailment.checked > 0
+            and not self.entailment.flagged
+        )
+        semantic_refusal = self.entailment_required and not semantic_passed
+        return not self.report.ok or self._entailment_flags > 0 or semantic_refusal
 
     @property
     def summary_line(self) -> str:
@@ -329,9 +345,18 @@ class VerifyOutcome:
         ent = f" + {self._entailment_flags} prose claim(s)" if self._entailment_flags else ""
         if self.refused:
             name = self.insight_name or "insight"
+            semantic = ""
+            if self.entailment_required and self.entailment_status != "passed":
+                semantic = {
+                    "unavailable": "; semantic checker unavailable",
+                    "error": "; semantic checker failed",
+                    "incomplete": "; semantic verification incomplete",
+                    "flagged": "; semantic verification flagged unsupported prose",
+                    "not_required": "; semantic verification did not run",
+                }.get(self.entailment_status, "")
             return (
                 f"verify strict: refused {name} -- {n}/{total} unsupported "
-                f"numeric claim(s){ent}; see {self.sidecar.name}"
+                f"numeric claim(s){ent}{semantic}; see {self.sidecar.name}"
             )
         return (
             f"verify: {n}/{total} numeric claim(s){ent} lack source support -- "
@@ -348,6 +373,7 @@ def run_verify_hook(
     identity: str | None = None,
     insight_name: str = "",
     source_name: str = "",
+    require_entailment: bool = False,
 ) -> VerifyOutcome | None:
     """Verify one insight against its receipt and write the sidecar.
 
@@ -363,14 +389,29 @@ def run_verify_hook(
         return None
     report = verify_insight(insight_text, source_text, mode=mode)
     entailment: EntailmentReport | None = None
+    entailment_status: EntailmentStatus = "not_required"
+    entailment_reason = ""
     checker = _entailment_checker()
-    if checker is not None:
+    if checker is None:
+        if require_entailment:
+            entailment_status = "unavailable"
+            entailment_reason = "checker unavailable"
+    else:
         try:
             entailment = evaluate_entailment(insight_text, source_text, checker)
         except Exception:
-            # The optional tier must never kill an ingest run; the
-            # deterministic report stands and the sidecar records no block.
             entailment = None
+            if require_entailment:
+                entailment_status = "error"
+                entailment_reason = "checker evaluation failed"
+        else:
+            if entailment.checked == 0:
+                entailment_status = "incomplete"
+                entailment_reason = "no prose claims checked"
+            elif entailment.flagged:
+                entailment_status = "flagged"
+            else:
+                entailment_status = "passed"
     path = artifact_path(directory, "verify", identity=identity, extension="json")
     with contextlib.suppress(OSError):
         path = write_verify_sidecar(
@@ -380,9 +421,17 @@ def run_verify_hook(
             insight_name=insight_name,
             source_name=source_name,
             entailment=entailment,
+            entailment_status=entailment_status,
+            entailment_reason=entailment_reason,
         )
     return VerifyOutcome(
-        report=report, sidecar=path, insight_name=insight_name, entailment=entailment
+        report=report,
+        sidecar=path,
+        insight_name=insight_name,
+        entailment=entailment,
+        entailment_status=entailment_status,
+        entailment_required=require_entailment,
+        entailment_reason=entailment_reason,
     )
 
 
@@ -422,16 +471,62 @@ def run_synthesis_verify(
     return outcome.refused
 
 
+def _inferred_entailment_status(entailment: EntailmentReport | None) -> EntailmentStatus:
+    if entailment is None:
+        return "not_required"
+    if entailment.checked == 0:
+        return "incomplete"
+    if entailment.flagged:
+        return "flagged"
+    return "passed"
+
+
+def _entailment_sidecar_payload(
+    entailment: EntailmentReport | None,
+    status: EntailmentStatus | None,
+    reason: str,
+) -> dict[str, object] | None:
+    resolved = status or _inferred_entailment_status(entailment)
+    if resolved == "passed" and (
+        entailment is None or entailment.checked <= 0 or entailment.flagged
+    ):
+        raise ValueError("passed entailment status requires a complete clean report")
+    if resolved == "flagged" and (entailment is None or not entailment.flagged):
+        raise ValueError("flagged entailment status requires flagged claims")
+    if resolved == "incomplete" and (entailment is None or entailment.checked != 0):
+        raise ValueError("incomplete entailment status requires a zero-coverage report")
+    if resolved in {"not_required", "unavailable", "error"} and entailment is not None:
+        raise ValueError(f"{resolved} entailment status cannot carry a report")
+    if resolved == "not_required":
+        return None
+    payload: dict[str, object] = {
+        "status": resolved,
+        "checked": entailment.checked if entailment is not None else 0,
+        "supported": entailment.supported if entailment is not None else 0,
+        "flagged": list(entailment.flagged) if entailment is not None else [],
+        "model": entailment.model if entailment is not None else "",
+        "threshold": entailment.threshold if entailment is not None else None,
+    }
+    if reason:
+        payload["reason"] = reason
+    return payload
+
+
 def write_verify_sidecar(
     directory: Path,
     report: VerifyReport,
     *,
     identity: str | None = None,
     insight_name: str = "",
+    insight_sha256: str | None = None,
     source_name: str = "",
     entailment: EntailmentReport | None = None,
+    entailment_status: EntailmentStatus | None = None,
+    entailment_reason: str = "",
 ) -> Path:
     """Write the ``<stem>_Verify.json`` sidecar next to the insight artifact."""
+    if insight_sha256 is not None and re.fullmatch(r"[0-9a-f]{64}", insight_sha256) is None:
+        raise ValueError("insight_sha256 must be a lowercase SHA-256 hex digest")
     path = artifact_path(directory, "verify", identity=identity, extension="json")
     payload: dict[str, object] = {
         "schema_version": VERIFY_SCHEMA_VERSION,
@@ -445,13 +540,12 @@ def write_verify_sidecar(
         "source": source_name,
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
-    if entailment is not None:
-        payload["entailment"] = {
-            "checked": entailment.checked,
-            "supported": entailment.supported,
-            "flagged": list(entailment.flagged),
-            "model": entailment.model,
-            "threshold": entailment.threshold,
-        }
+    if insight_sha256 is not None:
+        payload["insight_sha256"] = insight_sha256
+    entailment_payload = _entailment_sidecar_payload(
+        entailment, entailment_status, entailment_reason
+    )
+    if entailment_payload is not None:
+        payload["entailment"] = entailment_payload
     atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
     return path

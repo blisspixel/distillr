@@ -65,6 +65,25 @@ def test_run_claims_extracts_and_appends(tmp_path: Path, rc: RouterConfig) -> No
     assert len(read_claims(tmp_path)) == 3
 
 
+def test_run_claims_rejects_insight_changed_after_discovery(
+    tmp_path: Path, rc: RouterConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    insight = _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
+    refs = pipeline_mod.discover_insights(tmp_path)
+    insight.write_text("tampered claim content", encoding="utf-8")
+    monkeypatch.setattr(
+        pipeline_mod,
+        "discover_insights",
+        lambda *_args, **_kwargs: refs,
+    )
+
+    with patch("distill.claims.extract.llm_call") as mock_llm:
+        summary = run_claims(tmp_path, tmp_path, rc=rc)
+
+    mock_llm.assert_not_called()
+    assert summary.claims_added == 0
+
+
 def test_run_claims_skips_already_extracted(tmp_path: Path, rc: RouterConfig) -> None:
     _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
     side = _responses([{"claim_text": "Only claim.", "rhetorical_role": "result"}])

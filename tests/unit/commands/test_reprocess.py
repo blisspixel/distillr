@@ -10,6 +10,7 @@ import typer
 from typer.testing import CliRunner
 
 from distill import cli
+from distill.commands import _helpers as helpers_mod
 from distill.commands import reprocess as reprocess_mod
 from distill.config import DistillConfig
 from distill.library import Library
@@ -438,14 +439,14 @@ class TestReanalyze:
         _seed_library(config)
         _seed_video(config)
         self._patch_common(monkeypatch, config)
-        analyze_video = MagicMock()
-        monkeypatch.setattr(reprocess_mod, "analyze_video", analyze_video)
+        process_video = MagicMock()
+        monkeypatch.setattr(reprocess_mod, "_process_video", process_video)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
         assert result.exit_code == 1
         assert isinstance(result.exception, ProjectedBudgetExceededError)
-        analyze_video.assert_not_called()
+        process_video.assert_not_called()
 
     def test_dry_run_lists_videos(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -506,18 +507,18 @@ class TestReanalyze:
         seen: list[str] = []
 
         monkeypatch.setattr(
-            reprocess_mod,
+            helpers_mod,
             "analyze_video",
             lambda *args, **kwargs: seen.append("full") or "## Full insight",
         )
         monkeypatch.setattr(
-            reprocess_mod,
+            helpers_mod,
             "analyze_short",
             lambda *args, **kwargs: seen.append("short") or "## Short insight",
         )
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
@@ -525,6 +526,32 @@ class TestReanalyze:
         assert seen == ["full", "short"]
         full_dir = config.video_dir("ai", "TestCh", "full1")
         assert find_artifact(full_dir, "insights").exists()
+
+    def test_reanalyze_delegates_writes_and_verification_to_shared_processor(
+        self, tmp_path, monkeypatch
+    ):
+        config = _config(tmp_path)
+        _seed_library(config)
+        _seed_video(config, video_id="scan1", analysis_mode="scan")
+        self._patch_common(monkeypatch, config)
+        processor = MagicMock(return_value=False)
+        monkeypatch.setattr(reprocess_mod, "_process_video", processor, raising=False)
+        monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
+        monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
+
+        result = runner.invoke(cli.app, ["reanalyze", "ai", "--deep"])
+
+        assert result.exit_code == 0, result.output
+        processor.assert_called_once()
+        args, kwargs = processor.call_args
+        video = args[2]
+        assert (video.video_id, video.title, video.channel_name) == (
+            "scan1",
+            "Video 1",
+            "TestCh",
+        )
+        assert kwargs["analysis_mode"] == "full"
+        assert kwargs["video_dir"] == config.video_dir("ai", "TestCh", "scan1")
 
     def test_analysis_failure_reported(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -535,15 +562,15 @@ class TestReanalyze:
         def boom(*args, **kwargs):
             raise RuntimeError("llm fail")
 
-        monkeypatch.setattr(reprocess_mod, "analyze_video", boom)
+        monkeypatch.setattr(helpers_mod, "analyze_video", boom)
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
         assert result.exit_code == 0
-        assert "Failed: llm fail" in result.output
+        assert "failed: llm fail" in result.output
 
     def test_resynthesizes_after_analysis(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -552,7 +579,7 @@ class TestReanalyze:
         self._patch_common(monkeypatch, config)
         synth_calls: list[str] = []
 
-        monkeypatch.setattr(reprocess_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
         monkeypatch.setattr(
             reprocess_mod,
             "synthesize_channel",
@@ -563,7 +590,7 @@ class TestReanalyze:
             "synthesize_topic",
             lambda topic, cfg, tracker=None: synth_calls.append(f"topic:{topic}"),
         )
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
@@ -575,8 +602,8 @@ class TestReanalyze:
         _seed_library(config)
         _seed_video(config)
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(reprocess_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         def boom(*args, **kwargs):
             raise RuntimeError("synth fail")
@@ -594,9 +621,9 @@ class TestReanalyze:
         _seed_library(config)
         _seed_video(config)
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(reprocess_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         def boom(*args, **kwargs):
             raise RuntimeError("topic fail")
@@ -620,10 +647,10 @@ class TestReanalyze:
         find_artifact(vid_dir, "transcript", extension="txt").write_text("", encoding="utf-8")
         _seed_video(config, video_id="good", title="Has Transcript")
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(reprocess_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
@@ -642,18 +669,18 @@ class TestReanalyze:
         self._patch_common(monkeypatch, config)
         seen: list[str] = []
         monkeypatch.setattr(
-            reprocess_mod,
+            helpers_mod,
             "analyze_video",
             lambda *args, **kwargs: seen.append("full") or "## No meta insight",
         )
         monkeypatch.setattr(
-            reprocess_mod,
+            helpers_mod,
             "analyze_short",
             lambda *args, **kwargs: seen.append("short") or "## Short no meta",
         )
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
@@ -668,10 +695,10 @@ class TestReanalyze:
         lib.add_channel("ai", "https://www.youtube.com/@B", "Beta")
         _seed_video(config, channel="Alpha", video_id="v1", title="Alpha Video")
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(reprocess_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai", "--dry-run"])
 
@@ -686,10 +713,10 @@ class TestReanalyze:
         (vdir / "notes.txt").write_text("not a directory", encoding="utf-8")
         _seed_video(config, video_id="good", title="Real Video")
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(reprocess_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
         monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(reprocess_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["reanalyze", "ai", "--dry-run"])
 

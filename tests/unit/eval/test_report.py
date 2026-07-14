@@ -1,6 +1,7 @@
 """Tests for distill.eval.report (deterministic recommendation + confidence)."""
 
 import json
+from dataclasses import replace
 
 from distill.eval.harness import EvalRow
 from distill.eval.report import (
@@ -18,7 +19,7 @@ def _rows(
     composites: list[float],
     cost_each: float,
     winrate: float | None,
-    faithfulness: str = "",
+    faithfulness: str = "faithful",
     workload: str = "paper",
     risk_patterns: tuple[str, ...] = (),
 ) -> list:
@@ -93,6 +94,32 @@ def test_fail_closed_when_judge_unavailable():
     summary = summarize(rows, anchor="grok-4.3", threshold=0.90)
     assert summary.recommended == "grok-4.3"
     assert "no judge signal" in summary.confidence_reason
+
+
+def test_incomplete_faithfulness_evidence_cannot_certify_migration():
+    rows = _rows("grok-4.3", [0.95] * 3, 0.10, None)
+    candidate = _rows("local", [0.90] * 3, 0.0, 0.60)
+    candidate[1] = replace(candidate[1], faithfulness="")
+    candidate[2] = replace(candidate[2], faithfulness="unknown")
+
+    summary = summarize(rows + candidate, anchor="grok-4.3")
+
+    assert summary.recommended == "grok-4.3"
+    local = next(model for model in summary.models if model.model == "local")
+    assert local.faithfulness_fixtures == 1
+
+
+def test_incomplete_pairwise_evidence_cannot_certify_migration():
+    rows = _rows("grok-4.3", [0.95] * 3, 0.10, None)
+    candidate = _rows("local", [0.90] * 3, 0.0, 0.60)
+    candidate[1] = replace(candidate[1], pairwise_winrate=None)
+    candidate[2] = replace(candidate[2], pairwise_winrate=999.0)
+
+    summary = summarize(rows + candidate, anchor="grok-4.3")
+
+    assert summary.recommended == "grok-4.3"
+    local = next(model for model in summary.models if model.model == "local")
+    assert local.pairwise_fixtures == 1
 
 
 def test_judge_certifies_migration_when_at_par():
@@ -291,6 +318,7 @@ def test_review_findings_flags_missing_judge_on_risk_fixture():
         [0.92],
         0.0,
         None,
+        faithfulness="",
         workload="ask",
         risk_patterns=("citation_request_trap",),
     )

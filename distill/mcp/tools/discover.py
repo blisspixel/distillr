@@ -17,8 +17,16 @@ from distill.library import Library
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
-from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
-from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    library,
+    load_config,
+    mcp,
+    set_tracker_estimated_cost,
+    write_tool,
+)
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.ranking import RankedVideo
 from distill.pipeline.summary import RunSummary
 
@@ -166,7 +174,7 @@ def _learn_one_channel(
 
 
 @mcp.tool()
-@write_tool("learn_topic")
+@write_tool("learn_topic", ledger_command="learn")
 def learn_topic(
     query: str,
     topic: str | None = None,
@@ -232,7 +240,6 @@ def learn_topic(
     except Exception as exc:
         logger.warning("learn_topic synthesis failed for %s: %s", topic_name, exc)
 
-    save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps(
         {
             "topic": topic_name,
@@ -244,7 +251,7 @@ def learn_topic(
 
 
 @mcp.tool()
-@write_tool("search_videos")
+@write_tool("search_videos", ledger_command="search-videos")
 def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
     """Search YouTube for a topic; return ranked videos without processing.
 
@@ -375,6 +382,7 @@ async def discover(  # noqa: C901 - legacy discovery workflow
         calibration=load_cost_calibration(config.library_dir),
         router_config=RouterConfig(),
     )
+    set_tracker_estimated_cost(tracker, estimate.expected)
     payload: JsonObject = {
         "topic": topic_name,
         "videos": video_results,
@@ -390,10 +398,4 @@ async def discover(  # noqa: C901 - legacy discovery workflow
         "cost": cost_summary(tracker),
     }
 
-    save_run_log(
-        config.library_dir,
-        "discover",
-        tracker,
-        estimated_cost=estimate.expected,
-    )
     return json.dumps(payload, indent=2)

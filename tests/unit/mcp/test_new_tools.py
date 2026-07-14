@@ -365,7 +365,6 @@ class TestPapersTool:
         self, mock_config, monkeypatch, tmp_path
     ):
         from distill.ingestors.papers.arxiv import PaperRecord
-        from distill.mcp.tools import papers as papers_tool
 
         class ProgressContext:
             def __init__(self):
@@ -464,7 +463,7 @@ class TestPapersTool:
             "distill.pipeline.synthesis.corpus.synthesize_corpus",
             synthesize_corpus,
         )
-        monkeypatch.setattr(papers_tool, "save_run_log", save_log)
+        monkeypatch.setattr("distill.mcp.server.save_run_log", save_log)
 
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.papers import papers
@@ -661,6 +660,41 @@ class TestSiteBatchTool:
         assert "Unsupported site crawl mode" in result["error"]
         assert calls == []
 
+    def test_json_seed_file_rejects_aggregate_page_budget_before_preview(
+        self, mock_config, monkeypatch
+    ):
+        seed_file = mock_config.library_dir / "sites.json"
+        seed_file.write_text(
+            json.dumps(
+                {
+                    "urls": [
+                        {
+                            "url": f"https://example.com/{index}",
+                            "max_pages": 100,
+                        }
+                        for index in range(6)
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        calls = []
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            lambda *args, **kwargs: calls.append("process"),
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json", preview=True)))
+
+        assert result == {
+            "status": "error",
+            "error": "site batch page budget exceeds 500",
+        }
+        assert calls == []
+
     def test_preview_returns_plan_without_model_or_processing(self, mock_config, monkeypatch):
         monkeypatch.setenv("DISTILL_PROVIDER", "openai")
         seed_file = mock_config.library_dir / "sites.json"
@@ -761,10 +795,11 @@ class TestSiteBatchTool:
                 skipped_pages=1,
             )
 
-        def save_log(log_dir, command, tracker):
+        def save_log(log_dir, command, tracker, *, estimated_cost=None):
             assert log_dir == mock_config.library_dir
             assert command == "site-batch"
             assert isinstance(tracker, CostTracker)
+            assert estimated_cost is None
 
         def summarize_cost(tracker):
             assert isinstance(tracker, CostTracker)
@@ -774,7 +809,7 @@ class TestSiteBatchTool:
             "distill.commands._site_ingest.process_site_seed",
             process_site_seed,
         )
-        monkeypatch.setattr("distill.mcp.tools.sites.save_run_log", save_log)
+        monkeypatch.setattr("distill.mcp.server.save_run_log", save_log)
         monkeypatch.setattr("distill.mcp.tools.sites.cost_summary", summarize_cost)
 
         with patch("distill.mcp.server._config", return_value=mock_config):
@@ -889,7 +924,7 @@ class TestSynthesizeTool:
                 "distill.pipeline.synthesis.corpus.synthesize_corpus",
                 return_value="# Corpus",
             ) as mock_corpus,
-            patch("distill.mcp.tools.synthesis.save_run_log") as mock_log,
+            patch("distill.mcp.server.save_run_log") as mock_log,
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -905,7 +940,10 @@ class TestSynthesizeTool:
         assert mock_corpus.call_args.kwargs["style"] == "exec"
         assert mock_corpus.call_args.kwargs["two_pass"] is False
         mock_log.assert_called_once_with(
-            mock_config.library_dir, "synthesize", mock_log.call_args[0][2]
+            mock_config.library_dir,
+            "synthesize",
+            mock_log.call_args[0][2],
+            estimated_cost=None,
         )
         assert result["status"] == "complete"
         assert result["cost"] == _FAKE_COST
@@ -929,7 +967,7 @@ class TestSynthesizeTool:
                 "distill.pipeline.synthesis.corpus.synthesize_corpus",
                 return_value="# Corpus",
             ) as mock_corpus,
-            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -952,7 +990,7 @@ class TestSynthesizeTool:
             ),
             patch("distill.pipeline.synthesis.topic.synthesize_topic"),
             patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value="# Corpus"),
-            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -975,7 +1013,7 @@ class TestSynthesizeTool:
                 side_effect=RuntimeError("topic fail"),
             ),
             patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value="# Corpus"),
-            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -994,7 +1032,7 @@ class TestSynthesizeTool:
             patch("distill.pipeline.synthesis.topic.synthesize_channel"),
             patch("distill.pipeline.synthesis.topic.synthesize_topic"),
             patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value=""),
-            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -1016,7 +1054,7 @@ class TestSynthesizeTool:
                 "distill.pipeline.synthesis.corpus.synthesize_corpus",
                 side_effect=RuntimeError("corpus fail"),
             ),
-            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -1099,7 +1137,7 @@ class TestSynthesizeTool:
             patch("distill.pipeline.synthesis.topic.synthesize_channel"),
             patch("distill.pipeline.synthesis.topic.synthesize_topic"),
             patch("distill.pipeline.synthesis.corpus.synthesize_corpus", return_value="# Corpus"),
-            patch("distill.mcp.tools.synthesis.save_run_log"),
+            patch("distill.mcp.server.save_run_log"),
             patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
         ):
             from distill.mcp.tools.synthesis import synthesize
@@ -1319,7 +1357,7 @@ class TestDiscoverTool:
         ctx = ProgressContext()
         monkeypatch.setattr(discover_tool, "_search_candidates", fail_video_search)
         monkeypatch.setattr("distill.ingestors.papers.arxiv.search_arxiv", fail_paper_search)
-        monkeypatch.setattr(discover_tool, "save_run_log", save_log)
+        monkeypatch.setattr("distill.mcp.server.save_run_log", save_log)
         monkeypatch.setattr(discover_tool, "cost_summary", lambda tracker: _FAKE_COST)
 
         with patch("distill.mcp.server._config", return_value=mock_config):
@@ -1359,7 +1397,7 @@ class TestDiscoverTool:
 
         monkeypatch.setattr(discover_tool, "_search_candidates", search)
         monkeypatch.setattr(discover_tool, "_rank_candidates", rank)
-        monkeypatch.setattr(discover_tool, "save_run_log", save_log)
+        monkeypatch.setattr("distill.mcp.server.save_run_log", save_log)
         monkeypatch.setattr(discover_tool, "cost_summary", lambda tracker: _FAKE_COST)
 
         with patch("distill.mcp.server._config", return_value=mock_config):

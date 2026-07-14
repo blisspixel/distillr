@@ -36,6 +36,7 @@ from typing import Any
 
 from distill.concepts.exports import write_exports
 from distill.concepts.extract import extract_from_insight
+from distill.concepts.locking import concept_transaction
 from distill.concepts.merge import build_all
 from distill.concepts.normalize import (
     DEFAULT_SOURCE_THRESHOLD,
@@ -50,7 +51,7 @@ from distill.concepts.notes import (
     write_playbook,
 )
 from distill.concepts.records import ConceptMention, utcnow_iso
-from distill.library.insights import InsightRef, discover_insights
+from distill.library.insights import InsightRef, discover_insights, read_discovered_insight
 from distill.llm import RouterConfig
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
@@ -107,7 +108,34 @@ def _mentions_from_jsonl(rows: Iterable[dict[str, Any]]) -> list[ConceptMention]
     return out
 
 
-def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipeline steps
+def run_concepts(
+    topic: str,
+    topic_dir: Path,
+    *,
+    rc: RouterConfig,
+    threshold: int = DEFAULT_SOURCE_THRESHOLD,
+    refresh: bool = False,
+    tracker: CostTracker | None = None,
+    now_iso: str | None = None,
+) -> ConceptRunSummary:
+    """Serialize and run one complete concept build for a topic."""
+
+    if not discover_insights(topic_dir):
+        logger.info("No _Insights.md found under %s", topic_dir)
+        return ConceptRunSummary(topic=topic)
+    with concept_transaction(topic_dir):
+        return _run_concepts_transaction(
+            topic,
+            topic_dir,
+            rc=rc,
+            threshold=threshold,
+            refresh=refresh,
+            tracker=tracker,
+            now_iso=now_iso,
+        )
+
+
+def _run_concepts_transaction(  # noqa: C901 -- sequential transaction orchestration
     topic: str,
     topic_dir: Path,
     *,
@@ -162,6 +190,10 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
     extraction_provenance: dict[str, str] = {}
     for ref in pending:
         try:
+            content = read_discovered_insight(ref, topic_dir.parent.parent)
+            if content is None:
+                logger.warning("Extraction skipped changed or unsafe insight %s", ref.path)
+                continue
             result = extract_from_insight(
                 ref.path,
                 topic=topic,
@@ -170,6 +202,7 @@ def run_concepts(  # noqa: C901 -- orchestrator, complexity from sequential pipe
                 rc=rc,
                 tracker=tracker,
                 now_iso=timestamp,
+                insight_content=content,
             )
         except BudgetExceededError:
             raise

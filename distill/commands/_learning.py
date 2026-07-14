@@ -43,7 +43,7 @@ from distill.library import Library
 from distill.llm import call as llm_call
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
-from distill.pipeline.costs import CostTracker, TokenUsage
+from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.pipeline.ranking import RankedPaper, RankedVideo, chronological_rank, rerank_videos
 from distill.pipeline.report.briefing import generate_topic_brief
 from distill.pipeline.summary import RunSummary
@@ -214,6 +214,8 @@ def _expand_paper_queries(
     if expand and config and model_available("rerank"):
         try:
             llm_variants = _llm_expand_paper_queries(normalized, config, tracker=tracker)
+        except BudgetExceededError:
+            raise
         except Exception as e:
             console.print(f"  [yellow]Query expansion fallback: {e}[/yellow]")
             llm_variants = []

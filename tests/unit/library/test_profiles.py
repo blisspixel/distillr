@@ -135,6 +135,39 @@ def test_goal_file_must_be_relative_safe_path(tmp_path: Path) -> None:
         load_research_profile(path)
 
 
+def test_profile_yaml_rejects_python_object_constructors(tmp_path: Path) -> None:
+    path = tmp_path / "python-object.yaml"
+    path.write_text(
+        "value: !!python/object/apply:builtins.str []\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProfileValidationError, match="Invalid YAML"):
+        load_research_profile(path)
+
+
+def test_profile_yaml_does_not_dispatch_through_generic_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "safe.yaml"
+    path.write_text(
+        "schema_version: research-profile.v1\n"
+        "name: safe\n"
+        "topic: safe\n"
+        "goal_file: goals/safe.md\n"
+        "queries: [safe parsing]\n",
+        encoding="utf-8",
+    )
+
+    def reject_generic_load(*args: object, **kwargs: object) -> object:
+        raise AssertionError("generic yaml.load must not be used for profiles")
+
+    monkeypatch.setattr(yaml, "load", reject_generic_load)
+
+    assert load_research_profile(path).name == "safe"
+
+
 @pytest.mark.parametrize(
     "goal_file",
     [

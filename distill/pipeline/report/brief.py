@@ -32,11 +32,12 @@ from distill.pipeline.report._file_search_metadata import metadata_str, read_met
 from distill.pipeline.report._file_search_upload import upload_documents
 from distill.pipeline.report._interactions import (
     await_interaction,
+    file_search_grounding_reason,
     interaction_text,
     require_cost_tracker,
     submit_metered_interaction,
 )
-from distill.pipeline.report.file_search import delete_store
+from distill.pipeline.report.file_search import cleanup_created_store, delete_store
 
 __all__ = [
     "compose_prompt",
@@ -212,10 +213,12 @@ def run_research_brief(
     store = client.file_search_stores.create(
         config={"display_name": f"distill-briefing-{name}-{int(time.time())}"}
     )
-    store_name: str = store.name or ""
+    store_name = ""
+    active_error: BaseException | None = None
     # The store is a paid remote resource; everything from here is inside the
     # try so the finally deletes it even if upload or submission raises.
     try:
+        store_name = store.name or ""
         if not store_name:
             console.print("[red]Failed to create File Search store[/red]")
             return None
@@ -223,6 +226,9 @@ def run_research_brief(
 
         uploaded = _upload_files(client, store_name, files)
         console.print(f"  [green]Indexed {uploaded}/{len(files)} documents[/green]")
+        if uploaded == 0:
+            console.print("[red]No documents completed File Search indexing[/red]")
+            return None
 
         prompt = compose_prompt(context)
 
@@ -252,6 +258,10 @@ def run_research_brief(
         if completed is None:
             return None
 
+        grounding_refusal = file_search_grounding_reason(completed)
+        if grounding_refusal:
+            console.print(f"[red]Briefing refused:[/red] {grounding_refusal}")
+            return None
         result_text = interaction_text(completed)
         if not result_text:
             console.print("[red]Research completed but no output received[/red]")
@@ -267,8 +277,17 @@ def run_research_brief(
         console.print(f"\n[green]Briefing saved to:[/green] {output_path}")
         console.print(f"[dim]Size: {len(result_text):,} chars[/dim]")
         return output_path
+    except BaseException as exc:
+        active_error = exc
+        raise
     finally:
-        delete_store(client, store_name)
+        cleanup_created_store(
+            client,
+            store,
+            store_name,
+            delete_fn=delete_store,
+            active_error=active_error,
+        )
 
 
 def _upload_files(client: genai.Client, store_name: str, files: list[tuple[str, str]]) -> int:

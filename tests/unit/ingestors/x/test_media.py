@@ -160,6 +160,24 @@ def test_download_video_follows_allowed_redirect(tmp_path: Path) -> None:
     assert dest.read_bytes() == b"ok"
 
 
+def test_download_video_rejects_https_redirect_downgrade(tmp_path: Path) -> None:
+    requested: list[str] = []
+
+    def _fake_stream(method: str, url: str, **kwargs: Any) -> _FakeStream:
+        requested.append(url)
+        return _FakeStream([], redirect_to="http://video.twimg.com/cleartext.mp4")
+
+    with (
+        patch("distill.ingestors.x.media.httpx.stream", side_effect=_fake_stream),
+        patch("distill.ingestors.x.media.is_public_web_url", return_value=True),
+        patch("distill.ingestors.x.media.resolve_public_ip", return_value="93.184.216.34"),
+        pytest.raises(ValueError, match="refusing non-allowlisted"),
+    ):
+        download_video("https://video.twimg.com/start.mp4", tmp_path / "media.mp4")
+
+    assert requested == ["https://video.twimg.com/start.mp4"]
+
+
 def test_download_video_rejects_too_many_redirects(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(media, "_MAX_REDIRECTS", 1)
 

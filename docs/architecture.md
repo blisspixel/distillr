@@ -102,6 +102,15 @@ A single LLM call cannot sustain analytical depth across a long document - it co
 
 Upload all insights and syntheses to a File Search store, then ask Deep Research (`deep-research-preview-04-2026`, built on Gemini 3.1 Pro) to validate, cross-reference, and extend using web sources. The output is raw structured facts across 8 categories: validated announcements, market data, competitive positioning, enterprise adoption, pricing/economics, corrections, coverage gaps, and forward signals.
 
+File submission is not treated as indexing success. Only upload operations that
+reach a successful terminal state count as grounded documents, and a zero-count
+store cannot authorize a metered Deep Research interaction. Before any report,
+dossier, or research briefing is accepted, the completed provider response must
+contain a matched File Search call and result plus a file citation attached to
+the final model output. Failed or timed-out uploads are excluded from the
+grounding count, and missing or partial response evidence fails closed instead
+of being described as grounded corpus use.
+
 Citations must reference primary sources (not Wikipedia, not numbered `[cite: N]` formats). Creator estimates are explicitly tagged as such, never promoted to confirmed facts.
 
 ### Phase 2: Section writing (grok-4.3)
@@ -184,6 +193,32 @@ Gemini Deep Research (`deep-research-preview-04-2026`) handles report Phase 1 an
 
 See [cost.md](cost.md) for the full cost model.
 
+MCP write tools have one deterministic accounting owner. The `write_tool`
+boundary registers the tool's single cost tracker and persists it before a
+success, ordinary failure, cancellation, or structured budget response crosses
+the protocol boundary. A successful paid result fails closed if the ledger
+cannot be written. If persistence fails while another terminal error is
+already active, that original error remains authoritative and carries a safe
+accounting-failure marker. This prevents retries, error conversion, and local
+tool-specific cleanup from silently discarding provider usage.
+
+The CLI uses the same terminal semantics at workflow boundaries. Credible
+interactive estimates are checked before ingestion, a recorded budget crossing
+must propagate past ordinary fallback handlers, and report tracker deltas are
+persisted from one finalization path on every exit. Deep Research submission
+interruptions are recorded conservatively as ambiguous after provider contact.
+File Search store ownership begins as soon as creation returns a resource id;
+every exceptional exit attempts remote deletion before the original error is
+allowed to continue.
+
+Live doctor probes and deferred-agent jobs follow the same admission rule.
+Doctor preflight authorizes a conservative capped request before client
+construction and aggregates all provider checks into one command receipt.
+Deferred-agent usage has a stable attempt identity and is accepted before a
+pending task becomes visible or a cached result is consumed. If admission or
+durable accounting fails, the corresponding filesystem transition does not
+occur.
+
 ### Transcript fallback chain
 
 YouTube transcription uses a local-first fallback chain:
@@ -238,7 +273,22 @@ Single-pass synthesis stays the default until the 1.0 golden-eval gate validates
 - All `urllib.request.urlopen` calls route through `distill.net.safe_urlopen`, which rejects non-`https` schemes.
 - arXiv XML parsing uses `defusedxml` instead of `xml.etree.ElementTree` to prevent XML-based attacks.
 - SHA-1 used for content dedup is annotated `usedforsecurity=False` to make the non-cryptographic intent explicit.
-- Subprocess calls to `yt-dlp` / `scribe` pass arguments as lists (not shell strings), avoiding injection.
+- Subprocess calls use argument lists and resolve bare executable names to an
+  absolute file from an absolute PATH entry. The current directory and
+  relative PATH entries cannot supply package-manager or media-tool images.
+- Package installation children run beside the active interpreter with Python
+  path injection and provider credentials removed from their environment.
+- Corpus reads exposed through MCP, local ingestion, cost history, and File
+  Search use bounded no-follow regular-file validation. Linked, multiply
+  linked, special, oversized, or identity-swapped files fail closed.
+- Concept storage keys retain legacy short slugs, bound long components with a
+  stable digest, avoid Windows device names, and key collision history by the
+  resolved live filename rather than a shared lossy slug.
+- Concept builds and rollbacks share a topic transaction lock across source
+  admission, provider work, notes, histories, completion state, and rollups.
+  Library latest-change updates use one library-wide lock, while atomic text
+  writers and link repair share per-path write locks for complete
+  read-derive-replace transactions.
 - Release workflows use SHA-pinned GitHub Actions, including the PyPI publish action, while PyPI publishing stays on OIDC trusted publishing with PEP 740 attestations.
 
 ## Context engineering principles
@@ -350,3 +400,30 @@ or web; ingestors cannot import from commands, pipeline, or MCP; pipeline cannot
 import from commands or MCP; and the concepts/claims knowledge layers cannot
 import from commands, MCP, web, or ingestors. Commands and MCP remain the main
 top-level adapters over those lower layers.
+
+### Derived knowledge grounding
+
+Concept extraction keeps semantic classification with the configured model,
+but persistence admission is rule-owned. The version 2 extraction contract
+returns an exact body quote containing the exact surface name. Python removes
+frontmatter, links, fenced code, URLs, and markup-only controls from the
+evidence view, then requires both spans to match before a mention can enter the
+append-only log. Canonical identity is derived locally from the grounded
+surface name, never accepted from model output. Cross-source thresholds
+therefore count only receipt-bound mentions.
+
+Repository insights carry the exact receipt filename and a SHA-256 digest of
+its normalized body. The current repository receipt carries the same digest.
+Shared insight discovery recomputes and compares both values before exposing a
+GitHub insight to concepts, claims, freshness checks, ingestion indexes,
+synthesis, or audit. A re-ingest therefore invalidates the prior generation
+immediately when the new receipt is committed, even if strict verification
+refuses the replacement insight or the
+process stops between writes. The old file remains available for recovery but
+cannot masquerade as analysis of the current receipt.
+
+Topic-level synthesis identities preserve source modality. Cross-channel video
+analysis writes `<topic>_Topic_Synthesis.md`; cross-site analysis writes
+`<topic>_Site_Synthesis.md`; paper and mixed-corpus rollups keep their existing
+dedicated artifacts. Each producer also owns a distinct verification receipt,
+so producer order cannot replace another modality's evidence or provenance.

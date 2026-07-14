@@ -96,6 +96,16 @@ PROFILE_RECEIPT_ENV = "DISTILL_PROFILE_RECEIPT_ID"
 _PROFILE_RECEIPT_RE = re.compile(r"[0-9a-f]{64}")
 
 
+def _token_usage_cost(usage: TokenUsage) -> float:
+    if usage.no_metered_cost:
+        return 0.0
+    rates = get_pricing(usage.model)
+    return (
+        usage.prompt_tokens * rates.get("input", 0.0) / 1_000_000
+        + usage.completion_tokens * rates.get("output", 0.0) / 1_000_000
+    )
+
+
 def _empty_attempt_id_set() -> set[str]:
     return set()
 
@@ -148,6 +158,21 @@ class CostTracker:
             if entry.attempt_id:
                 self._recorded_attempt_ids.add(entry.attempt_id)
         self._check_budget()
+
+    def authorize_token_usage(self, usage: TokenUsage) -> None:
+        """Refuse projected token spend before provider contact without recording it."""
+
+        seen_attempt_ids = set(self._recorded_attempt_ids)
+        projected_increment = 0.0
+        for entry in usage.expanded():
+            if entry.attempt_id and entry.attempt_id in seen_attempt_ids:
+                continue
+            if entry.attempt_id:
+                seen_attempt_ids.add(entry.attempt_id)
+            projected_increment += _token_usage_cost(entry)
+        projected = self.total_cost + projected_increment
+        if self.budget is not None and projected > self.budget:
+            raise ProjectedBudgetExceededError(projected, self.budget)
 
     def record_attempt(self, attempt: LLMUsageAttempt, *, call_type: str = "") -> None:
         """Record one request before a provider retries or the router falls back."""
@@ -233,14 +258,7 @@ class CostTracker:
     @property
     def total_grok_cost(self) -> float:
         """Estimated xAI cost based on token usage and the actual model used."""
-        total = 0.0
-        for entry in self.entries:
-            if entry.no_metered_cost:
-                continue
-            rates = get_pricing(entry.model)
-            total += entry.prompt_tokens * rates.get("input", 0.0) / 1_000_000
-            total += entry.completion_tokens * rates.get("output", 0.0) / 1_000_000
-        return total
+        return sum(_token_usage_cost(entry) for entry in self.entries)
 
     @property
     def total_gemini_cost(self) -> float:

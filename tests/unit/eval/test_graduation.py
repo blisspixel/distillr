@@ -1,5 +1,7 @@
 """Tests for route graduation decisions over eval and adapter doctor evidence."""
 
+from dataclasses import replace
+
 from distill.doctor.adapters import AdapterProbe
 from distill.eval.graduation import adapter_route_graduation_decision, eval_gate_decision
 from distill.eval.harness import EvalRow
@@ -86,6 +88,19 @@ def test_eval_gate_blocks_missing_judge_signal():
 
     assert not decision.passed
     assert "pairwise judge did not produce a signal" in decision.blocked_reasons
+
+
+def test_eval_gate_blocks_partial_judge_evidence():
+    candidate = _rows("adapter:grok-4.3", winrate=0.55, faithfulness="faithful")
+    candidate[1] = replace(candidate[1], pairwise_winrate=None)
+    candidate[2] = replace(candidate[2], faithfulness="unknown")
+    summary = _summary(candidate)
+
+    decision = eval_gate_decision(summary, "adapter:grok-4.3")
+
+    assert not decision.passed
+    assert "faithfulness judge produced signals for 2 of 3 fixtures" in decision.blocked_reasons
+    assert "pairwise judge produced signals for 2 of 3 fixtures" in decision.blocked_reasons
 
 
 def test_eval_gate_blocks_unfaithful_or_errored_models():

@@ -3,18 +3,27 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import cast
 
+from distill.library.confined import read_confined_text
+from distill.parsing import strict_json_loads
+
 logger = logging.getLogger(__name__)
+_MAX_METADATA_BYTES = 1024 * 1024
 
 
-def read_metadata(meta_file: Path) -> dict[str, object]:
+def read_metadata(meta_file: Path, *, root: Path | None = None) -> dict[str, object]:
     try:
-        raw_meta: object = json.loads(meta_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        if root is None:
+            raw_text = meta_file.read_text(encoding="utf-8")
+        else:
+            raw_text = read_confined_text(meta_file, root, max_bytes=_MAX_METADATA_BYTES)
+            if raw_text is None:
+                return {}
+        raw_meta = strict_json_loads(raw_text)
+    except (OSError, RecursionError, ValueError):
         logger.debug("failed to read File Search metadata from %s", meta_file, exc_info=True)
         return {}
     if not isinstance(raw_meta, dict):

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,6 +18,7 @@ from distill.llm.usage import (
     attach_usage_attempts,
     usage_attempts_from_exception,
 )
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.usage_records import TokenUsage
 
 
@@ -229,6 +231,29 @@ def test_unreported_provider_failures_get_route_appropriate_usage(
     assert attempts[0].usage_source == usage_source
     assert (attempts[0].input_tokens > 0) is has_tokens
     assert (attempts[0].output_tokens > 0) is has_tokens
+
+
+def test_agent_accounting_rejection_precedes_pending_task_visibility(tmp_path: Path) -> None:
+    from distill.llm.providers.agent import AgentProvider
+
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+    tracker = CostTracker(budget=0.000001)
+
+    options = replace(
+        _options(_Provider(RuntimeError("unused")), []),
+        ops_dir=str(ops_dir),
+        usage_sink=tracker.record_attempt,
+        usage_batch_sink=None,
+        provider_getter=lambda _name: provider,
+    )
+
+    with pytest.raises(BudgetExceededError):
+        execute_call(options, "agent", "agent")
+
+    assert list((ops_dir / "tasks" / "pending").glob("*.json")) == []
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].provider_name == "agent"
 
 
 def test_success_without_provider_attempts_derives_and_emits_usage() -> None:

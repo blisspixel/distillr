@@ -24,6 +24,7 @@ from distill.ingestors.sites.scraper import (
     load_site_batch,
     normalize_host,
     page_id_from_url,
+    site_page_id,
     site_section_key,
 )
 
@@ -46,6 +47,7 @@ __all__ = [
     "load_site_batch",
     "normalize_host",
     "page_id_from_url",
+    "site_page_id",
     "site_section_key",
     "write_attachment_manifest",
 ]

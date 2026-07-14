@@ -17,13 +17,12 @@ from distill.mcp.server import (
     strip_frontmatter,
     write_tool,
 )
-from distill.pipeline.costs import save_run_log
 
 __all__: list[str] = []
 
 
 @mcp.tool()
-@write_tool("process_video_url")
+@write_tool("process_video_url", ledger_command="video")
 def process_video_url(url: str, topic: str = "ai") -> str:
     """Transcribe and analyze a single YouTube video.
 
@@ -70,5 +69,4 @@ def process_video_url(url: str, topic: str = "ai") -> str:
         if insights_file.exists():
             result["insights"] = strip_frontmatter(insights_file.read_text(encoding="utf-8"))
 
-    save_run_log(config.library_dir, summary.command, tracker)
     return json.dumps(result, indent=2)

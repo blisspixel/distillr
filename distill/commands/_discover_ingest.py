@@ -136,9 +136,11 @@ def ingest_sites(
         if synthesize_site_topic_fn(topic_name, config, tracker=tracker):
             summary.add_output(
                 find_artifact_fn(
-                    config.topic_dir(topic_name), "topic_synthesis", identity=topic_name
+                    config.topic_dir(topic_name), "site_synthesis", identity=topic_name
                 )
             )
+    except BudgetExceededError:
+        raise
     except Exception as exc:
         record_exception_issue(
             summary,

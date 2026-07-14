@@ -16,7 +16,7 @@ from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
 from distill.library.state import ChannelState
-from distill.pipeline.costs import ProjectedBudgetExceededError
+from distill.pipeline.costs import ProjectedBudgetExceededError, TokenUsage
 
 runner = CliRunner()
 
@@ -155,8 +155,11 @@ class TestWatchAdd:
         assert result.exit_code == 0
         assert "Watching" in result.output
         assert "Focus: Track enterprise pricing changes" in result.output
+        entry = Library(config).get_watchlist()[0]
+        assert entry.instructions_approved is True
+        assert entry.active_instructions == "Track enterprise pricing changes"
 
-    def test_add_auto_generates_instructions(self, tmp_path, monkeypatch):
+    def test_add_auto_suggestion_requires_explicit_approval(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         self._patch(monkeypatch, config)
         monkeypatch.setattr(watch_mod, "model_available", lambda: True)
@@ -165,17 +168,41 @@ class TestWatchAdd:
             "discover_videos",
             lambda url, months=1, quiet=True: [_video(title="Deal Roundup")],
         )
+
+        def generate(name, titles, cfg, tracker=None):
+            assert tracker is not None
+            tracker.record(
+                TokenUsage(
+                    call_type="watch_instructions",
+                    prompt_tokens=100,
+                    completion_tokens=25,
+                    model="grok-4.3",
+                )
+            )
+            return "Focus on weekly deal roundups"
+
         monkeypatch.setattr(
             "distill.pipeline.analysis.video.generate_watch_instructions",
-            lambda name, titles, cfg: "Focus on weekly deal roundups",
+            generate,
         )
 
         result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@NewWatch"])
 
         assert result.exit_code == 0
-        assert "Focus: Focus on weekly deal roundups" in result.output
+        assert "Suggested focus (not active): Focus on weekly deal roundups" in result.output
         entry = Library(config).get_watchlist()[0]
-        assert entry.instructions == "Focus on weekly deal roundups"
+        assert entry.instructions == ""
+        assert entry.instructions_approved is False
+        assert entry.active_instructions == ""
+        rows = [
+            json.loads(line)
+            for line in (config.library_dir / ".distill" / "cost_log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "watch-add"
+        assert rows[0]["grok_calls"] == 1
 
     def test_add_auto_instructions_empty_result(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -241,11 +268,21 @@ class TestWatchAdd:
         _seed_watch(config, name="WatchMe")
         monkeypatch.setattr(watch_mod, "get_config", lambda: config)
         monkeypatch.setattr(watch_mod, "resolve_channel_name", lambda _url: "WatchMe")
+        monkeypatch.setattr(watch_mod, "model_available", lambda: True)
+        discover = MagicMock(return_value=[_video(title="Duplicate")])
+        monkeypatch.setattr(watch_mod, "discover_videos", discover)
+        generate = MagicMock(return_value="must not run")
+        monkeypatch.setattr(
+            "distill.pipeline.analysis.video.generate_watch_instructions",
+            generate,
+        )
 
         result = runner.invoke(cli.app, ["watch", "add", "https://youtube.com/@WatchMe"])
 
         assert result.exit_code == 0
         assert "already on watch list" in result.output
+        discover.assert_not_called()
+        generate.assert_not_called()
 
 
 class TestWatchMutations:

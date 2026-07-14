@@ -74,13 +74,6 @@ def run_scope_report(
                 context=topic,
                 details={"scope": scope, "channel": channel_name or ""},
             )
-        _log_report_cost_delta(
-            config,
-            tracker,
-            start_entry_count=start_entry_count,
-            start_gemini_queries=start_gemini_queries,
-            metadata=report_metadata,
-        )
         return
 
     console.print("\n[bold green]Report complete![/bold green]")
@@ -98,13 +91,6 @@ def run_scope_report(
             missing_message="Report markdown was not written",
         )
     if not md_source.exists():
-        _log_report_cost_delta(
-            config,
-            tracker,
-            start_entry_count=start_entry_count,
-            start_gemini_queries=start_gemini_queries,
-            metadata=report_metadata,
-        )
         return
 
     md_out = helpers.output_path(config, f"report-{suffix}.md")
@@ -133,14 +119,6 @@ def run_scope_report(
             details={"scope": scope, "channel": channel_name or "", "output": str(docx_path)},
         )
 
-    _log_report_cost_delta(
-        config,
-        tracker,
-        start_entry_count=start_entry_count,
-        start_gemini_queries=start_gemini_queries,
-        metadata=report_metadata,
-    )
-
 
 def _run_accordion_report_with_budget_log(
     *,
@@ -157,6 +135,7 @@ def _run_accordion_report_with_budget_log(
     metadata: dict[str, str],
     run_accordion_research: Callable[..., str | None],
 ) -> str | None:
+    """Run report research and persist its tracker delta on every exit."""
     try:
         return run_accordion_research(
             topic=topic,
@@ -170,6 +149,8 @@ def _run_accordion_report_with_budget_log(
     except BudgetExceededError as exc:
         if summary is not None:
             summary.add_issue("report-budget", str(exc), context=topic)
+        raise
+    finally:
         if not getattr(tracker, "budget_failure_logged", False):
             _log_report_cost_delta(
                 config,
@@ -178,7 +159,6 @@ def _run_accordion_report_with_budget_log(
                 start_gemini_queries=start_gemini_queries,
                 metadata=metadata,
             )
-        raise
 
 
 def _log_report_cost_delta(

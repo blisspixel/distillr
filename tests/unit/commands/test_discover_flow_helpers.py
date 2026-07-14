@@ -12,7 +12,7 @@ from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo
-from distill.pipeline.costs import CostEstimate, CostTracker
+from distill.pipeline.costs import CostEstimate, CostTracker, ProjectedBudgetExceededError
 from distill.pipeline.discovery import RankedDiscoverItem, SizingOption
 from distill.pipeline.summary import RunSummary
 
@@ -414,6 +414,52 @@ def test_sizing_flow_valid_choice_saves_preview_and_ingests_choice(
     assert captured["ingest_attachments"] is True
     assert captured["yes"] is True
     assert any((mock_config.library_dir / ".preview_cache").glob("*.json"))
+
+
+def test_sizing_flow_refuses_over_budget_choice_before_ingest(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_config.distill_cost_workflow_budgets = "discover=0.01"
+    selected = [_ranked_item("paper", "p1")]
+    option = SizingOption(
+        label="Over budget",
+        basis="score >= 0.50",
+        items=selected,
+        papers=1,
+        videos=0,
+        sites=0,
+        estimate=_estimate(),
+    )
+    monkeypatch.setattr(_discover_flow, "_display_ranked_discover", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        _discover_flow._discover_support,
+        "build_sizing_options",
+        lambda *args, **kwargs: [option],
+    )
+    monkeypatch.setattr(_discover_flow, "_tty_prompt", lambda *args, **kwargs: "1")
+    ingested: list[str] = []
+    monkeypatch.setattr(
+        _discover_flow,
+        "_discover_ingest_set",
+        lambda **kwargs: ingested.append(kwargs["topic_name"]),
+    )
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        _discover_flow._discover_sizing_flow(
+            goal="goal",
+            topic_name="t",
+            config=mock_config,
+            tracker=CostTracker(),
+            summary=RunSummary(command="discover"),
+            ranked=selected,
+            paper_limit=1,
+            video_limit=0,
+            site_limit=0,
+            ingest_attachments=False,
+        )
+
+    assert ingested == []
 
 
 def test_confirm_discover_ingest_builds_source_summary(

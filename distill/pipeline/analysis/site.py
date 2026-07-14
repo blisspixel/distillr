@@ -204,9 +204,9 @@ def synthesize_site_topic(
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="site_topic_synthesis"))
 
-    # Verify against the per-site syntheses; this writer shares the
-    # topic_synthesis artifact identity with the video producer, so the
-    # sidecar identity matches (last writer wins, mirroring the artifact).
+    # Site and video topic rollups summarize different receipt sets. Keep both
+    # the verification identity and artifact identity modality-specific so a
+    # later producer cannot replace valid evidence from the other modality.
     from distill.pipeline.verify import run_synthesis_verify
 
     if run_synthesis_verify(
@@ -214,8 +214,8 @@ def synthesize_site_topic(
         synthesis,
         "\n\n".join(site_summaries.values()),
         verify_mode=config.distill_verify,
-        identity=f"{topic}-topic-synthesis",
-        insight_name=f"{topic} topic synthesis (sites)",
+        identity=f"{topic}-site-topic-synthesis",
+        insight_name=f"{topic} site topic synthesis",
         source_name="site syntheses",
         notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
     ):
@@ -224,17 +224,16 @@ def synthesize_site_topic(
 
     write_markdown_artifact(
         config.topic_dir(topic),
-        "topic_synthesis",
+        "site_synthesis",
         synthesis,
         identity=topic,
         frontmatter=base_frontmatter(
-            artifact_type="topic-synthesis",
-            title=f"Topic synthesis: {topic}",
+            artifact_type="site-topic-synthesis",
+            title=f"Site synthesis: {topic}",
             topic=topic,
             source="distill",
             tags=tags_for(topic, "website"),
             synthesis_scope="corpus-consensus",
-            extra={"legacy_filename": "topic_synthesis.md"},
             provenance=ProvenanceFields(
                 model=response.model,
                 model_version=response.model,

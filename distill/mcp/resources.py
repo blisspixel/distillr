@@ -5,23 +5,31 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TypedDict
 
+from distill.config import DistillConfig
+from distill.library.confined import read_confined_text
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.mcp.server import (
     library,
     load_config,
     mcp,
-    read_markdown_resource,
     strip_frontmatter,
     topic_source_inventory,
     video_list,
+)
+from distill.pipeline.cost_history import (
+    find_confined_cost_log,
+    project_cost_log_row,
+    read_confined_cost_log_rows,
 )
 
 __all__: list[str] = []
 
 type JsonObject = dict[str, object]
+
+_MAX_MCP_ARTIFACT_BYTES = 4 * 1024 * 1024
 
 
 class TopicRow(TypedDict):
@@ -37,6 +45,7 @@ class WatchlistRow(TypedDict):
     topic: str
     days: int
     instructions: str
+    instructions_approved: bool
     added_at: str
 
 
@@ -51,16 +60,6 @@ class TopicVideoRow(TypedDict):
     analysis_mode: str
 
 
-def _cost_entry(line: str) -> JsonObject | None:
-    try:
-        data: object = json.loads(line)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict):
-        return None
-    return cast("JsonObject", data)
-
-
 def _cost_value(entry: JsonObject) -> float:
     value = entry.get("actual_cost", 0)
     if isinstance(value, bool):
@@ -68,6 +67,23 @@ def _cost_value(entry: JsonObject) -> float:
     if isinstance(value, int | float):
         return float(value)
     return 0.0
+
+
+def _read_library_text(path: Path, config: DistillConfig) -> str | None:
+    return read_confined_text(
+        path,
+        config.library_dir,
+        max_bytes=_MAX_MCP_ARTIFACT_BYTES,
+    )
+
+
+def _read_library_resource(
+    path: Path,
+    config: DistillConfig,
+    missing_message: str,
+) -> str:
+    content = _read_library_text(path, config)
+    return content if content is not None else missing_message
 
 
 @mcp.resource("distill://topics")
@@ -108,6 +124,7 @@ def get_watchlist() -> str:
                 "topic": e.topic,
                 "days": e.days,
                 "instructions": e.instructions,
+                "instructions_approved": e.instructions_approved,
                 "added_at": e.added_at,
             }
         )
@@ -144,8 +161,9 @@ def get_topic_synthesis(topic: str) -> str:
     """Read the topic synthesis document."""
     config = load_config()
     path = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
-    if path.exists():
-        return path.read_text(encoding="utf-8")
+    content = _read_library_text(path, config)
+    if content is not None:
+        return content
     # Fall back to first channel synthesis
     lib = library(config)
     channels = lib.get_channels(topic)
@@ -155,8 +173,9 @@ def get_topic_synthesis(topic: str) -> str:
             "synthesis",
             identity=f"{topic}_{ch.name}",
         )
-        if ch_path.exists():
-            return ch_path.read_text(encoding="utf-8")
+        content = _read_library_text(ch_path, config)
+        if content is not None:
+            return content
     return f"No synthesis found for topic '{topic}'. Run catch_up or learn_topic first."
 
 
@@ -164,8 +183,9 @@ def get_topic_synthesis(topic: str) -> str:
 def get_topic_corpus(topic: str) -> str:
     """Read the mixed-source corpus synthesis document when available."""
     config = load_config()
-    return read_markdown_resource(
+    return _read_library_resource(
         find_artifact(config.topic_dir(topic), "corpus_synthesis", identity=topic),
+        config,
         f"No corpus synthesis found for '{topic}'. Run distill corpus {topic} after the topic has multiple source types.",
     )
 
@@ -181,8 +201,9 @@ def get_topic_sources(topic: str) -> str:
 def get_topic_diff(topic: str) -> str:
     """Read the latest topic diff briefing when available."""
     config = load_config()
-    return read_markdown_resource(
+    return _read_library_resource(
         find_artifact(config.topic_dir(topic), "topic_diff", identity=topic),
+        config,
         f"No topic diff found for '{topic}'. Run distill diff {topic} or topic-watch refresh first.",
     )
 
@@ -191,8 +212,9 @@ def get_topic_diff(topic: str) -> str:
 def get_topic_trends(topic: str) -> str:
     """Read the latest topic trends summary when available."""
     config = load_config()
-    return read_markdown_resource(
+    return _read_library_resource(
         find_artifact(config.topic_dir(topic), "topic_trends", identity=topic),
+        config,
         f"No topic trends found for '{topic}'. Run distill trends {topic} after accumulating change history.",
     )
 
@@ -201,8 +223,9 @@ def get_topic_trends(topic: str) -> str:
 def get_watch_alerts() -> str:
     """Read the latest watch alert digest when available."""
     config = load_config()
-    return read_markdown_resource(
+    return _read_library_resource(
         find_artifact(config.library_dir, "watch_alerts", identity="library"),
+        config,
         "No watch alerts found. Run distill topic-watch run after adding some watches.",
     )
 
@@ -216,8 +239,9 @@ def get_channel_synthesis(topic: str, channel: str) -> str:
         "synthesis",
         identity=f"{topic}_{channel}",
     )
-    if path.exists():
-        return path.read_text(encoding="utf-8")
+    content = _read_library_text(path, config)
+    if content is not None:
+        return content
     return f"No synthesis for {channel}. Run catch_up first."
 
 
@@ -243,10 +267,11 @@ def get_video_insights(topic: str, channel: str, index: str) -> str:
     video = vid_list[idx - 1]
     vid_dir = Path(video["_dir"])
     insights_file = find_artifact(vid_dir, "insights")
-    if not insights_file.exists():
+    raw_content = _read_library_text(insights_file, config)
+    if raw_content is None:
         return f"No insights for '{video['title']}'. Video may not be analyzed yet."
 
-    content = strip_frontmatter(insights_file.read_text(encoding="utf-8"))
+    content = strip_frontmatter(raw_content)
     header = (
         f"# {video['title']}\n"
         f"**Date:** {video['upload_date'] or '?'} | "
@@ -260,21 +285,12 @@ def get_video_insights(topic: str, channel: str, index: str) -> str:
 def get_costs() -> str:
     """Show recent cost history from past runs."""
     config = load_config()
-    # Check new location first, fall back to old
-    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
-    legacy_log = config.library_dir / "cost_log.jsonl"
-    log_file = ops_log if ops_log.exists() else legacy_log
-    if not log_file.exists():
+    log_file = find_confined_cost_log(config.library_dir)
+    if log_file is None:
         return json.dumps({"costs": [], "message": "No cost history yet."})
 
-    entries: list[JsonObject] = []
-    for line in log_file.read_text(encoding="utf-8").strip().split("\n"):
-        if line.strip():
-            entry = _cost_entry(line)
-            if entry is not None:
-                entries.append(entry)
-
-    recent = entries[-20:]
+    entries = read_confined_cost_log_rows(log_file, config.library_dir, limit=20)
+    recent = [project_cost_log_row(entry) for entry in entries]
     total = sum(_cost_value(e) for e in recent)
     return json.dumps(
         {

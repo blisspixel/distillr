@@ -15,6 +15,7 @@ from distill.prompts.analysis import (
     shorts_insight_prompt,
 )
 from distill.prompts.lenses import DEFAULT_LENS
+from distill.prompts.registry import PROMPT_IDS
 
 __all__ = [
     "analyze_scan",
@@ -89,7 +90,7 @@ analyzed_by: {model}
 model: {model}
 model_version: {model}
 temperature: 0.0
-prompt_id: "analysis.pass2.v2"
+prompt_id: "{PROMPT_IDS["analysis.pass2"]}"
 lens: {lens}
 ---
 
@@ -134,7 +135,7 @@ content_type: short
 model: {response.model}
 model_version: {response.model}
 temperature: 0.0
-prompt_id: "analysis.short.v2"
+prompt_id: "{PROMPT_IDS["analysis.short"]}"
 ---
 
 {result}
@@ -181,7 +182,7 @@ analysis_mode: scan
 model: {response.model}
 model_version: {response.model}
 temperature: 0.0
-prompt_id: "analysis.scan.v2"
+prompt_id: "{PROMPT_IDS["analysis.scan"]}"
 ---
 
 {result}

@@ -5,22 +5,15 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from typing import Any, cast
 
 from distill.mcp.server import load_config, mcp
+from distill.pipeline.cost_history import (
+    find_confined_cost_log,
+    project_cost_log_row,
+    read_confined_cost_log_rows,
+)
 
 __all__: list[str] = []
-
-
-def _cost_entry_from_json(line: str) -> dict[str, object] | None:
-    try:
-        raw: Any = json.loads(line)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(raw, dict):
-        return None
-    mapping = cast("dict[object, object]", raw)
-    return {str(key): value for key, value in mapping.items()}
 
 
 def _actual_cost(value: object) -> float:
@@ -40,12 +33,8 @@ def costs(days: int = 30, limit: int = 20) -> str:
         limit: Max entries to return
     """
     config = load_config()
-    # Check new location first, fall back to old
-    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
-    legacy_log = config.library_dir / "cost_log.jsonl"
-    log_file = ops_log if ops_log.exists() else legacy_log
-
-    if not log_file.exists():
+    log_file = find_confined_cost_log(config.library_dir)
+    if log_file is None:
         return json.dumps(
             {"status": "ok", "runs": [], "total_cost": 0, "message": "No cost history yet."},
             indent=2,
@@ -54,12 +43,8 @@ def costs(days: int = 30, limit: int = 20) -> str:
     entries: list[dict[str, object]] = []
     cutoff = datetime.now() - timedelta(days=days)
 
-    for line in log_file.read_text(encoding="utf-8").strip().split("\n"):
-        if not line.strip():
-            continue
-        entry = _cost_entry_from_json(line)
-        if entry is None:
-            continue
+    for loaded in read_confined_cost_log_rows(log_file, config.library_dir):
+        entry = project_cost_log_row(loaded)
         # Filter by date if timestamp available.
         ts = entry.get("timestamp")
         if isinstance(ts, str) and ts:

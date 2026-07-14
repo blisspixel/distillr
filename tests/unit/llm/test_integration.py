@@ -452,9 +452,10 @@ def test_end_to_end_idempotency_agent_mode(
         )
 
         assert response.text == result_text
-        assert response.input_tokens == 0
-        assert response.output_tokens == 0
+        assert response.input_tokens > 0
+        assert response.output_tokens > 0
         assert response.model == "agent"
+        assert response.usage_source == "conservative"
 
         # Third call with same prompt: should also succeed (idempotent)
         # The task was moved to completed/, but the prompt_hash lookup

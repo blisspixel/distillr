@@ -1,10 +1,13 @@
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 from click import unstyle
 from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
+from distill.commands import _topic_changes
 from distill.commands import dashboard as _dashboard
 from distill.commands import root as _root
 from distill.commands import topic_watch as _topic_watch_cmd
@@ -150,6 +153,7 @@ def test_topic_watch_cli_add_and_list(tmp_path):
         cli.get_config = original
         _cli_impl.get_config = original
         _topic_watch_cmd.get_config = original
+        _dashboard.get_config = original
         _dashboard.get_config = original
 
 
@@ -410,7 +414,81 @@ def test_topic_watch_run_writes_change_briefing(tmp_path, monkeypatch):
         cli.get_config = original
         _cli_impl.get_config = original
         _topic_watch_cmd.get_config = original
-        _dashboard.get_config = original
+
+
+def test_concurrent_topic_briefings_preserve_both_latest_change_entries(
+    tmp_path,
+    monkeypatch,
+):
+    config = DistillConfig(distill_output_dir=tmp_path / "library")
+    latest_path = artifact_path(config.library_dir, "latest_changes", identity="library")
+    latest_path.parent.mkdir(parents=True, exist_ok=True)
+    latest_path.write_text("---\ntype: latest_changes\n---\n\n# Latest Changes\n", encoding="utf-8")
+    real_strip = _topic_changes.strip_frontmatter
+    first_read = threading.Event()
+    second_read = threading.Event()
+    read_count = 0
+    read_count_lock = threading.Lock()
+
+    def overlapping_strip(content: str) -> str:
+        nonlocal read_count
+        stripped = real_strip(content)
+        with read_count_lock:
+            read_count += 1
+            current_read = read_count
+        if current_read == 1:
+            first_read.set()
+            second_read.wait(timeout=0.25)
+        elif current_read == 2:
+            second_read.set()
+        return stripped
+
+    def details(topic: str, generated_at: datetime):
+        return {
+            "topic": topic,
+            "baseline": None,
+            "effective_baseline": generated_at - timedelta(days=1),
+            "generated_at": generated_at,
+            "last_change": generated_at,
+            "summary": f"{topic} changed",
+            "new_videos": [],
+            "new_pages": [],
+            "new_papers": [],
+            "refreshed_outputs": [],
+        }
+
+    monkeypatch.setattr(_topic_changes, "strip_frontmatter", overlapping_strip)
+    generated_at = datetime(2026, 7, 14, 12, 0, 0)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(
+            _topic_changes.write_topic_change_briefing,
+            config,
+            watch_name="watch-alpha",
+            topic="alpha",
+            query="alpha query",
+            cadence="daily",
+            baseline=None,
+            summary="alpha changed",
+            change_details=details("alpha", generated_at),
+        )
+        assert first_read.wait(timeout=5)
+        second = executor.submit(
+            _topic_changes.write_topic_change_briefing,
+            config,
+            watch_name="watch-beta",
+            topic="beta",
+            query="beta query",
+            cadence="daily",
+            baseline=None,
+            summary="beta changed",
+            change_details=details("beta", generated_at + timedelta(seconds=1)),
+        )
+        first.result(timeout=5)
+        second.result(timeout=5)
+
+    latest_text = latest_path.read_text(encoding="utf-8")
+    assert "## watch-alpha" in latest_text
+    assert "## watch-beta" in latest_text
 
 
 def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):

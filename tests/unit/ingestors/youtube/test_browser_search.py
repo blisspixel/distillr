@@ -1,5 +1,6 @@
 """Tests for distill.browser_search."""
 
+import contextlib
 import json
 import sys
 from datetime import UTC, datetime, timedelta
@@ -21,6 +22,103 @@ from distill.ingestors.youtube.browser_search import (
     search_youtube_results,
 )
 from distill.ingestors.youtube.discovery import VideoInfo
+
+
+class _FakeBrowserPage:
+    def __init__(
+        self,
+        *,
+        url="https://www.youtube.com/results?search_query=fabric",
+        html="<html>playwright</html>",
+        dom_chars=None,
+        reject_content=False,
+    ):
+        self.url = url
+        self.html = html
+        self.dom_chars = len(html) if dom_chars is None else dom_chars
+        self.reject_content = reject_content
+        self.content_calls = 0
+
+    def goto(self, *args, **kwargs):
+        return None
+
+    def wait_for_timeout(self, *args, **kwargs):
+        return None
+
+    def evaluate(self, _expression):
+        return self.dom_chars
+
+    def content(self):
+        self.content_calls += 1
+        if self.reject_content:
+            raise AssertionError("oversized DOM must not be copied into Python")
+        return self.html
+
+
+class _FakeBrowserContext:
+    def __init__(self, page):
+        self.page = page
+        self.routes = []
+        self.closed = False
+
+    def route(self, pattern, handler):
+        self.routes.append((pattern, handler))
+
+    def new_page(self):
+        return self.page
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeBrowser:
+    def __init__(self, context):
+        self.context = context
+        self.context_kwargs = []
+        self.closed = False
+
+    def new_context(self, **kwargs):
+        self.context_kwargs.append(kwargs)
+        return self.context
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeChromium:
+    def __init__(self, browser):
+        self.browser = browser
+        self.launch_kwargs = []
+
+    def launch(self, **kwargs):
+        self.launch_kwargs.append(kwargs)
+        return self.browser
+
+
+class _FakePlaywrightManager:
+    def __init__(self, chromium):
+        self.playwright = SimpleNamespace(chromium=chromium)
+
+    def __enter__(self):
+        return self.playwright
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def _install_fake_playwright(monkeypatch, page):
+    context = _FakeBrowserContext(page)
+    browser = _FakeBrowser(context)
+    chromium = _FakeChromium(browser)
+    manager = _FakePlaywrightManager(chromium)
+    fake_module = SimpleNamespace(sync_playwright=lambda: manager)
+    monkeypatch.setitem(sys.modules, "playwright", SimpleNamespace(sync_api=fake_module))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_module)
+    monkeypatch.setattr(
+        "distill.ingestors.youtube.browser_search.PinnedBrowserProxy",
+        lambda: contextlib.nullcontext("http://127.0.0.1:43123"),
+    )
+    return chromium, browser, context
 
 
 def test_parse_search_results_html_extracts_video_candidates():
@@ -387,93 +485,53 @@ def test_fetch_with_playwright_returns_empty_when_module_missing(monkeypatch):
 
 
 def test_fetch_with_playwright_returns_page_content(monkeypatch):
-    class FakePage:
-        def goto(self, *args, **kwargs):
-            return None
-
-        def wait_for_timeout(self, *args, **kwargs):
-            return None
-
-        def evaluate(self, _expression):
-            return len("<html>playwright</html>")
-
-        def content(self):
-            return "<html>playwright</html>"
-
-    class FakeBrowser:
-        def new_page(self):
-            return FakePage()
-
-        def close(self):
-            return None
-
-    class FakeChromium:
-        def launch(self, headless=True):
-            return FakeBrowser()
-
-    class FakePlaywright:
-        chromium = FakeChromium()
-
-    class FakeManager:
-        def __enter__(self):
-            return FakePlaywright()
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-    fake_module = SimpleNamespace(sync_playwright=lambda: FakeManager())
-    monkeypatch.setitem(sys.modules, "playwright", SimpleNamespace(sync_api=fake_module))
-    monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_module)
+    chromium, browser, context = _install_fake_playwright(monkeypatch, _FakeBrowserPage())
 
     assert (
         _fetch_with_playwright("https://www.youtube.com/results?search_query=fabric")
         == "<html>playwright</html>"
     )
+    assert chromium.launch_kwargs == [
+        {
+            "headless": True,
+            "args": [
+                "--disable-quic",
+                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            ],
+        }
+    ]
+    assert browser.context_kwargs == [
+        {
+            "proxy": {"server": "http://127.0.0.1:43123"},
+            "service_workers": "block",
+        }
+    ]
+    assert context.routes and context.routes[0][0] == "**/*"
+    assert context.closed is True
+    assert browser.closed is True
 
 
 def test_fetch_with_playwright_rejects_oversized_dom_before_copy(monkeypatch):
-    closed = []
-
-    class FakePage:
-        def goto(self, *args, **kwargs):
-            return None
-
-        def wait_for_timeout(self, *args, **kwargs):
-            return None
-
-        def evaluate(self, _expression):
-            return 10_000_001
-
-        def content(self):
-            raise AssertionError("oversized DOM must not be copied into Python")
-
-    class FakeBrowser:
-        def new_page(self):
-            return FakePage()
-
-        def close(self):
-            closed.append(True)
-
-    class FakeChromium:
-        def launch(self, headless=True):
-            return FakeBrowser()
-
-    class FakePlaywright:
-        chromium = FakeChromium()
-
-    class FakeManager:
-        def __enter__(self):
-            return FakePlaywright()
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-    fake_module = SimpleNamespace(sync_playwright=lambda: FakeManager())
-    monkeypatch.setitem(sys.modules, "playwright", SimpleNamespace(sync_api=fake_module))
-    monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_module)
+    page = _FakeBrowserPage(dom_chars=10_000_001, reject_content=True)
+    _, browser, _ = _install_fake_playwright(
+        monkeypatch,
+        page,
+    )
 
     assert _fetch_with_playwright("https://www.youtube.com/results?search_query=fabric") == ""
-    assert closed == [True]
+    assert page.content_calls == 0
+    assert browser.closed is True
+
+
+def test_fetch_with_playwright_rejects_redirect_before_dom_copy(monkeypatch):
+    page = _FakeBrowserPage(url="https://evil.example/redirected")
+    _install_fake_playwright(
+        monkeypatch,
+        page,
+    )
+
+    assert _fetch_with_playwright("https://www.youtube.com/results?search_query=fabric") == ""
+    assert page.content_calls == 0
 
 
 def test_fetch_with_playwright_returns_empty_on_runtime_error(monkeypatch):

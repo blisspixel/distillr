@@ -186,6 +186,78 @@ def test_load_site_batch_from_json_rejects_unknown_crawl_mode(tmp_path):
         load_site_batch(path)
 
 
+@pytest.mark.parametrize(
+    ("max_depth", "max_pages", "message"),
+    [
+        (-1, 1, "max_depth must be between 0 and 4"),
+        (5, 1, "max_depth must be between 0 and 4"),
+        (0, 0, "max_pages must be between 1 and 100"),
+        (0, 101, "max_pages must be between 1 and 100"),
+        (True, 1, "max_depth must be an integer"),
+        (0, "8", "max_pages must be an integer"),
+    ],
+)
+def test_site_seed_rejects_invalid_crawl_limits(max_depth, max_pages, message):
+    with pytest.raises(ValueError, match=message):
+        SiteSeed(
+            url="https://example.com/docs",
+            topic="web",
+            max_depth=max_depth,
+            max_pages=max_pages,
+        )
+
+
+def test_site_seed_accepts_crawl_limit_boundaries():
+    exact = SiteSeed(
+        url="https://example.com/exact",
+        topic="web",
+        max_depth=0,
+        max_pages=1,
+    )
+    maximum = SiteSeed(
+        url="https://example.com/crawl",
+        topic="web",
+        max_depth=4,
+        max_pages=100,
+    )
+
+    assert (exact.max_depth, exact.max_pages) == (0, 1)
+    assert (maximum.max_depth, maximum.max_pages) == (4, 100)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "crawl": {"max_depth": 5},
+            "urls": [{"url": "https://example.com/global"}],
+        },
+        {
+            "collections": [
+                {
+                    "seeds": ["https://example.com/collection"],
+                    "max_pages": 101,
+                }
+            ]
+        },
+        {
+            "urls": [
+                {
+                    "url": "https://example.com/per-url",
+                    "max_pages": 101,
+                }
+            ]
+        },
+    ],
+)
+def test_load_site_batch_rejects_oversized_limits_at_every_json_level(tmp_path, payload):
+    path = tmp_path / "sites.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be between"):
+        load_site_batch(path)
+
+
 def test_classify_page_type_prefers_video_when_flagged():
     assert classify_page_type("https://example.com/page", "Title", "", True) == "video"
     assert classify_page_type("https://example.com/topic/ai", "Title", "", False) == "topic"
@@ -246,6 +318,7 @@ def test_url_helpers_normalize_and_filter():
         canonicalize_url("https://example.com/path/?utm_source=x&b=2&a=1")
         == "https://example.com/path?a=1&b=2"
     )
+    assert canonicalize_url("HTTPS://EXAMPLE.COM.:443/path/") == "https://example.com/path"
     assert page_id_from_url("https://example.com/some/page")
     assert is_crawlable_url("https://example.com/page") is True
     assert is_crawlable_url("https://example.com/file.pdf") is False
@@ -378,12 +451,37 @@ class FakeMouse:
         return None
 
 
+class FakeCDPSession:
+    def __init__(self, payload, runtime_response=None):
+        self.payload = payload
+        self.runtime_response = runtime_response
+        self.calls = []
+        self.detached = False
+
+    def send(self, method, params=None):
+        self.calls.append((method, params))
+        if method == "Page.getFrameTree":
+            return {"frameTree": {"frame": {"id": "main-frame"}}}
+        if method == "Page.createIsolatedWorld":
+            return {"executionContextId": 17}
+        if method == "Runtime.evaluate":
+            if self.runtime_response is not None:
+                return self.runtime_response
+            return {"result": {"type": "object", "value": self.payload}}
+        raise AssertionError(f"Unexpected CDP method: {method}")
+
+    def detach(self):
+        self.detached = True
+
+
 class FakePage:
-    def __init__(self, payload=None, goto_error=None):
+    def __init__(self, payload=None, goto_error=None, runtime_response=None):
         self.payload = payload or {}
         self.goto_error = goto_error
         self.mouse = FakeMouse()
         self.url = self.payload.get("final_url", "https://example.com/final")
+        self.cdp_session = FakeCDPSession(self.payload, runtime_response)
+        self.context = SimpleNamespace(new_cdp_session=lambda page: self.cdp_session)
 
     def goto(self, url, wait_until="domcontentloaded"):
         if self.goto_error:
@@ -394,7 +492,7 @@ class FakePage:
         return None
 
     def evaluate(self, script):
-        return self.payload
+        pytest.fail("page-realm evaluate must not handle untrusted extraction")
 
 
 def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None, observed=None):
@@ -492,6 +590,111 @@ def test_extract_page_parses_payload_and_dedupes_fields():
     assert extracted.depth == 1
 
 
+def test_extract_page_uses_timed_isolated_world_and_detaches_session():
+    page = FakePage(
+        payload={
+            "title": "Bounded",
+            "final_url": "https://example.com/bounded",
+            "text": "body",
+        }
+    )
+
+    assert (
+        _extract_page(
+            page,
+            "https://example.com/bounded",
+            "example.com",
+            "https://example.com/start",
+            0,
+        )
+        is not None
+    )
+
+    assert [method for method, _params in page.cdp_session.calls] == [
+        "Page.getFrameTree",
+        "Page.createIsolatedWorld",
+        "Runtime.evaluate",
+    ]
+    world_params = page.cdp_session.calls[1][1]
+    runtime_params = page.cdp_session.calls[2][1]
+    assert world_params == {"frameId": "main-frame", "worldName": "distill-bounded-extraction"}
+    assert runtime_params["contextId"] == 17
+    assert runtime_params["returnByValue"] is True
+    assert runtime_params["awaitPromise"] is False
+    assert runtime_params["timeout"] == 2_000
+    assert "innerText" not in runtime_params["expression"]
+    assert "querySelectorAll" not in runtime_params["expression"]
+    assert '"maxDomNodes":50000' in runtime_params["expression"]
+    assert '"maxLinks":512' in runtime_params["expression"]
+    assert page.cdp_session.detached is True
+
+
+def test_extract_page_discards_cdp_exception_and_detaches_session():
+    page = FakePage(
+        runtime_response={
+            "result": {"type": "object"},
+            "exceptionDetails": {"text": "Execution was terminated"},
+        }
+    )
+
+    result = _extract_page(
+        page,
+        "https://example.com/bounded",
+        "example.com",
+        "https://example.com/start",
+        0,
+    )
+
+    assert result is None
+    assert page.cdp_session.detached is True
+
+
+def test_extract_page_defensively_bounds_payload_and_records_truncation():
+    payload = {
+        "title": "T" * 600,
+        "final_url": "https://example.com/bounded",
+        "description": "D" * 5_000,
+        "published_at": "2" * 200,
+        "authors": [f"author-{index}" for index in range(6)],
+        "tags": [f"tag-{index}" for index in range(13)],
+        "text": "body",
+        "links": [f"https://example.com/page/{index}" for index in range(513)],
+        "pdf_links": [f"https://example.com/file/{index}.pdf" for index in range(513)],
+        "video_links": [f"https://video.example.com/{index}" for index in range(65)],
+        "truncation_reasons": ["body_text", "not-a-real-reason"],
+    }
+
+    extracted = _extract_page(
+        FakePage(payload=payload),
+        "https://example.com/bounded",
+        "example.com",
+        "https://example.com/start",
+        0,
+    )
+
+    assert extracted is not None
+    assert len(extracted.title) == 512
+    assert len(extracted.description) == 4_096
+    assert len(extracted.published_at) == 128
+    assert len(extracted.authors) == 5
+    assert len(extracted.tags) == 12
+    assert len(extracted.links) == 512
+    assert len(extracted.pdf_links) == 512
+    assert len(extracted.video_links) == 64
+    assert set(extracted.truncation_reasons) == {
+        "authors",
+        "body_text",
+        "description",
+        "links",
+        "metadata",
+        "pdf_links",
+        "tags",
+        "title",
+        "video_links",
+    }
+    assert extracted.metadata()["extraction_truncated"] is True
+
+
 @pytest.mark.parametrize(
     "url",
     [
@@ -512,6 +715,18 @@ def test_crawl_site_rejects_unsafe_seed_before_browser_launch(url, monkeypatch):
     monkeypatch.setattr("builtins.__import__", fail_import)
 
     assert crawl_site(SiteSeed(url=url, topic="web")) == []
+
+
+def test_crawl_site_revalidates_mutated_limits_before_browser_launch(monkeypatch):
+    seed = SiteSeed(url="https://example.com/docs", topic="web")
+    seed.max_pages = 101
+    monkeypatch.setattr(
+        "distill.ingestors.sites.scraper.PinnedBrowserProxy",
+        lambda: pytest.fail("browser proxy must not start for an invalid crawl plan"),
+    )
+
+    with pytest.raises(ValueError, match="max_pages must be between 1 and 100"):
+        crawl_site(seed)
 
 
 def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
@@ -668,3 +883,60 @@ def test_crawl_site_drops_off_host_redirect(monkeypatch):
     pages = crawl_site(SiteSeed(url="https://example.com/start", topic="web", max_pages=5))
 
     assert pages == []
+
+
+@pytest.mark.parametrize(
+    ("seed", "landed_url"),
+    [
+        (
+            SiteSeed(
+                url="https://example.com/docs/agents/start",
+                topic="web",
+                crawl_prefix="/docs/agents",
+            ),
+            "https://example.com/docs/other/landing",
+        ),
+        (
+            SiteSeed(
+                url="https://example.com/docs/start",
+                topic="web",
+                same_section_only=True,
+            ),
+            "https://example.com/blog/landing",
+        ),
+    ],
+)
+def test_crawl_site_drops_redirect_outside_seed_path_scope(seed, landed_url, monkeypatch):
+    redirected = SitePage(
+        url=seed.url,
+        title="Redirected",
+        site_name="example.com",
+        page_type="page",
+        text="body",
+        final_url=landed_url,
+    )
+
+    _install_fake_playwright(monkeypatch, lambda *_args: redirected)
+
+    assert crawl_site(seed) == []
+
+
+def test_crawl_site_keeps_redirect_within_seed_path_scope(monkeypatch):
+    seed = SiteSeed(
+        url="https://example.com/docs/agents/start",
+        topic="web",
+        crawl_prefix="/docs/agents",
+        same_section_only=True,
+    )
+    redirected = SitePage(
+        url=seed.url,
+        title="Redirected",
+        site_name="example.com",
+        page_type="page",
+        text="body",
+        final_url="https://example.com/docs/agents/landing",
+    )
+
+    _install_fake_playwright(monkeypatch, lambda *_args: redirected)
+
+    assert crawl_site(seed) == [redirected]

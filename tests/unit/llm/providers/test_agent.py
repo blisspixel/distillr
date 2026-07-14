@@ -16,8 +16,10 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from distill.llm.providers import agent as agent_mod
 from distill.llm.providers.agent import AgentProvider
 from distill.llm.router import ConfigurationError, LLM_Response, PendingTaskError
+from distill.llm.usage import LLMUsageAttempt, usage_attempts_from_exception
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -46,8 +48,8 @@ class InspectableAgentProvider(AgentProvider):
 
     def find_existing_result_for_test(
         self, prompt: str, workload_tag: str
-    ) -> dict[str, Path] | None:
-        return self._find_existing_result(prompt, workload_tag)
+    ) -> tuple[Path, str] | None:
+        return self._find_existing_result(prompt, workload_tag, max_result_bytes=1_000_000)
 
     def task_root_for_test(self, task_dir: Path, directory_name: str) -> Path | None:
         return self._task_root(task_dir, directory_name)
@@ -93,6 +95,7 @@ def test_task_file_structure(prompt: str, workload_tag: str) -> None:
         assert task_data.get("result_path")
         assert task_data.get("_instruction")
         assert task_data.get("prompt_hash")
+        assert task_data["timeout_seconds"] == 300
 
         # prompt_hash matches expected value
         expected_hash = _expected_prompt_hash(prompt, stored_workload_tag)
@@ -111,8 +114,8 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
 
     For any non-empty result text, if a result file is written to the path
     specified in a pending Task_File, calling the AgentProvider returns an
-    LLM_Response with text equal to the written result, zero tokens, and
-    model="agent".
+    LLM_Response with text equal to the written result and conservative usage
+    provenance for the admitted external task.
 
     **Validates: Requirements 11.4**
     """
@@ -138,9 +141,446 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
 
         assert isinstance(response, LLM_Response)
         assert response.text == result_text
-        assert response.input_tokens == 0
-        assert response.output_tokens == 0
+        assert response.input_tokens > 0
+        assert response.output_tokens > 0
         assert response.model == "agent"
+        assert response.usage_source == "conservative"
+        assert len(response.usage_attempts) == 1
+        assert response.usage_attempts[0].usage_source == "conservative"
+
+
+def test_usage_is_accepted_before_pending_task_becomes_visible(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    pending_dir = ops_dir / "tasks" / "pending"
+    provider = AgentProvider(str(ops_dir))
+    emitted: list[LLMUsageAttempt] = []
+
+    def record(attempt: LLMUsageAttempt) -> None:
+        assert list(pending_dir.glob("*.json")) == []
+        emitted.append(attempt)
+
+    with pytest.raises(PendingTaskError):
+        asyncio.run(
+            provider.call(
+                "agent",
+                "test prompt",
+                call_type="analysis",
+                max_tokens=64,
+                usage_sink=record,
+            )
+        )
+
+    assert len(emitted) == 1
+    assert emitted[0].provider_name == "agent"
+    assert emitted[0].provider_type == "cloud"
+    assert emitted[0].usage_source == "conservative"
+    assert emitted[0].input_tokens > 0
+    assert emitted[0].output_tokens == 64
+    assert len(list(pending_dir.glob("*.json"))) == 1
+
+
+def test_cached_result_reuses_admitted_usage_identity(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+    admitted: list[LLMUsageAttempt] = []
+
+    with pytest.raises(PendingTaskError):
+        asyncio.run(
+            provider.call(
+                "agent",
+                "test prompt",
+                call_type="analysis",
+                max_tokens=64,
+                usage_sink=admitted.append,
+            )
+        )
+
+    task_path = next((ops_dir / "tasks" / "pending").glob("*.json"))
+    task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
+    Path(str(task_data["result_path"])).write_text("done", encoding="utf-8")
+    collected: list[LLMUsageAttempt] = []
+
+    response = asyncio.run(
+        provider.call(
+            "agent",
+            "test prompt",
+            call_type="analysis",
+            max_tokens=64,
+            usage_sink=collected.append,
+        )
+    )
+
+    assert collected == list(response.usage_attempts)
+    assert len(collected) == 1
+    assert collected[0].attempt_id == admitted[0].attempt_id
+    assert response.usage_source == "conservative"
+
+
+def test_cached_result_rejects_oversized_or_hardlinked_files(tmp_path: Path) -> None:
+    for attack in ("oversized", "hardlink"):
+        ops_dir = tmp_path / attack / "ops"
+        provider = AgentProvider(str(ops_dir))
+        with pytest.raises(PendingTaskError):
+            asyncio.run(
+                provider.call(
+                    "agent",
+                    "test prompt",
+                    call_type="analysis",
+                    max_tokens=1,
+                )
+            )
+        task_path = next((ops_dir / "tasks" / "pending").glob("*.json"))
+        task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
+        result_path = Path(str(task_data["result_path"]))
+        if attack == "oversized":
+            result_path.write_bytes(b"x" * 4_097)
+        else:
+            outside = tmp_path / attack / "outside-secret.md"
+            outside.write_text("outside agent result secret", encoding="utf-8")
+            try:
+                result_path.hardlink_to(outside)
+            except OSError as exc:
+                pytest.skip(f"hard links unavailable: {exc}")
+
+        with pytest.raises(PendingTaskError):
+            asyncio.run(
+                provider.call(
+                    "agent",
+                    "test prompt",
+                    call_type="analysis",
+                    max_tokens=1,
+                )
+            )
+
+
+def test_task_reader_rejects_parent_directory_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending_dir = tmp_path / "pending"
+    pending_dir.mkdir()
+    task_path = pending_dir / "analysis_result.md"
+    task_path.write_text("trusted result", encoding="utf-8")
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    (outside_dir / task_path.name).write_text("outside result", encoding="utf-8")
+    original_dir = tmp_path / "original-pending"
+    real_open = agent_mod.os.open
+    swapped = False
+
+    def swap_parent_before_file_open(path, flags, *args, **kwargs):
+        nonlocal swapped
+        if not swapped and Path(path).name == task_path.name:
+            pending_dir.rename(original_dir)
+            try:
+                pending_dir.symlink_to(outside_dir, target_is_directory=True)
+            except OSError as exc:
+                original_dir.rename(pending_dir)
+                pytest.skip(f"directory symlinks unavailable: {exc}")
+            swapped = True
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(agent_mod.os, "open", swap_parent_before_file_open)
+
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=1_000) is None
+    assert swapped
+
+
+def test_task_reader_rejects_root_replaced_during_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending_dir = tmp_path / "pending"
+    pending_dir.mkdir()
+    task_path = pending_dir / "analysis_result.md"
+    task_path.write_text("trusted result", encoding="utf-8")
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    (outside_dir / task_path.name).write_text("outside result", encoding="utf-8")
+    original_dir = tmp_path / "original-pending"
+    real_resolve = Path.resolve
+    swapped = False
+
+    def swap_root_before_resolve(path: Path, *args, **kwargs):
+        nonlocal swapped
+        if not swapped and path == pending_dir:
+            pending_dir.rename(original_dir)
+            try:
+                pending_dir.symlink_to(outside_dir, target_is_directory=True)
+            except OSError as exc:
+                original_dir.rename(pending_dir)
+                pytest.skip(f"directory symlinks unavailable: {exc}")
+            swapped = True
+        return real_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", swap_root_before_resolve)
+
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=1_000) is None
+    assert swapped
+
+
+def test_task_reader_rejects_invalid_paths_limits_and_encoding(tmp_path: Path) -> None:
+    pending_dir = tmp_path / "pending"
+    pending_dir.mkdir()
+    task_path = pending_dir / "analysis_result.md"
+    task_path.write_bytes(b"\xff")
+    outside_path = tmp_path / "outside_result.md"
+    outside_path.write_text("outside result", encoding="utf-8")
+
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=-1) is None
+    assert agent_mod._read_task_text(outside_path, pending_dir, max_bytes=1_000) is None
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=1_000) is None
+    assert agent_mod._read_task_text(task_path, tmp_path / "missing", max_bytes=1_000) is None
+
+
+def test_task_reader_rejects_file_replaced_during_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending_dir = tmp_path / "pending"
+    pending_dir.mkdir()
+    task_path = pending_dir / "analysis_result.md"
+    task_path.write_text("trusted result", encoding="utf-8")
+    replacement = tmp_path / "replacement.md"
+    replacement.write_text("changed result", encoding="utf-8")
+    real_fstat = agent_mod.os.fstat
+    regular_file_stats = 0
+
+    def replace_after_stream_read(descriptor):
+        nonlocal regular_file_stats
+        file_stat = real_fstat(descriptor)
+        if agent_mod.stat.S_ISREG(file_stat.st_mode):
+            regular_file_stats += 1
+            if regular_file_stats == 2:
+                replacement.replace(task_path)
+        return file_stat
+
+    monkeypatch.setattr(agent_mod.os, "fstat", replace_after_stream_read)
+
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=1_000) is None
+    assert regular_file_stats == 2
+
+
+def test_existing_result_lookup_skips_unreadable_task_file(tmp_path: Path) -> None:
+    provider = InspectableAgentProvider(str(tmp_path / "ops"))
+    pending_dir = tmp_path / "ops" / "tasks" / "pending"
+    pending_dir.mkdir(parents=True)
+    (pending_dir / "analysis_unsafe.json").write_bytes(b"x" * (1_048_576 + 1))
+
+    assert provider.find_existing_result_for_test("test prompt", "analysis") is None
+
+
+def test_task_reader_rejects_open_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending_dir = tmp_path / "pending"
+    pending_dir.mkdir()
+    task_path = pending_dir / "analysis_result.md"
+    task_path.write_text("result", encoding="utf-8")
+    real_open = agent_mod.os.open
+
+    def fail_file_open(path, flags, *args, **kwargs):
+        if Path(path).name == task_path.name:
+            raise OSError("simulated open failure")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(agent_mod.os, "open", fail_file_open)
+
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=1_000) is None
+
+
+def test_task_reader_rejects_root_change_after_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending_dir = tmp_path / "pending"
+    pending_dir.mkdir()
+    task_path = pending_dir / "analysis_result.md"
+    task_path.write_text("result", encoding="utf-8")
+    real_check = agent_mod._task_root_is_unchanged
+    calls = 0
+
+    def fail_final_check(root, identity):
+        nonlocal calls
+        calls += 1
+        return calls < 3 and real_check(root, identity)
+
+    monkeypatch.setattr(agent_mod, "_task_root_is_unchanged", fail_final_check)
+
+    assert agent_mod._read_task_text(task_path, pending_dir, max_bytes=1_000) is None
+    assert calls == 3
+
+
+def test_pending_result_path_rejects_missing_root_and_resolution_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = AgentProvider(str(tmp_path / "ops"))
+    result_path = tmp_path / "ops" / "tasks" / "pending" / "analysis_result.md"
+    monkeypatch.setattr(provider, "_task_root", lambda *_args: None)
+    assert not provider._is_pending_result_path(result_path)
+
+    pending_root = result_path.parent.resolve(strict=False)
+    monkeypatch.setattr(provider, "_task_root", lambda *_args: pending_root)
+    real_resolve = Path.resolve
+
+    def fail_result_resolution(path: Path, *args, **kwargs):
+        if path == result_path:
+            raise OSError("simulated resolution failure")
+        return real_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", fail_result_resolution)
+    assert not provider._is_pending_result_path(result_path)
+
+
+def test_cached_result_survives_already_removed_task_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = AgentProvider(str(tmp_path / "ops"))
+    missing_task = tmp_path / "already-removed.json"
+    monkeypatch.setattr(
+        provider,
+        "_find_existing_result",
+        lambda *_args, **_kwargs: (missing_task, "completed result"),
+    )
+
+    response = asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
+
+    assert response.text == "completed result"
+    assert not missing_task.exists()
+
+
+def test_existing_result_lookup_ignores_nonmatching_task(tmp_path: Path) -> None:
+    provider = InspectableAgentProvider(str(tmp_path / "ops"))
+    pending_dir = tmp_path / "ops" / "tasks" / "pending"
+    pending_dir.mkdir(parents=True)
+    task_path = pending_dir / "analysis_unrelated.json"
+    task_path.write_text(
+        json.dumps(
+            {
+                "prompt_hash": "not-the-target",
+                "result_path": str(pending_dir / "analysis_unrelated_result.md"),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert provider.find_existing_result_for_test("test prompt", "analysis") is None
+
+
+def test_agent_rejects_oversized_task_before_usage_admission(tmp_path: Path) -> None:
+    provider = AgentProvider(str(tmp_path / "ops"))
+    admitted: list[LLMUsageAttempt] = []
+
+    with pytest.raises(ValueError, match="serialized agent task exceeds"):
+        asyncio.run(
+            provider.call(
+                "agent",
+                "x" * (1_048_576 + 1),
+                call_type="analysis",
+                usage_sink=admitted.append,
+            )
+        )
+
+    assert admitted == []
+    assert list((tmp_path / "ops" / "tasks" / "pending").glob("*.json")) == []
+
+
+@pytest.mark.parametrize(("argument", "value"), (("max_tokens", 0), ("timeout", 0)))
+def test_agent_call_rejects_nonpositive_limits(tmp_path: Path, argument: str, value: int) -> None:
+    provider = AgentProvider(str(tmp_path / "ops"))
+
+    with pytest.raises(ValueError, match="positive integer"):
+        asyncio.run(provider.call("agent", "test prompt", **{argument: value}))
+
+
+def test_cached_result_is_not_moved_when_accounting_rejects(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+
+    with pytest.raises(PendingTaskError):
+        asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
+
+    task_path = next((ops_dir / "tasks" / "pending").glob("*.json"))
+    task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
+    Path(str(task_data["result_path"])).write_text("done", encoding="utf-8")
+
+    def reject(_attempt: LLMUsageAttempt) -> None:
+        raise RuntimeError("ledger unavailable")
+
+    with pytest.raises(RuntimeError, match="ledger unavailable"):
+        asyncio.run(
+            provider.call(
+                "agent",
+                "test prompt",
+                call_type="analysis",
+                usage_sink=reject,
+            )
+        )
+
+    assert task_path.exists()
+    assert not (ops_dir / "tasks" / "completed" / task_path.name).exists()
+
+
+def test_task_write_failure_preserves_preaccepted_usage_evidence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+    emitted: list[LLMUsageAttempt] = []
+    original_write_bytes = Path.write_bytes
+
+    def fail_task_write(path: Path, *args, **kwargs) -> int:
+        if path.suffix == ".json" and path.parent.name == "pending":
+            raise OSError("disk full")
+        return original_write_bytes(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_bytes", fail_task_write)
+
+    with pytest.raises(OSError, match="disk full") as raised:
+        asyncio.run(
+            provider.call(
+                "agent",
+                "test prompt",
+                call_type="analysis",
+                usage_sink=emitted.append,
+            )
+        )
+
+    assert usage_attempts_from_exception(raised.value) == tuple(emitted)
+    assert len(emitted) == 1
+    assert list((ops_dir / "tasks" / "pending").glob("*.json")) == []
+
+
+def test_task_directory_is_rechecked_after_creation(tmp_path: Path, monkeypatch) -> None:
+    provider = AgentProvider(str(tmp_path / "ops"))
+    safe_root = tmp_path / "ops" / "tasks" / "pending"
+    roots = iter((safe_root, None))
+    monkeypatch.setattr(provider, "_task_root", lambda *_args: next(roots))
+
+    with pytest.raises(ConfigurationError, match="pending task directory"):
+        provider._ensure_task_dir(safe_root, "pending")
+
+
+def test_task_root_fails_closed_when_path_resolution_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = InspectableAgentProvider(str(ops_dir))
+    original_resolve = Path.resolve
+
+    def fail_ops_resolution(path: Path, *args, **kwargs) -> Path:
+        if path == ops_dir:
+            raise OSError("path unavailable")
+        return original_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", fail_ops_resolution)
+
+    assert provider.task_root_for_test(ops_dir / "tasks" / "pending", "pending") is None
 
 
 # ---------------------------------------------------------------------------

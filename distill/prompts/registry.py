@@ -32,17 +32,20 @@ PROMPT_IDS: dict[str, str] = {
     "analysis.newsletter": "analysis.newsletter.v1",
     "analysis.x_tweet": "analysis.x_tweet.v1",
     "analysis.paper": "analysis.paper.v3",
+    "analysis.pass2": "analysis.pass2.v3",
+    "analysis.short": "analysis.short.v2",
+    "analysis.scan": "analysis.scan.v2",
     # Synthesis
     "synthesis.paper": "synthesis.paper.v3",
     "synthesis.site": "synthesis.site.v1",
     "synthesis.site_topic": "synthesis.site_topic.v1",
     "synthesis.corpus": "synthesis.corpus.v1",
-    "synthesis.channel": "synthesis.channel.v1",
+    "synthesis.channel": "synthesis.channel.v2",
     "synthesis.topic": "synthesis.topic.v1",
     # Knowledge layers
     "claims.extract": "claims.extract.v1",
     "claims.synthesis": "claims.synthesis.v3",
-    "concepts.extract": "concepts.extract.v1",
+    "concepts.extract": "concepts.extract.v2",
     # Reports / briefs / answers
     "report.dossier": "report.dossier.v1",
     "report.accordion": "report.accordion.v1",

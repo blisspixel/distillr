@@ -37,6 +37,7 @@ from typing import Any, cast
 import deal
 
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
+from distill.concepts.locking import concept_transaction
 from distill.concepts.records import ConceptKind
 from distill.library.paths import atomic_write_text, extract_frontmatter, strip_frontmatter
 
@@ -545,34 +546,83 @@ def _read_rollup_rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _same_rollup_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    """Match one logical concept without conflating lossy-slug collisions."""
+
+    if str(left.get("kind", "")) != str(right.get("kind", "")):
+        return False
+    left_name = str(left.get("normalized_name", "")).strip()
+    right_name = str(right.get("normalized_name", "")).strip()
+    if left_name or right_name:
+        return bool(left_name and right_name and left_name == right_name)
+    return str(left.get("slug", "")) == str(right.get("slug", ""))
+
+
+def _assert_rollup_identity_unambiguous(topic_dir: Path, fields: dict[str, Any]) -> None:
+    """Reject a legacy rollback when its identity cannot be selected safely."""
+
+    expected = _rollup_row_from_fields(fields)
+    if str(expected.get("normalized_name", "")).strip():
+        return
+    path = _rollup_path_for_kind(topic_dir, expected["kind"])
+    rows = _read_rollup_rows(path)
+    matches = [row for row in rows if _same_rollup_identity(row, expected)]
+    if len(matches) > 1:
+        raise ValueError(
+            f"Rollup contains multiple legacy rows for kind {expected['kind']!r} "
+            f"and slug {expected['slug']!r}; normalized_name is required to roll back safely."
+        )
+    named_collisions = [
+        row
+        for row in rows
+        if str(row.get("kind", "")) == str(expected["kind"])
+        and str(row.get("slug", "")) == str(expected["slug"])
+        and str(row.get("normalized_name", "")).strip()
+    ]
+    if named_collisions:
+        raise ValueError(
+            f"An identity-less snapshot cannot be matched safely among named rows "
+            f"for kind {expected['kind']!r} and slug {expected['slug']!r}."
+        )
+
+
 def _rollup_matches_fields(topic_dir: Path, fields: dict[str, Any]) -> bool:
     """Return whether exactly one target row matches restored frontmatter."""
     expected = _rollup_row_from_fields(fields)
     path = _rollup_path_for_kind(topic_dir, expected["kind"])
-    matches = [row for row in _read_rollup_rows(path) if row.get("slug") == expected["slug"]]
+    matches = [row for row in _read_rollup_rows(path) if _same_rollup_identity(row, expected)]
     return matches == [expected]
 
 
 def _update_rollup(topic_dir: Path, fields: dict[str, Any]) -> Path:
-    """Replace (or append) the rollup row for the restored slug.
+    """Replace (or append) the rollup row for the restored concept identity.
 
     Keeps the file sorted by ``(kind, slug)`` to match ``write_exports``
     so a subsequent ``distill concepts build`` produces a clean diff
-    rather than reordering noise.
+    rather than reordering noise. ``normalized_name`` disambiguates distinct
+    concepts whose lossy slugs collide; legacy rows without that field fall
+    back to their kind and slug.
     """
     row = _rollup_row_from_fields(fields)
     path = _rollup_path_for_kind(topic_dir, row["kind"])
+    _assert_rollup_identity_unambiguous(topic_dir, fields)
 
-    rows = _read_rollup_rows(path)
-
-    rows = [r for r in rows if r.get("slug") != row["slug"]]
-    rows.append(row)
+    rows: list[dict[str, Any]] = []
+    replaced = False
+    for existing in _read_rollup_rows(path):
+        if not _same_rollup_identity(existing, row):
+            rows.append(existing)
+        elif not replaced:
+            rows.append(row)
+            replaced = True
+    if not replaced:
+        rows.append(row)
     rows.sort(key=lambda r: (str(r.get("kind", "")), str(r.get("slug", ""))))
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    atomic_write_text(
+        path,
         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
-        encoding="utf-8",
     )
     return path
 
@@ -591,10 +641,10 @@ def rollback(
 ) -> RollbackResult:
     """Restore ``slug``'s note to the snapshot at ``timestamp``.
 
-    When live content differs, it is first snapshot into ``.history`` under
-    ``now_iso`` so a rollback can itself be rolled back. The chosen snapshot
-    becomes the live note when needed, and its rollup row is reconciled from
-    the snapshot's frontmatter.
+    The complete note, backup, and rollup mutation is serialized with concept
+    builds and other rollbacks for the same topic. When live content differs,
+    it is first snapshot into ``.history`` under ``now_iso`` so a rollback can
+    itself be rolled back.
 
     Raises ``FileNotFoundError`` if the snapshot doesn't exist. No files change
     only when the live note and exactly one target rollup row already match the
@@ -602,12 +652,26 @@ def rollback(
     """
     if not _is_safe_slug(slug):
         raise ValueError(f"Unsafe concept slug: {slug!r}")
+    with concept_transaction(topic_dir):
+        return _rollback_transaction(topic_dir, slug, timestamp, now_iso=now_iso)
+
+
+def _rollback_transaction(
+    topic_dir: Path,
+    slug: str,
+    timestamp: str,
+    *,
+    now_iso: str,
+) -> RollbackResult:
+    """Perform one rollback while the caller holds the topic transaction lock."""
+
     snapshot = resolve_snapshot(topic_dir, slug, timestamp)
     if snapshot is None:
         raise FileNotFoundError(f"No snapshot for slug '{slug}' matching timestamp '{timestamp}'.")
 
     restored_content = snapshot.path.read_text(encoding="utf-8")
     restored_fields = parse_note_fields(restored_content)
+    _assert_rollup_identity_unambiguous(topic_dir, restored_fields)
 
     live_path = note_path_for_slug(topic_dir, slug)
     if live_path is None:
@@ -627,12 +691,13 @@ def rollback(
         # in one shared .history/<slug>/ dir. note_path_for_slug always returns
         # the base note, so a snapshot belonging to the bumped concept would
         # otherwise silently overwrite the base concept. Refuse on mismatch.
-        live_id = parse_note_fields(current_content).get("normalized_name")
-        restored_id = restored_fields.get("normalized_name")
-        if live_id and restored_id and live_id != restored_id:
+        live_id = str(parse_note_fields(current_content).get("normalized_name", "")).strip()
+        restored_id = str(restored_fields.get("normalized_name", "")).strip()
+        if (live_id or restored_id) and live_id != restored_id:
             raise ValueError(
                 f"Slug '{slug}' is shared by multiple concepts "
-                f"('{live_id}' vs restored '{restored_id}'); cannot safely roll "
+                f"({live_id or '<legacy>'!r} vs restored "
+                f"{restored_id or '<legacy>'!r}); cannot safely roll "
                 f"back by slug alone -- resolve the collision manually."
             )
     note_changed = current_content != restored_content
@@ -648,8 +713,7 @@ def rollback(
     backup_path: Path | None = None
     if note_changed and current_content is not None:
         backup_path = history_dir_for_slug(topic_dir, slug) / f"{iso_to_safe_ts(now_iso)}.md"
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        backup_path.write_text(current_content, encoding="utf-8")
+        atomic_write_text(backup_path, current_content)
 
     if note_changed:
         _atomic_write(live_path, restored_content)

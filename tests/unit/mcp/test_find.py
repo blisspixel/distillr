@@ -83,6 +83,51 @@ def test_read_insight_round_trip_preserves_body(tmp_path, body):
 
 
 class TestFindInsights:
+    def test_schema_advertises_search_security_bounds(self):
+        from distill.mcp.server import mcp
+
+        schema = mcp._tool_manager._tools["find_insights"].parameters
+        properties = schema["properties"]
+
+        assert properties["query"]["minLength"] == 1
+        assert properties["query"]["maxLength"] == 4096
+        assert properties["limit"]["minimum"] == 1
+        assert properties["limit"]["maximum"] == 50
+
+    @pytest.mark.parametrize(
+        ("query", "limit", "message"),
+        [
+            ("machine learning", -1, "search limit must be between 1 and 50"),
+            ("machine learning", 0, "search limit must be between 1 and 50"),
+            ("machine learning", 51, "search limit must be between 1 and 50"),
+            ("x" * 4097, 10, "search query exceeds 4096 characters"),
+            (
+                " ".join(f"term{index}" for index in range(129)),
+                10,
+                "search query exceeds 128 unique terms",
+            ),
+        ],
+    )
+    def test_rejects_invalid_search_work_before_scoring(
+        self,
+        mock_config,
+        monkeypatch,
+        query,
+        limit,
+        message,
+    ):
+        def unexpected_score(*_args, **_kwargs):
+            raise AssertionError("invalid search reached document scoring")
+
+        monkeypatch.setattr("distill.pipeline.search._score_document", unexpected_score)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import find_insights
+
+            result = json.loads(find_insights("ai", query, limit=limit))
+
+        assert result == {"status": "error", "error": message}
+
     def test_topic_not_found(self, mock_config):
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.find import find_insights

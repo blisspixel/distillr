@@ -18,6 +18,21 @@ def config(tmp_path):
     return DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
 
 
+class _SupportingChecker:
+    model_name = "test-supporting-checker"
+
+    def score(self, evidence: str, claim: str) -> float:
+        return 1.0
+
+
+@pytest.fixture(autouse=True)
+def _semantic_checker(monkeypatch):
+    import distill.pipeline.verify as verify_mod
+
+    monkeypatch.setattr(verify_mod, "_checker", _SupportingChecker())
+    monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+
+
 def _seed_corpus(config, topic: str = "t") -> None:
     d = config.topic_dir(topic) / "papers" / "checker-paper"
     d.mkdir(parents=True, exist_ok=True)
@@ -66,6 +81,55 @@ class TestAsk:
         assert result.no_coverage
         assert result.answer_path is None
 
+    def test_source_reread_rejects_path_swapped_to_outside_hardlink(
+        self, config, monkeypatch, tmp_path
+    ):
+        _seed_corpus(config)
+        insight = next(config.topic_dir("t").rglob("*_Insights.md"))
+        outside = tmp_path / "outside-secret.md"
+        outside.write_text("swapneedle SECRET-OUTSIDE-LIBRARY", encoding="utf-8")
+        real_search = ask_mod.search_corpus
+
+        def search_then_swap(*args, **kwargs):
+            results = real_search(*args, **kwargs)
+            insight.unlink()
+            try:
+                insight.hardlink_to(outside)
+            except OSError as exc:
+                pytest.skip(f"hard links unavailable: {exc}")
+            return results
+
+        monkeypatch.setattr(ask_mod, "search_corpus", search_then_swap)
+
+        stems, sources, receipt = ask_mod._gather_sources(config, "t", "HHEM")
+
+        assert stems == []
+        assert sources == ""
+        assert receipt == ""
+
+    def test_source_reread_rejects_regular_file_replaced_after_search(self, config, monkeypatch):
+        _seed_corpus(config)
+        insight = next(config.topic_dir("t").rglob("*_Insights.md"))
+        real_search = ask_mod.search_corpus
+
+        def search_then_replace(*args, **kwargs):
+            results = real_search(*args, **kwargs)
+            replacement = insight.with_suffix(".replacement")
+            replacement.write_text(
+                "HHEM UNVERIFIED-REPLACEMENT",
+                encoding="utf-8",
+            )
+            replacement.replace(insight)
+            return results
+
+        monkeypatch.setattr(ask_mod, "search_corpus", search_then_replace)
+
+        stems, sources, receipt = ask_mod._gather_sources(config, "t", "HHEM")
+
+        assert stems == []
+        assert sources == ""
+        assert receipt == ""
+
     def test_no_coverage_topic_does_not_project_budget(self, config, monkeypatch):
         config = config.model_copy(update={"distill_cost_workflow_budgets": "ask=0.0001"})
 
@@ -107,12 +171,72 @@ class TestAsk:
         assert 'synthesis_scope: "derived-answer"' in insight
         assert 'source: "distill-answer"' in insight
         # The promoted insight carries its own verification record.
-        assert list(result.saved_insight_path.parent.glob("*_Verify.json"))
+        sidecar_path = next(result.saved_insight_path.parent.glob("*_Verify.json"))
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        assert sidecar["entailment"]["status"] == "passed"
         # And the corpus walkers will see it (it lives outside dot/derived dirs).
         from distill.library.insights import discover_insights
 
         stems = [Path(r.artifact_path).stem for r in discover_insights(config.topic_dir("t"))]
         assert any("which-checker" in s or "which_checker" in s for s in stems)
+
+    def test_sidecar_write_failure_does_not_expose_promoted_insight(
+        self,
+        config,
+        monkeypatch,
+    ):
+        _seed_corpus(config)
+        _llm(monkeypatch, GROUNDED)
+
+        def fail_sidecar_write(*args, **kwargs):
+            raise OSError("simulated sidecar write failure")
+
+        monkeypatch.setattr(ask_mod, "write_verify_sidecar", fail_sidecar_write)
+
+        with pytest.raises(OSError, match="sidecar write failure"):
+            ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+
+        answers_dir = config.topic_dir("t") / "answers"
+        assert not list(answers_dir.rglob("*_Insights.md"))
+
+    def test_failed_repromotion_cannot_misbind_new_sidecar_to_old_insight(
+        self,
+        config,
+        monkeypatch,
+    ):
+        from distill.library.insights import discover_insights
+        from distill.pipeline.audit import collect_verify_rollup
+
+        _seed_corpus(config)
+        _llm(monkeypatch, GROUNDED)
+        first = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+        assert first.saved_insight_path is not None
+        old_content = first.saved_insight_path.read_text(encoding="utf-8")
+
+        _llm(
+            monkeypatch,
+            "The checker runs on CPU with 110 million parameters [checker_paper_Insights].",
+        )
+        real_write = ask_mod.atomic_write_text
+
+        def fail_promoted_insight(path, content):
+            if path.name.endswith("_Insights.md"):
+                raise OSError("simulated insight replacement failure")
+            return real_write(path, content)
+
+        monkeypatch.setattr(ask_mod, "atomic_write_text", fail_promoted_insight)
+
+        with pytest.raises(OSError, match="insight replacement failure"):
+            ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+
+        assert first.saved_insight_path.read_text(encoding="utf-8") == old_content
+        assert first.saved_insight_path not in {
+            ref.path for ref in discover_insights(config.topic_dir("t"))
+        }
+        rollup = collect_verify_rollup(config.topic_dir("t"))
+        assert rollup.insights_total == 2
+        assert rollup.checked == 0
+        assert rollup.never_checked == 2
 
     def test_save_refused_on_unsupported_claim(self, config, monkeypatch):
         _seed_corpus(config)
@@ -208,6 +332,53 @@ class TestAsk:
 
         assert result.saved_insight_path is None
         assert "does not cover" in result.save_refused_reason
+
+    def test_save_refuses_before_model_call_when_semantic_checker_is_unavailable(
+        self, config, monkeypatch
+    ):
+        import distill.pipeline.verify as verify_mod
+
+        _seed_corpus(config)
+        monkeypatch.setattr(verify_mod, "_checker", None)
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("answer model must not run without the required save verifier")
+
+        monkeypatch.setattr(ask_mod, "llm_call", fail_if_called)
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+
+        assert result.answer_path is None
+        assert result.saved_insight_path is None
+        assert "requires semantic verification" in result.save_refused_reason
+
+    def test_save_refuses_when_semantic_evaluation_fails(self, config, monkeypatch):
+        import distill.pipeline.verify as verify_mod
+
+        class ExplodingChecker:
+            model_name = "exploding-checker"
+
+            def score(self, evidence: str, claim: str) -> float:
+                raise RuntimeError("evaluation failed")
+
+        _seed_corpus(config)
+        monkeypatch.setattr(verify_mod, "_checker", ExplodingChecker())
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+        _llm(
+            monkeypatch,
+            "Mercury is the safest database for production secrets [checker_paper_Insights].",
+        )
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
+
+        assert result.answer_path is not None
+        assert result.saved_insight_path is None
+        assert "semantic checker failed" in result.save_refused_reason
+        sidecar = json.loads(
+            next(result.answer_path.parent.glob("*_Verify.json")).read_text(encoding="utf-8")
+        )
+        assert sidecar["entailment"]["status"] == "error"
 
 
 def test_ask_command_wiring(config, monkeypatch):

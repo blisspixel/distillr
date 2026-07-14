@@ -32,6 +32,12 @@ __all__ = [
 FetchText = Callable[[str], str]
 _TOC_SOURCE_HINT = "toc link"
 _LANDING_SOURCE_HINT = "landing link"
+_MAX_LANDING_PARSE_EVENTS = 100_000
+_MAX_LANDING_NESTING = 512
+_MAX_LANDING_ANCHORS = 4_096
+_MAX_LANDING_ANCHOR_TEXT_CHARS = 1_024
+_MAX_LANDING_ATTRIBUTES = 256
+_MAX_LANDING_HREF_CHARS = 8_192
 
 
 @dataclass(frozen=True)
@@ -42,35 +48,91 @@ class TrustedSiteDiscoveryResult:
     fetched_landing_pages: int
 
 
+class LandingParseLimit(ValueError):
+    """Raised when untrusted landing-page HTML exceeds a parsing budget."""
+
+
 class _AnchorParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        *,
+        max_events: int = _MAX_LANDING_PARSE_EVENTS,
+        max_depth: int = _MAX_LANDING_NESTING,
+        max_anchors: int = _MAX_LANDING_ANCHORS,
+        max_anchor_text_chars: int = _MAX_LANDING_ANCHOR_TEXT_CHARS,
+        max_attributes: int = _MAX_LANDING_ATTRIBUTES,
+        max_href_chars: int = _MAX_LANDING_HREF_CHARS,
+    ) -> None:
+        budgets = {
+            "event": max_events,
+            "nesting depth": max_depth,
+            "anchor": max_anchors,
+            "anchor text": max_anchor_text_chars,
+            "attribute": max_attributes,
+            "href": max_href_chars,
+        }
+        for name, value in budgets.items():
+            if value <= 0:
+                raise ValueError(f"landing page {name} budget must be positive")
+        super().__init__(convert_charrefs=True)
         self.links: list[tuple[str, str, bool]] = []
         self._element_stack: list[tuple[str, bool]] = []
+        self._positions: dict[str, list[int]] = {}
         self._href_stack: list[str] = []
         self._toc_link_stack: list[bool] = []
         self._text_stack: list[list[str]] = []
+        self._text_length_stack: list[int] = []
+        self._events = 0
+        self._anchor_count = 0
+        self._max_events = max_events
+        self._max_depth = max_depth
+        self._max_anchors = max_anchors
+        self._max_anchor_text_chars = max_anchor_text_chars
+        self._max_attributes = max_attributes
+        self._max_href_chars = max_href_chars
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._record_event()
+        if len(attrs) > self._max_attributes:
+            raise LandingParseLimit("landing page attribute budget exceeded")
+        if len(self._element_stack) + len(self._href_stack) >= self._max_depth:
+            raise LandingParseLimit("landing page nesting depth budget exceeded")
         lowered = tag.lower()
         in_toc = self._in_toc_context() or _is_toc_container(lowered, attrs)
         if lowered != "a":
+            position = len(self._element_stack)
             self._element_stack.append((lowered, in_toc))
+            self._positions.setdefault(lowered, []).append(position)
             return
+        if self._anchor_count >= self._max_anchors:
+            raise LandingParseLimit("landing page anchor budget exceeded")
         href = ""
         for key, value in attrs:
             if key.lower() == "href" and value:
                 href = value
                 break
+        if len(href) > self._max_href_chars:
+            raise LandingParseLimit("landing page href budget exceeded")
+        self._anchor_count += 1
         self._href_stack.append(href)
         self._toc_link_stack.append(in_toc)
         self._text_stack.append([])
+        self._text_length_stack.append(0)
 
     def handle_data(self, data: str) -> None:
-        if self._text_stack:
-            self._text_stack[-1].append(data)
+        self._record_event()
+        if not self._text_stack:
+            return
+        retained = self._text_length_stack[-1]
+        remaining = self._max_anchor_text_chars - retained
+        if remaining <= 0:
+            return
+        fragment = data[:remaining]
+        self._text_stack[-1].append(fragment)
+        self._text_length_stack[-1] = retained + len(fragment)
 
     def handle_endtag(self, tag: str) -> None:
+        self._record_event()
         lowered = tag.lower()
         if lowered != "a":
             self._pop_element(lowered)
@@ -80,17 +142,29 @@ class _AnchorParser(HTMLParser):
         href = self._href_stack.pop()
         in_toc = self._toc_link_stack.pop() if self._toc_link_stack else False
         text = " ".join("".join(self._text_stack.pop()).split())
+        self._text_length_stack.pop()
         if href:
             self.links.append((href, text, in_toc))
 
     def _in_toc_context(self) -> bool:
-        return any(in_toc for _, in_toc in self._element_stack)
+        return self._element_stack[-1][1] if self._element_stack else False
 
     def _pop_element(self, tag: str) -> None:
-        for index in range(len(self._element_stack) - 1, -1, -1):
-            if self._element_stack[index][0] == tag:
-                del self._element_stack[index:]
-                return
+        positions = self._positions.get(tag)
+        if not positions:
+            return
+        matched_position = positions[-1]
+        while len(self._element_stack) > matched_position:
+            removed_tag, _ = self._element_stack.pop()
+            removed_positions = self._positions[removed_tag]
+            removed_positions.pop()
+            if not removed_positions:
+                del self._positions[removed_tag]
+
+    def _record_event(self) -> None:
+        self._events += 1
+        if self._events > self._max_events:
+            raise LandingParseLimit("landing page event budget exceeded")
 
 
 def discover_trusted_site_seeds(
@@ -293,6 +367,7 @@ def _candidate_urls_from_landing(source_url: str, *, fetch_text: FetchText) -> _
     parser = _AnchorParser()
     try:
         parser.feed(html)
+        parser.close()
     except Exception:
         return _LandingCandidates([], 1)
     candidates: list[_LandingPageCandidate] = []
@@ -312,20 +387,17 @@ def _candidate_urls_from_landing(source_url: str, *, fetch_text: FetchText) -> _
 def _dedupe_landing_candidates(
     candidates: list[_LandingPageCandidate],
 ) -> list[_LandingPageCandidate]:
-    ordered_keys: list[str] = []
     by_url: dict[str, _LandingPageCandidate] = {}
     for candidate in candidates:
         normalized = canonicalize_url(candidate.url)
         current = by_url.get(normalized)
         if current is None:
-            ordered_keys.append(normalized)
             by_url[normalized] = candidate
             continue
         if current.source_hint != _TOC_SOURCE_HINT and candidate.source_hint == _TOC_SOURCE_HINT:
-            ordered_keys.remove(normalized)
-            ordered_keys.append(normalized)
+            del by_url[normalized]
             by_url[normalized] = candidate
-    ordered = [by_url[key] for key in ordered_keys]
+    ordered = list(by_url.values())
     toc = [candidate for candidate in ordered if candidate.source_hint == _TOC_SOURCE_HINT]
     landing = [candidate for candidate in ordered if candidate.source_hint != _TOC_SOURCE_HINT]
     return toc + landing

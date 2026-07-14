@@ -5,8 +5,6 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-import yt_dlp
-
 from distill._console import console
 from distill.ingestors.youtube._yt_dlp_boundary import (
     YtDlpInfo,
@@ -16,7 +14,11 @@ from distill.ingestors.youtube._yt_dlp_boundary import (
     info_mapping,
     int_field,
     text_field,
-    ydl_params,
+)
+from distill.ingestors.youtube.safe_ytdlp import (
+    YTDLP_METADATA_RESPONSE_BYTES,
+    YTDLP_METADATA_TOTAL_BYTES,
+    SafeYoutubeDL,
 )
 from distill.parsing import MAX_LOOKBACK_DAYS, MAX_LOOKBACK_HOURS
 from distill.youtube_urls import (
@@ -167,7 +169,11 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
                 "playlistend": playlist_depth,
                 "logger": _QuietLogger("yt-dlp"),
             }
-            with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+            with SafeYoutubeDL(
+                ydl_opts,
+                metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+                total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+            ) as ydl:
                 info = info_mapping(ydl.extract_info(scan_url, download=False))
 
                 if info is None:
@@ -236,7 +242,11 @@ def get_video_info(video_url: str) -> VideoInfo | None:
     }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+        with SafeYoutubeDL(
+            ydl_opts,
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
             info = info_mapping(ydl.extract_info(canonical_url, download=False))
             if info is None:
                 return None
@@ -300,7 +310,11 @@ def search_videos(
     )
 
     try:
-        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+        with SafeYoutubeDL(
+            ydl_opts,
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
             info = info_mapping(ydl.extract_info(search_expr, download=False))
     except Exception as e:
         console.print(f"  [red]Search error: {e}[/red]")
@@ -339,7 +353,11 @@ def resolve_channel_name(channel_url: str) -> str:
 
     try:
         ydl_opts: dict[str, object] = {"quiet": True, "no_warnings": True, "extract_flat": True}
-        with yt_dlp.YoutubeDL(ydl_params(ydl_opts)) as ydl:
+        with SafeYoutubeDL(
+            ydl_opts,
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
             info = info_mapping(ydl.extract_info(normalized_channel_url, download=False))
             if info is None:
                 return "unknown"

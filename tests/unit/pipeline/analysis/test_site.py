@@ -13,6 +13,7 @@ from distill.pipeline.analysis.site import (
     synthesize_site_topic,
 )
 from distill.pipeline.costs import CostTracker
+from distill.pipeline.synthesis.topic import synthesize_topic
 
 
 def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):
@@ -128,8 +129,8 @@ def test_synthesize_site_topic_writes_output(tmp_path):
         result = synthesize_site_topic("web", config)
 
     assert result == "topic synthesis"
-    output = find_artifact(config.topic_dir("web"), "topic_synthesis", identity="web")
-    assert output.name == "web_Topic_Synthesis.md"
+    output = find_artifact(config.topic_dir("web"), "site_synthesis", identity="web")
+    assert output.name == "web_Site_Synthesis.md"
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "topic synthesis"
 
 
@@ -159,7 +160,7 @@ def test_synthesize_site_topic_records_tracker_and_refuses_strict_verify(tmp_pat
     assert result == ""
     assert len(tracker.entries) == 1
     assert tracker.entries[0].call_type == "site_topic_synthesis"
-    output = find_artifact(config.topic_dir("web"), "topic_synthesis", identity="web")
+    output = find_artifact(config.topic_dir("web"), "site_synthesis", identity="web")
     assert not output.exists()
 
 
@@ -190,8 +191,7 @@ def test_synthesize_site_writes_verify_sidecar(tmp_path):
 
 
 def test_synthesize_site_topic_writes_verify_sidecar(tmp_path):
-    """0.13.1: site-topic synthesis is verified against its site syntheses; it
-    shares the topic_synthesis sidecar identity with the video producer."""
+    """Site-topic synthesis has a receipt distinct from video topic synthesis."""
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     site_dir = config.site_dir("web", "example.com")
     site_dir.mkdir(parents=True, exist_ok=True)
@@ -204,7 +204,38 @@ def test_synthesize_site_topic_writes_verify_sidecar(tmp_path):
         result = synthesize_site_topic("web", config)
 
     assert result
-    sidecar = config.topic_dir("web") / "web_topic_synthesis_Verify.json"
+    sidecar = config.topic_dir("web") / "web_site_topic_synthesis_Verify.json"
     assert sidecar.exists()
     data = json.loads(sidecar.read_text(encoding="utf-8"))
     assert any(c["token"] == "73.3" for c in data["unsupported"])
+
+
+def test_site_and_video_topic_syntheses_coexist_with_distinct_receipts(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+    for channel, body in (("one", "Channel one."), ("two", "Channel two.")):
+        channel_dir = config.channel_dir(topic, channel)
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        (channel_dir / "synthesis.md").write_text(body, encoding="utf-8")
+    site_dir = config.site_dir(topic, "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "synthesis.md").write_text("Site evidence.", encoding="utf-8")
+
+    with patch(
+        "distill.pipeline.synthesis.topic.llm_call",
+        _fake_llm_call("VIDEO_TOPIC_SYNTHESIS"),
+    ):
+        assert synthesize_topic(topic, config) == "VIDEO_TOPIC_SYNTHESIS"
+    with patch(
+        "distill.pipeline.analysis.site.llm_call",
+        _fake_llm_call("SITE_TOPIC_SYNTHESIS"),
+    ):
+        assert synthesize_site_topic(topic, config) == "SITE_TOPIC_SYNTHESIS"
+
+    video_output = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
+    site_output = find_artifact(config.topic_dir(topic), "site_synthesis", identity=topic)
+    assert video_output != site_output
+    assert strip_frontmatter(video_output.read_text(encoding="utf-8")) == "VIDEO_TOPIC_SYNTHESIS"
+    assert strip_frontmatter(site_output.read_text(encoding="utf-8")) == "SITE_TOPIC_SYNTHESIS"
+    assert (config.topic_dir(topic) / "mixed_topic_synthesis_Verify.json").exists()
+    assert (config.topic_dir(topic) / "mixed_site_topic_synthesis_Verify.json").exists()

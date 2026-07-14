@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from distill.pipeline.cost_history import read_cost_log_rows
+from distill.pipeline.cost_history import read_confined_cost_log_rows, read_cost_log_rows
 from distill.pipeline.costs import estimator_accuracy, projected_next_run_cost
 
 
@@ -82,6 +82,9 @@ class TestEstimatorAccuracy:
             == 0.0
         )
 
+    def test_integer_too_large_for_float_is_not_a_metric(self):
+        assert estimator_accuracy([_row(10**400, 1.0)]) is None
+
 
 def test_cost_log_reader_skips_oversized_nonfinite_and_boolean_rows(tmp_path):
     log = tmp_path / "cost_log.jsonl"
@@ -100,6 +103,16 @@ def test_cost_log_reader_skips_oversized_nonfinite_and_boolean_rows(tmp_path):
     )
 
     assert read_cost_log_rows(log) == [{"actual_cost": 1.25, "command": "papers"}]
+
+
+def test_confined_cost_log_reader_fails_closed_on_limits_and_missing_file(tmp_path):
+    root = tmp_path / "library"
+    root.mkdir()
+    missing = root / ".distill" / "cost_log.jsonl"
+
+    assert read_confined_cost_log_rows(missing, root, limit=0) == []
+    assert read_confined_cost_log_rows(missing, root, limit=1) == []
+    assert read_cost_log_rows(missing, limit=0, root=root) == []
 
 
 def test_run_summary_estimate_reaches_the_log(tmp_path):

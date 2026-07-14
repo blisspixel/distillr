@@ -6,14 +6,23 @@ import json
 import re
 from collections import deque
 from dataclasses import dataclass, field
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from distill.ingestors.browser_network import install_public_web_route
+from distill.ingestors.sites.browser_extract import (
+    bounded_page_expression,
+    evaluate_bounded_page,
+)
 from distill.ingestors.sites.pinned_proxy import PinnedBrowserProxy
 from distill.library.paths import site_name_from_url, slugify_title
 
 __all__ = [
+    "MAX_SITE_BATCH_PAGES",
+    "MAX_SITE_CRAWL_DEPTH",
+    "MAX_SITE_CRAWL_PAGES",
     "SiteBatch",
     "SitePage",
     "SiteSeed",
@@ -28,10 +37,67 @@ __all__ = [
     "load_site_batch",
     "normalize_host",
     "page_id_from_url",
+    "site_page_id",
     "site_section_key",
 ]
 
 _TEXT_LIMIT = 120_000
+_TRANSCRIPT_LIMIT = 120_000
+_PAGE_EXTRACTION_TIMEOUT_MS = 2_000
+_PAGE_DOM_NODE_LIMIT = 50_000
+_PAGE_LINK_LIMIT = 512
+_PAGE_PDF_LINK_LIMIT = 512
+_PAGE_VIDEO_LINK_LIMIT = 64
+_PAGE_AUTHOR_LIMIT = 5
+_PAGE_TAG_LIMIT = 12
+_PAGE_URL_CHAR_LIMIT = 2_048
+_PAGE_TITLE_CHAR_LIMIT = 512
+_PAGE_DESCRIPTION_CHAR_LIMIT = 4_096
+_PAGE_PUBLISHED_AT_CHAR_LIMIT = 128
+_PAGE_METADATA_CHAR_LIMIT = 4_096
+_PAGE_ATTRIBUTE_CHAR_LIMIT = 2_048
+_PAGE_LOCAL_TEXT_NODE_LIMIT = 512
+_PAGE_METADATA_ELEMENT_LIMIT = 256
+_EXTRACTION_TRUNCATION_REASONS = frozenset(
+    {
+        "authors",
+        "body_text",
+        "description",
+        "dom_nodes",
+        "links",
+        "metadata",
+        "pdf_links",
+        "tags",
+        "title",
+        "transcript",
+        "video_links",
+    }
+)
+MAX_SITE_CRAWL_DEPTH = 4
+MAX_SITE_CRAWL_PAGES = 100
+MAX_SITE_BATCH_PAGES = 500
+
+_BOUNDED_PAGE_LIMITS = {
+    "maxDomNodes": _PAGE_DOM_NODE_LIMIT,
+    "maxBodyTextChars": _TEXT_LIMIT,
+    "maxTranscriptChars": _TRANSCRIPT_LIMIT,
+    "maxLinks": _PAGE_LINK_LIMIT,
+    "maxPdfLinks": _PAGE_PDF_LINK_LIMIT,
+    "maxVideoLinks": _PAGE_VIDEO_LINK_LIMIT,
+    "maxAuthors": _PAGE_AUTHOR_LIMIT,
+    "maxTags": _PAGE_TAG_LIMIT,
+    "maxURLChars": _PAGE_URL_CHAR_LIMIT,
+    "maxTitleChars": _PAGE_TITLE_CHAR_LIMIT,
+    "maxDescriptionChars": _PAGE_DESCRIPTION_CHAR_LIMIT,
+    "maxPublishedAtChars": _PAGE_PUBLISHED_AT_CHAR_LIMIT,
+    "maxMetadataChars": _PAGE_METADATA_CHAR_LIMIT,
+    "maxAttributeChars": _PAGE_ATTRIBUTE_CHAR_LIMIT,
+    "maxLocalTextNodes": _PAGE_LOCAL_TEXT_NODE_LIMIT,
+    "maxMetadataElements": _PAGE_METADATA_ELEMENT_LIMIT,
+    "maxAuthorChars": 512,
+    "maxTagChars": 256,
+}
+_BOUNDED_PAGE_EXPRESSION = bounded_page_expression(_BOUNDED_PAGE_LIMITS)
 
 
 @dataclass
@@ -53,16 +119,13 @@ class SitePage:
     has_video: bool = False
     transcript: str = ""
     attachment_context: str = ""
+    truncation_reasons: list[str] = field(default_factory=list)
     source_url: str = ""
     depth: int = 0
 
     @property
     def page_id(self) -> str:
-        return slugify_title(
-            self.title or self.url,
-            page_id_from_url(self.final_url or self.url),
-            max_len=70,
-        )
+        return site_page_id(self.final_url or self.url)
 
     def metadata(self) -> dict[str, Any]:
         return {
@@ -83,6 +146,8 @@ class SitePage:
             "has_video": self.has_video,
             "has_transcript": bool(self.transcript.strip()),
             "has_attachment_context": bool(self.attachment_context.strip()),
+            "extraction_truncated": bool(self.truncation_reasons),
+            "truncation_reasons": self.truncation_reasons,
             "source_url": self.source_url,
             "depth": self.depth,
         }
@@ -105,6 +170,7 @@ class SiteSeed:
 
     def __post_init__(self) -> None:
         self.crawl_prefix = _normalize_crawl_prefix(self.crawl_prefix)
+        _validate_site_crawl_limits(self.max_depth, self.max_pages)
 
     def resolved_site_name(self) -> str:
         return self.site_name or site_name_from_url(self.url)
@@ -135,11 +201,9 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
     seeds: list[SiteSeed] = []
     crawl_config = data.get("crawl", {}) if isinstance(data, dict) else {}
     global_crawl_prefix = str(crawl_config.get("crawl_prefix", crawl_config.get("path_prefix", "")))
-    global_max_depth = (
-        int(crawl_config.get("max_depth", 1)) if isinstance(crawl_config, dict) else 1
-    )
+    global_max_depth = crawl_config.get("max_depth", 1) if isinstance(crawl_config, dict) else 1
     global_max_pages = (
-        int(crawl_config.get("max_pages_per_seed", 8)) if isinstance(crawl_config, dict) else 8
+        crawl_config.get("max_pages_per_seed", 8) if isinstance(crawl_config, dict) else 8
     )
 
     if isinstance(data, list):
@@ -213,37 +277,46 @@ def _link_is_crawlable_for_seed(
     section / dedupe filters that protect the crawler from SSRF and runaway
     cross-site recursion.
     """
-    from distill.ingestors.net import is_public_web_url
-
-    if normalize_host(link) != root_host:
-        return None
-    if not is_crawlable_url(link) or not is_public_web_url(link):
-        return None
-    link_norm = canonicalize_url(link)
-    if seed.crawl_prefix and not _is_within_crawl_prefix(link_norm, seed.crawl_prefix):
-        return None
-    if seed.same_section_only and not is_same_section(link_norm, seed.url):
+    link_norm = _canonical_url_in_seed_scope(link, seed=seed, root_host=root_host)
+    if link_norm is None:
         return None
     if link_norm in visited:
         return None
     return link_norm
 
 
-def _install_public_web_route(context) -> None:
-    """Abort non-HTTPS or non-public requests before they reach the pinned proxy."""
+def _canonical_url_in_seed_scope(
+    url: str,
+    *,
+    seed: SiteSeed,
+    root_host: str,
+) -> str | None:
+    """Return a canonical public HTTPS URL confined to the seed's crawl scope."""
     from distill.ingestors.net import is_public_web_url
 
-    def guard(route, request) -> None:
-        if urlparse(request.url).scheme.lower() == "https" and is_public_web_url(request.url):
-            route.continue_()
-        else:
-            route.abort()
+    if urlparse(url).scheme.lower() != "https":
+        return None
+    if normalize_host(url) != root_host or not is_public_web_url(url):
+        return None
+    if not is_crawlable_url(url):
+        return None
+    normalized = canonicalize_url(url)
+    if seed.crawl_prefix and not _is_within_crawl_prefix(normalized, seed.crawl_prefix):
+        return None
+    if seed.same_section_only and not is_same_section(normalized, seed.url):
+        return None
+    return normalized
 
-    context.route("**/*", guard)
+
+def _install_public_web_route(context) -> None:
+    """Abort non-HTTPS or non-public requests before they reach the pinned proxy."""
+    install_public_web_route(context)
 
 
 def crawl_site(seed: SiteSeed) -> list[SitePage]:
     from distill.ingestors.net import is_public_web_url
+
+    _validate_site_crawl_limits(seed.max_depth, seed.max_pages)
 
     # Reject seeds that point at the local browser host, RFC1918 networks, the
     # cloud-metadata link-local range, or non-http(s) schemes such as
@@ -296,11 +369,9 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
             if extracted is None:
                 continue
             landed = extracted.final_url or extracted.url
-            # Confine redirect targets to the seed host, the same invariant
-            # _link_is_crawlable_for_seed enforces on followed links. A page.goto
-            # redirect can otherwise land off-host and be ingested, escaping the
-            # crawl scope and any MCP ingest allowlist that only checked the seed.
-            if not is_public_web_url(landed) or normalize_host(landed) != root_host:
+            # Reapply the complete crawl boundary after navigation because an
+            # allowed seed can redirect outside its configured path or section.
+            if _canonical_url_in_seed_scope(landed, seed=seed, root_host=root_host) is None:
                 continue
             pages.append(extracted)
 
@@ -321,6 +392,15 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
     return pages
 
 
+def _extract_bounded_page_payload(page: Any) -> dict[str, Any] | None:
+    """Extract a bounded payload in a clean Chromium world with a hard deadline."""
+    return evaluate_bounded_page(
+        page,
+        expression=_BOUNDED_PAGE_EXPRESSION,
+        timeout_ms=_PAGE_EXTRACTION_TIMEOUT_MS,
+    )
+
+
 def _extract_page(
     page,
     url: str,
@@ -337,54 +417,66 @@ def _extract_page(
     except Exception:
         return None
 
-    payload = page.evaluate(
-        """
-        () => {
-          const textOf = (el) => (el && el.textContent ? el.textContent.trim() : '');
-          const metas = Array.from(document.querySelectorAll('meta'));
-          const meta = (key) => {
-            const found = metas.find((m) => m.getAttribute('property') === key || m.getAttribute('name') === key);
-            return found ? (found.getAttribute('content') || '').trim() : '';
-          };
-          const titleText =
-            meta('og:title') ||
-            textOf(document.querySelector('main h1')) ||
-            textOf(document.querySelector('h1')) ||
-            document.title ||
-            '';
-          const transcriptNodes = Array.from(document.querySelectorAll('[class*="transcript"], [id*="transcript"], [data-testid*="transcript"]'));
-          const hrefs = Array.from(document.querySelectorAll('a[href]')).map((a) => a.href).filter(Boolean);
-          const videoLinks = [
-            ...Array.from(document.querySelectorAll('iframe[src]')).map((el) => el.src).filter(Boolean),
-            ...Array.from(document.querySelectorAll('video source[src], video[src]')).map((el) => el.src).filter(Boolean),
-          ];
-          const canonical = document.querySelector('link[rel="canonical"]');
-          return {
-            title: titleText,
-            final_url: window.location.href || '',
-            canonical_url: canonical ? (canonical.href || '').trim() : '',
-            description: meta('description') || meta('og:description') || '',
-            published_at: meta('article:published_time') || meta('og:updated_time') || '',
-            authors: Array.from(document.querySelectorAll('[rel="author"], [class*="author"], [data-testid*="author"]')).map((el) => textOf(el)).filter(Boolean).slice(0, 5),
-            tags: Array.from(document.querySelectorAll('[class*="tag"], [data-testid*="tag"], a[href*="/topic/"]')).map((el) => textOf(el)).filter(Boolean).slice(0, 12),
-            transcript: transcriptNodes.map((n) => textOf(n)).filter(Boolean).join('\\n\\n'),
-            text: document.body && document.body.innerText ? document.body.innerText.trim() : '',
-            links: hrefs,
-            pdf_links: hrefs.filter((href) => href.toLowerCase().includes('.pdf')),
-            video_links: videoLinks,
-            has_video: !!document.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"], [class*="video"]'),
-          };
-        }
-        """
-    )
+    payload = _extract_bounded_page_payload(page)
+    if payload is None:
+        return None
 
-    text = _clean_text(payload.get("text", ""))
+    truncation_reasons = _payload_truncation_reasons(payload)
+    text = _clean_text(
+        _bounded_payload_string(
+            payload,
+            "text",
+            _TEXT_LIMIT,
+            truncation_reasons,
+            "body_text",
+        )
+    )
     if not text:
         return None
 
-    final_url = canonicalize_url(payload.get("final_url", "").strip() or page.url)
-    canonical_url = canonicalize_url(payload.get("canonical_url", "").strip() or final_url)
-    title = _clean_title(payload.get("title", "").strip()) or url
+    final_url_value = _bounded_payload_string(
+        payload,
+        "final_url",
+        _PAGE_URL_CHAR_LIMIT,
+        truncation_reasons,
+        "metadata",
+    )
+    final_url = canonicalize_url(final_url_value.strip() or page.url)
+    canonical_url_value = _bounded_payload_string(
+        payload,
+        "canonical_url",
+        _PAGE_URL_CHAR_LIMIT,
+        truncation_reasons,
+        "metadata",
+    )
+    canonical_url = canonicalize_url(canonical_url_value.strip() or final_url)
+    title = (
+        _clean_title(
+            _bounded_payload_string(
+                payload,
+                "title",
+                _PAGE_TITLE_CHAR_LIMIT,
+                truncation_reasons,
+                "title",
+            )
+        )
+        or url
+    )
+    description = _bounded_payload_string(
+        payload,
+        "description",
+        _PAGE_DESCRIPTION_CHAR_LIMIT,
+        truncation_reasons,
+        "description",
+    ).strip()
+    published_at = _bounded_payload_string(
+        payload,
+        "published_at",
+        _PAGE_PUBLISHED_AT_CHAR_LIMIT,
+        truncation_reasons,
+        "metadata",
+    ).strip()
+    has_video = payload.get("has_video") is True
     return SitePage(
         url=url,
         final_url=final_url,
@@ -394,22 +486,125 @@ def _extract_page(
         page_type=classify_page_type(
             final_url,
             title,
-            payload.get("description", ""),
-            payload.get("has_video", False),
+            description,
+            has_video,
         ),
         text=text,
-        description=payload.get("description", "").strip(),
-        published_at=payload.get("published_at", "").strip(),
-        authors=_dedupe_strings(payload.get("authors", [])),
-        tags=_dedupe_strings(payload.get("tags", [])),
-        links=dedupe_urls(payload.get("links", [])),
-        pdf_links=dedupe_urls(payload.get("pdf_links", [])),
-        video_links=dedupe_urls(payload.get("video_links", [])),
-        has_video=bool(payload.get("has_video")),
-        transcript=_clean_text(payload.get("transcript", "")),
+        description=description,
+        published_at=published_at,
+        authors=_dedupe_strings(
+            _bounded_payload_strings(
+                payload,
+                "authors",
+                _PAGE_AUTHOR_LIMIT,
+                512,
+                truncation_reasons,
+                "authors",
+            )
+        ),
+        tags=_dedupe_strings(
+            _bounded_payload_strings(
+                payload,
+                "tags",
+                _PAGE_TAG_LIMIT,
+                256,
+                truncation_reasons,
+                "tags",
+            )
+        ),
+        links=dedupe_urls(
+            _bounded_payload_strings(
+                payload,
+                "links",
+                _PAGE_LINK_LIMIT,
+                _PAGE_URL_CHAR_LIMIT,
+                truncation_reasons,
+                "links",
+            )
+        ),
+        pdf_links=dedupe_urls(
+            _bounded_payload_strings(
+                payload,
+                "pdf_links",
+                _PAGE_PDF_LINK_LIMIT,
+                _PAGE_URL_CHAR_LIMIT,
+                truncation_reasons,
+                "pdf_links",
+            )
+        ),
+        video_links=dedupe_urls(
+            _bounded_payload_strings(
+                payload,
+                "video_links",
+                _PAGE_VIDEO_LINK_LIMIT,
+                _PAGE_URL_CHAR_LIMIT,
+                truncation_reasons,
+                "video_links",
+            )
+        ),
+        has_video=has_video,
+        transcript=_clean_text(
+            _bounded_payload_string(
+                payload,
+                "transcript",
+                _TRANSCRIPT_LIMIT,
+                truncation_reasons,
+                "transcript",
+            )
+        ),
+        truncation_reasons=sorted(truncation_reasons),
         source_url=source_url,
         depth=depth,
     )
+
+
+def _payload_truncation_reasons(payload: dict[str, Any]) -> set[str]:
+    raw = payload.get("truncation_reasons")
+    if not isinstance(raw, list):
+        return set()
+    return {
+        reason
+        for reason in raw
+        if isinstance(reason, str) and reason in _EXTRACTION_TRUNCATION_REASONS
+    }
+
+
+def _bounded_payload_string(
+    payload: dict[str, Any],
+    key: str,
+    maximum: int,
+    truncation_reasons: set[str],
+    reason: str,
+) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str):
+        return ""
+    if len(value) > maximum:
+        truncation_reasons.add(reason)
+    return value[:maximum]
+
+
+def _bounded_payload_strings(
+    payload: dict[str, Any],
+    key: str,
+    maximum_items: int,
+    maximum_chars: int,
+    truncation_reasons: set[str],
+    reason: str,
+) -> list[str]:
+    raw_values = payload.get(key)
+    if not isinstance(raw_values, list):
+        return []
+    if len(raw_values) > maximum_items:
+        truncation_reasons.add(reason)
+    result: list[str] = []
+    for value in raw_values[:maximum_items]:
+        if not isinstance(value, str):
+            continue
+        if len(value) > maximum_chars:
+            truncation_reasons.add(reason)
+        result.append(value[:maximum_chars])
+    return result
 
 
 def classify_page_type(url: str, title: str, description: str, has_video: bool) -> str:
@@ -480,6 +675,13 @@ def page_id_from_url(url: str) -> str:
     return slugify_title(base, max_len=20)
 
 
+def site_page_id(url: str) -> str:
+    """Return a stable, collision-resistant identity for a landed page URL."""
+
+    canonical_url = canonicalize_url(url)
+    return sha256(canonical_url.encode("utf-8")).hexdigest()
+
+
 def crawl_prefix_from_url(url: str) -> str:
     return _normalize_crawl_prefix(urlparse(url).path)
 
@@ -516,16 +718,49 @@ def _crawl_mode(data: dict[str, Any]) -> str:
     return mode
 
 
-def _crawl_max_depth(data: dict[str, Any], *, default: int) -> int:
+def _crawl_max_depth(data: dict[str, Any], *, default: object) -> int:
     if _crawl_mode(data) == "exact-page":
         return 0
-    return int(data.get("max_depth", default))
+    return _validated_crawl_limit(
+        "max_depth",
+        data.get("max_depth", default),
+        minimum=0,
+        maximum=MAX_SITE_CRAWL_DEPTH,
+    )
 
 
-def _crawl_max_pages(data: dict[str, Any], *, default: int) -> int:
+def _crawl_max_pages(data: dict[str, Any], *, default: object) -> int:
     if _crawl_mode(data) == "exact-page":
         return 1
-    return int(data.get("max_pages", data.get("max_pages_per_seed", default)))
+    return _validated_crawl_limit(
+        "max_pages",
+        data.get("max_pages", data.get("max_pages_per_seed", default)),
+        minimum=1,
+        maximum=MAX_SITE_CRAWL_PAGES,
+    )
+
+
+def _validate_site_crawl_limits(max_depth: object, max_pages: object) -> None:
+    _validated_crawl_limit(
+        "max_depth",
+        max_depth,
+        minimum=0,
+        maximum=MAX_SITE_CRAWL_DEPTH,
+    )
+    _validated_crawl_limit(
+        "max_pages",
+        max_pages,
+        minimum=1,
+        maximum=MAX_SITE_CRAWL_PAGES,
+    )
+
+
+def _validated_crawl_limit(name: str, value: object, *, minimum: int, maximum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
+    if value < minimum or value > maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
 
 
 def _normalize_crawl_prefix(value: str) -> str:
@@ -557,6 +792,20 @@ def site_section_key(url: str) -> str:
 
 def canonicalize_url(url: str) -> str:
     parsed = urlparse(url)
+    netloc = parsed.netloc
+    if parsed.hostname:
+        try:
+            host = parsed.hostname.encode("idna").decode("ascii").lower().rstrip(".")
+            if ":" in host:
+                host = f"[{host}]"
+            port = parsed.port
+            if (parsed.scheme.lower(), port) in {("http", 80), ("https", 443)}:
+                port = None
+            host_port = f"{host}:{port}" if port is not None else host
+            userinfo, separator, _authority = parsed.netloc.rpartition("@")
+            netloc = f"{userinfo}@{host_port}" if separator else host_port
+        except (UnicodeError, ValueError):
+            netloc = parsed.netloc.lower()
     path = parsed.path or "/"
     if path != "/":
         path = path.rstrip("/") or "/"
@@ -568,7 +817,13 @@ def canonicalize_url(url: str) -> str:
             if not part.startswith(("utm_", "fbclid=", "gclid="))
         ]
         query = "&".join(sorted(filter(None, keep)))
-    normalized = parsed._replace(fragment="", query=query, path=path)
+    normalized = parsed._replace(
+        scheme=parsed.scheme.lower(),
+        netloc=netloc,
+        fragment="",
+        query=query,
+        path=path,
+    )
     return normalized.geturl()
 
 

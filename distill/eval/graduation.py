@@ -204,10 +204,20 @@ def _judge_gate_blocks(
         return []
 
     blocked: list[str] = []
-    if candidate.mean_faithfulness is None:
+    if candidate.faithfulness_fixtures == 0:
         blocked.append("faithfulness judge did not produce a signal")
-    if candidate.mean_winrate is None:
+    elif candidate.faithfulness_fixtures != candidate.rows:
+        blocked.append(
+            "faithfulness judge produced signals for "
+            f"{candidate.faithfulness_fixtures} of {candidate.rows} fixtures"
+        )
+    if candidate.pairwise_fixtures == 0 or candidate.mean_winrate is None:
         blocked.append("pairwise judge did not produce a signal")
+    elif candidate.pairwise_fixtures != candidate.rows:
+        blocked.append(
+            "pairwise judge produced signals for "
+            f"{candidate.pairwise_fixtures} of {candidate.rows} fixtures"
+        )
     elif candidate.mean_winrate < winrate_floor:
         blocked.append(
             f"pairwise win-rate {candidate.mean_winrate:.2f} is below "

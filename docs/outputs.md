@@ -14,7 +14,8 @@ library/
 │   ├── telemetry.jsonl            # Per-provider-call token and timing rows
 │   └── phase_telemetry.jsonl      # Content-free correlated phase timing
 └── topics/<topic>/
-    ├── <topic>_Topic_Synthesis.md # Cross-source synthesis for the topic
+    ├── <topic>_Topic_Synthesis.md # Cross-channel video synthesis
+    ├── <topic>_Site_Synthesis.md  # Cross-site website synthesis
     ├── <topic>_Corpus_Synthesis.md# Mixed-source view (when multiple source types exist)
     ├── <topic>_Paper_Synthesis.md # Cross-paper synthesis (when papers exist)
     ├── <topic>_Research.md        # Deep Research Phase 1 output
@@ -73,7 +74,8 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 
 ## Per topic
 
-- **`<topic>_Topic_Synthesis.md`** - Cross-source knowledge base
+- **`<topic>_Topic_Synthesis.md`** - Cross-channel video synthesis
+- **`<topic>_Site_Synthesis.md`** - Cross-site website synthesis
 - **`<topic>_Corpus_Synthesis.md`** - Mixed-source view built from channel, site, and paper synthesis inputs (this is what `distill discover` produces by default once its shortlist finishes ingesting)
 - **`<topic>_Brief.md`** - Lightweight "what matters now" brief
 
@@ -91,6 +93,8 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 - **`site.json`** - Manifest of processed pages (includes section-level crawl state)
 - **`<topic>_<site>_Site_Update.md`** - Section change summary between runs
 - **`<topic>_<site>_Site_Synthesis.md`** - Cross-page synthesis
+- **`<topic>_Site_Synthesis.md`** - Cross-site rollup stored at the topic root;
+  it has a verification receipt distinct from the video topic synthesis
 
 ## Per arXiv paper
 

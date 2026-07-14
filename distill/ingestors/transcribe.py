@@ -30,6 +30,7 @@ from typing import Any, Protocol
 
 from distill.config import DistillConfig
 from distill.llm.cost_policy import CostPolicyError, require_route_allowed
+from distill.process_security import resolve_executable
 
 __all__ = [
     "TranscriptionError",
@@ -143,9 +144,13 @@ def _run_media_probe(
 def _has_one_audio_stream(media_path: Path) -> bool:
     """Reject media whose cloud provider stream choice would be ambiguous."""
 
+    ffprobe = resolve_executable("ffprobe")
+    if ffprobe is None:
+        return False
+
     completed = _run_media_probe(
         [
-            "ffprobe",
+            ffprobe,
             "-v",
             "error",
             "-protocol_whitelist",
@@ -202,9 +207,12 @@ def _probe_media_duration(media_path: Path) -> float:
 
     if not _has_one_audio_stream(media_path):
         return 0.0
+    ffmpeg = resolve_executable("ffmpeg")
+    if ffmpeg is None:
+        return 0.0
     completed = _run_media_probe(
         [
-            "ffmpeg",
+            ffmpeg,
             "-hide_banner",
             "-loglevel",
             "error",

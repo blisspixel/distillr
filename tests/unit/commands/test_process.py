@@ -10,10 +10,12 @@ from unittest.mock import MagicMock
 from typer.testing import CliRunner
 
 from distill import cli
+from distill.commands import _helpers as helpers_mod
 from distill.commands import process as process_mod
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
+from distill.library.paths import find_artifact
 from distill.pipeline.costs import ProjectedBudgetExceededError
 
 runner = CliRunner()
@@ -437,7 +439,7 @@ class TestRunCommand:
         monkeypatch.setattr(process_mod, "get_config", lambda: config)
         monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
         self._patch_run_processing(monkeypatch)
-        monkeypatch.setattr(process_mod, "get_transcript", lambda *args, **kwargs: False)
+        monkeypatch.setattr(helpers_mod, "get_transcript", lambda *args, **kwargs: False)
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
 
@@ -451,6 +453,30 @@ class TestRunCommand:
         assert result.exit_code == 0
         assert "new since last refresh" in result.output
         assert "Limited to 1 videos" in result.output
+
+    def test_run_delegates_writes_and_verification_to_shared_processor(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_library(config)
+        video = _video()
+        self._patch_discover(monkeypatch, [video])
+        self._patch_run_processing(monkeypatch)
+        processor = MagicMock(return_value=True)
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "display_estimate", lambda *args, **kwargs: None)
+        monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
+        monkeypatch.setattr(process_mod, "_process_video", processor)
+        monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
+        monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
+
+        result = runner.invoke(cli.app, ["run", "ai"])
+
+        assert result.exit_code == 0, result.output
+        processor.assert_called_once()
+        args, kwargs = processor.call_args
+        assert args[:3] == ("ai", "TestCh", video)
+        assert kwargs["state"].state_file == config.channel_dir("ai", "TestCh") / "state.json"
+        assert not kwargs["state"].is_processed(video.video_id)
+        assert kwargs["eta"] is not None
 
     def test_run_processes_full_video_path(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -467,21 +493,22 @@ class TestRunCommand:
             transcript_file.write_text("Long enough transcript body.", encoding="utf-8")
             return True
 
-        monkeypatch.setattr(process_mod, "get_transcript", write_transcript)
+        monkeypatch.setattr(helpers_mod, "get_transcript", write_transcript)
         monkeypatch.setattr(
-            process_mod, "analyze_video", lambda *args, **kwargs: "## Summary\nInsight"
+            helpers_mod, "analyze_video", lambda *args, **kwargs: "## Summary\nInsight"
         )
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: "# Channel")
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: "# Topic")
-        monkeypatch.setattr(process_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["run", "ai"])
 
         assert result.exit_code == 0
-        assert "Insights saved" in result.output
+        assert "done" in result.output
         assert "What's next" in result.output
         vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
         assert (vid_dir / "metadata.json").exists()
+        assert find_artifact(vid_dir, "insights").exists()
 
     def test_run_short_video_uses_analyze_short(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -497,26 +524,25 @@ class TestRunCommand:
             transcript_file.write_text("Short transcript body.", encoding="utf-8")
             return True
 
-        monkeypatch.setattr(process_mod, "get_transcript", write_transcript)
+        monkeypatch.setattr(helpers_mod, "get_transcript", write_transcript)
         seen: list[str] = []
 
         def capture_short(*args, **kwargs):
             seen.append("short")
             return "## Short insight"
 
-        monkeypatch.setattr(process_mod, "analyze_short", capture_short)
+        monkeypatch.setattr(helpers_mod, "analyze_short", capture_short)
         monkeypatch.setattr(
-            process_mod, "analyze_video", lambda *args, **kwargs: seen.append("full")
+            helpers_mod, "analyze_video", lambda *args, **kwargs: seen.append("full")
         )
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(process_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["run", "ai", "--shorts"])
 
         assert result.exit_code == 0
         assert seen == ["short"]
-        assert "Quick insight (Short)" in result.output
 
     def test_run_skips_when_transcript_missing(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -526,14 +552,14 @@ class TestRunCommand:
         monkeypatch.setattr(process_mod, "display_estimate", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
         self._patch_run_processing(monkeypatch)
-        monkeypatch.setattr(process_mod, "get_transcript", lambda *args, **kwargs: False)
+        monkeypatch.setattr(helpers_mod, "get_transcript", lambda *args, **kwargs: False)
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["run", "ai"])
 
         assert result.exit_code == 0
-        assert "Failed to get transcript" in result.output
+        assert "no transcript" in result.output.lower()
 
     def test_run_skips_empty_transcript(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -550,14 +576,14 @@ class TestRunCommand:
             transcript_file.write_text("   ", encoding="utf-8")
             return True
 
-        monkeypatch.setattr(process_mod, "get_transcript", write_empty_transcript)
+        monkeypatch.setattr(helpers_mod, "get_transcript", write_empty_transcript)
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["run", "ai"])
 
         assert result.exit_code == 0
-        assert "Empty transcript" in result.output
+        assert "empty transcript" in result.output.lower()
 
     def test_run_analysis_failure_keeps_transcript(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -573,19 +599,24 @@ class TestRunCommand:
             transcript_file.write_text("Transcript for retry.", encoding="utf-8")
             return True
 
-        monkeypatch.setattr(process_mod, "get_transcript", write_transcript)
+        monkeypatch.setattr(helpers_mod, "get_transcript", write_transcript)
         monkeypatch.setattr(
-            process_mod, "analyze_video", MagicMock(side_effect=RuntimeError("llm fail"))
+            helpers_mod, "analyze_video", MagicMock(side_effect=RuntimeError("llm fail"))
         )
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(process_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["run", "ai"])
 
         assert result.exit_code == 0
-        assert "Analysis failed" in result.output
-        assert "will retry analysis" in result.output
+        assert "failed: llm fail" in result.output.lower()
+        transcript = find_artifact(
+            config.video_dir_slug("ai", "TestCh", "Video 1", "v1"),
+            "transcript",
+            extension="txt",
+        )
+        assert transcript.read_text(encoding="utf-8") == "Transcript for retry."
 
     def test_run_filters_to_single_channel(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -637,24 +668,23 @@ class TestRunCommand:
 
         vid_dir = config.video_dir_slug("ai", "TestCh", video.title, video.video_id)
         vid_dir.mkdir(parents=True, exist_ok=True)
-        from distill.library.paths import find_artifact
-
         transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
         transcript_file.write_text("Existing transcript body.", encoding="utf-8")
 
-        monkeypatch.setattr(process_mod, "get_transcript", MagicMock(return_value=True))
+        get_transcript = MagicMock(return_value=True)
+        monkeypatch.setattr(helpers_mod, "get_transcript", get_transcript)
         monkeypatch.setattr(
-            process_mod, "analyze_video", lambda *args, **kwargs: "## Summary\nDone"
+            helpers_mod, "analyze_video", lambda *args, **kwargs: "## Summary\nDone"
         )
         monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
-        monkeypatch.setattr(process_mod, "_resolve_intent", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["run", "ai"])
 
-        process_mod.get_transcript.assert_not_called()
+        get_transcript.assert_not_called()
         assert result.exit_code == 0
-        assert "Transcript already exists" in result.output
+        assert find_artifact(vid_dir, "insights").exists()
 
     def test_run_channel_synthesis_failure(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

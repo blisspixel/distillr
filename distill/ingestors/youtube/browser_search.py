@@ -9,7 +9,9 @@ import urllib.request
 from datetime import UTC, datetime, timedelta
 
 from distill._console import console
+from distill.ingestors.browser_network import install_public_web_route
 from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.ingestors.sites.pinned_proxy import PinnedBrowserProxy
 from distill.ingestors.youtube.discovery import (
     MAX_YOUTUBE_SEARCH_RESULTS,
     VideoInfo,
@@ -180,19 +182,35 @@ def _fetch_with_playwright(search_url: str) -> str:
         return ""
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+        with sync_playwright() as p, PinnedBrowserProxy() as proxy_server:
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-quic",
+                    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                ],
+            )
             try:
-                page = browser.new_page()
-                page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(1500)
-                dom_chars = page.evaluate("document.documentElement.outerHTML.length")
-                if not isinstance(dom_chars, int) or dom_chars > _MAX_SEARCH_HTML_BYTES:
-                    return ""
-                html = page.content()
-                if len(html.encode("utf-8")) > _MAX_SEARCH_HTML_BYTES:
-                    return ""
-                return html
+                context = browser.new_context(
+                    proxy={"server": proxy_server},
+                    service_workers="block",
+                )
+                try:
+                    install_public_web_route(context)
+                    page = context.new_page()
+                    page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+                    if not _is_search_url(page.url):
+                        return ""
+                    page.wait_for_timeout(1500)
+                    dom_chars = page.evaluate("document.documentElement.outerHTML.length")
+                    if not isinstance(dom_chars, int) or dom_chars > _MAX_SEARCH_HTML_BYTES:
+                        return ""
+                    html = page.content()
+                    if len(html.encode("utf-8")) > _MAX_SEARCH_HTML_BYTES:
+                        return ""
+                    return html
+                finally:
+                    context.close()
             finally:
                 browser.close()
     except Exception as e:

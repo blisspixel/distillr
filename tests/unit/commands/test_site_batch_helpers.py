@@ -34,6 +34,47 @@ def test_site_batch_plan_boundary_defaults_to_same_host():
     assert row.boundary == "same-host"
 
 
+def test_resolve_site_batch_seeds_enforces_aggregate_page_budget():
+    accepted = [
+        SiteSeed(url=f"https://{index}.example", topic="web", max_pages=100) for index in range(5)
+    ]
+    oversized = [
+        *accepted,
+        SiteSeed(url="https://overflow.example", topic="web", max_pages=1),
+    ]
+
+    assert (
+        len(
+            _site_batch.resolve_site_batch_seeds(
+                accepted,
+                seed_only=False,
+                same_section_only=False,
+            )
+        )
+        == 5
+    )
+    with pytest.raises(ValueError, match="site batch page budget exceeds 500"):
+        _site_batch.resolve_site_batch_seeds(
+            oversized,
+            seed_only=False,
+            same_section_only=False,
+        )
+
+
+def test_resolve_site_batch_seeds_applies_seed_only_before_aggregate_budget():
+    seeds = [
+        SiteSeed(url=f"https://{index}.example", topic="web", max_pages=100) for index in range(6)
+    ]
+
+    resolved = _site_batch.resolve_site_batch_seeds(
+        seeds,
+        seed_only=True,
+        same_section_only=False,
+    )
+
+    assert [(seed.max_depth, seed.max_pages) for seed in resolved] == [(0, 1)] * 6
+
+
 def test_site_batch_plan_estimate_counts_each_site_and_topic_tails(monkeypatch):
     captured = {}
     seeds = [
@@ -81,14 +122,21 @@ def test_run_site_batch_syntheses_records_outputs(tmp_path, monkeypatch):
     topic_output.write_text("# Topic", encoding="utf-8")
     corpus_output.write_text("# Corpus", encoding="utf-8")
     outputs = iter([topic_output, corpus_output])
+    artifact_types = []
 
     monkeypatch.setattr(_site_batch, "synthesize_site_topic", lambda *args, **kwargs: True)
     monkeypatch.setattr(_site_batch, "synthesize_corpus", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_site_batch, "find_artifact", lambda *args, **kwargs: next(outputs))
+
+    def find_artifact(*args, **kwargs):
+        artifact_types.append(args[1])
+        return next(outputs)
+
+    monkeypatch.setattr(_site_batch, "find_artifact", find_artifact)
 
     _site_batch.run_site_batch_syntheses("web", config, CostTracker(), summary)
 
     assert summary.output_files == [topic_output.resolve(), corpus_output.resolve()]
+    assert artifact_types == ["site_synthesis", "corpus_synthesis"]
 
 
 @pytest.mark.parametrize(

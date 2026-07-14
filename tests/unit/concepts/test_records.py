@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from distill.concepts.records import (
@@ -204,6 +206,26 @@ class TestMergedConcept:
             last_seen="x",
         )
         assert m.slug == "unnamed"
+
+    def test_slug_bounds_long_unicode_components_without_losing_identity(self) -> None:
+        first = replace(
+            self._make_merged(),
+            normalized_name=("model architecture " * 40) + ("\u6a21\u578b" * 80) + " alpha",
+        )
+        second = replace(
+            first, normalized_name=first.normalized_name.removesuffix("alpha") + "beta"
+        )
+
+        assert len(first.slug.encode("utf-8")) <= 120
+        assert len(first.slug.encode("utf-16-le")) // 2 <= 120
+        assert first.slug != second.slug
+        assert first.slug.startswith("model_architecture")
+
+    def test_slug_avoids_windows_reserved_device_names(self) -> None:
+        reserved = replace(self._make_merged(), normalized_name="CON")
+
+        assert reserved.slug.startswith("con__")
+        assert reserved.slug != "con"
 
     def test_to_jsonl_row_includes_scalar_derived_views(self) -> None:
         row = self._make_merged(helpful=(3, 5), harmful=(0, 0)).to_jsonl_row()

@@ -380,15 +380,23 @@ def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> No
         stdout="out_time_us=60032000\nout_time=00:01:00.032000\nprogress=end\n",
     )
 
-    with patch(
-        "distill.ingestors.transcribe.subprocess.run",
-        side_effect=[stream_probe, decode_probe],
-    ) as run:
+    ffprobe = str((tmp_path / "trusted" / "ffprobe.exe").resolve())
+    ffmpeg = str((tmp_path / "trusted" / "ffmpeg.exe").resolve())
+    with (
+        patch(
+            "distill.ingestors.transcribe.resolve_executable",
+            side_effect=lambda name: {"ffprobe": ffprobe, "ffmpeg": ffmpeg}[name],
+        ),
+        patch(
+            "distill.ingestors.transcribe.subprocess.run",
+            side_effect=[stream_probe, decode_probe],
+        ) as run,
+    ):
         assert _probe_media_duration(media) == 60.032
 
     stream_command = run.call_args_list[0].args[0]
     decode_command = run.call_args_list[1].args[0]
-    assert stream_command[:4] == ["ffprobe", "-v", "error", "-protocol_whitelist"]
+    assert stream_command[:4] == [ffprobe, "-v", "error", "-protocol_whitelist"]
     assert stream_command[4] == "cache,pipe"
     assert stream_command[-1] == "cache:pipe:0"
     assert "stream=index" in stream_command
@@ -401,6 +409,20 @@ def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> No
     assert run.call_args_list[1].kwargs["stdin"].closed
 
 
+def test_probe_media_duration_refuses_before_spawn_when_tools_are_unresolved(
+    tmp_path: Path,
+) -> None:
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"media")
+    with (
+        patch("distill.ingestors.transcribe.resolve_executable", return_value=None),
+        patch("distill.ingestors.transcribe.subprocess.run") as run,
+    ):
+        assert _probe_media_duration(media) == 0.0
+
+    run.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "side_effect",
     [OSError("missing"), subprocess.TimeoutExpired("ffprobe", 10)],
@@ -410,7 +432,13 @@ def test_probe_media_duration_handles_unavailable_probe(
 ) -> None:
     media = tmp_path / "m.mp4"
     media.write_bytes(b"media")
-    with patch("distill.ingestors.transcribe.subprocess.run", side_effect=side_effect):
+    with (
+        patch(
+            "distill.ingestors.transcribe.resolve_executable",
+            side_effect=lambda name: str((tmp_path / name).resolve()),
+        ),
+        patch("distill.ingestors.transcribe.subprocess.run", side_effect=side_effect),
+    ):
         assert _probe_media_duration(media) == 0.0
 
 
@@ -439,7 +467,13 @@ def test_probe_media_duration_rejects_unsafe_or_invalid_output(
 ) -> None:
     media = tmp_path / "m.mp4"
     media.write_bytes(b"media")
-    with patch("distill.ingestors.transcribe.subprocess.run", side_effect=probe_results):
+    with (
+        patch(
+            "distill.ingestors.transcribe.resolve_executable",
+            side_effect=lambda name: str((tmp_path / name).resolve()),
+        ),
+        patch("distill.ingestors.transcribe.subprocess.run", side_effect=probe_results),
+    ):
         assert _probe_media_duration(media) == 0.0
 
 

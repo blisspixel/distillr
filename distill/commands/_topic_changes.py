@@ -13,6 +13,7 @@ import typer
 from distill.cli_shared import format_date as _format_date
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.locking import exclusive_path_lock
 from distill.library.paths import (
     artifact_path,
     base_frontmatter,
@@ -29,6 +30,7 @@ from distill.pipeline.dashboard_records import JsonObject, TopicChangeCounts, js
 _MAX_TOPIC_JSON_BYTES = 8 * 1024 * 1024
 _MAX_TOPIC_HISTORY_BYTES = 8 * 1024 * 1024
 _MAX_TOPIC_HISTORY_ROWS = 10_000
+_LATEST_CHANGES_LOCK_TIMEOUT_SECONDS = 30.0
 
 
 class _ChangedArtifact(TypedDict):
@@ -883,9 +885,6 @@ def _write_topic_change_briefing(
     )
 
     latest_path = artifact_path(config.library_dir, "latest_changes", identity="library")
-    existing = (
-        strip_frontmatter(latest_path.read_text(encoding="utf-8")) if latest_path.exists() else ""
-    )
     entry = (
         f"## {watch_name}\n"
         f"- Topic: `{topic}`\n"
@@ -895,20 +894,30 @@ def _write_topic_change_briefing(
         f"- History: `{history_path}`\n"
         f"- File: `{briefing_path}`\n\n"
     )
-    latest_path = write_markdown_artifact(
-        config.library_dir,
-        "latest_changes",
-        entry + existing,
-        identity="library",
-        frontmatter=base_frontmatter(
-            artifact_type="latest_changes",
-            title="Latest Changes",
-            source="distill",
-            tags=tags_for("", "watch"),
-            synthesis_scope="operational",
-            extra={"legacy_filename": "latest_changes.md"},
-        ),
-    )
+    with exclusive_path_lock(
+        config.library_dir / ".distill" / "latest_changes.lock",
+        timeout_seconds=_LATEST_CHANGES_LOCK_TIMEOUT_SECONDS,
+        timeout_message="Timed out updating the library latest-changes feed",
+    ):
+        existing = (
+            strip_frontmatter(latest_path.read_text(encoding="utf-8"))
+            if latest_path.exists()
+            else ""
+        )
+        latest_path = write_markdown_artifact(
+            config.library_dir,
+            "latest_changes",
+            entry + existing,
+            identity="library",
+            frontmatter=base_frontmatter(
+                artifact_type="latest_changes",
+                title="Latest Changes",
+                source="distill",
+                tags=tags_for("", "watch"),
+                synthesis_scope="operational",
+                extra={"legacy_filename": "latest_changes.md"},
+            ),
+        )
     return briefing_path
 
 

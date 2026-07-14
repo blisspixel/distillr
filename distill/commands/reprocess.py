@@ -28,23 +28,18 @@ from distill.commands._helpers import (
 )
 from distill.commands._helpers import format_date as _format_date
 from distill.commands._helpers import (
-    resolve_intent as _resolve_intent,
+    process_video as _process_video,
 )
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
 from distill.config import DistillConfig
+from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import ChannelInfo, Library
-from distill.library.paths import (
-    base_frontmatter,
-    find_artifact,
-    tags_for,
-    write_markdown_artifact,
-)
+from distill.library.paths import find_artifact
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
-from distill.pipeline.analysis.video import analyze_short, analyze_video
 from distill.pipeline.costs import (
     BudgetExceededError,
     estimate_routed_video_workflow_cost,
@@ -52,7 +47,6 @@ from distill.pipeline.costs import (
 )
 from distill.pipeline.summary import (
     RunSummary,
-    VideoResult,
     display_estimate,
     display_summary,
 )
@@ -396,70 +390,27 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
             console.print(f"\n  [bold]{ch_name}[/bold]")
 
         title = _metadata_str(meta, "title", vid_dir.name)
-        upload_date = _metadata_str(meta, "upload_date")
-        transcript = find_artifact(vid_dir, "transcript", extension="txt").read_text(
-            encoding="utf-8"
+        video = VideoInfo(
+            video_id=_metadata_str(meta, "video_id", vid_dir.name),
+            title=title,
+            upload_date=_metadata_str(meta, "upload_date"),
+            duration=_metadata_int(meta, "duration"),
+            url=_metadata_str(meta, "url"),
+            channel_name=ch_name,
         )
 
         label = "Short" if is_short else "Analyzing"
         console.print(f"    {label}: {title[:60]}...")
-
-        try:
-            _intent = _resolve_intent(config, topic)
-            if is_short:
-                insights = analyze_short(
-                    title, upload_date, ch_name, transcript, config, tracker=tracker, intent=_intent
-                )
-            else:
-                insights = analyze_video(
-                    title, upload_date, ch_name, transcript, config, tracker=tracker, intent=_intent
-                )
-            source_id = _metadata_str(meta, "video_id", vid_dir.name)
-            analysis_mode = "short" if is_short else "full"
-            insights_path = write_markdown_artifact(
-                vid_dir,
-                "insights",
-                insights,
-                frontmatter=base_frontmatter(
-                    artifact_type="insights",
-                    title=title,
-                    topic=topic,
-                    source="youtube",
-                    source_id=source_id,
-                    url=_metadata_str(meta, "url"),
-                    date=upload_date,
-                    tags=tags_for(topic, "youtube", analysis_mode),
-                    synthesis_scope="single-source",
-                    extra={
-                        "channel": ch_name,
-                        "duration_seconds": _metadata_int(meta, "duration"),
-                        "analysis_mode": analysis_mode,
-                        "legacy_filename": "insights.md",
-                    },
-                ),
-            )
-            summary.add_output(insights_path)
-            summary.add_result(
-                VideoResult(
-                    _metadata_str(meta, "video_id", vid_dir.name),
-                    title,
-                    True,
-                    is_short=is_short,
-                )
-            )
-        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
-            raise
-        except Exception as e:
-            console.print(f"    [red]Failed: {e}[/red]")
-            summary.add_result(
-                VideoResult(
-                    _metadata_str(meta, "video_id", vid_dir.name),
-                    title,
-                    False,
-                    is_short=is_short,
-                    error=str(e),
-                )
-            )
+        _process_video(
+            topic,
+            ch_name,
+            video,
+            config,
+            tracker,
+            summary,
+            analysis_mode="short" if is_short else "full",
+            video_dir=vid_dir,
+        )
 
     # Resynthesize after all analysis
     for ch in channels:

@@ -947,10 +947,23 @@ class TestDossierPhase:
                 return SimpleNamespace(
                     status="completed",
                     steps=[
+                        SimpleNamespace(type="file_search_call", id="search-1"),
+                        SimpleNamespace(type="file_search_result", call_id="search-1"),
                         SimpleNamespace(
                             type="model_output",
-                            content=[SimpleNamespace(type="text", text="dossier body")],
-                        )
+                            content=[
+                                SimpleNamespace(
+                                    type="text",
+                                    text="dossier body",
+                                    annotations=[
+                                        SimpleNamespace(
+                                            type="file_citation",
+                                            file_name="doc.md",
+                                        )
+                                    ],
+                                )
+                            ],
+                        ),
                     ],
                 )
 
@@ -1044,10 +1057,23 @@ class TestDossierPhase:
                 return SimpleNamespace(
                     status="completed",
                     steps=[
+                        SimpleNamespace(type="file_search_call", id="search-1"),
+                        SimpleNamespace(type="file_search_result", call_id="search-1"),
                         SimpleNamespace(
                             type="model_output",
-                            content=[SimpleNamespace(type="text", text="dossier body")],
-                        )
+                            content=[
+                                SimpleNamespace(
+                                    type="text",
+                                    text="dossier body",
+                                    annotations=[
+                                        SimpleNamespace(
+                                            type="file_citation",
+                                            file_name="doc.md",
+                                        )
+                                    ],
+                                )
+                            ],
+                        ),
                     ],
                 )
 

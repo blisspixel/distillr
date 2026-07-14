@@ -14,9 +14,28 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from distill.config import DistillConfig
+from distill.library.confined import read_confined_text
+from distill.library.insights import (
+    discover_insights,
+    insight_content_sha256,
+    read_discovered_insight,
+)
 from distill.library.paths import strip_frontmatter
 
-__all__ = ["SearchResult", "extract_section", "search_corpus"]
+__all__ = [
+    "MAX_SEARCH_QUERY_CHARS",
+    "MAX_SEARCH_QUERY_TERMS",
+    "MAX_SEARCH_RESULTS",
+    "SearchResult",
+    "extract_section",
+    "read_search_result",
+    "search_corpus",
+]
+
+MAX_SEARCH_QUERY_CHARS = 4_096
+MAX_SEARCH_QUERY_TERMS = 128
+MAX_SEARCH_RESULTS = 50
+_MAX_CORPUS_ARTIFACT_BYTES = 4 * 1024 * 1024
 
 # Artifact types and their score boosts
 _TYPE_BOOST: dict[str, float] = {
@@ -55,6 +74,33 @@ class SearchResult:
     preview: str  # Single line, <= 120 chars, no frontmatter
     score: float  # Relevance score (higher = more relevant)
     artifact_type: str  # insights | synthesis | diff | trends | corpus | paper
+    content_sha256: str = ""  # Digest of the exact content snapshot that was ranked
+
+
+def read_search_result(config: DistillConfig, result: SearchResult) -> str | None:
+    """Return a hit only if its bounded content still matches the ranked snapshot."""
+
+    content = read_confined_text(
+        config.library_dir / result.path,
+        config.library_dir,
+        max_bytes=_MAX_CORPUS_ARTIFACT_BYTES,
+    )
+    if content is None or insight_content_sha256(content) != result.content_sha256:
+        return None
+    return content
+
+
+def _validated_terms(query: str, limit: int) -> list[str]:
+    """Validate untrusted search work before any corpus traversal."""
+    if not 1 <= limit <= MAX_SEARCH_RESULTS:
+        raise ValueError(f"search limit must be between 1 and {MAX_SEARCH_RESULTS}")
+    if len(query) > MAX_SEARCH_QUERY_CHARS:
+        raise ValueError(f"search query exceeds {MAX_SEARCH_QUERY_CHARS} characters")
+
+    terms = _tokenize(query)
+    if len(terms) > MAX_SEARCH_QUERY_TERMS:
+        raise ValueError(f"search query exceeds {MAX_SEARCH_QUERY_TERMS} unique terms")
+    return terms
 
 
 def search_corpus(
@@ -65,24 +111,36 @@ def search_corpus(
     limit: int = 10,
 ) -> list[SearchResult]:
     """Search all artifacts in a topic, return ranked results."""
+    terms = _validated_terms(query, limit)
+    if not terms:
+        return []
+
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         return []
 
-    terms = _tokenize(query)
-    if not terms:
-        return []
-
     results: list[SearchResult] = []
     library_root = config.library_dir
+    trusted_insights = {
+        ref.path: ref for ref in discover_insights(topic_dir, confinement_root=library_root)
+    }
 
     for md_file in topic_dir.rglob("*.md"):
         if not md_file.is_file():
             continue
-
-        try:
-            content = md_file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        artifact_name = md_file.name.casefold()
+        if artifact_name.endswith("_answer.md"):
+            continue
+        if artifact_name.endswith("_insights.md"):
+            ref = trusted_insights.get(md_file)
+            content = read_discovered_insight(ref, library_root) if ref is not None else None
+        else:
+            content = read_confined_text(
+                md_file,
+                library_root,
+                max_bytes=_MAX_CORPUS_ARTIFACT_BYTES,
+            )
+        if content is None:
             continue
 
         body = strip_frontmatter(content)
@@ -105,6 +163,7 @@ def search_corpus(
                 preview=preview,
                 score=score,
                 artifact_type=artifact_type,
+                content_sha256=insight_content_sha256(content),
             )
         )
 
@@ -156,8 +215,8 @@ def extract_section(content: str, section_name: str) -> tuple[str, bool]:
 
 
 def _tokenize(text: str) -> list[str]:
-    """Tokenize text into lowercase terms."""
-    return [t for t in re.split(r"[\s\W]+", text.lower()) if t]
+    """Tokenize text into unique lowercase terms while preserving order."""
+    return list(dict.fromkeys(t for t in re.split(r"[\s\W]+", text.lower()) if t))
 
 
 def _detect_artifact_type(path: Path, relative_path: Path) -> str:

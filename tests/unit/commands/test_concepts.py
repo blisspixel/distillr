@@ -25,7 +25,8 @@ def _seed_topic(library_dir: Path, topic: str = "tkg") -> Path:
         d = topic_dir / "papers" / slug
         d.mkdir(parents=True)
         (d / f"{slug}_Insights.md").write_text(
-            f"---\npaper_id: {sid}\n---\n# {slug}\nbody\n", encoding="utf-8"
+            f"---\npaper_id: {sid}\n---\n# {slug}\nX is grounded in this insight.\n",
+            encoding="utf-8",
         )
     return topic_dir
 
@@ -54,6 +55,15 @@ def _stub_llm(rows: list[list]):
         return _StubResponse(queue.pop(0) if queue else [])
 
     return _side
+
+
+def _grounded_x_row() -> dict[str, str]:
+    return {
+        "name": "X",
+        "kind": "technique",
+        "polarity": "helpful",
+        "claim_excerpt": "X is grounded in this insight.",
+    }
 
 
 class TestConceptsCommand:
@@ -191,11 +201,7 @@ class TestConceptsCommand:
 
     def test_runs_end_to_end(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)
-        rows = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}],
-        ]
+        rows = [[_grounded_x_row()], [_grounded_x_row()], [_grounded_x_row()]]
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)):
             result = runner.invoke(cli.app, ["concepts", "build", "tkg", "--threshold", "3"])
         assert result.exit_code == 0
@@ -216,9 +222,7 @@ class TestConceptsCommand:
 
     def test_json_output(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)
-        rows = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 3
+        rows = [[_grounded_x_row()]] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)):
             result = runner.invoke(
                 cli.app, ["concepts", "build", "tkg", "--threshold", "3", "--json"]
@@ -231,9 +235,7 @@ class TestConceptsCommand:
 
     def test_global_json_output(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)
-        rows = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 3
+        rows = [[_grounded_x_row()]] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)):
             result = runner.invoke(
                 cli.app, ["--json", "concepts", "build", "tkg", "--threshold", "3"]
@@ -279,16 +281,12 @@ class TestConceptsCommand:
 
     def test_refresh_re_extracts(self, fixture_config: DistillConfig) -> None:
         _seed_topic(fixture_config.library_dir)
-        rows = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 3
+        rows = [[_grounded_x_row()]] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows)) as mock_llm:
             runner.invoke(cli.app, ["concepts", "build", "tkg", "--threshold", "3"])
         assert mock_llm.call_count == 3
 
-        rows_2 = [
-            [{"name": "X", "normalized_name": "x", "kind": "technique", "polarity": "helpful"}]
-        ] * 3
+        rows_2 = [[_grounded_x_row()]] * 3
         with patch("distill.concepts.extract.llm_call", side_effect=_stub_llm(rows_2)) as mock_llm:
             runner.invoke(cli.app, ["concepts", "build", "tkg", "--threshold", "3", "--refresh"])
         assert mock_llm.call_count == 3  # refresh re-extracts all

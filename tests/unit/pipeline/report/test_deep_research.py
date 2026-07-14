@@ -15,15 +15,34 @@ from distill.pipeline.report.deep_research import (
 )
 
 
-def _completed(text):
+def _completed(text, *, grounded=True):
     """A completed interaction in the real google-genai 2.7+ steps shape."""
+    evidence = (
+        [
+            SimpleNamespace(type="file_search_call", id="search-1"),
+            SimpleNamespace(type="file_search_result", call_id="search-1"),
+        ]
+        if grounded
+        else []
+    )
     return SimpleNamespace(
         status="completed",
         steps=[
+            *evidence,
             SimpleNamespace(
                 type="model_output",
-                content=[SimpleNamespace(type="text", text=text)],
-            )
+                content=[
+                    SimpleNamespace(
+                        type="text",
+                        text=text,
+                        annotations=(
+                            [SimpleNamespace(type="file_citation", file_name="doc.md")]
+                            if grounded
+                            else []
+                        ),
+                    )
+                ],
+            ),
         ],
     )
 
@@ -146,6 +165,43 @@ def test_run_deep_research_saves_completed_output(tmp_path, monkeypatch):
     assert tracker.gemini_queries == 1
     report_path = artifact_path(config.topic_dir("ai"), "report", identity="ai")
     assert strip_frontmatter(report_path.read_text(encoding="utf-8")) == "final report"
+    assert deleted == ["store-1"]
+
+
+def test_run_deep_research_refuses_output_without_file_search_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+
+    class FakeInteractions:
+        def create(self, **kwargs):
+            return SimpleNamespace(id="job-1")
+
+        def get(self, interaction_id):
+            return _completed("ungrounded report", grounded=False)
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.interactions = FakeInteractions()
+
+    monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", FakeClient)
+    monkeypatch.setattr(
+        "distill.pipeline.report.deep_research.create_research_store",
+        lambda *args, **kwargs: ("store-1", 2),
+    )
+    deleted: list[str] = []
+    monkeypatch.setattr(
+        "distill.pipeline.report.deep_research.delete_store",
+        lambda client, name: deleted.append(name),
+    )
+    tracker = CostTracker()
+
+    result = run_deep_research("ai", config, tracker=tracker)
+
+    assert result is None
+    assert tracker.gemini_queries == 1
+    assert not artifact_path(config.topic_dir("ai"), "report", identity="ai").exists()
     assert deleted == ["store-1"]
 
 

@@ -242,7 +242,7 @@ def _run_provider_call(
             model,
         ),
     }
-    if provider_name not in LOCAL_PROVIDERS and provider_name != "agent":
+    if provider_name not in LOCAL_PROVIDERS:
         call_kwargs["usage_sink"] = options.usage_sink
     coroutine = provider.call(model, options.prompt, **call_kwargs)
     try:

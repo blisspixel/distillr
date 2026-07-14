@@ -27,6 +27,7 @@ from typing import Any, cast
 from rich.console import Console
 
 from distill.library.paths import atomic_write_text
+from distill.process_security import package_install_context, resolve_executable
 
 PACKAGE = "distillr"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE}/json"
@@ -132,12 +133,7 @@ def _safe_subprocess_env() -> tuple[str, dict[str, str]]:
     Strips Python path-injection vars so a malicious ``pip.py`` in the user's
     cwd can't shadow the real module (the same hardening preflight uses).
     """
-    safe_cwd = str(Path(sys.executable).resolve().parent)
-    safe_env: dict[str, str] = dict(os.environ)
-    safe_env.pop("PYTHONPATH", None)
-    safe_env.pop("PYTHONHOME", None)
-    safe_env["PYTHONSAFEPATH"] = "1"
-    return safe_cwd, safe_env
+    return package_install_context()
 
 
 def run_self_update(timeout: int = 300) -> tuple[bool, str, bool]:
@@ -160,6 +156,13 @@ def run_self_update(timeout: int = 300) -> tuple[bool, str, bool]:
     if cmd is None:  # pragma: no cover - guarded by the source branch above
         return False, f"No upgrade command for install method '{method}'.", False
 
+    tool_name = cmd[0]
+    if not Path(tool_name).is_absolute():
+        executable = resolve_executable(tool_name)
+        if executable is None:
+            return False, f"`{tool_name}` not found on PATH; install it or upgrade manually.", False
+        cmd[0] = executable
+
     old_version = get_installed_version()
     safe_cwd, safe_env = _safe_subprocess_env()
     try:
@@ -172,7 +175,7 @@ def run_self_update(timeout: int = 300) -> tuple[bool, str, bool]:
             env=safe_env,
         )
     except FileNotFoundError:
-        return False, f"`{cmd[0]}` not found on PATH; install it or upgrade manually.", False
+        return False, f"`{tool_name}` not found on PATH; install it or upgrade manually.", False
     except subprocess.TimeoutExpired:
         return False, f"`{' '.join(cmd)}` timed out after {timeout}s.", False
     except Exception as exc:

@@ -126,6 +126,15 @@ def test_read_rejects_open_errors_invalid_utf8_and_final_identity_change(
     assert confined.read_confined_text(note, root, max_bytes=100) is None
 
 
+def test_read_bytes_rejects_negative_limit(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    note = root / "note.md"
+    note.write_text("safe", encoding="utf-8")
+
+    assert confined.read_confined_bytes(note, root, max_bytes=-1) is None
+
+
 def test_read_closes_descriptor_when_descriptor_setup_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -278,3 +287,118 @@ def test_list_rejects_scan_errors_limits_and_directory_identity_changes(
 
     monkeypatch.setattr(confined, "validate_confined_path", changed_directory)
     assert confined.list_confined_files(directory, root, **options) is None
+
+
+def test_list_confined_directories_sorts_and_enforces_both_limits(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    parent = root / "topics"
+    parent.mkdir()
+    (parent / "zeta").mkdir()
+    (parent / "alpha").mkdir()
+    (parent / "ordinary.txt").write_text("ignored", encoding="utf-8")
+
+    assert confined.list_confined_directories(
+        parent,
+        root,
+        max_entries=10,
+        max_directories=10,
+    ) == [parent / "alpha", parent / "zeta"]
+    assert (
+        confined.list_confined_directories(
+            parent,
+            root,
+            max_entries=1,
+            max_directories=10,
+        )
+        is None
+    )
+    assert (
+        confined.list_confined_directories(
+            parent,
+            root,
+            max_entries=10,
+            max_directories=1,
+        )
+        is None
+    )
+
+
+def test_list_confined_directories_rejects_unreadable_and_wrong_type(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    directory = root / "topics"
+    directory.mkdir()
+    ordinary_file = root / "topics.txt"
+    ordinary_file.write_text("not a directory", encoding="utf-8")
+    real_lstat = Path.lstat
+
+    def fail_target_lstat(path: Path) -> os.stat_result:
+        if path == directory:
+            raise OSError("denied")
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fail_target_lstat)
+    assert (
+        confined.list_confined_directories(
+            directory,
+            root,
+            max_entries=10,
+            max_directories=10,
+        )
+        is None
+    )
+    monkeypatch.undo()
+    assert (
+        confined.list_confined_directories(
+            ordinary_file,
+            root,
+            max_entries=10,
+            max_directories=10,
+        )
+        is None
+    )
+
+
+def test_list_confined_directories_rejects_scan_and_identity_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    directory = root / "topics"
+    directory.mkdir()
+    options = {"max_entries": 10, "max_directories": 10}
+
+    def fail_scandir(_directory: Path) -> Never:
+        raise OSError("denied")
+
+    monkeypatch.setattr(confined.os, "scandir", fail_scandir)
+    assert confined.list_confined_directories(directory, root, **options) is None
+    monkeypatch.undo()
+
+    monkeypatch.setattr(confined, "_scan_confined_directories", lambda *_args, **_kwargs: None)
+    assert confined.list_confined_directories(directory, root, **options) is None
+    monkeypatch.undo()
+
+    real_validate = confined.validate_confined_path
+    calls = 0
+
+    def changed_directory(
+        path: Path,
+        trusted_root: Path,
+        *,
+        expect_directory: bool,
+    ) -> tuple[Path, os.stat_result] | None:
+        nonlocal calls
+        result = real_validate(path, trusted_root, expect_directory=expect_directory)
+        calls += 1
+        if calls == 2 and result is not None:
+            return result[0], _stat_with_inode(result[1], result[1].st_ino + 1)
+        return result
+
+    monkeypatch.setattr(confined, "validate_confined_path", changed_directory)
+    assert confined.list_confined_directories(directory, root, **options) is None

@@ -31,11 +31,12 @@ _HEADERS = {
 
 def _is_allowed_video_url(url: str) -> bool:
     try:
-        host = (urllib.parse.urlparse(url).hostname or "").lower()
+        parsed = urllib.parse.urlparse(url)
+        host = (parsed.hostname or "").lower()
     except ValueError:
         return False
     on_twimg = host == "twimg.com" or host.endswith(".twimg.com")
-    return on_twimg and is_public_web_url(url)
+    return parsed.scheme.lower() == "https" and on_twimg and is_public_web_url(url)
 
 
 def is_reusable_video(path: Path) -> bool:
@@ -51,9 +52,9 @@ def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
     """Stream a public ``video.twimg.com`` .mp4 to *dest*.
 
     ``url`` originates from the (attacker-influenced) syndication response, so it
-    is pinned to ``*.twimg.com`` + a public IP, redirects are re-validated per
-    hop, and the body is size-capped -- preventing the SSRF a hostile tweet's
-    chosen video URL could otherwise trigger.
+    is restricted to HTTPS on ``*.twimg.com`` plus a public IP, redirects are
+    re-validated per hop, and the body is size-capped. These controls prevent
+    SSRF and cleartext transport downgrade from hostile response metadata.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
     current = url

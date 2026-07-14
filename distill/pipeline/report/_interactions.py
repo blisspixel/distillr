@@ -32,6 +32,7 @@ from distill.pipeline.costs import CostTracker
 __all__ = [
     "POLLING_STATUSES",
     "await_interaction",
+    "file_search_grounding_reason",
     "interaction_text",
     "require_cost_tracker",
     "submit_metered_interaction",
@@ -42,6 +43,9 @@ __all__ = [
 # status google-genai adds later). Fail-closed by design: an unrecognized
 # status exits the loop rather than hanging the run.
 POLLING_STATUSES = frozenset({"in_progress", "requires_action"})
+_INTERRUPTED_ACCOUNTING_NOTE = (
+    "Deep Research accounting raised while preserving an active process interruption."
+)
 
 
 def require_cost_tracker(tracker: CostTracker | None) -> CostTracker:
@@ -69,8 +73,11 @@ def submit_metered_interaction[InteractionT](
     tracker.authorize_gemini_query(model)
     try:
         interaction = submit()
-    except Exception:
-        tracker.record_gemini_query(model, outcome="ambiguous")
+    except BaseException as active_error:
+        try:
+            tracker.record_gemini_query(model, outcome="ambiguous")
+        except BaseException:
+            active_error.add_note(_INTERRUPTED_ACCOUNTING_NOTE)
         raise
     tracker.record_gemini_query(model, outcome="accepted")
     return interaction
@@ -95,6 +102,41 @@ def _get_interaction(client: object, interaction_id: str) -> object:
     if not callable(get_method):
         raise TypeError("client.interactions.get is not callable")
     return cast(Callable[[str], object], get_method)(interaction_id)
+
+
+def file_search_grounding_reason(interaction: object) -> str | None:
+    """Return why a completed interaction lacks structural File Search evidence."""
+
+    steps = _sequence_attr(interaction, "steps")
+    call_ids = {
+        call_id
+        for step in steps
+        if _attr(step, "type") == "file_search_call"
+        and isinstance((call_id := _attr(step, "id")), str)
+        and call_id
+    }
+    result_ids = {
+        call_id
+        for step in steps
+        if _attr(step, "type") == "file_search_result"
+        and isinstance((call_id := _attr(step, "call_id")), str)
+        and call_id
+    }
+    if not call_ids.intersection(result_ids):
+        return "completed interaction has no matched File Search result"
+
+    model_outputs = [step for step in steps if _attr(step, "type") == "model_output"]
+    if model_outputs:
+        for part in _sequence_attr(model_outputs[-1], "content"):
+            for annotation in _sequence_attr(part, "annotations"):
+                if _attr(annotation, "type") != "file_citation":
+                    continue
+                if any(
+                    isinstance((identity := _attr(annotation, name)), str) and bool(identity)
+                    for name in ("document_uri", "file_name", "source", "media_id")
+                ):
+                    return None
+    return "final model output has no file citation evidence"
 
 
 def interaction_text(interaction: object) -> str:

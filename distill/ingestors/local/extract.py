@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
+
+from distill.library.confined import read_confined_bytes
 
 __all__ = [
     "LocalDocument",
@@ -51,6 +54,46 @@ class LocalDocument:
     title: str
 
 
+def _read_local_snapshot(path: Path) -> bytes:
+    try:
+        file_stat = path.lstat()
+    except FileNotFoundError as exc:
+        raise LocalExtractionError(f"Not a file: {path}") from exc
+    except OSError as exc:
+        raise LocalExtractionError(f"Could not inspect {path.name}: {exc}") from exc
+    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+        raise LocalExtractionError(f"Refusing unsafe local file path: {path}")
+    if file_stat.st_size > _MAX_FILE_BYTES:
+        raise LocalExtractionError(
+            f"{path.name} is {file_stat.st_size} bytes, over the {_MAX_FILE_BYTES}-byte ingest cap."
+        )
+    raw = read_confined_bytes(path, path.parent, max_bytes=_MAX_FILE_BYTES)
+    if raw is None:
+        raise LocalExtractionError(f"Refusing unsafe or unreadable local file path: {path}")
+    return raw
+
+
+def _extract_snapshot(
+    raw: bytes,
+    extension: str,
+    *,
+    max_chars: int | None,
+) -> tuple[str, str]:
+    if extension in _PDF_EXTS:
+        with tempfile.TemporaryDirectory(prefix="distill-pdf-input-") as temp_dir:
+            snapshot = Path(temp_dir) / f"document{extension}"
+            snapshot.write_bytes(raw)
+            return _extract_pdf(snapshot, max_chars=max_chars), "pdf"
+    decoded = raw.decode("utf-8", errors="replace")
+    if extension in _HTML_EXTS:
+        return _html_to_text(decoded), "html"
+    if extension in _MARKDOWN_EXTS:
+        return decoded, "markdown"
+    if extension in _TEXT_EXTS:
+        return decoded, "text"
+    raise LocalExtractionError(f"Unsupported local document extension: {extension}")
+
+
 def extract_local_document(path: Path, *, max_chars: int | None = None) -> LocalDocument:
     """Extract text from ``path``, dispatching on file extension.
 
@@ -59,9 +102,6 @@ def extract_local_document(path: Path, *, max_chars: int | None = None) -> Local
     :class:`LocalExtractionError` for a missing file, an unsupported type, or a
     document that yields no extractable text.
     """
-    if not path.is_file():
-        raise LocalExtractionError(f"Not a file: {path}")
-
     ext = path.suffix.lower()
     # Refuse extensionless dotfiles (.env, .netrc, ...): these are config/secret
     # files, not research content, and the extensionless "" text route would
@@ -71,22 +111,14 @@ def extract_local_document(path: Path, *, max_chars: int | None = None) -> Local
             f"Refusing to ingest dotfile {path.name!r} (config/secret files are "
             "not research content). Give it a supported extension to ingest it."
         )
-    _check_size(path)
-    title = _title_from_name(path)
-
-    if ext in _PDF_EXTS:
-        text, kind = _extract_pdf(path, max_chars=max_chars), "pdf"
-    elif ext in _HTML_EXTS:
-        text, kind = _html_to_text(_read_text(path)), "html"
-    elif ext in _MARKDOWN_EXTS:
-        text, kind = _read_text(path), "markdown"
-    elif ext in _TEXT_EXTS:
-        text, kind = _read_text(path), "text"
-    else:
+    if ext not in _PDF_EXTS | _HTML_EXTS | _MARKDOWN_EXTS | _TEXT_EXTS:
         raise LocalExtractionError(
             f"Unsupported file type {ext or '(no extension)'!r} for {path.name}. "
             "Supported: .pdf, .md, .txt, .html."
         )
+    raw = _read_local_snapshot(path)
+    title = _title_from_name(path)
+    text, kind = _extract_snapshot(raw, ext, max_chars=max_chars)
 
     text = _sanitize_surrogates(text).strip()
     if not text:

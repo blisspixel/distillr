@@ -211,6 +211,35 @@ class TestApplyMigration:
         assert "[[insights" not in updated_content
         assert "[[my-topic_Insights" in updated_content
 
+    def test_duplicate_legacy_stems_update_only_colocated_links(
+        self,
+        library_dir: Path,
+    ) -> None:
+        topics = library_dir / "topics"
+        first = topics / "first"
+        second = topics / "second"
+        first.mkdir(parents=True)
+        second.mkdir(parents=True)
+        (first / "insights.md").write_text("# First\n", encoding="utf-8")
+        (second / "insights.md").write_text("# Second\n", encoding="utf-8")
+        first_ref = first / "notes.md"
+        second_ref = second / "notes.md"
+        global_ref = topics / "index.md"
+        first_ref.write_text("See [[insights|First]].\n", encoding="utf-8")
+        second_ref.write_text("See [[insights|Second]].\n", encoding="utf-8")
+        global_ref.write_text("See [[insights|Unknown]].\n", encoding="utf-8")
+
+        result = apply_migration(scan_legacy_artifacts(library_dir), library_dir=library_dir)
+
+        assert result.files_renamed == 2
+        assert result.links_updated == 2
+        assert "[[first_Insights|First]]" in first_ref.read_text(encoding="utf-8")
+        assert "[[second_Insights|Second]]" in second_ref.read_text(encoding="utf-8")
+        assert global_ref.read_text(encoding="utf-8") == "See [[insights|Unknown]].\n"
+        assert len(result.errors) == 1
+        assert "Ambiguous wiki-link stem 'insights'" in result.errors[0]
+        assert "left unchanged" in result.errors[0]
+
     def test_conflict_detection_skips_existing_target(self, library_dir: Path) -> None:
         """When target already exists, the rename is skipped as a conflict."""
         artifact_dir = library_dir / "topics" / "my-topic"

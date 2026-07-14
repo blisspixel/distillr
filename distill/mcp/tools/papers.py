@@ -15,7 +15,7 @@ from distill.library.intent import CorpusIntent
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
-from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
+from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,6 @@ async def papers(
     except Exception as exc:
         logger.warning("papers synthesis failed for %s: %s", topic, exc)
 
-    save_run_log(config.library_dir, "papers", tracker)
     return json.dumps(
         {
             "status": "complete",

@@ -28,6 +28,7 @@ from distill.doctor.checks import (
     check_lmstudio_status,
     check_ollama_status,
     check_retired_models,
+    doctor_key_validation_session,
     doctor_validate_key,
 )
 from distill.library import Library
@@ -274,10 +275,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         # API keys -- live-validated, not presence-only. A revoked/expired key
         # is present but dead; reporting it as "set" is a false-green that the
         # human doctor path (which makes a live call) would never produce.
-        xai_status, xai_detail = _doctor_validate_key("xai", config)
-        gem_status, gem_detail = _doctor_validate_key("gemini", config)
-        ant_status, ant_detail = _doctor_validate_key("anthropic", config)
-        oai_status, oai_detail = _doctor_validate_key("openai", config)
+        with doctor_key_validation_session(config):
+            xai_status, xai_detail = _doctor_validate_key("xai", config)
+            gem_status, gem_detail = _doctor_validate_key("gemini", config)
+            ant_status, ant_detail = _doctor_validate_key("anthropic", config)
+            oai_status, oai_detail = _doctor_validate_key("openai", config)
         checks["xai_api_key"] = xai_status  # ok | invalid | missing | skipped
         checks["gemini_api_key"] = gem_status  # ok | invalid | not_set | skipped
         checks["anthropic_api_key"] = ant_status  # ok | invalid | not_set | skipped
@@ -397,7 +399,12 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     # XAI/Grok -- required. Live-validated via the shared helper so this human
     # view and the --json view can never disagree about a key's health.
-    xai_status, xai_detail = _doctor_validate_key("xai", config)
+    with doctor_key_validation_session(config):
+        xai_status, xai_detail = _doctor_validate_key("xai", config)
+        gem_status, gem_detail = _doctor_validate_key("gemini", config)
+        ant_status, ant_detail = _doctor_validate_key("anthropic", config)
+        oai_status, oai_detail = _doctor_validate_key("openai", config)
+
     if xai_status == "ok":
         console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{xai_detail}[/dim]")
     elif xai_status == "missing":
@@ -415,7 +422,6 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{xai_detail:.60}[/red]")
 
     # Gemini -- needed for reports
-    gem_status, gem_detail = _doctor_validate_key("gemini", config)
     if gem_status == "ok":
         console.print("  [green]OK[/green]  GEMINI_API_KEY    [dim]Deep Research[/dim]")
     elif gem_status == "not_set":
@@ -435,7 +441,6 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{gem_detail:.60}[/red]")
 
     # Anthropic -- optional metered analysis route
-    ant_status, ant_detail = _doctor_validate_key("anthropic", config)
     if ant_status == "ok":
         console.print("  [green]OK[/green]  ANTHROPIC_API_KEY [dim]claude-sonnet-5[/dim]")
     elif ant_status == "not_set":
@@ -453,7 +458,6 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print(f"  [red]XX[/red]  ANTHROPIC_API_KEY [red]{ant_detail:.60}[/red]")
 
     # OpenAI -- optional
-    oai_status, oai_detail = _doctor_validate_key("openai", config)
     if oai_status == "ok":
         console.print("  [green]OK[/green]  OPENAI_API_KEY    [dim]optional[/dim]")
     elif oai_status == "not_set":
@@ -637,7 +641,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
         vid_detail += f"  [dim]({scan_vids} scan, {total_vids - scan_vids} full)[/dim]"
     console.print(f"  Videos:     {vid_detail}")
     if watchlist:
-        w_with_instr = sum(1 for e in watchlist if e.instructions)
+        w_with_instr = sum(1 for e in watchlist if e.active_instructions)
         watch_detail = f"[{_ACCENT}]{len(watchlist)}[/{_ACCENT}]"
         if w_with_instr:
             watch_detail += f"  [dim]({w_with_instr} with custom instructions)[/dim]"

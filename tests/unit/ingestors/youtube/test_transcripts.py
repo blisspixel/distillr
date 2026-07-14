@@ -273,7 +273,7 @@ class TestYoutubeCaptionsFallback:
     def _fast_retries(self, monkeypatch):
         monkeypatch.setattr(transcripts, "_sleep", lambda s: None)
 
-    @patch("distill.ingestors.youtube.transcripts.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.transcripts.SafeYoutubeDL")
     def test_transient_error_retried_then_gives_up(self, mock_ydl):
         mock_ydl.return_value.__enter__.return_value.download.side_effect = Exception("boom")
 
@@ -283,7 +283,7 @@ class TestYoutubeCaptionsFallback:
         # One initial attempt + one per backoff slot.
         assert mock_ydl.call_count == len(transcripts._RETRY_DELAYS) + 1
 
-    @patch("distill.ingestors.youtube.transcripts.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.transcripts.SafeYoutubeDL")
     def test_no_vtt_is_permanent_no_retry(self, mock_ydl):
         """A clean download with no subtitle file means captionless -- retrying
         cannot change that, so the budget is one attempt."""
@@ -295,7 +295,7 @@ class TestYoutubeCaptionsFallback:
         assert mock_ydl.call_count == 1
 
     @patch("distill.ingestors.youtube.transcripts.tempfile.TemporaryDirectory")
-    @patch("distill.ingestors.youtube.transcripts.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.transcripts.SafeYoutubeDL")
     def test_retry_recovers_from_transient_failure(self, mock_ydl, mock_tmpdir, tmp_path):
         temp_dir = tmp_path / "captions"
         temp_dir.mkdir()
@@ -319,10 +319,14 @@ class TestYoutubeCaptionsFallback:
 
         assert result == "Hello"
         assert mock_ydl.call_args.args[0]["noprogress"] is True
+        assert mock_ydl.call_args.kwargs == {
+            "metadata_byte_limit": transcripts._MAX_CAPTION_BYTES,
+            "total_byte_limit": transcripts.YTDLP_METADATA_TOTAL_BYTES,
+        }
         assert calls["n"] == 2
 
     @patch("distill.ingestors.youtube.transcripts.tempfile.TemporaryDirectory")
-    @patch("distill.ingestors.youtube.transcripts.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.transcripts.SafeYoutubeDL")
     def test_try_youtube_captions_parses_downloaded_vtt(self, mock_ydl, mock_tmpdir, tmp_path):
         temp_dir = tmp_path / "captions"
         temp_dir.mkdir()
@@ -342,7 +346,7 @@ class TestYoutubeCaptionsFallback:
         assert result == "Hello"
 
     @patch("distill.ingestors.youtube.transcripts.tempfile.TemporaryDirectory")
-    @patch("distill.ingestors.youtube.transcripts.yt_dlp.YoutubeDL")
+    @patch("distill.ingestors.youtube.transcripts.SafeYoutubeDL")
     def test_caption_reader_rejects_oversized_vtt(
         self, mock_ydl, mock_tmpdir, tmp_path, monkeypatch
     ):
@@ -383,8 +387,15 @@ class TestWhisperLadderFallback:
         large.write_bytes(b"larger")
 
         class FakeYDL:
-            def __init__(self, _options):
+            def __init__(self, _options, **limits):
                 self.options = _options
+                assert limits == {
+                    "metadata_byte_limit": transcripts.YTDLP_METADATA_RESPONSE_BYTES,
+                    "media_byte_limit": transcripts._MAX_AUDIO_BYTES,
+                    "total_byte_limit": (
+                        transcripts._MAX_AUDIO_BYTES + transcripts.YTDLP_METADATA_TOTAL_BYTES
+                    ),
+                }
 
             def __enter__(self):
                 return self
@@ -400,7 +411,7 @@ class TestWhisperLadderFallback:
                     "duration": raw_duration,
                 }
 
-        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+        monkeypatch.setattr(transcripts, "SafeYoutubeDL", FakeYDL)
 
         audio, hint, duration_s = transcripts._download_audio(
             "https://youtube.com/watch?v=abc", "abc", tmp_path
@@ -412,7 +423,7 @@ class TestWhisperLadderFallback:
 
     def test_download_audio_handles_fetch_failure(self, tmp_path, monkeypatch):
         class FailingYDL:
-            def __init__(self, _options):
+            def __init__(self, _options, **_limits):
                 self.options = _options
 
             def __enter__(self):
@@ -421,7 +432,7 @@ class TestWhisperLadderFallback:
             def __exit__(self, *_args):
                 return False
 
-        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FailingYDL)
+        monkeypatch.setattr(transcripts, "SafeYoutubeDL", FailingYDL)
 
         assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
             None,
@@ -433,7 +444,7 @@ class TestWhisperLadderFallback:
         monkeypatch.setattr(transcripts, "_MAX_AUDIO_BYTES", 10)
 
         class FakeYDL:
-            def __init__(self, options):
+            def __init__(self, options, **_limits):
                 self.options = options
 
             def __enter__(self):
@@ -447,7 +458,7 @@ class TestWhisperLadderFallback:
                 self.options["progress_hooks"][0]({"status": "downloading", "downloaded_bytes": 11})
                 return {}
 
-        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+        monkeypatch.setattr(transcripts, "SafeYoutubeDL", FakeYDL)
 
         assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
             None,
@@ -460,7 +471,7 @@ class TestWhisperLadderFallback:
         (tmp_path / "abc.m4a").write_bytes(b"x" * 11)
 
         class FakeYDL:
-            def __init__(self, _options):
+            def __init__(self, _options, **_limits):
                 pass
 
             def __enter__(self):
@@ -473,7 +484,7 @@ class TestWhisperLadderFallback:
                 assert download is True
                 return {"duration": 1}
 
-        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+        monkeypatch.setattr(transcripts, "SafeYoutubeDL", FakeYDL)
 
         assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
             None,
@@ -483,7 +494,7 @@ class TestWhisperLadderFallback:
 
     def test_download_audio_requires_a_nonempty_output_file(self, tmp_path, monkeypatch):
         class FakeYDL:
-            def __init__(self, _options):
+            def __init__(self, _options, **_limits):
                 self.options = _options
 
             def __enter__(self):
@@ -495,7 +506,7 @@ class TestWhisperLadderFallback:
             def extract_info(self, _url, *, download):
                 return {"duration": 10}
 
-        monkeypatch.setattr(transcripts.yt_dlp, "YoutubeDL", FakeYDL)
+        monkeypatch.setattr(transcripts, "SafeYoutubeDL", FakeYDL)
 
         assert transcripts._download_audio("https://youtube.com/watch?v=abc", "abc", tmp_path) == (
             None,

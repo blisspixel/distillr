@@ -30,11 +30,11 @@ class _StubResponse:
         self.output_tokens = 50
 
 
-def _write_paper_insight(topic_dir: Path, paper_id: str, slug: str, title: str) -> None:
+def _write_paper_insight(topic_dir: Path, paper_id: str, slug: str, title: str, body: str) -> None:
     path = topic_dir / "papers" / slug / f"{slug}_Insights.md"
     path.parent.mkdir(parents=True)
     path.write_text(
-        f'---\npaper_id: {paper_id}\ntitle: "{title}"\n---\n\n# {title}\n\nBody.\n',
+        f'---\npaper_id: {paper_id}\ntitle: "{title}"\n---\n\n# {title}\n\n{body}\n',
         encoding="utf-8",
     )
 
@@ -43,89 +43,115 @@ def _write_paper_insight(topic_dir: Path, paper_id: str, slug: str, title: str) 
 def fixture_corpus(tmp_path: Path) -> Path:
     """Seed a 5-paper TKG corpus."""
     topic_dir = tmp_path / "library" / "topics" / "tkg"
-    _write_paper_insight(topic_dir, "2604.11544", "romem", "RoMem")
-    _write_paper_insight(topic_dir, "2602.12389", "est", "EST")
-    _write_paper_insight(topic_dir, "2607.00001", "cid_tkg", "CID-TKG")
-    _write_paper_insight(topic_dir, "2509.99001", "skeptic", "Production-Scale Skeptic")
-    _write_paper_insight(topic_dir, "2510.05050", "context", "Context Paper")
+    _write_paper_insight(
+        topic_dir,
+        "2604.11544",
+        "romem",
+        "RoMem",
+        "Rotational Embeddings use continuous functional rotation and beat discrete "
+        "timestamps. Temporal Knowledge Graphs encode facts with time.",
+    )
+    _write_paper_insight(
+        topic_dir,
+        "2602.12389",
+        "est",
+        "EST",
+        "Rotational Embeddings use an energy-barrier gate and yield a 6.2 MRR gain. "
+        "Temporal Knowledge Graphs are the right modeling frame.",
+    )
+    _write_paper_insight(
+        topic_dir,
+        "2607.00001",
+        "cid_tkg",
+        "CID-TKG",
+        "Rotational Embeddings improve interpolation. Temporal Knowledge Graphs benefit "
+        "from rotation-based encodings.",
+    )
+    _write_paper_insight(
+        topic_dir,
+        "2509.99001",
+        "skeptic",
+        "Production-Scale Skeptic",
+        "Temporal Knowledge Graphs fail at production scale; static systems remain dominant.",
+    )
+    _write_paper_insight(
+        topic_dir,
+        "2510.05050",
+        "context",
+        "Context Paper",
+        "DeepMind published prior work on this area.",
+    )
     return topic_dir
 
 
 def _fixture_llm_responses() -> list:
-    """Hand-crafted LLM responses simulating realistic extraction."""
+    """Hand-crafted responses in the pipeline's sorted artifact-path order."""
     return [
-        # RoMem: helpful for rotational embeddings + neutral mention of TKG
+        # CID-TKG: helpful for rotational embeddings + TKG
         [
             {
                 "name": "Rotational Embeddings",
-                "normalized_name": "rotational embeddings",
                 "kind": "technique",
                 "polarity": "helpful",
-                "claim_excerpt": "Continuous functional rotation beats discrete timestamps.",
-                "evidence_type": "empirical_result",
+                "claim_excerpt": "Rotational Embeddings improve interpolation.",
             },
             {
                 "name": "Temporal Knowledge Graphs",
-                "normalized_name": "temporal knowledge graphs",
                 "kind": "architecture",
-                "polarity": "neutral",
-                "claim_excerpt": "Background: TKGs encode facts with time.",
-                "evidence_type": "background",
+                "polarity": "helpful",
+                "claim_excerpt": "Temporal Knowledge Graphs benefit from rotation-based encodings.",
             },
+        ],
+        # Context paper: mentions DeepMind
+        [
+            {
+                "name": "DeepMind",
+                "kind": "organization",
+                "polarity": "neutral",
+                "claim_excerpt": "DeepMind published prior work on this area.",
+            }
         ],
         # EST: helpful for rotational embeddings + TKG
         [
             {
                 "name": "Rotational Embeddings",
-                "normalized_name": "rotational embeddings",
                 "kind": "technique",
                 "polarity": "helpful",
-                "claim_excerpt": "Energy-barrier gate over rotation yields 6.2 MRR gain.",
+                "claim_excerpt": "Rotational Embeddings use an energy-barrier gate and yield a 6.2 MRR gain.",
                 "evidence_type": "empirical_result",
             },
             {
                 "name": "Temporal Knowledge Graphs",
-                "normalized_name": "temporal knowledge graphs",
                 "kind": "architecture",
                 "polarity": "helpful",
-                "claim_excerpt": "TKG modeling is the right framing.",
+                "claim_excerpt": "Temporal Knowledge Graphs are the right modeling frame.",
             },
         ],
-        # CID-TKG: helpful for rotational embeddings + TKG
+        # RoMem: helpful for rotational embeddings + neutral mention of TKG
         [
             {
                 "name": "Rotational Embeddings",
-                "normalized_name": "rotational embeddings",
                 "kind": "technique",
                 "polarity": "helpful",
-                "claim_excerpt": "Rotation-based encodings improve interpolation.",
+                "claim_excerpt": "Rotational Embeddings use continuous functional rotation and beat discrete timestamps.",
+                "evidence_type": "empirical_result",
             },
             {
                 "name": "Temporal Knowledge Graphs",
-                "normalized_name": "temporal knowledge graphs",
                 "kind": "architecture",
-                "polarity": "helpful",
+                "polarity": "neutral",
+                "claim_excerpt": "Temporal Knowledge Graphs encode facts with time.",
+                "evidence_type": "background",
             },
         ],
         # Skeptic: harmful for TKG
         [
             {
                 "name": "Temporal Knowledge Graphs",
-                "normalized_name": "temporal knowledge graphs",
                 "kind": "architecture",
                 "polarity": "harmful",
-                "claim_excerpt": "TKGs fail at production scale; static remains dominant.",
+                "claim_excerpt": "Temporal Knowledge Graphs fail at production scale; static systems remain dominant.",
                 "evidence_type": "limitation",
-            }
-        ],
-        # Context paper: mentions DeepMind
-        [
-            {
-                "name": "DeepMind",
-                "normalized_name": "deepmind",
-                "kind": "organization",
-                "polarity": "neutral",
-                "claim_excerpt": "DeepMind published prior work on this area.",
             }
         ],
     ]

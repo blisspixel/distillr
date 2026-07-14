@@ -173,6 +173,11 @@ def test_update_ytdlp_runs_pip_from_trusted_cwd_with_sanitized_env(monkeypatch):
 
     monkeypatch.setenv("PYTHONPATH", ".")
     monkeypatch.setenv("PYTHONHOME", "bad")
+    monkeypatch.setenv("XAI_API_KEY", "must-not-reach-pip")
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-pip")
+    monkeypatch.setenv("GEMINI_API_KEY", "must-not-reach-pip")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-reach-pip")
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-reach-pip")
     monkeypatch.setattr(preflight.subprocess, "run", fake_run)
     versions = iter(["2026.1.1", "2026.4.20"])
     monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: next(versions))
@@ -193,6 +198,11 @@ def test_update_ytdlp_runs_pip_from_trusted_cwd_with_sanitized_env(monkeypatch):
     assert captured["kwargs"]["cwd"] == str(Path(sys.executable).resolve().parent)
     assert "PYTHONPATH" not in captured["kwargs"]["env"]
     assert "PYTHONHOME" not in captured["kwargs"]["env"]
+    assert "XAI_API_KEY" not in captured["kwargs"]["env"]
+    assert "OPENAI_API_KEY" not in captured["kwargs"]["env"]
+    assert "GEMINI_API_KEY" not in captured["kwargs"]["env"]
+    assert "ANTHROPIC_API_KEY" not in captured["kwargs"]["env"]
+    assert "GITHUB_TOKEN" not in captured["kwargs"]["env"]
     assert captured["kwargs"]["env"]["PYTHONSAFEPATH"] == "1"
 
 

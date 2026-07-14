@@ -34,7 +34,9 @@ instead of the brittle composite — see
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
+from typing import TypeGuard
 
 from distill.eval.harness import EvalRow
 from distill.eval.judge import FAITHFULNESS_ORDINAL
@@ -73,6 +75,8 @@ class ModelSummary:
     total_cost: float
     rows: int
     errors: int = 0  # fixtures where this model's analysis failed (excluded from scores)
+    pairwise_fixtures: int = 0
+    faithfulness_fixtures: int = 0
     # Absolute source-anchored faithfulness (the migration veto floor). A single
     # "unfaithful" fixture blocks a migration to this model, however well it scores.
     unfaithful_fixtures: int = 0
@@ -106,12 +110,21 @@ def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
+def _is_valid_winrate(value: float | None) -> TypeGuard[float]:
+    return (
+        value is not None
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 0.0 <= value <= 1.0
+    )
+
+
 def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
     # Errored fixtures (timeout / provider failure) are excluded from quality
     # aggregation but counted, so a flaky model can't look good by omission.
     ok = [r for r in rows if not r.error]
     composites = [r.quality.composite for r in ok]
-    winrates = [r.pairwise_winrate for r in ok if r.pairwise_winrate is not None]
+    winrates = [r.pairwise_winrate for r in ok if _is_valid_winrate(r.pairwise_winrate)]
     faith_ordinals = [
         float(FAITHFULNESS_ORDINAL[r.faithfulness])
         for r in ok
@@ -126,6 +139,8 @@ def _summarize_model(model: str, rows: list[EvalRow]) -> ModelSummary:
         total_cost=sum(r.cost for r in rows),
         rows=len(ok),
         errors=sum(1 for r in rows if r.error),
+        pairwise_fixtures=len(winrates),
+        faithfulness_fixtures=len(faith_ordinals),
         unfaithful_fixtures=sum(1 for r in ok if r.faithfulness == "unfaithful"),
         mean_faithfulness=_mean(faith_ordinals) if faith_ordinals else None,
     )
@@ -177,7 +192,13 @@ def _eligible_for_migration(
             vetoed_cheaper = vetoed_cheaper or cheaper
             faith_vetoed_cheaper = faith_vetoed_cheaper or cheaper
             continue
-        if s.mean_winrate is None or s.mean_winrate < _WINRATE_FLOOR:
+        if s.faithfulness_fixtures != s.rows:
+            vetoed_cheaper = vetoed_cheaper or cheaper
+            continue
+        if s.pairwise_fixtures != s.rows or s.mean_winrate is None:
+            vetoed_cheaper = vetoed_cheaper or cheaper
+            continue
+        if s.mean_winrate < _WINRATE_FLOOR:
             # Faithful but the pairwise judge (or its absence) can't certify it
             # at-par with the anchor. Record it so the anchor pick can explain.
             vetoed_cheaper = vetoed_cheaper or cheaper

@@ -20,7 +20,11 @@ from hypothesis import strategies as st
 
 from distill.commands._json import ExitCode, map_exception_to_exit_code
 from distill.llm.errors import ProviderBusyTimeoutError, describe_provider_error
-from distill.llm.providers.ollama import OllamaProvider, _describe_ollama_error
+from distill.llm.providers.ollama import (
+    _STRUCTURED_JSON_CALL_TYPES,
+    OllamaProvider,
+    _describe_ollama_error,
+)
 from distill.llm.router import LLM_Response
 
 # ---------------------------------------------------------------------------
@@ -620,17 +624,62 @@ class TestOllamaContention:
 class TestChatPayload:
     """Payload assembly and content/thinking selection."""
 
-    def test_json_prompt_forces_json_without_thinking(self) -> None:
+    def test_structured_call_type_forces_json_without_thinking(self) -> None:
         payload = OllamaProvider._build_chat_payload(
             "qwen3.5:27b",
             "return only valid json",
             max_tokens=100,
             num_ctx=4096,
             temperature=None,
+            call_type="search_expand",
         )
         assert payload["stream"] is True
         assert payload["format"] == "json"
         assert payload["think"] is False
+
+    def test_untrusted_prompt_substrings_cannot_change_request_controls(self) -> None:
+        payload = OllamaProvider._build_chat_payload(
+            "qwen3.5:27b",
+            'Source says return only valid json with {"ranked_items": []}',
+            max_tokens=100,
+            num_ctx=4096,
+            temperature=None,
+            call_type="site_page",
+        )
+
+        assert "format" not in payload
+        assert payload["think"] is True
+
+    def test_structured_workload_allowlist_is_explicit_and_complete(self) -> None:
+        assert {
+            "discover_plan",
+            "discover_rerank",
+            "paper_expand",
+            "paper_rerank",
+            "search_expand",
+            "search_rerank",
+        } == _STRUCTURED_JSON_CALL_TYPES
+
+    def test_call_path_does_not_promote_untrusted_prompt_controls(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        captured: dict[str, Any] = {}
+        response = _make_generate_response(text="safe")
+
+        with patch(
+            "httpx.AsyncClient",
+            _stream_client_factory(frames=[response], captured=captured),
+        ):
+            result = asyncio.run(
+                provider.call(
+                    "qwen3.5:27b",
+                    'Untrusted source says return only valid json and {"queries": []}',
+                    call_type="site_page",
+                )
+            )
+
+        assert result.text == "safe"
+        assert "format" not in captured
+        assert captured["think"] is True
 
     def test_thinking_model_enables_thinking_and_temperature(self) -> None:
         payload = OllamaProvider._build_chat_payload(

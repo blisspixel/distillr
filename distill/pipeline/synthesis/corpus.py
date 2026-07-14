@@ -259,14 +259,11 @@ def synthesize_corpus(
 
     topic_dir = config.topic_dir(topic)
 
-    # Read per-channel video syntheses directly rather than the rolled-up
-    # topic_synthesis file. The topic_synthesis identity is written by both the
-    # video producer (synthesize_topic) and the website producer
-    # (synthesize_site_topic); in a mixed-source run the website synthesis
-    # overwrites the video one, which previously dropped all video intelligence
-    # from the corpus. It also goes unwritten entirely for single-channel topics
-    # (synthesize_topic needs >=2 channels). Reading channels directly mirrors
-    # how site syntheses are read and makes the corpus complete regardless.
+    # Read per-channel video syntheses directly rather than summarizing the
+    # rolled-up topic synthesis a second time. The rollup is also absent for
+    # single-channel topics because ``synthesize_topic`` requires two channels.
+    # Reading channels directly mirrors site collection and keeps the corpus
+    # complete regardless of whether a modality-specific rollup exists.
     source_sections.update(
         _collect_subdir_sections(
             topic_dir / "channels", topic, "synthesis", "Video channel", "Channel synthesis"

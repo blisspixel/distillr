@@ -82,7 +82,7 @@ def list_topics(limit: int = 50) -> str:
 
 
 @mcp.tool()
-@write_tool("find_insights_summary")
+@write_tool("find_insights_summary", ledger_command="summary-query")
 def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str:
     """Summarize a topic's best-matching insights, focused on a query, within a token budget.
 

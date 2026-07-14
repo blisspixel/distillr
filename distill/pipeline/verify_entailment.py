@@ -16,8 +16,9 @@ that a threshold turns into a flag -- not an LLM-as-judge-of-record, and
 deliberately not the analysis model (the checker must not share its biases).
 
 The heavy dependency (transformers + torch) is an optional extra
-(``pip install distillr[entailment]``); when it is absent the tier is
-skipped silently and the deterministic tier stands alone, exactly as before.
+(``pip install distillr[entailment]``). Ordinary ingest can skip the tier when
+it is absent; authoritative saved-answer promotion requires it and fails
+closed before the answer-model call.
 """
 
 from __future__ import annotations

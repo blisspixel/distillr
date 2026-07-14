@@ -4,7 +4,12 @@ Run with: pytest -m live_network tests/unit/ingestors/youtube/test_ytdlp_contrac
 """
 
 import pytest
-import yt_dlp
+
+from distill.ingestors.youtube.safe_ytdlp import (
+    YTDLP_METADATA_RESPONSE_BYTES,
+    YTDLP_METADATA_TOTAL_BYTES,
+    SafeYoutubeDL,
+)
 
 pytestmark = pytest.mark.live_network
 
@@ -21,7 +26,11 @@ class TestChannelListingContract:
             "playlistend": 1,
             "ignoreerrors": True,
         }
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with SafeYoutubeDL(
+            opts,
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
             info = ydl.extract_info("https://www.youtube.com/@YouTube/videos", download=False)
 
         assert info is not None
@@ -46,7 +55,11 @@ class TestChannelListingContract:
             "extract_flat": "in_playlist",
             "playlistend": 1,
         }
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with SafeYoutubeDL(
+            opts,
+            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+        ) as ydl:
             info = ydl.extract_info("https://www.youtube.com/@YouTube/videos", download=False)
 
         entries = list(info.get("entries", []))
