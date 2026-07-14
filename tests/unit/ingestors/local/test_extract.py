@@ -294,10 +294,10 @@ def test_pdf_worker_main_reports_invalid_numeric_limits(monkeypatch, capsys):
 @pytest.mark.parametrize(
     ("current_limits", "infinity", "expected"),
     [
-        ((-1, -1), -1, (512, -1)),
+        ((-1, -1), -1, (512, 512)),
         ((256, 1024), -1, (256, 1024)),
         ((-1, 128), -1, (128, 128)),
-        ((-1, -1), 2**63 - 1, (512, -1)),
+        ((-1, -1), 2**63 - 1, (512, 512)),
     ],
 )
 def test_pdf_worker_applies_bounded_posix_memory_limit(

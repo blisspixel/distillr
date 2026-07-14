@@ -248,7 +248,10 @@ def _open_temporary_task(
         descriptor = os.open(temporary_path, flags, 0o600)
     try:
         descriptor_stat = os.fstat(descriptor)
-        path_stat = temporary_path.lstat()
+        try:
+            path_stat = temporary_path.lstat()
+        except FileNotFoundError as exc:
+            raise OSError("agent task root changed during task creation") from exc
         if (
             _unsafe_task_file(temporary_path, descriptor_stat)
             or _task_file_revision(descriptor_stat) != _task_file_revision(path_stat)
