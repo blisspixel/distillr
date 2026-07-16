@@ -175,6 +175,20 @@ def test_empty_costs_page_offers_operator_guidance(config):
     assert "By Topic (30d)" not in response.text
 
 
+def test_empty_watchlist_page_offers_recurring_setup_path(config):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/watchlist")
+
+    assert response.status_code == 200
+    assert "No watches configured" in response.text
+    assert "distill monitor" in response.text
+    assert "distill topic-watch add" in response.text
+    assert "distill watch add" in response.text
+    assert "does not schedule runs itself" in response.text
+    assert "Channel Watches" not in response.text
+
+
 def test_dashboard_styles_include_narrow_screen_and_focus_support(config):
     client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 

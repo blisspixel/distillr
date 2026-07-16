@@ -213,7 +213,9 @@ def test_show_dashboard_renders_empty_non_first_run_sections(monkeypatch) -> Non
     assert "No topics yet" in output
     assert "No runs logged yet" in output
     assert "No recent synthesis/report artifacts detected" in output
-    assert "No immediate issues detected" in output
+    assert "No immediate issues detected from the latest run logs" in output or (
+        "No run issues logged yet" in output
+    )
     assert "distill latest" in output
 
 
@@ -268,4 +270,4 @@ def test_render_dashboard_html_uses_artifact_and_empty_fallbacks() -> None:
     assert "<li>None</li>" in html
     assert "brief: topic0 Jun 01 08:00 AM" in html
     assert "No runs logged yet" in html
-    assert "No immediate issues detected" in html
+    assert "No run issues logged yet" in html

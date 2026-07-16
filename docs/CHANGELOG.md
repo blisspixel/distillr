@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   recorded yet.
 - `distill serve --help` documents the default loopback bind, Host checks for
   untrusted rendered content, and the exposure risk of non-loopback binds.
+- Empty Watchlist page now explains recurring setup (`monitor`, `topic-watch`,
+  `watch add`) and that Distill does not schedule runs itself. Dashboard
+  "Needs Attention" no longer claims a clean bill of health when no runs exist.
 
 ### Added
 

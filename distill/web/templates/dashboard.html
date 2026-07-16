@@ -164,7 +164,11 @@
     <div class="attention-item">{{ item.message }}</div>
     {% endfor %}
     {% if not latest_results.get('failed') and not latest_issues and not stale_topic_watches and not corpus_health_warnings and not budget_messages and not cost_warnings %}
-    <div class="attention-item ok">No immediate issues detected</div>
+      {% if recent_runs %}
+      <div class="attention-item ok">No immediate issues from the latest run logs</div>
+      {% else %}
+      <div class="attention-item ok">No run issues logged yet. Issues appear after ingest or watch runs.</div>
+      {% endif %}
     {% endif %}
   </div>
 </div>

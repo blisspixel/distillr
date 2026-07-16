@@ -587,7 +587,12 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
     attention_lines.extend(snapshot["budget_messages"][:5])
     attention_lines.extend(item["message"] for item in snapshot["cost_warnings"][:5])
     if not attention_lines:
-        attention_lines = ["No immediate issues detected"]
+        if snapshot["recent_runs"]:
+            attention_lines = ["No immediate issues from the latest run logs"]
+        else:
+            attention_lines = [
+                "No run issues logged yet. Issues appear after ingest or watch runs."
+            ]
 
     topic_spend_lines = [
         f"{topic} - ${cost:.2f} / {runs} runs"

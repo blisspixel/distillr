@@ -15,6 +15,20 @@
 </div>
 {% endif %}
 
+{% if not channel_watches and not topic_watches %}
+<section class="card empty-state" aria-labelledby="empty-watchlist-title">
+  <p class="eyebrow">Stay current</p>
+  <h2 id="empty-watchlist-title">No watches configured</h2>
+  <p>Watches are recurring sources. Configure them after you have a topic, then run catch-up or topic-watch on a cadence you control.</p>
+  <ol>
+    <li><code>distill monitor "your topic query" --topic my-topic --preview</code></li>
+    <li><code>distill topic-watch add "your topic query" --topic my-topic</code></li>
+    <li><code>distill watch add &lt;channel-url&gt; --topic my-topic</code></li>
+    <li><code>distill topic-watch run</code> or <code>distill catch-up</code> when you want a refresh</li>
+  </ol>
+  <p class="empty-state-note">Distill does not schedule runs itself. External loops, cron, or a human operator choose when to run watches.</p>
+</section>
+{% else %}
 <div class="grid-2">
   <div class="card">
     <h2>Channel Watches</h2>
@@ -67,4 +81,5 @@
     </table>
   </div>
 </div>
+{% endif %}
 {% endblock %}
