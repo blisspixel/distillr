@@ -3218,7 +3218,8 @@ class TestLibraryHints:
     def test_library_empty_shows_examples(self, mock_config):
         result = runner.invoke(cli.app, ["library"])
         assert result.exit_code == 0
-        assert "empty" in result.output.lower() or "Get started" in result.output
+        assert "empty" in result.output.lower()
+        assert "distill init" in result.output or "First-time setup" in result.output
 
 
 class TestCatchUpHints:

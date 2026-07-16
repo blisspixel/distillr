@@ -152,7 +152,15 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
             sys.stdout.write(envelope.to_json() + "\n")
         else:
-            console.print("[dim]No cost history yet. Costs are logged after each run.[/dim]")
+            console.print(
+                "[dim]No cost history yet. Costs are logged after each model run to "
+                "library/.distill/cost_log.jsonl "
+                "(preview with --preview before spending).[/dim]"
+            )
+            console.print(
+                "[dim]Inspect: distill costs · distill --json costs · "
+                "distill --cost-mode no-metered doctor[/dim]"
+            )
             _render_performance_evidence(performance, console)
             _costs_local_cloud_section(config)
             _costs_biggest_prompts_section(config, biggest_prompts)
@@ -182,7 +190,13 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
             sys.stdout.write(envelope.to_json() + "\n")
         else:
-            console.print("[dim]No cost entries found.[/dim]")
+            console.print(
+                "[dim]No cost entries found in the library cost ledger "
+                "(library/.distill/cost_log.jsonl).[/dim]"
+            )
+            console.print(
+                "[dim]Inspect: distill --json costs · distill --cost-mode no-metered doctor[/dim]"
+            )
             _render_performance_evidence(performance, console)
             _costs_local_cloud_section(config)
             _costs_biggest_prompts_section(config, biggest_prompts)
@@ -646,7 +660,11 @@ def status(  # noqa: C901 — legacy, will refactor
 
     topics = lib.get_topics()
     if not topics:
-        console.print("[dim]Library is empty[/dim]")
+        console.print("[dim]Library is empty.[/dim]")
+        console.print(
+            "[dim]Setup: distill init · distill doctor · "
+            'distill papers "question" --topic my-topic --limit 5 --preview[/dim]'
+        )
         return
 
     total_videos = 0

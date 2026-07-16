@@ -117,10 +117,14 @@ def library_cmd() -> None:
     if not topics:
         console.print(
             Panel(
-                "[dim]Library is empty.\n\nGet started:[/dim]\n"
-                '  distill latest "Microsoft Fabric best practices"\n'
-                "  distill add ai https://www.youtube.com/@SomeChannel\n"
-                "  distill run ai",
+                "[dim]Library is empty.\n\nFirst-time setup:[/dim]\n"
+                "  distill init\n"
+                "  distill doctor\n"
+                '  distill papers "your research question" --topic my-topic --limit 5 --preview\n\n'
+                "[dim]After setup:[/dim]\n"
+                '  distill latest "your research question" --topic my-topic --limit 5 --preview\n'
+                "  distill add my-topic https://www.youtube.com/@SomeChannel\n"
+                "  distill run my-topic",
                 title="Distill Library",
                 border_style="dim",
             )

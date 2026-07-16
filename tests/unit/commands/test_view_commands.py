@@ -95,6 +95,9 @@ class TestLibraryCommand:
 
         assert result.exit_code == 0
         assert "Library is empty" in result.output
+        assert "distill init" in result.output
+        assert "distill doctor" in result.output
+        assert "--preview" in result.output
 
     def test_library_json_payload(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

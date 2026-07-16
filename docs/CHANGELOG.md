@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Empty Watchlist page now explains recurring setup (`monitor`, `topic-watch`,
   `watch add`) and that Distill does not schedule runs itself. Dashboard
   "Needs Attention" no longer claims a clean bill of health when no runs exist.
+- Empty `distill library`, `distill status`, and `distill costs` outputs now
+  point at init/doctor/preview and the local cost ledger instead of only
+  reporting emptiness.
 
 ### Added
 
