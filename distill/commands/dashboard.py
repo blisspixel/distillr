@@ -55,6 +55,19 @@ def _cost_run_float(entry: CostRun, key: str) -> float:
     return 0.0
 
 
+def _build_setup_table() -> Table:
+    table = Table.grid(expand=True)
+    table.add_column(style="bold cyan", width=23)
+    table.add_column()
+    table.add_row("Set up once", "distill init")
+    table.add_row("Check readiness", "distill doctor")
+    table.add_row(
+        "Preview before spend",
+        'distill papers "your research question" --topic my-topic --limit 5 --preview',
+    )
+    return table
+
+
 def _build_start_here_table() -> Table:
     table = Table.grid(expand=True)
     table.add_column(style="bold cyan", width=23)
@@ -81,12 +94,23 @@ def _build_start_here_table() -> Table:
 
 def _show_first_run_home(version: str, help_hint: str = "distill --help for all commands") -> None:
     console.print(f"  [dim]v{version}[/dim]  ·  [bold]Distill Start[/bold]")
-    console.print("  [dim]Distill one thing first. Build the library later.[/dim]")
+    console.print(
+        "  [dim]Set up once, preview next, then ingest. Build the library deliberately.[/dim]"
+    )
+    console.print()
+    console.print(
+        Panel(
+            _build_setup_table(),
+            title="First-Time Setup",
+            border_style="cyan",
+            box=box.ROUNDED,
+        )
+    )
     console.print()
     console.print(
         Panel(
             _build_start_here_table(),
-            title="Pick A Starting Point",
+            title="After Setup: Pick A Starting Point",
             border_style="cyan",
             box=box.ROUNDED,
         )
@@ -96,13 +120,25 @@ def _show_first_run_home(version: str, help_hint: str = "distill --help for all 
     notes = Table.grid(expand=True)
     notes.add_column(style="bold cyan", width=14)
     notes.add_column()
-    notes.add_row("What happens", "Each command saves artifacts into your library for reuse later.")
     notes.add_row(
-        "Use --topic", "Choose where the output gets filed. Default topic: [bold]ai[/bold]."
+        "What happens",
+        "Each ingest writes plain Markdown plus receipts into your local library.",
+    )
+    notes.add_row(
+        "Use --topic",
+        "Choose where output is filed. Default topic: [bold]ai[/bold].",
+    )
+    notes.add_row(
+        "Preview first",
+        "Prefer [bold]--preview[/bold] to see shortlists and cost estimates before writes.",
+    )
+    notes.add_row(
+        "Spend control",
+        "Use [bold]--cost-mode no-metered[/bold] to refuse API-billed routes, or keep defaults and review [bold]distill costs[/bold].",
     )
     notes.add_row(
         "Then",
-        "Open the generated files, run [bold]distill videos <topic>[/bold], or generate synthesis/report later.",
+        "Open the files, run [bold]distill videos <topic>[/bold], [bold]distill audit <topic>[/bold], or synthesize/report later.",
     )
     console.print(Panel(notes, title="How Distill Works", border_style="green", box=box.ROUNDED))
     console.print()

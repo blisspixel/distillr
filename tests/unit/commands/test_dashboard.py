@@ -155,7 +155,12 @@ def test_show_dashboard_falls_back_to_first_run_when_config_fails(monkeypatch) -
 
     output = stream.getvalue()
     assert "Distill Start" in output
+    assert "First-Time Setup" in output
+    assert "distill init" in output
+    assert "distill doctor" in output
+    assert "--preview" in output
     assert "distill video" in output
+    assert "Spend control" in output
 
 
 def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch) -> None:

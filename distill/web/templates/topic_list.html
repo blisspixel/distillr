@@ -23,7 +23,18 @@
     </div>
   </a>
   {% else %}
-  <div class="card"><p style="color:var(--muted)">No topics yet. Run <code>distill channel</code> or <code>distill latest</code> to get started.</p></div>
+  <section class="card empty-state" aria-labelledby="empty-topics-title">
+    <p class="eyebrow">Start here</p>
+    <h2 id="empty-topics-title">No topics yet</h2>
+    <p>Set up Distill, then preview a source before ingesting into a topic.</p>
+    <ol>
+      <li><code>distill init</code></li>
+      <li><code>distill doctor</code></li>
+      <li><code>distill papers "your research question" --topic my-topic --limit 5 --preview</code></li>
+      <li><code>distill latest "your research question" --topic my-topic --limit 5 --preview</code></li>
+    </ol>
+    <p class="empty-state-note">Preview shortlists candidates and estimates cost without writing corpus artifacts.</p>
+  </section>
   {% endfor %}
 </div>
 {% endblock %}

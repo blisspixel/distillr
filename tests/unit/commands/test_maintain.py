@@ -868,6 +868,18 @@ def test_corpus_failure_and_dashboard_modes(tmp_path, monkeypatch):
     assert calls == ["banner", "dashboard"]
 
 
+def test_serve_help_documents_loopback_default():
+    from typer.testing import CliRunner
+
+    from distill import cli
+
+    result = CliRunner().invoke(cli.app, ["serve", "--help"])
+    assert result.exit_code == 0
+    assert "127.0.0.1" in result.output
+    assert "loopback" in result.output.casefold()
+    assert "non-loopback" in result.output.casefold() or "expose" in result.output.casefold()
+
+
 def test_dashboard_web_open_and_serve_delegate(tmp_path, monkeypatch):
     config = _config(tmp_path)
     _patch_config(monkeypatch, config)

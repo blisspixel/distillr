@@ -7,6 +7,20 @@
 <h1>Costs</h1>
 <p class="subtitle">Total spend: ${{ "%.2f"|format(total_spend) }}</p>
 
+{% if not entries and not topic_rollups and not source_rollups and not biggest_prompts %}
+<section class="card empty-state" aria-labelledby="empty-costs-title">
+  <p class="eyebrow">Operator view</p>
+  <h2 id="empty-costs-title">No spend recorded yet</h2>
+  <p>Cost rows appear after a real or preview run that uses a model route. Local operational evidence stays on disk; Distill does not phone home for product analytics.</p>
+  <ol>
+    <li>Ledger: <code>library/.distill/cost_log.jsonl</code> (legacy: <code>library/cost_log.jsonl</code>)</li>
+    <li>Per-call tokens: <code>library/.distill/telemetry.jsonl</code></li>
+    <li>CLI: <code>distill costs</code> or <code>distill --json costs</code></li>
+    <li>Budget mode: <code>distill --cost-mode no-metered doctor</code> refuses API-billed routes before calls</li>
+  </ol>
+  <p class="empty-state-note">If you expected spend here, run <code>distill doctor</code> and confirm the active library path and cost mode.</p>
+</section>
+{% else %}
 <div class="grid-2">
   {% if topic_rollups %}
   <div class="card">
@@ -88,4 +102,5 @@
     </tbody>
   </table>
 </div>
+{% endif %}
 {% endblock %}

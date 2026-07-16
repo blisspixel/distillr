@@ -147,6 +147,34 @@ def test_empty_dashboard_offers_a_truthful_first_action(config):
     assert 'hx-trigger="every 60s"' in response.text
 
 
+def test_empty_topics_page_offers_setup_first_path(config):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/topics")
+
+    assert response.status_code == 200
+    assert "No topics yet" in response.text
+    assert "distill init" in response.text
+    assert "distill doctor" in response.text
+    assert "distill papers" in response.text
+    assert "distill channel" not in response.text
+    assert "--preview" in response.text
+
+
+def test_empty_costs_page_offers_operator_guidance(config):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/costs")
+
+    assert response.status_code == 200
+    assert "No spend recorded yet" in response.text
+    assert "cost_log.jsonl" in response.text
+    assert "telemetry.jsonl" in response.text
+    assert "distill costs" in response.text
+    assert "no-metered" in response.text
+    assert "By Topic (30d)" not in response.text
+
+
 def test_dashboard_styles_include_narrow_screen_and_focus_support(config):
     client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 

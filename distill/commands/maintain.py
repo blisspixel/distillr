@@ -915,10 +915,20 @@ def dashboard(
 
 def serve(
     port: int = typer.Option(8899, "--port", "-p", help="Port to serve on"),
-    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help="Bind address. Default 127.0.0.1 is loopback-only; non-loopback binds expose the local corpus.",
+    ),
     open_browser: bool = typer.Option(True, "--open/--no-open", help="Open browser on start"),
 ):
-    """Launch a local web dashboard for browsing your library."""
+    """Launch a local read-only web dashboard for browsing your library.
+
+    Binds to loopback by default (127.0.0.1). The dashboard renders untrusted
+    ingested content with sanitization and Host checks that accept only loopback
+    Host headers. Prefer the default bind unless you intentionally operate a
+    trusted local network and understand the exposure.
+    """
     from distill.web.server import run_server
 
     run_server(get_config(), host=host, port=port, open_browser=open_browser)

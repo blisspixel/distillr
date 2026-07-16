@@ -53,7 +53,12 @@ class DistillGroup(TyperGroup):
 
 _HELP = (
     "Distill source material into usable intelligence.\n\n"
-    "Pick a starting point:\n"
+    "First-time setup:\n"
+    "  distill init                 guided .env, provider, and browser setup\n"
+    "  distill doctor               read-only readiness check (keys, tools, health)\n"
+    '  distill papers "question" --topic my-topic --limit 5 --preview\n'
+    "                               shortlist + estimate without writing corpus files\n\n"
+    "Then pick a starting point:\n"
     '  Build a topic corpus?   distill topic create "Microsoft Fabric best practices" --videos 10 --papers 10\n'
     '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'
     "  Have one website URL?  distill site https://example.com/page --topic scratch --seed-only\n"

@@ -179,6 +179,10 @@ class TestTopLevelExperience:
     def test_help_shows_intent_led_examples(self):
         result = runner.invoke(cli.app, ["--help"])
         assert result.exit_code == 0
+        assert "First-time setup" in result.output
+        assert "distill init" in result.output
+        assert "distill doctor" in result.output
+        assert "--preview" in result.output
         assert "Have one YouTube URL?" in result.output
         assert "Build a topic corpus?" in result.output
         assert "Want recurring updates?" in result.output

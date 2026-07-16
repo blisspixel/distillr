@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Fixed
+
+- First-run CLI home and top-level `distill --help` now lead with `distill init`,
+  `distill doctor`, and a `--preview` papers example before single-URL ingest
+  paths, matching the empty web dashboard guidance.
+- Empty Topics and Costs web pages no longer leave operators without a path:
+  Topics points at setup and preview commands instead of the obsolete
+  `distill channel` tip; Costs explains the local cost ledger, telemetry files,
+  `distill costs`, and fail-closed `--cost-mode no-metered` when no spend is
+  recorded yet.
+- `distill serve --help` documents the default loopback bind, Host checks for
+  untrusted rendered content, and the exposure risk of non-loopback binds.
+
+### Added
+
+- Added `distill skill doctor|install|uninstall|export` as the safe portable
+  lifecycle for the canonical Agent Skill. The wheel now carries an exact
+  integrity-manifested skill bundle; direct mutations are preview-first,
+  ownership-aware, race-rechecked, link-safe, atomic, rollback-capable, and
+  post-write verified. Exports are deterministic and include SHA-256 sidecars.
+- Added six native Claude plugin behavioral eval cases for corpus reading, safe
+  curation, bounded worker handoff, billing truth, local-source recency, and an
+  unrelated code-task negative trigger. Semantic criteria use model graders;
+  offline CI checks only structural schema and distribution drift.
+- Added one generated, self-contained `distill-corpus` plugin for Codex,
+  Claude Code, Grok Build, and Gemini CLI, with native repository marketplaces,
+  an updateable Gemini extension, direct Gemini and Antigravity skill installs,
+  versioned claude.ai and Agent Skills archives, a universal plugin archive,
+  SHA-256 checksums, exact-copy drift detection, and release automation. The
+  canonical skill remains the
+  only hand-edited source, and every host path preserves the `host-managed`
+  billing boundary instead of presenting subscription use as proven free.
+- Added the `distill worker` active-session handoff for deferred
+  `AgentProvider` tasks. Codex, Claude Code, Grok, Gemini-style, Antigravity-style,
+  and similar sessions can atomically claim one provider-neutral task into an
+  isolated scratch workspace, submit only a bounded Markdown result with an
+  ownership and hash receipt, abandon it for another host, or explicitly release
+  an expired claim. The bundled corpus skill documents the complete worker
+  procedure and now includes cross-client metadata.
+
+### Changed
+
+- Prefer native client package managers when they preserve provenance and
+  updates, with the verified `distill skill` direct install as the fallback.
+  Client presence and skill installation remain explicitly separate from
+  included-plan authentication or no-metered proof.
+- Classified active-session results as `host-managed`, separate from both
+  metered API and proven no-metered usage. The ledger preserves host and model
+  evidence, marks external cost unavailable, and makes recurring profile budget
+  receipts fail closed. Direct plan-quota CLI adapters remain gated on current
+  support, included-plan auth proof, scratch and native-usage contracts, and eval
+  quality.
+
 ## 0.19.36 - 2026-07-14
 
 ### Fixed
