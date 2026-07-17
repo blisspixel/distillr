@@ -14,8 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Agent Skill generation now canonicalizes the UTF-8 skill, eval, and license
   payloads to LF before hashing, copying, and archiving them. Integrity
   manifests and release archives therefore remain identical across Windows,
-  Linux, and macOS checkouts. Forced-color CLI help assertions also compare
-  visible text instead of embedded ANSI styling.
+  Linux, and macOS checkouts. CLI assertions now normalize forced-color styling
+  and platform-dependent line wrapping. The fresh-wheel smoke installs declared
+  dependencies and uses Python isolated mode so a source checkout cannot mask
+  the installed artifact.
 - Packaged Agent Skill verification now accepts content-verified wheel files
   installed through `uv`'s cache hardlinks. The release gate installs the built
   wheel and loads its integrity-manifested bundle so source-tree success cannot

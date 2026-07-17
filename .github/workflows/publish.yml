@@ -105,8 +105,8 @@ jobs:
         run: |
           whl=$(ls dist/*.whl)
           uv venv .wheel-smoke
-          uv pip install --python .wheel-smoke/bin/python --no-deps "$whl"
-          .wheel-smoke/bin/python -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
+          uv pip install --python .wheel-smoke/bin/python "$whl"
+          .wheel-smoke/bin/python -I -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
 
       - name: Generate CycloneDX SBOM
         run: |

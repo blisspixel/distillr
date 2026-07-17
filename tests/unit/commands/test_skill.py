@@ -139,7 +139,7 @@ def test_skill_human_lifecycle_output(tmp_path: Path, monkeypatch: pytest.Monkey
     install = ["skill", "install", "--project-root", str(tmp_path)]
     preview = runner.invoke(app, install)
     assert preview.exit_code == 0
-    assert "No files changed" in preview.output
+    assert "No files changed" in " ".join(preview.output.split())
     applied = runner.invoke(app, [*install, "--yes"])
     assert applied.exit_code == 0
     assert "is current" in applied.output
