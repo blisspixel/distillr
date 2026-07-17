@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Agent Skill generation now canonicalizes the UTF-8 skill, eval, and license
+  payloads to LF before hashing, copying, and archiving them. Integrity
+  manifests and release archives therefore remain identical across Windows,
+  Linux, and macOS checkouts. Forced-color CLI help assertions also compare
+  visible text instead of embedded ANSI styling.
 - Packaged Agent Skill verification now accepts content-verified wheel files
   installed through `uv`'s cache hardlinks. The release gate installs the built
   wheel and loads its integrity-manifested bundle so source-tree success cannot
@@ -77,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The maintainer explicitly waived the native Claude plugin behavior run for
   this release because Claude Code 2.1.206 and 2.1.212 both exposed the command
   but reported that account access was still in early access before any model
-  call or spend. The substitute release evidence is 5,405 passing offline tests
+  call or spend. The substitute release evidence is 5,407 passing offline tests
   at 95.12 percent branch coverage, strict Claude, Gemini, and Grok package
   validation, deterministic archive and checksum verification, and fresh-wheel
   Agent Skill lifecycle plus worker claim, submission, receipt, and replay

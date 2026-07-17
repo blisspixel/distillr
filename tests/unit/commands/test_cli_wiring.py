@@ -179,15 +179,16 @@ class TestTopLevelExperience:
     def test_help_shows_intent_led_examples(self):
         result = runner.invoke(cli.app, ["--help"])
         assert result.exit_code == 0
-        assert "First-time setup" in result.output
-        assert "distill init" in result.output
-        assert "distill doctor" in result.output
-        assert "--preview" in result.output
-        assert "Have one YouTube URL?" in result.output
-        assert "Build a topic corpus?" in result.output
-        assert "Want recurring updates?" in result.output
-        assert "distill monitor" in result.output
-        assert "Microsoft AI news" in result.output
+        output = ANSI_RE.sub("", result.output)
+        assert "First-time setup" in output
+        assert "distill init" in output
+        assert "distill doctor" in output
+        assert "--preview" in output
+        assert "Have one YouTube URL?" in output
+        assert "Build a topic corpus?" in output
+        assert "Want recurring updates?" in output
+        assert "distill monitor" in output
+        assert "Microsoft AI news" in output
 
     def test_help_shows_recurring_workflow_examples(self):
         checks = [

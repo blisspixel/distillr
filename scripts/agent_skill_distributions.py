@@ -80,6 +80,15 @@ def _is_link(path: Path) -> bool:
     return path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
 
 
+def _canonical_text_payload(payload: bytes, *, relative: PurePosixPath, label: str) -> bytes:
+    """Return the repository's portable UTF-8, LF-only source representation."""
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise DistributionError(f"{label} file must be UTF-8 text: {relative}") from exc
+    return text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+
+
 def _read_source_payload(
     source: Path,
     path: Path,
@@ -113,10 +122,8 @@ def _read_source_payload(
     if before_identity != after_identity or len(payload) != before.st_size:
         raise DistributionError(f"{label} file changed while being read: {path}")
     if len(payload) > MAX_SKILL_FILE_BYTES:
-        raise DistributionError(
-            f"Canonical skill file exceeds {MAX_SKILL_FILE_BYTES} bytes: {relative}"
-        )
-    return relative, payload
+        raise DistributionError(f"{label} file exceeds {MAX_SKILL_FILE_BYTES} bytes: {relative}")
+    return relative, _canonical_text_payload(payload, relative=relative, label=label)
 
 
 def _skill_files(root: Path) -> dict[PurePosixPath, bytes]:
@@ -363,12 +370,7 @@ def expected_tracked_files(root: Path) -> dict[PurePosixPath, bytes]:
     skill_files = _skill_files(root)
     eval_files = _eval_files(root)
     license_path = root / "LICENSE"
-    if license_path.is_symlink() or not license_path.is_file():
-        raise DistributionError(f"License must be a regular file: {license_path}")
-    try:
-        license_bytes = license_path.read_bytes()
-    except OSError as exc:
-        raise DistributionError(f"Cannot read {license_path}") from exc
+    _, license_bytes = _read_source_payload(root, license_path, label="License")
 
     files: dict[PurePosixPath, bytes] = {
         PLUGIN_ROOT / ".codex-plugin/plugin.json": _json_bytes(_codex_manifest(version)),

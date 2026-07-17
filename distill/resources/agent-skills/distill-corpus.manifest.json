@@ -2,15 +2,15 @@
   "schema_version": "distill-agent-skill-bundle.v1",
   "name": "distill-corpus",
   "version": "0.19.37",
-  "bundle_sha256": "ed83897840ed7f50a9205332aae4a03b7ef2e2db5a9a08bd531759ff27a3f1c2",
+  "bundle_sha256": "8d2479cae32eab4ab7e1f62fb74b337e3526e2c18b9b0f09353f9380826da7c5",
   "files": {
     "SKILL.md": {
-      "bytes": 6795,
-      "sha256": "e68cc045479111be2ac3637e0c73b1df7543a8a4d5349d0b6b193e100fcb16f6"
+      "bytes": 6705,
+      "sha256": "a7e7b1ee947824d68555259c2216f6152f87400d6f8f76202494794a2ed72d61"
     },
     "agents/openai.yaml": {
-      "bytes": 231,
-      "sha256": "6a36b16e6ee4ee068b688df3011431716ccb12b027d9e4fa937a85289a482e1a"
+      "bytes": 227,
+      "sha256": "2acadd31954e25437c75134cb961deb7ee1e7a25985c292cc0025c53c9f1aa24"
     },
     "references/gotchas.md": {
       "bytes": 1758,

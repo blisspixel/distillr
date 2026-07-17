@@ -62,6 +62,8 @@ def test_bundled_skill_matches_the_canonical_source() -> None:
     source = ROOT / "skills" / "distill-corpus"
     expected = {
         PurePosixPath(path.relative_to(source).as_posix()): path.read_bytes()
+        .replace(b"\r\n", b"\n")
+        .replace(b"\r", b"\n")
         for path in source.rglob("*")
         if path.is_file()
     }

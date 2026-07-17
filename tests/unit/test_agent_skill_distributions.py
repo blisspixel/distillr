@@ -167,6 +167,35 @@ def test_generator_rejects_hardlinked_skill_inputs(tmp_path: Path) -> None:
         GENERATOR.expected_tracked_files(root)
 
 
+def test_generator_normalizes_text_inputs_to_utf8_lf(tmp_path: Path) -> None:
+    root = _minimal_root(tmp_path)
+    license_path = root / "LICENSE"
+    skill_path = root / "skills" / "distill-corpus" / "SKILL.md"
+    eval_path = root / "evals" / "distill-corpus" / "trigger" / "case.yaml"
+    license_path.write_bytes(b"test license\r\n")
+    skill_payload = skill_path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    eval_payload = eval_path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    skill_path.write_bytes(skill_payload.replace(b"\n", b"\r\n"))
+    eval_path.write_bytes(eval_payload.replace(b"\n", b"\r"))
+
+    skill_files = GENERATOR._skill_files(root)
+    eval_files = GENERATOR._eval_files(root)
+    assert b"\r" not in skill_files[PurePosixPath("SKILL.md")]
+    assert b"\r" not in eval_files[PurePosixPath("trigger/case.yaml")]
+
+    GENERATOR.write_tracked(root)
+    assert GENERATOR.check_tracked(root) == []
+    assert (root / "plugins" / "distill-corpus" / "LICENSE").read_bytes() == b"test license\n"
+
+
+def test_generator_rejects_non_utf8_text_inputs(tmp_path: Path) -> None:
+    root = _minimal_root(tmp_path)
+    (root / "skills" / "distill-corpus" / "SKILL.md").write_bytes(b"\xff")
+
+    with pytest.raises(GENERATOR.DistributionError, match="must be UTF-8 text"):
+        GENERATOR.expected_tracked_files(root)
+
+
 def test_behavioral_eval_suite_has_positive_negative_and_model_judged_cases() -> None:
     cases = []
     for path in sorted((ROOT / "evals" / "distill-corpus").glob("*/case.yaml")):
@@ -219,7 +248,7 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
     assert "distill-corpus/evals/billing-truth/case.yaml" in plugin_payloads
     assert (
         plugin_payloads["distill-corpus/skills/distill-corpus/SKILL.md"]
-        == (ROOT / "skills" / "distill-corpus" / "SKILL.md").read_bytes()
+        == GENERATOR._skill_files(ROOT)[PurePosixPath("SKILL.md")]
     )
 
     checksum_path = first / f"distill-agent-distributions-{VERSION}.sha256"
