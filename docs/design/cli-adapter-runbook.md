@@ -7,9 +7,11 @@ This runbook defines how Distill should invoke local runtimes and candidate
 plan-quota coding CLIs without hidden API spend or uncontrolled writes. It
 covers Ollama, LM Studio, Codex CLI, Claude Code, Grok Build, Gemini CLI,
 Antigravity, and the separately credit-metered Copilot candidate. The local
-routes are live providers. The CLI candidates remain blocked external workers,
-not live Distill providers, until their support, auth, native usage, manifest,
-and eval gates all pass.
+routes are live providers. The active host-session handoff through
+`distill worker` is also live as a bounded, host-managed task protocol. The
+direct CLI candidates remain blocked external workers, not live Distill
+providers, until their support, auth, native usage, manifest, and eval gates all
+pass.
 
 ## Operating rule
 
@@ -21,6 +23,32 @@ This matters in practice. OpenAI's Codex docs document `--ask-for-approval`, but
 the locally installed `codex-cli 0.140.0` exposes sandboxing and JSONL output
 without that flag on `codex exec`. Distill must validate flags before it builds
 a command.
+
+## Two external-worker modes
+
+Distill keeps two related but intentionally different worker modes:
+
+1. **Active host-session handoff, shipped.** The user is already inside a Codex,
+   Claude Code, Grok, Gemini-style, Antigravity-style, or similar session. The
+   session invokes `distill worker claim`, reads a copied prompt and task record
+   in private scratch, writes only `result.md`, and submits it with an ownership
+   token. Distill validates the workspace and publishes a hash-bound receipt.
+   Quota or policy failure can be abandoned so another host claims the same
+   pending task. Distill never invokes the host binary or inspects its auth.
+2. **Direct CLI adapter, gated.** Distill starts the vendor binary itself. That
+   path must prove current support, auth class, exact argv, tool restrictions,
+   scratch writes, native usage, quota stops, and eval quality before it enters
+   a route pool.
+
+The first mode captures the useful skill pattern without pretending to know how
+the enclosing session is billed. Its ledger class is `host-managed`, never
+`included-plan` or no-metered. Direct Distill charge is zero, external cost is
+unavailable, and profile cost receipts fail closed. The second mode is the only
+path that can eventually prove included-plan usage through adapter preflight.
+
+The active-session protocol is documented for users in
+[`../usage.md`](../usage.md) and for agents in
+[`../../skills/distill-corpus/references/worker.md`](../../skills/distill-corpus/references/worker.md).
 
 ## Common adapter contract
 

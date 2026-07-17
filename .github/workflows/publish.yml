@@ -79,18 +79,34 @@ jobs:
       - name: Build sdist and wheel
         run: uv build
 
-      - name: Verify wheel bundles web assets
+      - name: Verify and build Agent Skill distributions
+        run: |
+          uv run --frozen python scripts/agent_skill_distributions.py --check
+          uv run --frozen python scripts/agent_skill_distributions.py --build --output agent-dist
+
+      - name: Verify wheel bundles runtime assets
         run: |
           # Guard against a packaging regression silently shipping a wheel
-          # without the dashboard templates/static the web UI needs.
+          # without dashboard or Agent Skill runtime resources.
           whl=$(ls dist/*.whl)
-          for f in distill/web/templates/base.html distill/web/static/style.css; do
+          for f in \
+            distill/web/templates/base.html \
+            distill/web/static/style.css \
+            distill/resources/agent-skills/distill-corpus/SKILL.md \
+            distill/resources/agent-skills/distill-corpus.manifest.json; do
             if ! unzip -l "$whl" | grep -q "$f"; then
               echo "Wheel ${whl} is missing ${f}; refusing to publish."
               exit 1
             fi
           done
-          echo "Web assets present in ${whl}."
+          echo "Runtime assets present in ${whl}."
+
+      - name: Smoke installed wheel Agent Skill bundle
+        run: |
+          whl=$(ls dist/*.whl)
+          uv venv .wheel-smoke
+          uv pip install --python .wheel-smoke/bin/python --no-deps "$whl"
+          .wheel-smoke/bin/python -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
 
       - name: Generate CycloneDX SBOM
         run: |
@@ -146,6 +162,12 @@ jobs:
           name: dist
           path: dist/
 
+      - name: Upload Agent Skill distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-distributions
+          path: agent-dist/
+
       - name: Upload SBOM
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -199,10 +221,17 @@ jobs:
           name: sbom
           path: sbom/
 
+      - name: Download Agent Skill distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: agent-distributions
+          path: agent-dist/
+
       - name: Create or update the GitHub Release
         # Closes the gap where tags published to PyPI but no GitHub Release was
         # cut, leaving the Releases page trailing the tags. Notes come from the
-        # matching CHANGELOG section; the wheel, sdist, and SBOM are attached.
+        # matching CHANGELOG section; Python, Agent Skill, and SBOM artifacts
+        # are attached.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -219,7 +248,7 @@ jobs:
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release edit "$tag" --title "$tag" --notes-file "$notes_file"
-            gh release upload "$tag" dist/* sbom/* --clobber
+            gh release upload "$tag" dist/* agent-dist/* sbom/* --clobber
           else
-            gh release create "$tag" --title "$tag" --notes-file "$notes_file" dist/* sbom/*
+            gh release create "$tag" --title "$tag" --notes-file "$notes_file" dist/* agent-dist/* sbom/*
           fi

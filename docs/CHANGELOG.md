@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.37 - 2026-07-16
+
 ### Fixed
 
+- Packaged Agent Skill verification now accepts content-verified wheel files
+  installed through `uv`'s cache hardlinks. The release gate installs the built
+  wheel and loads its integrity-manifested bundle so source-tree success cannot
+  hide an unusable runtime package.
 - First-run CLI home and top-level `distill --help` now lead with `distill init`,
   `distill doctor`, and a `--preview` papers example before single-URL ingest
   paths, matching the empty web dashboard guidance.
@@ -65,6 +71,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   receipts fail closed. Direct plan-quota CLI adapters remain gated on current
   support, included-plan auth proof, scratch and native-usage contracts, and eval
   quality.
+
+### Validation
+
+- The maintainer explicitly waived the native Claude plugin behavior run for
+  this release because Claude Code 2.1.206 and 2.1.212 both exposed the command
+  but reported that account access was still in early access before any model
+  call or spend. The substitute release evidence is 5,405 passing offline tests
+  at 95.12 percent branch coverage, strict Claude, Gemini, and Grok package
+  validation, deterministic archive and checksum verification, and fresh-wheel
+  Agent Skill lifecycle plus worker claim, submission, receipt, and replay
+  smoke tests.
 
 ## 0.19.36 - 2026-07-14
 

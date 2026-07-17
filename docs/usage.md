@@ -13,6 +13,8 @@ Full command reference. For the short version, see the README.
 - [YouTube: Channel watch and catch-up](#youtube-channel-watch-and-catch-up)
 - [YouTube: Topic watch (recurring)](#youtube-topic-watch-recurring)
 - [Recurring research profiles](#recurring-research-profiles)
+- [Active host-session workers](#active-host-session-workers)
+- [Agent Skill lifecycle](#agent-skill-lifecycle)
 - [Websites](#websites)
 - [Direct ingest: X, repos, feeds, and local files](#direct-ingest-x-repos-feeds-and-local-files)
 - [arXiv papers](#arxiv-papers)
@@ -269,6 +271,129 @@ recorded in the state file.
 state: invalid profile files, missing goal files, stale or missing runs,
 recorded command failures, invalid run state, and profiles whose local corpus
 is still thin relative to the saved source plan.
+
+## Active host-session workers
+
+When a command routed to `DISTILL_PROVIDER=agent` reaches model work, Distill
+writes a deferred task under `library/.distill/tasks/pending/` and exits with a
+pending-task message. An already active coding-agent session can complete that
+task without Distill invoking the vendor CLI or handling its credentials:
+
+```bash
+# Prompt-free queue inventory
+distill --json worker list
+
+# Claim one task into an isolated scratch workspace
+distill --json worker claim --host codex --worker-id interactive
+
+# After writing only the returned result.md path
+distill --json worker submit <task-id> \
+  --claim-token <claim-token> \
+  --model <model-label>
+
+# Release an incomplete task for another host
+distill --json worker abandon <task-id> \
+  --claim-token <claim-token> \
+  --reason "quota exhausted"
+```
+
+`worker claim` returns exact read paths for `task.json` and `prompt.md`, the one
+allowed `result.md` write path, an opaque ownership token, and a lease. Submit
+rejects changed staged inputs, extra workspace files, unsafe paths, oversized
+results, wrong ownership, conflicting results, and malformed receipts. It is
+idempotent for the same claim and exact result. After submission, rerun the
+original Distill command so `AgentProvider` can replay the validated result and
+continue through the normal verify and corpus-write path.
+
+If a worker cannot finish, `worker abandon` records why and makes the task
+claimable by another host. `worker release-expired <task-id>` is preview-only;
+add `--yes` only after an operator confirms the original worker is inactive.
+
+This protocol constrains what Distill accepts, but it does not sandbox the
+already active host process. Keep the host's own approvals and sandbox enabled.
+The route is recorded as `host-managed`: Distill has no direct API charge, but
+the external session may consume plan quota, credits, or API billing. It is not
+proven no-metered, and recurring profile cost receipts fail closed when its
+external cost is unavailable.
+
+## Agent Skill lifecycle
+
+The bundled [`distill-corpus` skill](../skills/distill-corpus/) contains the
+complete agent-side procedure. It is available through native Codex and Claude
+plugin marketplaces, Gemini's skill installer, Grok's Claude-compatible plugin
+loader, Antigravity's `.agents/skills/` path, and versioned claude.ai ZIP
+uploads. The
+[`distribution guide`](design/agent-skill-distribution.md) gives exact install,
+update, validation, and checksum details. Direct plan-quota adapters remain
+separate and blocked until adapter doctor, current support, auth, usage,
+scratch, and eval gates pass.
+
+The installed Python package carries an exact, integrity-manifested copy of the
+skill. Inspect all clients and direct-discovery targets without writing or
+starting any host:
+
+```bash
+distill skill doctor
+distill --json skill doctor --client codex --scope project
+```
+
+Prefer a client's native package manager when it supplies provenance and
+updates. The direct lifecycle is the portable fallback and is also useful for
+an intentionally project-local installation. Every mutation previews unless
+`--yes` is present:
+
+```bash
+# Preview, then install or safely update the project copy
+distill skill install --client codex --scope project
+distill skill install --client codex --scope project --yes
+
+# Install for one user, or inspect a different project root
+distill skill install --client claude --scope user --yes
+distill skill doctor --client antigravity --project-root ../another-project
+
+# Preview and remove only a clean Distill-managed copy
+distill skill uninstall --client codex --scope project
+distill skill uninstall --client codex --scope project --yes
+
+# Produce a deterministic archive plus <archive>.sha256
+distill skill export --output distill-corpus.skill
+```
+
+The client target controls the documented discovery directory: Codex and the
+portable target use `.agents/skills`, Claude uses `.claude/skills`, Gemini uses
+`.gemini/skills`, and Grok uses `.grok/skills`. Antigravity uses
+`.agents/skills` for project scope and `.gemini/config/skills` for user scope.
+Do not combine a native plugin install with a direct copy for the same client.
+
+An exact unmanaged copy can be adopted. A divergent unmanaged directory,
+changed managed file, symbolic link, junction, multiply linked file, oversized
+tree, or destination race is refused. Apply and update stage the verified wheel
+bytes, swap directories under a lock, and verify the completed tree. Uninstall
+accepts only a clean ownership manifest. Export archives use stable ordering,
+timestamps, modes, and SHA-256 output so two exports of one version are
+byte-identical.
+
+Skill installation does not make a host a Distill model provider and does not
+establish whether a client session uses included quota, purchased credits, or
+an API key. `distill skill doctor` reports binary presence only. Active-session
+worker results remain `host-managed`, and ambiguous routes remain blocked in
+`no-metered` mode.
+
+On Claude Code versions that expose the native plugin eval runner, maintainers
+can compare the plugin with its no-plugin baseline:
+
+```bash
+claude plugin eval plugins/distill-corpus \
+  --ablation with-without --runs 3 --max-cost-usd 5 --no-scaffold
+```
+
+The six source-controlled cases cover corpus reading, safe curation, worker
+handoff, billing truth, local recency, and an unrelated-task negative trigger.
+They grant no tools and use model graders for semantic behavior. Structural
+schema and distribution drift run in offline CI; paid model behavior remains an
+explicit, budget-capped release evaluation.
+
+### Plan-quota adapter doctor
 
 ```bash
 distill doctor --adapters

@@ -166,13 +166,8 @@ def _normalize_success_attempts(
     model: str,
     response: LLM_Response,
 ) -> tuple[LLMUsageAttempt, ...]:
-    provider_type = _provider_type(provider_name)
     attempts = tuple(
-        replace(
-            attempt,
-            provider_name=provider_name,
-            provider_type=provider_type,
-        ).with_identity()
+        _normalized_attempt_identity(provider_name, attempt).with_identity()
         for attempt in response.usage_attempts
     )
     if attempts:
@@ -186,13 +181,26 @@ def _normalize_success_attempts(
             output_tokens=response.output_tokens,
             model=response.model or model,
             provider_name=provider_name,
-            provider_type=provider_type,
+            provider_type=_provider_type(provider_name),
             usage_source=response.usage_source,
             outcome="success",
         ),
         options.usage_sink,
     )
     return tuple(collected)
+
+
+def _normalized_attempt_identity(
+    route_provider: str,
+    attempt: LLMUsageAttempt,
+) -> LLMUsageAttempt:
+    if route_provider == "agent" and attempt.provider_type == "host-managed":
+        return attempt
+    return replace(
+        attempt,
+        provider_name=route_provider,
+        provider_type=_provider_type(route_provider),
+    )
 
 
 def _emit_existing_attempts(
@@ -266,10 +274,15 @@ def _run_provider_call(
         attempts = _normalize_success_attempts(options, provider_name, model, response)
     except Exception as exc:
         raise _PostResponseAccountingError(exc, response) from exc
+    response_provider = provider_name
+    response_provider_type = _provider_type(provider_name)
+    if provider_name == "agent" and response.provider_type == "host-managed":
+        response_provider = response.provider_name
+        response_provider_type = response.provider_type
     return replace(
         response,
-        provider_name=provider_name,
-        provider_type=_provider_type(provider_name),
+        provider_name=response_provider,
+        provider_type=response_provider_type,
         usage_attempts=attempts,
     )
 
@@ -368,7 +381,11 @@ def _record_route(
     elapsed: float,
     attempts: tuple[LLMUsageAttempt, ...],
 ) -> None:
+    effective_provider_name = provider_name
     provider_type = _provider_type(provider_name)
+    if response is not None and response.provider_type == "host-managed":
+        effective_provider_name = response.provider_name
+        provider_type = response.provider_type
     tokens_per_second = 0.0
     if response is not None and provider_type == "local" and elapsed > 0:
         tokens_per_second = response.output_tokens / elapsed
@@ -394,7 +411,7 @@ def _record_route(
         call_type=options.call_type,
         run_id=options.run_id,
         provider_type=provider_type,
-        provider_name=provider_name,
+        provider_name=effective_provider_name,
         tokens_per_second=round(tokens_per_second, 2),
         usage_source=usage_source,
     )

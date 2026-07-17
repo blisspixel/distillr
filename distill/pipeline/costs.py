@@ -97,6 +97,8 @@ _PROFILE_RECEIPT_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def _token_usage_cost(usage: TokenUsage) -> float:
+    if usage.provider_type == "host-managed":
+        return 0.0
     if usage.no_metered_cost:
         return 0.0
     rates = get_pricing(usage.model)
@@ -293,6 +295,9 @@ class CostTracker:
         """Summary for logging/display."""
         by_model: dict[str, dict[str, float | int]] = {}
         by_provider: dict[str, dict[str, Any]] = {}
+        host_managed_calls = sum(
+            1 for entry in self.entries if entry.provider_type == "host-managed"
+        )
         for entry in self.entries:
             model_summary = by_model.setdefault(
                 entry.model or "unknown",
@@ -321,8 +326,13 @@ class CostTracker:
         summary: dict[str, Any] = {
             "grok_calls": len(self.entries),
             "gemini_queries": self.gemini_queries,
-            "metered_calls": sum(1 for e in self.entries if not e.no_metered_cost),
+            "metered_calls": sum(
+                1
+                for e in self.entries
+                if not e.no_metered_cost and e.provider_type != "host-managed"
+            ),
             "no_metered_calls": sum(1 for e in self.entries if e.no_metered_cost),
+            "host_managed_calls": host_managed_calls,
             "conservative_usage_calls": sum(
                 1 for e in self.entries if e.usage_source == "conservative"
             ),
@@ -334,6 +344,9 @@ class CostTracker:
             "by_model": by_model,
             "by_provider": by_provider,
         }
+        if host_managed_calls:
+            summary["external_cost_status"] = "unavailable"
+            summary["estimated_total_cost_scope"] = "distill-direct-charges"
         if self.gemini_query_outcomes:
             summary["gemini_query_outcomes"] = {
                 outcome: self.gemini_query_outcomes.count(outcome)
@@ -391,6 +404,7 @@ def save_run_log(
 
     recorded_command = f"{command}_preview" if preview else command
     effective_elapsed = elapsed_seconds or current_run_elapsed_seconds()
+    host_managed_calls = sum(1 for row in tracker.entries if row.provider_type == "host-managed")
     entry = {
         "timestamp": datetime.now().isoformat(),
         "run_id": tracker.run_id or current_run_id(),
@@ -413,14 +427,15 @@ def save_run_log(
         "elapsed_seconds": round(effective_elapsed, 1),
         "metadata": metadata or {},
     }
-    profile_receipt_id = _active_profile_receipt_id()
-    has_profile_receipt = False
-    if _PROFILE_RECEIPT_RE.fullmatch(profile_receipt_id):
-        entry["profile_receipt_id"] = profile_receipt_id
-        if math.isfinite(tracker.total_cost) and tracker.total_cost >= 0:
-            entry["profile_receipt_cost_usd"] = tracker.total_cost
-            entry["profile_receipt_tracker_id"] = tracker.profile_tracker_id
-            has_profile_receipt = True
+    if host_managed_calls:
+        entry["external_cost_status"] = "unavailable"
+        entry["actual_cost_scope"] = "distill-direct-charges"
+    has_profile_receipt = _stamp_profile_receipt(
+        entry,
+        tracker,
+        receipt_id=_active_profile_receipt_id(),
+        host_managed_calls=host_managed_calls,
+    )
 
     by_type: dict[str, Any] = {}
     by_model: dict[str, Any] = {}
@@ -471,8 +486,13 @@ def save_run_log(
     entry["by_route_class"] = by_route_class
     entry["usage_ledger"] = {
         "llm_calls": len(tracker.entries),
-        "metered_llm_calls": sum(1 for e in tracker.entries if not e.no_metered_cost),
+        "metered_llm_calls": sum(
+            1
+            for e in tracker.entries
+            if not e.no_metered_cost and e.provider_type != "host-managed"
+        ),
         "no_metered_llm_calls": sum(1 for e in tracker.entries if e.no_metered_cost),
+        "host_managed_llm_calls": host_managed_calls,
         "conservative_usage_calls": sum(
             1 for e in tracker.entries if e.usage_source == "conservative"
         ),
@@ -490,6 +510,26 @@ def save_run_log(
         f.write(json.dumps(entry) + "\n")
     if has_profile_receipt:
         mark_profile_receipt_written()
+
+
+def _stamp_profile_receipt(
+    entry: dict[str, Any],
+    tracker: CostTracker,
+    *,
+    receipt_id: str,
+    host_managed_calls: int,
+) -> bool:
+    if not _PROFILE_RECEIPT_RE.fullmatch(receipt_id):
+        return False
+    entry["profile_receipt_id"] = receipt_id
+    if host_managed_calls:
+        entry["profile_receipt_status"] = "unverified-host-managed"
+        return True
+    if not math.isfinite(tracker.total_cost) or tracker.total_cost < 0:
+        return False
+    entry["profile_receipt_cost_usd"] = tracker.total_cost
+    entry["profile_receipt_tracker_id"] = tracker.profile_tracker_id
+    return True
 
 
 def ensure_terminal_profile_receipt() -> None:
@@ -525,6 +565,8 @@ def _route_class(entry: TokenUsage) -> str:
         return "local"
     if entry.provider_type == "included-plan":
         return "included-plan"
+    if entry.provider_type == "host-managed":
+        return "host-managed"
     if entry.no_metered_cost:
         return "no-metered"
     return "metered"

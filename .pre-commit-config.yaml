@@ -63,6 +63,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: agent-skill-distributions
+        name: Agent Skill distributions (generated and current)
+        entry: uv run --frozen python scripts/agent_skill_distributions.py --check
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # Full suite is too slow for every commit; runs on push instead, matching
       # the CI test gate. Enable with: pre-commit install --hook-type pre-push
       - id: pytest

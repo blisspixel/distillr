@@ -97,6 +97,46 @@ def test_provider_supplied_success_attempt_is_normalized_and_emitted() -> None:
     assert TokenUsage.from_response(result).expanded()[0].no_metered_cost is False
 
 
+def test_agent_host_identity_and_unknown_billing_survive_execution_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    supplied = replace(
+        _attempt(outcome="success", attempt_id="host-attempt"),
+        model="gpt-host",
+        provider_name="codex",
+        provider_type="host-managed",
+        usage_source="host-reported",
+    )
+    response = LLM_Response(
+        text="ok",
+        input_tokens=10,
+        output_tokens=20,
+        model="gpt-host",
+        provider_name="codex",
+        provider_type="host-managed",
+        usage_source="host-reported",
+        usage_attempts=(supplied,),
+    )
+    telemetry: dict[str, object] = {}
+    monkeypatch.setattr(
+        call_execution,
+        "_emit_telemetry",
+        lambda **kwargs: telemetry.update(kwargs),
+    )
+    emitted: list[LLMUsageAttempt] = []
+
+    result = execute_call(_options(_Provider(response), emitted), "agent", "agent")
+
+    assert result.provider_name == "codex"
+    assert result.provider_type == "host-managed"
+    assert result.usage_attempts == (supplied,)
+    assert emitted == [supplied]
+    assert TokenUsage.from_response(result).expanded()[0].no_metered_cost is False
+    assert telemetry["provider_name"] == "codex"
+    assert telemetry["provider_type"] == "host-managed"
+    assert telemetry["tokens_per_second"] == 0
+
+
 def test_attached_error_attempts_receive_distinct_ids_without_derived_duplicates() -> None:
     exc = RuntimeError("failed")
     attach_usage_attempts(

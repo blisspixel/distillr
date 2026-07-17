@@ -1,0 +1,20 @@
+{
+  "name": "distillr",
+  "interface": {
+    "displayName": "Distillr"
+  },
+  "plugins": [
+    {
+      "name": "distill-corpus",
+      "source": {
+        "source": "local",
+        "path": "./plugins/distill-corpus"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

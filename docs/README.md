@@ -12,6 +12,15 @@ The full documentation set. The [project README](../README.md) is the overview a
 Task-oriented recipes for a specific goal.
 
 - [Usage guide](usage.md) - discovery, watches, synthesis, reports, briefings, unattended/agent operation, scheduling.
+- [Active host-session workers](usage.md#active-host-session-workers) - claim,
+  complete, submit, abandon, and safely hand off deferred agent tasks.
+- [Agent Skill lifecycle](usage.md#agent-skill-lifecycle) - verify, preview,
+  install, update, remove, export, and behavior-test the bundled skill.
+- [Distill corpus skill](../skills/distill-corpus/) - agent-side corpus and
+  host-worker procedure for compatible coding-agent clients.
+- [Agent Skill distribution](design/agent-skill-distribution.md) - native
+  Codex, Claude, Grok, Gemini, Antigravity, and claude.ai packaging, release,
+  validation, update, and billing contracts.
 - [Briefing context template](briefing-contexts/TEMPLATE.md) - starting point for `--context-file` prompts.
 - [Grok 4.3 migration](migration-grok-4.3.md) - moving off the retired fast tiers.
 

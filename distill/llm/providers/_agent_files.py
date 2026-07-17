@@ -52,6 +52,10 @@ def _same_path(left: Path, right: Path) -> bool:
     return os.path.normcase(str(left.absolute())) == os.path.normcase(str(right.absolute()))
 
 
+def _safe_child_name(name: str) -> bool:
+    return bool(name) and name not in {".", ".."} and Path(name).name == name
+
+
 def validated_task_root(root: Path) -> tuple[Path, tuple[int, int]] | None:
     """Resolve a stable, non-link task root and return its directory identity."""
 
@@ -220,6 +224,54 @@ def _open_bound_directory(root: Path, root_identity: tuple[int, int]) -> int:
         return descriptor
     os.close(descriptor)
     raise OSError("agent task root changed before task creation")
+
+
+def remove_task_file(
+    path: Path,
+    root: Path,
+    root_identity: tuple[int, int],
+    *,
+    expected_content: bytes,
+) -> bool:
+    """Remove one bound task child only when its content is unchanged."""
+
+    if not _same_path(path.parent, root) or not _safe_child_name(path.name):
+        return False
+    opened = _open_task_file(
+        path,
+        root,
+        root_identity,
+        max_bytes=len(expected_content),
+    )
+    if opened is None:
+        return False
+    descriptor, directory_descriptor, revision = opened
+    try:
+        remaining = len(expected_content) + 1
+        chunks: list[bytes] = []
+        while remaining > 0:
+            chunk = os.read(descriptor, remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if b"".join(chunks) != expected_content:
+            return False
+        descriptor_stat = os.fstat(descriptor)
+        final_stat = path.lstat()
+        if (
+            not task_root_is_unchanged(root, root_identity)
+            or _task_file_revision(descriptor_stat) != revision
+            or _task_file_revision(final_stat) != revision
+        ):
+            return False
+        os.close(descriptor)
+        descriptor = -1
+        return _unlink_bound_child(root, root_identity, path.name, directory_descriptor)
+    except OSError:
+        return False
+    finally:
+        _close_task_descriptors(descriptor, directory_descriptor)
 
 
 def _open_temporary_task(

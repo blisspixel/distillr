@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: corpus-reading
+description: Uses the Distill corpus orientation and receipt chain before answering.
+tags: [corpus, trigger, verification]
+runs: 1
+execution:
+  prompt: >-
+    I have a Distill research library with a topic called local-models. Before
+    answering what the corpus says about quantization tradeoffs, explain the
+    exact order you would inspect the topic and how you would support a
+    load-bearing claim.
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools: []
+graders:
+  - type: llm
+    name: orientation-first
+    criteria: >-
+      Pass only if the response starts from the topic AGENTS.md or CLAUDE.md and
+      synthesis artifacts, then drills into per-source insights rather than
+      treating a synthesis as final ground truth.
+    focus: last_message
+    weight: 1
+  - type: llm
+    name: receipt-grounding
+    criteria: >-
+      Pass only if the response requires a load-bearing claim to be checked
+      against the adjacent raw receipt and says the final answer should name
+      specific corpus paths or citations. Do not require exact wording.
+    focus: last_message
+    weight: 1
+expected_outcome: The agent follows the orientation, synthesis, insight, receipt chain.

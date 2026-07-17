@@ -24,17 +24,16 @@ Current UX priorities:
 - Make the website workflow feel first-class instead of command-by-command
 - Keep the YouTube "stay current" path fast and obvious
 - Goal-aware discovery as the front door when the user has a research goal rather than a keyword query
-- Add OKF export/validation so verified corpora can move into other agent systems
-- Make audit/gap/staleness output loop-readable so external agents can steward a corpus without scraping console prose
 - Track the final MCP 2026-07-28 spec and run a near-term compatibility spike
   before freezing Distill's 1.0 MCP contract
-- Add recurring research profiles for ongoing topics such as AI developer news,
-  live agentic dev, and vendor docs watch
-- Add no-metered-cost routing so local inference and explicitly configured
-  subscription-plan CLIs can be used without surprise API billing
+- Freeze the candidate CLI, MCP, library, frontmatter, OKF, next-action, and
+  profile contracts after that compatibility checkpoint
+- Finish the Pyright strict-mode, boundary-type, and deterministic-core
+  verification ratchets while preserving the branch-coverage floor
 - Continue the Obsidian-native living-wiki shape while keeping Distill's native corpus as the source of truth
 - Publish the 1.0 performance baseline and optimize measured whole workflows
   before considering first-party native code
+- Complete the 1.0 presentation and contributor-onboarding pass
 
 ## Next Up
 

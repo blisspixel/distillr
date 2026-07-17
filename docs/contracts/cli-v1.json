@@ -5139,6 +5139,273 @@
       "path": "distill site-batch"
     },
     {
+      "no_args_is_help": true,
+      "parameters": [],
+      "path": "distill skill"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": "all",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "client",
+          "names": [
+            "--client"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "project_root",
+          "names": [
+            "--project-root"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": "project",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "scope",
+          "names": [
+            "--scope"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill skill doctor"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "output",
+          "names": [
+            "--output",
+            "-o"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "overwrite",
+          "names": [
+            "--overwrite"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill skill export"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": "portable",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "client",
+          "names": [
+            "--client"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "project_root",
+          "names": [
+            "--project-root"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": "project",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "scope",
+          "names": [
+            "--scope"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill skill install"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": "portable",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "client",
+          "names": [
+            "--client"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "project_root",
+          "names": [
+            "--project-root"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": "project",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "scope",
+          "names": [
+            "--scope"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill skill uninstall"
+    },
+    {
       "parameters": [
         {
           "count": false,
@@ -6925,6 +7192,260 @@
         }
       ],
       "path": "distill watch remove"
+    },
+    {
+      "no_args_is_help": true,
+      "parameters": [],
+      "path": "distill worker"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "task_id",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "claim_token",
+          "names": [
+            "--claim-token"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "reason",
+          "names": [
+            "--reason"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill worker abandon"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "host",
+          "names": [
+            "--host"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": 3600,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "lease_seconds",
+          "names": [
+            "--lease-seconds"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": 604800,
+            "max_open": false,
+            "min": 60,
+            "min_open": false,
+            "name": "integer range"
+          }
+        },
+        {
+          "count": false,
+          "default": "interactive",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "worker_id",
+          "names": [
+            "--worker-id"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "workload",
+          "names": [
+            "--workload"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill worker claim"
+    },
+    {
+      "parameters": [],
+      "path": "distill worker list"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "task_id",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill worker release-expired"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "task_id",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "claim_token",
+          "names": [
+            "--claim-token"
+          ],
+          "nargs": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "input_tokens",
+          "names": [
+            "--input-tokens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": null,
+            "max_open": false,
+            "min": 0,
+            "min_open": false,
+            "name": "integer range"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "model",
+          "names": [
+            "--model"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "output_tokens",
+          "names": [
+            "--output-tokens"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": null,
+            "max_open": false,
+            "min": 0,
+            "min_open": false,
+            "name": "integer range"
+          }
+        }
+      ],
+      "path": "distill worker submit"
     }
   ],
   "contract": "distill-cli.v1",

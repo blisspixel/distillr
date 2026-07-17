@@ -156,22 +156,44 @@ jobs:
       - name: Build sdist and wheel
         run: uv build
 
-      - name: Verify wheel bundles web assets
-        # The uv build backend packages distill/web data by default; this guard
-        # fails the build loudly if a future change drops the dashboard
-        # templates/static instead of shipping a broken wheel.
+      - name: Verify and build Agent Skill distributions
+        run: |
+          uv run --frozen python scripts/agent_skill_distributions.py --check
+          uv run --frozen python scripts/agent_skill_distributions.py --build --output agent-dist
+
+      - name: Verify wheel bundles runtime assets
+        # The uv build backend packages package data by default. This guard
+        # fails loudly if a future change drops dashboard or Agent Skill
+        # resources instead of shipping a broken wheel.
         run: |
           whl=$(ls dist/*.whl)
-          for f in distill/web/templates/base.html distill/web/static/style.css; do
+          for f in \
+            distill/web/templates/base.html \
+            distill/web/static/style.css \
+            distill/resources/agent-skills/distill-corpus/SKILL.md \
+            distill/resources/agent-skills/distill-corpus.manifest.json; do
             if ! unzip -l "$whl" | grep -q "$f"; then
               echo "Wheel ${whl} is missing ${f}."
               exit 1
             fi
           done
-          echo "Web assets present in ${whl}."
+          echo "Runtime assets present in ${whl}."
+
+      - name: Smoke installed wheel Agent Skill bundle
+        run: |
+          whl=$(ls dist/*.whl)
+          uv venv .wheel-smoke
+          uv pip install --python .wheel-smoke/bin/python --no-deps "$whl"
+          .wheel-smoke/bin/python -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dist
           path: dist/
+
+      - name: Upload Agent Skill distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-distributions
+          path: agent-dist/

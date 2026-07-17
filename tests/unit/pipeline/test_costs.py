@@ -543,6 +543,65 @@ def test_cost_tracker_distinguishes_local_from_unproven_agent_usage():
     assert tracker.entries[1].no_metered_cost is False
 
 
+def test_host_managed_usage_has_unavailable_external_cost(tmp_path, monkeypatch):
+    receipt_id = "c" * 64
+    monkeypatch.setenv(PROFILE_RECEIPT_ENV, receipt_id)
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=120,
+            completion_tokens=40,
+            model="gpt-host",
+            provider_name="codex",
+            provider_type="host-managed",
+            call_type="analysis",
+        )
+    )
+
+    summary = tracker.summary_dict()
+    assert tracker.total_cost == 0
+    assert summary["metered_calls"] == 0
+    assert summary["no_metered_calls"] == 0
+    assert summary["host_managed_calls"] == 1
+    assert summary["external_cost_status"] == "unavailable"
+    assert summary["estimated_total_cost_scope"] == "distill-direct-charges"
+
+    with run_scope(
+        invocation_type="cli",
+        command="analysis",
+        ops_dir=tmp_path / ".distill",
+    ):
+        save_run_log(tmp_path, "analysis", tracker)
+        ensure_terminal_profile_receipt()
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / ".distill" / "cost_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert len(rows) == 1
+    assert rows[0]["actual_cost"] == 0
+    assert rows[0]["actual_cost_scope"] == "distill-direct-charges"
+    assert rows[0]["external_cost_status"] == "unavailable"
+    assert rows[0]["profile_receipt_id"] == receipt_id
+    assert rows[0]["profile_receipt_status"] == "unverified-host-managed"
+    assert "profile_receipt_cost_usd" not in rows[0]
+    assert rows[0]["usage_ledger"] == {
+        "llm_calls": 1,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 0,
+        "host_managed_llm_calls": 1,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+    }
+    assert rows[0]["by_route_class"]["host-managed"]["calls"] == 1
+
+
 def test_cost_tracker_normalizes_oversized_public_usage_without_overflow():
     tracker = CostTracker()
 

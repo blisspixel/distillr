@@ -19,7 +19,7 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
 | Opt-in Anthropic API route | Yes | Metered API spend | Claude Sonnet 5 is wired for explicit opt-in use, but it is not a calibrated default. |
 | Reserved OpenAI analysis route | No | Metered API spend when implemented | OpenAI is not a live analysis provider yet. OpenAI Whisper transcription is separate. |
-| Deferred `agent` task-file route | Limited | Billing is ambiguous | This writes a structured task file for an external assistant and later reads an operator-supplied result. It is not a plan-quota CLI adapter, does not execute the assistant, and remains blocked in `no-metered`. |
+| Deferred `agent` task-file route plus active host worker | Yes, explicit handoff | Host-managed; external cost unavailable | This writes a structured task, lets an already active agent session claim it into scratch through `distill worker`, and accepts only a validated result plus receipt. Distill does not execute the assistant or inspect its auth, so the route remains blocked in `no-metered`. |
 | Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, Gemini CLI, and Antigravity `agy` | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, structured support-statement details checked against current 2026-06-30 vendor docs, local config auth-marker scanning, strict `adapter-workload.v1` input packages, strict `adapter-result.v1` manifest checks with quota-stop metadata, a scratch-only runner primitive, a checked workload runner, a native result writer, adapter-specific native usage capture, a manifest-to-ledger helper, and blocked read-only command planners exist. No plan-quota support statement is current for no-metered routing yet because paid credits, overages, API-key modes, gateway routes, or unproved session auth remain possible. Routes still need included-plan auth proof, native schema enforcement where the CLI supports it, real installed-session validation, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
 
@@ -75,9 +75,15 @@ key as `skipped` when live validation is blocked by policy; it does not treat th
 key as valid. `distill cleanup` also refuses before constructing a Gemini client.
 Local transcription remains allowed.
 
-The usage ledger records zero-dollar usage too. Cost-log rows include provider
-and route-class breakdowns, no-metered LLM call counts, local transcription
-counts, and profile-run orchestration rows even when `actual_cost` is `0.0`.
+The usage ledger records zero-dollar and unknown-external-cost usage too.
+Cost-log rows include provider and route-class breakdowns, no-metered LLM call
+counts, host-managed call counts, local transcription counts, and profile-run
+orchestration rows even when `actual_cost` is `0.0`. For a host-managed result,
+`actual_cost` covers Distill's direct charges only, `external_cost_status` is
+`unavailable`, and the route is neither counted as metered API nor proven
+no-metered. A recurring profile receipt containing host-managed usage is marked
+unverified so its budget runner fails closed rather than treating unknown
+external cost as zero.
 Direct `distill concepts build` and `distill synthesize` runs flush every
 non-empty tracker in a `finally` path, so successful and failed calls remain on
 the ledger while true no-op runs do not create empty rows.

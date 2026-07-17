@@ -1,0 +1,4 @@
+interface:
+  display_name: "Distill Corpus"
+  short_description: "Research, verify, and curate a Distill corpus"
+  default_prompt: "Use $distill-corpus to inspect or update my research corpus with receipt-backed verification."

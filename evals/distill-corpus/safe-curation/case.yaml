@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: safe-curation
+description: Plans a corpus update through preview, cost policy, and the Distill CLI.
+tags: [curation, trigger, cost]
+runs: 1
+execution:
+  prompt: >-
+    Add recent papers about small reasoning models to my Distill topic named
+    reasoning. I do not want surprise spend. Tell me the safe workflow you
+    would use before changing the corpus.
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools: []
+graders:
+  - type: llm
+    name: preview-before-write
+    criteria: >-
+      Pass only if the response proposes a Distill preview or shortlist before
+      ingestion, preserves the user's cost mode or budget, and waits for an
+      explicit selection or approval before model-backed writes.
+    focus: last_message
+    weight: 1
+  - type: llm
+    name: cli-owned-curation
+    criteria: >-
+      Pass only if repeatable ingest, verification, and corpus updates remain
+      owned by Distill commands. The response must not propose hand-editing
+      generated insights, syntheses, AGENTS.md, or CLAUDE.md files.
+    focus: last_message
+    weight: 1
+expected_outcome: The agent previews, preserves cost intent, and uses Distill for writes.

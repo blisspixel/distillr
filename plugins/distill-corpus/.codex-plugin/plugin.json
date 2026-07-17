@@ -1,0 +1,32 @@
+{
+  "name": "distill-corpus",
+  "version": "0.19.37",
+  "description": "Read, verify, and curate a receipt-backed Distill research corpus, including bounded active-session worker handoffs.",
+  "author": {
+    "name": "Nick Seal",
+    "url": "https://github.com/blisspixel"
+  },
+  "homepage": "https://github.com/blisspixel/distillr",
+  "repository": "https://github.com/blisspixel/distillr",
+  "license": "Apache-2.0",
+  "keywords": [
+    "research",
+    "corpus",
+    "verification",
+    "distill"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Distill Corpus",
+    "shortDescription": "Research and verify a Distill corpus",
+    "longDescription": "Read a Distill corpus from plain files, verify claims against source receipts, curate it through the CLI, and complete bounded active-session worker tasks.",
+    "developerName": "Distillr",
+    "category": "Productivity",
+    "capabilities": [
+      "Corpus research",
+      "Receipt verification",
+      "Bounded worker handoff"
+    ],
+    "defaultPrompt": "Use $distill-corpus to inspect my Distill research corpus, verify claims against receipts, and use only the cost route I authorize."
+  }
+}

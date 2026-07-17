@@ -334,7 +334,7 @@ The terminal home screen shows tracked topics, channel and topic watches, recent
 
 ## MCP server, and agent-discoverable directories
 
-Distillr is built for two parallel agent-integration paths:
+Distillr is built for three parallel agent-integration paths:
 
 **Path 1 - MCP (structured queries).** Claude Desktop / Claude Code config:
 
@@ -361,19 +361,77 @@ seed files with the same exact-page and shallow-crawl modes as the CLI, and its
 
 **Path 2 - file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives - no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content - `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard - so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
-There's also a canonical **Agent Skill** distributed as the folder
-[`skills/distill-corpus/`](skills/distill-corpus/) (containing `SKILL.md` plus the
-convention for additional resources). Drop the folder into `~/.claude/skills/`
-(or `~/.agents/skills/`). The skill is narrowly scoped to "use a distill corpus
-via its plain files and CLI", emphasizes verification against receipts, carries
-a Gotchas section derived from real failure modes, and uses the generated per-topic
-`AGENTS.md`/`CLAUDE.md` files for progressive disclosure of current state.
+**Path 3 - active host session (bounded deferred work).** When an `agent`
+provider call creates a pending task, an already active Codex, Claude Code,
+Grok, Gemini-style, Antigravity-style, or similar session can complete it through
+`distill worker`. The host claims one task into an isolated scratch workspace,
+reads `prompt.md` and `task.json`, writes only `result.md`, and submits an
+ownership-bound receipt. Distill validates the staged inputs, write set, result
+size and hash, then replays the result through its normal verification and
+corpus-write path when the original command is rerun. A failed worker can
+abandon its claim so a different host can take over; stale claims require an
+explicit operator release.
+
+```bash
+distill --json worker list
+distill --json worker claim --host codex
+distill --json worker submit <task-id> --claim-token <claim-token>
+```
+
+This handoff does not invoke a vendor CLI, inspect its credentials, or prove its
+billing path. The ledger labels it `host-managed`, separate from both metered
+API calls and proven no-metered routes, and marks external cost unavailable.
+Direct plan-quota adapters remain gated roadmap work.
+
+The canonical **Agent Skill** at
+[`skills/distill-corpus/`](skills/distill-corpus/) is also packaged as one
+validated, self-contained plugin for Codex, Claude Code, Grok Build, and Gemini
+CLI. It teaches receipt-backed corpus reading, safe CLI curation, and the full
+worker claim, submit, abandon, and fleet-fallback procedure. It adds no model
+provider and receives no credentials.
+
+After installing Distill, the built-in lifecycle gives every client a verified
+portable fallback without cloning this repository:
+
+```bash
+distill skill doctor
+distill skill install --client codex --scope project       # preview only
+distill skill install --client codex --scope project --yes # apply or update
+distill skill export                                       # deterministic .skill + checksum
+```
+
+Native plugin or skill managers are preferred when they provide provenance and
+updates. Use the direct `distill skill install` path when a native manager is
+unavailable or when you deliberately want a project-local copy. Choose one
+installation path per client so the same skill name is not discovered twice.
+Direct installs are preview-first, integrity-checked, atomically replaced, and
+owned by a local manifest. Distill refuses to overwrite divergent unmanaged
+content or remove a modified installation. `distill skill doctor` is read-only:
+it verifies the wheel bundle, reports client binary presence and direct target
+state, and never invokes a host or treats login as billing proof.
+
+| Host | Install |
+|---|---|
+| Codex CLI or app | `codex plugin marketplace add blisspixel/distillr --sparse .agents/plugins --sparse plugins/distill-corpus`, then `codex plugin add distill-corpus@distillr` |
+| Claude Code | `claude plugin marketplace add blisspixel/distillr --sparse .claude-plugin plugins/distill-corpus`, then `claude plugin install distill-corpus@distillr` |
+| Gemini CLI | `gemini extensions install https://github.com/blisspixel/distillr` for native updates, or install only the skill with `gemini skills install https://github.com/blisspixel/distillr.git --path skills/distill-corpus --scope user` |
+| Grok Build | Use the Claude-compatible `distillr` marketplace, or load a checkout with `grok --plugin-dir ./plugins/distill-corpus` |
+| Antigravity | Put the skill at `.agents/skills/distill-corpus`, or use `npx skills add blisspixel/distillr --skill distill-corpus --agent antigravity` |
+| claude.ai | Upload `distill-corpus-<version>.zip` from the matching GitHub release |
+
+Each release also includes a `.skill` archive, the universal plugin ZIP, and
+SHA-256 checksums. The optional `npx skills` path can install the canonical
+folder into many other Agent Skills clients. Native install paths remain
+documented so that installer is never a dependency. See the
+[`Agent Skill distribution design`](docs/design/agent-skill-distribution.md)
+for the compatibility, lifecycle, behavioral eval, update, validation, and
+billing contracts.
 
 ## Cost
 
-On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs about $0.03/video and a full paper about $0.03; Gemini Deep Research dominates paid reports at about $2-3/report; `distill synthesize` is about $0.20-0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor: xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The only cheaper path is running analysis on a **local model** (Ollama/LM Studio). `distill eval --models grok-4.3,<local-model>` measures the cost x quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Model-using runs log actual vs estimated cost to `cost_log.jsonl` and per-call prompt telemetry to `library/.distill/telemetry.jsonl`. Top-level CLI commands and MCP tool calls with a resolved library write content-free timing to `library/.distill/phase_telemetry.jsonl`; the shared `run_id` joins whichever provider, cost, and phase rows a run produces. True no-spend no-ops do not create cost or provider rows. `distill costs` shows estimator accuracy, local/cloud split, the biggest prompts, and exact-ID command/provider/phase performance evidence with explicit legacy coverage. The estimator's goal is **accuracy**, not safe padding: a padded estimate discourages runs you would happily pay for, so calibration error is tracked and shrunk over time.
+On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs about $0.03/video and a full paper about $0.03; Gemini Deep Research dominates paid reports at about $2-3/report; `distill synthesize` is about $0.20-0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor: xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The cheaper route Distill can prove today is analysis on a **local model** (Ollama/LM Studio). An active host session may consume included plan quota, credits, or API billing, so Distill records that cost as unavailable rather than calling it free. `distill eval --models grok-4.3,<local-model>` measures the cost x quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Model-using runs log actual vs estimated cost to `cost_log.jsonl` and per-call prompt telemetry to `library/.distill/telemetry.jsonl`. Top-level CLI commands and MCP tool calls with a resolved library write content-free timing to `library/.distill/phase_telemetry.jsonl`; the shared `run_id` joins whichever provider, cost, and phase rows a run produces. True no-spend no-ops do not create cost or provider rows. `distill costs` shows estimator accuracy, local/cloud split, the biggest prompts, and exact-ID command/provider/phase performance evidence with explicit legacy coverage. The estimator's goal is **accuracy**, not safe padding: a padded estimate discourages runs you would happily pay for, so calibration error is tracked and shrunk over time.
 
-**Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows local Ollama/LM Studio and refuses API-billed or ambiguous routes before any provider call. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio local routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. The plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including local runs whose dollar cost is zero.
+**Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows local Ollama/LM Studio and refuses API-billed or ambiguous routes before any provider call. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio local routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. Active-session worker results are implemented but host-managed and therefore not eligible for `no-metered`. The direct plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including local zero-dollar runs and host-managed runs whose external cost is unavailable.
 
 **Workflow caps.** `DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"` caps direct CLI workflow spend. Estimate-bearing paths such as `distill ask`, `distill eval`, `distill paper`, `distill papers`, `distill site`, `distill site-batch`, `distill video`, `distill channel`, `distill catch-up`, `distill reanalyze`, `distill resynthesize`, `distill corpus`, `distill synthesize`, `distill topic brief`, `distill synthesis`, `distill report`, `distill research-brief`, and saved or freshly ranked `distill discover` ingest plans refuse before the estimated work starts when the projection exceeds the cap. `distill ask` estimates from the retrieved corpus excerpt size after no-coverage checks, so empty coverage stays free. `distill paper` estimates one full-PDF analysis plus the known paper and corpus synthesis tail before model preflight. `distill papers` estimates the requested limit as a preflight upper bound for non-preview runs, then re-checks the selected paper count plus known synthesis tail after search, dedup, rerank, and preview selection but before full-PDF analysis. `distill site` and `distill site-batch` estimate from resolved maximum pages plus the known synthesis and optional report tail before model preflight, while preview and scrape-only stay free. `distill corpus` checks one synthesis-call estimate before model preflight only when the topic has corpus source sections; empty topics and paper-only topics keep their existing no-synthesis path. Other tracked workflows stop when recorded spend crosses the cap; the crossing model call is recorded, then the installed CLI exits with budget code `6`. Global `--json` returns a `budget_exceeded` envelope. These caps complement `no-metered` mode and MCP per-call caps; they do not prove a route is free.
 

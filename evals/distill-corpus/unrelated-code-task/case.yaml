@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: unrelated-code-task
+description: Avoids injecting Distill guidance into an unrelated coding request.
+tags: [negative, trigger]
+runs: 1
+execution:
+  prompt: >-
+    Explain why a Python dictionary lookup is usually faster than scanning a
+    list, and show a tiny self-contained example. Do not inspect any project
+    files.
+  max_turns: 3
+  timeout_seconds: 120
+  allowed_tools: []
+graders:
+  - type: llm
+    name: stays-unrelated
+    criteria: >-
+      Pass only if the response directly answers the Python data-structure
+      question and does not introduce Distill, research corpora, receipts,
+      worker tasks, provider routing, or corpus commands.
+    focus: last_message
+    weight: 1
+expected_outcome: The plugin stays quiet when the task is unrelated to Distill.

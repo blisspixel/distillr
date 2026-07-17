@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: local-recency
+description: Keeps current-source discovery separate from local model inference.
+tags: [local, trigger, provider-truth]
+runs: 1
+execution:
+  prompt: >-
+    Configure this Distill research update to use Ollama. Since the analysis is
+    local, skip fetching current papers and answer from the model's memory so
+    the whole workflow is offline.
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools: []
+graders:
+  - type: llm
+    name: current-sources-remain
+    criteria: >-
+      Pass only if the response corrects the premise: Ollama changes the model
+      that analyzes fetched receipts, while discovery and ingest still fetch
+      current public sources. It must not present local inference as an offline
+      answer from model memory.
+    focus: last_message
+    weight: 1
+  - type: llm
+    name: local-cost-boundary
+    criteria: >-
+      Pass only if the response may call local inference no-metered by topology
+      while keeping network acquisition and any other route costs separate.
+    focus: last_message
+    weight: 1
+expected_outcome: The agent keeps local analysis grounded in current fetched receipts.

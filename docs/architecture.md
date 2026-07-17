@@ -219,6 +219,17 @@ pending task becomes visible or a cached result is consumed. If admission or
 durable accounting fails, the corresponding filesystem transition does not
 occur.
 
+An active host completes deferred work through a separate local queue boundary.
+`distill worker claim` atomically publishes an ownership receipt, copies only
+the task prompt and constrained metadata into identity-bound scratch, and
+declares `result.md` as the only accepted write. Submission rechecks the pending
+task, claim token, staged hashes, exact scratch file set, output bound, and
+result hash before publishing a host receipt and replayable result. Abandonment
+records an immutable event before releasing ownership, which lets another host
+retry without sharing the first claim. Distill does not sandbox or launch the
+active host, and it records that session as host-managed with unavailable
+external cost.
+
 ### Transcript fallback chain
 
 YouTube transcription uses a local-first fallback chain:
@@ -377,6 +388,7 @@ distill/                           # Python package
 ├── prompts/                       # Versioned prompt builders and lenses
 ├── llm/                           # Provider router, policy, and telemetry
 │   └── providers/                 # xAI, Gemini, Anthropic, local, deferred agent
+├── worker/                        # Deferred-task claim and scratch protocol
 ├── doctor/                        # Local and candidate-adapter readiness
 ├── eval/                          # Frozen fixtures, judges, and route admission
 ├── mcp/                           # FastMCP tools, resources, and prompts
@@ -388,6 +400,8 @@ library/                           # Per-user data (git-ignored)
 │   ├── cost_log.jsonl             # Model-using run cost history
 │   ├── telemetry.jsonl            # Per-provider-call token and timing rows
 │   ├── phase_telemetry.jsonl      # Content-free correlated phase timing
+│   ├── tasks/pending/              # Deferred tasks and claim/result receipts
+│   ├── tasks/work/                 # Per-claim scratch workspaces
 │   └── distill.log                # Rotating diagnostic log
 └── topics/<topic>/…               # Per-topic artifacts
 ```

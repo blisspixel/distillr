@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -20,6 +21,8 @@ from distill.llm.providers._agent_files import (
     validated_task_root,
     write_task_bytes,
 )
+from distill.llm.providers._agent_protocol import HostSubmission
+from distill.llm.providers._agent_submission import read_host_submission
 from distill.llm.providers._usage import conservative_usage
 from distill.llm.router import PendingTaskError
 from distill.llm.types import LLM_Response
@@ -30,9 +33,19 @@ from distill.llm.usage import (
     emit_usage_attempt,
 )
 
-_MAX_AGENT_TASK_BYTES = 1 * 1024 * 1024
-_MAX_AGENT_RESULT_BYTES = 16 * 1024 * 1024
-_RESULT_BYTES_PER_TOKEN = 16
+AGENT_TASK_SCHEMA_VERSION = "agent-task.v1"
+MAX_AGENT_TASK_BYTES = 1 * 1024 * 1024
+MAX_AGENT_RESULT_BYTES = 16 * 1024 * 1024
+RESULT_BYTES_PER_TOKEN = 16
+
+
+def agent_result_byte_limit(max_tokens: int) -> int:
+    """Return the bounded result size accepted for a deferred agent task."""
+
+    return min(
+        MAX_AGENT_RESULT_BYTES,
+        max(4_096, max_tokens * RESULT_BYTES_PER_TOKEN),
+    )
 
 
 class AgentProvider:
@@ -83,22 +96,42 @@ class AgentProvider:
         workload_tag: str,
         task_filename: str,
         max_tokens: int,
+        submission: HostSubmission | None = None,
     ) -> LLMUsageAttempt:
         """Build stable conservative evidence for one deferred external task."""
 
         prompt_hash = self._prompt_hash(prompt, workload_tag)
         attempt_id = hashlib.sha256(f"agent:{prompt_hash}:{task_filename}".encode()).hexdigest()
-        input_tokens, output_tokens = conservative_usage(
-            prompt=prompt,
-            max_tokens=max_tokens,
-        )
+        if submission is None:
+            input_tokens, output_tokens = conservative_usage(
+                prompt=prompt,
+                max_tokens=max_tokens,
+            )
+            model = "agent"
+            provider_name = "agent"
+            provider_type = "cloud"
+            usage_source = "conservative"
+        else:
+            if submission.input_tokens is None:
+                input_tokens, output_tokens = conservative_usage(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                )
+                usage_source = "conservative"
+            else:
+                input_tokens = submission.input_tokens
+                output_tokens = submission.output_tokens or 0
+                usage_source = submission.usage_source
+            model = submission.model_label
+            provider_name = submission.host
+            provider_type = "host-managed"
         return LLMUsageAttempt(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            model="agent",
-            provider_name="agent",
-            provider_type="cloud",
-            usage_source="conservative",
+            model=model,
+            provider_name=provider_name,
+            provider_type=provider_type,
+            usage_source=usage_source,
             outcome="success",
             attempt_id=attempt_id,
         )
@@ -209,7 +242,7 @@ class AgentProvider:
             task_text = read_task_text(
                 task_path,
                 pending_root,
-                max_bytes=_MAX_AGENT_TASK_BYTES,
+                max_bytes=MAX_AGENT_TASK_BYTES,
                 root_identity=root_identity,
             )
             if task_text is None:
@@ -248,6 +281,25 @@ class AgentProvider:
         ):
             return None
         return result_text.replace("\r\n", "\n").replace("\r", "\n")
+
+    def _read_host_submission(
+        self,
+        task_path: Path,
+        result_text: str,
+        prompt_hash: str,
+        *,
+        bound_root: tuple[Path, tuple[int, int]] | None = None,
+    ) -> HostSubmission | None:
+        """Read and validate optional host-session metadata for a result."""
+
+        return read_host_submission(
+            task_path,
+            result_text,
+            prompt_hash,
+            pending_dir=self._pending_dir,
+            task_root=self._task_root,
+            bound_root=bound_root,
+        )
 
     def _find_existing_result(
         self,
@@ -332,10 +384,7 @@ class AgentProvider:
         result_path = pending_root / result_filename
 
         # Check if a result already exists for this prompt (idempotent re-call)
-        max_result_bytes = min(
-            _MAX_AGENT_RESULT_BYTES,
-            max(4_096, max_tokens * _RESULT_BYTES_PER_TOKEN),
-        )
+        max_result_bytes = agent_result_byte_limit(max_tokens)
         existing = self._find_existing_result(
             prompt,
             workload_tag,
@@ -344,6 +393,12 @@ class AgentProvider:
         )
         if existing:
             task_src, result_text = existing
+            submission = self._read_host_submission(
+                task_src,
+                result_text,
+                self._prompt_hash(prompt, workload_tag),
+                bound_root=(pending_root, pending_identity),
+            )
             attempts: list[LLMUsageAttempt] = []
             attempt = emit_usage_attempt(
                 attempts,
@@ -352,38 +407,49 @@ class AgentProvider:
                     workload_tag=workload_tag,
                     task_filename=task_src.name,
                     max_tokens=max_tokens,
+                    submission=submission,
                 ),
                 usage_sink,
             )
+            response_model = submission.model_label if submission is not None else "agent"
+            response_provider = submission.host if submission is not None else ""
+            response_provider_type = "host-managed" if submission is not None else ""
             return LLM_Response(
                 text=result_text,
                 input_tokens=attempt.input_tokens,
                 output_tokens=attempt.output_tokens,
-                model="agent",
-                usage_source="conservative",
+                model=response_model,
+                provider_name=response_provider,
+                provider_type=response_provider_type,
+                usage_source=attempt.usage_source,
                 usage_attempts=tuple(attempts),
             )
 
         # Write the task file with prompt_hash for idempotent lookup
         task_data: dict[str, object] = {
+            "schema_version": AGENT_TASK_SCHEMA_VERSION,
             "_instruction": (
                 "This is a distillr task file. Process the prompt below and write "
                 "the result to the result_path file. The result should be plain "
                 "markdown text matching the expected_output_format."
             ),
             "task_id": task_id,
+            "created_at": datetime.now(UTC).isoformat(),
             "prompt_hash": self._prompt_hash(prompt, workload_tag),
             "workload_tag": workload_tag,
             "prompt": prompt,
             "expected_output_format": "markdown",
             "result_path": str(result_path),
+            "max_result_bytes": max_result_bytes,
             "max_tokens": max_tokens,
             "timeout_seconds": timeout,
+            "worker_protocol": "agent-worker.v1",
+            "billing_class": "host-managed",
         }
         task_bytes = json.dumps(task_data, indent=2, ensure_ascii=False).encode("utf-8")
-        if len(task_bytes) > _MAX_AGENT_TASK_BYTES:
+        if len(task_bytes) > MAX_AGENT_TASK_BYTES:
             raise ValueError(
-                f"serialized agent task exceeds the {_MAX_AGENT_TASK_BYTES:,}-byte limit"
+                f"serialized agent task exceeds the {MAX_AGENT_TASK_BYTES:,}-byte limit"
             )
         attempts = []
         emit_usage_attempt(

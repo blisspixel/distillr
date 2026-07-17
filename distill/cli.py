@@ -105,6 +105,7 @@ from distill.commands.profile import profile_app  # noqa: F401
 from distill.commands.profile import register as _register_profile
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
+from distill.commands.skill import skill_app
 from distill.commands.topic import (  # noqa: F401
     _collect_topic_bundle_files,
     _export_topic_bundle,
@@ -126,6 +127,7 @@ from distill.commands.topic_watch import topic_watch_app  # noqa: F401
 from distill.commands.update import register as _register_update
 from distill.commands.view import register as _register_view
 from distill.commands.watch import register as _register_watch
+from distill.commands.worker import worker_app
 from distill.pipeline.costs import CostTracker  # noqa: F401
 
 _content_hash = _site_ingest_support.content_hash
@@ -156,6 +158,8 @@ _register_process(app)
 _register_view(app)
 _register_topic_watch(app)
 _register_watch(app)
+app.add_typer(worker_app, name="worker", rich_help_panel="Operations")
+app.add_typer(skill_app, name="skill", rich_help_panel="Operations")
 
 __all__ = ["app", "main"]
 

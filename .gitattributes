@@ -1,2 +1,9 @@
 *.sh text eol=lf
 *.ps1 text eol=crlf
+skills/distill-corpus/** text eol=lf
+evals/distill-corpus/** text eol=lf
+plugins/distill-corpus/** text eol=lf linguist-generated=true
+distill/resources/agent-skills/** text eol=lf linguist-generated=true
+.agents/plugins/marketplace.json text eol=lf linguist-generated=true
+.claude-plugin/marketplace.json text eol=lf linguist-generated=true
+gemini-extension.json text eol=lf linguist-generated=true

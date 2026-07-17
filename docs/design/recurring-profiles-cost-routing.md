@@ -5,8 +5,10 @@ visibility settle.
 
 Implementation status: profile schema, preview, approval-gated replay, resume
 state, cost modes, local route evidence, adapter doctor, scratch contracts, and
-pure graduation and route-pool decisions are shipped. Codex, Claude, Grok,
-Gemini CLI, Antigravity, and Copilot are still candidate external workers, not
+pure graduation and route-pool decisions are shipped. The bounded
+active-session handoff through `distill worker` is shipped and records results
+as host-managed with unavailable external cost. Codex, Claude, Grok, Gemini
+CLI, Antigravity, and Copilot are still candidate direct external workers, not
 live Distill providers. No plan-quota route is currently eligible for
 `no-metered`; the admission requirements below remain binding.
 
@@ -111,7 +113,7 @@ preview and verifier surfaces the user or an external loop can run.
 - deterministic local work,
 - public feeds and already accessible pages,
 - local model inference,
-- or explicitly configured subscription / plan-quota CLI usage,
+- or proved included subscription / plan-quota CLI usage,
 
 with no API-billed call unless the user opts into it.
 
@@ -130,6 +132,13 @@ The cost classes are:
   fan-out, cross-topic research, reviewer passes, and synthesis planning. It
   still consumes a finite quota and may hit provider rate or session limits, so
   it remains on the usage ledger.
+- **Host-managed session.** An already active agent session can claim a bounded
+  deferred task, write one scratch result, and submit a validated receipt. This
+  is useful before direct adapters graduate because Distill never handles the
+  host's credentials or launches its binary. It is not proof of included-plan
+  usage: the session may consume plan quota, credits, or API billing. The ledger
+  records direct Distill charge separately, marks external cost unavailable,
+  and refuses to verify a recurring profile budget receipt containing it.
 - **Metered API spend.** Cloud API routes are the quality floor and escalation
   path, but only run in `auto` or `paid-ok` when policy and caps allow them.
   CLI routes backed by paid credits, including Copilot-style AI-credit usage,

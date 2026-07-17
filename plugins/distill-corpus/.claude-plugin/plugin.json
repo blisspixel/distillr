@@ -1,0 +1,18 @@
+{
+  "name": "distill-corpus",
+  "description": "Read, verify, and curate a receipt-backed Distill research corpus, including bounded active-session worker handoffs.",
+  "version": "0.19.37",
+  "author": {
+    "name": "Nick Seal",
+    "url": "https://github.com/blisspixel"
+  },
+  "homepage": "https://github.com/blisspixel/distillr",
+  "repository": "https://github.com/blisspixel/distillr",
+  "license": "Apache-2.0",
+  "keywords": [
+    "research",
+    "corpus",
+    "verification",
+    "distill"
+  ]
+}

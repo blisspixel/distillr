@@ -48,6 +48,7 @@ uv run ruff check .                                           # lint clean
 uv run ruff format --check .                                  # formatting clean
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
 uv run lint-imports                                           # dependency-direction contracts hold
+uv run python scripts/agent_skill_distributions.py --check    # generated agent packages match the canonical skill
 ```
 
 Coverage is **branch** coverage (every conditional must exercise both arms). The 1.0 target of 95% is now the blocking floor and only rises. `pip-audit --skip-editable` runs in CI against the locked dependency tree and catches known CVEs (it skips the editable distillr install itself).
@@ -88,6 +89,12 @@ uv config, ruff config, bandit config, pyright config, and the import-linter con
 - `benchmarks/` - repository-only advisory harnesses; not included in installed artifacts
 - `tests/` - automated tests (unit + contract + integration)
 - `docs/` - long-form documentation; `docs/briefing-contexts/TEMPLATE.md` is the starting point for briefing prompts
+- `skills/distill-corpus/` - the only hand-edited Agent Skill source
+- `evals/distill-corpus/` - hand-edited model-judged plugin behavior cases
+- `plugins/distill-corpus/` - generated multi-client plugin; regenerate it
+  with `uv run python scripts/agent_skill_distributions.py --write`
+- `distill/resources/agent-skills/` - generated, integrity-manifested wheel
+  copy used by `distill skill`; never edit it directly
 - `configs/` - sample config files for site batches (`example_seeds.json`) and other inputs
 - `scripts/install.sh`, `scripts/install.ps1` - source installers that hand off first-run configuration to `distill init`
 - `private/` - drop any personal or client-specific files here (briefing contexts, custom seed files, scratch notes). The directory's contents are git-ignored except for `private/README.md`, which documents the convention
@@ -232,17 +239,34 @@ uv run pyright --warnings distill/
 # 5. Dependency direction enforcement
 uv run lint-imports
 
-# 6. Build sanity - sdist + wheel build, web assets bundled
+# 6. Agent Skill distribution drift
+uv run python scripts/agent_skill_distributions.py --check
+
+# 7. Build sanity - sdist + wheel build, web assets bundled
 uv build
 
-# 7. Verify nothing unwanted is staged
+# 8. Verify nothing unwanted is staged
 git diff --cached --stat
 git status
 ```
 
-`uv run pre-commit run --all-files` covers items 2-5. Run item 1 separately, or
+`uv run pre-commit run --all-files` covers items 2-6. Run item 1 separately, or
 invoke the installed test hook explicitly with
 `uv run pre-commit run --hook-stage pre-push --all-files`.
+
+The offline gate validates eval schema and generated copies, not semantic
+quality. Before publishing the plugin, use a budget-capped native behavior run
+on a Claude version and account that have the early-access runner enabled:
+
+```bash
+claude plugin eval plugins/distill-corpus --ablation with-without --runs 3 --max-cost-usd 5 --no-scaffold
+```
+
+If Claude reports that `plugin eval` is still in early access for the account,
+record the release block. Do not bypass the client feature gate or replace the
+model-judged criteria with keyword, length, or other deterministic proxies.
+Publishing without the native run requires an explicit human waiver recorded
+in the matching changelog entry together with the substitute validation.
 
 Common mistakes that have burned us:
 

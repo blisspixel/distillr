@@ -19,6 +19,8 @@ In scope for security reports:
 - Server-side request forgery (SSRF): an attacker-influenced URL (site, feed, repo, paper, or one passed to an MCP write tool) reaching internal, loopback, link-local, or cloud-metadata addresses. Egress is meant to be confined to public hosts (`ingestors/net.py`), and URLs handed to yt-dlp are host-pinned to YouTube
 - Resource exhaustion / denial of service from maliciously large or malformed untrusted responses (unbounded reads, parser crashes, catastrophic regex backtracking)
 - MCP server authentication or tool-authorization issues
+- Deferred worker queue escapes, claim-ownership bypasses, or acceptance of
+  unexpected scratch writes
 - Dependency vulnerabilities in pinned versions
 - Prompt injection that causes distill to take actions outside its intended scope
 
@@ -36,6 +38,24 @@ Out of scope:
 - Rate limiting on the user's own API keys - that's upstream (xAI, Google)
 - Cost overruns from normal use - that's a budget issue, not a security issue (though budget-guardrail bugs that bypass user-set limits are in scope)
 - Issues that require the attacker to already have write access to the user's library directory
+
+## Active host-worker boundary
+
+`distill worker` accepts results from an already active external agent session.
+Distill does not launch or sandbox that host process. The host must keep its own
+approval and sandbox controls enabled.
+
+The protocol limits what Distill accepts: one atomic claim, identity-bound task
+and scratch directories, no-follow bounded reads, unchanged staged prompt and
+metadata hashes, an exact workspace file set, one result path, bounded output,
+an ownership token, immutable abandonment or release receipts, and a validated
+submission receipt before replay. Worker output still passes through the normal
+Distill verification and corpus-write path. Queue files and receipts are not a
+public editing surface.
+
+Host billing is outside this security boundary. Results are labeled
+`host-managed`, never proven no-metered, because the enclosing session may use
+plan quota, credits, an API key, or another route Distill cannot observe.
 
 ## Handling
 

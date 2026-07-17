@@ -13,7 +13,9 @@
 Here, orchestration means a bounded strategy over model routes inside one
 Distill workload. It does not mean job scheduling, leases, queue ownership, or
 cross-machine execution. Those remain responsibilities of the external loop
-runner.
+runner. The shipped `distill worker` protocol now supplies local claim leases
+and operator-mediated handoff for deferred `AgentProvider` tasks, but it does
+not select routes or schedule a vendor CLI.
 
 ## The gap this closes
 
@@ -35,6 +37,25 @@ the orchestration layer selects a **strategy**, which is a small rule-owned plan
 over one or more routes plus a model-judged verifier. `distill eval` then scores
 `(workload, strategy)` pairs on **cost per accepted change**, and recommends the
 cheapest strategy that clears the bar, not merely the cheapest route.
+
+## What the active-session handoff changes
+
+The worker protocol lands the safest useful slice of the fleet idea before any
+direct plan adapter graduates:
+
+- any already active host can claim one provider-neutral task into isolated
+  scratch;
+- ownership is atomic and the accepted write set is one result file;
+- a quota or policy stop can be abandoned with a receipt, then another host can
+  claim the same pending task;
+- expired claims require explicit operator release;
+- successful output retains host, model when known, usage provenance, result
+  hash, and host-managed billing evidence.
+
+This is manual, skill-driven fallback, not an autonomous fleet. It does not
+prove included-plan auth, dispatch several hosts, choose a winner, or escalate
+to a paid API. Those remain route-orchestration responsibilities behind doctor,
+ledger, scratch-manifest, and eval gates.
 
 ## Research signals (2026)
 
@@ -241,6 +262,11 @@ tested today against local Ollama plus mock routes:
 - the eval harness extension that scores `(workload, strategy)` on cost per
   accepted change.
 
+The shipped host-worker queue can also exercise claim, abandonment, and
+operator-mediated fallback with real active sessions, but host-managed results
+remain outside the no-metered route pool because their external billing path is
+unproved.
+
 Real plan-quota routes plug into the same interface the moment they graduate
 through adapter doctor and the `distill.eval.graduation` decision. So this is
 the non-blocked, higher-value half of 0.19: the route layer waits on vendor
@@ -284,8 +310,9 @@ local and mock routes.
 
 ## Where this lands
 
-A 0.19.x extension, sequenced after the read-only adapter prototypes (0.19.4) and
-the cross-route eval (0.19.3), since both the adapter runner and the eval
-comparison are its substrate. The strategy interface and the single + maker-checker
-strategies plus their eval can be built and proven against local and mock routes
-before any plan-quota vendor statement is current.
+The active-session claim, receipt, and manual fallback substrate landed in
+0.19.37. It deliberately stops before automatic host dispatch or route
+eligibility. The strategy interface, single-route wiring, maker-checker,
+ensemble, critic-refine, and strategy eval remain sequenced with the post-1.0
+provider-breadth work. They can still be built and proven against local and mock
+routes before any plan-quota vendor statement is current.
