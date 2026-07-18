@@ -29,6 +29,7 @@ from distill.commands._helpers import (
 from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import file_link as _file_link
 from distill.commands._helpers import format_date as _format_date
+from distill.commands._json import ExitCode
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
 from distill.commands._topic_changes import (
@@ -118,11 +119,11 @@ def library_cmd() -> None:
         console.print(
             Panel(
                 "[dim]Library is empty.\n\nFirst-time setup:[/dim]\n"
-                "  distill init\n"
-                "  distill doctor\n"
-                '  distill papers "your research question" --topic my-topic --limit 5 --preview\n\n'
+                "  distill --cost-mode no-metered init\n"
+                "  distill --cost-mode no-metered doctor\n"
+                '  distill --cost-mode no-metered papers "topic" -n 5 --preview\n\n'
                 "[dim]After setup:[/dim]\n"
-                '  distill latest "your research question" --topic my-topic --limit 5 --preview\n'
+                '  distill --cost-mode no-metered latest "topic" -n 5 --preview\n'
                 "  distill add my-topic https://www.youtube.com/@SomeChannel\n"
                 "  distill run my-topic",
                 title="Distill Library",
@@ -324,6 +325,19 @@ def _show_payload(vid_dir: Path, video: JsonObject, what: str) -> dict[str, obje
     }
 
 
+def _missing_show_payload(what: str, reason: str) -> dict[str, object]:
+    """Structured empty-state payload for every early ``show --json`` branch."""
+    return {
+        "title": None,
+        "what": what,
+        "metadata": {},
+        "path": None,
+        "found": False,
+        "content": None,
+        "reason": reason,
+    }
+
+
 def _emit_content_json(label: str, file_path: Path) -> None:
     """Emit a read-artifact's content as a ``--json`` envelope (read-only: never
     triggers generation, so an agent querying with --json can't cause spend)."""
@@ -374,27 +388,39 @@ def show(  # noqa: C901 — legacy, will refactor
     if channel:
         channel_names = [name for name in channel_names if name == channel]
     if not channel_names:
-        console.print("[yellow]No channels found[/yellow]")
+        if _json_mode_active():
+            _emit_json(_missing_show_payload(what, "no_channels"))
+        else:
+            console.print("[yellow]No channels found[/yellow]")
         return
 
     channel_name = channel_names[0]
     videos_dir = config.videos_dir(topic, channel_name)
 
     if not videos_dir.exists():
-        console.print(f"[yellow]No videos found for {channel_name}[/yellow]")
+        if _json_mode_active():
+            _emit_json(_missing_show_payload(what, "no_videos"))
+        else:
+            console.print(f"[yellow]No videos found for {channel_name}[/yellow]")
         return
 
     # Collect and sort videos
     vid_list = _video_metadata(videos_dir)
 
     if index < 1 or index > len(vid_list):
-        console.print(f"[red]Video #{index} not found. Range: 1-{len(vid_list)}[/red]")
+        if _json_mode_active():
+            _emit_json(_missing_show_payload(what, "video_not_found"))
+        else:
+            console.print(f"[red]Video #{index} not found. Range: 1-{len(vid_list)}[/red]")
         return
 
     video = vid_list[index - 1]
     vid_dir = _path_field(video, "_dir")
     if vid_dir is None:
-        console.print("[red]Video metadata is missing its library path[/red]")
+        if _json_mode_active():
+            _emit_json(_missing_show_payload(what, "invalid_metadata"))
+        else:
+            console.print("[red]Video metadata is missing its library path[/red]")
         return
 
     if _json_mode_active():
@@ -792,7 +818,7 @@ def diff(
 
     if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
         console.print(f"[red]Topic not found: {topic}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(int(ExitCode.NOT_FOUND))
 
     baseline, watch_name, query, cadence = resolve_topic_diff_baseline(
         lib,
@@ -888,7 +914,7 @@ def trends(
 
     if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
         console.print(f"[red]Topic not found: {topic}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(int(ExitCode.NOT_FOUND))
 
     records = load_topic_change_history(config, topic)
     rendered = render_topic_trends_markdown(

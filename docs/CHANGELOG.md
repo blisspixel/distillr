@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Kept `show --json` machine-readable across missing-topic, missing-video,
+  out-of-range, and malformed-metadata states, with stable empty-state reasons.
+  Missing topics in `diff` and `trends` now use the documented `NOT_FOUND` exit
+  code.
+- Stopped missing local ingest targets at the filesystem boundary. Distill now
+  prints a markup-safe, copyable target with recovery guidance and exits 5
+  before URL routing or model work.
+- Made partial-run recovery actionable. Failed source rows receive the retry
+  hint, successful evidence writes expose the exact `latest_run_errors.md`
+  receipt, and evidence-write failures are visible in both console output and
+  logs without claiming a nonexistent file.
 - Restored the documented JSON contract for bare and explicit dashboard reads.
   `distill --json` and `distill --json dashboard` now return the same bounded
   `dashboard.v1` envelope with no human output on stderr.
@@ -55,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Compressed onboarding around one recommended `uv tool` path with no-metered
+  setup and a preview-first run. Installed help, init follow-up, terminal and
+  web empty states, and dashboard JSON now keep that fail-closed path aligned;
+  explicit `paid-ok` copy identifies intentional cloud validation. Alternative
+  installers remain available behind one disclosure.
 - Reframed README and roadmap status around continuing product refinement. No
   contract freeze is scheduled; future stability is gated on compatibility,
   migration, performance, security, accessibility, operator, and sustained

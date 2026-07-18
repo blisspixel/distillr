@@ -124,7 +124,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         help="Execute the migration plan (requires --migrate-links or --migrate-frontmatter)",
     ),
 ):
-    """Check API keys, tools, and library health."""
+    """Check API keys, tools, and library health.
+
+    Cloud key validation is live and may be billed. Pass the global
+    ``--cost-mode no-metered`` option to refuse API-billed or ambiguous probes.
+    """
     from distill.commands._json import JsonEnvelope
 
     json_mode = ctx.obj.get("json", False) if ctx.obj else False
@@ -861,7 +865,10 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
     console.print("  [bold]Next step[/bold]")
     console.print(f"  [dim]{'-' * 50}[/dim]")
     if get_config().xai_api_key:
-        console.print('  Cloud ready:  [cyan]distill papers "agent memory" --limit 5[/cyan]')
+        console.print(
+            '  Cloud ready:  [cyan]distill --cost-mode paid-ok papers "agent memory" '
+            "--limit 5 --preview[/cyan]"
+        )
         if ollama_models:
             console.print(
                 f"  Compare local vs cloud (local is free):  "
@@ -874,7 +881,7 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
         console.print("  [dim]Add XAI_API_KEY to .env to also use cloud models.[/dim]")
     else:
         console.print(
-            "  Not set up yet:  [cyan]distill init[/cyan]  "
+            "  Not set up yet:  [cyan]distill --cost-mode no-metered init[/cyan]  "
             "[dim](guided: writes .env, validates your key, installs the browser)[/dim]"
         )
         console.print(

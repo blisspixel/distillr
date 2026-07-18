@@ -13,12 +13,22 @@
 *Installed as [`distillr`](https://pypi.org/project/distillr/) on PyPI; the CLI command is `distill` (plus `distill-mcp`).*
 
 ```bash
-pip install distillr
-distill init
-distill papers "temporal knowledge graph" --topic tkg --limit 20
+uv tool install distillr
+distill --cost-mode no-metered init
+distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --limit 5 --preview
 ```
 
-That one command searches arXiv, selects and downloads up to 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this (illustrative run; see the labelled sample-output note below):
+The preview asks Distill to build a current arXiv shortlist without ingesting
+papers or writing corpus artifacts. `no-metered` permits only routes Distill can
+prove are not API-billed and refuses ambiguous billing. It does not substitute
+stale model memory for current sources. When the shortlist looks right, run the
+full workflow with an explicit limit and cost policy:
+
+```bash
+distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
+```
+
+That full command searches arXiv, selects and downloads up to 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this (illustrative run; see the labelled sample-output note below):
 
 ```
 Papers: temporal knowledge graph
@@ -76,40 +86,59 @@ Plus an MCP server so AI assistants and agent systems can query the library dire
 
 ## Quick start
 
-**One-line install**
-
-**Windows (PowerShell):**
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.ps1 | iex"
-```
-
-**macOS / Linux:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.sh | bash
-```
-
-After the installer finishes, open a **new** terminal and run `distill init`. It is a guided, one-command setup: it creates your `.env`, helps you pick the cloud or local provider, validates your key against the provider, installs the Playwright browser if it is missing, and ends with a ready/not-ready verdict and the first command to try. (`distill doctor` remains the read-only diagnostic; `distill init` is the one that *sets things up*.) Both are no-TTY-safe, so a scripted or agent-driven setup never hangs.
-
-**Updating:** `distill update` upgrades to the latest release in place - it detects how you installed (uv tool / pipx / pip) and runs the right upgrade for you; `distill update --check` just reports whether a newer version exists. distill also prints a one-line nudge when a new release is published (cached daily, silence with `DISTILL_NO_UPDATE_CHECK=1`).
-
----
-
-**Distill runs on Windows, macOS, and Linux** (Python 3.12+). Local models run on consumer GPUs via Ollama or LM Studio.
-
-### Recommended: `uv tool` (the 2026 default for Python CLIs)
+### Recommended path: `uv tool`
 
 [`uv`](https://docs.astral.sh/uv/) installs the CLI into an isolated, on-PATH environment in one command - no venv to activate, no PATH surgery:
 
 ```bash
-uv tool install distillr     # installs the `distill` + `distill-mcp` commands
-distill --version            # confirm it's on PATH
-playwright install chromium  # browser support for YouTube + web capture
-distill doctor               # verify keys + environment
+uv tool install distillr
+distill --version
+distill --cost-mode no-metered init
+distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --limit 5 --preview
 ```
 
-Want to try it before installing? `uvx --from distillr distill --help` runs the CLI in a throwaway environment (note: ingestion needs the one-time `playwright install chromium`, so `uv tool install` is the path for real runs).
+`init` creates `.env`, guides the cloud or local provider choice, installs
+Chromium when needed, and ends with a ready or not-ready verdict. The
+recommended invocation permits local validation and refuses API-billed or
+ambiguous provider checks. If you choose a cloud API, run `distill --cost-mode
+paid-ok init` only when you intend its minimal live key-validation request. That
+request can be billed and is recorded in the local ledger. Both setup paths are
+no-TTY-safe.
 
-### Alternative (virtual environment or pipx)
+The final command is preview-first: it can fetch current public candidates and
+use an allowed model route to rank them, but it does not ingest papers or write
+corpus artifacts. `no-metered` fails closed if no proven no-metered analysis
+route is available. Remove `--preview`, choose an explicit limit, and permit a
+metered route only when you are ready to commit the run.
+
+**Updating:** `distill update` upgrades to the latest release in place - it detects how you installed (uv tool / pipx / pip) and runs the right upgrade for you; `distill update --check` just reports whether a newer version exists. Distill also prints a one-line nudge when a new release is published (cached daily, silence with `DISTILL_NO_UPDATE_CHECK=1`).
+
+Want to try it before installing? `uvx --from distillr distill --help` runs the CLI in a throwaway environment. Ingestion needs the one-time Chromium install, so `uv tool install` is the path for real runs.
+
+**Distill runs on Windows, macOS, and Linux** (Python 3.12+). Local models run on consumer GPUs via Ollama or LM Studio.
+
+<details>
+<summary>Other supported install paths</summary>
+
+### Repository installers
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.ps1 | iex"
+```
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.sh | bash
+```
+
+These commands download and execute the current installer from this repository.
+Review the linked script first when your environment requires pinned or audited
+installation input. Open a new terminal after the installer finishes.
+
+### Virtual environment or source checkout
 
 This is the cleanest way without uv and avoids common PATH problems.
 
@@ -128,28 +157,30 @@ pip install -e .              # from a source checkout, or: pip install distillr
 playwright install chromium
 
 # 5. Verify
-distill doctor
+distill --cost-mode no-metered doctor
 ```
 
-**Even simpler alternative: pipx** (great for CLI tools):
+### pipx
 
 ```bash
 pipx install distillr
 playwright install chromium
-distill doctor
+distill --cost-mode no-metered doctor
 ```
 
-### Fast path (bare pip)
+### Bare pip
 
 ```bash
 pip install distillr
 playwright install chromium
-distill doctor
+distill --cost-mode no-metered doctor
 ```
 
 **Windows note (common gotcha):** If you use a system Python (e.g. under `C:\Program Files\Python...`) without admin rights, bare `pip` installs to your user directory. The CLI (`distill.exe`) may land in a Scripts folder that is not on `PATH`. Use the venv or pipx method above, or add `%APPDATA%\Python\Python312\Scripts` (adjust version) to your user PATH and restart the terminal.
 
-The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Set two keys in `.env` in your working directory (copy from `.env.example`):
+</details>
+
+The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Cloud routes read keys from `.env` in your working directory (copy from `.env.example`); set only the providers you intend to use:
 
 ```bash
 XAI_API_KEY=xai-...             # Grok models
@@ -161,7 +192,7 @@ Or run locally with Ollama (no API keys needed for ingestion):
 ```bash
 ollama pull qwen3.5:27b         # download recommended model for 24GB GPU
 echo "DISTILL_PROVIDER=ollama" >> .env
-distill doctor                  # verify local setup
+distill --cost-mode no-metered doctor  # verify local setup without cloud probes
 ```
 
 Local mode still uses fresh sources. `DISTILL_PROVIDER=ollama` or
@@ -187,10 +218,10 @@ distill discover --goal-file private/agent365-goal.md --topic agent365 --trusted
 # Get smart on a YouTube topic, fast
 distill latest "Microsoft Fabric best practices" --limit 10 --report
 
-# Discover and ingest arXiv papers - expands the query, LLM-reranks candidates,
-# picks the top N (use --preview to see the shortlist without ingesting)
-distill papers "agent memory systems" --topic memory --limit 20
-distill papers "agent memory systems" --topic memory --limit 20 --preview
+# Preview an arXiv shortlist, refusing API-billed analysis routes
+distill --cost-mode no-metered papers "agent memory systems" --topic memory --limit 5 --preview
+# Then explicitly permit cloud model work and ingest a sized set when ready
+distill --cost-mode paid-ok papers "agent memory systems" --topic memory --limit 20
 distill export memory --what citations --format bibtex
 
 # Distill a vendor/research site

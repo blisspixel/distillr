@@ -366,6 +366,24 @@ def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
     assert not (tmp_path / "lib" / ".distill" / "cost_log.jsonl").exists()
 
 
+def test_ingest_cmd_reports_missing_local_file_before_url_routing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from distill.cli import app
+
+    config = _config(tmp_path)
+    missing = tmp_path / "missing [draft] research.pdf"
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+
+    result = CliRunner().invoke(app, ["ingest", str(missing)])
+
+    assert result.exit_code == 5
+    assert f"Local file not found: {missing}" in result.output
+    assert "Check the path and try again" in result.output
+    assert "No dedicated adapter" not in result.output
+    assert not (config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+
 def test_ingest_cmd_rejects_unc_before_filesystem_probe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

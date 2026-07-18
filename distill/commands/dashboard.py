@@ -62,13 +62,13 @@ def _cost_run_float(entry: CostRun, key: str) -> float:
 
 def _build_setup_table() -> Table:
     table = Table.grid(expand=True)
-    table.add_column(style="bold cyan", width=23)
+    table.add_column(style="bold cyan", width=16)
     table.add_column()
-    table.add_row("Set up once", "distill init")
-    table.add_row("Check readiness", "distill doctor")
+    table.add_row("Setup safely", "distill --cost-mode no-metered init")
+    table.add_row("Check readiness", "distill --cost-mode no-metered doctor")
     table.add_row(
-        "Preview before ingest",
-        'distill papers "your research question" --topic my-topic --limit 5 --preview',
+        "Preview",
+        'distill --cost-mode no-metered papers "topic" -n 5 --preview',
     )
     return table
 
@@ -139,7 +139,8 @@ def _show_first_run_home(version: str, help_hint: str = "distill --help for all 
     )
     notes.add_row(
         "Spend control",
-        "Use [bold]--cost-mode no-metered[/bold] to refuse API-billed routes, or keep defaults and review [bold]distill costs[/bold].",
+        "Examples above refuse API-billed routes. Use [bold]--cost-mode paid-ok[/bold] "
+        "only for intended cloud validation or model work.",
     )
     notes.add_row(
         "Then",

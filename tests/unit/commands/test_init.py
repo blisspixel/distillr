@@ -600,7 +600,7 @@ def test_cloud_ready_path(in_tmp, monkeypatch):
     result = runner.invoke(app, ["init", "--yes"])
     assert result.exit_code == 0, result.output
     assert "ready" in result.output.lower()
-    assert "distill papers" in result.output
+    assert "distill --cost-mode paid-ok papers" in result.output
 
 
 def test_cloud_policy_skip_reports_actionable_blocker(in_tmp, monkeypatch):
@@ -629,6 +629,7 @@ def test_json_verdict(in_tmp, monkeypatch):
     assert env["data"]["ready"] is True
     assert env["data"]["provider"] == "cloud"
     assert env["data"]["xai_key"] == "ok"
+    assert env["data"]["next"].startswith("distill --cost-mode paid-ok papers ")
 
 
 def test_existing_env_not_clobbered_by_command(in_tmp, monkeypatch):
@@ -675,6 +676,7 @@ def test_local_provider_path(in_tmp, monkeypatch):
     env = json.loads(result.stdout)
     assert env["data"]["provider"] == "local"
     assert env["data"]["ready"] is True
+    assert env["data"]["next"].startswith("distill --cost-mode no-metered papers ")
     # DISTILL_PROVIDER was written to .env
     assert "DISTILL_PROVIDER=ollama" in (in_tmp / ".env").read_text(encoding="utf-8")
 

@@ -152,8 +152,10 @@ def test_empty_dashboard_offers_a_truthful_first_action(config):
 
     assert response.status_code == 200
     assert "Build your first corpus" in response.text
-    assert "distill init" in response.text
-    assert "distill doctor" in response.text
+    assert "distill --cost-mode no-metered init" in response.text
+    assert "distill --cost-mode no-metered doctor" in response.text
+    assert "distill --cost-mode no-metered papers" in response.text
+    assert "distill --cost-mode paid-ok init" in response.text
     assert "No immediate issues detected" not in response.text
     assert 'class="metrics"' not in response.text
     assert 'id="dashboard-content"' in response.text
@@ -167,9 +169,10 @@ def test_empty_topics_page_offers_setup_first_path(config):
 
     assert response.status_code == 200
     assert "No topics yet" in response.text
-    assert "distill init" in response.text
-    assert "distill doctor" in response.text
-    assert "distill papers" in response.text
+    assert "distill --cost-mode no-metered init" in response.text
+    assert "distill --cost-mode no-metered doctor" in response.text
+    assert "distill --cost-mode no-metered papers" in response.text
+    assert "distill --cost-mode no-metered latest" in response.text
     assert "distill channel" not in response.text
     assert "--preview" in response.text
 

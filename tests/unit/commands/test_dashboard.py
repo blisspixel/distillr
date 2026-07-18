@@ -160,14 +160,32 @@ def test_show_dashboard_falls_back_to_first_run_when_config_fails(monkeypatch) -
     output = stream.getvalue()
     assert "Distill Start" in output
     assert "First-Time Setup" in output
-    assert "distill init" in output
-    assert "distill doctor" in output
+    assert "distill --cost-mode no-metered init" in output
+    assert "distill --cost-mode no-metered doctor" in output
+    assert "distill --cost-mode no-metered papers" in output
+    assert "--cost-mode paid-ok" in output
     assert "--preview" in output
     assert "distill video" in output
     assert "Spend control" in output
-    assert "Preview before ingest" in output
+    assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
     assert "Preview before spend" not in output
     assert "model-backed preview cost is logged" in output
+
+
+def test_first_run_commands_remain_copyable_at_80_columns(monkeypatch) -> None:
+    stream = StringIO()
+    monkeypatch.setattr(
+        _dashboard,
+        "console",
+        Console(file=stream, force_terminal=False, width=80, color_system=None),
+    )
+
+    _dashboard._show_first_run_home("1.2.3")
+
+    output = stream.getvalue()
+    assert "distill --cost-mode no-metered init" in output
+    assert "distill --cost-mode no-metered doctor" in output
+    assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
 
 
 def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch) -> None:

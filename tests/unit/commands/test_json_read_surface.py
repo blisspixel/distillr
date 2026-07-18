@@ -88,6 +88,22 @@ def test_findings_json_when_missing(mock_config):
     assert env["data"]["found"] is False
 
 
+def test_show_json_when_topic_is_missing(mock_config):
+    result = runner.invoke(cli.app, ["--json", "show", "missing", "1"])
+
+    env = _envelope(result)
+    assert env["data"] == {
+        "title": None,
+        "what": "insights",
+        "metadata": {},
+        "path": None,
+        "found": False,
+        "content": None,
+        "reason": "no_channels",
+    }
+    assert result.stderr == ""
+
+
 def test_json_stdout_is_pure_even_with_diagnostics(mock_config):
     """Under --json, stdout is parseable JSON and nothing else; any human/
     diagnostic output is on stderr (console redirected), not stdout."""

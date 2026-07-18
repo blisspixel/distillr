@@ -15,11 +15,11 @@
   <h2 id="empty-dashboard-title">Build your first corpus</h2>
   <p>Initialize Distill, verify the local setup, then preview a source before you ingest it.</p>
   <ol>
-    <li><code>distill init</code></li>
-    <li><code>distill doctor</code></li>
-    <li><code>distill papers "your research question" --topic my-topic --limit 5 --preview</code></li>
+    <li><code>distill --cost-mode no-metered init</code></li>
+    <li><code>distill --cost-mode no-metered doctor</code></li>
+    <li><code>distill --cost-mode no-metered papers "topic" -n 5 --preview</code></li>
   </ol>
-  <p class="empty-state-note">Preview shows the proposed work and estimated cost without writing corpus artifacts.</p>
+  <p class="empty-state-note">These commands refuse API-billed routes. Use <code>distill --cost-mode paid-ok init</code> only when you intend live cloud-key validation.</p>
 </section>
 {% else %}
 <div class="metrics">

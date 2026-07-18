@@ -181,8 +181,10 @@ class TestTopLevelExperience:
         assert result.exit_code == 0
         output = ANSI_RE.sub("", result.output)
         assert "First-time setup" in output
-        assert "distill init" in output
-        assert "distill doctor" in output
+        assert "distill --cost-mode no-metered init" in output
+        assert "distill --cost-mode no-metered doctor" in output
+        assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
+        assert "distill --cost-mode paid-ok init" in output
         assert "--preview" in output
         assert "Have one YouTube URL?" in output
         assert "Build a topic corpus?" in output
@@ -206,6 +208,15 @@ class TestTopLevelExperience:
 
             assert result.exit_code == 0, result.output
             assert expected in ANSI_RE.sub("", result.output)
+
+    @pytest.mark.parametrize("command", ["init", "doctor"])
+    def test_live_validation_help_names_cost_guard(self, command):
+        result = runner.invoke(cli.app, [command, "--help"])
+
+        assert result.exit_code == 0
+        output = ANSI_RE.sub("", result.output)
+        assert "may be billed" in output
+        assert "--cost-mode no-metered" in output
 
     def test_ask_help_renders_wiki_link_description(self):
         result = runner.invoke(cli.app, ["ask", "--help"])
@@ -249,6 +260,13 @@ class TestTopLevelExperience:
         assert payload["data"]["schema_version"] == "dashboard.v1"
         assert payload["data"]["first_run"] is True
         assert payload["data"]["paths"]["library"] == str(mock_config.library_dir)
+        assert payload["data"]["next_commands"][:2] == [
+            "distill --cost-mode no-metered init",
+            "distill --cost-mode no-metered doctor",
+        ]
+        assert payload["data"]["next_commands"][2] == (
+            'distill --cost-mode no-metered papers "topic" -n 5 --preview'
+        )
         assert result.stderr == ""
 
     def test_dashboard_command_json_matches_root_contract(self, mock_config):
@@ -568,6 +586,8 @@ class TestStatusCommand:
     def test_empty_status(self, mock_config):
         result = runner.invoke(cli.app, ["status"])
         assert result.exit_code == 0
+        assert "distill --cost-mode no-metered init" in result.output
+        assert "distill --cost-mode no-metered doctor" in result.output
 
     def test_status_with_data(self, mock_config_with_library):
         _populate_videos(mock_config_with_library, "ai", "TestCh")
@@ -3240,7 +3260,7 @@ class TestLibraryHints:
         result = runner.invoke(cli.app, ["library"])
         assert result.exit_code == 0
         assert "empty" in result.output.lower()
-        assert "distill init" in result.output or "First-time setup" in result.output
+        assert "distill --cost-mode no-metered init" in result.output
 
 
 class TestCatchUpHints:

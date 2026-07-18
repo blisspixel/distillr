@@ -544,6 +544,11 @@ distill ingest https://x.com/example/status/1234567890 --topic agent-harnesses \
   --no-transcribe --no-analyze
 ```
 
+A non-HTTP target stays on the local-file path. If it does not exist, Distill
+prints the exact target, suggests checking the path, and exits with
+`NOT_FOUND` (5) before URL adapter routing or model work. A missing local file
+is never reported as an unsupported website host.
+
 X uses the public syndication endpoint and never bypasses login or anti-bot
 walls. Artifacts land under
 `topics/<topic>/x/<handle>/posts/<post>/`. `--no-transcribe` skips attached
@@ -574,10 +579,10 @@ distill paper https://arxiv.org/abs/2602.12670 --topic my-research
 
 # Search arXiv and build a topic-level paper corpus - expands the query,
 # LLM-reranks candidates, ingests the top N (all on by default)
-distill papers "agent memory systems" --topic my-research --limit 20
+distill --cost-mode paid-ok papers "agent memory systems" --topic my-research --limit 20
 
-# Preview the ranked shortlist without ingesting (free-ish, ~$0.01)
-distill papers "agent memory systems" --topic my-research --limit 20 --preview
+# Preview the ranked shortlist without ingesting; refuse API-billed model routes
+distill --cost-mode no-metered papers "agent memory systems" --topic my-research --limit 5 --preview
 
 # Old behavior: literal query, newest-first, blind ingest of top N
 distill papers "agent memory systems" --topic my-research --limit 20 \
@@ -845,12 +850,19 @@ distill open ai                                     # open topic dir
 distill open --what report ai                       # open the report
 ```
 
+The documented JSON read surface stays structured on empty states. For
+`distill --json show <topic> <index>`, `data.found` is `false`, content and path
+are `null`, and `data.reason` identifies `no_channels`, `no_videos`,
+`video_not_found`, or `invalid_metadata`. Human `show` output remains concise.
+Missing topics passed to `diff` or `trends` exit with `NOT_FOUND` (5).
+
 ## Diagnostics
 
 ```bash
 distill status                                      # quick library overview
-distill doctor                                      # check API keys + system health
-distill doctor --update                             # upgrade yt-dlp via pip
+distill --cost-mode no-metered doctor               # system health; refuse API-billed key probes
+distill --cost-mode paid-ok doctor                   # include minimal live cloud-key validation
+distill --cost-mode no-metered doctor --update      # upgrade yt-dlp without cloud-key probes
 distill costs                                       # cost history, estimator accuracy, biggest prompts,
                                                     #   and exact-ID command/provider/phase performance evidence
 distill health ai                                   # fast console view: stale syntheses + thin artifacts
@@ -872,6 +884,12 @@ distill audit all --report-only                     # every topic, no prompts (f
 distill migrate                                     # rename legacy ID-based video dirs
 distill cleanup                                     # delete orphaned Gemini File Search stores
 ```
+
+When a run has failed results or recorded issues, its terminal summary prints
+the exact local `latest_run_errors.md` receipt after that file is written.
+Failed source rows also receive a safe retry hint; already-ingested sources are
+skipped on the next run. If the evidence receipt cannot be written, Distill
+shows and logs that failure instead of advertising a path that does not exist.
 
 `distill costs` reads `.distill/phase_telemetry.jsonl`, `telemetry.jsonl`, and
 `cost_log.jsonl`. Like every CLI invocation, its own command envelope is
@@ -1025,10 +1043,12 @@ All CLI commands return stable exit codes for scripting and CI integration:
 
 ## Setup (`distill init`)
 
-The guided first-run wizard. It creates a `.env` (and **never** overwrites an existing one without `--force`, so your keys are safe), helps you choose the cloud or local provider, live-validates your key against the provider, installs the Playwright browser if it's missing, and ends with a ready/not-ready verdict plus the first command to try.
+The guided first-run wizard. It creates a `.env` (and **never** overwrites an existing one without `--force`, so your keys are safe), helps you choose the cloud or local provider, live-validates your key against the provider, installs the Playwright browser if it's missing, and ends with a ready/not-ready verdict plus the first command to try. Cloud key validation can make a small billed request in `auto` mode and records it in the local cost ledger. Use `distill --cost-mode no-metered init` to refuse API-billed or ambiguous validation.
 
 ```bash
-distill init                       # interactive: pick provider, paste key, validate
+distill --cost-mode no-metered init # recommended: setup with fail-closed validation
+distill --cost-mode paid-ok init    # explicitly permit minimal live cloud-key validation
+distill init                       # use the configured/default auto cost policy
 distill init --provider cloud      # skip the provider prompt
 distill init --provider local      # set DISTILL_PROVIDER=ollama, probe reachability
 distill init --yes                 # non-interactive: accept defaults, don't prompt
@@ -1083,10 +1103,10 @@ distill --json dashboard             # identical explicit dashboard snapshot
 distill --json library               # topic + channel inventory
 distill --json synthesis <topic>     # the synthesis document + provenance
 distill --json show <topic> 1        # a video's insights (or --what transcript)
-distill --json doctor                # health check + readiness verdict
+distill --cost-mode no-metered --json doctor  # readiness without API-billed probes
 ```
 
-`distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. An agent can gate on `ready` in one read; a not-ready environment is fixed with `distill init`.
+`distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. Under `no-metered`, cloud-key checks report `skipped`, so readiness requires an available local route. Use `paid-ok` only when an intentional live cloud validation is required. An agent can gate on `ready` in one read; a not-ready environment is fixed with the cost-explicit `init` paths above.
 
 Bare `distill --json` and `distill --json dashboard` return the same
 `dashboard.v1` data object. It includes a `first_run` verdict, primitive count
@@ -1100,6 +1120,7 @@ When `--json` is active:
 - **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` - nothing else, so it always parses
 - **stderr** carries all human/progress/diagnostic output (the shared console is redirected there), so it never corrupts the JSON on stdout
 - the listed **read surfaces** stay read-only: querying a not-yet-generated synthesis returns `{"found": false}` rather than triggering a paid generation
+- `show` empty states also return a success envelope with `found: false` and a stable `reason`; they never fall back to human-only text
 - Rich formatting and color are suppressed on stdout; `NO_COLOR` is respected
 
 `--json` changes output shape, not command side effects. Preview and action-plan

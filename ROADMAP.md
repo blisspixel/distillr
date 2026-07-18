@@ -158,6 +158,18 @@ inline HTML, tightened script CSP, and added keyboard tab, landmark, caption,
 and scoped-header semantics. Remaining work stays in the debt groups above;
 this pass does not change product scope or schedule a stability decision.
 
+**Cycle 6 refinement evidence (2026-07-17).** Onboarding now leads through one
+recommended isolated install, no-metered setup, and preview before full ingest,
+while installed help, setup follow-up, empty states, and dashboard JSON keep the
+same fail-closed path. Alternate install methods remain available without
+competing for attention.
+The current CLI read surface returns structured `show` empty states, not-found
+topic commands use the stable exit taxonomy, and missing local files stop before
+URL routing. Partial runs now expose an exact local error receipt or a visible
+receipt-write failure plus bounded retry guidance. Broader cross-command exit
+taxonomy and representative assistive-technology review remain active debt;
+this cycle adds no feature scope and creates no freeze signal.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published

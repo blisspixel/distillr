@@ -139,9 +139,13 @@ def dashboard_json_data(version: str, snapshot: DashboardSnapshot) -> dict[str, 
         },
         "paths": dashboard_evidence_paths(snapshot),
         "next_commands": [
-            "distill init" if first_run else "distill audit all --next-actions",
-            "distill doctor",
-            "distill costs",
+            "distill --cost-mode no-metered init"
+            if first_run
+            else "distill audit all --next-actions",
+            "distill --cost-mode no-metered doctor",
+            'distill --cost-mode no-metered papers "topic" -n 5 --preview'
+            if first_run
+            else "distill costs",
         ],
     }
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from rich.markup import escape
 
 from distill.llm.router import RouterConfig
 from distill.llm.run_context import current_run_id, record_completed_phase
@@ -398,9 +399,19 @@ def display_summary(  # noqa: C901 - legacy, will refactor
     if is_empty and preview:
         return
 
+    evidence_path: Path | None = None
+    evidence_write_failed = False
     if log_dir:
-        with suppress(Exception):
+        try:
             _save_run_artifacts(summary, log_dir)
+        except Exception:
+            evidence_write_failed = True
+            logger.warning("Failed to save run evidence in %s", log_dir, exc_info=True)
+        else:
+            candidate = log_dir / "latest_run_errors.md"
+            with suppress(OSError):
+                if candidate.is_file():
+                    evidence_path = candidate
 
     con.print()
     con.print(f"  [dim]{'-' * 50}[/dim]")
@@ -470,7 +481,15 @@ def display_summary(  # noqa: C901 - legacy, will refactor
                 f"    [dim]![/dim] {issue.stage}{context}{detail_suffix}  [dim]{issue.message}[/dim]"
             )
 
-    if any(issue.stage in _RETRYABLE_INGEST_STAGES for issue in summary.issues):
+    if (failed or summary.issues) and evidence_path is not None:
+        con.print()
+        con.print(f"  [dim]Evidence: {escape(str(evidence_path))}[/dim]")
+
+    if (failed or summary.issues) and evidence_write_failed and log_dir is not None:
+        con.print()
+        con.print(f"  [yellow]Run evidence could not be saved: {escape(str(log_dir))}[/yellow]")
+
+    if failed or any(issue.stage in _RETRYABLE_INGEST_STAGES for issue in summary.issues):
         con.print()
         con.print(
             "  [dim]Re-run the same command to retry the failed source(s) -- "

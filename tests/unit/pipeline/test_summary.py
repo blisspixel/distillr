@@ -138,6 +138,7 @@ def test_display_summary_writes_run_artifacts(tmp_path, monkeypatch):
 
     console = Console(record=True, width=120)
     display_summary(summary, console=console, log_dir=tmp_path)
+    rendered = console.export_text()
 
     run_log = tmp_path / "run_log.jsonl"
     latest = tmp_path / "latest_run_errors.md"
@@ -157,6 +158,8 @@ def test_display_summary_writes_run_artifacts(tmp_path, monkeypatch):
     assert "ValueError" in latest_text
     assert "bad report" in latest_text
     assert "Video Fail" in latest_text
+    assert "Evidence:" in rendered
+    assert str(latest) in rendered
 
 
 def test_display_summary_saves_zero_local_route_estimate(tmp_path):
@@ -468,6 +471,37 @@ def test_display_summary_retryable_ingest_hint(tmp_path):
 
     assert "Re-run the same command" in rendered
     assert "already-ingested sources are skipped" in rendered
+
+
+def test_display_summary_failed_result_shows_retry_and_exact_evidence_path(tmp_path):
+    log_dir = tmp_path / "logs [active]"
+    summary = RunSummary(command="discover")
+    summary.add_result(VideoResult("v1", "Failed video", False, error="No transcript"))
+
+    console = Console(record=True, width=120)
+    display_summary(summary, console=console, log_dir=log_dir)
+    rendered = " ".join(console.export_text().split())
+
+    assert "Re-run the same command" in rendered
+    assert "already-ingested sources are skipped" in rendered
+    assert "Evidence:" in rendered
+    assert str(log_dir / "latest_run_errors.md") in rendered
+
+
+def test_display_summary_does_not_claim_missing_evidence_receipt(tmp_path, monkeypatch):
+    summary = RunSummary(command="discover")
+    summary.add_result(VideoResult("v1", "Failed video", False, error="No transcript"))
+    monkeypatch.setattr(
+        "distill.pipeline.summary._save_run_artifacts",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("write blocked")),
+    )
+
+    console = Console(record=True, width=120)
+    display_summary(summary, console=console, log_dir=tmp_path)
+
+    rendered = console.export_text()
+    assert "Evidence:" not in rendered
+    assert "Run evidence could not be saved" in rendered
 
 
 def test_display_summary_no_retry_hint_for_unrelated_issues(tmp_path):

@@ -53,11 +53,15 @@ class DistillGroup(TyperGroup):
 
 _HELP = (
     "Distill source material into usable intelligence.\n\n"
-    "First-time setup:\n"
-    "  distill init                 guided .env, provider, and browser setup\n"
-    "  distill doctor               read-only readiness check (keys, tools, health)\n"
-    '  distill papers "question" --topic my-topic --limit 5 --preview\n'
-    "                               shortlist + estimate without writing corpus files\n\n"
+    "First-time setup (API-billed routes refused):\n"
+    "  distill --cost-mode no-metered init\n"
+    "      guided .env, provider, and browser setup\n"
+    "  distill --cost-mode no-metered doctor\n"
+    "      readiness check without API-billed provider probes\n"
+    '  distill --cost-mode no-metered papers "topic" -n 5 --preview\n'
+    "      shortlist without paper ingest; refuses ambiguous billing\n\n"
+    "Cloud key validation requires explicit permission:\n"
+    "  distill --cost-mode paid-ok init\n\n"
     "Then pick a starting point:\n"
     '  Build a topic corpus?   distill topic create "Microsoft Fabric best practices" --videos 10 --papers 10\n'
     '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'

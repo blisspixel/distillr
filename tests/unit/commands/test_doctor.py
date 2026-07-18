@@ -671,6 +671,7 @@ class TestDoctorLocalInferenceSection:
         assert "Local Inference" in joined
         assert "Recommended Models" in joined
         assert "Next step" in joined
+        assert "--cost-mode paid-ok papers" in joined
 
     def test_local_ready_without_cloud_key(self, tmp_path, monkeypatch):
         config = _config(tmp_path, xai_api_key="")

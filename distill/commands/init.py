@@ -372,7 +372,7 @@ def _emit_verdict(state: InitState) -> None:
     console.print(f"  Browser: {state['browser']}")
     console.print()
     if state["ready"]:
-        console.print(f"  [bold]Try it:[/bold]  {state['next']}")
+        console.print(f"  [bold]Try it:[/bold]  {state['next']}", soft_wrap=True)
     else:
         for hint in state["blocking"]:
             console.print(f"  [dim]- {hint}[/dim]")
@@ -422,7 +422,11 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         True, "--browser/--no-browser", help="Install Playwright Chromium if missing"
     ),
 ) -> None:
-    """Set up distill: create .env, pick a provider, validate your key, ready a browser."""
+    """Set up Distill and ready a browser.
+
+    Cloud key validation is live and may be billed. Pass the global
+    ``--cost-mode no-metered`` option to refuse API-billed or ambiguous probes.
+    """
     quiet = json_mode_active()
     env_path = env_file_path()
 
@@ -541,7 +545,11 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         state["ready"] = state["xai_key"] == "ok" and state["browser"] == "installed"
     else:
         state["ready"] = state.get("local_reachable", False) and state["browser"] == "installed"
-    state["next"] = 'distill papers "agent memory systems" --topic memory --preview'
+    next_cost_mode = "paid-ok" if choice == "cloud" else "no-metered"
+    state["next"] = (
+        f'distill --cost-mode {next_cost_mode} papers "agent memory systems" '
+        "--topic memory --preview"
+    )
     _emit_verdict(state)
     if not state["ready"]:
         raise typer.Exit(1)

@@ -95,8 +95,9 @@ class TestLibraryCommand:
 
         assert result.exit_code == 0
         assert "Library is empty" in result.output
-        assert "distill init" in result.output
-        assert "distill doctor" in result.output
+        assert "distill --cost-mode no-metered init" in result.output
+        assert "distill --cost-mode no-metered doctor" in result.output
+        assert "distill --cost-mode no-metered papers" in result.output
         assert "--preview" in result.output
 
     def test_library_json_payload(self, tmp_path, monkeypatch):
@@ -519,6 +520,12 @@ class TestShowCommand:
         assert result.exit_code == 0
         assert "No videos found for TestCh" in result.output
 
+        machine = runner.invoke(cli.app, ["--json", "show", "ai", "1"])
+        payload = json.loads(machine.stdout)
+        assert payload["data"]["found"] is False
+        assert payload["data"]["reason"] == "no_videos"
+        assert machine.stderr == ""
+
     def test_show_out_of_range(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_library(config)
@@ -529,6 +536,28 @@ class TestShowCommand:
 
         assert result.exit_code == 0
         assert "Video #99 not found" in result.output
+
+        machine = runner.invoke(cli.app, ["--json", "show", "ai", "99"])
+        payload = json.loads(machine.stdout)
+        assert payload["data"]["found"] is False
+        assert payload["data"]["reason"] == "video_not_found"
+        assert machine.stderr == ""
+
+    def test_show_json_reports_metadata_without_library_path(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_library(config)
+        videos_dir = config.videos_dir("ai", "TestCh")
+        videos_dir.mkdir(parents=True, exist_ok=True)
+        self._patch(monkeypatch, config)
+        monkeypatch.setattr(view_mod, "_video_metadata", lambda _path: [{"title": "Broken"}])
+
+        result = runner.invoke(cli.app, ["--json", "show", "ai", "1"])
+
+        payload = json.loads(result.stdout)
+        assert result.exit_code == 0
+        assert payload["data"]["found"] is False
+        assert payload["data"]["reason"] == "invalid_metadata"
+        assert result.stderr == ""
 
     def test_show_missing_transcript(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -931,7 +960,7 @@ class TestDiffAndTrends:
 
         result = runner.invoke(cli.app, ["diff", "missing-topic"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 5
         assert "Topic not found" in result.output
 
     def test_diff_writes_artifact(self, tmp_path, monkeypatch):
@@ -956,7 +985,7 @@ class TestDiffAndTrends:
 
         result = runner.invoke(cli.app, ["trends", "missing-topic"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 5
         assert "Topic not found" in result.output
 
     def test_trends_no_write(self, tmp_path, monkeypatch):

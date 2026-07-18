@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import typer
+from rich.markup import escape
 
 from distill._console import console
 from distill.commands._helpers import (
@@ -21,6 +22,7 @@ from distill.commands._helpers import (
     get_config,
     set_command_cost_metadata,
 )
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
@@ -115,6 +117,14 @@ def ingest_cmd(
                 set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
                 _ingest_local(local_path, topic, config, tracker, analyze=not no_analyze)
             return
+
+        if local_path is not None:
+            console.print(
+                f"[red]Local file not found: {escape(str(local_path))}[/red]",
+                soft_wrap=True,
+            )
+            console.print("[dim]Check the path and try again.[/dim]")
+            raise typer.Exit(int(ExitCode.NOT_FOUND))
 
         host = _host(url)
         if host in {"x.com", "twitter.com", "mobile.twitter.com"}:

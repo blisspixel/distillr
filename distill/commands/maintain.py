@@ -674,9 +674,12 @@ def status(  # noqa: C901 — legacy, will refactor
     topics = lib.get_topics()
     if not topics:
         console.print("[dim]Library is empty.[/dim]")
+        console.print("[dim]Setup:[/dim]")
+        console.print("  [dim]distill --cost-mode no-metered init[/dim]", soft_wrap=True)
+        console.print("  [dim]distill --cost-mode no-metered doctor[/dim]", soft_wrap=True)
         console.print(
-            "[dim]Setup: distill init · distill doctor · "
-            'distill papers "question" --topic my-topic --limit 5 --preview[/dim]'
+            '  [dim]distill --cost-mode no-metered papers "topic" -n 5 --preview[/dim]',
+            soft_wrap=True,
         )
         return
 
