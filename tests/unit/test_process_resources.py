@@ -267,7 +267,12 @@ def _install_kernel32(monkeypatch, kernel: _Kernel32) -> None:
     import ctypes
 
     monkeypatch.setattr(resources.os, "name", "nt")
-    monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: kernel)
+    monkeypatch.setattr(
+        ctypes,
+        "WinDLL",
+        lambda *_args, **_kwargs: kernel,
+        raising=False,
+    )
 
 
 def test_windows_memory_job_applies_process_and_tree_limits(monkeypatch) -> None:
@@ -305,7 +310,13 @@ def test_windows_memory_job_closes_job_when_configuration_fails(monkeypatch) -> 
 
     kernel = _Kernel32(configure=False)
     _install_kernel32(monkeypatch, kernel)
-    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
+    monkeypatch.setattr(
+        ctypes,
+        "WinError",
+        lambda code: OSError(code, "Windows error"),
+        raising=False,
+    )
 
     with pytest.raises(OSError):
         resources.assign_windows_memory_job(
@@ -320,7 +331,12 @@ def test_close_windows_job_ignores_none_and_closes_a_handle(monkeypatch) -> None
     import ctypes
 
     kernel = _Kernel32()
-    monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: kernel)
+    monkeypatch.setattr(
+        ctypes,
+        "WinDLL",
+        lambda *_args, **_kwargs: kernel,
+        raising=False,
+    )
 
     resources.close_windows_job(None)
     resources.close_windows_job(99)
