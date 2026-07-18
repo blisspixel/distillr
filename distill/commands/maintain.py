@@ -50,6 +50,7 @@ from distill.commands._helpers import (
     get_config,
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
+from distill.commands._json import ExitCode
 from distill.commands._performance_view import (
     render_performance_evidence as _render_performance_evidence,
 )
@@ -463,7 +464,7 @@ def cleanup():
 
     if not config.gemini_api_key:
         console.print("[red]GEMINI_API_KEY required[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.CONFIG_ERROR)
 
     from google import genai
 
@@ -531,7 +532,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
         library_dir = config.library_dir
         if not library_dir.exists():
             console.print(f"[red]Error: library directory does not exist: {library_dir}[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(code=ExitCode.NOT_FOUND)
 
         library_root = library_dir.resolve()
         target = library_root
@@ -541,7 +542,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
                 target.relative_to(library_root)
             except ValueError:
                 console.print(f"[red]Error: path escapes library directory: {path}[/red]")
-                raise typer.Exit(1) from None
+                raise typer.Exit(code=ExitCode.USAGE_ERROR) from None
             if not target.exists() or not target.is_dir():
                 console.print(f"[red]Error: subdirectory not found: {target}[/red]")
                 # List available subdirectories
@@ -552,7 +553,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
                     console.print("\n  Available subdirectories:")
                     for d in sorted(available):
                         console.print(f"    • {d}")
-                raise typer.Exit(1)
+                raise typer.Exit(code=ExitCode.NOT_FOUND)
 
         # Check for DISTILL_VAULT_EDITOR env var
         vault_editor = os.environ.get("DISTILL_VAULT_EDITOR")
@@ -563,7 +564,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
                     f"[red]Error: DISTILL_VAULT_EDITOR program not found: {vault_editor}[/red]\n"
                     f"  Ensure the program is installed and in your PATH."
                 )
-                raise typer.Exit(1)
+                raise typer.Exit(code=ExitCode.CONFIG_ERROR)
             console.print(f"Opening [bold]{target}[/bold] with {vault_editor}")
             trusted_cwd, child_env = package_install_context()
             subprocess.run(
@@ -578,6 +579,16 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
         return
 
     # --- Original open logic ---
+    allowed_targets = {"output", "library", "report", "synthesis"}
+    if what not in allowed_targets:
+        console.print(
+            f"[red]Unknown --what '{what}'. Use: output, library, report, synthesis[/red]"
+        )
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+    if what in {"report", "synthesis"} and not topic:
+        console.print(f"[red]--what {what} requires a topic or channel argument[/red]")
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+
     if topic:
         lib = Library(config)
         topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
@@ -602,14 +613,15 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
     elif what == "synthesis" and topic:
         target = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
     else:
-        target = config.library_dir.parent / "output"
+        console.print(f"[red]Internal error: validated open target is not handled: {what}[/red]")
+        raise typer.Exit(code=ExitCode.RUNTIME_ERROR)
 
     if channel and what == "output":
         target = config.channel_dir(topic, channel)
 
     if not target.exists():
         console.print(f"[yellow]Not found: {target}[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     console.print(f"Opening [bold]{target}[/bold]")
     startfile = getattr(os, "startfile", None)

@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from distill import cli
 from distill.commands import concepts as concepts_cmd
+from distill.commands._json import ExitCode
 from distill.concepts import recovery
 from distill.config import DistillConfig
 
@@ -74,7 +75,7 @@ class TestConceptsCommand:
 
     def test_rejects_missing_topic_dir(self, fixture_config: DistillConfig) -> None:
         result = runner.invoke(cli.app, ["concepts", "build", "ghost-topic"])
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "does not exist" in result.output.lower()
 
     def test_build_reports_when_no_new_insights(
@@ -350,7 +351,7 @@ def _file_state(root: Path) -> dict[str, bytes]:
 class TestConceptsRecoveryCommands:
     def test_recovery_rejects_missing_topic(self, fixture_config: DistillConfig) -> None:
         result = runner.invoke(cli.app, ["concepts", "log", "ghost", "missing"])
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "topic directory does not exist" in result.output.lower()
 
     def test_log_lists_snapshots(self, fixture_config: DistillConfig) -> None:
@@ -364,13 +365,13 @@ class TestConceptsRecoveryCommands:
     def test_log_missing_slug_errors(self, fixture_config: DistillConfig) -> None:
         fixture_config.topic_dir("tkg").mkdir(parents=True)
         result = runner.invoke(cli.app, ["concepts", "log", "tkg", "ghost"])
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "no concept or entity note" in result.output.lower()
 
     def test_diff_missing_slug_errors(self, fixture_config: DistillConfig) -> None:
         fixture_config.topic_dir("tkg").mkdir(parents=True)
         result = runner.invoke(cli.app, ["concepts", "diff", "tkg", "ghost"])
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "no concept or entity note" in result.output.lower()
 
     def test_log_live_note_without_history(self, fixture_config: DistillConfig) -> None:
@@ -446,7 +447,7 @@ class TestConceptsRecoveryCommands:
         result = runner.invoke(
             cli.app, ["concepts", "diff", "tkg", "rotational_embedding", "1999-01-01"]
         )
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "no snapshot" in result.output.lower()
 
     def test_diff_two_snapshots_without_live_note(self, fixture_config: DistillConfig) -> None:
@@ -487,7 +488,7 @@ class TestConceptsRecoveryCommands:
             ["concepts", "diff", "tkg", "standalone", "2026-05-01T00:00:00Z"],
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "No live note to diff against" in result.output
 
     def test_diff_live_note_without_history_is_a_no_op(self, fixture_config: DistillConfig) -> None:
@@ -508,7 +509,7 @@ class TestConceptsRecoveryCommands:
             ["concepts", "rollback", "tkg", "ghost", "2026-01-01", "--yes"],
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == ExitCode.NOT_FOUND
         assert "No snapshot" in result.output
 
     def test_rollback_restores_and_updates_rollup(self, fixture_config: DistillConfig) -> None:

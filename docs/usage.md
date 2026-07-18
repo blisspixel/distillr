@@ -1029,7 +1029,9 @@ export DISTILL_NO_PREFLIGHT=1
 
 ## Exit Codes
 
-All CLI commands return stable exit codes for scripting and CI integration:
+The CLI reserves stable exit codes for scripting and CI integration. Commands
+use the most specific class they can prove at the boundary; code 1 remains the
+fallback for an execution failure that has no narrower supported class.
 
 | Code | Name | Meaning |
 |------|------|---------|
@@ -1040,6 +1042,15 @@ All CLI commands return stable exit codes for scripting and CI integration:
 | 4 | NETWORK_ERROR | API timeout, DNS failure, HTTP error |
 | 5 | NOT_FOUND | Requested topic, channel, or resource doesn't exist |
 | 6 | BUDGET_EXCEEDED | A workflow or per-call cost cap refused further work |
+
+Deterministic preflight and recovery paths preserve that distinction. Invalid
+learning options, topic workflow values, export selectors, citation formats,
+and `open --what` requests exit 2. Missing required keys or an explicitly
+configured editor exit 3. Missing topics, profiles, channels, corpus artifacts,
+citations, concept notes, and recovery snapshots exit 5. These refusals happen
+before provider calls, subprocess launches, or artifact writes. A declined
+interactive confirmation is a separate command outcome and should not be
+treated as a missing resource.
 
 ## Setup (`distill init`)
 

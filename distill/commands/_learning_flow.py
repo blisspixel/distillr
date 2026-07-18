@@ -11,6 +11,7 @@ import typer
 
 import distill.cli_shared as cli_shared
 from distill.cli_shared import SHORTS_THRESHOLD, console
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
@@ -37,13 +38,13 @@ def validate_learning_options(
 ) -> None:
     if sort not in {"relevance", "date"}:
         console.print("[red]--sort must be 'relevance' or 'date'[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
     if limit <= 0 or days <= 0 or per_channel_cap <= 0:
         console.print("[red]--limit, --days, and --channel-cap must be positive[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
     if hours is not None and hours <= 0:
         console.print("[red]--hours must be positive[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
 
 
 def preview_learning_selection[SelectedT: _SelectedVideo](

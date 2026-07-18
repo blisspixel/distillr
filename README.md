@@ -245,6 +245,10 @@ completed. For external loops that only need files, exit codes, or JSON, use
 `distill --quiet <command>` to suppress human console output. DEBUG records are
 kept in `library/.distill/distill.log` for post-run review, and
 `distill --verbose <command>` mirrors them to stderr while a command runs.
+Deterministic preflight and recovery failures distinguish invalid input (2),
+missing configuration (3), and missing local resources (5), so unattended
+callers can remediate permanent refusals without retrying them as runtime
+failures. The full reserved taxonomy is in [`docs/usage.md`](docs/usage.md#exit-codes).
 Site ingest progress also reports unchanged-page reuse and empty crawls as
 structural outcomes, so repeated website runs show why work was skipped.
 Discovery previews also summarize video candidate counts and known watch time

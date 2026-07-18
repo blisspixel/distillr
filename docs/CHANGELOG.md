@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Aligned deterministic CLI refusals with the documented exit taxonomy across
+  learning options, topic workflows, report and export preflight, vault and
+  artifact opening, resynthesis and reanalysis, and concept recovery. Invalid
+  input now exits 2, missing configuration exits 3, and missing resources exit
+  5 before provider calls, subprocess launches, or artifact writes. Unsupported
+  or incomplete `open --what` requests now fail closed instead of opening the
+  output directory as an apparent success.
 - Kept `show --json` machine-readable across missing-topic, missing-video,
   out-of-range, and malformed-metadata states, with stable empty-state reasons.
   Missing topics in `diff` and `trends` now use the documented `NOT_FOUND` exit

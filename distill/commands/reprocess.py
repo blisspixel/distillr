@@ -30,6 +30,7 @@ from distill.commands._helpers import format_date as _format_date
 from distill.commands._helpers import (
     process_video as _process_video,
 )
+from distill.commands._json import ExitCode
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
@@ -76,17 +77,17 @@ def _resolve_resynthesis_scope(
             console.print(
                 f"[red]Channel '{resolved_channel}' not found in topic '{resolved_topic}'[/red]"
             )
-            raise typer.Exit(1)
+            raise typer.Exit(code=ExitCode.NOT_FOUND)
     elif not channels:
         if not two_pass:
             console.print(f"[red]No channels found for topic '{resolved_topic}'[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(code=ExitCode.NOT_FOUND)
         if not has_two_pass_synthesis_inputs(resolved_topic, config):
             console.print(
                 "[red]No insight artifacts or extracted claims found for topic "
                 f"'{resolved_topic}'[/red]"
             )
-            raise typer.Exit(1)
+            raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     return resolved_topic, channels
 
@@ -311,12 +312,12 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
     channels = lib.get_channels(topic)
     if not channels:
         console.print(f"[red]No channels found for topic '{topic}'[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
     if channel:
         channels = [ch for ch in channels if ch.name == channel]
         if not channels:
             console.print(f"[red]Channel '{channel}' not found in topic '{topic}'[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     # Scan for videos with transcripts
     all_videos: list[_ReanalysisVideo] = []

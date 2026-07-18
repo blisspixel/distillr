@@ -170,6 +170,18 @@ receipt-write failure plus bounded retry guidance. Broader cross-command exit
 taxonomy and representative assistive-technology review remain active debt;
 this cycle adds no feature scope and creates no freeze signal.
 
+**Cycle 7 refinement evidence (2026-07-17).** Deterministic refusal semantics
+now match the reserved CLI taxonomy across shared learning validation, topic
+workflows, report and export preflight, vault and artifact opening,
+resynthesis and reanalysis, and concept recovery. Invalid input exits 2,
+missing configuration exits 3, and locally proven absence exits 5 before
+provider, subprocess, or write boundaries. Unsupported or incomplete
+`open --what` intent now fails closed instead of opening an unrelated folder.
+Ambiguous search, partial-result, generic profile, and cancellation outcomes
+remain explicitly deferred until each has one evidenced semantic cause. This
+is reliability and operator polish on the current surface, not new scope or a
+freeze signal.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published

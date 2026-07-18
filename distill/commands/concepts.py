@@ -24,7 +24,7 @@ from distill.commands._helpers import (
     save_command_cost,
     tty_confirm,
 )
-from distill.commands._json import emit_json, json_mode_active
+from distill.commands._json import ExitCode, emit_json, json_mode_active
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
 
@@ -90,7 +90,7 @@ def concepts_build(
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(ExitCode.NOT_FOUND)
 
     rc = RouterConfig()
     tracker = budgeted_cost_tracker(config, "concepts")
@@ -142,7 +142,7 @@ def _resolve_topic_dir(topic: str) -> Path:
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
         console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(ExitCode.NOT_FOUND)
     return topic_dir
 
 
@@ -158,7 +158,7 @@ def concept_log_cmd(
         console.print(
             f"[red]No concept or entity note found for slug '{slug}' in topic '{topic}'.[/red]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(ExitCode.NOT_FOUND)
 
     snapshots = recovery.list_snapshots(topic_dir, slug)
     live_path = recovery.note_path_for_slug(topic_dir, slug)
@@ -264,7 +264,7 @@ def concept_diff_cmd(
         console.print(
             f"[red]No concept or entity note found for slug '{slug}' in topic '{topic}'.[/red]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(ExitCode.NOT_FOUND)
 
     def _snapshot_or_exit(ts: str) -> recovery.Snapshot:
         snap = recovery.resolve_snapshot(topic_dir, slug, ts)
@@ -273,7 +273,7 @@ def concept_diff_cmd(
                 f"[red]No snapshot for '{slug}' matching '{ts}'.[/red] "
                 f"Run: distill concepts log {topic} {slug}"
             )
-            raise typer.Exit(1)
+            raise typer.Exit(ExitCode.NOT_FOUND)
         return snap
 
     console.print()
@@ -290,7 +290,7 @@ def concept_diff_cmd(
     else:
         if live_path is None:
             console.print("[red]No live note to diff against; pass two timestamps.[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(ExitCode.NOT_FOUND)
         if ts_a:
             old = _snapshot_or_exit(ts_a)
         elif snapshots:
@@ -328,7 +328,7 @@ def concept_rollback_cmd(
             f"[red]No snapshot for '{slug}' matching '{timestamp}'.[/red] "
             f"Run: distill concepts log {topic} {slug}"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(ExitCode.NOT_FOUND)
 
     if not yes and not tty_confirm(
         f"Restore '{slug}' to its {snap.iso} snapshot? The current version is backed up first."

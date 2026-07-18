@@ -31,6 +31,7 @@ from distill.commands._helpers import (
 )
 from distill.commands._helpers import invoke_command as _invoke_command
 from distill.commands._helpers import run_preflight as _preflight
+from distill.commands._json import ExitCode
 from distill.commands._learning import (
     generate_and_export_topic_brief as _generate_and_export_topic_brief,
 )
@@ -198,16 +199,16 @@ def _resolve_topic_workflow_config(
     goal_text = " ".join(goal.split()).strip()
     if not goal_text:
         console.print("[red]Goal cannot be empty[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
     if days <= 0:
         console.print("[red]--days must be positive[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
     if videos < 0 or papers < 0:
         console.print("[red]--videos and --papers cannot be negative[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
     if videos == 0 and papers == 0:
         console.print("[red]Specify at least one source with --videos or --papers[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
     topic_name = topic.strip() or _topic_from_query(goal_text[:80])
     return _TopicWorkflowConfig(
         topic=topic_name,
@@ -321,7 +322,7 @@ def _render_topic_summary(topic: str) -> None:
     lib = Library(config)
     if topic not in lib.get_topics() and not config.topic_dir(topic).exists():
         console.print(f"[red]Topic not found: {topic}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     channels = lib.get_channels(topic)
     video_count = 0
@@ -447,7 +448,7 @@ def topic_update(
         console.print(
             f'[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create "..." --topic {topic}`[/dim]'
         )
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     resolved_goal = goal or _profile_str(profile, "goal").strip()
     resolved_videos = _profile_int(profile, "videos", 0) if videos is None else videos
@@ -479,7 +480,7 @@ def topic_brief(
     config = get_config()
     if not _topic_exists(config, topic):
         console.print(f"[red]Topic not found: {topic}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
     _generate_budgeted_topic_brief(topic, config)
     if report_after:
         from distill.commands.reports import report
@@ -542,7 +543,7 @@ def topic_show(
         findings(topic=topic, channel=None)
         return
     console.print("[red]Unknown --what. Use: summary, synthesis, report[/red]")
-    raise typer.Exit(1)
+    raise typer.Exit(code=ExitCode.USAGE_ERROR)
 
 
 @topic_app.command("export")
@@ -594,7 +595,7 @@ def topic_watch(
         console.print(
             f'[red]No topic profile found for {topic}[/red]\n[dim]Create one first with `distill topic create "..." --topic {topic}`[/dim]'
         )
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     from distill.commands.discover import monitor
 
@@ -683,10 +684,10 @@ def _export_topic_bundle(config: DistillConfig, topic: str, export_format: str) 
         raise typer.BadParameter("--format must be 'deepr' or 'bundle'")
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
     files = _collect_topic_bundle_files(config, topic)
     if not files:
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.NOT_FOUND)
 
     zip_path = _output_path(config, f"corpus-{topic_dir.name}-{export_format}.zip")
     manifest = _topic_bundle_manifest(config, topic, export_format, files)

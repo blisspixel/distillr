@@ -12,6 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import typer
 
+from distill.commands._json import ExitCode
+
 
 class TestOpenVault:
     """Tests for open --vault command behavior."""
@@ -92,8 +94,9 @@ class TestOpenVault:
         ):
             from distill.commands.maintain import open_cmd
 
-            with pytest.raises(typer.Exit):
+            with pytest.raises(typer.Exit) as exc_info:
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="")
+            assert exc_info.value.exit_code == int(ExitCode.NOT_FOUND)
 
     def test_vault_with_path_option(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """--vault --path opens a subdirectory within library."""
@@ -139,8 +142,9 @@ class TestOpenVault:
         ):
             from distill.commands.maintain import open_cmd
 
-            with pytest.raises(typer.Exit):
+            with pytest.raises(typer.Exit) as exc_info:
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="../outside")
+            assert exc_info.value.exit_code == int(ExitCode.USAGE_ERROR)
 
             mock_open.assert_not_called()
 
@@ -162,10 +166,11 @@ class TestOpenVault:
         ):
             from distill.commands.maintain import open_cmd
 
-            with pytest.raises(typer.Exit):
+            with pytest.raises(typer.Exit) as exc_info:
                 open_cmd(
                     topic=None, channel=None, what="output", vault=True, path="nonexistent/path"
                 )
+            assert exc_info.value.exit_code == int(ExitCode.NOT_FOUND)
 
     def test_vault_editor_not_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """--vault exits with error when DISTILL_VAULT_EDITOR program not found."""
@@ -184,5 +189,6 @@ class TestOpenVault:
         ):
             from distill.commands.maintain import open_cmd
 
-            with pytest.raises(typer.Exit):
+            with pytest.raises(typer.Exit) as exc_info:
                 open_cmd(topic=None, channel=None, what="output", vault=True, path="")
+            assert exc_info.value.exit_code == int(ExitCode.CONFIG_ERROR)

@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from distill import cli
 from distill.commands import reports as reports_mod
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.citations import CitationRecord
@@ -70,7 +71,7 @@ class TestReportCommand:
 
         result = runner.invoke(cli.app, ["report"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
         assert "Specify a topic or use --all" in result.output
 
     def test_requires_gemini_key(self, tmp_path, monkeypatch):
@@ -80,7 +81,7 @@ class TestReportCommand:
 
         result = runner.invoke(cli.app, ["report", "ai"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.CONFIG_ERROR)
         assert "GEMINI_API_KEY" in result.output
 
     def test_refuses_projected_report_budget_before_deep_research(self, tmp_path, monkeypatch):
@@ -337,7 +338,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "bundle", "--format", "okf"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "Topic not found" in result.output
 
     def test_okf_validation_failure(self, tmp_path, monkeypatch):
@@ -375,7 +376,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "missing", "--what", "bundle"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "Topic not found" in result.output
 
     def test_zip_bundle_success(self, tmp_path, monkeypatch):
@@ -406,7 +407,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "bundle"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "No exportable corpus files" in result.output
 
     def test_citations_rejects_channel(self, tmp_path, monkeypatch):
@@ -418,26 +419,24 @@ class TestExportCommand:
             cli.app, ["export", "ai", "--what", "citations", "--channel", "TestCh"]
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
         assert "topic-level" in result.output
 
     def test_citations_value_error(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_topic(config)
         self._patch_config(monkeypatch, config)
-        monkeypatch.setattr(
-            reports_mod,
-            "render_citations",
-            MagicMock(side_effect=ValueError("unsupported format")),
-        )
+        render_citations = MagicMock(side_effect=AssertionError("renderer called"))
+        monkeypatch.setattr(reports_mod, "render_citations", render_citations)
         monkeypatch.setattr(reports_mod, "collect_paper_citations", lambda *args, **kwargs: [])
 
         result = runner.invoke(
             cli.app, ["export", "ai", "--what", "citations", "--format", "bogus"]
         )
 
-        assert result.exit_code == 1
-        assert "unsupported format" in result.output
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
+        assert "citation format must be bibtex or ris" in result.output
+        render_citations.assert_not_called()
 
     def test_citations_refuses_missing_record_path(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -465,7 +464,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "citations"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "citation record path does not exist" in result.output
         assert not (config.library_dir.parent / "output" / "citations-ai.bib").exists()
 
@@ -494,7 +493,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "citations"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "No paper citations" in result.output
 
     def test_export_topic_synthesis(self, tmp_path, monkeypatch):
@@ -521,7 +520,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "unknown"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
         assert "Unknown export type" in result.output
 
     def test_export_synthesis_channel(self, tmp_path, monkeypatch):
@@ -568,7 +567,7 @@ class TestExportCommand:
 
         result = runner.invoke(cli.app, ["export", "ai", "--what", "synthesis"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "File not found" in result.output
 
     def test_report_format_okf_rewrites_what_to_bundle(self, tmp_path, monkeypatch):

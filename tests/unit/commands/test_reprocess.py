@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from distill import cli
 from distill.commands import _helpers as helpers_mod
 from distill.commands import reprocess as reprocess_mod
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import find_artifact
@@ -91,7 +92,7 @@ class TestResynthesize:
 
         result = runner.invoke(cli.app, ["resynthesize", "missing"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "No channels found" in result.output
 
     def test_two_pass_resynthesizes_channelless_recursive_insights(self, tmp_path, monkeypatch):
@@ -180,7 +181,7 @@ class TestResynthesize:
 
         result = runner.invoke(cli.app, ["resynthesize", "empty", "--two-pass"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "No insight artifacts or extracted claims found" in result.output
         corpus_synthesis.assert_not_called()
 
@@ -191,7 +192,7 @@ class TestResynthesize:
 
         result = runner.invoke(cli.app, ["resynthesize", "ai", "--channel", "Missing"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "not found" in result.output
 
     def test_refuses_projected_resynthesize_budget_before_synthesis(self, tmp_path, monkeypatch):
@@ -407,7 +408,7 @@ class TestReanalyze:
 
         result = runner.invoke(cli.app, ["reanalyze", "missing"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "No channels found" in result.output
 
     def test_channel_not_found_exits(self, tmp_path, monkeypatch):
@@ -417,7 +418,7 @@ class TestReanalyze:
 
         result = runner.invoke(cli.app, ["reanalyze", "ai", "--channel", "Missing"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "not found" in result.output
 
     def test_no_transcripts_returns_early(self, tmp_path, monkeypatch):

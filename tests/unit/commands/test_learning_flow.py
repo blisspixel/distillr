@@ -9,6 +9,7 @@ import typer
 from pydantic import SecretStr
 
 from distill.commands import _learning_flow as learning_flow
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library import Library
@@ -46,13 +47,23 @@ def _selected_video(
 
 
 def test_validate_learning_options_rejects_bad_values():
-    with pytest.raises(typer.Exit):
-        learning_flow.validate_learning_options("weird", 1, 1, 1)
-    with pytest.raises(typer.Exit):
-        learning_flow.validate_learning_options("date", 1, 1, 1, hours=0)
-    with pytest.raises(typer.Exit) as excinfo:
-        learning_flow.validate_learning_options("date", 0, 1, 1)
-    assert excinfo.value.exit_code == 1
+    invalid_options = [
+        ("weird", 1, 1, 1, None),
+        ("date", 1, 1, 1, 0),
+        ("date", 0, 1, 1, None),
+        ("date", 1, 0, 1, None),
+        ("date", 1, 1, 0, None),
+    ]
+    for sort, limit, days, per_channel_cap, hours in invalid_options:
+        with pytest.raises(typer.Exit) as excinfo:
+            learning_flow.validate_learning_options(
+                sort,
+                limit,
+                days,
+                per_channel_cap,
+                hours=hours,
+            )
+        assert excinfo.value.exit_code == int(ExitCode.USAGE_ERROR)
     learning_flow.validate_learning_options("date", 1, 1, 1, hours=1)
 
 

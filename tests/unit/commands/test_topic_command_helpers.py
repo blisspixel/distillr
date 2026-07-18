@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
 from distill.commands import topic as _topic
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_path
@@ -80,7 +81,7 @@ def test_resolve_topic_workflow_config_rejects_invalid_structure(
             **kwargs,
         )
 
-    assert exc_info.value.exit_code == 1
+    assert exc_info.value.exit_code == int(ExitCode.USAGE_ERROR)
 
 
 def test_resolve_topic_workflow_config_normalizes_goal_and_infers_topic(
@@ -224,21 +225,21 @@ def test_topic_update_missing_profile_is_clean_exit(
 
     result = runner.invoke(cli.app, ["topic", "update", "missing"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == int(ExitCode.NOT_FOUND)
     assert "No topic profile found for missing" in result.output
 
 
 def test_topic_watch_missing_profile_is_clean_exit(mock_config: DistillConfig) -> None:
     result = runner.invoke(cli.app, ["topic", "watch", "missing"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == int(ExitCode.NOT_FOUND)
     assert "No topic profile found for missing" in result.output
 
 
 def test_topic_brief_rejects_missing_topic(mock_config: DistillConfig) -> None:
     result = runner.invoke(cli.app, ["topic", "brief", "missing"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == int(ExitCode.NOT_FOUND)
     assert "Topic not found: missing" in result.output
 
 
@@ -302,7 +303,7 @@ def test_topic_show_dispatches_synthesis_report_and_unknown_modes(
 
     assert synthesis_result.exit_code == 0
     assert report_result.exit_code == 0
-    assert unknown_result.exit_code == 1
+    assert unknown_result.exit_code == int(ExitCode.USAGE_ERROR)
     assert calls == [("s", "t"), ("r", "t")]
     assert "Unknown --what" in unknown_result.output
 
@@ -333,7 +334,7 @@ def test_topic_export_delegates_to_report_export(
 def test_render_topic_summary_rejects_missing_topic(mock_config: DistillConfig) -> None:
     result = runner.invoke(cli.app, ["topic", "show", "missing"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == int(ExitCode.NOT_FOUND)
     assert "Topic not found: missing" in result.output
 
 
@@ -395,9 +396,11 @@ def test_export_topic_bundle_rejects_invalid_or_empty_inputs(mock_config: Distil
     with pytest.raises(typer.BadParameter):
         _topic._export_topic_bundle(mock_config, "t", "bad")
 
-    with pytest.raises(typer.Exit):
+    with pytest.raises(typer.Exit) as missing_topic:
         _topic._export_topic_bundle(mock_config, "missing", "bundle")
+    assert missing_topic.value.exit_code == int(ExitCode.NOT_FOUND)
 
     mock_config.topic_dir("empty").mkdir(parents=True, exist_ok=True)
-    with pytest.raises(typer.Exit):
+    with pytest.raises(typer.Exit) as empty_topic:
         _topic._export_topic_bundle(mock_config, "empty", "bundle")
+    assert empty_topic.value.exit_code == int(ExitCode.NOT_FOUND)

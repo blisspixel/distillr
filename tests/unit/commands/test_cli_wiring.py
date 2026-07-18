@@ -29,6 +29,7 @@ from distill.commands import topic_watch as _topic_watch
 from distill.commands import view as _view
 from distill.commands import watch as _watch
 from distill.commands._helpers import _truncate_channel_list, duration_str, format_date
+from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
@@ -560,7 +561,7 @@ class TestSynthesisCommand:
 class TestResearchCommand:
     def test_research_no_topic(self, mock_config):
         result = runner.invoke(cli.app, ["report"])
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
 
     def test_research_no_gemini_key(self, tmp_path):
         config = DistillConfig(
@@ -575,7 +576,7 @@ class TestResearchCommand:
         _reports.get_config = lambda: config
         try:
             result = runner.invoke(cli.app, ["report", "ai"])
-            assert result.exit_code == 1
+            assert result.exit_code == int(ExitCode.CONFIG_ERROR)
         finally:
             cli.get_config = original
             _cli_impl.get_config = original_impl
@@ -851,7 +852,7 @@ class TestLearnCommand:
 
     def test_learn_rejects_invalid_sort(self, mock_config):
         result = runner.invoke(cli.app, ["learn", "Microsoft Fabric", "--sort", "popular"])
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
         assert "relevance" in result.output
 
     def test_latest_preview_shows_ranked_set(self, mock_config, monkeypatch):
@@ -1313,7 +1314,7 @@ class TestTopicCommands:
             ],
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
         assert "Specify at least one source" in result.output
 
 
@@ -1347,7 +1348,7 @@ class TestExportOpenCostsAndStatus:
     def test_export_rejects_unknown_type(self, mock_config):
         result = runner.invoke(cli.app, ["export", "ai", "--what", "unknown"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
         assert "Unknown export type" in result.output
 
     def test_export_converts_report_to_docx(self, mock_config, monkeypatch):
@@ -1603,8 +1604,33 @@ class TestExportOpenCostsAndStatus:
     def test_open_rejects_missing_target(self, mock_config):
         result = runner.invoke(cli.app, ["open", "ai", "--what", "report"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "Not found" in result.output
+
+    @pytest.mark.parametrize(
+        "args, message",
+        [
+            (["open", "--what", "unknown"], "Unknown --what"),
+            (["open", "--what", "report"], "requires a topic or channel argument"),
+            (["open", "--what", "synthesis"], "requires a topic or channel argument"),
+        ],
+    )
+    def test_open_rejects_invalid_target_intent(self, mock_config, args, message):
+        result = runner.invoke(cli.app, args)
+
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
+        assert message in result.output
+
+    def test_open_rejects_unknown_target_before_topic_resolution(self, mock_config, monkeypatch):
+        def unexpected_topic_resolution(*_args, **_kwargs):
+            pytest.fail("topic resolution ran for an invalid open target")
+
+        monkeypatch.setattr(_maintain, "Library", unexpected_topic_resolution)
+
+        result = runner.invoke(cli.app, ["open", "ai", "--what", "unknown"])
+
+        assert result.exit_code == int(ExitCode.USAGE_ERROR)
+        assert "Unknown --what" in result.output
 
     def test_costs_reads_log_and_shows_breakdown(self, mock_config):
         log_file = mock_config.library_dir / "cost_log.jsonl"
@@ -1877,7 +1903,7 @@ class TestDoctorCleanupAndMigrate:
             _cli_impl.get_config = original_impl
             _maintain.get_config = original_maintain
 
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.CONFIG_ERROR)
         assert "GEMINI_API_KEY required" in result.output
 
     def test_migrate_renames_video_dirs(self, mock_config_with_library):
@@ -3048,7 +3074,7 @@ class TestCatchUpCommand:
 class TestResynthesize:
     def test_missing_topic(self, mock_config):
         result = runner.invoke(cli.app, ["resynthesize", "nonexistent"])
-        assert result.exit_code == 1
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
         assert "No channels" in result.output
 
 
