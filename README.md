@@ -327,10 +327,13 @@ For **multi-topic** literature reviews, stakeholder briefings, or agent groundin
 
 ```bash
 distill                         # terminal home screen
+distill --json                  # bounded dashboard.v1 operator snapshot
+distill --json dashboard        # the same explicit dashboard contract
+distill dashboard --web         # write a standalone local HTML dashboard
 distill serve                   # local web dashboard at http://127.0.0.1:8899
 ```
 
-The terminal home screen shows tracked topics, channel and topic watches, recent runs, failures, and rolling spend. The web dashboard adds clickable drill-downs to per-topic, per-channel, and per-video views with rendered markdown, plus cost history and watchlist status. Both auto-refresh and read directly from library files - no database.
+The terminal home screen shows tracked topics, channel and topic watches, recent runs, failures, rolling spend, and the exact configured paths to local run evidence. Bare and explicit dashboard JSON return the same bounded `dashboard.v1` envelope with metrics, warnings, recent runs, and evidence paths. The web dashboard adds keyboard-accessible drill-downs to per-topic, per-channel, and per-video views with rendered markdown, plus cost history and watchlist status. Its scripts are same-origin static assets under a restrictive CSP. Every dashboard reads directly from library files - no database.
 
 ## MCP server, and agent-discoverable directories
 

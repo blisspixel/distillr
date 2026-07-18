@@ -13,8 +13,8 @@
   <h2 id="empty-costs-title">No spend recorded yet</h2>
   <p>Cost rows appear after a real or preview run that uses a model route. Local operational evidence stays on disk; Distill does not phone home for product analytics.</p>
   <ol>
-    <li>Ledger: <code>library/.distill/cost_log.jsonl</code> (legacy: <code>library/cost_log.jsonl</code>)</li>
-    <li>Per-call tokens: <code>library/.distill/telemetry.jsonl</code></li>
+    <li>Ledger: <code>{{ cost_log_path }}</code> (legacy: <code>{{ legacy_cost_log_path }}</code>)</li>
+    <li>Per-call tokens: <code>{{ telemetry_path }}</code></li>
     <li>CLI: <code>distill costs</code> or <code>distill --json costs</code></li>
     <li>Budget mode: <code>distill --cost-mode no-metered doctor</code> refuses API-billed routes before calls</li>
   </ol>
@@ -26,7 +26,8 @@
   <div class="card">
     <h2>By Topic (30d)</h2>
     <table>
-      <thead><tr><th>Topic</th><th>Cost</th><th>Runs</th></tr></thead>
+      <caption class="sr-only">Cost by topic over 30 days</caption>
+      <thead><tr><th scope="col">Topic</th><th scope="col">Cost</th><th scope="col">Runs</th></tr></thead>
       <tbody>
         {% for topic_name, cost, runs in topic_rollups %}
         <tr>
@@ -44,7 +45,8 @@
   <div class="card">
     <h2>By Source (30d)</h2>
     <table>
-      <thead><tr><th>Source</th><th>Cost</th><th>Runs</th></tr></thead>
+      <caption class="sr-only">Cost by source over 30 days</caption>
+      <thead><tr><th scope="col">Source</th><th scope="col">Cost</th><th scope="col">Runs</th></tr></thead>
       <tbody>
         {% for source, cost, runs in source_rollups %}
         <tr>
@@ -63,7 +65,8 @@
 <div class="card" style="margin-top:16px;">
   <h2>Biggest Prompts</h2>
   <table>
-    <thead><tr><th>When</th><th>Workload</th><th>Call Type</th><th>Model</th><th>Provider</th><th>Tokens</th><th>Time</th></tr></thead>
+    <caption class="sr-only">Largest prompts by token count</caption>
+    <thead><tr><th scope="col">When</th><th scope="col">Workload</th><th scope="col">Call Type</th><th scope="col">Model</th><th scope="col">Provider</th><th scope="col">Tokens</th><th scope="col">Time</th></tr></thead>
     <tbody>
       {% for record in biggest_prompts %}
       <tr>
@@ -84,7 +87,8 @@
 <div class="card" style="margin-top:16px;">
   <h2>Recent Runs</h2>
   <table>
-    <thead><tr><th>When</th><th>Command</th><th>Topic</th><th>Cost</th><th>Time</th><th>Videos</th></tr></thead>
+    <caption class="sr-only">Recent costed runs</caption>
+    <thead><tr><th scope="col">When</th><th scope="col">Command</th><th scope="col">Topic</th><th scope="col">Cost</th><th scope="col">Time</th><th scope="col">Videos</th></tr></thead>
     <tbody>
       {% for entry in entries %}
       {% set meta = entry.get('metadata', {}) or {} %}

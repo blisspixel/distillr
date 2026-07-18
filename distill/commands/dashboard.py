@@ -18,11 +18,16 @@ from html import escape
 
 from rich import box
 from rich.columns import Columns
+from rich.markup import escape as escape_markup
 from rich.panel import Panel
 from rich.table import Table
 
 from distill._version import get_version as _get_version
 from distill.cli_shared import console
+from distill.commands._dashboard_contract import (
+    dashboard_evidence_paths,
+    dashboard_json_data,
+)
 from distill.commands._helpers import get_config
 from distill.commands._topic_watch import topic_watch_ranking_strategy
 from distill.config import DistillConfig
@@ -62,7 +67,7 @@ def _build_setup_table() -> Table:
     table.add_row("Set up once", "distill init")
     table.add_row("Check readiness", "distill doctor")
     table.add_row(
-        "Preview before spend",
+        "Preview before ingest",
         'distill papers "your research question" --topic my-topic --limit 5 --preview',
     )
     return table
@@ -129,8 +134,8 @@ def _show_first_run_home(version: str, help_hint: str = "distill --help for all 
         "Choose where output is filed. Default topic: [bold]ai[/bold].",
     )
     notes.add_row(
-        "Preview first",
-        "Prefer [bold]--preview[/bold] to see shortlists and cost estimates before writes.",
+        "Preview cost",
+        "Preview stops before corpus writes; any model-backed preview cost is logged.",
     )
     notes.add_row(
         "Spend control",
@@ -186,6 +191,7 @@ def _show_dashboard() -> None:  # noqa: C901
     source_spend_rollups = snapshot["source_spend_rollups"]
     cost_warnings = snapshot["cost_warnings"]
     budget_messages = snapshot["budget_messages"]
+    evidence_paths = dashboard_evidence_paths(snapshot)
 
     is_first_run = not any(
         [
@@ -435,7 +441,13 @@ def _show_dashboard() -> None:  # noqa: C901
             "Status", "[green]No immediate issues detected from the latest run logs[/green]"
         )
     attention.add_row(
-        "Artifacts", "[dim]library/latest_run.json · library/latest_run_errors.md[/dim]"
+        "Evidence",
+        "[dim]"
+        f"latest run: {escape_markup(evidence_paths['latest_run'])}\n"
+        f"errors: {escape_markup(evidence_paths['latest_run_errors'])}\n"
+        f"debug: {escape_markup(evidence_paths['debug_log'])}\n"
+        f"phases: {escape_markup(evidence_paths['phase_telemetry'])}"
+        "[/dim]",
     )
 
     top_row = Columns(
@@ -498,8 +510,15 @@ def _show_dashboard() -> None:  # noqa: C901
 
 
 def show_dashboard() -> None:
-    """Show the operational home screen for the root CLI callback."""
-    _show_dashboard()
+    """Show the operational home screen in the active output mode."""
+    from distill.commands._json import emit_json, json_mode_active
+
+    if not json_mode_active():
+        _show_dashboard()
+        return
+    config = get_config()
+    snapshot = _dashboard_snapshot(config)
+    emit_json(dashboard_json_data(_get_version(), snapshot))
 
 
 def _dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
@@ -515,6 +534,7 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
             return "<li>None</li>"
         return "".join(f"<li>{escape(item)}</li>" for item in items)
 
+    evidence_paths = dashboard_evidence_paths(snapshot)
     metrics = [
         ("Topics", str(len(snapshot["topics"]))),
         ("Channels", str(snapshot["total_channels"])),
@@ -621,6 +641,10 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
     }}
     * {{ box-sizing: border-box; }}
     body {{ margin: 0; font-family: Georgia, 'Times New Roman', serif; background: linear-gradient(180deg, #f4efe4 0%, var(--bg) 100%); color: var(--ink); }}
+    .skip-link {{ position: fixed; top: 8px; left: 8px; z-index: 10; padding: 10px 14px; border-radius: 8px; background: var(--ink); color: var(--panel); transform: translateY(-150%); }}
+    .skip-link:focus {{ transform: translateY(0); }}
+    .sr-only {{ position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }}
+    :focus-visible {{ outline: 3px solid var(--accent2); outline-offset: 3px; }}
     .wrap {{ max-width: 1400px; margin: 0 auto; padding: 28px; }}
     h1 {{ margin: 0; font-size: 2.1rem; }}
     .sub {{ color: var(--muted); margin-top: 8px; }}
@@ -642,7 +666,8 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <main class="wrap" id="main-content" tabindex="-1">
     <h1>Distill Dashboard</h1>
     <div class="sub">v{escape(version)} · stay current / learn fast / build corpus</div>
     <div class="grid metrics">{metric_cards}</div>
@@ -686,7 +711,8 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
       <section class="card" style="grid-column: span 2;">
         <h2>Recent Activity</h2>
         <table>
-          <thead><tr><th>When</th><th>Command</th><th>Cost</th><th>Time</th></tr></thead>
+          <caption class="sr-only">Recent activity</caption>
+          <thead><tr><th scope="col">When</th><th scope="col">Command</th><th scope="col">Cost</th><th scope="col">Time</th></tr></thead>
           <tbody>{recent_rows}</tbody>
         </table>
       </section>
@@ -696,12 +722,17 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
       </section>
     </div>
 
-    <div class="footer">
-      Source artifacts: <span class="accent">library/latest_run.json</span>,
-      <span class="accent">library/latest_run_errors.md</span>,
-      <span class="accent">library/library_Latest_Changes.md</span>
+    <div class="footer" aria-labelledby="local-evidence-title">
+      <h2 id="local-evidence-title">Local evidence</h2>
+      <ul>
+        <li>Latest run: <span class="accent">{escape(evidence_paths["latest_run"])}</span></li>
+        <li>Run errors: <span class="accent">{escape(evidence_paths["latest_run_errors"])}</span></li>
+        <li>Debug log: <span class="accent">{escape(evidence_paths["debug_log"])}</span></li>
+        <li>Phase telemetry: <span class="accent">{escape(evidence_paths["phase_telemetry"])}</span></li>
+        <li>Cost ledger: <span class="accent">{escape(evidence_paths["cost_ledger"])}</span></li>
+      </ul>
     </div>
-  </div>
+  </main>
 </body>
 </html>"""
 

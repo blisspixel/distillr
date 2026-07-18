@@ -7,6 +7,7 @@
   <meta name="htmx-config" content='{"allowEval": false, "allowScriptTags": false}'>
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js?v={{ script_version }}" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -25,16 +26,5 @@
       {% block content %}{% endblock %}
     </main>
   </div>
-  <script>
-    // Simple tab switching
-    document.addEventListener('click', function(e) {
-      if (!e.target.classList.contains('tab')) return;
-      var group = e.target.closest('.tabs').dataset.group;
-      document.querySelectorAll('.tab[data-group="' + group + '"]').forEach(function(t) { t.classList.remove('active'); });
-      document.querySelectorAll('.tab-content[data-group="' + group + '"]').forEach(function(t) { t.classList.remove('active'); });
-      e.target.classList.add('active');
-      document.getElementById(e.target.dataset.tab).classList.add('active');
-    });
-  </script>
 </body>
 </html>

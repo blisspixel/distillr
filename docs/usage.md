@@ -1039,6 +1039,11 @@ distill --json init                # machine-readable readiness verdict
 
 `distill init` is no-TTY-safe: with no terminal and no `--yes`, it creates the env file and prints the manual next steps rather than blocking on a prompt, so a scripted or agent-driven setup never hangs. The exit code is `0` when the setup is ready to ingest and `1` when something still needs doing (the verdict lists exactly what). `distill doctor` remains the read-only diagnostic; `init` is the one that *sets things up*.
 
+The suggested `distill papers ... --preview` step stops before paper ingest and
+corpus writes. It can still use the configured model for expansion or reranking,
+so any preview model cost is recorded in the local ledger. Use
+`--cost-mode no-metered` when the requirement is to refuse API-billed routes.
+
 ## Version
 
 ```bash
@@ -1060,8 +1065,9 @@ distill --json library                # machine-readable stdout
 `--quiet` / `-q` is for external loops that only need exit codes, artifacts, or
 JSON output. It suppresses the shared human console for that invocation and
 resets on the next command. `--verbose` / `-v` enables debug logging on stderr,
-matching `--debug`. The run log at `library/.distill/distill.log` captures DEBUG
-records for post-run review even when console output remains warning-only.
+matching `--debug`. The run log at `<configured-library>/.distill/distill.log`
+captures DEBUG records for post-run review even when console output remains
+warning-only.
 `--quiet` cannot be combined with `--verbose` or `--debug`.
 
 ## JSON Output
@@ -1072,6 +1078,8 @@ contract. Stable read envelopes include `library`, `videos`, `show`,
 view, and `concepts` export:
 
 ```bash
+distill --json                       # bounded dashboard.v1 operator snapshot
+distill --json dashboard             # identical explicit dashboard snapshot
 distill --json library               # topic + channel inventory
 distill --json synthesis <topic>     # the synthesis document + provenance
 distill --json show <topic> 1        # a video's insights (or --what transcript)
@@ -1079,6 +1087,14 @@ distill --json doctor                # health check + readiness verdict
 ```
 
 `distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. An agent can gate on `ready` in one read; a not-ready environment is fixed with `distill init`.
+
+Bare `distill --json` and `distill --json dashboard` return the same
+`dashboard.v1` data object. It includes a `first_run` verdict, primitive count
+and spend metrics, at most 100 topic names and 10 recent run summaries, bounded
+warning lists, next commands, and exact configured paths for the latest run,
+run errors, debug log, phase telemetry, provider telemetry, and cost ledger.
+The human banner and panels are omitted, so successful dashboard reads have
+one JSON object on stdout and no stderr output.
 
 When `--json` is active:
 - **stdout** carries exactly one JSON object with `status`, `data`, and optionally `error` - nothing else, so it always parses
@@ -1098,8 +1114,8 @@ Distill is built to run in a loop or under an agent with no human at the keyboar
 
 - **`--quiet` / `-q`** suppresses human console output when a loop only needs
   exit codes, artifacts, or JSON.
-- **`library/.distill/distill.log`** captures DEBUG logging for post-run review
-  without requiring verbose console output.
+- **`<configured-library>/.distill/distill.log`** captures DEBUG logging for
+  post-run review without requiring verbose console output.
 - **`--yes` / `-y`** skips confirmation on every spend- or mutation-gated command.
 - **`audit --report-only`** writes the report artifact and sets the exit code from findings without prompting.
 - **`audit --next-actions --json`** emits bounded action rows an external loop can run and verify without scraping console output.

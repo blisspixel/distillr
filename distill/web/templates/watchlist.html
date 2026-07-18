@@ -33,7 +33,8 @@
   <div class="card">
     <h2>Channel Watches</h2>
     <table>
-      <thead><tr><th>Channel</th><th>Topic</th><th>Lookback</th></tr></thead>
+      <caption class="sr-only">Channel watches</caption>
+      <thead><tr><th scope="col">Channel</th><th scope="col">Topic</th><th scope="col">Lookback</th></tr></thead>
       <tbody>
         {% for w in channel_watches %}
         <tr>
@@ -51,7 +52,8 @@
   <div class="card">
     <h2>Topic Watches</h2>
     <table>
-      <thead><tr><th>Name</th><th>Cadence</th><th>Picks</th><th>Budget</th><th>Status</th></tr></thead>
+      <caption class="sr-only">Topic watches</caption>
+      <thead><tr><th scope="col">Name</th><th scope="col">Cadence</th><th scope="col">Picks</th><th scope="col">Budget</th><th scope="col">Status</th></tr></thead>
       <tbody>
         {% for tw in topic_watches %}
         {% set e = tw.entry %}

@@ -67,6 +67,11 @@ malicious input cannot turn a narrow operation into broad host authority:
 - MCP file tools use workflow-specific namespaces and artifact classes rather
   than broad library-root readability. Reads are no-follow and bounded. OKF
   validation has aggregate tree-work ceilings.
+- The read-only web dashboard binds only to literal loopback hosts, rejects
+  malformed or non-loopback Host headers, sanitizes rendered corpus Markdown,
+  drops external images, and sends no-referrer and restrictive CSP headers.
+  Executable JavaScript is served only from same-origin static assets; inline
+  script, object embedding, and framing are refused.
 
 Resource-boundary failures are explicit. User-facing commands return a refusal
 or failed-item record, bounded child diagnostics retain only a small tail, and

@@ -85,6 +85,13 @@ def default_callback(
     configure_logging(debug=effective_debug, ops_dir=ops_dir)
 
     if ctx.invoked_subcommand is None:
+        # Global JSON mode is also a dashboard read surface. Emit one envelope
+        # and keep stderr free of the human banner and panels.
+        if json_output:
+            from distill.commands.dashboard import show_dashboard
+
+            show_dashboard()
+            return
         # Only clear the screen for an interactive terminal. Clearing captured
         # output emits escape codes into agent and loop logs.
         if sys.stdout.isatty():

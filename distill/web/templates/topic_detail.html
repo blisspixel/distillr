@@ -11,15 +11,15 @@
 <h1>{{ topic.name }}</h1>
 <p class="subtitle">{{ topic.channel_count }} channels &middot; {{ topic.video_count }} videos &middot; {{ topic.site_count }} sites &middot; {{ topic.paper_count }} papers</p>
 
-<div class="tabs" data-group="topic">
-  <button class="tab active" data-group="topic" data-tab="tab-channels">Channels</button>
-  {% if synthesis %}<button class="tab" data-group="topic" data-tab="tab-synthesis">Synthesis</button>{% endif %}
-  {% if brief %}<button class="tab" data-group="topic" data-tab="tab-brief">Brief</button>{% endif %}
-  {% if sites %}<button class="tab" data-group="topic" data-tab="tab-sites">Sites</button>{% endif %}
-  {% if papers %}<button class="tab" data-group="topic" data-tab="tab-papers">Papers</button>{% endif %}
+<div class="tabs" role="tablist" aria-label="Topic views">
+  <button class="tab active" id="topic-tab-channels" role="tab" aria-selected="true" aria-controls="tab-channels" tabindex="0">Channels</button>
+  {% if synthesis %}<button class="tab" id="topic-tab-synthesis" role="tab" aria-selected="false" aria-controls="tab-synthesis" tabindex="-1">Synthesis</button>{% endif %}
+  {% if brief %}<button class="tab" id="topic-tab-brief" role="tab" aria-selected="false" aria-controls="tab-brief" tabindex="-1">Brief</button>{% endif %}
+  {% if sites %}<button class="tab" id="topic-tab-sites" role="tab" aria-selected="false" aria-controls="tab-sites" tabindex="-1">Sites</button>{% endif %}
+  {% if papers %}<button class="tab" id="topic-tab-papers" role="tab" aria-selected="false" aria-controls="tab-papers" tabindex="-1">Papers</button>{% endif %}
 </div>
 
-<div id="tab-channels" class="tab-content active" data-group="topic">
+<div id="tab-channels" class="tab-content active" role="tabpanel" aria-labelledby="topic-tab-channels" tabindex="0">
   <div class="topic-grid">
     {% for ch in topic.channels %}
     <a href="/topics/{{ topic.name }}/channels/{{ ch.name }}" style="text-decoration:none;color:inherit;">
@@ -35,7 +35,7 @@
 </div>
 
 {% if synthesis %}
-<div id="tab-synthesis" class="tab-content" data-group="topic">
+<div id="tab-synthesis" class="tab-content" role="tabpanel" aria-labelledby="topic-tab-synthesis" tabindex="0" hidden>
   <div class="card">
     <div class="md-content">{{ synthesis|strip_frontmatter|markdown|safe }}</div>
   </div>
@@ -43,7 +43,7 @@
 {% endif %}
 
 {% if brief %}
-<div id="tab-brief" class="tab-content" data-group="topic">
+<div id="tab-brief" class="tab-content" role="tabpanel" aria-labelledby="topic-tab-brief" tabindex="0" hidden>
   <div class="card">
     <div class="md-content">{{ brief|strip_frontmatter|markdown|safe }}</div>
   </div>
@@ -51,7 +51,7 @@
 {% endif %}
 
 {% if sites %}
-<div id="tab-sites" class="tab-content" data-group="topic">
+<div id="tab-sites" class="tab-content" role="tabpanel" aria-labelledby="topic-tab-sites" tabindex="0" hidden>
   <div class="topic-grid">
     {% for site in sites %}
     <div class="card topic-card">
@@ -64,7 +64,7 @@
 {% endif %}
 
 {% if papers %}
-<div id="tab-papers" class="tab-content" data-group="topic">
+<div id="tab-papers" class="tab-content" role="tabpanel" aria-labelledby="topic-tab-papers" tabindex="0" hidden>
   <div class="topic-grid">
     {% for paper in papers %}
     <div class="card topic-card">

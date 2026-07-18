@@ -108,6 +108,8 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
     assert 'aria-label="Primary"' in dashboard_response.text
     assert 'aria-current="page"' in dashboard_response.text
     assert 'href="/static/style.css?v=' in dashboard_response.text
+    assert 'src="/static/app.js?v=' in dashboard_response.text
+    assert "Simple tab switching" not in dashboard_response.text
     assert "Build your first corpus" not in dashboard_response.text
     assert '"allowEval": false' in dashboard_response.text
     assert '"allowScriptTags": false' in dashboard_response.text
@@ -116,20 +118,31 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
     topic_html = client.get("/topics/ai").text
     assert "Topic Synthesis" in topic_html
     assert "Paper Title" in topic_html
+    assert 'role="tablist"' in topic_html
+    assert 'role="tab"' in topic_html
+    assert 'aria-selected="true"' in topic_html
+    assert 'role="tabpanel"' in topic_html
+    assert 'aria-labelledby="topic-tab-channels"' in topic_html
 
     channel_html = client.get("/topics/ai/channels/TestChannel").text
     assert "Channel Synthesis" in channel_html
     assert "Test Video" in channel_html
+    assert '<caption class="sr-only">Videos in TestChannel</caption>' in channel_html
+    assert '<th scope="col">Title</th>' in channel_html
 
     video_html = client.get("/topics/ai/channels/TestChannel/videos/vid001").text
     assert "Transcript" in video_html
     assert "Insight" in video_html
+    assert 'aria-controls="tab-transcript"' in video_html
+    assert 'aria-labelledby="video-tab-transcript"' in video_html
 
     costs_html = client.get("/costs").text
     assert "$0.40" in costs_html or "0.4" in costs_html
     assert "Biggest Prompts" in costs_html
     assert "report" in costs_html
     assert "2,500" in costs_html
+    assert '<caption class="sr-only">Recent costed runs</caption>' in costs_html
+    assert '<th scope="col">Command</th>' in costs_html
 
 
 def test_empty_dashboard_offers_a_truthful_first_action(config):
@@ -170,6 +183,8 @@ def test_empty_costs_page_offers_operator_guidance(config):
     assert "No spend recorded yet" in response.text
     assert "cost_log.jsonl" in response.text
     assert "telemetry.jsonl" in response.text
+    assert str(config.library_dir / ".distill" / "cost_log.jsonl") in response.text
+    assert str(config.library_dir / ".distill" / "telemetry.jsonl") in response.text
     assert "distill costs" in response.text
     assert "no-metered" in response.text
     assert "By Topic (30d)" not in response.text
@@ -198,6 +213,34 @@ def test_dashboard_styles_include_narrow_screen_and_focus_support(config):
     assert "@media (max-width: 760px)" in response.text
     assert ".skip-link:focus" in response.text
     assert ":focus-visible" in response.text
+    assert ".sr-only" in response.text
+
+
+def test_dashboard_tab_controller_is_local_and_keyboard_accessible(config):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    assert "ArrowRight" in response.text
+    assert "ArrowLeft" in response.text
+    assert "Home" in response.text
+    assert "End" in response.text
+    assert "aria-selected" in response.text
+    assert "tabindex" in response.text
+
+
+def test_dashboard_security_headers_disallow_inline_scripts(config):
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/")
+    csp = response.headers["content-security-policy"]
+
+    assert "script-src 'self';" in csp
+    assert "script-src 'self' 'unsafe-inline'" not in csp
+    assert "style-src 'self' 'unsafe-inline'" in csp
+    assert "object-src 'none'" in csp
+    assert "frame-ancestors 'none'" in csp
 
 
 @pytest.mark.parametrize(

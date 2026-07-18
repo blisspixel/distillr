@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from html import escape
 from io import StringIO
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -67,7 +70,8 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
     channel_counts = {f"topic{i}": (i % 3) + 1 for i in range(8)}
     default: dict[str, Any] = {
         "lib": SimpleNamespace(
-            get_channels=lambda topic: _channels(channel_counts.get(str(topic), 0))
+            config=SimpleNamespace(library_dir=Path("custom & root") / "research-library"),
+            get_channels=lambda topic: _channels(channel_counts.get(str(topic), 0)),
         ),
         "topics": list(channel_counts),
         "watchlist": [
@@ -161,6 +165,9 @@ def test_show_dashboard_falls_back_to_first_run_when_config_fails(monkeypatch) -
     assert "--preview" in output
     assert "distill video" in output
     assert "Spend control" in output
+    assert "Preview before ingest" in output
+    assert "Preview before spend" not in output
+    assert "model-backed preview cost is logged" in output
 
 
 def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch) -> None:
@@ -179,6 +186,9 @@ def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch)
     assert "failed video items" in output
     assert "Daily spend on 2026-06-03 reached $12.00" in output
     assert "distill run topic0 --refresh" in output
+    library_dir = _snapshot()["lib"].config.library_dir
+    assert str(library_dir / ".distill" / "distill.log") in output
+    assert str(library_dir / ".distill" / "phase_telemetry.jsonl") in output
 
 
 def test_show_dashboard_renders_empty_non_first_run_sections(monkeypatch) -> None:
@@ -230,6 +240,12 @@ def test_render_dashboard_html_renders_budget_trends_changes_and_attention() -> 
     assert "Latest run failed items: 2" in html
     assert "Latest run issues: 1" in html
     assert "Daily spend on 2026-06-03 reached $12.00" in html
+    assert 'href="#main-content"' in html
+    assert '<main class="wrap" id="main-content" tabindex="-1">' in html
+    assert '<caption class="sr-only">Recent activity</caption>' in html
+    assert '<th scope="col">When</th>' in html
+    library_dir = _snapshot()["lib"].config.library_dir
+    assert escape(str(library_dir / ".distill" / "distill.log")) in html
 
 
 def test_render_dashboard_html_uses_artifact_and_empty_fallbacks() -> None:
@@ -271,3 +287,67 @@ def test_render_dashboard_html_uses_artifact_and_empty_fallbacks() -> None:
     assert "brief: topic0 Jun 01 08:00 AM" in html
     assert "No runs logged yet" in html
     assert "No run issues logged yet" in html
+
+
+def test_dashboard_json_data_is_primitive_bounded_and_uses_configured_paths() -> None:
+    payload = _dashboard.dashboard_json_data("1.2.3", _snapshot())
+
+    assert payload["schema_version"] == "dashboard.v1"
+    assert payload["version"] == "1.2.3"
+    assert payload["first_run"] is False
+    assert payload["metrics"] == {
+        "topics": 8,
+        "channels": 12,
+        "videos": 4,
+        "full_videos": 3,
+        "scan_videos": 1,
+        "sites": 2,
+        "pages": 5,
+        "papers": 3,
+        "reports": 2,
+        "briefs": 1,
+        "syntheses": 4,
+        "channel_watches": 7,
+        "topic_watches": 7,
+        "due_topic_watches": 1,
+    }
+    library_dir = _snapshot()["lib"].config.library_dir
+    assert payload["paths"]["debug_log"] == str(library_dir / ".distill" / "distill.log")
+    assert payload["paths"]["phase_telemetry"] == str(
+        library_dir / ".distill" / "phase_telemetry.jsonl"
+    )
+    assert payload["warnings"]["latest_issues"] == 1
+    assert payload["topics"] == [f"topic{i}" for i in range(8)]
+    assert "lib" not in payload
+
+
+def test_dashboard_json_data_caps_collections_text_and_nonfinite_values() -> None:
+    payload = _dashboard.dashboard_json_data(
+        "v" * 1_000,
+        _snapshot(
+            topics=[f"topic{i}" for i in range(140)],
+            recent_runs=[
+                {
+                    "timestamp": "t" * 1_000,
+                    "command": f"command{i}",
+                    "actual_cost": float("nan"),
+                    "elapsed_seconds": float("inf"),
+                }
+                for i in range(15)
+            ],
+            recent_spend=10**10_000,
+            next_sweep_cost=float("inf"),
+            latest_results={"failed": float("inf")},
+            stale_topic_watches=["w" * 1_000 for _ in range(30)],
+        ),
+    )
+
+    assert len(payload["version"]) == 500
+    assert len(payload["topics"]) == 100
+    assert payload["truncated"] == {"topics": 40, "recent_runs": 5}
+    assert len(payload["recent_runs"]) == 10
+    assert payload["spend"] == {"recent_usd": 0.0, "next_sweep_usd": 0.0}
+    assert payload["warnings"]["latest_failed_items"] == 0
+    assert len(payload["warnings"]["stale_topic_watches"]) == 20
+    assert len(payload["warnings"]["stale_topic_watches"][0]) == 500
+    json.dumps(payload, allow_nan=False)

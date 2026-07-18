@@ -150,6 +150,14 @@ cycle can improve a real workflow without opening unrelated feature scope:
 - **Documentation debt:** keep README, usage, security, MCP, operator, and
   migration guidance synchronized with tested behavior and billing truth.
 
+**Cycle 5 maintenance evidence (2026-07-17).** The current dashboard now keeps
+its documented JSON stdout contract at both root and explicit command paths,
+names configured local evidence paths, and distinguishes preview-before-ingest
+from no-spend behavior. The local web surface moved executable code out of
+inline HTML, tightened script CSP, and added keyboard tab, landmark, caption,
+and scoped-header semantics. Remaining work stays in the debt groups above;
+this pass does not change product scope or schedule a stability decision.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published

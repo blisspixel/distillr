@@ -240,6 +240,26 @@ class TestTopLevelExperience:
         assert "Quick commands:" in result.output
         assert "Topics" in result.output
 
+    def test_no_args_json_emits_one_dashboard_envelope(self, mock_config, capsys):
+        result = runner.invoke(cli.app, ["--json"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "ok"
+        assert payload["data"]["schema_version"] == "dashboard.v1"
+        assert payload["data"]["first_run"] is True
+        assert payload["data"]["paths"]["library"] == str(mock_config.library_dir)
+        assert result.stderr == ""
+
+    def test_dashboard_command_json_matches_root_contract(self, mock_config):
+        root = runner.invoke(cli.app, ["--json"])
+        command = runner.invoke(cli.app, ["--json", "dashboard"])
+
+        assert root.exit_code == 0, root.output
+        assert command.exit_code == 0, command.output
+        assert json.loads(command.stdout) == json.loads(root.stdout)
+        assert command.stderr == ""
+
     def test_quiet_suppresses_home_output_and_resets(self, mock_config, monkeypatch):
         monkeypatch.setattr(_root, "show_banner", lambda console: None)
         monkeypatch.setattr(cli.console, "clear", lambda: None)

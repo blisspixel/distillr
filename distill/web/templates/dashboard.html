@@ -127,7 +127,8 @@
   <div class="card">
     <h2>Recent Activity</h2>
     <table>
-      <thead><tr><th>When</th><th>Command</th><th>Cost</th><th>Time</th></tr></thead>
+      <caption class="sr-only">Recent activity</caption>
+      <thead><tr><th scope="col">When</th><th scope="col">Command</th><th scope="col">Cost</th><th scope="col">Time</th></tr></thead>
       <tbody>
         {% for entry in recent_runs|reverse %}
         <tr>

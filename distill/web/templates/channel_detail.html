@@ -11,16 +11,17 @@
 <h1>{{ channel }}</h1>
 <p class="subtitle">{{ video_count }} videos{% if ch_info and (ch_info.url or '').startswith(('http://', 'https://')) %} &middot; <a href="{{ ch_info.url }}" target="_blank" rel="noopener noreferrer">YouTube</a>{% endif %}</p>
 
-<div class="tabs" data-group="ch">
-  <button class="tab active" data-group="ch" data-tab="tab-videos">Videos ({{ video_count }})</button>
-  {% if synthesis %}<button class="tab" data-group="ch" data-tab="tab-synthesis">Synthesis</button>{% endif %}
-  {% if context %}<button class="tab" data-group="ch" data-tab="tab-context">Context</button>{% endif %}
+<div class="tabs" role="tablist" aria-label="Channel views">
+  <button class="tab active" id="channel-tab-videos" role="tab" aria-selected="true" aria-controls="tab-videos" tabindex="0">Videos ({{ video_count }})</button>
+  {% if synthesis %}<button class="tab" id="channel-tab-synthesis" role="tab" aria-selected="false" aria-controls="tab-synthesis" tabindex="-1">Synthesis</button>{% endif %}
+  {% if context %}<button class="tab" id="channel-tab-context" role="tab" aria-selected="false" aria-controls="tab-context" tabindex="-1">Context</button>{% endif %}
 </div>
 
-<div id="tab-videos" class="tab-content active" data-group="ch">
+<div id="tab-videos" class="tab-content active" role="tabpanel" aria-labelledby="channel-tab-videos" tabindex="0">
   <table>
+    <caption class="sr-only">Videos in {{ channel }}</caption>
     <thead>
-      <tr><th>#</th><th>Title</th><th>Date</th><th>Duration</th><th>Status</th></tr>
+      <tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Date</th><th scope="col">Duration</th><th scope="col">Status</th></tr>
     </thead>
     <tbody>
       {% for v in videos %}
@@ -49,7 +50,7 @@
 </div>
 
 {% if synthesis %}
-<div id="tab-synthesis" class="tab-content" data-group="ch">
+<div id="tab-synthesis" class="tab-content" role="tabpanel" aria-labelledby="channel-tab-synthesis" tabindex="0" hidden>
   <div class="card">
     <div class="md-content">{{ synthesis|strip_frontmatter|markdown|safe }}</div>
   </div>
@@ -57,7 +58,7 @@
 {% endif %}
 
 {% if context %}
-<div id="tab-context" class="tab-content" data-group="ch">
+<div id="tab-context" class="tab-content" role="tabpanel" aria-labelledby="channel-tab-context" tabindex="0" hidden>
   <div class="card">
     <div class="md-content">{{ context|strip_frontmatter|markdown|safe }}</div>
   </div>

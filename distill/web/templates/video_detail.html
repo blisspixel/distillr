@@ -21,13 +21,13 @@
   {% endif %}
 </p>
 
-<div class="tabs" data-group="vid">
-  <button class="tab active" data-group="vid" data-tab="tab-insights">Insights</button>
-  {% if transcript %}<button class="tab" data-group="vid" data-tab="tab-transcript">Transcript</button>{% endif %}
-  <button class="tab" data-group="vid" data-tab="tab-metadata">Metadata</button>
+<div class="tabs" role="tablist" aria-label="Video views">
+  <button class="tab active" id="video-tab-insights" role="tab" aria-selected="true" aria-controls="tab-insights" tabindex="0">Insights</button>
+  {% if transcript %}<button class="tab" id="video-tab-transcript" role="tab" aria-selected="false" aria-controls="tab-transcript" tabindex="-1">Transcript</button>{% endif %}
+  <button class="tab" id="video-tab-metadata" role="tab" aria-selected="false" aria-controls="tab-metadata" tabindex="-1">Metadata</button>
 </div>
 
-<div id="tab-insights" class="tab-content active" data-group="vid">
+<div id="tab-insights" class="tab-content active" role="tabpanel" aria-labelledby="video-tab-insights" tabindex="0">
   {% if insights %}
   <div class="card">
     <div class="md-content">{{ insights|strip_frontmatter|markdown|safe }}</div>
@@ -38,7 +38,7 @@
 </div>
 
 {% if transcript %}
-<div id="tab-transcript" class="tab-content" data-group="vid">
+<div id="tab-transcript" class="tab-content" role="tabpanel" aria-labelledby="video-tab-transcript" tabindex="0" hidden>
   <div class="card">
     <div class="transcript">{{ transcript }}</div>
     <p style="color:var(--muted);margin-top:8px;font-size:0.85rem;">{{ transcript|length|string }} characters</p>
@@ -46,7 +46,7 @@
 </div>
 {% endif %}
 
-<div id="tab-metadata" class="tab-content" data-group="vid">
+<div id="tab-metadata" class="tab-content" role="tabpanel" aria-labelledby="video-tab-metadata" tabindex="0" hidden>
   <div class="card">
     <pre style="font-size:0.88rem;">{{ meta|tojson(indent=2) }}</pre>
   </div>

@@ -169,6 +169,7 @@ jobs:
           whl=$(ls dist/*.whl)
           for f in \
             distill/web/templates/base.html \
+            distill/web/static/app.js \
             distill/web/static/style.css \
             distill/resources/agent-skills/distill-corpus/SKILL.md \
             distill/resources/agent-skills/distill-corpus.manifest.json; do

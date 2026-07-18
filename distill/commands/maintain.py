@@ -927,7 +927,10 @@ def dashboard(
     """Show the dashboard in terminal or generate a lightweight local web view."""
     config = get_config()
     if not web:
-        show_banner(console)
+        from distill.commands._json import json_mode_active
+
+        if not json_mode_active():
+            show_banner(console)
         show_dashboard()
         return
 

@@ -71,6 +71,9 @@ def create_app(config: DistillConfig) -> FastAPI:
     templates.env.globals["asset_version"] = str(
         (WEB_DIR / "static" / "style.css").stat().st_mtime_ns
     )
+    templates.env.globals["script_version"] = str(
+        (WEB_DIR / "static" / "app.js").stat().st_mtime_ns
+    )
 
     app.state.templates = templates
 
@@ -78,16 +81,17 @@ def create_app(config: DistillConfig) -> FastAPI:
     async def _security_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Defense-in-depth for the dashboard, which renders untrusted ingested
         # content: block external images/connections (exfil beacons) even if the
-        # sanitizer regresses. 'unsafe-inline' is allowed for the dashboard's own
-        # inline styles/scripts; img-src/default-src 'self' is the exfil defense.
+        # sanitizer regresses. Inline styles remain for legacy presentation, but
+        # executable JavaScript must come from a same-origin static asset.
         if not _is_loopback_host_header(request.headers.get("host", "")):
             response = PlainTextResponse("Invalid host header", status_code=400)
         else:
             response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
-            "base-uri 'none'; form-action 'self'"
+            "style-src 'self' 'unsafe-inline'; script-src 'self'; "
+            "object-src 'none'; base-uri 'none'; form-action 'self'; "
+            "frame-ancestors 'none'"
         )
         response.headers["Referrer-Policy"] = "no-referrer"
         return response

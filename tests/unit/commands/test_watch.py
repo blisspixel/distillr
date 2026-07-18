@@ -25,6 +25,9 @@ def _plain_cli_output(output: str) -> str:
 
 
 class _DashboardSnapshotLib:
+    def __init__(self, config):
+        self.config = config
+
     def get_channels(self, _topic):
         return []
 
@@ -637,7 +640,7 @@ def test_dashboard_cli_home_uses_shared_snapshot(tmp_path, monkeypatch):
     def fake_dashboard_snapshot(received_config):
         calls.append(received_config)
         return {
-            "lib": _DashboardSnapshotLib(),
+            "lib": _DashboardSnapshotLib(config),
             "topics": ["snapshot-topic"],
             "watchlist": [],
             "topic_watchlist": [],

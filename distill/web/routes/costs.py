@@ -51,5 +51,8 @@ async def costs_page(request: Request):
             "topic_rollups": topic_rollups,
             "source_rollups": source_rollups,
             "biggest_prompts": biggest_prompts,
+            "cost_log_path": str(ops_log),
+            "legacy_cost_log_path": str(legacy_log),
+            "telemetry_path": str(config.library_dir / ".distill" / "telemetry.jsonl"),
         },
     )

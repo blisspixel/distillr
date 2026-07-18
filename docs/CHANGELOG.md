@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- Moved the local dashboard tab controller to a same-origin static asset,
+  removed inline script permission from CSP, disabled object embedding and
+  framing, and retained inline permission only for existing presentation styles.
 - Closed the current deep-review findings across public-source fetches,
   website crawling, PDF attachments, local parsers, subprocess launch,
   MCP reads, OKF validation, Windows target classification, and deferred worker
@@ -27,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Restored the documented JSON contract for bare and explicit dashboard reads.
+  `distill --json` and `distill --json dashboard` now return the same bounded
+  `dashboard.v1` envelope with no human output on stderr.
+- Replaced hardcoded default dashboard artifact locations with exact configured
+  latest-run, error, debug-log, phase-telemetry, provider-telemetry, and
+  cost-ledger paths. The web cost empty state also reports its configured paths.
+- Corrected first-run preview language: preview stops before ingest and corpus
+  writes, while model-backed preview cost remains visible in the ledger.
+- Added semantic, keyboard-operable tabs; captions and scoped headers for data
+  tables; and skip-link and main-landmark support to generated dashboard HTML.
 - Serialized deferred-provider admission and worker claim, submit, abandon,
   and expired-release transitions on one cross-process lock. Publication now
   rechecks exact ownership and the workspace file set, result replay requires a
