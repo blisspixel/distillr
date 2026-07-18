@@ -892,7 +892,8 @@ skipped on the next run. If the evidence receipt cannot be written, Distill
 shows and logs that failure instead of advertising a path that does not exist.
 
 `distill costs` reads `.distill/phase_telemetry.jsonl`, `telemetry.jsonl`, and
-`cost_log.jsonl`. Like every CLI invocation, its own command envelope is
+`cost_log.jsonl`, bounded to the newest 16 MiB of each file. Like every CLI
+invocation, its own command envelope is
 appended after rendering, but observer rows are excluded from the recent
 workflow list and counted explicitly. Only a `phase: command` row establishes a
 run, and provider or cost rows join only through the same non-empty `run_id`.
@@ -905,6 +906,12 @@ unknown and are counted as schema-invalid rather than being shown as zero. If
 an invalid row can still be attributed to a run, that run's completeness flag
 is false and its affected aggregate remains `null`; explicit valid zeroes and a
 complete run with no provider calls remain zero.
+When a file exceeds the read window, `coverage.tail_limited_logs` names it in
+JSON and the human view states that older rows were excluded. Because an older
+sibling row may belong to a retained command anchor, the affected phase,
+provider, or cost completeness flag is false and its aggregate stays `null`.
+The retained command envelope and valid rows remain visible as an explicitly
+incomplete subset.
 
 ### Running on a schedule (loop-ready)
 
@@ -1051,6 +1058,11 @@ citations, concept notes, and recovery snapshots exit 5. These refusals happen
 before provider calls, subprocess launches, or artifact writes. A declined
 interactive confirmation is a separate command outcome and should not be
 treated as a missing resource.
+The content-free command row in `phase_telemetry.jsonl` preserves terminal
+classes as `usage_error`, `config_error`, `network_error`, `not_found`, and
+`budget_exceeded`; runtime and unknown nonzero statuses remain `error`.
+Typed cost-policy refusal remains `refused`, even though it returns the
+configuration status, so billing gates stay distinguishable from bad setup.
 
 ## Setup (`distill init`)
 
@@ -1098,7 +1110,8 @@ JSON output. It suppresses the shared human console for that invocation and
 resets on the next command. `--verbose` / `-v` enables debug logging on stderr,
 matching `--debug`. The run log at `<configured-library>/.distill/distill.log`
 captures DEBUG records for post-run review even when console output remains
-warning-only.
+warning-only. It rolls at 8 MiB and retains `distill.log.1` through
+`distill.log.3`; reconfiguration also replaces a legacy unbounded handler.
 `--quiet` cannot be combined with `--verbose` or `--debug`.
 
 ## JSON Output

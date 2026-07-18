@@ -48,6 +48,26 @@ class _InstrumentedApp:
         update_current_run(command=self.command, ops_dir=self.ops_dir)
 
 
+class _InstrumentedExitApp(_InstrumentedApp):
+    def __init__(self, ops_dir: Path, code: object, command: str = "open") -> None:
+        super().__init__(ops_dir, command=command)
+        self.code = code
+
+    def __call__(self) -> None:
+        super().__call__()
+        raise SystemExit(self.code)
+
+
+class _InstrumentedFailingApp(_InstrumentedApp):
+    def __init__(self, ops_dir: Path, exc: Exception, command: str = "doctor") -> None:
+        super().__init__(ops_dir, command=command)
+        self.exc = exc
+
+    def __call__(self) -> None:
+        super().__call__()
+        raise self.exc
+
+
 def test_main_records_one_content_free_command_phase(monkeypatch, tmp_path):
     fake_app = _InstrumentedApp(tmp_path / ".distill")
     monkeypatch.setattr(cli, "app", fake_app)
@@ -65,6 +85,74 @@ def test_main_records_one_content_free_command_phase(monkeypatch, tmp_path):
     assert rows[0]["invocation_type"] == "cli"
     assert rows[0]["outcome"] == "success"
     assert rows[0]["run_id"]
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_outcome"),
+    [
+        (None, "success"),
+        (ExitCode.SUCCESS, "success"),
+        (ExitCode.RUNTIME_ERROR, "error"),
+        (ExitCode.USAGE_ERROR, "usage_error"),
+        (ExitCode.CONFIG_ERROR, "config_error"),
+        (ExitCode.NETWORK_ERROR, "network_error"),
+        (ExitCode.NOT_FOUND, "not_found"),
+        (ExitCode.BUDGET_EXCEEDED, "budget_exceeded"),
+        (99, "error"),
+        ("invalid-status", "error"),
+    ],
+)
+def test_main_records_semantic_system_exit_outcome(
+    monkeypatch,
+    tmp_path: Path,
+    code: object,
+    expected_outcome: str,
+) -> None:
+    ops_dir = tmp_path / ".distill"
+    fake_app = _InstrumentedExitApp(ops_dir, code)
+    monkeypatch.setattr(cli, "app", fake_app)
+
+    with pytest.raises(SystemExit) as raised:
+        cli.main()
+
+    assert raised.value.code == code
+    row = json.loads((ops_dir / "phase_telemetry.jsonl").read_text(encoding="utf-8"))
+    assert row["outcome"] == expected_outcome
+    assert row["error_type"] == ("" if code in (None, ExitCode.SUCCESS) else "SystemExit")
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected_outcome"),
+    [
+        (CostPolicyError("Route blocked by no-metered cost policy."), "refused"),
+        (BudgetExceededError(0.61, 0.5), "budget_exceeded"),
+        (
+            ProviderBusyTimeoutError(
+                provider="Ollama",
+                requested_model="qwen2.5:14b",
+                active_models=("qwen2.5-coder:32b",),
+                timeout_seconds=120,
+            ),
+            "network_error",
+        ),
+    ],
+)
+def test_main_preserves_explicit_and_mapped_exception_outcomes(
+    monkeypatch,
+    tmp_path: Path,
+    exc: Exception,
+    expected_outcome: str,
+) -> None:
+    ops_dir = tmp_path / ".distill"
+    fake_app = _InstrumentedFailingApp(ops_dir, exc)
+    monkeypatch.setattr(cli, "app", fake_app)
+    monkeypatch.setattr(cli.console, "print", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(SystemExit):
+        cli.main()
+
+    row = json.loads((ops_dir / "phase_telemetry.jsonl").read_text(encoding="utf-8"))
+    assert row["outcome"] == expected_outcome
 
 
 def test_main_writes_zero_usage_receipt_for_successful_profile_latest_child(monkeypatch, tmp_path):

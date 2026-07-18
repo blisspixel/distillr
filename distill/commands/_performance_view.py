@@ -151,6 +151,12 @@ def _coverage(coverage: PerformanceCoverage, console: Console) -> None:
         console.print(
             f"[dim]Unreadable telemetry logs: {', '.join(coverage['unreadable_logs'])}.[/dim]"
         )
+    if coverage["tail_limited_logs"]:
+        console.print(
+            "[dim]Tail-limited telemetry logs: "
+            f"{', '.join(coverage['tail_limited_logs'])}. Counts cover retained rows only; "
+            "older rows were excluded and affected rollups fail closed.[/dim]"
+        )
 
 
 def _latest_phases(evidence: PerformanceEvidence, console: Console) -> None:

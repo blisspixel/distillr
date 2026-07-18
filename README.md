@@ -243,12 +243,15 @@ Long ingest and report runs print per-item or per-phase progress with
 completed count, failed count, running spend, and ETA when enough items have
 completed. For external loops that only need files, exit codes, or JSON, use
 `distill --quiet <command>` to suppress human console output. DEBUG records are
-kept in `library/.distill/distill.log` for post-run review, and
-`distill --verbose <command>` mirrors them to stderr while a command runs.
+kept in `library/.distill/distill.log` for post-run review; the file rolls at
+8 MiB and retains three numbered backups. `distill --verbose <command>`
+mirrors the same records to stderr while a command runs.
 Deterministic preflight and recovery failures distinguish invalid input (2),
 missing configuration (3), and missing local resources (5), so unattended
 callers can remediate permanent refusals without retrying them as runtime
-failures. The full reserved taxonomy is in [`docs/usage.md`](docs/usage.md#exit-codes).
+failures. Local command telemetry preserves those classes as structured
+outcomes. The full reserved taxonomy is in
+[`docs/usage.md`](docs/usage.md#exit-codes).
 Site ingest progress also reports unchanged-page reuse and empty crawls as
 structural outcomes, so repeated website runs show why work was skipped.
 Discovery previews also summarize video candidate counts and known watch time
@@ -469,6 +472,10 @@ billing contracts.
 ## Cost
 
 On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs about $0.03/video and a full paper about $0.03; Gemini Deep Research dominates paid reports at about $2-3/report; `distill synthesize` is about $0.20-0.40 for a multi-topic corpus pass. grok-4.3 is the cloud floor: xAI retired the cheaper fast tiers (grok-4-1-fast etc.) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](docs/migration-grok-4.3.md)). The cheaper route Distill can prove today is analysis on a **local model** (Ollama/LM Studio). An active host session may consume included plan quota, credits, or API billing, so Distill records that cost as unavailable rather than calling it free. `distill eval --models grok-4.3,<local-model>` measures the cost x quality tradeoff over frozen fixtures and recommends the cheapest model that clears your quality bar before you switch. Model-using runs log actual vs estimated cost to `cost_log.jsonl` and per-call prompt telemetry to `library/.distill/telemetry.jsonl`. Top-level CLI commands and MCP tool calls with a resolved library write content-free timing to `library/.distill/phase_telemetry.jsonl`; the shared `run_id` joins whichever provider, cost, and phase rows a run produces. True no-spend no-ops do not create cost or provider rows. `distill costs` shows estimator accuracy, local/cloud split, the biggest prompts, and exact-ID command/provider/phase performance evidence with explicit legacy coverage. The estimator's goal is **accuracy**, not safe padding: a padded estimate discourages runs you would happily pay for, so calibration error is tracked and shrunk over time.
+
+Performance history reads are bounded to the newest 16 MiB from each telemetry
+source. Human and JSON coverage name any tail-limited log, and affected
+completeness-sensitive rollups stay unknown rather than understating a run.
 
 **Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows local Ollama/LM Studio and refuses API-billed or ambiguous routes before any provider call. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio local routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. Active-session worker results are implemented but host-managed and therefore not eligible for `no-metered`. The direct plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including local zero-dollar runs and host-managed runs whose external cost is unavailable.
 

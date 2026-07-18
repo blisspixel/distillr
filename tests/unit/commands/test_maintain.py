@@ -110,6 +110,7 @@ def _performance_coverage(**overrides: object) -> PerformanceCoverage:
         "malformed_provider_rows": 0,
         "malformed_cost_rows": 0,
         "unreadable_logs": [],
+        "tail_limited_logs": [],
     }
     return cast("PerformanceCoverage", {**coverage, **overrides})
 
@@ -449,6 +450,7 @@ def test_performance_view_formats_unknown_workflow_and_all_coverage_cautions() -
         malformed_provider_rows=1,
         malformed_cost_rows=1,
         unreadable_logs=["telemetry.jsonl"],
+        tail_limited_logs=["phase_telemetry.jsonl", "cost_log.jsonl"],
     )
     evidence: PerformanceEvidence = {
         **_empty_performance(coverage),
@@ -489,6 +491,8 @@ def test_performance_view_formats_unknown_workflow_and_all_coverage_cautions() -
     assert "Rows with IDs but no command anchor" in rendered
     assert "malformed or schema-invalid" in rendered
     assert "Unreadable telemetry logs" in rendered
+    assert "Tail-limited telemetry logs" in rendered
+    assert "older rows were excluded" in rendered
     assert "valid rows shown below are a subset" in rendered
 
     evidence["runs"][0]["phases_complete"] = True

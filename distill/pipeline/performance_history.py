@@ -13,6 +13,7 @@ from typing import TypedDict, cast
 
 PERFORMANCE_EVIDENCE_SCHEMA_VERSION = "performance-evidence.v1"
 _OBSERVER_COMMANDS = frozenset({"costs"})
+_MAX_EVIDENCE_LOG_BYTES = 16 * 1024 * 1024
 
 
 class PerformancePhase(TypedDict):
@@ -95,6 +96,7 @@ class PerformanceCoverage(TypedDict):
     malformed_provider_rows: int
     malformed_cost_rows: int
     unreadable_logs: list[str]
+    tail_limited_logs: list[str]
 
 
 class PerformanceSemantics(TypedDict):
@@ -136,6 +138,7 @@ class _LoadedRows[T: _EvidenceRow]:
     rows: list[T]
     malformed: int
     unreadable: bool
+    tail_limited: bool
     invalid_run_ids: set[str]
 
 
@@ -218,41 +221,74 @@ def _parse_cost(row: Mapping[str, object]) -> _CostRow:
     }
 
 
+def _read_tail_bytes(path: Path) -> tuple[bytes, bool]:
+    """Read the newest bounded bytes without returning a partial first row."""
+    with path.open("rb") as handle:
+        handle.seek(0, 2)
+        size = handle.tell()
+        start = max(0, size - _MAX_EVIDENCE_LOG_BYTES)
+        tail_limited = start > 0
+        preceding = b""
+        if tail_limited:
+            handle.seek(start - 1)
+            preceding = handle.read(1)
+        handle.seek(start)
+        content = handle.read(_MAX_EVIDENCE_LOG_BYTES)
+    if tail_limited and preceding != b"\n":
+        first_line_end = content.find(b"\n")
+        content = content[first_line_end + 1 :] if first_line_end >= 0 else b""
+    return content, tail_limited
+
+
 def _read_rows[T: _EvidenceRow](
     path: Path,
     parser: Callable[[Mapping[str, object]], T],
 ) -> _LoadedRows[T]:
     rows: list[T] = []
     malformed = 0
+    tail_limited = False
     invalid_run_ids: set[str] = set()
     try:
-        with path.open(encoding="utf-8") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line:
-                    continue
-                candidate_run_id: str | None = None
-                try:
-                    value: object = json.loads(line)
-                    if not isinstance(value, dict):
-                        raise ValueError("row is not an object")
-                    mapping = cast("Mapping[str, object]", value)
-                    raw_run_id = mapping.get("run_id")
-                    if isinstance(raw_run_id, str) and raw_run_id:
-                        candidate_run_id = raw_run_id
-                    rows.append(parser(mapping))
-                except (json.JSONDecodeError, RecursionError, TypeError, ValueError):
-                    malformed += 1
-                    if candidate_run_id is not None:
-                        invalid_run_ids.add(candidate_run_id)
+        content, tail_limited = _read_tail_bytes(path)
+        for raw_line in content.decode("utf-8").split("\n"):
+            line = raw_line.strip()
+            if not line:
+                continue
+            candidate_run_id: str | None = None
+            try:
+                value: object = json.loads(line)
+                if not isinstance(value, dict):
+                    raise ValueError("row is not an object")
+                mapping = cast("Mapping[str, object]", value)
+                raw_run_id = mapping.get("run_id")
+                if isinstance(raw_run_id, str) and raw_run_id:
+                    candidate_run_id = raw_run_id
+                rows.append(parser(mapping))
+            except (json.JSONDecodeError, RecursionError, TypeError, ValueError):
+                malformed += 1
+                if candidate_run_id is not None:
+                    invalid_run_ids.add(candidate_run_id)
     except FileNotFoundError:
-        return _LoadedRows(rows=[], malformed=0, unreadable=False, invalid_run_ids=set())
+        return _LoadedRows(
+            rows=[],
+            malformed=0,
+            unreadable=False,
+            tail_limited=False,
+            invalid_run_ids=set(),
+        )
     except (OSError, UnicodeError):
-        return _LoadedRows(rows=[], malformed=0, unreadable=True, invalid_run_ids=set())
+        return _LoadedRows(
+            rows=[],
+            malformed=0,
+            unreadable=True,
+            tail_limited=tail_limited,
+            invalid_run_ids=set(),
+        )
     return _LoadedRows(
         rows=rows,
         malformed=malformed,
         unreadable=False,
+        tail_limited=tail_limited,
         invalid_run_ids=invalid_run_ids,
     )
 
@@ -387,6 +423,22 @@ def _unreadable_log_names(
     return names
 
 
+def _tail_limited_log_names(
+    phase_loaded: _LoadedRows[PerformancePhase],
+    provider_loaded: _LoadedRows[_ProviderRow],
+    cost_loaded: _LoadedRows[_CostRow],
+    cost_log_name: str,
+) -> list[str]:
+    names: list[str] = []
+    if phase_loaded.tail_limited:
+        names.append("phase_telemetry.jsonl")
+    if provider_loaded.tail_limited:
+        names.append("telemetry.jsonl")
+    if cost_loaded.tail_limited:
+        names.append(cost_log_name)
+    return names
+
+
 def _coverage(
     *,
     anchors: Mapping[str, PerformancePhase],
@@ -427,6 +479,12 @@ def _coverage(
             cost_loaded,
             cost_log_name,
         ),
+        "tail_limited_logs": _tail_limited_log_names(
+            phase_loaded,
+            provider_loaded,
+            cost_loaded,
+            cost_log_name,
+        ),
     }
 
 
@@ -455,9 +513,15 @@ def load_performance_evidence(
     phase_incomplete_ids = set(phase_loaded.invalid_run_ids)
     provider_incomplete_ids = set(provider_loaded.invalid_run_ids)
     cost_incomplete_ids = set(cost_loaded.invalid_run_ids)
+    if phase_loaded.tail_limited:
+        phase_incomplete_ids.update(anchor_ids)
     if provider_loaded.unreadable:
         provider_incomplete_ids.update(anchor_ids)
+    if provider_loaded.tail_limited:
+        provider_incomplete_ids.update(anchor_ids)
     if cost_loaded.unreadable:
+        cost_incomplete_ids.update(anchor_ids)
+    if cost_loaded.tail_limited:
         cost_incomplete_ids.update(anchor_ids)
     runs = _build_runs(
         selected_ids,

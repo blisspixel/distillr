@@ -402,7 +402,7 @@ library/                           # Per-user data (git-ignored)
 │   ├── phase_telemetry.jsonl      # Content-free correlated phase timing
 │   ├── tasks/pending/              # Deferred tasks and claim/result receipts
 │   ├── tasks/work/                 # Per-claim scratch workspaces
-│   └── distill.log                # Rotating diagnostic log
+│   └── distill.log                # 8 MiB diagnostic log, three rotating backups
 └── topics/<topic>/…               # Per-topic artifacts
 ```
 

@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Preserved the stable CLI exit taxonomy in content-free command telemetry.
+  Usage, configuration, network, not-found, and budget exits now keep distinct
+  structured outcomes; cost-policy gates remain `refused`, while runtime and
+  unknown statuses remain explicit errors.
+- Bounded local operator evidence. `distill.log` now rolls at 8 MiB with three
+  backups and replaces legacy unbounded handlers. Performance evidence reads
+  only the newest 16 MiB per structured log, names tail-limited sources in
+  human and JSON coverage, and leaves affected aggregates incomplete instead
+  of presenting a retained subset as complete history.
 - Aligned deterministic CLI refusals with the documented exit taxonomy across
   learning options, topic workflows, report and export preflight, vault and
   artifact opening, resynthesis and reanalysis, and concept recovery. Invalid

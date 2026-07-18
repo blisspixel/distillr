@@ -182,6 +182,19 @@ remain explicitly deferred until each has one evidenced semantic cause. This
 is reliability and operator polish on the current surface, not new scope or a
 freeze signal.
 
+**Cycle 8 refinement evidence (2026-07-17).** The installed CLI now preserves
+the reserved usage, configuration, network, not-found, and budget classes in
+content-free command telemetry instead of collapsing ordinary nonzero exits to
+one generic error. The local diagnostic log rolls at 8 MiB with three backups,
+and the recent performance view reads at most the newest 16 MiB from each
+structured evidence log. Tail-limited sources are named in human and JSON
+coverage, and aggregates whose older siblings may be excluded fail closed as
+incomplete. Representative 40-column no-color refusals remained ANSI-free and
+actionable, so this cycle made no cosmetic copy change without a failing case.
+Structured telemetry retention and compaction remain reliability and
+observability debt until their audit-history and concurrent-writer guarantees
+are designed. This work adds no product surface and creates no freeze signal.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 __all__ = ["configure_logging"]
@@ -15,6 +16,8 @@ __all__ = ["configure_logging"]
 _CONSOLE_MARKER = "_distill_console_handler"
 _FILE_MARKER = "_distill_file_handler"
 _FORMAT = "%(asctime)s %(levelname)-8s %(name)s - %(message)s"
+_MAX_LOG_BYTES = 8 * 1024 * 1024
+_LOG_BACKUP_COUNT = 3
 
 
 def configure_logging(debug: bool = False, ops_dir: Path | None = None) -> None:
@@ -59,20 +62,27 @@ def _configure_file_handler(root: logging.Logger, *, ops_dir: Path | None) -> No
 
     ops_dir.mkdir(parents=True, exist_ok=True)
     target = (ops_dir / "distill.log").resolve()
-    active: logging.FileHandler | None = None
+    active: RotatingFileHandler | None = None
     for handler in handlers:
         handler_path = Path(handler.baseFilename).resolve()
-        if active is None and handler_path == target:
+        if active is None and handler_path == target and isinstance(handler, RotatingFileHandler):
             active = handler
             continue
         root.removeHandler(handler)
         handler.close()
 
     if active is None:
-        active = logging.FileHandler(target, encoding="utf-8")
+        active = RotatingFileHandler(
+            target,
+            maxBytes=_MAX_LOG_BYTES,
+            backupCount=_LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        )
         setattr(active, _FILE_MARKER, True)
         root.addHandler(active)
 
+    active.maxBytes = _MAX_LOG_BYTES
+    active.backupCount = _LOG_BACKUP_COUNT
     active.setLevel(logging.DEBUG)
     active.setFormatter(logging.Formatter(_FORMAT))
 

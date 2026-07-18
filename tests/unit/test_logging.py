@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,64 @@ def test_late_ops_dir_adds_file_handler(distill_logger: logging.Logger, tmp_path
     assert "late-file-handler" in (tmp_path / "distill.log").read_text(encoding="utf-8")
 
 
+def test_file_handler_has_bounded_rotation_policy(
+    distill_logger: logging.Logger, tmp_path: Path
+) -> None:
+    _logging.configure_logging(debug=False, ops_dir=tmp_path)
+
+    handlers = _file_handlers(distill_logger)
+
+    assert len(handlers) == 1
+    assert isinstance(handlers[0], RotatingFileHandler)
+    assert handlers[0].maxBytes == 8 * 1024 * 1024
+    assert handlers[0].backupCount == 3
+
+    original = handlers[0]
+    _logging.configure_logging(debug=True, ops_dir=tmp_path)
+
+    assert _file_handlers(distill_logger) == [original]
+
+
+def test_same_path_legacy_file_handler_is_replaced(
+    distill_logger: logging.Logger, tmp_path: Path
+) -> None:
+    target = tmp_path / "distill.log"
+    legacy = logging.FileHandler(target, encoding="utf-8")
+    distill_logger.addHandler(legacy)
+
+    _logging.configure_logging(debug=False, ops_dir=tmp_path)
+
+    handlers = _file_handlers(distill_logger)
+    assert legacy not in distill_logger.handlers
+    assert legacy.stream is None
+    assert len(handlers) == 1
+    assert isinstance(handlers[0], RotatingFileHandler)
+
+
+def test_file_handler_rolls_over_and_bounds_backups(
+    distill_logger: logging.Logger,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_logging, "_MAX_LOG_BYTES", 160)
+    monkeypatch.setattr(_logging, "_LOG_BACKUP_COUNT", 2)
+    _logging.configure_logging(debug=False, ops_dir=tmp_path)
+
+    child = logging.getLogger("distill.tests.rollover")
+    for index in range(8):
+        child.debug("rollover-record-%d-%s", index, "x" * 80)
+    _flush(distill_logger)
+
+    log_files = sorted(tmp_path.glob("distill.log*"))
+    assert [path.name for path in log_files] == [
+        "distill.log",
+        "distill.log.1",
+        "distill.log.2",
+    ]
+    assert "rollover-record-7" in (tmp_path / "distill.log").read_text(encoding="utf-8")
+    assert "rollover-record-6" in (tmp_path / "distill.log.1").read_text(encoding="utf-8")
+
+
 def test_reconfigure_retargets_file_handler(distill_logger: logging.Logger, tmp_path: Path) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -77,3 +136,7 @@ def _file_handler_paths(logger: logging.Logger) -> list[Path]:
         for handler in logger.handlers
         if isinstance(handler, logging.FileHandler)
     ]
+
+
+def _file_handlers(logger: logging.Logger) -> list[logging.FileHandler]:
+    return [handler for handler in logger.handlers if isinstance(handler, logging.FileHandler)]

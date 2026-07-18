@@ -10,6 +10,7 @@ import pytest
 from rich.console import Console
 
 from distill.llm.run_context import run_scope
+from distill.pipeline import performance_history
 from distill.pipeline.performance_history import (
     PERFORMANCE_EVIDENCE_SCHEMA_VERSION,
     load_performance_evidence,
@@ -98,6 +99,7 @@ def test_missing_logs_return_empty_versioned_evidence(tmp_path: Path) -> None:
             "malformed_provider_rows": 0,
             "malformed_cost_rows": 0,
             "unreadable_logs": [],
+            "tail_limited_logs": [],
         },
         "semantics": {
             "correlation": "exact_run_id_only_no_legacy_backfill",
@@ -215,6 +217,7 @@ def test_exact_joins_workflow_selection_observer_filter_and_coverage(tmp_path: P
         "malformed_provider_rows": 1,
         "malformed_cost_rows": 1,
         "unreadable_logs": [],
+        "tail_limited_logs": [],
     }
 
 
@@ -469,6 +472,102 @@ def test_unreadable_join_logs_nullify_selected_run_rollups(tmp_path: Path) -> No
         "telemetry.jsonl",
         "cost_log.jsonl",
     ]
+
+
+def test_tail_limited_logs_keep_complete_newest_rows_and_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ops = tmp_path / ".distill"
+    monkeypatch.setattr(performance_history, "_MAX_EVIDENCE_LOG_BYTES", 1024)
+    oversized_partial_row = "é" * 1024
+    _write_rows(
+        ops / "phase_telemetry.jsonl",
+        [
+            oversized_partial_row,
+            _phase("recent", "workflow:learn", artifacts=2, byte_count=128),
+            _phase("recent", "command"),
+        ],
+    )
+    _write_rows(
+        ops / "telemetry.jsonl",
+        [oversized_partial_row, _provider("recent", 0.25)],
+    )
+    _write_rows(
+        ops / "cost_log.jsonl",
+        [oversized_partial_row, _cost("recent", 0.5)],
+    )
+
+    evidence = load_performance_evidence(ops)
+
+    assert evidence["coverage"]["tail_limited_logs"] == [
+        "phase_telemetry.jsonl",
+        "telemetry.jsonl",
+        "cost_log.jsonl",
+    ]
+    assert evidence["coverage"]["malformed_phase_rows"] == 0
+    assert evidence["coverage"]["malformed_provider_rows"] == 0
+    assert evidence["coverage"]["malformed_cost_rows"] == 0
+    assert [run["run_id"] for run in evidence["runs"]] == ["recent"]
+    run = evidence["runs"][0]
+    assert run["command_envelope"]["outcome"] == "success"
+    assert run["workflow"] is not None
+    assert run["phases_complete"] is False
+    assert run["nested_phase_count"] is None
+    assert run["provider_complete"] is False
+    assert run["provider_call_count"] is None
+    assert run["provider_call_seconds_cumulative"] is None
+    assert run["cost_complete"] is False
+    assert run["cost_row_count"] is None
+    assert run["actual_cost_usd"] is None
+
+
+def test_tail_reader_keeps_row_when_window_starts_after_newline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ops = tmp_path / ".distill"
+    cost_line = json.dumps(_cost("retained")) + "\n"
+    monkeypatch.setattr(
+        performance_history,
+        "_MAX_EVIDENCE_LOG_BYTES",
+        len(cost_line.encode("utf-8")),
+    )
+    cost_path = ops / "cost_log.jsonl"
+    cost_path.parent.mkdir(parents=True)
+    cost_path.write_bytes(b"x\n" + cost_line.encode("utf-8"))
+
+    evidence = load_performance_evidence(ops)
+
+    assert evidence["coverage"]["cost_rows_total"] == 1
+    assert evidence["coverage"]["malformed_cost_rows"] == 0
+    assert evidence["coverage"]["tail_limited_logs"] == ["cost_log.jsonl"]
+
+
+def test_tail_reader_ignores_one_oversized_unterminated_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ops = tmp_path / ".distill"
+    monkeypatch.setattr(performance_history, "_MAX_EVIDENCE_LOG_BYTES", 32)
+    path = ops / "telemetry.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"x" * 64)
+
+    evidence = load_performance_evidence(ops)
+
+    assert evidence["coverage"]["provider_rows_total"] == 0
+    assert evidence["coverage"]["malformed_provider_rows"] == 0
+    assert evidence["coverage"]["tail_limited_logs"] == ["telemetry.jsonl"]
+
+
+def test_invalid_utf8_log_is_reported_unreadable(tmp_path: Path) -> None:
+    ops = tmp_path / ".distill"
+    path = ops / "telemetry.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"\xff\n")
+
+    evidence = load_performance_evidence(ops)
+
+    assert evidence["coverage"]["unreadable_logs"] == ["telemetry.jsonl"]
+    assert evidence["coverage"]["tail_limited_logs"] == []
 
 
 def test_duplicate_anchor_last_wins_and_limit_zero_selects_none(tmp_path: Path) -> None:

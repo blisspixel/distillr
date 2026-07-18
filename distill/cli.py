@@ -164,6 +164,39 @@ app.add_typer(skill_app, name="skill", rich_help_panel="Operations")
 __all__ = ["app", "main"]
 
 
+def _mark_cli_exit_outcome(code: object) -> None:
+    """Preserve the public process-status taxonomy in local run telemetry."""
+    from distill.commands._json import ExitCode
+    from distill.llm.run_context import mark_current_run_outcome
+
+    exit_outcomes = {
+        int(ExitCode.RUNTIME_ERROR): "error",
+        int(ExitCode.USAGE_ERROR): "usage_error",
+        int(ExitCode.CONFIG_ERROR): "config_error",
+        int(ExitCode.NETWORK_ERROR): "network_error",
+        int(ExitCode.NOT_FOUND): "not_found",
+        int(ExitCode.BUDGET_EXCEEDED): "budget_exceeded",
+    }
+    if code is None or (isinstance(code, int) and code == int(ExitCode.SUCCESS)):
+        return
+    outcome = exit_outcomes.get(code, "error") if isinstance(code, int) else "error"
+    mark_current_run_outcome(outcome)
+
+
+def _handle_provider_cli_error(exc: Exception, message: str) -> int:
+    """Render one recognized provider failure and return its semantic status."""
+    from distill.commands._json import (
+        handle_cli_error,
+        json_mode_active,
+        map_exception_to_exit_code,
+    )
+
+    if json_mode_active():
+        return handle_cli_error(exc, json_mode=True)
+    console.print(f"\n[red]{message}[/red]")
+    return int(map_exception_to_exit_code(exc))
+
+
 def main() -> None:
     """Entry point for the ``distill`` CLI command.
 
@@ -174,9 +207,7 @@ def main() -> None:
     from distill.commands._json import (
         ExitCode,
         emit_json,
-        handle_cli_error,
         json_mode_active,
-        map_exception_to_exit_code,
     )
     from distill.llm.cost_policy import CostPolicyError
     from distill.llm.errors import describe_provider_error
@@ -190,6 +221,9 @@ def main() -> None:
     with run_scope(invocation_type="cli", command="cli"):
         try:
             _run_app_with_terminal_receipt()
+        except SystemExit as exc:
+            _mark_cli_exit_outcome(exc.code)
+            raise
         except CostPolicyError as exc:
             mark_current_run_outcome("refused")
             if json_mode_active():
@@ -216,13 +250,9 @@ def main() -> None:
             message = describe_provider_error(exc)
             if message is None:
                 raise
-            if json_mode_active():
-                raise SystemExit(handle_cli_error(exc, json_mode=True)) from exc
-            console.print(f"\n[red]{message}[/red]")
-            # Map to the documented exit-code taxonomy (3=config/bad key,
-            # 4=network/timeout, ...) so an agent or loop can branch on the cause
-            # instead of seeing an undifferentiated 1.
-            raise SystemExit(int(map_exception_to_exit_code(exc))) from exc
+            exit_code = _handle_provider_cli_error(exc, message)
+            _mark_cli_exit_outcome(exit_code)
+            raise SystemExit(exit_code) from exc
 
 
 def _run_app_with_terminal_receipt() -> None:
